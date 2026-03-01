@@ -10,6 +10,7 @@ import { SimulatedQueue } from './queue.js';
 import { SimulatedResolver } from './resolver.js';
 import { SimulatedProductApi, route } from './product-api.js';
 import { parseManifest, parseManifestContent, type ParsedManifest } from './manifest.js';
+import { withCapture, type ConsoleLine } from './console-capture.js';
 import type { SimulationConfig, ResolverContext, ProductApiHandler, ProductApiRequest, ProductApiResponse } from './types.js';
 
 export class ForgeSimulator {
@@ -20,6 +21,7 @@ export class ForgeSimulator {
 
   private manifest: ParsedManifest | null = null;
   private logs: LogEntry[] = [];
+  private consoleLogs: ConsoleLine[] = [];
 
   constructor(config?: SimulationConfig) {
     this.kvs = new SimulatedKVS();
@@ -105,10 +107,19 @@ export class ForgeSimulator {
   async invoke(functionKey: string, payload?: any): Promise<any> {
     this.log('invoke', `Invoking resolver: ${functionKey}`, payload);
     try {
-      const result = await this.resolver.invoke(functionKey, payload);
+      const { result, console: captured } = await withCapture(() =>
+        this.resolver.invoke(functionKey, payload)
+      );
+      this.consoleLogs.push(...captured);
+      for (const line of captured) {
+        this.log(`console.${line.level}`, line.message);
+      }
       this.log('invoke', `Resolver "${functionKey}" returned`, result);
       return result;
     } catch (err) {
+      if ((err as any).capturedConsole) {
+        this.consoleLogs.push(...(err as any).capturedConsole);
+      }
       this.log('error', `Resolver "${functionKey}" failed: ${err}`);
       throw err;
     }
@@ -185,12 +196,21 @@ export class ForgeSimulator {
     for (const trigger of matchingTriggers) {
       this.log('trigger', `Firing trigger "${trigger.key}" for event: ${eventName}`);
       try {
-        const result = await this.resolver.invoke(trigger.functionKey, {
-          event: eventName,
-          ...data,
-        });
+        const { result, console: captured } = await withCapture(() =>
+          this.resolver.invoke(trigger.functionKey, {
+            event: eventName,
+            ...data,
+          })
+        );
+        this.consoleLogs.push(...captured);
+        for (const line of captured) {
+          this.log(`console.${line.level}`, line.message);
+        }
         results.push(result);
       } catch (err) {
+        if ((err as any).capturedConsole) {
+          this.consoleLogs.push(...(err as any).capturedConsole);
+        }
         this.log('error', `Trigger "${trigger.key}" failed: ${err}`);
         results.push({ error: String(err) });
       }
@@ -213,8 +233,13 @@ export class ForgeSimulator {
     return [...this.logs];
   }
 
+  getConsoleLogs(): ConsoleLine[] {
+    return [...this.consoleLogs];
+  }
+
   clearLogs(): void {
     this.logs.length = 0;
+    this.consoleLogs.length = 0;
   }
 
   // ── Full Reset ──────────────────────────────────────────────────────────
@@ -226,6 +251,7 @@ export class ForgeSimulator {
     this.productApi.clear();
     this.manifest = null;
     this.logs.length = 0;
+    this.consoleLogs.length = 0;
   }
 }
 
@@ -245,3 +271,4 @@ export { parseManifest, parseManifestContent } from './manifest.js';
 export { WhereConditions } from './storage.js';
 export { setSimulator, getSimulator } from './shims/globals.js';
 export type { ParsedManifest } from './manifest.js';
+export type { ConsoleLine } from './console-capture.js';

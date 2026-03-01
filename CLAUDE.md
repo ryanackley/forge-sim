@@ -100,11 +100,51 @@ Test files:
 - `__tests__/ui-integration.test.ts` — UIKit → bridge → simulator
 - `__tests__/concurrency.test.ts` — Race detection, semaphores, transact safety
 
+## MCP Server
+
+The MCP server (`src/mcp-server.ts`) exposes the simulator over stdio transport.
+
+```bash
+node dist/mcp-server.js          # run via stdio
+# or after npm link:
+forge-sim-mcp
+```
+
+### Tools
+
+| Tool | Description |
+|------|-------------|
+| `forge:deploy` | Deploy a Forge app from a directory (reads manifest.yml) |
+| `forge:invoke` | Call a resolver function with payload |
+| `forge:fire_trigger` | Simulate product event triggers |
+| `forge:ui_state` | Get the current ForgeDoc UI tree |
+| `forge:ui_interact` | Click buttons, submit forms, interact with UI components |
+| `forge:kvs_get` | Get a KVS value by key |
+| `forge:kvs_list` | List/dump KVS contents (optional prefix filter) |
+| `forge:kvs_set` | Set a KVS value (for test setup) |
+| `forge:queue_push` | Push events to a queue |
+| `forge:queue_state` | Inspect queue jobs and event log |
+| `forge:logs` | Get simulator + captured console.* logs |
+| `forge:reset` | Clear all state |
+
+### Resources
+
+| URI | Description |
+|-----|-------------|
+| `forge://manifest` | Current deployed manifest |
+| `forge://functions` | Registered resolver functions |
+| `forge://triggers` | Registered triggers and events |
+| `forge://state` | Full state snapshot (KVS + queue + UI) |
+
+### Console Capture
+
+Forge apps log via `console.*`. The simulator intercepts all console.log/warn/error/info/debug calls during handler execution and captures them in the log stream. They appear in `forge:logs` output and are also returned inline with `forge:invoke` results.
+
 ## What's NOT Built Yet
 
-- **MCP Server** — AI-facing tool interface (forge:deploy, forge:invoke, etc.)
 - **Forge SQL simulation**
 - **Scheduled trigger execution**
+- **Web trigger modules** (HTTP endpoint simulation)
 - **ForgeDoc visual renderer** (rendering the UIKit tree to HTML — shelved for now)
 - **Level 2/3 testing** (real API calls, actual Forge deployment)
 

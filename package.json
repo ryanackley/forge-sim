@@ -4,15 +4,19 @@
   "description": "Simulated Forge runtime for AI-driven development and testing",
   "type": "module",
   "private": true,
+  "bin": {
+    "forge-sim-mcp": "./dist/mcp-server.js"
+  },
   "scripts": {
     "build": "tsc",
     "test": "vitest run",
     "test:watch": "vitest"
   },
   "dependencies": {
-    "yaml": "^2.7.0",
     "@forge/react": "^11.0.0",
-    "react": "^18.2.0"
+    "@modelcontextprotocol/sdk": "^1.27.1",
+    "react": "^18.2.0",
+    "yaml": "^2.7.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
