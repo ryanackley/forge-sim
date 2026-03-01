@@ -12,6 +12,7 @@ import { SimulatedProductApi, route } from './product-api.js';
 import { SimulatedForgeSQL, type ForgeSQLOptions } from './forge-sql.js';
 import { parseManifest, parseManifestContent, type ParsedManifest } from './manifest.js';
 import { withCapture, type ConsoleLine } from './console-capture.js';
+import { resetBridge } from './ui/bridge.js';
 import type { SimulationConfig, ResolverContext, ProductApiHandler, ProductApiRequest, ProductApiResponse } from './types.js';
 
 export class ForgeSimulator {
@@ -248,6 +249,8 @@ export class ForgeSimulator {
   // ── Full Reset ──────────────────────────────────────────────────────────
 
   reset(): void {
+    // Tear down UI bridge first — swallows stale React effects that fire after reset
+    resetBridge();
     this.kvs.clear();
     this.queue.clear();
     this.resolver.clear();
