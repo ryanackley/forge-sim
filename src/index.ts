@@ -1,0 +1,37 @@
+/**
+ * forge-sim — Simulated Forge runtime for AI-driven development and testing.
+ */
+
+export { ForgeSimulator } from './simulator.js';
+export { SimulatedKVS, WhereConditions, KVSQueryBuilder } from './storage.js';
+export { SimulatedQueue, SimulatedQueueInstance } from './queue.js';
+export { SimulatedResolver } from './resolver.js';
+export { SimulatedProductApi, route } from './product-api.js';
+export { parseManifest, parseManifestContent } from './manifest.js';
+
+export type {
+  ForgeManifest,
+  ManifestModule,
+  ResolverRequest,
+  ResolverContext,
+  StorageEntry,
+  StorageQueryResult,
+  QueueEvent,
+  QueuePushResult,
+  QueueJobStats,
+  ProductApiRequest,
+  ProductApiResponse,
+  ProductApiHandler,
+  TriggerEvent,
+  FunctionHandler,
+  SimulationConfig,
+} from './types.js';
+
+export type {
+  ParsedManifest,
+  ManifestFunction,
+  ManifestConsumer,
+  ManifestTrigger,
+  ManifestScheduledTrigger,
+  ManifestUIModule,
+} from './manifest.js';
