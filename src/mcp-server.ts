@@ -28,7 +28,9 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { z } from 'zod';
+import { createServer } from 'node:http';
 import { ForgeSimulator } from './simulator.js';
 import { setSimulator } from './shims/globals.js';
 import { getLatestForgeDoc, resetBridge } from './ui/bridge.js';
@@ -49,7 +51,7 @@ const server = new McpServer({
 // ── Tools ───────────────────────────────────────────────────────────────
 
 server.tool(
-  'forge:deploy',
+  'forge.deploy',
   'Deploy a Forge app directory into the simulator. Reads manifest.yml, loads handlers, wires resolvers/consumers/triggers. The app code runs unmodified.',
   {
     appDir: z.string().describe('Path to the Forge app directory (must contain manifest.yml)'),
@@ -105,7 +107,7 @@ server.tool(
 );
 
 server.tool(
-  'forge:invoke',
+  'forge.invoke',
   'Invoke a resolver function by key with an optional payload. Returns the resolver result and any console output captured during execution.',
   {
     functionKey: z.string().describe('The resolver function key to invoke'),
@@ -143,7 +145,7 @@ server.tool(
 );
 
 server.tool(
-  'forge:fire_trigger',
+  'forge.fire_trigger',
   'Simulate a product event trigger (e.g. "avi:jira:created:issue"). Fires all registered trigger handlers for the event and returns their results.',
   {
     event: z.string().describe('The event name (e.g. "avi:jira:created:issue")'),
@@ -168,7 +170,7 @@ server.tool(
 );
 
 server.tool(
-  'forge:ui_state',
+  'forge.ui_state',
   'Get the current ForgeDoc UI tree. Shows what the Forge app UI looks like right now. Returns a pretty-printed component tree.',
   async () => {
     const doc = getLatestForgeDoc();
@@ -185,7 +187,7 @@ server.tool(
 );
 
 server.tool(
-  'forge:ui_interact',
+  'forge.ui_interact',
   'Interact with a UI component — simulate clicks, form submissions, etc. Find a component by type and optional text content, then fire an event on it.',
   {
     componentType: z.string().describe('Component type to find (e.g. "Button", "TextField", "Select")'),
@@ -243,7 +245,7 @@ server.tool(
 );
 
 server.tool(
-  'forge:kvs_get',
+  'forge.kvs_get',
   'Get a value from the simulated Key-Value Store by key.',
   {
     key: z.string().describe('The storage key to retrieve'),
@@ -262,7 +264,7 @@ server.tool(
 );
 
 server.tool(
-  'forge:kvs_list',
+  'forge.kvs_list',
   'List KVS contents. Optionally filter by key prefix. Shows all stored key-value pairs.',
   {
     prefix: z.string().optional().describe('Only show keys starting with this prefix'),
@@ -297,7 +299,7 @@ server.tool(
 );
 
 server.tool(
-  'forge:kvs_set',
+  'forge.kvs_set',
   'Set a value in KVS. Useful for test setup or manually seeding data.',
   {
     key: z.string().describe('Storage key'),
@@ -312,7 +314,7 @@ server.tool(
 );
 
 server.tool(
-  'forge:queue_push',
+  'forge.queue_push',
   'Push events to a queue for consumer processing.',
   {
     queueKey: z.string().describe('The queue key to push to'),
@@ -341,7 +343,7 @@ server.tool(
 );
 
 server.tool(
-  'forge:queue_state',
+  'forge.queue_state',
   'Inspect queue state — processed events, job stats, event log.',
   {
     jobId: z.string().optional().describe('Get stats for a specific job'),
@@ -388,7 +390,7 @@ server.tool(
 );
 
 server.tool(
-  'forge:logs',
+  'forge.logs',
   'Get simulator logs including captured console.* output from Forge app code. Optionally filter by level.',
   {
     level: z.string().optional().describe('Filter by log level (e.g. "error", "console.log", "invoke", "trigger")'),
@@ -429,7 +431,7 @@ server.tool(
 );
 
 server.tool(
-  'forge:reset',
+  'forge.reset',
   'Reset the simulator — clears all state (KVS, queues, resolvers, logs, UI). Like a fresh install.',
   async () => {
     sim.reset();
@@ -444,16 +446,16 @@ server.tool(
 
 server.resource(
   'manifest',
-  'forge://manifest',
+  'forge.//manifest',
   { description: 'The currently deployed Forge app manifest', mimeType: 'application/json' },
   async () => {
     const manifest = sim.getManifest();
     if (!manifest) {
-      return { contents: [{ uri: 'forge://manifest', text: 'No manifest loaded. Deploy an app first.' }] };
+      return { contents: [{ uri: 'forge.//manifest', text: 'No manifest loaded. Deploy an app first.' }] };
     }
     return {
       contents: [{
-        uri: 'forge://manifest',
+        uri: 'forge.//manifest',
         text: JSON.stringify({
           app: manifest.raw.app,
           functions: [...manifest.functions.entries()].map(([k, v]) => ({ key: k, handler: v.handler })),
@@ -470,13 +472,13 @@ server.resource(
 
 server.resource(
   'functions',
-  'forge://functions',
+  'forge.//functions',
   { description: 'List of registered resolver functions', mimeType: 'application/json' },
   async () => {
     const defs = sim.resolver.getDefinitions();
     return {
       contents: [{
-        uri: 'forge://functions',
+        uri: 'forge.//functions',
         text: JSON.stringify({ resolvers: defs, count: defs.length }, null, 2),
       }],
     };
@@ -485,16 +487,16 @@ server.resource(
 
 server.resource(
   'triggers',
-  'forge://triggers',
+  'forge.//triggers',
   { description: 'Registered triggers and their events', mimeType: 'application/json' },
   async () => {
     const manifest = sim.getManifest();
     if (!manifest) {
-      return { contents: [{ uri: 'forge://triggers', text: 'No manifest loaded.' }] };
+      return { contents: [{ uri: 'forge.//triggers', text: 'No manifest loaded.' }] };
     }
     return {
       contents: [{
-        uri: 'forge://triggers',
+        uri: 'forge.//triggers',
         text: JSON.stringify({
           triggers: manifest.triggers,
           scheduledTriggers: manifest.scheduledTriggers,
@@ -506,7 +508,7 @@ server.resource(
 
 server.resource(
   'state',
-  'forge://state',
+  'forge.//state',
   { description: 'Full simulator state snapshot (KVS, queue, UI)', mimeType: 'application/json' },
   async () => {
     const doc = getLatestForgeDoc();
@@ -514,7 +516,7 @@ server.resource(
 
     return {
       contents: [{
-        uri: 'forge://state',
+        uri: 'forge.//state',
         text: JSON.stringify({
           kvs: { entries: sim.kvs.dump(), size: sim.kvs.size },
           queue: {
@@ -536,9 +538,31 @@ server.resource(
 // ── Start ───────────────────────────────────────────────────────────────
 
 async function main() {
-  const transport = new StdioServerTransport();
-  await server.connect(transport);
-  console.error('[forge-sim] MCP server running on stdio');
+  const args = process.argv.slice(2);
+  const httpMode = args.includes('--http');
+  const port = parseInt(args.find((a) => a.startsWith('--port='))?.split('=')[1] ?? '3100');
+
+  if (httpMode) {
+    const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: () => 'forge-sim-session' });
+    await server.connect(transport);
+
+    const httpServer = createServer(async (req, res) => {
+      const url = new URL(req.url ?? '/', `http://localhost:${port}`);
+      if (url.pathname === '/mcp') {
+        await transport.handleRequest(req, res);
+      } else {
+        res.writeHead(404).end('Not found');
+      }
+    });
+
+    httpServer.listen(port, () => {
+      console.error(`[forge-sim] MCP server running on http://localhost:${port}/mcp`);
+    });
+  } else {
+    const transport = new StdioServerTransport();
+    await server.connect(transport);
+    console.error('[forge-sim] MCP server running on stdio');
+  }
 }
 
 main().catch((err) => {

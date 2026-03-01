@@ -72,8 +72,18 @@ async function resolveHandlerFile(appDir: string, fileStem: string): Promise<str
  * Find the actual file for a resource path, trying exact match first then extensions.
  */
 async function resolveResourceFile(appDir: string, resourcePath: string): Promise<string | null> {
-  // Try exact path first (relative to app dir)
   const exact = resolve(appDir, resourcePath);
+
+  // If the path ends in .tsx/.ts/.jsx, try .js first (Node can't import tsx natively)
+  if (/\.tsx?$|\.jsx$/.test(resourcePath)) {
+    const jsPath = exact.replace(/\.tsx?$|\.jsx$/, '.js');
+    try {
+      await access(jsPath);
+      return jsPath;
+    } catch {}
+  }
+
+  // Try exact path
   try {
     await access(exact);
     return exact;

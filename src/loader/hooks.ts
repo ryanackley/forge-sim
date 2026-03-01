@@ -16,6 +16,8 @@ const FORGE_SHIMS: Record<string, string> = {
   '@forge/kvs': pathResolve(SHIM_DIR, 'forge-kvs.js'),
   '@forge/events': pathResolve(SHIM_DIR, 'forge-events.js'),
   '@forge/resolver': pathResolve(SHIM_DIR, 'forge-resolver.js'),
+  '@forge/react': pathResolve(SHIM_DIR, 'forge-react.js'),
+  '@forge/bridge': pathResolve(SHIM_DIR, 'forge-bridge.js'),
 };
 
 export async function resolve(
@@ -30,5 +32,6 @@ export async function resolve(
       shortCircuit: true,
     };
   }
+
   return nextResolve(specifier, context);
 }

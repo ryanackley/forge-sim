@@ -16,6 +16,7 @@
     "@forge/react": "^11.0.0",
     "@modelcontextprotocol/sdk": "^1.27.1",
     "react": "^18.2.0",
+    "tsx": "^4.21.0",
     "yaml": "^2.7.0"
   },
   "devDependencies": {

@@ -11,6 +11,7 @@ export default defineConfig({
       '@forge/kvs': resolve(__dirname, 'src/shims/forge-kvs.ts'),
       '@forge/events': resolve(__dirname, 'src/shims/forge-events.ts'),
       '@forge/resolver': resolve(__dirname, 'src/shims/forge-resolver.ts'),
+      '@forge/bridge': resolve(__dirname, 'src/shims/forge-bridge.ts'),
     },
   },
   esbuild: {
