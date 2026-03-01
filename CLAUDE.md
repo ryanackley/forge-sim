@@ -37,7 +37,8 @@ Simulated Atlassian Forge runtime for AI-driven development and testing. An AI a
 - **src/product-api.ts** — Mockable Jira/Confluence/Bitbucket API responses
 - **src/manifest.ts** — YAML manifest parser (functions, consumers, triggers, resources)
 - **src/deployer.ts** — Manifest-driven app loading (one-call deploy)
-- **src/shims/** — Drop-in replacements for `@forge/api`, `@forge/kvs`, `@forge/events`, `@forge/resolver`
+- **src/console-capture.ts** — Intercepts console.* during handler execution
+- **src/shims/** — Drop-in replacements for `@forge/api`, `@forge/kvs`, `@forge/events`, `@forge/resolver`, `@forge/react`, `@forge/bridge`
 - **src/loader/** — Node.js `--import` hooks that intercept `@forge/*` imports → shims
 - **src/ui/bridge.ts** — Forge bridge connecting `@forge/react` reconciler to simulator
 - **src/ui/doc-utils.ts** — ForgeDoc tree query/interaction utilities
@@ -87,7 +88,7 @@ With concurrent mode + `storageLatency: true`:
 ## Testing
 
 ```bash
-npm test          # 53 tests
+npm test          # 57 tests
 npm run build     # TypeScript compile
 ```
 
@@ -99,33 +100,43 @@ Test files:
 - `__tests__/deployer.test.ts` — Manifest-driven deploy
 - `__tests__/ui-integration.test.ts` — UIKit → bridge → simulator
 - `__tests__/concurrency.test.ts` — Race detection, semaphores, transact safety
+- `__tests__/mcp-server.test.ts` — MCP server integration (deploy → invoke → state)
+
+Smoke test (full end-to-end in one process):
+```bash
+npx tsx --import ./dist/loader/register.js scripts/smoke-test.ts
+```
 
 ## MCP Server
 
 The MCP server (`src/mcp-server.ts`) exposes the simulator over stdio transport.
 
 ```bash
-node dist/mcp-server.js          # run via stdio
-# or after npm link:
-forge-sim-mcp
+# stdio (each connection gets fresh state)
+node --import ./dist/loader/register.js dist/mcp-server.js
+
+# HTTP (persistent state across calls)
+node --import ./dist/loader/register.js dist/mcp-server.js --http --port=3100
 ```
+
+**Important:** The `--import ./dist/loader/register.js` flag is required so that deployed apps can resolve `@forge/*` imports through our shims.
 
 ### Tools
 
 | Tool | Description |
 |------|-------------|
-| `forge:deploy` | Deploy a Forge app from a directory (reads manifest.yml) |
-| `forge:invoke` | Call a resolver function with payload |
-| `forge:fire_trigger` | Simulate product event triggers |
-| `forge:ui_state` | Get the current ForgeDoc UI tree |
-| `forge:ui_interact` | Click buttons, submit forms, interact with UI components |
-| `forge:kvs_get` | Get a KVS value by key |
-| `forge:kvs_list` | List/dump KVS contents (optional prefix filter) |
-| `forge:kvs_set` | Set a KVS value (for test setup) |
-| `forge:queue_push` | Push events to a queue |
-| `forge:queue_state` | Inspect queue jobs and event log |
-| `forge:logs` | Get simulator + captured console.* logs |
-| `forge:reset` | Clear all state |
+| `forge.deploy` | Deploy a Forge app from a directory (reads manifest.yml) |
+| `forge.invoke` | Call a resolver function with payload |
+| `forge.fire_trigger` | Simulate product event triggers |
+| `forge.ui_state` | Get the current ForgeDoc UI tree |
+| `forge.ui_interact` | Click buttons, submit forms, interact with UI components |
+| `forge.kvs_get` | Get a KVS value by key |
+| `forge.kvs_list` | List/dump KVS contents (optional prefix filter) |
+| `forge.kvs_set` | Set a KVS value (for test setup) |
+| `forge.queue_push` | Push events to a queue |
+| `forge.queue_state` | Inspect queue jobs and event log |
+| `forge.logs` | Get simulator + captured console.* logs |
+| `forge.reset` | Clear all state |
 
 ### Resources
 
@@ -138,7 +149,19 @@ forge-sim-mcp
 
 ### Console Capture
 
-Forge apps log via `console.*`. The simulator intercepts all console.log/warn/error/info/debug calls during handler execution and captures them in the log stream. They appear in `forge:logs` output and are also returned inline with `forge:invoke` results.
+Forge apps log via `console.*`. The simulator intercepts all console.log/warn/error/info/debug calls during handler execution and captures them in the log stream. They appear in `forge.logs` output and are also returned inline with `forge.invoke` results.
+
+### Product API Mocking
+
+Mock routes use method+path tuple keys. Method defaults to GET if omitted:
+
+```ts
+sim.mockProductRoutes('jira', {
+  'GET /rest/api/3/issue/TEST-1': { key: 'TEST-1', fields: { summary: 'Test' } },
+  'POST /rest/api/3/issue': (path, options) => ({ id: '10002', key: 'TEST-2' }),
+  '/rest/api/3/myself': { accountId: 'user-1' },  // defaults to GET
+});
+```
 
 ## What's NOT Built Yet
 
