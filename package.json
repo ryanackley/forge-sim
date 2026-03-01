@@ -15,11 +15,14 @@
   "dependencies": {
     "@forge/react": "^11.0.0",
     "@modelcontextprotocol/sdk": "^1.27.1",
+    "mysql-memory-server": "^1.14.1",
+    "mysql2": "^3.18.2",
     "react": "^18.2.0",
     "tsx": "^4.21.0",
     "yaml": "^2.7.0"
   },
   "devDependencies": {
+    "@forge/sql": "^3.0.18",
     "@types/node": "^22.0.0",
     "typescript": "^5.7.0",
     "vitest": "^3.0.0"

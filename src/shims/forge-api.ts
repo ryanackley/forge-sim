@@ -189,8 +189,20 @@ const privacy = {
   check: async () => ({ hasAccess: true }),
 };
 
-function __fetchProduct(product: string, path: string, options?: any) {
-  return getSimulator().productApi.request(product, path, options);
+function __fetchProduct(productOrDescriptor: string | { provider?: string; remote?: string; type?: string }, path?: string, options?: any) {
+  // @forge/sql calls __fetchProduct({ provider: 'app', remote: 'sql', type: 'sql' })
+  // which returns a fetch-like function (curried)
+  if (typeof productOrDescriptor === 'object' && productOrDescriptor.type === 'sql') {
+    return getSimulator().sql.createFetchFunction();
+  }
+
+  // Legacy direct call: __fetchProduct('jira', '/rest/...', options)
+  if (typeof productOrDescriptor === 'string' && path) {
+    return getSimulator().productApi.request(productOrDescriptor, path, options);
+  }
+
+  // Unknown pattern
+  throw new Error(`__fetchProduct: unsupported call pattern: ${JSON.stringify(productOrDescriptor)}`);
 }
 
 const __requestAtlassianAsApp = makeApiClient;
