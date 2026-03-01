@@ -216,4 +216,5 @@ export { SimulatedResolver } from './resolver.js';
 export { SimulatedProductApi, route } from './product-api.js';
 export { parseManifest, parseManifestContent } from './manifest.js';
 export { WhereConditions } from './storage.js';
+export { setSimulator, getSimulator } from './shims/globals.js';
 export type { ParsedManifest } from './manifest.js';

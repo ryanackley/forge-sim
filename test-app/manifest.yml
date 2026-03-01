@@ -1,0 +1,22 @@
+modules:
+  jira:issuePanel:
+    - key: my-panel
+      title: Test Panel
+      resource: main
+      resolver:
+        function: resolver
+  function:
+    - key: resolver
+      handler: index.handler
+  consumer:
+    - key: my-consumer
+      queue: work-queue
+      resolver:
+        function: queue-handler
+app:
+  id: ari:cloud:ecosystem::app/test-app
+  name: Test Forge App
+permissions:
+  scopes:
+    - read:jira-work
+    - write:jira-work
