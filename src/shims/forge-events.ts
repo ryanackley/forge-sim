@@ -116,6 +116,7 @@ class Queue {
   }
 
   async push(events: any | any[]) {
+    // Pass events through as-is — concurrency config is on the events themselves
     const sim = getSimulator();
     const instance = sim.createQueue({ key: this.key });
     return instance.push(events);

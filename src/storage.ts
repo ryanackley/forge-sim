@@ -7,17 +7,51 @@
 
 import type { StorageEntry, StorageQueryResult } from './types.js';
 
+export interface KVSConfig {
+  /**
+   * Simulate async latency on storage operations.
+   * - false (default): operations resolve instantly (fast, deterministic)
+   * - true: inject microtask yields so concurrent consumers can interleave
+   * - number: inject random delay up to this many ms (for chaos testing)
+   */
+  simulateLatency?: boolean | number;
+}
+
 export class SimulatedKVS {
   private store = new Map<string, any>();
   private secrets = new Map<string, any>();
+  private latencyConfig: boolean | number = false;
+
+  /** Enable/disable latency simulation at runtime. */
+  setLatency(latency: boolean | number): void {
+    this.latencyConfig = latency;
+  }
+
+  /**
+   * Inject a yield/delay to simulate real async storage behavior.
+   * This is what allows concurrent consumers to interleave and expose races.
+   */
+  private async simulateDelay(): Promise<void> {
+    if (this.latencyConfig === false) return;
+    if (this.latencyConfig === true) {
+      // Yield to event loop — enough to interleave concurrent consumers
+      await new Promise<void>((r) => setTimeout(r, 0));
+    } else {
+      // Random delay up to configured ms
+      const ms = Math.random() * this.latencyConfig;
+      await new Promise<void>((r) => setTimeout(r, ms));
+    }
+  }
 
   // ── Basic Operations ────────────────────────────────────────────────────
 
   async get(key: string): Promise<any> {
+    await this.simulateDelay();
     return this.store.get(key) ?? undefined;
   }
 
   async set(key: string, value: any): Promise<void> {
+    await this.simulateDelay();
     if (value === null || value === undefined) {
       throw new Error('Cannot store null or undefined values');
     }
@@ -26,6 +60,7 @@ export class SimulatedKVS {
   }
 
   async delete(key: string): Promise<void> {
+    await this.simulateDelay();
     this.store.delete(key);
   }
 
@@ -76,15 +111,29 @@ export class SimulatedKVS {
 
   // ── Transaction ───────────────────────────────────────────────────────
 
+  private transactLocks = new Map<string, Promise<any>>();
+
+  /**
+   * Atomic read-modify-write. Unlike get→set, transact is safe under concurrency.
+   * Real Forge implements this with optimistic locking (CAS). We simulate it
+   * with a per-key lock chain to ensure serialized access even with latency enabled.
+   */
   async transact(key: string, updater: (current: any) => any): Promise<any> {
-    const current = this.store.get(key);
-    const newValue = updater(current);
-    if (newValue === undefined) {
-      this.store.delete(key);
-    } else {
-      await this.set(key, newValue);
-    }
-    return newValue;
+    // Chain on any existing transaction for this key
+    const prev = this.transactLocks.get(key) ?? Promise.resolve();
+    const next = prev.then(async () => {
+      await this.simulateDelay();
+      const current = this.store.get(key);
+      const newValue = updater(current);
+      if (newValue === undefined) {
+        this.store.delete(key);
+      } else {
+        this.store.set(key, JSON.parse(JSON.stringify(newValue)));
+      }
+      return newValue;
+    });
+    this.transactLocks.set(key, next.catch(() => {})); // prevent chain break on error
+    return next;
   }
 
   // ── Inspection (for testing / debugging) ──────────────────────────────

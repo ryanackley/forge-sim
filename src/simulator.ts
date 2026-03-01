@@ -23,9 +23,13 @@ export class ForgeSimulator {
 
   constructor(config?: SimulationConfig) {
     this.kvs = new SimulatedKVS();
-    this.queue = new SimulatedQueue();
+    this.queue = new SimulatedQueue({ mode: config?.queueMode ?? 'sequential' });
     this.resolver = new SimulatedResolver();
     this.productApi = new SimulatedProductApi();
+
+    if (config?.storageLatency !== undefined) {
+      this.kvs.setLatency(config.storageLatency);
+    }
 
     if (config?.context) {
       this.resolver.setContext(config.context);

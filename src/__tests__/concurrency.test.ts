@@ -1,0 +1,198 @@
+/**
+ * Tests for concurrent queue processing and race condition detection.
+ *
+ * Validates that:
+ * 1. Concurrent mode actually exposes races in naive get→set patterns
+ * 2. Concurrency keys (semaphores) correctly limit parallel execution
+ * 3. kvs.transact() is safe under concurrent access
+ * 4. Sequential mode remains deterministic
+ */
+
+import { describe, it, expect, beforeEach } from 'vitest';
+import { ForgeSimulator } from '../simulator.js';
+import { setSimulator } from '../shims/globals.js';
+
+describe('Concurrent Queue Processing', () => {
+  describe('sequential mode (default)', () => {
+    it('should process events one at a time — no races possible', async () => {
+      const sim = new ForgeSimulator();
+      setSimulator(sim);
+
+      await sim.kvs.set('counter', 0);
+
+      // Consumer does naive get→increment→set
+      sim.registerConsumer('work', async () => {
+        const val = await sim.kvs.get('counter');
+        await sim.kvs.set('counter', val + 1);
+      });
+
+      // Push 10 events
+      const queue = sim.createQueue({ key: 'work' });
+      await queue.push(
+        Array.from({ length: 10 }, (_, i) => ({ body: { i } }))
+      );
+
+      // Sequential: all 10 increments land correctly
+      expect(await sim.kvs.get('counter')).toBe(10);
+    });
+  });
+
+  describe('concurrent mode', () => {
+    it('should expose race conditions in naive get→set patterns', async () => {
+      const sim = new ForgeSimulator({
+        queueMode: 'concurrent',
+        storageLatency: true, // yield to event loop between get/set
+      });
+      setSimulator(sim);
+
+      await sim.kvs.set('counter', 0);
+
+      // Consumer does naive get→increment→set (the WRONG way)
+      sim.registerConsumer('work', async () => {
+        const val = await sim.kvs.get('counter');
+        // The yield in get() allows other consumers to read the SAME value
+        await sim.kvs.set('counter', val + 1);
+      });
+
+      // Push 10 events — they'll all run concurrently
+      const queue = sim.createQueue({ key: 'work' });
+      await queue.push(
+        Array.from({ length: 10 }, (_, i) => ({ body: { i } }))
+      );
+
+      const finalValue = await sim.kvs.get('counter');
+      
+      // With concurrent processing + latency, the naive pattern loses increments.
+      // Multiple consumers read the same value before any set lands.
+      // The final value should be LESS than 10 (race condition detected!)
+      expect(finalValue).toBeLessThan(10);
+      console.log(`Race condition detected: counter = ${finalValue} (expected 10 with correct code)`);
+    });
+
+    it('should be safe when using kvs.transact() (the RIGHT way)', async () => {
+      const sim = new ForgeSimulator({
+        queueMode: 'concurrent',
+        storageLatency: true,
+      });
+      setSimulator(sim);
+
+      await sim.kvs.set('counter', 0);
+
+      // Consumer uses transact — atomic read-modify-write
+      sim.registerConsumer('work', async () => {
+        await sim.kvs.transact('counter', (val) => (val ?? 0) + 1);
+      });
+
+      const queue = sim.createQueue({ key: 'work' });
+      await queue.push(
+        Array.from({ length: 10 }, (_, i) => ({ body: { i } }))
+      );
+
+      // transact is serialized per key — all 10 increments land
+      expect(await sim.kvs.get('counter')).toBe(10);
+    });
+
+    it('should respect concurrency key limits', async () => {
+      const sim = new ForgeSimulator({
+        queueMode: 'concurrent',
+        storageLatency: true,
+      });
+      setSimulator(sim);
+
+      let maxConcurrent = 0;
+      let currentConcurrent = 0;
+
+      sim.registerConsumer('work', async () => {
+        currentConcurrent++;
+        maxConcurrent = Math.max(maxConcurrent, currentConcurrent);
+        // Simulate some work
+        await new Promise((r) => setTimeout(r, 10));
+        currentConcurrent--;
+      });
+
+      // Push events with concurrency limit of 2
+      const queue = sim.createQueue({ key: 'work' });
+      await queue.push(
+        Array.from({ length: 6 }, (_, i) => ({
+          body: { i },
+          concurrency: { key: 'my-limiter', limit: 2 },
+        }))
+      );
+
+      // Should never exceed the concurrency limit
+      expect(maxConcurrent).toBeLessThanOrEqual(2);
+      expect(maxConcurrent).toBeGreaterThan(0);
+      console.log(`Max concurrent executions: ${maxConcurrent} (limit: 2)`);
+    });
+
+    it('concurrency keys should work across different queues', async () => {
+      const sim = new ForgeSimulator({
+        queueMode: 'concurrent',
+        storageLatency: true,
+      });
+      setSimulator(sim);
+
+      let maxConcurrent = 0;
+      let currentConcurrent = 0;
+
+      const handler = async () => {
+        currentConcurrent++;
+        maxConcurrent = Math.max(maxConcurrent, currentConcurrent);
+        await new Promise((r) => setTimeout(r, 10));
+        currentConcurrent--;
+      };
+
+      sim.registerConsumer('queue-a', handler);
+      sim.registerConsumer('queue-b', handler);
+
+      // Push to two different queues but same concurrency key
+      const queueA = sim.createQueue({ key: 'queue-a' });
+      const queueB = sim.createQueue({ key: 'queue-b' });
+
+      await Promise.all([
+        queueA.push(
+          Array.from({ length: 3 }, (_, i) => ({
+            body: { queue: 'a', i },
+            concurrency: { key: 'shared-limiter', limit: 1 },
+          }))
+        ),
+        queueB.push(
+          Array.from({ length: 3 }, (_, i) => ({
+            body: { queue: 'b', i },
+            concurrency: { key: 'shared-limiter', limit: 1 },
+          }))
+        ),
+      ]);
+
+      // Shared concurrency key with limit 1 means truly serial across both queues
+      expect(maxConcurrent).toBe(1);
+      console.log(`Cross-queue concurrency: max ${maxConcurrent} (limit: 1)`);
+    });
+
+    it('unbounded concurrency when no concurrency key set', async () => {
+      const sim = new ForgeSimulator({
+        queueMode: 'concurrent',
+      });
+      setSimulator(sim);
+
+      let maxConcurrent = 0;
+      let currentConcurrent = 0;
+
+      sim.registerConsumer('work', async () => {
+        currentConcurrent++;
+        maxConcurrent = Math.max(maxConcurrent, currentConcurrent);
+        await new Promise((r) => setTimeout(r, 5));
+        currentConcurrent--;
+      });
+
+      const queue = sim.createQueue({ key: 'work' });
+      await queue.push(
+        Array.from({ length: 5 }, (_, i) => ({ body: { i } }))
+      );
+
+      // Without concurrency key, all 5 should run in parallel
+      expect(maxConcurrent).toBe(5);
+      console.log(`Unbounded concurrency: ${maxConcurrent} parallel`);
+    });
+  });
+});

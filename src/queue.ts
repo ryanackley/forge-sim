@@ -1,11 +1,14 @@
 /**
  * In-memory simulation of @forge/events (Async Events / Queue).
  *
- * Simulates the Queue.push() → consumer handler flow.
- * Events are processed immediately (synchronously in the sim) unless delayed.
+ * Simulates the Queue.push() → consumer handler flow with realistic concurrency:
+ * - Events can run concurrently (like real Forge)
+ * - Concurrency keys act as named semaphores across queues (per Forge spec)
+ * - Without concurrency config, processing is unbounded
+ * - KVS latency simulation exposes race conditions in consumer code
  */
 
-import type { QueueEvent, QueuePushResult, QueueJobStats, FunctionHandler } from './types.js';
+import type { QueueEvent, QueuePushResult, QueueJobStats, FunctionHandler, QueueConcurrency } from './types.js';
 import { randomUUID } from 'crypto';
 
 export interface QueueJob {
@@ -19,14 +22,73 @@ export interface QueueJob {
 interface QueueEventInternal {
   body: Record<string, unknown>;
   delayInSeconds: number;
+  concurrency?: QueueConcurrency;
   status: 'pending' | 'processing' | 'success' | 'failed';
   error?: string;
+}
+
+export interface QueueConfig {
+  /**
+   * Processing mode:
+   * - 'sequential': process events one at a time (default, fast, no races)
+   * - 'concurrent': process events concurrently, respecting concurrency keys
+   */
+  mode?: 'sequential' | 'concurrent';
+}
+
+/**
+ * Named semaphore — tracks active permits per concurrency key.
+ * Scoped to the installation (simulator instance), not to a specific queue.
+ */
+class ConcurrencySemaphore {
+  private active = new Map<string, number>();
+  private waiters = new Map<string, Array<() => void>>();
+
+  async acquire(key: string, limit: number): Promise<void> {
+    while ((this.active.get(key) ?? 0) >= limit) {
+      await new Promise<void>((resolve) => {
+        const queue = this.waiters.get(key) ?? [];
+        queue.push(resolve);
+        this.waiters.set(key, queue);
+      });
+    }
+    this.active.set(key, (this.active.get(key) ?? 0) + 1);
+  }
+
+  release(key: string): void {
+    const current = this.active.get(key) ?? 0;
+    if (current > 0) {
+      this.active.set(key, current - 1);
+    }
+    // Wake up next waiter
+    const queue = this.waiters.get(key);
+    if (queue && queue.length > 0) {
+      const next = queue.shift()!;
+      next();
+    }
+  }
+
+  clear(): void {
+    this.active.clear();
+    this.waiters.clear();
+  }
 }
 
 export class SimulatedQueue {
   private consumers = new Map<string, FunctionHandler>();
   private jobs = new Map<string, QueueJob>();
   private eventLog: Array<{ queueKey: string; event: QueueEventInternal; jobId: string }> = [];
+  private semaphore = new ConcurrencySemaphore();
+  private config: QueueConfig;
+
+  constructor(config?: QueueConfig) {
+    this.config = { mode: 'sequential', ...config };
+  }
+
+  /** Change queue processing mode at runtime. */
+  setMode(mode: 'sequential' | 'concurrent'): void {
+    this.config.mode = mode;
+  }
 
   /**
    * Register a consumer function for a queue key.
@@ -65,6 +127,7 @@ export class SimulatedQueue {
     const internalEvents: QueueEventInternal[] = eventList.map((e) => ({
       body: e.body,
       delayInSeconds: e.delayInSeconds ?? 0,
+      concurrency: e.concurrency,
       status: 'pending' as const,
     }));
 
@@ -77,42 +140,80 @@ export class SimulatedQueue {
     };
     this.jobs.set(jobId, job);
 
-    // Process events (in simulation, we process immediately regardless of delay)
-    await this.processJob(job);
+    if (this.config.mode === 'concurrent') {
+      await this.processJobConcurrent(job);
+    } else {
+      await this.processJobSequential(job);
+    }
 
     return { jobId };
   }
 
-  private async processJob(job: QueueJob): Promise<void> {
+  // ── Sequential processing (default, fast, deterministic) ─────────────
+
+  private async processJobSequential(job: QueueJob): Promise<void> {
     const consumer = this.consumers.get(job.queueKey);
-    if (!consumer) {
-      // No consumer registered — events just sit in the queue
-      // This mirrors Forge behavior: events queue up but aren't processed
-      return;
-    }
+    if (!consumer) return;
 
     for (const event of job.events) {
       if (job.cancelled) break;
+      await this.processEvent(job, event, consumer);
+    }
+  }
 
-      event.status = 'processing';
-      job.stats.inProgress++;
+  // ── Concurrent processing (exposes race conditions) ──────────────────
 
-      this.eventLog.push({ queueKey: job.queueKey, event, jobId: job.jobId });
+  private async processJobConcurrent(job: QueueJob): Promise<void> {
+    const consumer = this.consumers.get(job.queueKey);
+    if (!consumer) return;
+
+    // Launch all events concurrently, respecting concurrency semaphores
+    const promises = job.events.map(async (event) => {
+      if (job.cancelled) return;
+
+      // If event has a concurrency key, acquire the semaphore
+      if (event.concurrency) {
+        await this.semaphore.acquire(event.concurrency.key, event.concurrency.limit);
+      }
 
       try {
-        await consumer(
-          { body: event.body, jobId: job.jobId },
-          { installContext: 'ari:cloud:jira::site/sim-site' }
-        );
-        event.status = 'success';
-        job.stats.success++;
-      } catch (err) {
-        event.status = 'failed';
-        event.error = err instanceof Error ? err.message : String(err);
-        job.stats.failed++;
+        await this.processEvent(job, event, consumer);
       } finally {
-        job.stats.inProgress--;
+        if (event.concurrency) {
+          this.semaphore.release(event.concurrency.key);
+        }
       }
+    });
+
+    await Promise.allSettled(promises);
+  }
+
+  // ── Shared event processing logic ────────────────────────────────────
+
+  private async processEvent(
+    job: QueueJob,
+    event: QueueEventInternal,
+    consumer: FunctionHandler
+  ): Promise<void> {
+    if (job.cancelled) return;
+
+    event.status = 'processing';
+    job.stats.inProgress++;
+    this.eventLog.push({ queueKey: job.queueKey, event, jobId: job.jobId });
+
+    try {
+      await consumer(
+        { body: event.body, jobId: job.jobId },
+        { installContext: 'ari:cloud:jira::site/sim-site' }
+      );
+      event.status = 'success';
+      job.stats.success++;
+    } catch (err) {
+      event.status = 'failed';
+      event.error = err instanceof Error ? err.message : String(err);
+      job.stats.failed++;
+    } finally {
+      job.stats.inProgress--;
     }
   }
 
@@ -134,6 +235,7 @@ export class SimulatedQueue {
     this.consumers.clear();
     this.jobs.clear();
     this.eventLog.length = 0;
+    this.semaphore.clear();
   }
 }
 

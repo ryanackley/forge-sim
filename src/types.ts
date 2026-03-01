@@ -73,9 +73,15 @@ export interface StorageQueryResult {
 
 // ── Queue / Async Events Types ──────────────────────────────────────────────
 
+export interface QueueConcurrency {
+  key: string;
+  limit: number;
+}
+
 export interface QueueEvent {
   body: Record<string, unknown>;
   delayInSeconds?: number;
+  concurrency?: QueueConcurrency;
 }
 
 export interface QueuePushResult {
@@ -132,4 +138,13 @@ export interface SimulationConfig {
     confluence?: ProductApiHandler;
     bitbucket?: ProductApiHandler;
   };
+  /** Queue processing mode: 'sequential' (default) or 'concurrent' */
+  queueMode?: 'sequential' | 'concurrent';
+  /**
+   * Simulate async latency on KVS operations to expose race conditions.
+   * - false (default): instant
+   * - true: yield to event loop
+   * - number: random delay up to this many ms
+   */
+  storageLatency?: boolean | number;
 }
