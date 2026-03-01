@@ -4,9 +4,13 @@
  */
 
 // @ts-nocheck
+import React from 'react';
 import { createRequire } from 'node:module';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+// Some @forge/react internals expect React on globalThis
+(globalThis as any).React = React;
 
 // Resolve the real @forge/react from forge-sim's node_modules by absolute path
 const __dirname = dirname(fileURLToPath(import.meta.url));
