@@ -4,94 +4,88 @@ Simulated Forge runtime for AI-driven development and testing of Atlassian Forge
 
 ## What This Does
 
-Provides an in-memory simulation of the Forge platform so you can develop, test, and iterate on Forge apps **without deploying**. Designed to be driven by AI coding assistants via MCP tools (coming soon).
+Provides an in-memory simulation of the Forge platform so you can develop, test, and iterate on Forge apps **without deploying**. Deploy a Forge app with one call — manifest-driven, zero app modifications.
 
-## What's Simulated
+## Features
 
-| Forge Feature | Status | Module |
-|---|---|---|
-| Key-Value Storage (`@forge/kvs`) | ✅ Full | `SimulatedKVS` |
-| Secrets (`kvs.setSecret/getSecret`) | ✅ Full | `SimulatedKVS` |
-| KVS Query (beginsWith, pagination, sort) | ✅ Full | `KVSQueryBuilder` |
-| KVS Batch (getMany/setMany/deleteMany) | ✅ Full | `SimulatedKVS` |
-| KVS Transactions | ✅ Basic | `SimulatedKVS` |
-| Resolvers (`@forge/resolver`) | ✅ Full | `SimulatedResolver` |
-| Async Events / Queues (`@forge/events`) | ✅ Full | `SimulatedQueue` |
-| Product APIs (requestJira, etc.) | ✅ Mockable | `SimulatedProductApi` |
-| Manifest Parsing | ✅ Full | `parseManifest` |
-| Event Triggers | ✅ Basic | `ForgeSimulator.fireTrigger` |
-| UIKit 2 Rendering | 🔜 Next | (from uikit-test) |
-| Forge SQL | 🔜 Planned | |
-| MCP Server Interface | 🔜 Planned | |
-| Scheduled Triggers | 🔜 Planned | |
+- **Full @forge/* shim layer** — App code imports `@forge/api`, `@forge/kvs`, `@forge/events`, `@forge/resolver` and gets our sim. Zero changes needed.
+- **Manifest-driven deploy** — Point at an app directory, everything gets wired up automatically
+- **UIKit rendering** — `@forge/react` apps render through a simulated bridge connected to the backend
+- **Concurrent queue processing** — Expose real race conditions in consumer code
+- **Concurrency keys** — Named semaphores across queues (per Forge spec)
+- **Mockable product APIs** — Route-based mocks for Jira, Confluence, Bitbucket
 
 ## Quick Start
 
 ```typescript
-import { ForgeSimulator } from 'forge-sim';
+import { ForgeSimulator, setSimulator } from 'forge-sim';
 
-const sim = new ForgeSimulator({
-  initialStorage: { 'config:theme': 'dark' },
-});
+const sim = new ForgeSimulator();
+setSimulator(sim);
 
-// Define resolvers (like your Forge app would)
-sim.resolver.define('getTheme', async (req) => {
-  return await sim.kvs.get('config:theme');
-});
-
-sim.resolver.define('setTheme', async (req) => {
-  await sim.kvs.set('config:theme', req.payload.theme);
-  return { success: true };
-});
-
-// Invoke them (simulates bridge invoke calls)
-const theme = await sim.invoke('getTheme');
-console.log(theme); // 'dark'
-
-await sim.invoke('setTheme', { theme: 'light' });
-```
-
-## Mock Product APIs
-
-```typescript
+// Mock the Jira API
 sim.mockProductRoutes('jira', {
-  '/rest/api/3/issue/PROJ-1': {
-    key: 'PROJ-1',
-    fields: { summary: 'My Issue' },
-  },
+  '/rest/api/3/issue/PROJ-1': { key: 'PROJ-1', summary: 'My Issue' },
 });
 
-sim.resolver.define('getIssue', async (req) => {
-  const api = sim.createApiClient('asUser');
-  const res = await api.requestJira(`/rest/api/3/issue/${req.payload.key}`);
-  return res.json();
-});
+// Deploy your app — reads manifest.yml, imports handlers, wires up UI
+const result = await sim.deploy('./my-forge-app');
+
+// Invoke resolvers
+const data = await sim.invoke('getIssue', { issueKey: 'PROJ-1' });
+
+// Inspect state
+console.log(await sim.kvs.get('views:PROJ-1'));
+console.log(sim.getLogs());
 ```
 
-## Async Events / Queues
+Run with loader hooks for standalone execution:
+```bash
+node --import forge-sim/dist/loader/register.js your-app.js
+```
+
+## Race Condition Detection
 
 ```typescript
-sim.registerConsumer('work-queue', async (event) => {
-  console.log('Processing:', event.body);
-  await sim.kvs.set(`result:${event.body.id}`, { done: true });
+const sim = new ForgeSimulator({
+  queueMode: 'concurrent',    // process events in parallel
+  storageLatency: true,        // simulate async KVS to expose interleaving
 });
 
-sim.resolver.define('submitWork', async (req) => {
-  const q = sim.createQueue({ key: 'work-queue' });
-  await q.push({ body: { id: req.payload.id } });
-  return { queued: true };
+// This BREAKS — naive get→set loses updates under concurrency:
+sim.registerConsumer('work', async () => {
+  const val = await kvs.get('counter');
+  await kvs.set('counter', val + 1);  // race!
+});
+
+// This WORKS — transact is atomic:
+sim.registerConsumer('work', async () => {
+  await kvs.transact('counter', (val) => (val ?? 0) + 1);
 });
 ```
 
-## Testing Pyramid Vision
+## What's Simulated
 
-1. **Level 1 (this):** Full simulation with mocked APIs — fast, safe, AI-driveable
-2. **Level 2 (planned):** Simulation with real Atlassian API calls
-3. **Level 3 (planned):** Actual Forge deployment validation
+| Feature | Status |
+|---|---|
+| Key-Value Storage (`@forge/kvs`) | ✅ Full (get/set/delete/query/batch/transact/secrets) |
+| Resolvers (`@forge/resolver`) | ✅ Full |
+| Async Events / Queues (`@forge/events`) | ✅ Full (concurrent mode, concurrency keys) |
+| Product APIs (Jira/Confluence/Bitbucket) | ✅ Mockable |
+| UIKit 2 Rendering (`@forge/react`) | ✅ Bridge connected to sim |
+| Manifest Parsing + Auto-Deploy | ✅ Full |
+| Event Triggers | ✅ Basic |
+| MCP Server Interface | 🔜 Next |
+| Forge SQL | 🔜 Planned |
 
 ## Development
 
 ```bash
 npm install
-npm test
+npm test          # 53 tests
+npm run build     # TypeScript compile
 ```
+
+## License
+
+Private — not yet published.
