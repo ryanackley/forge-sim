@@ -110,7 +110,13 @@ export class SimulatedForgeSQL {
     const { query, params = [], method = 'all' } = parsed;
 
     try {
-      const [rawRows, fields] = await pool.execute(query, params);
+      // Use pool.query() when there are no params — pool.execute() uses the
+      // prepared statement protocol which doesn't support some commands
+      // (START TRANSACTION, COMMIT, etc.)
+      const useExecute = params.length > 0;
+      const [rawRows, fields] = useExecute
+        ? await pool.execute(query, params)
+        : await pool.query(query);
 
       // Determine if this is a SELECT or a mutation
       const isSelect = Array.isArray(rawRows);
