@@ -13,4 +13,8 @@ export default defineConfig({
       '@forge/resolver': resolve(__dirname, 'src/shims/forge-resolver.ts'),
     },
   },
+  esbuild: {
+    jsx: 'automatic',
+    jsxImportSource: 'react',
+  },
 });

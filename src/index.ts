@@ -11,6 +11,27 @@ export { parseManifest, parseManifestContent } from './manifest.js';
 export { deploy } from './deployer.js';
 export { setSimulator, getSimulator } from './shims/globals.js';
 
+// UI rendering (bridge + doc utilities)
+export {
+  installBridge,
+  connectSimulator,
+  getLatestForgeDoc,
+  waitForRender,
+  getBridgeCalls,
+  resetBridge,
+  resetAll,
+  findByType,
+  findFirstByType,
+  findByProps,
+  getTextContent,
+  simulateEvent,
+  listComponentTypes,
+  findByTypeAndText,
+  prettyPrint,
+  type ForgeDoc,
+  type BridgeCall,
+} from './ui/index.js';
+
 export type {
   ForgeManifest,
   ManifestModule,
