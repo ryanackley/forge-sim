@@ -8,11 +8,12 @@ modules:
   function:
     - key: resolver
       handler: index.handler
+    - key: queue-handler
+      handler: queue-handler.handler
   consumer:
     - key: my-consumer
       queue: work-queue
-      resolver:
-        function: queue-handler
+      function: queue-handler
 app:
   id: ari:cloud:ecosystem::app/test-app
   name: Test Forge App

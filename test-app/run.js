@@ -1,6 +1,6 @@
 /**
- * Smoke test: boot the simulator, set it as the global, then dynamically
- * import the Forge app code (which uses @forge/* imports via loader hooks).
+ * Smoke test: deploy a Forge app into the simulator from its manifest.
+ * Zero manual wiring — just point at the app directory.
  */
 import { ForgeSimulator, setSimulator } from '../dist/index.js';
 
@@ -8,24 +8,23 @@ import { ForgeSimulator, setSimulator } from '../dist/index.js';
 const sim = new ForgeSimulator();
 setSimulator(sim);
 
-// 2. Mock Jira
+// 2. Mock Jira API
 sim.mockProductRoutes('jira', {
   '/rest/api/3/issue/TEST-1': { key: 'TEST-1', summary: 'It works!' },
 });
 
-// 3. Register a queue consumer to capture events
-const events = [];
-sim.registerConsumer('work-queue', async (event) => {
-  events.push(event.body);
-});
+// 3. Deploy the app — reads manifest.yml, imports handlers, wires everything
+const result = await sim.deploy('./test-app');
 
-// 4. Import the app (this triggers @forge/* imports → our shims)
-await import('./index.js');
+console.log('📦 Deployed functions:', result.loadedFunctions);
+if (result.errors.length) {
+  console.log('⚠️  Errors:', result.errors);
+}
 
-// 5. Invoke the resolver
-const result = await sim.invoke('getIssue', { issueKey: 'TEST-1' });
+// 4. Invoke the resolver (defined by the app via @forge/resolver)
+const issueResult = await sim.invoke('getIssue', { issueKey: 'TEST-1' });
 
-console.log('✅ Result:', JSON.stringify(result, null, 2));
+console.log('✅ Result:', JSON.stringify(issueResult, null, 2));
 console.log('✅ KVS views:', await sim.kvs.get('views:TEST-1'));
-console.log('✅ Queue events:', events.length);
-console.log('🎉 Forge app ran against simulated runtime — zero code changes!');
+console.log('✅ Logs:', sim.getLogs().map(l => `[${l.level}] ${l.message}`).join('\n   '));
+console.log('🎉 Forge app deployed and invoked — manifest-driven, zero app changes!');

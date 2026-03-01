@@ -8,6 +8,7 @@ export { SimulatedQueue, SimulatedQueueInstance } from './queue.js';
 export { SimulatedResolver } from './resolver.js';
 export { SimulatedProductApi, route } from './product-api.js';
 export { parseManifest, parseManifestContent } from './manifest.js';
+export { deploy } from './deployer.js';
 export { setSimulator, getSimulator } from './shims/globals.js';
 
 export type {

@@ -70,6 +70,29 @@ export class ForgeSimulator {
     return this.manifest;
   }
 
+  /**
+   * Set an already-parsed manifest (used by deployer).
+   */
+  loadManifestData(manifest: ParsedManifest): void {
+    this.manifest = manifest;
+
+    for (const consumer of manifest.consumers) {
+      this.log('info', `Registered consumer "${consumer.key}" for queue "${consumer.queue}"`);
+    }
+    for (const ui of manifest.uiModules) {
+      this.log('info', `Found UI module: ${ui.type} "${ui.key}"`);
+    }
+  }
+
+  /**
+   * Deploy a Forge app directory into this simulator.
+   * Reads the manifest, imports handler modules, and wires everything up.
+   */
+  async deploy(appDir: string): Promise<import('./deployer.js').DeployResult> {
+    const { deploy } = await import('./deployer.js');
+    return deploy(this, appDir);
+  }
+
   // ── Resolver Invocation ─────────────────────────────────────────────────
 
   /**
