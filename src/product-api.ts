@@ -53,20 +53,33 @@ export class SimulatedProductApi {
 
   /**
    * Register a simple route-based mock.
-   * Routes map path patterns (string prefix match) to responses.
+   * 
+   * Route keys are "METHOD /path" tuples (e.g. "GET /rest/api/3/issue/TEST-1").
+   * Method defaults to GET if omitted (just "/rest/api/3/issue/TEST-1").
+   * Path matching is prefix-based so "/rest/api/3/issue" matches "/rest/api/3/issue/TEST-1".
    */
   mockRoutes(
     product: string,
     routes: Record<string, any | ((path: string, options?: ProductApiRequest) => any)>
   ): void {
+    // Parse route keys into [method, pathPattern] tuples
+    const parsed = Object.entries(routes).map(([key, response]) => {
+      const match = key.match(/^(GET|POST|PUT|DELETE|PATCH|HEAD|OPTIONS)\s+(.+)$/i);
+      const method = match ? match[1].toUpperCase() : 'GET';
+      const pathPattern = match ? match[2] : key;
+      return { method, pathPattern, response };
+    });
+
     this.handlers.set(product, (path: string, options?: ProductApiRequest) => {
-      for (const [pattern, response] of Object.entries(routes)) {
-        if (path.startsWith(pattern) || path.includes(pattern)) {
+      const requestMethod = (options?.method ?? 'GET').toUpperCase();
+
+      for (const { method, pathPattern, response } of parsed) {
+        if (requestMethod === method && (path === pathPattern || path.startsWith(pathPattern))) {
           const body = typeof response === 'function' ? response(path, options) : response;
           return makeResponse(200, body);
         }
       }
-      return makeResponse(404, { error: `No mock route matched: ${path}` });
+      return makeResponse(404, { error: `No mock route matched: ${requestMethod} ${path}` });
     });
   }
 
