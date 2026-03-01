@@ -12,11 +12,17 @@ import type { ForgeManifest, ManifestModule } from './types.js';
 export interface ParsedManifest {
   raw: ForgeManifest;
   functions: Map<string, ManifestFunction>;
+  resources: Map<string, ManifestResource>;
   consumers: ManifestConsumer[];
   triggers: ManifestTrigger[];
   scheduledTriggers: ManifestScheduledTrigger[];
   uiModules: ManifestUIModule[];
   permissions: string[];
+}
+
+export interface ManifestResource {
+  key: string;
+  path: string; // e.g. "src/frontend/index.tsx"
 }
 
 export interface ManifestFunction {
@@ -65,6 +71,12 @@ export async function parseManifest(manifestPath: string): Promise<ParsedManifes
 export function parseManifestContent(content: string): ParsedManifest {
   const raw = parseYaml(content) as ForgeManifest;
   const modules = raw.modules ?? {};
+
+  // Parse resources (top-level, not under modules)
+  const resources = new Map<string, ManifestResource>();
+  for (const res of ((raw as any).resources ?? []) as any[]) {
+    resources.set(res.key, { key: res.key, path: res.path });
+  }
 
   // Parse functions
   const functions = new Map<string, ManifestFunction>();
@@ -133,6 +145,7 @@ export function parseManifestContent(content: string): ParsedManifest {
   return {
     raw,
     functions,
+    resources,
     consumers,
     triggers,
     scheduledTriggers,

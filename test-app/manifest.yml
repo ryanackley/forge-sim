@@ -14,6 +14,9 @@ modules:
     - key: my-consumer
       queue: work-queue
       function: queue-handler
+resources:
+  - key: main
+    path: src/ui-app.tsx
 app:
   id: ari:cloud:ecosystem::app/test-app
   name: Test Forge App

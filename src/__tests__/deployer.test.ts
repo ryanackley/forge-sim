@@ -2,11 +2,13 @@
  * Tests for the deployer — manifest-driven app loading.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { resolve } from 'node:path';
 import { ForgeSimulator } from '../simulator.js';
 import { setSimulator } from '../shims/globals.js';
 import { deploy } from '../deployer.js';
+import { getLatestForgeDoc, waitForRender, resetBridge } from '../ui/bridge.js';
+import { getTextContent, prettyPrint } from '../ui/doc-utils.js';
 
 const TEST_APP_DIR = resolve(import.meta.dirname, '../../test-app');
 
@@ -14,6 +16,8 @@ describe('Deployer', () => {
   let sim: ForgeSimulator;
 
   beforeEach(() => {
+    resetBridge();
+    vi.resetModules();
     sim = new ForgeSimulator();
     setSimulator(sim);
   });
@@ -28,6 +32,7 @@ describe('Deployer', () => {
 
     expect(result.loadedFunctions).toContain('resolver');
     expect(result.loadedFunctions).toContain('queue-handler');
+    expect(result.loadedResources).toContain('main');
     expect(result.errors).toHaveLength(0);
   });
 
@@ -67,6 +72,33 @@ describe('Deployer', () => {
     const allStorage = sim.kvs.dump();
     const analyticsKeys = Object.keys(allStorage).filter(k => k.startsWith('analytics:'));
     expect(analyticsKeys.length).toBeGreaterThan(0);
+  });
+
+  it('should do full-stack deploy: backend + UI from one call', async () => {
+    sim.mockProductRoutes('jira', {
+      '/rest/api/3/issue/TEST-1': { key: 'TEST-1', summary: 'Full stack test' },
+    });
+
+    const result = await deploy(sim, TEST_APP_DIR);
+
+    expect(result.loadedFunctions).toContain('resolver');
+    expect(result.loadedResources).toContain('main');
+    expect(result.errors).toHaveLength(0);
+
+    // The UI resource was loaded, which triggers ForgeReconciler.render()
+    // Wait for the async data fetch to complete
+    const doc = await waitForRender();
+    const text = getTextContent(doc);
+
+    // The UI should show data from the resolver, which hit the mocked Jira API
+    expect(text).toContain('TEST-1');
+    expect(text).toContain('Full stack test');
+    expect(text).toContain('Views');
+
+    // KVS should have been written by the resolver
+    expect(await sim.kvs.get('views:TEST-1')).toBeGreaterThanOrEqual(1);
+
+    console.log('Full-stack deploy result:\n' + prettyPrint(doc));
   });
 
   it('should report errors for missing handler files', async () => {

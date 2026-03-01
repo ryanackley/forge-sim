@@ -13,10 +13,12 @@ import { access } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 import { parseManifest, type ParsedManifest, type ManifestFunction } from './manifest.js';
 import type { ForgeSimulator } from './simulator.js';
+import { installBridge, connectSimulator } from './ui/bridge.js';
 
 export interface DeployResult {
   manifest: ParsedManifest;
   loadedFunctions: string[];
+  loadedResources: string[];
   errors: Array<{ functionKey: string; error: string }>;
 }
 
@@ -37,7 +39,7 @@ function parseHandlerString(handler: string): { fileStem: string; exportName: st
   };
 }
 
-const FILE_EXTENSIONS = ['.js', '.ts', '.mjs', '.cjs'];
+const FILE_EXTENSIONS = ['.js', '.ts', '.tsx', '.jsx', '.mjs', '.cjs'];
 
 /**
  * Find the actual file for a handler stem, checking src/ with various extensions.
@@ -67,6 +69,30 @@ async function resolveHandlerFile(appDir: string, fileStem: string): Promise<str
 }
 
 /**
+ * Find the actual file for a resource path, trying exact match first then extensions.
+ */
+async function resolveResourceFile(appDir: string, resourcePath: string): Promise<string | null> {
+  // Try exact path first (relative to app dir)
+  const exact = resolve(appDir, resourcePath);
+  try {
+    await access(exact);
+    return exact;
+  } catch {}
+
+  // Try without extension + each extension
+  const withoutExt = exact.replace(/\.[^.]+$/, '');
+  for (const ext of FILE_EXTENSIONS) {
+    const candidate = withoutExt + ext;
+    try {
+      await access(candidate);
+      return candidate;
+    } catch {}
+  }
+
+  return null;
+}
+
+/**
  * Deploy a Forge app directory into a simulator instance.
  * 
  * 1. Reads manifest.yml from appDir
@@ -80,7 +106,14 @@ export async function deploy(sim: ForgeSimulator, appDir: string): Promise<Deplo
   // 1. Parse manifest
   const manifest = await parseManifest(manifestPath);
 
+  // 1b. If there are UI resources, install the bridge and connect to sim
+  if (manifest.resources.size > 0) {
+    installBridge();
+    connectSimulator(sim);
+  }
+
   const loadedFunctions: string[] = [];
+  const loadedResources: string[] = [];
   const errors: Array<{ functionKey: string; error: string }> = [];
 
   // 2. Load each function module
@@ -99,9 +132,9 @@ export async function deploy(sim: ForgeSimulator, appDir: string): Promise<Deplo
         continue;
       }
 
-      // Dynamic import
+      // Dynamic import (cache-bust so re-deploys get fresh modules)
       const fileUrl = pathToFileURL(filePath).href;
-      const mod = await import(fileUrl);
+      const mod = await import(fileUrl + '?t=' + Date.now());
 
       const handler = mod[exportName] ?? mod.default?.[exportName];
       if (!handler) {
@@ -175,8 +208,45 @@ export async function deploy(sim: ForgeSimulator, appDir: string): Promise<Deplo
   // Triggers are already handled by fireTrigger() which looks up the manifest
   // and invokes via resolver — so as long as the function is registered, it works.
 
+  // 6. Load UI resources
+  // Resources are front-end entry points (e.g. src/frontend/index.tsx) that
+  // call ForgeReconciler.render(). Loading them triggers the UI to mount
+  // and produce a ForgeDoc through the bridge.
+  for (const uiModule of manifest.uiModules) {
+    if (!uiModule.resourceKey) continue;
+
+    const resource = manifest.resources.get(uiModule.resourceKey);
+    if (!resource) {
+      errors.push({
+        functionKey: uiModule.key,
+        error: `UI module "${uiModule.key}" references resource "${uiModule.resourceKey}" but it's not defined in manifest resources`,
+      });
+      continue;
+    }
+
+    try {
+      const resourcePath = await resolveResourceFile(absDir, resource.path);
+      if (!resourcePath) {
+        errors.push({
+          functionKey: uiModule.key,
+          error: `Resource file not found: "${resource.path}"`,
+        });
+        continue;
+      }
+
+      const fileUrl = pathToFileURL(resourcePath).href;
+      await import(fileUrl + '?t=' + Date.now());
+      loadedResources.push(uiModule.resourceKey);
+    } catch (err) {
+      errors.push({
+        functionKey: uiModule.key,
+        error: `Failed to load resource "${resource.path}": ${err instanceof Error ? err.message : String(err)}`,
+      });
+    }
+  }
+
   // Store manifest on simulator
   sim.loadManifestData(manifest);
 
-  return { manifest, loadedFunctions, errors };
+  return { manifest, loadedFunctions, loadedResources, errors };
 }
