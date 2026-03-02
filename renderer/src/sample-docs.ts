@@ -318,8 +318,246 @@ export const kitchenSink: ForgeDoc = {
   ],
 };
 
+/** Charts demo — bar, line, pie, donut */
+export const chartsDemo: ForgeDoc = {
+  type: 'App',
+  props: {},
+  key: 'root',
+  children: [
+    {
+      type: 'Stack',
+      props: { space: 'space.300' },
+      key: 'charts-stack',
+      children: [
+        {
+          type: 'Heading',
+          props: { size: 'large' },
+          key: 'charts-heading',
+          children: [
+            { type: 'String', props: { text: 'Charts Gallery' }, key: 'ch-1', children: [] },
+          ],
+        },
+        {
+          type: 'BarChart',
+          props: {
+            title: 'Sprint Velocity',
+            subtitle: 'Story points completed per sprint',
+            data: [
+              { sprint: 'Sprint 1', points: 21 },
+              { sprint: 'Sprint 2', points: 34 },
+              { sprint: 'Sprint 3', points: 28 },
+              { sprint: 'Sprint 4', points: 42 },
+              { sprint: 'Sprint 5', points: 38 },
+            ],
+            xAccessor: 'sprint',
+            yAccessor: 'points',
+            height: 300,
+          },
+          key: 'bar-chart',
+          children: [],
+        },
+        {
+          type: 'LineChart',
+          props: {
+            title: 'Bug Trend',
+            subtitle: 'Open bugs over time',
+            data: [
+              { week: 'W1', bugs: 12 },
+              { week: 'W2', bugs: 8 },
+              { week: 'W3', bugs: 15 },
+              { week: 'W4', bugs: 11 },
+              { week: 'W5', bugs: 6 },
+              { week: 'W6', bugs: 3 },
+            ],
+            xAccessor: 'week',
+            yAccessor: 'bugs',
+            height: 300,
+          },
+          key: 'line-chart',
+          children: [],
+        },
+        {
+          type: 'Inline',
+          props: { space: 'space.200' },
+          key: 'pie-row',
+          children: [
+            {
+              type: 'PieChart',
+              props: {
+                title: 'Issue Types',
+                data: [
+                  { type: 'Bug', count: 23 },
+                  { type: 'Story', count: 45 },
+                  { type: 'Task', count: 18 },
+                  { type: 'Epic', count: 7 },
+                ],
+                colorAccessor: 'type',
+                valueAccessor: 'count',
+                labelAccessor: 'type',
+                height: 300,
+                width: 380,
+              },
+              key: 'pie-chart',
+              children: [],
+            },
+            {
+              type: 'DonutChart',
+              props: {
+                title: 'Sprint Progress',
+                data: [
+                  { status: 'Done', points: 28 },
+                  { status: 'In Progress', points: 12 },
+                  { status: 'To Do', points: 8 },
+                ],
+                colorAccessor: 'status',
+                valueAccessor: 'points',
+                labelAccessor: 'status',
+                height: 300,
+                width: 380,
+              },
+              key: 'donut-chart',
+              children: [],
+            },
+          ],
+        },
+      ],
+    },
+  ],
+};
+
+/** Table + data display demo */
+export const tableDemo: ForgeDoc = {
+  type: 'App',
+  props: {},
+  key: 'root',
+  children: [
+    {
+      type: 'Stack',
+      props: { space: 'space.200' },
+      key: 'table-stack',
+      children: [
+        {
+          type: 'Heading',
+          props: { size: 'large' },
+          key: 'table-heading',
+          children: [
+            { type: 'String', props: { text: 'Issue Tracker' }, key: 'th-1', children: [] },
+          ],
+        },
+        {
+          type: 'Inline',
+          props: { space: 'space.100', alignBlock: 'center' },
+          key: 'table-header-row',
+          children: [
+            {
+              type: 'ProgressTracker',
+              props: {
+                items: [
+                  { id: '1', label: 'Backlog', percentageComplete: 100, status: 'visited' },
+                  { id: '2', label: 'In Progress', percentageComplete: 60, status: 'current' },
+                  { id: '3', label: 'Review', percentageComplete: 0, status: 'unvisited' },
+                  { id: '4', label: 'Done', percentageComplete: 0, status: 'unvisited' },
+                ],
+                label: 'Sprint progress',
+              },
+              key: 'progress-tracker',
+              children: [],
+            },
+          ],
+        },
+        {
+          type: 'Table',
+          props: {},
+          key: 'issue-table',
+          children: [
+            {
+              type: 'Head',
+              props: {},
+              key: 'thead',
+              children: [
+                { type: 'Cell', props: {}, key: 'th-key', children: [{ type: 'String', props: { text: 'Key' }, key: 'th-k-s', children: [] }] },
+                { type: 'Cell', props: {}, key: 'th-summary', children: [{ type: 'String', props: { text: 'Summary' }, key: 'th-s-s', children: [] }] },
+                { type: 'Cell', props: {}, key: 'th-status', children: [{ type: 'String', props: { text: 'Status' }, key: 'th-st-s', children: [] }] },
+                { type: 'Cell', props: {}, key: 'th-priority', children: [{ type: 'String', props: { text: 'Priority' }, key: 'th-p-s', children: [] }] },
+              ],
+            },
+            {
+              type: 'Row', props: {}, key: 'row-1',
+              children: [
+                { type: 'Cell', props: {}, key: 'r1c1', children: [{ type: 'Link', props: { href: '#' }, key: 'r1-link', children: [{ type: 'String', props: { text: 'PROJ-101' }, key: 'r1c1s', children: [] }] }] },
+                { type: 'Cell', props: {}, key: 'r1c2', children: [{ type: 'String', props: { text: 'Fix login redirect loop' }, key: 'r1c2s', children: [] }] },
+                { type: 'Cell', props: {}, key: 'r1c3', children: [{ type: 'Lozenge', props: { appearance: 'inprogress', isBold: true }, key: 'r1-loz', children: [{ type: 'String', props: { text: 'In Progress' }, key: 'r1c3s', children: [] }] }] },
+                { type: 'Cell', props: {}, key: 'r1c4', children: [{ type: 'Lozenge', props: { appearance: 'removed' }, key: 'r1-pri', children: [{ type: 'String', props: { text: 'Critical' }, key: 'r1c4s', children: [] }] }] },
+              ],
+            },
+            {
+              type: 'Row', props: {}, key: 'row-2',
+              children: [
+                { type: 'Cell', props: {}, key: 'r2c1', children: [{ type: 'Link', props: { href: '#' }, key: 'r2-link', children: [{ type: 'String', props: { text: 'PROJ-102' }, key: 'r2c1s', children: [] }] }] },
+                { type: 'Cell', props: {}, key: 'r2c2', children: [{ type: 'String', props: { text: 'Add dark mode support' }, key: 'r2c2s', children: [] }] },
+                { type: 'Cell', props: {}, key: 'r2c3', children: [{ type: 'Lozenge', props: { appearance: 'new' }, key: 'r2-loz', children: [{ type: 'String', props: { text: 'To Do' }, key: 'r2c3s', children: [] }] }] },
+                { type: 'Cell', props: {}, key: 'r2c4', children: [{ type: 'Lozenge', props: { appearance: 'moved' }, key: 'r2-pri', children: [{ type: 'String', props: { text: 'Medium' }, key: 'r2c4s', children: [] }] }] },
+              ],
+            },
+            {
+              type: 'Row', props: {}, key: 'row-3',
+              children: [
+                { type: 'Cell', props: {}, key: 'r3c1', children: [{ type: 'Link', props: { href: '#' }, key: 'r3-link', children: [{ type: 'String', props: { text: 'PROJ-103' }, key: 'r3c1s', children: [] }] }] },
+                { type: 'Cell', props: {}, key: 'r3c2', children: [{ type: 'String', props: { text: 'Upgrade React to v19' }, key: 'r3c2s', children: [] }] },
+                { type: 'Cell', props: {}, key: 'r3c3', children: [{ type: 'Lozenge', props: { appearance: 'success', isBold: true }, key: 'r3-loz', children: [{ type: 'String', props: { text: 'Done' }, key: 'r3c3s', children: [] }] }] },
+                { type: 'Cell', props: {}, key: 'r3c4', children: [{ type: 'Lozenge', props: { appearance: 'default' }, key: 'r3-pri', children: [{ type: 'String', props: { text: 'Low' }, key: 'r3c4s', children: [] }] }] },
+              ],
+            },
+          ],
+        },
+        {
+          type: 'Stack',
+          props: { space: 'space.150' },
+          key: 'file-section',
+          children: [
+            {
+              type: 'Heading',
+              props: { size: 'small' },
+              key: 'file-heading',
+              children: [
+                { type: 'String', props: { text: 'Attachments' }, key: 'fh-1', children: [] },
+              ],
+            },
+            {
+              type: 'FileCard',
+              props: { fileName: 'screenshot.png', fileSize: 245000, fileType: 'image/png', onDownload: Object.assign(() => alert('Download!'), { __id__: 'dl-1' }) },
+              key: 'file-1',
+              children: [],
+            },
+            {
+              type: 'FileCard',
+              props: { fileName: 'report.pdf', fileSize: 1230000, fileType: 'application/pdf', onDownload: Object.assign(() => alert('Download!'), { __id__: 'dl-2' }), onDelete: Object.assign(() => alert('Delete!'), { __id__: 'del-2' }) },
+              key: 'file-2',
+              children: [],
+            },
+            {
+              type: 'FileCard',
+              props: { fileName: 'broken-upload.zip', fileSize: 500000, fileType: 'application/zip', error: 'Upload failed: connection timeout' },
+              key: 'file-3',
+              children: [],
+            },
+            {
+              type: 'FilePicker',
+              props: { label: 'Add attachments', description: 'PNG, JPG, PDF up to 10MB' },
+              key: 'file-picker',
+              children: [],
+            },
+          ],
+        },
+      ],
+    },
+  ],
+};
+
 export const ALL_SAMPLES: Record<string, ForgeDoc> = {
   'Issue Panel': issuePanel,
   'Create Form': formExample,
   'Kitchen Sink': kitchenSink,
+  'Charts': chartsDemo,
+  'Table & Files': tableDemo,
 };
