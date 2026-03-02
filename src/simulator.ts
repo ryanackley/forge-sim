@@ -10,6 +10,7 @@ import { SimulatedQueue } from './queue.js';
 import { SimulatedResolver } from './resolver.js';
 import { SimulatedProductApi, route } from './product-api.js';
 import { SimulatedForgeSQL, type ForgeSQLOptions } from './forge-sql.js';
+import { SimulatedEntityStore, type EntitySchema } from './entity-store.js';
 import { parseManifest, parseManifestContent, type ParsedManifest } from './manifest.js';
 import { withCapture, type ConsoleLine } from './console-capture.js';
 import { resetBridge } from './ui/bridge.js';
@@ -21,6 +22,7 @@ export class ForgeSimulator {
   readonly resolver: SimulatedResolver;
   readonly productApi: SimulatedProductApi;
   readonly sql: SimulatedForgeSQL;
+  readonly entityStore: SimulatedEntityStore;
 
   private manifest: ParsedManifest | null = null;
   private logs: LogEntry[] = [];
@@ -32,6 +34,7 @@ export class ForgeSimulator {
     this.resolver = new SimulatedResolver();
     this.productApi = new SimulatedProductApi();
     this.sql = new SimulatedForgeSQL(config?.forgeSQL);
+    this.entityStore = new SimulatedEntityStore();
 
     if (config?.storageLatency !== undefined) {
       this.kvs.setLatency(config.storageLatency);
@@ -255,6 +258,7 @@ export class ForgeSimulator {
     this.queue.clear();
     this.resolver.clear();
     this.productApi.clear();
+    this.entityStore.clear();
     this.manifest = null;
     this.logs.length = 0;
     this.consoleLogs.length = 0;
@@ -290,3 +294,5 @@ export type { ParsedManifest } from './manifest.js';
 export type { ConsoleLine } from './console-capture.js';
 export { SimulatedForgeSQL } from './forge-sql.js';
 export type { ForgeSQLOptions } from './forge-sql.js';
+export { SimulatedEntityStore } from './entity-store.js';
+export type { EntitySchema, IndexDefinition, StoredEntry } from './entity-store.js';
