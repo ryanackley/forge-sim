@@ -17,6 +17,9 @@
  *   forge:queue_push    — Push events to a queue
  *   forge:queue_state   — Inspect queue job state and event log
  *   forge:logs          — Get simulator + console logs
+ *   forge:sql_execute   — Execute SQL queries (real MySQL)
+ *   forge:sql_migrate   — Run idempotent database migrations
+ *   forge:sql_schema    — Inspect database schema (tables, columns, indexes)
  *   forge:reset         — Reset all simulator state
  *
  * Resources:
@@ -427,6 +430,186 @@ server.tool(
     return {
       content: [{ type: 'text' as const, text: JSON.stringify(output, null, 2) }],
     };
+  }
+);
+
+// ── SQL Tools ───────────────────────────────────────────────────────────
+
+server.tool(
+  'forge.sql_execute',
+  'Execute a SQL query against the simulated Forge SQL database (real MySQL). Supports SELECT, INSERT, UPDATE, DELETE, CREATE TABLE, ALTER TABLE, etc. Uses parameterized queries when params are provided.',
+  {
+    query: z.string().describe('SQL query to execute'),
+    params: z.array(z.any()).optional().describe('Bind parameters for the query (use ? placeholders)'),
+  },
+  async ({ query, params }) => {
+    try {
+      // Ensure MySQL is running (lazy start on first use)
+      await sim.sql.start();
+
+      const fetchFn = sim.sql.createFetchFunction();
+      const res = await fetchFn('/api/v1/execute', {
+        method: 'POST',
+        body: JSON.stringify({ query, params: params ?? [], method: 'all' }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        return {
+          content: [{ type: 'text' as const, text: `❌ SQL error: ${data.message ?? data.sqlMessage ?? JSON.stringify(data)}` }],
+          isError: true,
+        };
+      }
+
+      return {
+        content: [{ type: 'text' as const, text: JSON.stringify(data, null, 2) }],
+      };
+    } catch (err) {
+      return {
+        content: [{ type: 'text' as const, text: `❌ SQL execution failed: ${err instanceof Error ? err.message : String(err)}` }],
+        isError: true,
+      };
+    }
+  }
+);
+
+server.tool(
+  'forge.sql_migrate',
+  'Run database migrations (idempotent). Migrations that have already been applied are skipped. Uses the same __migrations table as @forge/sql migrationRunner.',
+  {
+    migrations: z.array(z.object({
+      name: z.string().describe('Unique migration name (e.g. "001_create_users")'),
+      statement: z.string().describe('DDL statement to execute (CREATE TABLE, ALTER TABLE, etc.)'),
+    })).describe('Ordered list of migrations to apply'),
+  },
+  async ({ migrations }) => {
+    try {
+      await sim.sql.start();
+
+      const fetchFn = sim.sql.createFetchFunction();
+
+      // Create migrations table if it doesn't exist
+      await fetchFn('/api/v1/execute/ddl', {
+        method: 'POST',
+        body: JSON.stringify({
+          query: 'CREATE TABLE IF NOT EXISTS __migrations (id BIGINT PRIMARY KEY AUTO_INCREMENT, name VARCHAR(255) NOT NULL, migratedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP)',
+          params: [],
+        }),
+      });
+
+      // Get already-applied migrations
+      const listRes = await fetchFn('/api/v1/execute', {
+        method: 'POST',
+        body: JSON.stringify({ query: 'SELECT name FROM __migrations', params: [] }),
+      });
+      const listData = await listRes.json();
+      const applied = new Set((listData.rows as any[]).map((r: any) => r.name));
+
+      const results: { name: string; status: 'applied' | 'skipped' | 'error'; error?: string }[] = [];
+
+      for (const migration of migrations) {
+        if (applied.has(migration.name)) {
+          results.push({ name: migration.name, status: 'skipped' });
+          continue;
+        }
+
+        // Run the DDL
+        const ddlRes = await fetchFn('/api/v1/execute/ddl', {
+          method: 'POST',
+          body: JSON.stringify({ query: migration.statement, params: [] }),
+        });
+
+        if (!ddlRes.ok) {
+          const errData = await ddlRes.json();
+          results.push({ name: migration.name, status: 'error', error: errData.message ?? errData.sqlMessage });
+          break; // Stop on first error
+        }
+
+        // Record it
+        await fetchFn('/api/v1/execute', {
+          method: 'POST',
+          body: JSON.stringify({
+            query: 'INSERT INTO __migrations (name) VALUES (?)',
+            params: [migration.name],
+          }),
+        });
+
+        results.push({ name: migration.name, status: 'applied' });
+      }
+
+      const appliedCount = results.filter((r) => r.status === 'applied').length;
+      const skippedCount = results.filter((r) => r.status === 'skipped').length;
+      const errorCount = results.filter((r) => r.status === 'error').length;
+
+      return {
+        content: [{
+          type: 'text' as const,
+          text: JSON.stringify({
+            summary: `${appliedCount} applied, ${skippedCount} skipped${errorCount ? `, ${errorCount} error` : ''}`,
+            migrations: results,
+          }, null, 2),
+        }],
+      };
+    } catch (err) {
+      return {
+        content: [{ type: 'text' as const, text: `❌ Migration failed: ${err instanceof Error ? err.message : String(err)}` }],
+        isError: true,
+      };
+    }
+  }
+);
+
+server.tool(
+  'forge.sql_schema',
+  'Inspect the database schema — list tables and their column definitions. Useful for understanding what data structures exist.',
+  {
+    table: z.string().optional().describe('Get detailed schema for a specific table. If omitted, lists all tables.'),
+  },
+  async ({ table }) => {
+    try {
+      await sim.sql.start();
+
+      if (table) {
+        const cols = await sim.sql.query<{
+          Field: string; Type: string; Null: string; Key: string; Default: any; Extra: string;
+        }>(`DESCRIBE \`${table}\``);
+
+        const indexes = await sim.sql.query<{
+          Key_name: string; Column_name: string; Non_unique: number; Seq_in_index: number;
+        }>(`SHOW INDEX FROM \`${table}\``);
+
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify({ table, columns: cols, indexes }, null, 2),
+          }],
+        };
+      }
+
+      // List all tables
+      const tables = await sim.sql.query<Record<string, string>>('SHOW TABLES');
+      const tableNames = tables.map((row) => Object.values(row)[0]);
+
+      // Get column counts for each
+      const schema: { name: string; columns: number }[] = [];
+      for (const name of tableNames) {
+        const cols = await sim.sql.query(`DESCRIBE \`${name}\``);
+        schema.push({ name, columns: cols.length });
+      }
+
+      return {
+        content: [{
+          type: 'text' as const,
+          text: JSON.stringify({ tables: schema, count: schema.length }, null, 2),
+        }],
+      };
+    } catch (err) {
+      return {
+        content: [{ type: 'text' as const, text: `❌ Schema query failed: ${err instanceof Error ? err.message : String(err)}` }],
+        isError: true,
+      };
+    }
   }
 );
 

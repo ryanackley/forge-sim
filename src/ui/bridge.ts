@@ -35,6 +35,7 @@ let simulator: ForgeSimulator | null = null;
 let latestForgeDoc: ForgeDoc | null = null;
 let renderResolvers: Array<(doc: ForgeDoc) => void> = [];
 const bridgeCalls: BridgeCall[] = [];
+let tornDown = false;
 
 // ── Bridge command handlers ─────────────────────────────────────────────
 
@@ -50,6 +51,12 @@ async function handleReconcile(data: any): Promise<void> {
 }
 
 async function handleInvoke(data: any): Promise<any> {
+  // After teardown, reject stale invoke calls from unmounted React effects.
+  // This prevents the app code from trying to use the result, and React
+  // swallows errors from unmounted component effects.
+  if (tornDown) {
+    return new Promise(() => {}); // Hang forever — effect is stale, nobody's listening
+  }
   if (!simulator) {
     throw new Error('forge-sim bridge: No simulator connected. Call connectSimulator() first.');
   }
@@ -137,6 +144,7 @@ export function installBridge(): void {
  */
 export function connectSimulator(sim: ForgeSimulator): void {
   simulator = sim;
+  tornDown = false;
 }
 
 // ── ForgeDoc access ─────────────────────────────────────────────────────
@@ -158,8 +166,9 @@ export function getBridgeCalls(): BridgeCall[] {
   return [...bridgeCalls];
 }
 
-/** Reset all UI state. */
+/** Reset all UI state — marks bridge as torn down to swallow stale React effects. */
 export function resetBridge(): void {
+  tornDown = true;
   latestForgeDoc = null;
   renderResolvers = [];
   bridgeCalls.length = 0;

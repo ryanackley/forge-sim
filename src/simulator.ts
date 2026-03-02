@@ -9,8 +9,11 @@ import { SimulatedKVS } from './storage.js';
 import { SimulatedQueue } from './queue.js';
 import { SimulatedResolver } from './resolver.js';
 import { SimulatedProductApi, route } from './product-api.js';
+import { SimulatedForgeSQL, type ForgeSQLOptions } from './forge-sql.js';
+import { SimulatedEntityStore, type EntitySchema } from './entity-store.js';
 import { parseManifest, parseManifestContent, type ParsedManifest } from './manifest.js';
 import { withCapture, type ConsoleLine } from './console-capture.js';
+import { resetBridge } from './ui/bridge.js';
 import type { SimulationConfig, ResolverContext, ProductApiHandler, ProductApiRequest, ProductApiResponse } from './types.js';
 
 export class ForgeSimulator {
@@ -18,6 +21,8 @@ export class ForgeSimulator {
   readonly queue: SimulatedQueue;
   readonly resolver: SimulatedResolver;
   readonly productApi: SimulatedProductApi;
+  readonly sql: SimulatedForgeSQL;
+  readonly entityStore: SimulatedEntityStore;
 
   private manifest: ParsedManifest | null = null;
   private logs: LogEntry[] = [];
@@ -28,6 +33,8 @@ export class ForgeSimulator {
     this.queue = new SimulatedQueue({ mode: config?.queueMode ?? 'sequential' });
     this.resolver = new SimulatedResolver();
     this.productApi = new SimulatedProductApi();
+    this.sql = new SimulatedForgeSQL(config?.forgeSQL);
+    this.entityStore = new SimulatedEntityStore();
 
     if (config?.storageLatency !== undefined) {
       this.kvs.setLatency(config.storageLatency);
@@ -245,13 +252,26 @@ export class ForgeSimulator {
   // ── Full Reset ──────────────────────────────────────────────────────────
 
   reset(): void {
+    // Tear down UI bridge first — swallows stale React effects that fire after reset
+    resetBridge();
     this.kvs.clear();
     this.queue.clear();
     this.resolver.clear();
     this.productApi.clear();
+    this.entityStore.clear();
     this.manifest = null;
     this.logs.length = 0;
     this.consoleLogs.length = 0;
+    // Note: SQL server is NOT stopped on reset — it's expensive to restart.
+    // Call stop() explicitly when done.
+  }
+
+  /**
+   * Stop all background services (MySQL server, etc.).
+   * Call this when you're done with the simulator.
+   */
+  async stop(): Promise<void> {
+    await this.sql.stop();
   }
 }
 
@@ -272,3 +292,7 @@ export { WhereConditions } from './storage.js';
 export { setSimulator, getSimulator } from './shims/globals.js';
 export type { ParsedManifest } from './manifest.js';
 export type { ConsoleLine } from './console-capture.js';
+export { SimulatedForgeSQL } from './forge-sql.js';
+export type { ForgeSQLOptions } from './forge-sql.js';
+export { SimulatedEntityStore } from './entity-store.js';
+export type { EntitySchema, IndexDefinition, StoredEntry } from './entity-store.js';

@@ -4,7 +4,7 @@
  * Tests the full MCP tool flow: deploy → invoke → inspect state.
  * Uses the MCP SDK's in-memory client/server transport.
  */
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
@@ -19,6 +19,27 @@ import { ForgeSimulator, setSimulator } from '../simulator.js';
 import { installBridge, getLatestForgeDoc, resetBridge } from '../ui/bridge.js';
 
 const TEST_APP_DIR = resolve(__dirname, '..', '..', 'test-app');
+
+// Helper: simulate what MCP tools do for SQL
+async function sqlExecute(sim: ForgeSimulator, query: string, params: any[] = []) {
+  await sim.sql.start();
+  const fetchFn = sim.sql.createFetchFunction();
+  const res = await fetchFn('/api/v1/execute', {
+    method: 'POST',
+    body: JSON.stringify({ query, params, method: 'all' }),
+  });
+  return res.json();
+}
+
+async function sqlDDL(sim: ForgeSimulator, query: string) {
+  await sim.sql.start();
+  const fetchFn = sim.sql.createFetchFunction();
+  const res = await fetchFn('/api/v1/execute/ddl', {
+    method: 'POST',
+    body: JSON.stringify({ query, params: [] }),
+  });
+  return res.json();
+}
 
 describe('MCP Server Integration', () => {
   describe('Simulator flow (what MCP tools exercise)', () => {
@@ -92,6 +113,54 @@ describe('MCP Server Integration', () => {
       expect(sim.getLogs()).toHaveLength(0);
       expect(sim.getConsoleLogs()).toHaveLength(0);
       expect(sim.getManifest()).toBeNull();
+    });
+  });
+
+  describe('SQL tools flow', () => {
+    let sim: ForgeSimulator;
+
+    beforeAll(async () => {
+      sim = new ForgeSimulator();
+      setSimulator(sim);
+      await sim.sql.start();
+    }, 60_000);
+
+    afterAll(async () => {
+      await sim.stop();
+    }, 30_000);
+
+    it('should run migrations (forge.sql_migrate pattern)', async () => {
+      // Create migrations table
+      await sqlDDL(sim, 'CREATE TABLE IF NOT EXISTS __migrations (id BIGINT PRIMARY KEY AUTO_INCREMENT, name VARCHAR(255) NOT NULL, migratedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP)');
+
+      // Run a migration
+      await sqlDDL(sim, 'CREATE TABLE items (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255), price DECIMAL(10,2))');
+      await sqlExecute(sim, 'INSERT INTO __migrations (name) VALUES (?)', ['001_create_items']);
+
+      // Verify
+      const migrations = await sqlExecute(sim, 'SELECT * FROM __migrations');
+      expect(migrations.rows).toHaveLength(1);
+      expect(migrations.rows[0].name).toBe('001_create_items');
+    });
+
+    it('should execute queries (forge.sql_execute pattern)', async () => {
+      await sqlExecute(sim, 'INSERT INTO items (name, price) VALUES (?, ?)', ['Widget', 9.99]);
+      await sqlExecute(sim, 'INSERT INTO items (name, price) VALUES (?, ?)', ['Gadget', 24.99]);
+
+      const result = await sqlExecute(sim, 'SELECT * FROM items ORDER BY price');
+      expect(result.rows).toHaveLength(2);
+      expect(result.rows[0].name).toBe('Widget');
+      expect(result.rows[1].price).toBe('24.99'); // DECIMAL comes back as string
+    });
+
+    it('should inspect schema (forge.sql_schema pattern)', async () => {
+      const tables = await sim.sql.query<Record<string, string>>('SHOW TABLES');
+      const tableNames = tables.map(r => Object.values(r)[0]);
+      expect(tableNames).toContain('items');
+      expect(tableNames).toContain('__migrations');
+
+      const cols = await sim.sql.query('DESCRIBE items');
+      expect(cols.length).toBe(3); // id, name, price
     });
   });
 });

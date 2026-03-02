@@ -147,4 +147,13 @@ export interface SimulationConfig {
    * - number: random delay up to this many ms
    */
   storageLatency?: boolean | number;
+  /** Forge SQL options (ephemeral MySQL backend) */
+  forgeSQL?: {
+    /** MySQL version (default: '8.4.x') */
+    mysqlVersion?: string;
+    /** Database name (default: 'forge_app') */
+    dbName?: string;
+    /** Log level (default: 'ERROR') */
+    logLevel?: 'LOG' | 'WARN' | 'ERROR';
+  };
 }
