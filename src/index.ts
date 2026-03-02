@@ -50,6 +50,9 @@ export type {
   SimulationConfig,
 } from './types.js';
 
+// Dev server (live preview)
+export { createDevServer, type DevServer, type DevServerOptions, type DevEvent } from './dev-server.js';
+
 export type {
   ParsedManifest,
   ManifestFunction,
