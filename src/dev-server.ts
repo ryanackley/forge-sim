@@ -29,6 +29,10 @@ export interface DevServerOptions {
   debounceMs?: number;
   /** Called when a file change is detected — should re-deploy and return new ForgeDoc */
   onFileChange?: (changedFile: string) => Promise<ForgeDoc | null>;
+  /** ForgeSimulator instance — required for browser mode RPC (invoke, fetchProduct, etc.) */
+  simulator?: import('./simulator.js').ForgeSimulator;
+  /** Simulated Forge context returned by getContext */
+  context?: Record<string, any>;
 }
 
 export interface DevServer {
@@ -53,6 +57,7 @@ export type ServerEvent =
 /** Events sent from renderer to server */
 export type ClientEvent =
   | { type: 'uiEvent'; requestId: string; handlerId: string; eventName: string; args: any[] }
+  | { type: 'rpc'; requestId: string; method: string; params: any }
   | { type: 'ping' };
 
 // Keep the old name as an alias for backwards compat
@@ -103,6 +108,8 @@ export function createDevServer(options: DevServerOptions = {}): DevServer {
     watchDir,
     debounceMs = 300,
     onFileChange,
+    simulator,
+    context,
   } = options;
 
   const wss = new WebSocketServer({ port });
@@ -152,10 +159,92 @@ export function createDevServer(options: DevServerOptions = {}): DevServer {
     console.log(`[dev-server] WebSocket server listening on ws://localhost:${port}`);
   });
 
+  // ── RPC handler (browser mode) ─────────────────────────────────────
+
+  async function handleRpc(method: string, params: any): Promise<any> {
+    if (!simulator) {
+      throw new Error(`No simulator connected. Pass { simulator } to createDevServer() for browser mode.`);
+    }
+
+    switch (method) {
+      case 'invoke': {
+        const { functionKey, payload } = params;
+        return simulator.invoke(functionKey, payload);
+      }
+
+      case 'fetchProduct': {
+        const { product, restPath, fetchRequestInit } = params;
+        const response = await simulator.productApi.request(product, restPath, {
+          method: fetchRequestInit?.method,
+          headers: fetchRequestInit?.headers,
+          body: fetchRequestInit?.body,
+        });
+        return {
+          status: response.status,
+          statusText: response.statusText,
+          body: await response.text(),
+          headers: response.headers,
+        };
+      }
+
+      case 'getContext': {
+        return context ?? {
+          accountId: 'sim-user-001',
+          cloudId: 'sim-cloud-001',
+          siteUrl: 'https://sim-site.atlassian.net',
+          moduleKey: 'sim-module',
+          environmentId: 'sim-env',
+          environmentType: 'DEVELOPMENT',
+          localId: 'sim-local',
+          locale: 'en-US',
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          extension: {},
+        };
+      }
+
+      case 'viewSubmit':
+      case 'viewClose':
+      case 'viewRefresh':
+        console.log(`[dev-server] View action: ${method}`, params);
+        return;
+
+      case 'modalOpen':
+      case 'modalClose':
+        console.log(`[dev-server] Modal action: ${method}`, params);
+        return;
+
+      case 'flagShow':
+        console.log(`[dev-server] Flag:`, params);
+        return;
+
+      case 'eventEmit':
+        console.log(`[dev-server] Event: ${params?.event}`, params?.payload);
+        return;
+
+      default:
+        console.warn(`[dev-server] Unknown RPC method: ${method}`);
+        throw new Error(`Unknown RPC method: ${method}`);
+    }
+  }
+
   // ── Client event handling ───────────────────────────────────────────
 
   async function handleClientEvent(event: ClientEvent, ws: WebSocket) {
     if (event.type === 'ping') return;
+
+    // ── RPC from browser bridge shim ────────────────────────────────
+    if (event.type === 'rpc') {
+      const { requestId, method, params } = event;
+      console.log(`[dev-server] RPC: ${method}`);
+
+      try {
+        const result = await handleRpc(method, params);
+        ws.send(JSON.stringify({ requestId, result }));
+      } catch (err: any) {
+        ws.send(JSON.stringify({ requestId, error: err.message }));
+      }
+      return;
+    }
 
     if (event.type === 'uiEvent') {
       const { requestId, handlerId, eventName, args } = event;
