@@ -6,7 +6,7 @@
  *   2. Live mode — connect to forge-sim dev server via WebSocket for real-time updates
  */
 
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { ForgeDocRenderer } from './ForgeDocRenderer';
 import { ALL_SAMPLES } from './sample-docs';
 import { useLiveDoc, type ConnectionStatus } from './use-live-doc';
@@ -42,10 +42,28 @@ export function App() {
 
   const doc = mode === 'live' ? live.doc : ALL_SAMPLES[activeSample];
 
-  const handleEvent = (handlerId: string, eventName: string) => {
+  const handleEvent = useCallback((handlerId: string, eventName: string) => {
     const entry = `[${new Date().toLocaleTimeString()}] ${eventName} → ${handlerId}`;
     setEventLog((prev) => [entry, ...prev].slice(0, 50));
-  };
+  }, []);
+
+  /** Bridge event handler — sends events to forge-sim via WebSocket and logs result */
+  const handleBridgeEvent = useCallback(async (handlerId: string, eventName: string, ...args: any[]) => {
+    const entry = `[${new Date().toLocaleTimeString()}] ⚡ ${eventName} → ${handlerId}`;
+    setEventLog((prev) => [entry, ...prev].slice(0, 50));
+
+    const result = await live.sendEvent(handlerId, eventName, ...args);
+
+    if (result.success) {
+      const successEntry = `[${new Date().toLocaleTimeString()}] ✅ ${handlerId} completed`;
+      setEventLog((prev) => [successEntry, ...prev].slice(0, 50));
+    } else {
+      const errorEntry = `[${new Date().toLocaleTimeString()}] ❌ ${handlerId}: ${result.error}`;
+      setEventLog((prev) => [errorEntry, ...prev].slice(0, 50));
+    }
+
+    return result;
+  }, [live.sendEvent]);
 
   return (
     <div style={{ display: 'flex', height: '100vh', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
@@ -254,6 +272,12 @@ const dev = createDevServer({
                   <span>{countTypes(live.doc)} component types</span>
                 </>
               )}
+              {live.pendingEvents > 0 && (
+                <>
+                  <span>•</span>
+                  <span style={{ color: '#ff991f' }}>⏳ {live.pendingEvents} pending</span>
+                </>
+              )}
             </>
           ) : (
             <>
@@ -297,7 +321,11 @@ const dev = createDevServer({
                   borderRadius: '8px 8px 0 0',
                 }} />
               )}
-              <ForgeDocRenderer doc={doc} onEvent={handleEvent} />
+              <ForgeDocRenderer
+                doc={doc}
+                onEvent={handleEvent}
+                onBridgeEvent={mode === 'live' ? handleBridgeEvent : undefined}
+              />
             </div>
           ) : (
             <div style={{

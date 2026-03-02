@@ -10,6 +10,7 @@ export {
   getBridgeCalls,
   resetBridge,
   resetAll,
+  onRender,
   type ForgeDoc,
   type BridgeCall,
 } from './bridge.js';

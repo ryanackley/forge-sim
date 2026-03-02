@@ -2,7 +2,10 @@
  * ForgeDocRenderer — recursively walks a ForgeDoc tree and renders
  * each node using the Atlaskit component map.
  *
- * This is the main entry point for rendering ForgeDoc → real UI.
+ * Supports two event modes:
+ *   1. Direct (sample mode): function props are called directly
+ *   2. Bridge (live mode): function markers (__fn__:handlerId) are routed
+ *      through the WebSocket event bridge back to forge-sim
  */
 
 import React from 'react';
@@ -11,37 +14,79 @@ import type { ForgeDoc } from './types';
 
 interface ForgeDocRendererProps {
   doc: ForgeDoc;
+  /** Called for direct function calls (sample mode) */
   onEvent?: (handlerId: string, eventName: string, ...args: any[]) => void;
+  /** Called to send events through the WebSocket bridge (live mode) */
+  onBridgeEvent?: (handlerId: string, eventName: string, ...args: any[]) => Promise<any>;
 }
 
-function renderNode(doc: ForgeDoc, onEvent?: ForgeDocRendererProps['onEvent']): React.ReactNode {
-  // Render children recursively first
-  const children = (doc.children ?? []).map((child) => renderNode(child, onEvent));
+/**
+ * Wire up event handler props.
+ *
+ * For serialized ForgeDoc (from WebSocket), function props are strings like "__fn__:handlerId".
+ * We convert these to real functions that route through the bridge.
+ *
+ * For in-memory ForgeDoc (samples), function props are actual functions.
+ */
+function wireEventHandlers(
+  props: Record<string, any>,
+  onEvent?: ForgeDocRendererProps['onEvent'],
+  onBridgeEvent?: ForgeDocRendererProps['onBridgeEvent']
+): Record<string, any> {
+  const wired: Record<string, any> = {};
 
-  // Look up the component renderer
-  const renderer = COMPONENT_MAP[doc.type] ?? FallbackComponent;
-
-  // Wire up event handlers — pass the onEvent callback through props
-  const props = { ...doc.props };
   for (const [key, value] of Object.entries(props)) {
-    if (typeof value === 'function') {
+    if (typeof value === 'string' && value.startsWith('__fn__:')) {
+      // Serialized function marker from WebSocket — route through bridge
+      const handlerId = value.slice(7);
+      wired[key] = (...args: any[]) => {
+        if (onBridgeEvent) {
+          onBridgeEvent(handlerId, key, ...args);
+        }
+        if (onEvent) {
+          onEvent(handlerId, key, ...args);
+        }
+      };
+    } else if (typeof value === 'function') {
+      // Direct function reference (sample mode)
       const originalFn = value;
-      props[key] = (...args: any[]) => {
+      wired[key] = (...args: any[]) => {
         if (onEvent) {
           onEvent(originalFn.__id__ ?? 'unknown', key, ...args);
         }
         return originalFn(...args);
       };
+    } else {
+      wired[key] = value;
     }
   }
 
+  return wired;
+}
+
+function renderNode(
+  doc: ForgeDoc,
+  onEvent?: ForgeDocRendererProps['onEvent'],
+  onBridgeEvent?: ForgeDocRendererProps['onBridgeEvent']
+): React.ReactNode {
+  // Render children recursively first
+  const children = (doc.children ?? []).map((child) =>
+    renderNode(child, onEvent, onBridgeEvent)
+  );
+
+  // Look up the component renderer
+  const renderer = COMPONENT_MAP[doc.type] ?? FallbackComponent;
+
+  // Wire up event handlers
+  const wiredProps = wireEventHandlers(doc.props, onEvent, onBridgeEvent);
+
   return (
     <React.Fragment key={doc.key}>
-      {renderer(props, children, doc)}
+      {renderer(wiredProps, children, { ...doc, props: wiredProps })}
     </React.Fragment>
   );
 }
 
-export function ForgeDocRenderer({ doc, onEvent }: ForgeDocRendererProps) {
-  return <>{renderNode(doc, onEvent)}</>;
+export function ForgeDocRenderer({ doc, onEvent, onBridgeEvent }: ForgeDocRendererProps) {
+  return <>{renderNode(doc, onEvent, onBridgeEvent)}</>;
 }

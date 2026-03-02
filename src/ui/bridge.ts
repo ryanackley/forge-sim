@@ -34,6 +34,7 @@ export interface BridgeCall {
 let simulator: ForgeSimulator | null = null;
 let latestForgeDoc: ForgeDoc | null = null;
 let renderResolvers: Array<(doc: ForgeDoc) => void> = [];
+let renderListeners: Array<(doc: ForgeDoc) => void> = [];
 const bridgeCalls: BridgeCall[] = [];
 let tornDown = false;
 
@@ -46,6 +47,10 @@ async function handleReconcile(data: any): Promise<void> {
     renderResolvers = [];
     for (const resolve of resolvers) {
       resolve(latestForgeDoc!);
+    }
+    // Notify persistent listeners (e.g., dev server)
+    for (const listener of renderListeners) {
+      try { listener(latestForgeDoc!); } catch {}
     }
   }
 }
@@ -166,6 +171,18 @@ export function getBridgeCalls(): BridgeCall[] {
   return [...bridgeCalls];
 }
 
+/**
+ * Register a persistent listener that fires on every render (reconcile).
+ * Used by the dev server to auto-broadcast ForgeDoc updates.
+ * Returns an unbind function.
+ */
+export function onRender(listener: (doc: ForgeDoc) => void): () => void {
+  renderListeners.push(listener);
+  return () => {
+    renderListeners = renderListeners.filter((l) => l !== listener);
+  };
+}
+
 /** Reset all UI state — marks bridge as torn down to swallow stale React effects. */
 export function resetBridge(): void {
   tornDown = true;
@@ -177,5 +194,6 @@ export function resetBridge(): void {
 /** Full reset — disconnects simulator too. */
 export function resetAll(): void {
   resetBridge();
+  renderListeners = [];
   simulator = null;
 }

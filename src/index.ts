@@ -20,6 +20,7 @@ export {
   getBridgeCalls,
   resetBridge,
   resetAll,
+  onRender,
   findByType,
   findFirstByType,
   findByProps,
