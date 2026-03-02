@@ -20,6 +20,11 @@
  *   forge:sql_execute   — Execute SQL queries (real MySQL)
  *   forge:sql_migrate   — Run idempotent database migrations
  *   forge:sql_schema    — Inspect database schema (tables, columns, indexes)
+ *   forge:entity_get    — Get a Custom Entity by name + key
+ *   forge:entity_set    — Create/update a Custom Entity
+ *   forge:entity_delete — Delete a Custom Entity
+ *   forge:entity_query  — Query entities with indexes, filters, sort, pagination
+ *   forge:entity_list   — List all entities and schemas
  *   forge:reset         — Reset all simulator state
  *
  * Resources:
@@ -610,6 +615,193 @@ server.tool(
         isError: true,
       };
     }
+  }
+);
+
+// ── Entity Store Tools ──────────────────────────────────────────────────
+
+server.tool(
+  'forge.entity_get',
+  'Get a Custom Entity by entity name and key. Returns the entity value with metadata (createdAt, updatedAt).',
+  {
+    entityName: z.string().describe('Entity type name (as defined in manifest)'),
+    key: z.string().describe('Entity key'),
+  },
+  async ({ entityName, key }) => {
+    try {
+      const res = await sim.entityStore.handleRequest('/api/v1/entity/get', {
+        method: 'POST',
+        body: JSON.stringify({ entityName, key }),
+      });
+      const data = await res.json();
+      return {
+        content: [{ type: 'text' as const, text: JSON.stringify(data, null, 2) }],
+        ...(res.ok ? {} : { isError: true }),
+      };
+    } catch (err) {
+      return {
+        content: [{ type: 'text' as const, text: `❌ ${err instanceof Error ? err.message : String(err)}` }],
+        isError: true,
+      };
+    }
+  }
+);
+
+server.tool(
+  'forge.entity_set',
+  'Create or update a Custom Entity. Supports key policies (FAIL_IF_EXISTS, OVERRIDE) and TTL.',
+  {
+    entityName: z.string().describe('Entity type name (as defined in manifest)'),
+    key: z.string().describe('Entity key'),
+    value: z.record(z.string(), z.any()).describe('Entity value (object with attributes)'),
+    options: z.object({
+      ifNotExists: z.boolean().optional().describe('If true, fail if key already exists (FAIL_IF_EXISTS policy)'),
+      ttlSeconds: z.number().optional().describe('Time-to-live in seconds'),
+    }).optional().describe('Write options'),
+  },
+  async ({ entityName, key, value, options }) => {
+    try {
+      const body: any = { entityName, key, value };
+      if (options?.ifNotExists) {
+        body.options = { keyPolicy: 'FAIL_IF_EXISTS' };
+      } else if (options?.ttlSeconds) {
+        body.options = { ttlSeconds: options.ttlSeconds };
+      }
+
+      const res = await sim.entityStore.handleRequest('/api/v1/entity/set', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      });
+      if (res.ok) {
+        return { content: [{ type: 'text' as const, text: `✅ Set ${entityName}:${key}` }] };
+      }
+      const data = await res.json();
+      return {
+        content: [{ type: 'text' as const, text: JSON.stringify(data, null, 2) }],
+        isError: true,
+      };
+    } catch (err) {
+      return {
+        content: [{ type: 'text' as const, text: `❌ ${err instanceof Error ? err.message : String(err)}` }],
+        isError: true,
+      };
+    }
+  }
+);
+
+server.tool(
+  'forge.entity_delete',
+  'Delete a Custom Entity by entity name and key.',
+  {
+    entityName: z.string().describe('Entity type name'),
+    key: z.string().describe('Entity key to delete'),
+  },
+  async ({ entityName, key }) => {
+    try {
+      const res = await sim.entityStore.handleRequest('/api/v1/entity/delete', {
+        method: 'POST',
+        body: JSON.stringify({ entityName, key }),
+      });
+      if (res.ok) {
+        return { content: [{ type: 'text' as const, text: `✅ Deleted ${entityName}:${key}` }] };
+      }
+      const data = await res.json();
+      return {
+        content: [{ type: 'text' as const, text: `❌ ${data.message}` }],
+        isError: true,
+      };
+    } catch (err) {
+      return {
+        content: [{ type: 'text' as const, text: `❌ ${err instanceof Error ? err.message : String(err)}` }],
+        isError: true,
+      };
+    }
+  }
+);
+
+server.tool(
+  'forge.entity_query',
+  'Query Custom Entities using indexes, partition/range keys, filters, and sorting. Mirrors the @forge/kvs entity query builder.',
+  {
+    entityName: z.string().describe('Entity type name'),
+    indexName: z.string().describe('Index to query (as defined in manifest)'),
+    partition: z.array(z.any()).describe('Partition key values (must match index partition attributes in order)'),
+    range: z.object({
+      operator: z.enum(['BETWEEN', 'BEGINS_WITH', 'GREATER_THAN', 'LESS_THAN', 'EQUAL_TO']).describe('Range condition operator'),
+      value: z.any().describe('Range value (or [min, max] array for BETWEEN)'),
+    }).optional().describe('Range key condition'),
+    filters: z.array(z.object({
+      field: z.string().describe('Attribute name to filter on'),
+      operator: z.enum(['EQUAL_TO', 'GREATER_THAN', 'LESS_THAN', 'BETWEEN', 'BEGINS_WITH', 'EXISTS', 'NOT_EXISTS', 'CONTAINS']).describe('Filter operator'),
+      value: z.any().optional().describe('Filter value'),
+    })).optional().describe('Post-query filters'),
+    filterOperator: z.enum(['AND', 'OR']).optional().describe('How to combine filters (default: AND)'),
+    sort: z.enum(['ASC', 'DESC']).optional().describe('Sort direction on range key (default: ASC)'),
+    cursor: z.string().optional().describe('Pagination cursor from previous query'),
+    limit: z.number().optional().describe('Max results to return (default: 25)'),
+  },
+  async ({ entityName, indexName, partition, range, filters, filterOperator, sort, cursor, limit }) => {
+    try {
+      const body: any = { entityName, indexName, partition };
+      if (range) body.range = { condition: range.operator, value: range.operator === 'BETWEEN' ? undefined : range.value, values: range.operator === 'BETWEEN' ? range.value : undefined };
+      if (filters) body.filters = filters.map(f => ({ field: f.field, condition: f.operator, value: f.value }));
+      if (filterOperator) body.filterOperator = filterOperator;
+      if (sort) body.sort = sort;
+      if (cursor) body.cursor = cursor;
+      if (limit) body.limit = limit;
+
+      const res = await sim.entityStore.handleRequest('/api/v1/entity/query', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      return {
+        content: [{ type: 'text' as const, text: JSON.stringify(data, null, 2) }],
+        ...(res.ok ? {} : { isError: true }),
+      };
+    } catch (err) {
+      return {
+        content: [{ type: 'text' as const, text: `❌ ${err instanceof Error ? err.message : String(err)}` }],
+        isError: true,
+      };
+    }
+  }
+);
+
+server.tool(
+  'forge.entity_list',
+  'List all Custom Entities, optionally filtered by entity name. Also shows registered entity schemas (from manifest).',
+  {
+    entityName: z.string().optional().describe('Filter to a specific entity type'),
+    showSchemas: z.boolean().optional().describe('Include entity schema definitions (default: true)'),
+  },
+  async ({ entityName, showSchemas }) => {
+    const allEntities = sim.entityStore.dumpEntities();
+    const schemas = sim.entityStore.getEntitySchemas();
+
+    const output: any = {};
+
+    if (showSchemas !== false) {
+      const schemaList: Record<string, any> = {};
+      for (const [name, schema] of schemas) {
+        if (entityName && name !== entityName) continue;
+        schemaList[name] = schema;
+      }
+      output.schemas = schemaList;
+    }
+
+    if (entityName) {
+      const entries = allEntities[entityName] ?? [];
+      output.entities = { [entityName]: entries };
+      output.count = entries.length;
+    } else {
+      output.entities = allEntities;
+      output.count = Object.values(allEntities).reduce((sum, arr) => sum + arr.length, 0);
+    }
+
+    return {
+      content: [{ type: 'text' as const, text: JSON.stringify(output, null, 2) }],
+    };
   }
 );
 
