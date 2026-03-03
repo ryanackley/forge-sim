@@ -10,7 +10,7 @@ Provides a full simulation of the Forge platform so you can develop, test, and i
 
 - **Full @forge/* shim layer** — App code imports `@forge/api`, `@forge/kvs`, `@forge/events`, `@forge/resolver`, `@forge/sql` and gets our sim. Zero changes needed.
 - **Manifest-driven deploy** — Point at an app directory, everything gets wired up automatically
-- **UIKit rendering** — `@forge/react` apps render through a simulated bridge connected to the backend
+- **UIKit 2 Renderer** — Real Atlaskit components rendering ForgeDoc trees, with live preview and bidirectional event bridge
 - **Forge SQL** — Real ephemeral MySQL 8.4 via `mysql-memory-server`. Migrations, parameterized queries, full DDL.
 - **Custom Entity Store** — In-memory `@forge/kvs` entity backend with typed attributes, indexes, partition/range queries, filters, TTL, batch ops, transactions
 - **Concurrent queue processing** — Expose real race conditions in consumer code
@@ -47,6 +47,136 @@ Run with loader hooks for standalone execution:
 node --import forge-sim/dist/loader/register.js your-app.js
 ```
 
+## UIKit 2 Renderer
+
+Real-time visual preview of Forge UIKit apps using genuine Atlaskit components. See your app exactly as it would look in Jira/Confluence — without deploying.
+
+### Architecture
+
+Two modes, one backend:
+
+**Server mode (AI/MCP-driven):**
+```
+Node (forge-sim)
+├── @forge/react reconciler → produces ForgeDoc
+├── Resolvers, KVS, SQL, Product APIs
+├── MCP tools for programmatic control
+│
+└── WebSocket → Renderer (optional browser visualization)
+```
+
+**Browser mode (human dev, CDT debuggable):**
+```
+Browser
+├── @forge/react runs HERE (debuggable in Chrome DevTools)
+├── Event handlers, useState, useEffect — all client-side
+├── @forge/bridge shim → WebSocket → forge-sim backend
+│
+forge-sim (Node)
+├── Resolvers, KVS, SQL, Product APIs
+└── Handles invoke() and requestProduct() calls
+```
+
+### Running the Renderer
+
+```bash
+cd renderer
+npm install
+npm run dev
+# → http://localhost:5173
+```
+
+The test harness includes 5 sample ForgeDoc trees:
+- **Issue Panel** — lozenges, badges, section messages, buttons
+- **Create Form** — textfields, textarea, select, checkbox, toggle
+- **Kitchen Sink** — badges, lozenges, tags, code blocks, spinners
+- **Charts** — bar, line, pie, donut charts
+- **Table & Files** — styled tables, progress tracker, file cards
+
+### Component Coverage: 73/73 UIKit 2 Components
+
+| Category | Components |
+|----------|-----------|
+| Layout | Box, Stack, Inline, Pressable, Text, Heading |
+| Buttons | Button, ButtonGroup, LinkButton, LoadingButton |
+| Form | Form, FormHeader, FormFooter, FormSection, TextField, TextArea, Select, Checkbox, CheckboxGroup, Radio, RadioGroup, Toggle, Range, DatePicker, TimePicker, Calendar |
+| Form Helpers | Label, ErrorMessage, HelperMessage, ValidMessage, RequiredAsterisk |
+| Display | Badge, Lozenge, Spinner, ProgressBar, ProgressTracker, SectionMessage, SectionMessageAction, EmptyState, Code, CodeBlock, Tooltip, Tag, TagGroup, Link, Image, Icon, Flag, InlineDialog |
+| Table | Table, Head, Row, Cell, DynamicTable |
+| Tabs | Tabs, Tab, TabList, TabPanel |
+| Modal | Modal, ModalHeader, ModalTitle, ModalBody, ModalFooter, ModalTransition |
+| List | List, ListItem |
+| Tiles | Tile, AtlassianTile, AtlassianIcon |
+| File | FileCard, FilePicker |
+| Editors | ChromelessEditor, CommentEditor (placeholder) |
+| Charts | BarChart, StackBarChart, HorizontalBarChart, HorizontalStackBarChart, LineChart, PieChart, DonutChart |
+
+### Live Preview (WebSocket Dev Server)
+
+The dev server enables real-time updates: edit your Forge app → save → renderer updates instantly.
+
+```typescript
+import { ForgeSimulator, installBridge, connectSimulator,
+         waitForRender, onRender, createDevServer } from 'forge-sim';
+
+// Boot simulator
+const sim = new ForgeSimulator();
+installBridge();
+connectSimulator(sim);
+
+// Deploy app
+await sim.deploy('./my-forge-app');
+
+// Start dev server with file watching
+const dev = createDevServer({
+  port: 5174,
+  simulator: sim,
+  watchDir: './my-forge-app/src',
+  onFileChange: async (file) => {
+    await sim.deploy('./my-forge-app');
+    return waitForRender();
+  },
+});
+
+// Auto-broadcast every render
+onRender((doc) => dev.broadcast(doc));
+
+// Initial render
+const doc = await waitForRender();
+dev.broadcast(doc);
+```
+
+Open the renderer at `http://localhost:5173`, click **⚡ Live**, and it connects automatically.
+
+### Browser Mode (@forge/bridge Shim)
+
+For Chrome DevTools debugging, use the Vite plugin to alias `@forge/bridge` to our WebSocket shim:
+
+```typescript
+// vite.config.ts (in your Forge app)
+import { forgeSimPlugin } from 'forge-sim/renderer/bridge/vite-plugin-forge-sim';
+
+export default defineConfig({
+  plugins: [react(), forgeSimPlugin()],
+});
+```
+
+This lets you:
+- Set breakpoints in your event handlers
+- Use React DevTools
+- Inspect state changes in real-time
+- All while `invoke()` calls route to forge-sim's backend
+
+### Event Bridge
+
+Interactions in the renderer route back to forge-sim:
+
+1. User clicks button → renderer detects handler marker
+2. Event serialized and sent via WebSocket
+3. forge-sim's FunctionRegistry looks up the real handler
+4. Handler executes → triggers React state change → re-render
+5. New ForgeDoc broadcasts back to renderer
+
 ## Race Condition Detection
 
 ```typescript
@@ -77,10 +207,14 @@ sim.registerConsumer('work', async () => {
 | Resolvers (`@forge/resolver`) | ✅ Full |
 | Async Events / Queues (`@forge/events`) | ✅ Full (concurrent mode, concurrency keys) |
 | Product APIs (Jira/Confluence/Bitbucket) | ✅ Mockable |
-| UIKit 2 Rendering (`@forge/react`) | ✅ Bridge connected to sim |
+| UIKit 2 Rendering (`@forge/react`) | ✅ 73/73 components, live preview, event bridge |
+| UIKit 2 Renderer (Atlaskit) | ✅ Real Atlaskit components in browser |
+| Browser Mode (CDT debuggable) | ✅ @forge/bridge shim + Vite plugin |
 | Manifest Parsing + Auto-Deploy | ✅ Full |
 | Event Triggers | ✅ Basic |
 | MCP Server | ✅ 20 tools, 4 resources (stdio + HTTP) |
+| Custom UI Support | 🔜 Planned (iframe + bridge shim) |
+| `forge-sim dev` CLI | 🔜 Planned (one-command dev experience) |
 | Scheduled Triggers | 🔜 Planned |
 | Web Triggers | 🔜 Planned |
 
