@@ -1,26 +1,19 @@
 modules:
   jira:issuePanel:
-    - key: my-panel
-      title: Test Panel
+    - key: hello-panel
+      title: Hello World Panel
       resource: main
       resolver:
         function: resolver
   function:
     - key: resolver
       handler: index.handler
-    - key: queue-handler
-      handler: queue-handler.handler
-  consumer:
-    - key: my-consumer
-      queue: work-queue
-      function: queue-handler
 resources:
   - key: main
-    path: src/ui-app.tsx
+    path: src/frontend/index.tsx
 app:
-  id: ari:cloud:ecosystem::app/test-app
+  id: ari:cloud:ecosystem::app/test-forge-sim-app
   name: Test Forge App
 permissions:
   scopes:
     - read:jira-work
-    - write:jira-work

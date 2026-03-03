@@ -3,8 +3,8 @@
   "version": "0.1.0",
   "description": "Simulated Forge runtime for AI-driven development and testing",
   "type": "module",
-  "private": true,
   "bin": {
+    "forge-sim": "./dist/cli.js",
     "forge-sim-mcp": "./dist/mcp-server.js"
   },
   "scripts": {
@@ -18,7 +18,10 @@
     "mysql-memory-server": "^1.14.1",
     "mysql2": "^3.18.2",
     "react": "^18.2.0",
+    "react-dom": "^18.2.0",
     "tsx": "^4.21.0",
+    "vite": "^6.0.0",
+    "@vitejs/plugin-react": "^4.3.0",
     "ws": "^8.19.0",
     "yaml": "^2.7.0"
   },

@@ -74,6 +74,11 @@ function renderNode(
     renderNode(child, onEvent, onBridgeEvent)
   );
 
+  // Root container node — just render its children, no wrapper needed
+  if (doc.type === 'Root') {
+    return <React.Fragment key={doc.key}>{children}</React.Fragment>;
+  }
+
   // Look up the component renderer
   const renderer = COMPONENT_MAP[doc.type] ?? FallbackComponent;
 

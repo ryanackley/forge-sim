@@ -19,12 +19,28 @@ let wsUrl = 'ws://localhost:5174';
 const pendingRequests = new Map<string, { resolve: (v: any) => void; reject: (e: any) => void }>();
 let requestCounter = 0;
 
-/** Reconcile listeners — our renderer hooks into this */
+/** Reconcile listeners — stored on globalThis to survive module duplication by Vite */
 type ReconcileListener = (forgeDoc: any) => void;
-const reconcileListeners: ReconcileListener[] = [];
+
+// Vite may create multiple copies of this module (pre-bundled deps vs source).
+// Using globalThis ensures all copies share the same listener list and buffer.
+const G = globalThis as any;
+if (!G.__forgeSim) {
+  G.__forgeSim = {
+    reconcileListeners: [] as ReconcileListener[],
+    lastForgeDoc: null as any,
+  };
+}
+const reconcileListeners: ReconcileListener[] = G.__forgeSim.reconcileListeners;
 
 export function onReconcile(listener: ReconcileListener): () => void {
   reconcileListeners.push(listener);
+  // Replay the last ForgeDoc immediately if we already have one
+  // This handles the case where ForgeReconciler.render() fires before
+  // the React DOM shell mounts and registers its listener
+  if (G.__forgeSim.lastForgeDoc) {
+    try { listener(G.__forgeSim.lastForgeDoc); } catch {}
+  }
   return () => {
     const idx = reconcileListeners.indexOf(listener);
     if (idx >= 0) reconcileListeners.splice(idx, 1);
@@ -128,6 +144,7 @@ async function callBridge(cmd: string, data?: any): Promise<any> {
     case 'reconcile':
       // ForgeDoc stays in the browser — notify local listeners
       if (data?.forgeDoc) {
+        G.__forgeSim.lastForgeDoc = data.forgeDoc;
         for (const listener of reconcileListeners) {
           try { listener(data.forgeDoc); } catch {}
         }
