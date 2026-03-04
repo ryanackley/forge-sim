@@ -25,7 +25,7 @@ describe('Deployer', () => {
   it('should load manifest and import all handler functions', async () => {
     // Mock Jira so the resolver doesn't fail on API calls
     sim.mockProductRoutes('jira', {
-      '/rest/api/3/issue/': { key: 'MOCK-1', summary: 'Mocked' },
+      '/rest/api/3/issue/': { key: 'MOCK-1', fields: { summary: 'Mocked' } },
     });
 
     const result = await deploy(sim, TEST_APP_DIR);
@@ -47,7 +47,7 @@ describe('Deployer', () => {
 
   it('should wire up resolvers from UI module function references', async () => {
     sim.mockProductRoutes('jira', {
-      '/rest/api/3/issue/DEP-1': { key: 'DEP-1', summary: 'Deploy test' },
+      '/rest/api/3/issue/DEP-1': { key: 'DEP-1', fields: { summary: 'Deploy test' } },
     });
 
     await deploy(sim, TEST_APP_DIR);
@@ -60,13 +60,14 @@ describe('Deployer', () => {
 
   it('should wire up queue consumers from manifest', async () => {
     sim.mockProductRoutes('jira', {
-      '/rest/api/3/issue/Q-1': { key: 'Q-1', summary: 'Queue test' },
+      '/rest/api/3/issue/Q-1': { key: 'Q-1', fields: { summary: 'Queue test' } },
     });
 
     await deploy(sim, TEST_APP_DIR);
 
-    // Invoke the resolver which pushes to the queue
-    await sim.invoke('getIssue', { issueKey: 'Q-1' });
+    // Verify the consumer was registered by pushing directly to the queue
+    const queue = sim.createQueue({ key: 'analytics-queue' });
+    await queue.push({ body: { event: 'issue-viewed', issueKey: 'Q-1', timestamp: 1234567890 } });
 
     // The queue consumer should have stored analytics
     const allStorage = sim.kvs.dump();
@@ -76,7 +77,7 @@ describe('Deployer', () => {
 
   it('should do full-stack deploy: backend + UI from one call', async () => {
     sim.mockProductRoutes('jira', {
-      '/rest/api/3/issue/TEST-1': { key: 'TEST-1', summary: 'Full stack test' },
+      '/rest/api/3/issue/TEST-1': { key: 'TEST-1', fields: { summary: 'Full stack test' } },
     });
 
     const result = await deploy(sim, TEST_APP_DIR);
@@ -91,9 +92,12 @@ describe('Deployer', () => {
     const text = getTextContent(doc);
 
     // The UI should show data from the resolver, which hit the mocked Jira API
-    expect(text).toContain('TEST-1');
     expect(text).toContain('Full stack test');
     expect(text).toContain('Views');
+
+    // The issue key is in the SectionMessage title prop (not text content)
+    const docStr = JSON.stringify(doc);
+    expect(docStr).toContain('TEST-1');
 
     // KVS should have been written by the resolver
     expect(await sim.kvs.get('views:TEST-1')).toBeGreaterThanOrEqual(1);

@@ -307,10 +307,17 @@ export async function devCommand(options: DevCommandOptions) {
   console.log(`  ⚙️  Starting simulator...`);
   const sim = new ForgeSimulator();
 
+  // Set the global simulator instance so that @forge/* shims
+  // (loaded via our module hooks) can register handlers directly
+  const { setSimulator } = await import('./shims/globals.js');
+  setSimulator(sim);
+
   // Deploy functions (resolvers, triggers, etc.) — these run on the server side
   // For browser mode, we skip loading UI resources (they'll run in the browser)
   try {
+    console.log(`     Resolver before deploy: [${[...sim.resolver.getHandlerMap().keys()].join(', ')}]`);
     const deployResult = await deployResolversOnly(sim, appDir, manifest);
+    console.log(`     Resolver after deploy: [${[...sim.resolver.getHandlerMap().keys()].join(', ')}]`);
     if (deployResult.loadedFunctions.length > 0) {
       console.log(`     Loaded ${deployResult.loadedFunctions.length} function(s): ${deployResult.loadedFunctions.join(', ')}`);
     }

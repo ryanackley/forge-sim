@@ -1,18 +1,12 @@
 {
-  "name": "test-forge-app",
+  "name": "test-forge-sim-app",
   "version": "1.0.0",
   "private": true,
-  "type": "module",
-  "scripts": {
-    "dev": "forge-sim dev"
-  },
   "dependencies": {
-    "@forge/react": "^11.0.0",
-    "@forge/bridge": "^4.0.0",
-    "@forge/resolver": "^1.6.0",
-    "react": "^18.2.0"
-  },
-  "devDependencies": {
-    "forge-sim": "file:../"
+    "@forge/api": "*",
+    "@forge/bridge": "*",
+    "@forge/events": "*",
+    "@forge/react": "*",
+    "@forge/resolver": "*"
   }
 }

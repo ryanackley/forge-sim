@@ -11,26 +11,29 @@
  * Usage: Vite aliases @forge/bridge → this file
  */
 
-// ── WebSocket Connection ────────────────────────────────────────────────
+// ── Shared State (survives Vite module duplication) ────────────────────
+//
+// Vite may create multiple copies of this module (pre-bundled deps vs source).
+// ALL mutable state must live on globalThis.__forgeSim so every copy shares it.
 
-let ws: WebSocket | null = null;
-let wsReady = false;
-let wsUrl = 'ws://localhost:5174';
-const pendingRequests = new Map<string, { resolve: (v: any) => void; reject: (e: any) => void }>();
-let requestCounter = 0;
-
-/** Reconcile listeners — stored on globalThis to survive module duplication by Vite */
 type ReconcileListener = (forgeDoc: any) => void;
 
-// Vite may create multiple copies of this module (pre-bundled deps vs source).
-// Using globalThis ensures all copies share the same listener list and buffer.
 const G = globalThis as any;
 if (!G.__forgeSim) {
   G.__forgeSim = {
+    // WebSocket connection
+    ws: null as WebSocket | null,
+    wsReady: false,
+    wsUrl: 'ws://localhost:5174',
+    pendingRequests: new Map<string, { resolve: (v: any) => void; reject: (e: any) => void }>(),
+    requestCounter: 0,
+    // Reconcile
     reconcileListeners: [] as ReconcileListener[],
     lastForgeDoc: null as any,
   };
 }
+
+// Local references for convenience
 const reconcileListeners: ReconcileListener[] = G.__forgeSim.reconcileListeners;
 
 export function onReconcile(listener: ReconcileListener): () => void {
@@ -48,28 +51,29 @@ export function onReconcile(listener: ReconcileListener): () => void {
 }
 
 function ensureConnection(): Promise<void> {
-  if (ws && wsReady) return Promise.resolve();
+  const S = G.__forgeSim;
+  if (S.ws && S.wsReady) return Promise.resolve();
 
   return new Promise((resolve, reject) => {
-    if (ws && ws.readyState === WebSocket.CONNECTING) {
-      ws.addEventListener('open', () => resolve(), { once: true });
+    if (S.ws && S.ws.readyState === WebSocket.CONNECTING) {
+      S.ws.addEventListener('open', () => resolve(), { once: true });
       return;
     }
 
-    ws = new WebSocket(wsUrl);
+    S.ws = new WebSocket(S.wsUrl);
 
-    ws.onopen = () => {
-      wsReady = true;
+    S.ws.onopen = () => {
+      S.wsReady = true;
       console.log('[forge-bridge-shim] Connected to forge-sim');
       resolve();
     };
 
-    ws.onmessage = (event) => {
+    S.ws.onmessage = (event: MessageEvent) => {
       try {
         const msg = JSON.parse(event.data);
-        if (msg.requestId && pendingRequests.has(msg.requestId)) {
-          const pending = pendingRequests.get(msg.requestId)!;
-          pendingRequests.delete(msg.requestId);
+        if (msg.requestId && S.pendingRequests.has(msg.requestId)) {
+          const pending = S.pendingRequests.get(msg.requestId)!;
+          S.pendingRequests.delete(msg.requestId);
           if (msg.error) {
             pending.reject(new Error(msg.error));
           } else {
@@ -81,20 +85,18 @@ function ensureConnection(): Promise<void> {
       }
     };
 
-    ws.onclose = () => {
-      wsReady = false;
+    S.ws.onclose = () => {
+      S.wsReady = false;
       console.log('[forge-bridge-shim] Disconnected, will reconnect...');
-      // Reject all pending requests
-      for (const [id, pending] of pendingRequests) {
+      for (const [id, pending] of S.pendingRequests) {
         pending.reject(new Error('WebSocket disconnected'));
-        pendingRequests.delete(id);
+        S.pendingRequests.delete(id);
       }
-      // Auto-reconnect after 2s
       setTimeout(() => ensureConnection(), 2000);
     };
 
-    ws.onerror = () => {
-      wsReady = false;
+    S.ws.onerror = () => {
+      S.wsReady = false;
       reject(new Error('WebSocket connection failed'));
     };
   });
@@ -104,20 +106,21 @@ function ensureConnection(): Promise<void> {
 async function rpc(method: string, params: any = {}): Promise<any> {
   await ensureConnection();
 
-  const requestId = `rpc-${++requestCounter}-${Date.now()}`;
+  const S = G.__forgeSim;
+  const requestId = `rpc-${++S.requestCounter}-${Date.now()}`;
 
   return new Promise((resolve, reject) => {
     const timeout = setTimeout(() => {
-      pendingRequests.delete(requestId);
+      S.pendingRequests.delete(requestId);
       reject(new Error(`RPC timeout: ${method}`));
     }, 30000);
 
-    pendingRequests.set(requestId, {
-      resolve: (v) => { clearTimeout(timeout); resolve(v); },
-      reject: (e) => { clearTimeout(timeout); reject(e); },
+    S.pendingRequests.set(requestId, {
+      resolve: (v: any) => { clearTimeout(timeout); resolve(v); },
+      reject: (e: any) => { clearTimeout(timeout); reject(e); },
     });
 
-    ws!.send(JSON.stringify({ type: 'rpc', requestId, method, params }));
+    S.ws!.send(JSON.stringify({ type: 'rpc', requestId, method, params }));
   });
 }
 
@@ -125,7 +128,7 @@ async function rpc(method: string, params: any = {}): Promise<any> {
 
 /** Set the WebSocket URL for the forge-sim backend */
 export function configure(opts: { wsUrl?: string }) {
-  if (opts.wsUrl) wsUrl = opts.wsUrl;
+  if (opts.wsUrl) G.__forgeSim.wsUrl = opts.wsUrl;
 }
 
 // ── callBridge (used internally by @forge/react reconciler) ─────────────

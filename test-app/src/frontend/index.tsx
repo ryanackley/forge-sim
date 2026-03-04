@@ -3,40 +3,30 @@ import ForgeReconciler, { Text, Button, Badge, Stack, SectionMessage } from '@fo
 import { invoke } from '@forge/bridge';
 
 const App = () => {
-  const [text, setText] = useState('Loading...');
-  const [count, setCount] = useState(0);
-  const [clickCount, setClickCount] = useState(0);
+  const [issue, setIssue] = useState<any>(null);
+  const [views, setViews] = useState(0);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    invoke('getText', {}).then((data: any) => {
-      setText(data.text);
+    invoke('getIssue', { issueKey: 'TEST-1' }).then((data: any) => {
+      setIssue(data.issue);
+      setViews(data.views);
+      setLoading(false);
     });
   }, []);
 
-  const handleClick = async () => {
-    setClickCount((n) => n + 1);
-    const data: any = await invoke('getCount', {});
-    setCount(data.count);
-  };
+  if (loading) {
+    return <Text>Loading...</Text>;
+  }
 
   return (
     <Stack space="space.200">
-      <SectionMessage appearance="information" title="forge-sim Test App">
-        <Text>This is a real Forge app running in the browser with forge-sim!</Text>
+      <SectionMessage appearance="information" title={issue?.key || 'Issue'}>
+        <Text>{issue?.fields?.summary || 'No summary'}</Text>
       </SectionMessage>
 
-      <Text>Resolver says: {text}</Text>
-
-      <Button appearance="primary" onClick={handleClick}>
-        Get Random Number
-      </Button>
-
       <Text>
-        Random number: <Badge appearance="primary">{count}</Badge>
-      </Text>
-
-      <Text>
-        Button clicked <Badge appearance="added">{clickCount}</Badge> times
+        Views: <Badge appearance="primary">{views}</Badge>
       </Text>
     </Stack>
   );

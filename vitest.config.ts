@@ -12,6 +12,7 @@ export default defineConfig({
       '@forge/events': resolve(__dirname, 'src/shims/forge-events.ts'),
       '@forge/resolver': resolve(__dirname, 'src/shims/forge-resolver.ts'),
       '@forge/bridge': resolve(__dirname, 'src/shims/forge-bridge.ts'),
+      '@forge/react': resolve(__dirname, 'src/shims/forge-react.ts'),
     },
   },
   esbuild: {

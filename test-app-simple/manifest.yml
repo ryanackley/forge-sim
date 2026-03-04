@@ -1,19 +1,13 @@
 modules:
   jira:issuePanel:
     - key: hello-panel
-      title: Issue Panel
+      title: Hello World Panel
       resource: main
       resolver:
         function: resolver
-  consumer:
-    - key: analytics-consumer
-      queue: analytics-queue
-      function: queue-handler
   function:
     - key: resolver
       handler: index.handler
-    - key: queue-handler
-      handler: queue-handler.handler
 resources:
   - key: main
     path: src/frontend/index.tsx
