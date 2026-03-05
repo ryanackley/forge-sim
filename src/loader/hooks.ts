@@ -8,11 +8,16 @@
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, resolve as pathResolve } from 'node:path';
 
-// Detect whether we're running from source (.ts) or compiled dist (.js)
+// Always resolve shims to compiled dist/*.js — the loader hooks run in a
+// separate Node worker thread where tsx's TypeScript support isn't available,
+// so we must point to JavaScript regardless of whether *this* file is .ts or .js.
 const thisFile = fileURLToPath(import.meta.url);
-const shimExt = thisFile.endsWith('.ts') ? '.ts' : '.js';
+const thisDir = dirname(thisFile);
 
-const SHIM_DIR = pathResolve(dirname(thisFile), '..', 'shims');
+// From src/loader/ → ../../dist/shims, from dist/loader/ → ../shims
+const SHIM_DIR = thisFile.endsWith('.ts')
+  ? pathResolve(thisDir, '..', '..', 'dist', 'shims')
+  : pathResolve(thisDir, '..', 'shims');
 
 const SHIM_NAMES = [
   '@forge/api',
@@ -26,7 +31,7 @@ const SHIM_NAMES = [
 const FORGE_SHIMS: Record<string, string> = Object.fromEntries(
   SHIM_NAMES.map(pkg => [
     pkg,
-    pathResolve(SHIM_DIR, pkg.replace('@forge/', 'forge-') + shimExt),
+    pathResolve(SHIM_DIR, pkg.replace('@forge/', 'forge-') + '.js'),
   ])
 );
 
