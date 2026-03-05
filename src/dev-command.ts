@@ -184,65 +184,64 @@ function generateIndexHtml(title: string): string {
 </html>`;
 }
 
-// ── Vite Config Generation ────────────────────────────────────────────────
+// ── Vite Config Builder ───────────────────────────────────────────────────
 
-function generateViteConfig(opts: {
+/**
+ * Build the Vite config as a JS object — passed directly to createServer().
+ * No config file needed, so Vite doesn't have to resolve 'vite' or plugin
+ * imports from the app's directory.
+ */
+async function buildViteConfig(opts: {
   appDir: string;
+  tempDir: string;
   mode: 'uikit' | 'customui';
   wsPort: number;
   port: number;
   forgeSimRoot: string;
-}): string {
-  const { appDir, mode, wsPort, port, forgeSimRoot } = opts;
-  // Path to the bridge shim source file
+}) {
+  const { appDir, tempDir, mode, wsPort, port, forgeSimRoot } = opts;
   const shimPath = join(forgeSimRoot, 'renderer', 'src', 'bridge', 'forge-bridge-shim.ts');
 
-  // Renderer's node_modules has all the Atlaskit packages
   const rendererNodeModules = join(forgeSimRoot, 'renderer', 'node_modules');
   const mainNodeModules = join(forgeSimRoot, 'node_modules');
-  // App's node_modules for @forge/react, @forge/bridge, etc.
   const appNodeModules = join(appDir, 'node_modules');
 
-  return `
-import { defineConfig } from 'vite';
-import react from '@vitejs/plugin-react';
+  // Import the plugin directly — it's in forge-sim's node_modules
+  const reactPlugin = (await import('@vitejs/plugin-react')).default;
 
-export default defineConfig({
-  plugins: [react()],
-  server: {
-    port: ${port},
-    host: true,
-    open: false,
-    fs: {
-      // Allow Vite to serve files from outside the project root
-      allow: ['${forgeSimRoot.replace(/\\/g, '/')}', '${appDir.replace(/\\/g, '/')}'],
+  return {
+    configFile: false as const,
+    root: tempDir,
+    plugins: [reactPlugin()],
+    server: {
+      port,
+      host: true,
+      open: false,
+      fs: {
+        allow: [forgeSimRoot, appDir],
+      },
     },
-  },
-  resolve: {
-    alias: {
-      // Route @forge/bridge imports to our WebSocket bridge shim
-      '@forge/bridge': '${shimPath.replace(/\\/g, '/')}',
-      // Allow importing from forge-sim package
-      'forge-sim/renderer/bridge': '${join(forgeSimRoot, 'renderer', 'src', 'bridge', 'index.ts').replace(/\\/g, '/')}',
-      'forge-sim/renderer/ForgeDocRenderer': '${join(forgeSimRoot, 'renderer', 'src', 'ForgeDocRenderer.tsx').replace(/\\/g, '/')}',
-      'forge-sim/renderer/ForgeSimShell': '${join(forgeSimRoot, 'renderer', 'src', 'ForgeSimShell.tsx').replace(/\\/g, '/')}',
+    resolve: {
+      alias: {
+        '@forge/bridge': shimPath,
+        'forge-sim/renderer/bridge': join(forgeSimRoot, 'renderer', 'src', 'bridge', 'index.ts'),
+        'forge-sim/renderer/ForgeDocRenderer': join(forgeSimRoot, 'renderer', 'src', 'ForgeDocRenderer.tsx'),
+        'forge-sim/renderer/ForgeSimShell': join(forgeSimRoot, 'renderer', 'src', 'ForgeSimShell.tsx'),
+      },
+      modules: [
+        rendererNodeModules,
+        appNodeModules,
+        mainNodeModules,
+        'node_modules',
+      ],
     },
-    // Tell Vite where to find node_modules — renderer has Atlaskit, app has @forge/*
-    modules: [
-      '${rendererNodeModules.replace(/\\/g, '/')}',
-      '${appNodeModules.replace(/\\/g, '/')}',
-      '${mainNodeModules.replace(/\\/g, '/')}',
-      'node_modules',
-    ],
-  },
-  define: {
-    '__FORGE_SIM_WS_URL__': JSON.stringify('ws://localhost:${wsPort}'),
-  },
-  optimizeDeps: {
-    include: ['react', 'react-dom', 'react/jsx-runtime'],
-  },
-});
-`;
+    define: {
+      '__FORGE_SIM_WS_URL__': JSON.stringify(`ws://localhost:${wsPort}`),
+    },
+    optimizeDeps: {
+      include: ['react', 'react-dom', 'react/jsx-runtime'],
+    },
+  };
 }
 
 // ── Main Dev Command ──────────────────────────────────────────────────────
@@ -374,13 +373,6 @@ export async function devCommand(options: DevCommandOptions) {
 
   writeFileSync(join(tempDir, 'entry.tsx'), entryContent);
   writeFileSync(join(tempDir, 'index.html'), generateIndexHtml(manifest.raw.app?.name ?? 'Forge App'));
-  writeFileSync(join(tempDir, 'vite.config.ts'), generateViteConfig({
-    appDir,
-    mode: target.mode,
-    wsPort,
-    port,
-    forgeSimRoot,
-  }));
 
   // Add .gitignore so the temp dir doesn't get committed
   writeFileSync(join(tempDir, '.gitignore'), '*\n');
@@ -395,10 +387,16 @@ export async function devCommand(options: DevCommandOptions) {
   try {
     const { createServer } = await import('vite');
 
-    const viteServer = await createServer({
-      configFile: join(tempDir, 'vite.config.ts'),
-      root: tempDir,
+    const viteConfig = await buildViteConfig({
+      appDir,
+      tempDir,
+      mode: target.mode,
+      wsPort,
+      port,
+      forgeSimRoot,
     });
+
+    const viteServer = await createServer(viteConfig);
 
     await viteServer.listen();
 

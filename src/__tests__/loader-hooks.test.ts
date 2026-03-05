@@ -5,10 +5,12 @@
  * both when running from source (tsx) and from compiled dist.
  */
 
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
 import { resolve } from '../loader/hooks.js';
-import { fileURLToPath } from 'node:url';
-import { resolve as pathResolve, sep } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { resolve as pathResolve, join, sep } from 'node:path';
+import { mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 
 // A no-op nextResolve that should never be called for @forge/* specifiers
 const nextResolve = vi.fn(async (specifier: string) => ({
@@ -99,6 +101,86 @@ describe('Loader Hooks — resolve()', () => {
 
         expect(filePath).toMatch(new RegExp(`${expectedFilename}$`));
       }
+    });
+  });
+
+  describe('extensionless and directory import resolution', () => {
+    // Create a temp directory with test files to resolve against
+    let tempDir: string;
+    let parentURL: string;
+
+    // A nextResolve that always fails (simulates Node ESM strict mode)
+    const failingNextResolve = vi.fn(async () => {
+      const err = new Error('Module not found') as Error & { code: string };
+      err.code = 'ERR_MODULE_NOT_FOUND';
+      throw err;
+    });
+
+    beforeAll(() => {
+      tempDir = join(tmpdir(), `loader-hooks-test-${Date.now()}`);
+      mkdirSync(join(tempDir, 'resolvers'), { recursive: true });
+
+      // Create test files
+      writeFileSync(join(tempDir, 'backend.js'), 'export default {};\n');
+      writeFileSync(join(tempDir, 'handler.ts'), 'export default {};\n');
+      writeFileSync(join(tempDir, 'component.tsx'), 'export default {};\n');
+      writeFileSync(join(tempDir, 'resolvers', 'index.js'), 'export default {};\n');
+
+      // parentURL simulates an import from a file in tempDir
+      parentURL = pathToFileURL(join(tempDir, 'main.js')).href;
+    });
+
+    afterAll(() => {
+      rmSync(tempDir, { recursive: true, force: true });
+    });
+
+    it('resolves extensionless .js imports', async () => {
+      const result = await resolve('./backend', { parentURL }, failingNextResolve);
+      expect(result.shortCircuit).toBe(true);
+      expect(fileURLToPath(result.url)).toBe(join(tempDir, 'backend.js'));
+    });
+
+    it('resolves extensionless .ts imports', async () => {
+      const result = await resolve('./handler', { parentURL }, failingNextResolve);
+      expect(result.shortCircuit).toBe(true);
+      expect(fileURLToPath(result.url)).toBe(join(tempDir, 'handler.ts'));
+    });
+
+    it('resolves extensionless .tsx imports', async () => {
+      const result = await resolve('./component', { parentURL }, failingNextResolve);
+      expect(result.shortCircuit).toBe(true);
+      expect(fileURLToPath(result.url)).toBe(join(tempDir, 'component.tsx'));
+    });
+
+    it('resolves directory imports to index.js', async () => {
+      const result = await resolve('./resolvers', { parentURL }, failingNextResolve);
+      expect(result.shortCircuit).toBe(true);
+      expect(fileURLToPath(result.url)).toBe(join(tempDir, 'resolvers', 'index.js'));
+    });
+
+    it('re-throws for truly missing modules', async () => {
+      await expect(
+        resolve('./does-not-exist', { parentURL }, failingNextResolve)
+      ).rejects.toThrow('Module not found');
+    });
+
+    it('only attempts fallback for relative imports', async () => {
+      // Non-relative specifiers should just re-throw
+      await expect(
+        resolve('some-package', { parentURL }, failingNextResolve)
+      ).rejects.toThrow('Module not found');
+    });
+
+    it('prefers native resolution over fallback', async () => {
+      // If nextResolve succeeds, the fallback is never tried
+      const succeedingNext = vi.fn(async () => ({
+        url: 'passthrough://success',
+        shortCircuit: false,
+      }));
+
+      const result = await resolve('./backend', { parentURL }, succeedingNext);
+      expect(result.url).toBe('passthrough://success');
+      expect(succeedingNext).toHaveBeenCalled();
     });
   });
 });
