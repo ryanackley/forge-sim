@@ -8,17 +8,27 @@
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, resolve as pathResolve } from 'node:path';
 
-// Map @forge packages to our shim files (compiled .js in dist/)
-const SHIM_DIR = pathResolve(dirname(fileURLToPath(import.meta.url)), '..', 'shims');
+// Detect whether we're running from source (.ts) or compiled dist (.js)
+const thisFile = fileURLToPath(import.meta.url);
+const shimExt = thisFile.endsWith('.ts') ? '.ts' : '.js';
 
-const FORGE_SHIMS: Record<string, string> = {
-  '@forge/api': pathResolve(SHIM_DIR, 'forge-api.js'),
-  '@forge/kvs': pathResolve(SHIM_DIR, 'forge-kvs.js'),
-  '@forge/events': pathResolve(SHIM_DIR, 'forge-events.js'),
-  '@forge/resolver': pathResolve(SHIM_DIR, 'forge-resolver.js'),
-  '@forge/react': pathResolve(SHIM_DIR, 'forge-react.js'),
-  '@forge/bridge': pathResolve(SHIM_DIR, 'forge-bridge.js'),
-};
+const SHIM_DIR = pathResolve(dirname(thisFile), '..', 'shims');
+
+const SHIM_NAMES = [
+  '@forge/api',
+  '@forge/kvs',
+  '@forge/events',
+  '@forge/resolver',
+  '@forge/react',
+  '@forge/bridge',
+];
+
+const FORGE_SHIMS: Record<string, string> = Object.fromEntries(
+  SHIM_NAMES.map(pkg => [
+    pkg,
+    pathResolve(SHIM_DIR, pkg.replace('@forge/', 'forge-') + shimExt),
+  ])
+);
 
 export async function resolve(
   specifier: string,
