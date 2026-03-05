@@ -9,14 +9,21 @@
  */
 
 import { readFileSync } from 'node:fs';
-import { resolve, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { resolve, dirname, join } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { register } from 'node:module';
 
 // Register our module loader hooks BEFORE any dynamic imports.
 // This intercepts @forge/* imports and redirects to our shims,
 // so resolver/handler files can import @forge/events, @forge/api, etc.
-register('./loader/hooks.js', import.meta.url);
+//
+// IMPORTANT: register() loads the hooks in a separate loader worker thread
+// that does NOT have tsx's .ts resolution. We must always point to the
+// compiled dist/loader/hooks.js, even when cli.ts itself runs from source.
+const __cliDir = dirname(fileURLToPath(import.meta.url));
+const __projectRoot = resolve(__cliDir, '..');
+const __hooksPath = join(__projectRoot, 'dist', 'loader', 'hooks.js');
+register(pathToFileURL(__hooksPath).href);
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 

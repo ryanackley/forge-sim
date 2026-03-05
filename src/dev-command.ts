@@ -465,6 +465,64 @@ export async function devCommand(options: DevCommandOptions) {
  * Deploy only the resolver/function modules — skip loading UI resources.
  * UI resources will run in the browser via Vite, not in Node.
  */
+/**
+ * Detect if a handler function is a real @forge/resolver dispatch function.
+ * The dispatch function is created by Resolver.getDefinitions() and has a
+ * characteristic signature: async ({ call: { functionKey, payload }, context }, backendRuntimePayload)
+ *
+ * We detect it by inspecting the function source — no probing (which would
+ * cause side effects by actually executing handler code).
+ */
+function detectResolverDispatch(handler: Function): boolean {
+  const src = handler.toString();
+  // Real @forge/resolver dispatch function has 2 params and destructures { call: { functionKey } }
+  return handler.length === 2 && src.includes('functionKey') && src.includes('call');
+}
+
+/**
+ * Register a real @forge/resolver dispatch function on the simulator.
+ *
+ * The dispatch function's signature is:
+ *   async ({ call: { functionKey, payload }, context }, backendRuntimePayload) => result
+ *
+ * We register the manifest function key (e.g., 'uiResolver') as a direct handler,
+ * AND install a fallback on the simulator's invoke so that any unknown key
+ * (e.g., 'retrieveData') gets routed through the dispatch function.
+ */
+function registerDispatchFunction(sim: ForgeSimulator, fnKey: string, dispatchFn: Function): void {
+  // Register the function key itself so it shows up in the handler map
+  sim.resolver.define(fnKey, async (req: any) => {
+    return dispatchFn(
+      { call: { functionKey: fnKey, payload: req.payload }, context: req.context },
+      {}
+    );
+  });
+
+  // Install a fallback: for any invoke(key) that doesn't match a registered
+  // resolver, try routing through this dispatch function.
+  // This handles calls like invoke('retrieveData') where 'retrieveData' is
+  // a definition inside the resolver, not a top-level manifest function key.
+  const originalInvoke = sim.resolver.invoke.bind(sim.resolver);
+  sim.resolver.invoke = async (functionKey: string, payload?: any) => {
+    try {
+      return await originalInvoke(functionKey, payload);
+    } catch (err: any) {
+      if (err?.message?.includes('No resolver defined')) {
+        const context = {
+          accountId: 'sim-user-001',
+          cloudId: 'sim-cloud-001',
+          siteUrl: 'https://sim-site.atlassian.net',
+        };
+        return dispatchFn(
+          { call: { functionKey, payload: payload ?? {} }, context },
+          {}
+        );
+      }
+      throw err;
+    }
+  };
+}
+
 async function deployResolversOnly(
   sim: ForgeSimulator,
   appDir: string,
@@ -507,15 +565,35 @@ async function deployResolversOnly(
         continue;
       }
 
-      // Register as resolver
-      if (typeof handler === 'object') {
+      // Register as resolver — handle both shim and real @forge/resolver formats.
+      //
+      // Our shim's getDefinitions() returns { key: handler } (an object).
+      // The real @forge/resolver's getDefinitions() returns a dispatch function:
+      //   async ({ call: { functionKey, payload }, context }) => result
+      //
+      // When we get a dispatch function, we wrap individual resolver names
+      // so the simulator can invoke them by name (e.g., 'retrieveData').
+      if (typeof handler === 'object' && handler !== null) {
+        // Shim format: { retrieveData: fn, otherKey: fn, ... }
         for (const [defKey, defHandler] of Object.entries(handler)) {
           if (typeof defHandler === 'function') {
             sim.resolver.define(defKey, defHandler as any);
           }
         }
       } else if (typeof handler === 'function') {
-        sim.resolver.define(fnKey, handler);
+        // Could be the real @forge/resolver dispatch function, or a plain handler.
+        // Try to detect by probing: call with a known-bad key and see if we get
+        // the characteristic "Resolver has no definition" error.
+        const isDispatchFn = detectResolverDispatch(handler);
+        if (isDispatchFn) {
+          // Real @forge/resolver — register a wrapper for this function key.
+          // The UI calls invoke(definitionKey, payload), so we create a
+          // pass-through that adapts our format to the dispatch function's format.
+          registerDispatchFunction(sim, fnKey, handler);
+        } else {
+          // Plain function handler (trigger, consumer, etc.)
+          sim.resolver.define(fnKey, handler);
+        }
       }
 
       loadedFunctions.push(fnKey);
