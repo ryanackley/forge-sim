@@ -8,22 +8,15 @@
  *   forge-sim --version        Show version
  */
 
-import { readFileSync, existsSync } from 'node:fs';
-import { resolve, dirname, join } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { readFileSync } from 'node:fs';
+import { resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { register } from 'node:module';
 
 // Register our module loader hooks BEFORE any dynamic imports.
 // This intercepts @forge/* imports and redirects to our shims,
 // so resolver/handler files can import @forge/events, @forge/api, etc.
-//
-// When running from source (tsx), import.meta.url points to src/cli.ts,
-// but register() doesn't go through tsx — so we must point to the
-// compiled dist/loader/hooks.js which always exists after `npm run build`.
-const thisFile = fileURLToPath(import.meta.url);
-const projectRoot = resolve(dirname(thisFile), '..');
-const hooksPath = join(projectRoot, 'dist', 'loader', 'hooks.js');
-register(pathToFileURL(hooksPath).href);
+register('./loader/hooks.js', import.meta.url);
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
