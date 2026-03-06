@@ -1,0 +1,16 @@
+modules:
+  jira:issuePanel:
+    - key: custom-panel
+      title: Custom UI Test
+      resource: customFrontend
+      resolver:
+        function: resolver
+  function:
+    - key: resolver
+      handler: index.handler
+resources:
+  - key: customFrontend
+    path: static/frontend
+app:
+  id: ari:cloud:ecosystem::app/custom-ui-test
+  name: Custom UI Test App
