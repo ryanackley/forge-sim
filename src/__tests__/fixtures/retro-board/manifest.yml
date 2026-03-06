@@ -1,0 +1,50 @@
+modules:
+  function:
+    - key: retroResolver
+      handler: index.handler
+    - key: processVoteFn
+      handler: index.processVote
+    - key: processItemFn
+      handler: index.processItem
+    - key: generateSummaryFn
+      handler: index.generateSummary
+    - key: onSprintCompleteFn
+      handler: index.onSprintComplete
+  jira:globalPage:
+    - key: retro-board-page
+      resolver:
+        function: retroResolver
+      resource: retro-board-resource
+      render: native
+      title: Sprint Retro Board
+  consumer:
+    - key: vote-consumer
+      function: processVoteFn
+      queue: voteQueue
+    - key: item-consumer
+      function: processItemFn
+      queue: itemQueue
+    - key: summary-consumer
+      function: generateSummaryFn
+      queue: summaryQueue
+  trigger:
+    - key: sprint-complete-trigger
+      function: onSprintCompleteFn
+      events:
+        - avi:jira:sprint:completed
+resources:
+  - key: retro-board-resource
+    path: src/frontend/index.tsx
+permissions:
+  scopes:
+    - storage:app
+    - read:jira-work
+  external:
+    fetch:
+      backend:
+        - '*.atlassian.net'
+app:
+  id: ari:cloud:ecosystem::app/retro-board-test
+  name: Sprint Retro Board
+  runtime:
+    name: nodejs20.x

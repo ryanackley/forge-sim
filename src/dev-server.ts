@@ -241,6 +241,7 @@ export function createDevServer(options: DevServerOptions = {}): DevServer {
         const result = await handleRpc(method, params);
         ws.send(JSON.stringify({ requestId, result }));
       } catch (err: any) {
+        console.error(`[dev-server] RPC error (${method}):`, err.message);
         ws.send(JSON.stringify({ requestId, error: err.message }));
       }
       return;

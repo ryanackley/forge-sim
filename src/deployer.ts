@@ -218,6 +218,23 @@ export async function deploy(sim: ForgeSimulator, appDir: string): Promise<Deplo
   // Triggers are already handled by fireTrigger() which looks up the manifest
   // and invokes via resolver — so as long as the function is registered, it works.
 
+  // 5b. Fire scheduled triggers once on deploy
+  // In real Forge, scheduled triggers run on an interval (e.g. hourly).
+  // For simulation, we fire them once at deploy time — this handles migrations
+  // and any other startup tasks that use scheduledTrigger.
+  for (const st of manifest.scheduledTriggers) {
+    const handler = handlerExports.get(st.functionKey);
+    if (handler && typeof handler === 'function') {
+      try {
+        console.log(` ⏰ Firing scheduled trigger: ${st.key} (${st.functionKey})`);
+        await handler({ scheduledTrigger: { key: st.key, interval: st.interval } });
+      } catch (err: any) {
+        console.error(` ⚠️ Scheduled trigger "${st.key}" failed:`, err.message);
+        errors.push({ functionKey: st.functionKey, error: `Scheduled trigger error: ${err.message}` });
+      }
+    }
+  }
+
   // 6. Load UI resources
   // Resources are front-end entry points (e.g. src/frontend/index.tsx) that
   // call ForgeReconciler.render(). Loading them triggers the UI to mount

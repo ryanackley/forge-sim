@@ -67,6 +67,20 @@ export class SimulatedResolver {
   }
 
   /**
+   * Get a single handler by key (for direct invocation outside resolver pattern).
+   */
+  getHandler(functionKey: string): ResolverHandler | undefined {
+    return this.definitions.get(functionKey);
+  }
+
+  /**
+   * Get the current context overrides.
+   */
+  getContextOverrides(): Partial<ResolverContext> {
+    return { ...this.contextOverrides };
+  }
+
+  /**
    * Get the handler map (for wiring into the bridge mock).
    */
   getHandlerMap(): Map<string, ResolverHandler> {

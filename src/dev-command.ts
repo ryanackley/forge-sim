@@ -614,6 +614,21 @@ async function deployResolversOnly(
     }
   }
 
+  // Fire scheduled triggers once on deploy (e.g. migrations)
+  for (const st of manifest.scheduledTriggers) {
+    const handlerMap = sim.resolver.getHandlerMap();
+    const handler = handlerMap.get(st.functionKey);
+    if (handler && typeof handler === 'function') {
+      try {
+        console.log(` ⏰ Firing scheduled trigger: ${st.key} (${st.functionKey})`);
+        await (handler as Function)({ scheduledTrigger: { key: st.key, interval: st.interval } });
+      } catch (err: any) {
+        console.error(` ⚠️ Scheduled trigger "${st.key}" failed:`, err.message);
+        errors.push({ functionKey: st.functionKey, error: `Scheduled trigger error: ${err.message}` });
+      }
+    }
+  }
+
   sim.loadManifestData(manifest);
   return { loadedFunctions, errors };
 }

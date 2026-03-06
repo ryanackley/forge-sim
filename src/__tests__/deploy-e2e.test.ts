@@ -111,10 +111,10 @@ describe('Deploy E2E: Retro Board', () => {
   });
 
   it('fireTrigger works with deployed trigger wiring', async () => {
-    // onSprintComplete receives { payload: { sprint: { id } }, context }
-    // but accesses event?.sprint?.id directly — so it falls back to 'current'.
-    // Seed board with 'current' sprint ID to match the deployed behavior.
-    await sim.invoke('addItem', { sprintId: 'current', text: 'Trigger test', category: 'went-well' });
+    // Trigger handler now correctly receives (event, context) as two args
+    // so event.sprint.id is properly extracted
+    const sid = '99';
+    await sim.invoke('addItem', { sprintId: sid, text: 'Trigger test', category: 'went-well' });
 
     const results = await sim.fireTrigger('avi:jira:sprint:completed', {
       sprint: { id: 99 },
@@ -122,9 +122,9 @@ describe('Deploy E2E: Retro Board', () => {
 
     expect(results).toHaveLength(1);
     expect(results[0].triggered).toBe(true);
-    expect(results[0].sprintId).toBe('current');
+    expect(results[0].sprintId).toBe('99');
 
-    const { board } = await sim.invoke('getBoard', { sprintId: 'current' });
+    const { board } = await sim.invoke('getBoard', { sprintId: sid });
     expect(board.summary).toContain('Trigger test');
   });
 });

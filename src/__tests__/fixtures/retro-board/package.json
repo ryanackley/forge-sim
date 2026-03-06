@@ -1,0 +1,14 @@
+{
+  "name": "retro-board",
+  "version": "1.0.0",
+  "type": "module",
+  "private": true,
+  "dependencies": {
+    "@forge/api": "^6.4.2",
+    "@forge/bridge": "^5.10.1",
+    "@forge/events": "^2.0.0",
+    "@forge/react": "^11.9.0",
+    "@forge/resolver": "^1.7.1",
+    "react": "^18.2.0"
+  }
+}

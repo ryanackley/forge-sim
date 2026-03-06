@@ -199,15 +199,31 @@ export class ForgeSimulator {
       return [];
     }
 
+    // Build context (same shape as resolver context)
+    const context = {
+      ...({ accountId: 'sim-user-001', installContext: 'ari:cloud:jira::site/sim-site' }),
+      ...this.resolver.getContextOverrides(),
+    };
+
+    // Build event payload — the first argument to the trigger handler
+    const event = { event: eventName, ...data };
+
     const results: any[] = [];
     for (const trigger of matchingTriggers) {
       this.log('trigger', `Firing trigger "${trigger.key}" for event: ${eventName}`);
+
+      // Look up handler directly — triggers receive (event, context) as two args,
+      // NOT { payload, context } like resolver-defined functions.
+      const handler = this.resolver.getHandler(trigger.functionKey);
+      if (!handler) {
+        this.log('error', `No handler registered for trigger function: ${trigger.functionKey}`);
+        results.push({ error: `No handler for ${trigger.functionKey}` });
+        continue;
+      }
+
       try {
         const { result, console: captured } = await withCapture(() =>
-          this.resolver.invoke(trigger.functionKey, {
-            event: eventName,
-            ...data,
-          })
+          handler(event, context)
         );
         this.consoleLogs.push(...captured);
         for (const line of captured) {

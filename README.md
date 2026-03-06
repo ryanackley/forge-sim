@@ -18,7 +18,46 @@ Provides a full simulation of the Forge platform so you can develop, test, and i
 - **Mockable product APIs** — Route-based mocks for Jira, Confluence, Bitbucket
 - **MCP server** — 20 tools + 4 resources for AI agent integration (stdio + HTTP)
 
-## Quick Start
+## Installation & Usage
+
+### As a dev tool (recommended)
+
+```bash
+# In your Forge app directory
+npm install --save-dev forge-sim
+
+# Start the dev server with live UIKit preview
+npx forge-sim dev
+
+# Or point at a specific app directory
+npx forge-sim dev ./my-forge-app
+```
+
+### Via npm link (development)
+
+```bash
+# In the forge-sim repo
+npm run build
+npm link
+
+# In your Forge app directory
+npm link forge-sim
+forge-sim dev
+```
+
+### CLI Options
+
+```
+forge-sim dev [appDir]     Start dev server with live UIKit/Custom UI preview
+
+Options:
+  --port <port>            Vite dev server port (default: 5173)
+  --ws-port <port>         WebSocket bridge port (default: 5174)
+  --no-open                Don't open browser automatically
+  --module <key>           Specific UI module key to render (auto-detected if omitted)
+```
+
+### Programmatic API
 
 ```typescript
 import { ForgeSimulator, setSimulator } from 'forge-sim';
@@ -42,7 +81,7 @@ console.log(await sim.kvs.get('views:PROJ-1'));
 console.log(sim.getLogs());
 ```
 
-Run with loader hooks for standalone execution:
+Run with loader hooks for standalone execution (intercepts `@forge/*` imports):
 ```bash
 node --import forge-sim/dist/loader/register.js your-app.js
 ```
@@ -177,7 +216,24 @@ Interactions in the renderer route back to forge-sim:
 4. Handler executes → triggers React state change → re-render
 5. New ForgeDoc broadcasts back to renderer
 
-## Race Condition Detection
+## Transactions
+
+Forge KVS transactions are **write-only** — a builder pattern for atomic multi-key writes:
+
+```typescript
+import { kvs } from '@forge/kvs';
+
+// Atomic multi-key write — all succeed or all fail
+await kvs.transact()
+  .set('board:sprint-42', updatedBoard)
+  .set('votes:sprint-42:item-1', voterList)
+  .delete('temp:draft-42')
+  .execute();
+```
+
+Transactions support up to 25 operations, each key used at most once, with a 4MB payload limit. Supported operations: `.set(key, value, options?)` and `.delete(key)`.
+
+### Race Condition Detection
 
 ```typescript
 const sim = new ForgeSimulator({
@@ -191,10 +247,7 @@ sim.registerConsumer('work', async () => {
   await kvs.set('counter', val + 1);  // race!
 });
 
-// This WORKS — transact is atomic:
-sim.registerConsumer('work', async () => {
-  await kvs.transact('counter', (val) => (val ?? 0) + 1);
-});
+// Fix: use transactions or design idempotent consumers
 ```
 
 ## What's Simulated
@@ -213,8 +266,8 @@ sim.registerConsumer('work', async () => {
 | Manifest Parsing + Auto-Deploy | ✅ Full |
 | Event Triggers | ✅ Basic |
 | MCP Server | ✅ 20 tools, 4 resources (stdio + HTTP) |
+| `forge-sim dev` CLI | ✅ One-command dev experience with live preview |
 | Custom UI Support | 🔜 Planned (iframe + bridge shim) |
-| `forge-sim dev` CLI | 🔜 Planned (one-command dev experience) |
 | Scheduled Triggers | 🔜 Planned |
 | Web Triggers | 🔜 Planned |
 
@@ -268,7 +321,7 @@ node --import ./dist/loader/register.js dist/mcp-server.js --http --port=3100
 
 ```bash
 npm install
-npm test          # 100 tests across 12 test files
+npm test          # 123 tests across 13 test files
 npm run build     # TypeScript compile
 ```
 
