@@ -4,14 +4,16 @@
 
 ```
 ┌─────────────────────────────────────────┐
-│           Command Center (:3001)         │
+│           Forge Sim Tools (:5175)         │
 │  ┌─────┬──────┬──────┬──────┬────────┐  │
 │  │ UI  │State │Events│ Auth │  Logs  │  │
 │  │Picker│     │      │      │        │  │
 │  └─────┴──────┴──────┴──────┴────────┘  │
 ├─────────────────────────────────────────┤
-│           App Preview (:3000)            │
+│         App Preview (:5173)              │
 │         (Vite + Atlaskit render)         │
+├─────────────────────────────────────────┤
+│         Bridge RPC (:5174)               │
 ├─────────────────────────────────────────┤
 │              forge-sim core              │
 │  ┌─────┬─────┬─────┬──────┬─────────┐  │
@@ -25,12 +27,12 @@
 
 ---
 
-## Priority 1: Command Center
+## Priority 1: Forge Sim Tools
 
-A browser-based dev tools UI for forge-sim. Think "Forge DevTools" — like Chrome DevTools but for your Forge app's backend.
+A browser-based dev tools UI for forge-sim — Chrome DevTools for your Forge app's backend.
 
 ### Overview
-- Runs on a separate port (`:3001`) alongside the app preview (`:3000`)
+- Runs on `:5175` alongside app preview (`:5173`) and bridge (`:5174`) — ports clustered together
 - Backend is the existing MCP tools repackaged as REST/WebSocket API
 - Frontend: React + Atlaskit (for the irony 😏)
 
@@ -128,14 +130,14 @@ Make `requestJira()`, `requestConfluence()`, etc. hit real Atlassian APIs instea
 - `product-api.ts` gains a "real mode" that proxies to `https://{site}.atlassian.net`
 - Basic auth: `Authorization: Basic base64(email:token)`
 - Config: `sim.useRealApis({ site: 'mysite.atlassian.net' })`
-- In the command center: "Connect to Atlassian" panel
+- In the Forge Sim Tools: "Connect to Atlassian" panel
 
 **Limitations:** PATs use the user's permissions, not scoped app permissions. Fine for development.
 
 ### Phase 2: OAuth 2.0 (3LO)
 
 - Register a dev OAuth app on developer.atlassian.com
-- Full OAuth dance through the command center UI
+- Full OAuth dance through the Forge Sim Tools UI
 - Scoped to app permissions (more correct)
 - Matches what `forge tunnel` does
 
@@ -149,7 +151,7 @@ Make `requestJira()`, `requestConfluence()`, etc. hit real Atlassian APIs instea
 ### Implementation Notes
 - Proxy layer in product-api.ts: `fetch(realUrl, { headers: { Authorization: ... } })`
 - Credential storage: simple JSON file with fs permissions
-- UX: command center panel for site configuration
+- UX: Forge Sim Tools panel for site configuration
 - Estimated effort: 1 day for PAT, 2-3 days for full OAuth
 
 ---
@@ -169,7 +171,7 @@ Add HTTP endpoints for web trigger modules. Simple hole to fill.
 ### Implementation Notes
 - Reuse existing dev server HTTP server, add route prefix
 - Function registry already supports `webTrigger` type
-- Could integrate into command center as a "Test Web Trigger" panel
+- Could integrate into Forge Sim Tools as a "Test Web Trigger" panel
 - Estimated effort: half a day
 
 ---
@@ -191,7 +193,7 @@ Real-time pub/sub channels (currently Preview, targeting GA).
 - `@forge/realtime` shim: `publish()` / `publishGlobal()` → in-memory event bus
 - `@forge/bridge` realtime shim: `subscribe()` / `publish()` → same bus
 - Channel scoping logic (module key + install context)
-- Inspectable via MCP tool and command center
+- Inspectable via MCP tool and Forge Sim Tools
 
 **Phase 2: WebSocket transport**
 - For browser mode: real WebSocket connection between Vite app and sim
