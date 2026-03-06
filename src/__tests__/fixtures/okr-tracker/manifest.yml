@@ -1,0 +1,54 @@
+modules:
+  sql:
+    - key: main
+      engine: mysql
+  function:
+    - key: okrResolver
+      handler: index.handler
+    - key: runMigrationFn
+      handler: index.runMigration
+    - key: recalcKrFn
+      handler: index.recalcKeyResult
+    - key: snapshotProgressFn
+      handler: index.snapshotProgress
+    - key: onSprintCompleteFn
+      handler: index.onSprintComplete
+  jira:globalPage:
+    - key: okr-tracker-page
+      resolver:
+        function: okrResolver
+      resource: okr-tracker-resource
+      render: native
+      title: OKR Tracker
+  scheduledTrigger:
+    - key: migration-trigger
+      function: runMigrationFn
+      interval: hour
+  consumer:
+    - key: recalc-consumer
+      function: recalcKrFn
+      queue: recalcQueue
+    - key: snapshot-consumer
+      function: snapshotProgressFn
+      queue: snapshotQueue
+  trigger:
+    - key: sprint-complete-trigger
+      function: onSprintCompleteFn
+      events:
+        - avi:jira:sprint:completed
+resources:
+  - key: okr-tracker-resource
+    path: src/frontend/index.tsx
+permissions:
+  scopes:
+    - storage:app
+    - read:jira-work
+  external:
+    fetch:
+      backend:
+        - '*.atlassian.net'
+app:
+  id: ari:cloud:ecosystem::app/okr-tracker-test
+  name: OKR Tracker
+  runtime:
+    name: nodejs20.x
