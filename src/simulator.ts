@@ -333,13 +333,15 @@ export class ForgeSimulator {
         };
       }
 
-      if (result.statusCode >= 500) {
-        this.log('error', `Scheduled trigger "${triggerKey}" returned error status: ${result.statusCode}`);
-      } else if (result.statusCode === 204) {
+      const typedResult = result as { statusCode: number; body?: string; headers?: Record<string, string[]>; statusText?: string };
+
+      if (typedResult.statusCode >= 500) {
+        this.log('error', `Scheduled trigger "${triggerKey}" returned error status: ${typedResult.statusCode}`);
+      } else if (typedResult.statusCode === 204) {
         this.log('scheduledTrigger', `Scheduled trigger "${triggerKey}" completed successfully (204)`);
       }
 
-      return result;
+      return typedResult;
     } catch (err) {
       if ((err as any).capturedConsole) {
         this.consoleLogs.push(...(err as any).capturedConsole);
