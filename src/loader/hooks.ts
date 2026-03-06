@@ -51,7 +51,9 @@ async function fileExists(filePath: string): Promise<boolean> {
 }
 
 /**
- * Try to resolve an extensionless or directory import to a real file.
+ * Try to resolve a relative import to a real file.
+ * Handles extensionless imports, directory imports, and .js → .ts remapping
+ * (common in TypeScript ESM projects that use .js extensions in source).
  * Returns a file:// URL if found, or null.
  */
 async function tryResolveFile(specifier: string, parentURL?: string): Promise<string | null> {
@@ -60,6 +62,14 @@ async function tryResolveFile(specifier: string, parentURL?: string): Promise<st
 
   const parentDir = dirname(fileURLToPath(parentURL));
   const basePath = pathResolve(parentDir, specifier);
+
+  // 0. .js → .ts/.tsx remapping (TypeScript ESM convention)
+  if (specifier.endsWith('.js')) {
+    const tsPath = basePath.replace(/\.js$/, '.ts');
+    if (await fileExists(tsPath)) return pathToFileURL(tsPath).href;
+    const tsxPath = basePath.replace(/\.js$/, '.tsx');
+    if (await fileExists(tsxPath)) return pathToFileURL(tsxPath).href;
+  }
 
   // 1. Try adding extensions: ./foo → ./foo.js, ./foo.ts, etc.
   for (const ext of TRY_EXTENSIONS) {
