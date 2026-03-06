@@ -178,6 +178,32 @@ server.tool(
 );
 
 server.tool(
+  'forge.fire_scheduled_trigger',
+  'Fire a scheduled trigger by key. Validates the response format per Forge docs: handler must return { statusCode, body?, headers?, statusText? }. Returns 424 if response format is invalid.',
+  {
+    triggerKey: z.string().describe('The scheduled trigger key from the manifest'),
+  },
+  async ({ triggerKey }) => {
+    try {
+      const result = await sim.fireScheduledTrigger(triggerKey);
+      const emoji = result.statusCode === 204 ? '✅' : result.statusCode >= 400 ? '❌' : '⚠️';
+      return {
+        content: [{
+          type: 'text' as const,
+          text: `${emoji} Scheduled trigger "${triggerKey}" → ${result.statusCode}\n${JSON.stringify(result, null, 2)}`,
+        }],
+        isError: result.statusCode >= 400,
+      };
+    } catch (err) {
+      return {
+        content: [{ type: 'text' as const, text: `❌ Scheduled trigger failed: ${err instanceof Error ? err.message : String(err)}` }],
+        isError: true,
+      };
+    }
+  }
+);
+
+server.tool(
   'forge.ui_state',
   'Get the current ForgeDoc UI tree. Shows what the Forge app UI looks like right now. Returns a pretty-printed component tree.',
   async () => {

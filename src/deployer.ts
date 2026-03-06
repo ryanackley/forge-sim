@@ -165,10 +165,20 @@ export async function deploy(sim: ForgeSimulator, appDir: string): Promise<Deplo
     }
   }
 
-  // 3. Wire up resolvers
+  // ── Determine function types from manifest context ──────────────────────
+  // Build sets of function keys by how they're used in the manifest
+  const triggerFnKeys = new Set(manifest.triggers.map(t => t.functionKey));
+  const consumerFnKeys = new Set(manifest.consumers.map(c => c.functionKey));
+  const scheduledFnKeys = new Set(manifest.scheduledTriggers.map(s => s.functionKey));
+  const resolverFnKeys = new Set<string>();
+  for (const uiModule of manifest.uiModules) {
+    if (uiModule.resolverFunctionKey) resolverFnKeys.add(uiModule.resolverFunctionKey);
+  }
+
+  // 3. Wire up resolvers (UI bridge pattern)
   // UI modules reference functions via resolver.function — those functions
   // export a Resolver's getDefinitions() result (a map of handler functions).
-  // We need to register each handler on the simulator.
+  // Resolver-defined functions get { payload, context } as a single wrapped object.
   for (const uiModule of manifest.uiModules) {
     if (!uiModule.resolverFunctionKey) continue;
 
@@ -183,21 +193,15 @@ export async function deploy(sim: ForgeSimulator, appDir: string): Promise<Deplo
         }
       }
     } else if (typeof exported === 'function') {
-      // Direct function handler
       sim.resolver.define(uiModule.resolverFunctionKey, exported);
     }
   }
 
-  // Also wire up any function that's used directly as a resolver (not via UI module)
-  // This handles cases where invoke() is called directly with a function key
+  // Also register non-resolver functions that export definitions maps
+  // (e.g., functions used by invoke() but not referenced by UI modules)
   for (const [fnKey, handler] of handlerExports) {
-    if (typeof handler === 'function') {
-      // Register the function itself as invocable
-      if (!sim.resolver.getDefinitions().includes(fnKey)) {
-        sim.resolver.define(fnKey, handler);
-      }
-    } else if (typeof handler === 'object') {
-      // Definitions map — register each sub-handler
+    if (typeof handler === 'object') {
+      // Definitions map — register each sub-handler as resolver type
       for (const [defKey, defHandler] of Object.entries(handler)) {
         if (typeof defHandler === 'function' && !sim.resolver.getDefinitions().includes(defKey)) {
           sim.resolver.define(defKey, defHandler as any);
@@ -206,28 +210,80 @@ export async function deploy(sim: ForgeSimulator, appDir: string): Promise<Deplo
     }
   }
 
-  // 4. Wire up consumers
+  // 4. Register trigger functions in the function registry
+  // Triggers receive (event, context) as two separate arguments.
+  for (const trigger of manifest.triggers) {
+    const handler = handlerExports.get(trigger.functionKey);
+    if (handler && typeof handler === 'function') {
+      sim.registerFunction(trigger.functionKey, handler, 'trigger');
+    }
+  }
+
+  // 5. Wire up consumers
+  // Consumers receive (event, context) as two separate arguments.
   for (const consumer of manifest.consumers) {
     const handler = handlerExports.get(consumer.functionKey);
     if (handler && typeof handler === 'function') {
+      sim.registerFunction(consumer.functionKey, handler, 'consumer');
       sim.registerConsumer(consumer.queue, handler);
     }
   }
 
-  // 5. Wire up triggers
-  // Triggers are already handled by fireTrigger() which looks up the manifest
-  // and invokes via resolver — so as long as the function is registered, it works.
+  // 6. Register scheduled trigger functions
+  // Scheduled triggers receive ({ context: { cloudId, moduleKey }, contextToken }, context)
+  // and must return { statusCode, body?, headers?, statusText? }.
+  for (const st of manifest.scheduledTriggers) {
+    const handler = handlerExports.get(st.functionKey);
+    if (handler && typeof handler === 'function') {
+      sim.registerFunction(st.functionKey, handler, 'scheduledTrigger');
+    }
+  }
 
-  // 5b. Fire scheduled triggers once on deploy
+  // 7. Register remaining functions as generic (if not already registered)
+  for (const [fnKey, handler] of handlerExports) {
+    if (typeof handler === 'function' && !sim.functions.has(fnKey)) {
+      // Not a trigger, consumer, or scheduled trigger — register as generic
+      sim.registerFunction(fnKey, handler, 'generic');
+      // Also make it available via resolver.define() for backward compat
+      if (!sim.resolver.getDefinitions().includes(fnKey)) {
+        sim.resolver.define(fnKey, handler);
+      }
+    }
+  }
+
+  // 8. Fire scheduled triggers once on deploy
   // In real Forge, scheduled triggers run on an interval (e.g. hourly).
   // For simulation, we fire them once at deploy time — this handles migrations
   // and any other startup tasks that use scheduledTrigger.
   for (const st of manifest.scheduledTriggers) {
     const handler = handlerExports.get(st.functionKey);
     if (handler && typeof handler === 'function') {
+      console.log(` ⏰ Firing scheduled trigger: ${st.key} (${st.functionKey})`);
+
+      // Build request per Forge docs: { context: { cloudId, moduleKey }, contextToken }
+      const request = {
+        context: {
+          cloudId: 'sim-cloud-001',
+          moduleKey: st.key,
+        },
+        contextToken: 'sim-context-token',
+      };
+      const context = {
+        installContext: 'ari:cloud:jira::site/sim-site',
+      };
+
       try {
-        console.log(` ⏰ Firing scheduled trigger: ${st.key} (${st.functionKey})`);
-        await handler({ scheduledTrigger: { key: st.key, interval: st.interval } });
+        const result = await handler(request, context);
+
+        // Validate response format (Forge requires { statusCode })
+        if (result !== undefined && result !== null && typeof result === 'object' && 'statusCode' in result) {
+          if (result.statusCode >= 500) {
+            console.error(` ⚠️ Scheduled trigger "${st.key}" returned error: ${result.statusCode}`);
+            errors.push({ functionKey: st.functionKey, error: `Scheduled trigger returned status ${result.statusCode}` });
+          }
+        }
+        // Note: we don't enforce the return format here to be lenient during development.
+        // Use sim.fireScheduledTrigger() for strict validation.
       } catch (err: any) {
         console.error(` ⚠️ Scheduled trigger "${st.key}" failed:`, err.message);
         errors.push({ functionKey: st.functionKey, error: `Scheduled trigger error: ${err.message}` });

@@ -11,6 +11,7 @@ import { SimulatedResolver } from './resolver.js';
 import { SimulatedProductApi, route } from './product-api.js';
 import { SimulatedForgeSQL, type ForgeSQLOptions } from './forge-sql.js';
 import { SimulatedEntityStore, type EntitySchema } from './entity-store.js';
+import { FunctionRegistry, type ForgeFunctionType } from './function-registry.js';
 import { parseManifest, parseManifestContent, type ParsedManifest } from './manifest.js';
 import { withCapture, type ConsoleLine } from './console-capture.js';
 import { resetBridge } from './ui/bridge.js';
@@ -23,6 +24,7 @@ export class ForgeSimulator {
   readonly productApi: SimulatedProductApi;
   readonly sql: SimulatedForgeSQL;
   readonly entityStore: SimulatedEntityStore;
+  readonly functions: FunctionRegistry;
 
   private manifest: ParsedManifest | null = null;
   private logs: LogEntry[] = [];
@@ -35,6 +37,7 @@ export class ForgeSimulator {
     this.productApi = new SimulatedProductApi();
     this.sql = new SimulatedForgeSQL(config?.forgeSQL);
     this.entityStore = new SimulatedEntityStore();
+    this.functions = new FunctionRegistry();
 
     if (config?.storageLatency !== undefined) {
       this.kvs.setLatency(config.storageLatency);
@@ -106,10 +109,22 @@ export class ForgeSimulator {
     return deploy(this, appDir);
   }
 
+  // ── Function Registration ────────────────────────────────────────────────
+
+  /**
+   * Register a function with its Forge type.
+   * This is the primary way to register non-resolver functions (triggers, consumers, etc.).
+   * Resolver-defined functions should use sim.resolver.define() instead.
+   */
+  registerFunction(key: string, handler: (...args: any[]) => any, type: ForgeFunctionType = 'generic'): void {
+    this.functions.register(key, handler, type);
+  }
+
   // ── Resolver Invocation ─────────────────────────────────────────────────
 
   /**
-   * Invoke a resolver function, simulating the bridge invoke call.
+   * Invoke a resolver function, simulating the @forge/bridge invoke() call.
+   * This uses the resolver's { payload, context } wrapping — the UI bridge pattern.
    */
   async invoke(functionKey: string, payload?: any): Promise<any> {
     this.log('invoke', `Invoking resolver: ${functionKey}`, payload);
@@ -182,8 +197,32 @@ export class ForgeSimulator {
   // ── Trigger Simulation ──────────────────────────────────────────────────
 
   /**
+   * Look up a function handler — checks function registry first, then resolver.
+   * This allows both the new registerFunction() path and the legacy resolver.define() path to work.
+   */
+  private getFunction(key: string): ((...args: any[]) => any) | undefined {
+    return this.functions.getHandler(key) ?? this.resolver.getHandler(key);
+  }
+
+  /**
+   * Build the standard Forge context object.
+   */
+  private buildContext(overrides?: Record<string, unknown>): Record<string, unknown> {
+    return {
+      accountId: 'sim-user-001',
+      cloudId: 'sim-cloud-001',
+      installContext: 'ari:cloud:jira::site/sim-site',
+      ...this.resolver.getContextOverrides(),
+      ...overrides,
+    };
+  }
+
+  /**
    * Fire a product event trigger (e.g., 'avi:jira:created:issue').
-   * Looks up registered trigger handlers and invokes them.
+   *
+   * Per Forge docs, trigger handlers receive TWO arguments: (event, context)
+   * - event: event-specific payload ({ issue: {...} }, { sprint: {...} }, etc.)
+   * - context: standard context object
    */
   async fireTrigger(eventName: string, data: Record<string, unknown> = {}): Promise<any[]> {
     if (!this.manifest) {
@@ -199,22 +238,14 @@ export class ForgeSimulator {
       return [];
     }
 
-    // Build context (same shape as resolver context)
-    const context = {
-      ...({ accountId: 'sim-user-001', installContext: 'ari:cloud:jira::site/sim-site' }),
-      ...this.resolver.getContextOverrides(),
-    };
-
-    // Build event payload — the first argument to the trigger handler
+    const context = this.buildContext();
     const event = { event: eventName, ...data };
 
     const results: any[] = [];
     for (const trigger of matchingTriggers) {
       this.log('trigger', `Firing trigger "${trigger.key}" for event: ${eventName}`);
 
-      // Look up handler directly — triggers receive (event, context) as two args,
-      // NOT { payload, context } like resolver-defined functions.
-      const handler = this.resolver.getHandler(trigger.functionKey);
+      const handler = this.getFunction(trigger.functionKey);
       if (!handler) {
         this.log('error', `No handler registered for trigger function: ${trigger.functionKey}`);
         results.push({ error: `No handler for ${trigger.functionKey}` });
@@ -239,6 +270,83 @@ export class ForgeSimulator {
       }
     }
     return results;
+  }
+
+  /**
+   * Fire a scheduled trigger.
+   *
+   * Per Forge docs, scheduled trigger handlers receive a SINGLE argument:
+   *   { context: { cloudId, moduleKey }, contextToken }
+   *
+   * They MUST return: { statusCode: number, body?: string, headers?: object, statusText?: string }
+   * - statusCode 204 = success
+   * - statusCode 5xx = error
+   * - Missing/wrong format = 424 Failed Dependency (platform error)
+   */
+  async fireScheduledTrigger(triggerKey: string): Promise<{ statusCode: number; body?: string; error?: string }> {
+    if (!this.manifest) {
+      throw new Error('No manifest loaded. Call loadManifest() first.');
+    }
+
+    const st = this.manifest.scheduledTriggers.find(t => t.key === triggerKey);
+    if (!st) {
+      throw new Error(`No scheduled trigger with key "${triggerKey}". Available: ${this.manifest.scheduledTriggers.map(t => t.key).join(', ')}`);
+    }
+
+    const handler = this.getFunction(st.functionKey);
+    if (!handler) {
+      throw new Error(`No handler registered for scheduled trigger function: ${st.functionKey}`);
+    }
+
+    this.log('scheduledTrigger', `Firing scheduled trigger: ${triggerKey} (${st.functionKey})`);
+
+    // Build the request object per Forge docs
+    const request = {
+      context: {
+        cloudId: 'sim-cloud-001',
+        moduleKey: triggerKey,
+      },
+      contextToken: 'sim-context-token',
+    };
+
+    // Build context (principal is undefined for scheduled triggers — no user involved)
+    const context = this.buildContext({ principal: undefined });
+
+    try {
+      const { result, console: captured } = await withCapture(() =>
+        handler(request, context)
+      );
+      this.consoleLogs.push(...captured);
+      for (const line of captured) {
+        this.log(`console.${line.level}`, line.message);
+      }
+
+      // Validate response format per Forge docs
+      if (result === undefined || result === null || typeof result !== 'object' || !('statusCode' in result)) {
+        this.log('warn',
+          `Scheduled trigger "${triggerKey}" returned invalid response (missing statusCode). ` +
+          `Forge would record a 424 Failed Dependency. Got: ${JSON.stringify(result)}`
+        );
+        return {
+          statusCode: 424,
+          error: `Invalid response from scheduled trigger "${triggerKey}": must return { statusCode, body?, headers?, statusText? }`,
+        };
+      }
+
+      if (result.statusCode >= 500) {
+        this.log('error', `Scheduled trigger "${triggerKey}" returned error status: ${result.statusCode}`);
+      } else if (result.statusCode === 204) {
+        this.log('scheduledTrigger', `Scheduled trigger "${triggerKey}" completed successfully (204)`);
+      }
+
+      return result;
+    } catch (err) {
+      if ((err as any).capturedConsole) {
+        this.consoleLogs.push(...(err as any).capturedConsole);
+      }
+      this.log('error', `Scheduled trigger "${triggerKey}" threw: ${err}`);
+      return { statusCode: 500, error: String(err) };
+    }
   }
 
   // ── Logging ─────────────────────────────────────────────────────────────
@@ -273,6 +381,7 @@ export class ForgeSimulator {
     this.kvs.clear();
     this.queue.clear();
     this.resolver.clear();
+    this.functions.clear();
     this.productApi.clear();
     this.entityStore.clear();
     this.manifest = null;
@@ -312,3 +421,5 @@ export { SimulatedForgeSQL } from './forge-sql.js';
 export type { ForgeSQLOptions } from './forge-sql.js';
 export { SimulatedEntityStore } from './entity-store.js';
 export type { EntitySchema, IndexDefinition, StoredEntry } from './entity-store.js';
+export { FunctionRegistry } from './function-registry.js';
+export type { ForgeFunctionType, RegisteredFunction } from './function-registry.js';
