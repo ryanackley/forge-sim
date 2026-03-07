@@ -290,7 +290,7 @@ async function buildViteConfig(opts: {
 
 export async function devCommand(options: DevCommandOptions) {
   const { appDir, port, wsPort, open, moduleKey, clean } = options;
-  const stateDir = join(appDir, '.forge-sim-state');
+  const stateDir = join(appDir, '.forge-sim', 'state');
 
   console.log('');
   console.log('  🔥 forge-sim dev');
@@ -421,9 +421,9 @@ export async function devCommand(options: DevCommandOptions) {
 
   // 6. Generate temp project for Vite
   const forgeSimRoot = resolve(__dirname, '..');
-  const tempDir = join(appDir, '.forge-sim');
+  const tempDir = join(appDir, '.forge-sim', 'tmp');
 
-  // Clean up any previous temp dir
+  // Clean up previous temp files (but preserve .forge-sim/state/)
   if (existsSync(tempDir)) {
     rmSync(tempDir, { recursive: true, force: true });
   }
@@ -438,9 +438,10 @@ export async function devCommand(options: DevCommandOptions) {
 
     writeFileSync(join(tempDir, 'entry.tsx'), entryContent);
     writeFileSync(join(tempDir, 'index.html'), generateIndexHtml(manifest.raw.app?.name ?? 'Forge App'));
-    writeFileSync(join(tempDir, '.gitignore'), '*\n');
+    // .gitignore at .forge-sim/ level covers both tmp/ and state/
+    writeFileSync(join(appDir, '.forge-sim', '.gitignore'), '*\n');
 
-    console.log(`  📦 Generated UIKit dev environment in .forge-sim/`);
+    console.log(`  📦 Generated UIKit dev environment in .forge-sim/tmp/`);
   } else {
     // Custom UI: serve the resource directory directly.
     // Vite uses the dev's index.html as-is, @forge/bridge is aliased to our shim.
