@@ -42,19 +42,29 @@ if (command === '--help' || command === '-h' || !command) {
 
   Usage:
     forge-sim dev [appDir]     Start dev server with live UIKit/Custom UI preview
+    forge-sim auth             Add or manage Atlassian accounts (OAuth)
     forge-sim --version        Show version
     forge-sim --help           Show this help
 
-  Options:
+  Dev Options:
     --port <port>              Vite dev server port (default: 5173)
     --ws-port <port>           WebSocket bridge port (default: 5174)
     --no-open                  Don't open browser automatically
     --module <key>             Specific UI module key to render (auto-detected if omitted)
+    --clean                    Start fresh (wipe app state, keep credentials)
+
+  Auth Options:
+    --list                     List configured accounts
+    --clear                    Remove all credentials
+    --remove <id>              Remove a specific account
+    --local                    Store credentials per-app instead of global
 
   Examples:
     forge-sim dev              Start dev server for Forge app in current directory
     forge-sim dev ./my-app     Start dev server for Forge app in ./my-app
-    forge-sim dev --port 3000  Use custom port
+    forge-sim dev --clean      Reset app state but keep credentials
+    forge-sim auth             Add Atlassian account via OAuth
+    forge-sim auth --list      Show configured accounts
   `);
   process.exit(0);
 }
@@ -95,6 +105,28 @@ if (command === 'dev') {
     moduleKey,
     clean,
   });
+} else if (command === 'auth') {
+  const restArgs = args.slice(1);
+  let list = false;
+  let clear = false;
+  let remove: string | undefined;
+  let local: string | undefined;
+
+  for (let i = 0; i < restArgs.length; i++) {
+    const arg = restArgs[i];
+    if (arg === '--list') {
+      list = true;
+    } else if (arg === '--clear') {
+      clear = true;
+    } else if (arg === '--remove' && restArgs[i + 1]) {
+      remove = restArgs[++i];
+    } else if (arg === '--local') {
+      local = resolve('.');
+    }
+  }
+
+  const { authCommand } = await import('./auth/auth-command.js');
+  await authCommand({ list, clear, remove, local });
 } else {
   console.error(`Unknown command: ${command}`);
   console.error(`Run 'forge-sim --help' for usage.`);
