@@ -34,6 +34,8 @@ export interface DevCommandOptions {
   wsPort: number;
   open: boolean;
   moduleKey?: string;
+  /** Start fresh — don't restore persisted state */
+  clean?: boolean;
 }
 
 // ── UI Module Detection ──────────────────────────────────────────────────
@@ -286,7 +288,8 @@ async function buildViteConfig(opts: {
 // ── Main Dev Command ──────────────────────────────────────────────────────
 
 export async function devCommand(options: DevCommandOptions) {
-  const { appDir, port, wsPort, open, moduleKey } = options;
+  const { appDir, port, wsPort, open, moduleKey, clean } = options;
+  const stateDir = join(appDir, '.forge-sim', 'state');
 
   console.log('');
   console.log('  🔥 forge-sim dev');
@@ -367,6 +370,15 @@ export async function devCommand(options: DevCommandOptions) {
   } catch (err: any) {
     console.warn(`     ⚠️  Deploy warning: ${err.message}`);
   }
+
+  // 4b. Restore persisted state (unless --clean)
+  if (!clean) {
+    const { loadState, hasPersistedState } = await import('./persistence.js');
+    if (await hasPersistedState(stateDir)) {
+      await loadState(sim, stateDir);
+    }
+  }
+
   console.log('');
 
   // 5. Start WebSocket dev server (for RPC: invoke, fetchProduct, etc.)
@@ -490,6 +502,15 @@ export async function devCommand(options: DevCommandOptions) {
     // Graceful shutdown
     const cleanup = async () => {
       console.log('\n  🛑 Shutting down...');
+
+      // Save state before teardown
+      try {
+        const { saveState } = await import('./persistence.js');
+        await saveState(sim, stateDir);
+      } catch (err: any) {
+        console.error(`  ⚠️  Failed to save state: ${err.message}`);
+      }
+
       toolsServer.close();
       devServer.close();
       await viteServer.close();

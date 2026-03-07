@@ -67,6 +67,7 @@ if (command === 'dev') {
   let wsPort = 5174;
   let open = true;
   let moduleKey: string | undefined;
+  let clean = false;
 
   for (let i = 0; i < restArgs.length; i++) {
     const arg = restArgs[i];
@@ -78,6 +79,8 @@ if (command === 'dev') {
       open = false;
     } else if (arg === '--module' && restArgs[i + 1]) {
       moduleKey = restArgs[++i];
+    } else if (arg === '--clean') {
+      clean = true;
     } else if (!arg.startsWith('-')) {
       appDir = arg;
     }
@@ -90,6 +93,7 @@ if (command === 'dev') {
     wsPort,
     open,
     moduleKey,
+    clean,
   });
 } else {
   console.error(`Unknown command: ${command}`);

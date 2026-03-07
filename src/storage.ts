@@ -146,6 +146,16 @@ export class SimulatedKVS {
     return result;
   }
 
+  /**
+   * Restore state from a dump (reverse of dump()).
+   * Merges into existing state — does not clear first.
+   */
+  restore(data: Record<string, any>): void {
+    for (const [key, value] of Object.entries(data)) {
+      this.store.set(key, JSON.parse(JSON.stringify(value)));
+    }
+  }
+
   clear(): void {
     this.store.clear();
     this.secrets.clear();
