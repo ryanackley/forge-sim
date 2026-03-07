@@ -1,0 +1,13 @@
+{
+  "name": "my-issues",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "forge-sim dev"
+  },
+  "dependencies": {
+    "@forge/api": "*",
+    "@forge/resolver": "*"
+  }
+}
