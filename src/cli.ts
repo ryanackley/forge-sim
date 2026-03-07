@@ -55,7 +55,8 @@ if (command === '--help' || command === '-h' || !command) {
 
   Auth Options:
     --list                     List configured accounts
-    --clear                    Remove all credentials
+    --clear                    Remove all accounts (keeps OAuth app config)
+    --clear-all                Remove everything (accounts + OAuth app config)
     --remove <id>              Remove a specific account
     --oauth                    Add account via OAuth (multi-user testing)
     --setup                    Configure OAuth app (client ID/secret)
@@ -111,6 +112,7 @@ if (command === 'dev') {
   const restArgs = args.slice(1);
   let list = false;
   let clear = false;
+  let clearAll = false;
   let setup = false;
   let oauth = false;
   let remove: string | undefined;
@@ -119,6 +121,7 @@ if (command === 'dev') {
   for (let i = 0; i < restArgs.length; i++) {
     const arg = restArgs[i];
     if (arg === '--list') list = true;
+    else if (arg === '--clear-all') clearAll = true;
     else if (arg === '--clear') clear = true;
     else if (arg === '--setup') setup = true;
     else if (arg === '--oauth') oauth = true;
@@ -127,7 +130,7 @@ if (command === 'dev') {
   }
 
   const { authCommand } = await import('./auth/auth-command.js');
-  await authCommand({ list, clear, setup, oauth, remove, local });
+  await authCommand({ list, clear, clearAll, setup, oauth, remove, local });
 } else {
   console.error(`Unknown command: ${command}`);
   console.error(`Run 'forge-sim --help' for usage.`);

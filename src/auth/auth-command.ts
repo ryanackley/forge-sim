@@ -34,6 +34,7 @@ const DEFAULT_SCOPES = [
 export interface AuthCommandOptions {
   list?: boolean;
   clear?: boolean;
+  clearAll?: boolean;
   remove?: string;
   setup?: boolean;
   oauth?: boolean;
@@ -65,10 +66,19 @@ export async function authCommand(options: AuthCommandOptions): Promise<void> {
     return;
   }
 
-  // ── Clear ─────────────────────────────────────────────────────────────
+  // ── Clear all (credentials + OAuth app config) ─────────────────────
+  if (options.clearAll) {
+    await clearCredentials(options.local);
+    const { saveConfig } = await import('./config.js');
+    await saveConfig({});
+    console.log('  ✅ All credentials and OAuth app config cleared.');
+    return;
+  }
+
+  // ── Clear credentials only ────────────────────────────────────────
   if (options.clear) {
     await clearCredentials(options.local);
-    console.log('  ✅ All credentials cleared.');
+    console.log('  ✅ All credentials cleared (OAuth app config preserved).');
     return;
   }
 
