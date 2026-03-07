@@ -356,7 +356,11 @@ export async function devCommand(options: DevCommandOptions) {
     const sqlDumpPath = await getSQLDumpPath(stateDir);
     if (sqlDumpPath) {
       sim.sql.setInitSQLFilePath(sqlDumpPath);
-      console.log(`     SQL state found — will restore on first SQL access`);
+      // Read table count for logging
+      const { readFileSync } = await import('node:fs');
+      const dump = readFileSync(sqlDumpPath, 'utf-8');
+      const tableCount = (dump.match(/CREATE TABLE/gi) || []).length;
+      console.log(`  📂 Restoring SQL state (${tableCount} tables) on MySQL boot`);
     }
   }
 

@@ -108,21 +108,8 @@ export async function loadState(sim: ForgeSimulator, stateDir: string): Promise<
     // No KVS state file — that's fine
   }
 
-  // ── SQL ──────────────────────────────────────────────────────────────
-  // SQL restore is handled via initSQLFilePath (set before SQL server starts).
-  // Just check if the file exists for the restored flag.
-  const sqlPath = join(stateDir, SQL_FILE);
-  try {
-    await access(sqlPath);
-    const dump = await readFile(sqlPath, 'utf-8');
-    if (dump.trim().length > 0) {
-      const tableCount = (dump.match(/CREATE TABLE/gi) || []).length;
-      console.log(`  📂 SQL state found (${tableCount} tables) — restoring on SQL start`);
-      restored = true;
-    }
-  } catch {
-    // No SQL state file — that's fine
-  }
+  // SQL restore is handled via initSQLFilePath — already configured
+  // before deploy in dev-command.ts (step 4a). No action needed here.
 
   return restored;
 }
