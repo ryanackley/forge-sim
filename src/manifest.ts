@@ -53,9 +53,8 @@ export interface ManifestUIModule {
   type: string; // e.g. "jira:issuePanel", "jira:globalPage"
   key: string;
   title?: string;
-  functionKey?: string;       // UIKit: function that renders the UI
   resolverFunctionKey?: string;
-  resourceKey?: string;       // Custom UI: static resource directory
+  resourceKey?: string;
 }
 
 /**
@@ -137,7 +136,6 @@ export function parseManifestContent(content: string): ParsedManifest {
         type: moduleType,
         key: mod.key,
         title: mod.title,
-        functionKey: mod.function,
         resolverFunctionKey: mod.resolver?.function,
         resourceKey: mod.resource,
       });
