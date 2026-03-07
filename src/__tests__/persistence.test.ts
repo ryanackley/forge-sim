@@ -105,9 +105,8 @@ describe('Persistence', () => {
       expect(dump).toContain('CREATE TABLE');
       expect(dump).toContain('users');
 
-      // Create fresh simulator and restore
+      // Create fresh simulator and restore via loadState
       const sim2 = new ForgeSimulator();
-      await sim2.sql.start();
       await loadState(sim2, stateDir);
 
       // Query restored data

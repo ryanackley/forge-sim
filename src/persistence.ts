@@ -100,7 +100,7 @@ export async function loadState(sim: ForgeSimulator, stateDir: string): Promise<
     const dump = await readFile(sqlPath, 'utf-8');
 
     if (dump.trim().length > 0) {
-      // Ensure SQL server is running before restore
+      // Start SQL server if needed, then replay the dump
       await sim.sql.start();
       await sim.sql.executeMultiStatement(dump);
       const tableCount = (dump.match(/CREATE TABLE/gi) || []).length;
@@ -114,6 +114,19 @@ export async function loadState(sim: ForgeSimulator, stateDir: string): Promise<
   }
 
   return restored;
+}
+
+/**
+ * Get the SQL dump file path if it exists (for initSQLFilePath).
+ */
+export async function getSQLDumpPath(stateDir: string): Promise<string | undefined> {
+  const sqlPath = join(stateDir, SQL_FILE);
+  try {
+    await access(sqlPath);
+    return sqlPath;
+  } catch {
+    return undefined;
+  }
 }
 
 /**

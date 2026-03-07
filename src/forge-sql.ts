@@ -18,6 +18,8 @@ export interface ForgeSQLOptions {
   dbName?: string;
   /** Log level for mysql-memory-server */
   logLevel?: 'LOG' | 'WARN' | 'ERROR';
+  /** Path to SQL file to execute on startup (for restoring state) */
+  initSQLFilePath?: string;
 }
 
 interface MySQLMemoryDB {
@@ -42,6 +44,14 @@ export class SimulatedForgeSQL {
   }
 
   /**
+   * Set the SQL file to execute on startup (for restoring persisted state).
+   * Must be called before start().
+   */
+  setInitSQLFilePath(path: string): void {
+    this.options.initSQLFilePath = path;
+  }
+
+  /**
    * Start the ephemeral MySQL server. Called lazily on first query,
    * or explicitly for eager initialization.
    */
@@ -55,11 +65,15 @@ export class SimulatedForgeSQL {
   }
 
   private async _doStart(): Promise<void> {
-    this.db = await createDB({
+    const createOpts: any = {
       version: this.options.mysqlVersion,
       dbName: this.options.dbName,
       logLevel: this.options.logLevel,
-    }) as unknown as MySQLMemoryDB;
+    };
+    if (this.options.initSQLFilePath) {
+      createOpts.initSQLFilePath = this.options.initSQLFilePath;
+    }
+    this.db = await createDB(createOpts) as unknown as MySQLMemoryDB;
 
     this.pool = mysql.createPool({
       host: '127.0.0.1',
