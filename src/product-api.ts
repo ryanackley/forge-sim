@@ -117,14 +117,22 @@ export class SimulatedProductApi {
       // Token refresh if needed
       await this.ensureValidToken();
 
-      const baseUrl = baseUrlFn(this.realApiAccount.cloudId);
+      // PAT uses site URL directly, OAuth uses api.atlassian.com proxy
+      const baseUrl = this.realApiAccount.authType === 'pat'
+        ? `https://${this.realApiAccount.site}`
+        : baseUrlFn(this.realApiAccount.cloudId);
       const url = `${baseUrl}${path}`;
+
+      // PAT uses Basic auth (email:token), OAuth uses Bearer
+      const authHeader = this.realApiAccount.authType === 'pat'
+        ? `Basic ${Buffer.from(`${this.realApiAccount.email}:${this.realApiAccount.accessToken}`).toString('base64')}`
+        : `Bearer ${this.realApiAccount.accessToken}`;
 
       try {
         const response = await fetch(url, {
           method: options?.method ?? 'GET',
           headers: {
-            'Authorization': `Bearer ${this.realApiAccount.accessToken}`,
+            'Authorization': authHeader,
             'Accept': 'application/json',
             'Content-Type': 'application/json',
             ...options?.headers,
@@ -160,6 +168,9 @@ export class SimulatedProductApi {
 
   private async ensureValidToken(): Promise<void> {
     if (!this.realApiAccount) return;
+
+    // PATs don't expire
+    if (this.realApiAccount.authType === 'pat') return;
 
     const BUFFER_MS = 5 * 60 * 1000; // 5 minutes
     if (Date.now() < this.realApiAccount.expiresAt - BUFFER_MS) return;

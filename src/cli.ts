@@ -57,7 +57,8 @@ if (command === '--help' || command === '-h' || !command) {
     --list                     List configured accounts
     --clear                    Remove all credentials
     --remove <id>              Remove a specific account
-    --setup                    Reconfigure OAuth app (client ID/secret)
+    --oauth                    Add account via OAuth (multi-user testing)
+    --setup                    Configure OAuth app (client ID/secret)
     --local                    Store credentials per-app instead of global
 
   Examples:
@@ -111,26 +112,22 @@ if (command === 'dev') {
   let list = false;
   let clear = false;
   let setup = false;
+  let oauth = false;
   let remove: string | undefined;
   let local: string | undefined;
 
   for (let i = 0; i < restArgs.length; i++) {
     const arg = restArgs[i];
-    if (arg === '--list') {
-      list = true;
-    } else if (arg === '--clear') {
-      clear = true;
-    } else if (arg === '--setup') {
-      setup = true;
-    } else if (arg === '--remove' && restArgs[i + 1]) {
-      remove = restArgs[++i];
-    } else if (arg === '--local') {
-      local = resolve('.');
-    }
+    if (arg === '--list') list = true;
+    else if (arg === '--clear') clear = true;
+    else if (arg === '--setup') setup = true;
+    else if (arg === '--oauth') oauth = true;
+    else if (arg === '--remove' && restArgs[i + 1]) remove = restArgs[++i];
+    else if (arg === '--local') local = resolve('.');
   }
 
   const { authCommand } = await import('./auth/auth-command.js');
-  await authCommand({ list, clear, setup, remove, local });
+  await authCommand({ list, clear, setup, oauth, remove, local });
 } else {
   console.error(`Unknown command: ${command}`);
   console.error(`Run 'forge-sim --help' for usage.`);

@@ -28,13 +28,15 @@ export interface AtlassianAccount {
   cloudId: string;
   /** Account ID from Atlassian (for context.accountId) */
   accountId: string;
-  /** OAuth access token */
+  /** Auth type: 'pat' (API token) or 'oauth' (3LO) */
+  authType: 'pat' | 'oauth';
+  /** OAuth access token OR PAT API token */
   accessToken: string;
-  /** OAuth refresh token */
+  /** OAuth refresh token (empty for PAT) */
   refreshToken: string;
-  /** Token expiry (Unix ms) */
+  /** Token expiry (Unix ms) — 0 for PAT (never expires) */
   expiresAt: number;
-  /** Granted OAuth scopes */
+  /** Granted OAuth scopes (empty for PAT) */
   scopes: string[];
   /** Is this the default account? */
   default?: boolean;
@@ -160,6 +162,8 @@ export function getAccount(store: CredentialStore, id: string): AtlassianAccount
  * Check if a token needs refresh (expired or expiring within 5 minutes).
  */
 export function tokenNeedsRefresh(account: AtlassianAccount): boolean {
+  // PATs don't expire
+  if (account.authType === 'pat') return false;
   const BUFFER_MS = 5 * 60 * 1000; // 5 minutes
   return Date.now() >= account.expiresAt - BUFFER_MS;
 }

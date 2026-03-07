@@ -125,14 +125,21 @@ export async function startOAuthFlow(options: {
   // Fetch user info
   const user = await fetchUser(tokens.access_token);
 
-  // Fetch accessible resources (sites)
-  const resources = await fetchResources(tokens.access_token);
+  // Fetch accessible resources (sites) and deduplicate by cloud ID
+  // (Jira + Confluence on the same site show up as separate resources)
+  const rawResources = await fetchResources(tokens.access_token);
+  const seen = new Set<string>();
+  const resources = rawResources.filter(r => {
+    if (seen.has(r.id)) return false;
+    seen.add(r.id);
+    return true;
+  });
 
   if (resources.length === 0) {
     throw new Error('No accessible Atlassian sites found for this account.');
   }
 
-  // Use the first resource (caller can let user pick if multiple)
+  // Use the first resource — if only one (common case), no need to ask
   const site = resources[0];
   const siteHost = new URL(site.url).host;
 
@@ -143,6 +150,7 @@ export async function startOAuthFlow(options: {
     site: siteHost,
     cloudId: site.id,
     accountId: user.account_id,
+    authType: 'oauth',
     accessToken: tokens.access_token,
     refreshToken: tokens.refresh_token,
     expiresAt: Date.now() + tokens.expires_in * 1000,

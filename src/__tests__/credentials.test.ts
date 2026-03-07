@@ -26,6 +26,7 @@ function makeAccount(overrides: Partial<AtlassianAccount> = {}): AtlassianAccoun
     site: 'test.atlassian.net',
     cloudId: 'cloud-123',
     accountId: 'account-456',
+    authType: 'oauth',
     accessToken: 'at-test',
     refreshToken: 'rt-test',
     expiresAt: Date.now() + 3600 * 1000,
@@ -141,6 +142,11 @@ describe('Credential Store', () => {
     it('returns true for token expiring within 5 minutes', () => {
       const account = makeAccount({ expiresAt: Date.now() + 2 * 60 * 1000 });
       expect(tokenNeedsRefresh(account)).toBe(true);
+    });
+
+    it('returns false for PAT (never expires)', () => {
+      const account = makeAccount({ authType: 'pat', expiresAt: 0 });
+      expect(tokenNeedsRefresh(account)).toBe(false);
     });
   });
 

@@ -14,6 +14,7 @@ function mockAccount(overrides: Partial<AtlassianAccount> = {}): AtlassianAccoun
     site: 'test.atlassian.net',
     cloudId: 'cloud-123',
     accountId: 'account-456',
+    authType: 'oauth',
     accessToken: 'valid-token',
     refreshToken: 'refresh-token',
     expiresAt: Date.now() + 3600 * 1000,
