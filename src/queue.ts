@@ -231,6 +231,23 @@ export class SimulatedQueue {
     return [...this.eventLog];
   }
 
+  /** Get stats for all queues. */
+  getStats(): Record<string, { consumers: number; jobs: number; events: number }> {
+    const queueKeys = new Set<string>();
+    for (const key of this.consumers.keys()) queueKeys.add(key);
+    for (const { queueKey } of this.eventLog) queueKeys.add(queueKey);
+
+    const stats: Record<string, { consumers: number; jobs: number; events: number }> = {};
+    for (const key of queueKeys) {
+      stats[key] = {
+        consumers: this.consumers.has(key) ? 1 : 0,
+        jobs: [...this.jobs.values()].filter(j => this.eventLog.some(e => e.jobId === j.jobId && e.queueKey === key)).length,
+        events: this.eventLog.filter(e => e.queueKey === key).length,
+      };
+    }
+    return stats;
+  }
+
   clear(): void {
     this.consumers.clear();
     this.jobs.clear();

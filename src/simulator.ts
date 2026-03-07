@@ -29,6 +29,7 @@ export class ForgeSimulator {
   private manifest: ParsedManifest | null = null;
   private logs: LogEntry[] = [];
   private consoleLogs: ConsoleLine[] = [];
+  private logListeners: Array<(entry: LogEntry) => void> = [];
 
   constructor(config?: SimulationConfig) {
     this.kvs = new SimulatedKVS();
@@ -354,12 +355,24 @@ export class ForgeSimulator {
   // ── Logging ─────────────────────────────────────────────────────────────
 
   private log(level: string, message: string, data?: any): void {
-    this.logs.push({
+    const entry: LogEntry = {
       timestamp: Date.now(),
       level,
       message,
       data,
-    });
+    };
+    this.logs.push(entry);
+    for (const listener of this.logListeners) {
+      try { listener(entry); } catch {}
+    }
+  }
+
+  /** Register a listener for real-time log events. Returns unsubscribe function. */
+  onLog(listener: (entry: LogEntry) => void): () => void {
+    this.logListeners.push(listener);
+    return () => {
+      this.logListeners = this.logListeners.filter(l => l !== listener);
+    };
   }
 
   getLogs(): LogEntry[] {
@@ -402,7 +415,7 @@ export class ForgeSimulator {
   }
 }
 
-interface LogEntry {
+export interface LogEntry {
   timestamp: number;
   level: string;
   message: string;

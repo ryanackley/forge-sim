@@ -456,6 +456,17 @@ export async function devCommand(options: DevCommandOptions) {
       console.log(`     ➜ Network: ${networkUrl}`);
     }
     console.log(`     ➜ WS:      ws://localhost:${wsPort}`);
+
+    // 8. Start Forge Sim Tools (uses Vite's HTTP server via middleware)
+    const { attachToolsToVite } = await import('./tools/server.js');
+    const toolsServer = attachToolsToVite({ sim, manifest, viteServer, appDir });
+
+    // Hook simulator logs into tools broadcast
+    sim.onLog((entry: any) => {
+      toolsServer.broadcastLog(entry);
+    });
+
+    console.log(`     ➜ Tools:   ${localUrl}__tools/`);
     console.log('');
     console.log(`     ${target.mode === 'uikit' ? '🎨 Rendering with real Atlaskit components' : '🖥️  Custom UI — your app renders directly'}`);
     console.log(`     🔧 Source maps enabled — debug in Chrome DevTools`);
@@ -479,6 +490,7 @@ export async function devCommand(options: DevCommandOptions) {
     // Graceful shutdown
     const cleanup = async () => {
       console.log('\n  🛑 Shutting down...');
+      toolsServer.close();
       devServer.close();
       await viteServer.close();
       // Clean up temp dir
