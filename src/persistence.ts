@@ -6,9 +6,13 @@
  *   - kvs.json — KVS key-value dump
  *   - sql.dump — MySQL dump (via mysqldump npm package — pure JS, no binary needed)
  *
+ * SQL restore uses mysql-memory-server's initSQLFilePath option so state
+ * is loaded during MySQL boot — before app migrations run. The dump file
+ * is wrapped with USE + foreign_key_checks to handle table dependencies.
+ *
  * Usage:
  *   await saveState(sim, stateDir);   // on shutdown
- *   await loadState(sim, stateDir);   // on startup (after SQL server is ready)
+ *   await loadState(sim, stateDir);   // on startup (KVS only — SQL via initSQLFilePath)
  */
 
 import { mkdir, readFile, access } from 'node:fs/promises';
@@ -21,9 +25,10 @@ const SQL_FILE = 'sql.dump';
 
 /**
  * Save simulator state to disk.
+ * Wraps the SQL dump with USE + SET foreign_key_checks for safe restore.
  */
 export async function saveState(sim: ForgeSimulator, stateDir: string): Promise<void> {
-  // Use sync writes for KVS — this runs during SIGINT cleanup and async writes
+  // Use sync writes — this runs during SIGINT cleanup and async writes
   // can get lost if process.exit() fires before the event loop drains
   mkdirSync(stateDir, { recursive: true });
 
@@ -55,13 +60,21 @@ export async function saveState(sim: ForgeSimulator, stateDir: string): Promise<
         },
       });
 
-      const dumpSql = [result.dump.schema, result.dump.data]
+      const rawDump = [result.dump.schema, result.dump.data]
         .filter(Boolean)
         .join('\n');
 
-      if (dumpSql.trim().length > 0) {
-        writeFileSync(join(stateDir, SQL_FILE), dumpSql);
-        const tableCount = (dumpSql.match(/CREATE TABLE/gi) || []).length;
+      if (rawDump.trim().length > 0) {
+        // Wrap with USE database + foreign key safety for initSQLFilePath restore
+        const wrappedDump = [
+          `USE ${connConfig.database};`,
+          `SET foreign_key_checks = 0;`,
+          rawDump,
+          `SET foreign_key_checks = 1;`,
+        ].join('\n');
+
+        writeFileSync(join(stateDir, SQL_FILE), wrappedDump);
+        const tableCount = (rawDump.match(/CREATE TABLE/gi) || []).length;
         console.log(`  💾 Saved SQL dump (${tableCount} tables)`);
       }
     } catch (err: any) {
@@ -71,7 +84,9 @@ export async function saveState(sim: ForgeSimulator, stateDir: string): Promise<
 }
 
 /**
- * Restore simulator state from disk.
+ * Restore simulator state from disk (KVS only).
+ * SQL restore happens via initSQLFilePath — call getSQLDumpPath() and
+ * pass it to sim.sql.setInitSQLFilePath() BEFORE sql.start().
  */
 export async function loadState(sim: ForgeSimulator, stateDir: string): Promise<boolean> {
   let restored = false;
@@ -94,23 +109,19 @@ export async function loadState(sim: ForgeSimulator, stateDir: string): Promise<
   }
 
   // ── SQL ──────────────────────────────────────────────────────────────
+  // SQL restore is handled via initSQLFilePath (set before SQL server starts).
+  // Just check if the file exists for the restored flag.
   const sqlPath = join(stateDir, SQL_FILE);
   try {
     await access(sqlPath);
     const dump = await readFile(sqlPath, 'utf-8');
-
     if (dump.trim().length > 0) {
-      // Start SQL server if needed, then replay the dump
-      await sim.sql.start();
-      await sim.sql.executeMultiStatement(dump);
       const tableCount = (dump.match(/CREATE TABLE/gi) || []).length;
-      console.log(`  📂 Restored SQL dump (${tableCount} tables)`);
+      console.log(`  📂 SQL state found (${tableCount} tables) — restoring on SQL start`);
       restored = true;
     }
-  } catch (err: any) {
-    if (err.code !== 'ENOENT') {
-      console.error(`  ⚠️  Failed to restore SQL state: ${err.message}`);
-    }
+  } catch {
+    // No SQL state file — that's fine
   }
 
   return restored;

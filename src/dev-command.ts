@@ -25,7 +25,7 @@ import { ForgeSimulator } from './simulator.js';
 import { deploy } from './deployer.js';
 import { createDevServer } from './dev-server.js';
 import { parseManifest, type ParsedManifest, type ManifestUIModule } from './manifest.js';
-import { saveState, loadState, hasPersistedState } from './persistence.js';
+import { saveState, loadState, hasPersistedState, getSQLDumpPath } from './persistence.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -374,6 +374,13 @@ export async function devCommand(options: DevCommandOptions) {
 
   // 4b. Restore persisted state (unless --clean)
   if (!clean) {
+    // Set SQL init file BEFORE anything triggers sql.start() — this way
+    // persisted tables exist before migrations run
+    const sqlDumpPath = await getSQLDumpPath(stateDir);
+    if (sqlDumpPath) {
+      sim.sql.setInitSQLFilePath(sqlDumpPath);
+    }
+
     if (await hasPersistedState(stateDir)) {
       await loadState(sim, stateDir);
     }

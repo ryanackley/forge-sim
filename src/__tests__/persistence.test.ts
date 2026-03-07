@@ -7,7 +7,7 @@ import { mkdtemp, rm, readFile, access } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { ForgeSimulator } from '../simulator.js';
-import { saveState, loadState, hasPersistedState } from '../persistence.js';
+import { saveState, loadState, hasPersistedState, getSQLDumpPath } from '../persistence.js';
 
 describe('Persistence', () => {
   let sim: ForgeSimulator;
@@ -105,15 +105,57 @@ describe('Persistence', () => {
       expect(dump).toContain('CREATE TABLE');
       expect(dump).toContain('users');
 
-      // Create fresh simulator and restore via loadState
+      // Create fresh simulator — set initSQLFilePath BEFORE start (like dev-command does)
       const sim2 = new ForgeSimulator();
-      await loadState(sim2, stateDir);
+      const sqlDumpPath = await getSQLDumpPath(stateDir);
+      expect(sqlDumpPath).toBeDefined();
+      sim2.sql.setInitSQLFilePath(sqlDumpPath!);
+      await sim2.sql.start();
 
-      // Query restored data
+      // Query restored data — tables restored during MySQL boot
       const rows = await sim2.sql.query<{ id: number; name: string; email: string }>('SELECT * FROM users ORDER BY id');
       expect(rows).toHaveLength(2);
       expect(rows[0].name).toBe('Alice');
       expect(rows[1].name).toBe('Bob');
+
+      await sim2.sql.stop();
+    }, 60_000);
+
+    it('handles foreign key constraints on restore', async () => {
+      await sim.sql.start();
+      await sim.sql.executeMultiStatement(`
+        CREATE TABLE departments (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          name VARCHAR(255) NOT NULL
+        );
+        CREATE TABLE employees (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          name VARCHAR(255) NOT NULL,
+          dept_id INT,
+          FOREIGN KEY (dept_id) REFERENCES departments(id)
+        );
+        INSERT INTO departments (name) VALUES ('Engineering');
+        INSERT INTO employees (name, dept_id) VALUES ('Alice', 1);
+      `);
+
+      // Save (dump will have DROP TABLE in arbitrary order)
+      await saveState(sim, stateDir);
+
+      // Verify dump has foreign_key_checks wrapper
+      const dump = await readFile(join(stateDir, 'sql.dump'), 'utf-8');
+      expect(dump).toContain('SET foreign_key_checks = 0');
+      expect(dump).toContain('SET foreign_key_checks = 1');
+      expect(dump).toContain('USE forge_app');
+
+      // Restore into fresh sim — should not fail on FK ordering
+      const sim2 = new ForgeSimulator();
+      const sqlDumpPath = await getSQLDumpPath(stateDir);
+      sim2.sql.setInitSQLFilePath(sqlDumpPath!);
+      await sim2.sql.start();
+
+      const rows = await sim2.sql.query<{ name: string }>('SELECT e.name FROM employees e JOIN departments d ON e.dept_id = d.id');
+      expect(rows).toHaveLength(1);
+      expect(rows[0].name).toBe('Alice');
 
       await sim2.sql.stop();
     }, 60_000);
