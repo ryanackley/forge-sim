@@ -313,11 +313,12 @@ async function fetchResources(accessToken: string): Promise<AccessibleResource[]
 // ── Utilities ───────────────────────────────────────────────────────────────
 
 function defaultOpenBrowser(url: string): void {
-  const { exec } = require('node:child_process');
-  const cmd = process.platform === 'darwin' ? 'open'
-    : process.platform === 'win32' ? 'start'
-    : 'xdg-open';
-  exec(`${cmd} "${url}"`);
+  import('node:child_process').then(({ exec }) => {
+    const cmd = process.platform === 'darwin' ? 'open'
+      : process.platform === 'win32' ? 'start'
+      : 'xdg-open';
+    exec(`${cmd} "${url}"`);
+  });
 }
 
 function callbackHtml(title: string, message: string, success: boolean): string {
