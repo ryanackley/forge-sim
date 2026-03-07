@@ -774,14 +774,15 @@ const FILE_EXTENSIONS = ['.js', '.ts', '.tsx', '.jsx', '.mjs', '.cjs'];
 
 async function resolveHandlerFile(appDir: string, fileStem: string): Promise<string | null> {
   const { access } = await import('node:fs/promises');
-  const srcDir = join(appDir, 'src');
 
-  for (const ext of FILE_EXTENSIONS) {
-    const candidate = resolve(srcDir, fileStem + ext);
-    try { await access(candidate); return candidate; } catch {}
-  }
+  // Try appDir-relative first (handles "src/resolver" → appDir/src/resolver.ts)
   for (const ext of FILE_EXTENSIONS) {
     const candidate = resolve(appDir, fileStem + ext);
+    try { await access(candidate); return candidate; } catch {}
+  }
+  // Fallback: try under src/ (handles "resolver" → appDir/src/resolver.ts)
+  for (const ext of FILE_EXTENSIONS) {
+    const candidate = resolve(appDir, 'src', fileStem + ext);
     try { await access(candidate); return candidate; } catch {}
   }
   return null;
