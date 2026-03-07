@@ -45,20 +45,18 @@ const FILE_EXTENSIONS = ['.js', '.ts', '.tsx', '.jsx', '.mjs', '.cjs'];
  * Find the actual file for a handler stem, checking src/ with various extensions.
  */
 async function resolveHandlerFile(appDir: string, fileStem: string): Promise<string | null> {
-  const srcDir = join(appDir, 'src');
-  
-  // Try src/ first (standard Forge layout)
+  // Try appDir-relative first (handles "src/resolver" → appDir/src/resolver.ts)
   for (const ext of FILE_EXTENSIONS) {
-    const candidate = resolve(srcDir, fileStem + ext);
+    const candidate = resolve(appDir, fileStem + ext);
     try {
       await access(candidate);
       return candidate;
     } catch {}
   }
 
-  // Fall back to app root (some simple apps don't use src/)
+  // Fallback: try under src/ (handles "resolver" → appDir/src/resolver.ts)
   for (const ext of FILE_EXTENSIONS) {
-    const candidate = resolve(appDir, fileStem + ext);
+    const candidate = resolve(appDir, 'src', fileStem + ext);
     try {
       await access(candidate);
       return candidate;
