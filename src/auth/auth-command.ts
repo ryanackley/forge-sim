@@ -10,7 +10,7 @@
  */
 
 import { loadCredentials, saveCredentials, upsertAccount, removeAccount, getDefaultAccount, clearCredentials } from './credentials.js';
-import { startOAuthFlow, setOAuthCredentials, hasOAuthCredentials, type AccessibleResource } from './oauth.js';
+import { startOAuthFlow, setOAuthClientId, hasOAuthConfig, type AccessibleResource } from './oauth.js';
 import { createInterface } from 'node:readline';
 
 // ── Default Scopes ──────────────────────────────────────────────────────────
@@ -43,12 +43,11 @@ export interface AuthCommandOptions {
 }
 
 export async function authCommand(options: AuthCommandOptions): Promise<void> {
-  // Load OAuth client credentials from environment or config
+  // Load OAuth client ID from environment or config
+  // (no client_secret needed — we use PKCE)
   const clientId = process.env.FORGE_SIM_OAUTH_CLIENT_ID || '';
-  const clientSecret = process.env.FORGE_SIM_OAUTH_CLIENT_SECRET || '';
-
-  if (clientId && clientSecret) {
-    setOAuthCredentials(clientId, clientSecret);
+  if (clientId) {
+    setOAuthClientId(clientId);
   }
 
   // ── List accounts ─────────────────────────────────────────────────────
@@ -123,16 +122,16 @@ export async function authCommand(options: AuthCommandOptions): Promise<void> {
   }
 
   // ── Add new account via OAuth ─────────────────────────────────────────
-  if (!hasOAuthCredentials()) {
+  if (!hasOAuthConfig()) {
     console.log('');
-    console.log('  ⚠️  OAuth not configured.');
+    console.log('  ⚠️  OAuth client ID not configured.');
     console.log('');
-    console.log('  Set these environment variables:');
+    console.log('  Set the environment variable:');
     console.log('    FORGE_SIM_OAUTH_CLIENT_ID=<your-client-id>');
-    console.log('    FORGE_SIM_OAUTH_CLIENT_SECRET=<your-client-secret>');
     console.log('');
     console.log('  Or create an OAuth app at https://developer.atlassian.com');
     console.log('  with callback URL: http://localhost:5173/__tools/oauth/callback');
+    console.log('  (No client_secret needed — forge-sim uses PKCE)');
     return;
   }
 

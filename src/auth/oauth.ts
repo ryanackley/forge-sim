@@ -1,26 +1,29 @@
 /**
- * Atlassian OAuth 2.0 (3LO) flow for forge-sim.
+ * Atlassian OAuth 2.0 (3LO) with PKCE for forge-sim.
  *
- * 1. Opens browser to Atlassian auth page
- * 2. Listens on localhost for the callback
- * 3. Exchanges auth code for access + refresh tokens
- * 4. Fetches user info and accessible resources (sites)
- * 5. Returns a fully populated AtlassianAccount
+ * Uses PKCE (Proof Key for Code Exchange) — no client_secret needed.
+ * The client_id is public and shipped with the package.
+ * Security comes from the per-session code_verifier/code_challenge pair.
  *
- * Tokens are stored by the caller (credentials.ts).
+ * Flow:
+ *   1. Generate code_verifier + code_challenge (SHA256)
+ *   2. Open browser to Atlassian auth with code_challenge
+ *   3. Listen on localhost for the callback
+ *   4. Exchange auth code + code_verifier for tokens
+ *   5. Fetch user info and accessible resources (sites)
+ *   6. Return a fully populated AtlassianAccount
  */
 
 import { createServer, type Server } from 'node:http';
 import { URL } from 'node:url';
-import { randomBytes } from 'node:crypto';
+import { randomBytes, createHash } from 'node:crypto';
 import type { AtlassianAccount } from './credentials.js';
 
 // ── OAuth Configuration ─────────────────────────────────────────────────────
 
-// These get set from the registered OAuth app on developer.atlassian.com
-// TODO: Replace with actual values once Ryan registers the app
+// Public client ID — safe to ship in the package (no secret)
+// TODO: Replace with actual client ID once registered
 let OAUTH_CLIENT_ID = '';
-let OAUTH_CLIENT_SECRET = '';
 
 const ATLASSIAN_AUTH_URL = 'https://auth.atlassian.com/authorize';
 const ATLASSIAN_TOKEN_URL = 'https://auth.atlassian.com/oauth/token';
@@ -28,15 +31,18 @@ const ATLASSIAN_ME_URL = 'https://api.atlassian.com/me';
 const ATLASSIAN_RESOURCES_URL = 'https://api.atlassian.com/oauth/token/accessible-resources';
 
 /**
- * Set the OAuth client credentials (called during startup from config).
+ * Set the OAuth client ID (can also be set via FORGE_SIM_OAUTH_CLIENT_ID env var).
  */
-export function setOAuthCredentials(clientId: string, clientSecret: string): void {
+export function setOAuthClientId(clientId: string): void {
   OAUTH_CLIENT_ID = clientId;
-  OAUTH_CLIENT_SECRET = clientSecret;
 }
 
-export function hasOAuthCredentials(): boolean {
-  return OAUTH_CLIENT_ID.length > 0 && OAUTH_CLIENT_SECRET.length > 0;
+export function getOAuthClientId(): string {
+  return OAUTH_CLIENT_ID || process.env.FORGE_SIM_OAUTH_CLIENT_ID || '';
+}
+
+export function hasOAuthConfig(): boolean {
+  return getOAuthClientId().length > 0;
 }
 
 // ── Types ───────────────────────────────────────────────────────────────────
@@ -69,15 +75,32 @@ export interface OAuthResult {
   resources: AccessibleResource[];
 }
 
+// ── PKCE Helpers ────────────────────────────────────────────────────────────
+
+/**
+ * Generate a cryptographic code verifier (43-128 chars, RFC 7636).
+ */
+function generateCodeVerifier(): string {
+  return randomBytes(64).toString('base64url');
+}
+
+/**
+ * Generate code challenge from verifier (S256 method).
+ */
+function generateCodeChallenge(verifier: string): string {
+  return createHash('sha256').update(verifier).digest('base64url');
+}
+
 // ── OAuth Flow ──────────────────────────────────────────────────────────────
 
 /**
- * Run the full OAuth 3LO flow:
- * 1. Start local callback server
- * 2. Open browser to Atlassian auth
- * 3. Wait for callback with auth code
- * 4. Exchange code for tokens
- * 5. Fetch user info + accessible resources
+ * Run the full OAuth 3LO + PKCE flow:
+ * 1. Generate PKCE pair
+ * 2. Start local callback server
+ * 3. Open browser to Atlassian auth
+ * 4. Wait for callback with auth code
+ * 5. Exchange code + code_verifier for tokens (no client_secret!)
+ * 6. Fetch user info + accessible resources
  */
 export async function startOAuthFlow(options: {
   scopes: string[];
@@ -85,10 +108,10 @@ export async function startOAuthFlow(options: {
   callbackPath?: string;
   openBrowser?: (url: string) => void;
 }): Promise<OAuthResult> {
-  if (!hasOAuthCredentials()) {
+  const clientId = getOAuthClientId();
+  if (!clientId) {
     throw new Error(
-      'OAuth not configured. Set FORGE_SIM_OAUTH_CLIENT_ID and FORGE_SIM_OAUTH_CLIENT_SECRET, ' +
-      'or run forge-sim with a registered OAuth app.'
+      'OAuth client ID not configured. Set FORGE_SIM_OAUTH_CLIENT_ID env var.'
     );
   }
 
@@ -97,21 +120,32 @@ export async function startOAuthFlow(options: {
   const redirectUri = `http://localhost:${port}${callbackPath}`;
   const state = randomBytes(16).toString('hex');
 
+  // PKCE: generate verifier/challenge pair
+  const codeVerifier = generateCodeVerifier();
+  const codeChallenge = generateCodeChallenge(codeVerifier);
+
   // Build authorization URL
   const authUrl = new URL(ATLASSIAN_AUTH_URL);
   authUrl.searchParams.set('audience', 'api.atlassian.com');
-  authUrl.searchParams.set('client_id', OAUTH_CLIENT_ID);
+  authUrl.searchParams.set('client_id', clientId);
   authUrl.searchParams.set('scope', options.scopes.join(' '));
   authUrl.searchParams.set('redirect_uri', redirectUri);
   authUrl.searchParams.set('state', state);
   authUrl.searchParams.set('response_type', 'code');
   authUrl.searchParams.set('prompt', 'consent');
+  // PKCE parameters
+  authUrl.searchParams.set('code_challenge', codeChallenge);
+  authUrl.searchParams.set('code_challenge_method', 'S256');
 
   // Wait for the callback
-  const authCode = await waitForCallback(port, callbackPath, state, options.openBrowser ?? defaultOpenBrowser, authUrl.toString());
+  const authCode = await waitForCallback(
+    port, callbackPath, state,
+    options.openBrowser ?? defaultOpenBrowser,
+    authUrl.toString(),
+  );
 
-  // Exchange code for tokens
-  const tokens = await exchangeCode(authCode, redirectUri);
+  // Exchange code for tokens (PKCE — code_verifier instead of client_secret)
+  const tokens = await exchangeCode(authCode, redirectUri, codeVerifier, clientId);
 
   // Fetch user info
   const user = await fetchUser(tokens.access_token);
@@ -146,19 +180,22 @@ export async function startOAuthFlow(options: {
 
 /**
  * Refresh an expired access token.
+ * Note: Atlassian refresh token exchange does NOT require client_secret
+ * when the original auth used PKCE.
  */
 export async function refreshAccessToken(account: AtlassianAccount): Promise<{
   accessToken: string;
   refreshToken: string;
   expiresAt: number;
 }> {
+  const clientId = getOAuthClientId();
+
   const response = await fetch(ATLASSIAN_TOKEN_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       grant_type: 'refresh_token',
-      client_id: OAUTH_CLIENT_ID,
-      client_secret: OAUTH_CLIENT_SECRET,
+      client_id: clientId,
       refresh_token: account.refreshToken,
     }),
   });
@@ -177,9 +214,9 @@ export async function refreshAccessToken(account: AtlassianAccount): Promise<{
   };
 }
 
-// ── Helpers ─────────────────────────────────────────────────────────────────
+// ── Callback Server ─────────────────────────────────────────────────────────
 
-async function waitForCallback(
+function waitForCallback(
   port: number,
   callbackPath: string,
   expectedState: string,
@@ -187,13 +224,12 @@ async function waitForCallback(
   authUrl: string,
 ): Promise<string> {
   return new Promise((resolve, reject) => {
-    let server: Server;
     const timeout = setTimeout(() => {
       server?.close();
       reject(new Error('OAuth timeout — no callback received within 5 minutes'));
     }, 5 * 60 * 1000);
 
-    server = createServer((req, res) => {
+    const server: Server = createServer((req, res) => {
       const url = new URL(req.url || '/', `http://localhost:${port}`);
 
       if (url.pathname !== callbackPath) {
@@ -208,7 +244,7 @@ async function waitForCallback(
 
       if (error) {
         res.writeHead(200, { 'Content-Type': 'text/html' });
-        res.end(`<html><body><h2>❌ Authorization failed</h2><p>${error}</p><p>You can close this tab.</p></body></html>`);
+        res.end(callbackHtml('❌ Authorization failed', error, false));
         clearTimeout(timeout);
         server.close();
         reject(new Error(`OAuth error: ${error}`));
@@ -217,36 +253,17 @@ async function waitForCallback(
 
       if (!code || state !== expectedState) {
         res.writeHead(400, { 'Content-Type': 'text/html' });
-        res.end('<html><body><h2>❌ Invalid callback</h2><p>State mismatch or missing code.</p></body></html>');
+        res.end(callbackHtml('❌ Invalid callback', 'State mismatch or missing code.', false));
         return;
       }
 
       res.writeHead(200, { 'Content-Type': 'text/html' });
-      res.end(`
-        <html><body style="font-family: -apple-system, sans-serif; text-align: center; padding: 60px;">
-          <h2>✅ Authorized!</h2>
-          <p>You can close this tab and return to your terminal.</p>
-        </body></html>
-      `);
-
+      res.end(callbackHtml('✅ Authorized!', 'You can close this tab and return to your terminal.', true));
       clearTimeout(timeout);
       server.close();
       resolve(code);
     });
 
-    // Listen on a random port for the callback server
-    // (we use the tools callback path, not a separate port)
-    server.listen(0, '127.0.0.1', () => {
-      const addr = server.address();
-      const actualPort = typeof addr === 'object' && addr ? addr.port : port;
-      // Update redirect URI to use actual port... actually we need a fixed port
-      // The redirect URI must match what's registered in the OAuth app
-      // So we close this and use the Vite server's port instead
-      server.close();
-    });
-
-    // Actually, we need to hook into the existing Vite server or use the fixed port
-    // For now, start a temporary server on the expected port
     server.listen(port, '127.0.0.1', () => {
       console.log(`  🔑 Waiting for OAuth callback on http://localhost:${port}${callbackPath}`);
       openBrowser(authUrl);
@@ -255,9 +272,9 @@ async function waitForCallback(
     server.on('error', (err: any) => {
       clearTimeout(timeout);
       if (err.code === 'EADDRINUSE') {
-        // Port in use (Vite is running) — we'll need to hook into Vite's server instead
-        // For CLI auth (forge-sim auth), this port should be free
-        reject(new Error(`Port ${port} in use. If forge-sim dev is running, use the Tools UI to add accounts.`));
+        reject(new Error(
+          `Port ${port} in use. If forge-sim dev is running, use the Tools UI to add accounts.`
+        ));
       } else {
         reject(err);
       }
@@ -265,16 +282,24 @@ async function waitForCallback(
   });
 }
 
-async function exchangeCode(code: string, redirectUri: string): Promise<OAuthTokenResponse> {
+// ── Token Exchange ──────────────────────────────────────────────────────────
+
+async function exchangeCode(
+  code: string,
+  redirectUri: string,
+  codeVerifier: string,
+  clientId: string,
+): Promise<OAuthTokenResponse> {
   const response = await fetch(ATLASSIAN_TOKEN_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       grant_type: 'authorization_code',
-      client_id: OAUTH_CLIENT_ID,
-      client_secret: OAUTH_CLIENT_SECRET,
+      client_id: clientId,
       code,
       redirect_uri: redirectUri,
+      code_verifier: codeVerifier,
+      // No client_secret — PKCE replaces it
     }),
   });
 
@@ -285,6 +310,8 @@ async function exchangeCode(code: string, redirectUri: string): Promise<OAuthTok
 
   return response.json() as Promise<OAuthTokenResponse>;
 }
+
+// ── API Helpers ─────────────────────────────────────────────────────────────
 
 async function fetchUser(accessToken: string): Promise<AtlassianUser> {
   const response = await fetch(ATLASSIAN_ME_URL, {
@@ -310,10 +337,21 @@ async function fetchResources(accessToken: string): Promise<AccessibleResource[]
   return response.json() as Promise<AccessibleResource[]>;
 }
 
+// ── Utilities ───────────────────────────────────────────────────────────────
+
 function defaultOpenBrowser(url: string): void {
   const { exec } = require('node:child_process');
   const cmd = process.platform === 'darwin' ? 'open'
     : process.platform === 'win32' ? 'start'
     : 'xdg-open';
   exec(`${cmd} "${url}"`);
+}
+
+function callbackHtml(title: string, message: string, success: boolean): string {
+  const color = success ? '#22c55e' : '#ef4444';
+  return `<!DOCTYPE html>
+<html><body style="font-family:-apple-system,sans-serif;text-align:center;padding:60px;background:#1a1a2e;color:#e0e0e0;">
+  <h2 style="color:${color}">${title}</h2>
+  <p>${message}</p>
+</body></html>`;
 }
