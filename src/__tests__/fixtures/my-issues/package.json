@@ -8,6 +8,9 @@
   },
   "dependencies": {
     "@forge/api": "*",
-    "@forge/resolver": "*"
+    "@forge/resolver": "*",
+    "@forge/react": "*",
+    "@forge/bridge": "*",
+    "react": "^18.2.0"
   }
 }
