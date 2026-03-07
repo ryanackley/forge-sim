@@ -349,6 +349,17 @@ export async function devCommand(options: DevCommandOptions) {
   console.log(`  ⚙️  Starting simulator...`);
   const sim = new ForgeSimulator();
 
+  // 4a. Configure SQL restore BEFORE deploy — deploy can trigger scheduled
+  // triggers (migrations) which lazily start SQL. The init file must be set
+  // before that happens so persisted tables exist when migrations check.
+  if (!clean) {
+    const sqlDumpPath = await getSQLDumpPath(stateDir);
+    if (sqlDumpPath) {
+      sim.sql.setInitSQLFilePath(sqlDumpPath);
+      console.log(`     SQL state found — will restore on first SQL access`);
+    }
+  }
+
   // Set the global simulator instance so that @forge/* shims
   // (loaded via our module hooks) can register handlers directly
   const { setSimulator } = await import('./shims/globals.js');
@@ -372,15 +383,9 @@ export async function devCommand(options: DevCommandOptions) {
     console.warn(`     ⚠️  Deploy warning: ${err.message}`);
   }
 
-  // 4b. Restore persisted state (unless --clean)
+  // 4b. Restore KVS state (unless --clean)
+  // (SQL restore already configured in 4a via initSQLFilePath)
   if (!clean) {
-    // Set SQL init file BEFORE anything triggers sql.start() — this way
-    // persisted tables exist before migrations run
-    const sqlDumpPath = await getSQLDumpPath(stateDir);
-    if (sqlDumpPath) {
-      sim.sql.setInitSQLFilePath(sqlDumpPath);
-    }
-
     if (await hasPersistedState(stateDir)) {
       await loadState(sim, stateDir);
     }
