@@ -11,7 +11,8 @@
  *   await loadState(sim, stateDir);   // on startup (after SQL server is ready)
  */
 
-import { mkdir, writeFile, readFile, access } from 'node:fs/promises';
+import { mkdir, readFile, access } from 'node:fs/promises';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { exec as execCb } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -26,13 +27,15 @@ const SQL_FILE = 'sql.dump';
  * Save simulator state to disk.
  */
 export async function saveState(sim: ForgeSimulator, stateDir: string): Promise<void> {
-  await mkdir(stateDir, { recursive: true });
+  // Use sync writes — this runs during SIGINT cleanup and async writes
+  // can get lost if process.exit() fires before the event loop drains
+  mkdirSync(stateDir, { recursive: true });
 
   // ── KVS ──────────────────────────────────────────────────────────────
   const kvsDump = sim.kvs.dump();
   const kvsEntryCount = Object.keys(kvsDump).length;
   if (kvsEntryCount > 0) {
-    await writeFile(join(stateDir, KVS_FILE), JSON.stringify(kvsDump, null, 2));
+    writeFileSync(join(stateDir, KVS_FILE), JSON.stringify(kvsDump, null, 2));
     console.log(`  💾 Saved ${kvsEntryCount} KVS entries`);
   }
 
@@ -47,7 +50,7 @@ export async function saveState(sim: ForgeSimulator, stateDir: string): Promise<
       );
 
       if (stdout.trim().length > 0) {
-        await writeFile(join(stateDir, SQL_FILE), stdout);
+        writeFileSync(join(stateDir, SQL_FILE), stdout);
         // Count tables in the dump
         const tableCount = (stdout.match(/CREATE TABLE/g) || []).length;
         console.log(`  💾 Saved SQL dump (${tableCount} tables)`);

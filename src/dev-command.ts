@@ -25,6 +25,7 @@ import { ForgeSimulator } from './simulator.js';
 import { deploy } from './deployer.js';
 import { createDevServer } from './dev-server.js';
 import { parseManifest, type ParsedManifest, type ManifestUIModule } from './manifest.js';
+import { saveState, loadState, hasPersistedState } from './persistence.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -289,7 +290,7 @@ async function buildViteConfig(opts: {
 
 export async function devCommand(options: DevCommandOptions) {
   const { appDir, port, wsPort, open, moduleKey, clean } = options;
-  const stateDir = join(appDir, '.forge-sim', 'state');
+  const stateDir = join(appDir, '.forge-sim-state');
 
   console.log('');
   console.log('  🔥 forge-sim dev');
@@ -373,7 +374,6 @@ export async function devCommand(options: DevCommandOptions) {
 
   // 4b. Restore persisted state (unless --clean)
   if (!clean) {
-    const { loadState, hasPersistedState } = await import('./persistence.js');
     if (await hasPersistedState(stateDir)) {
       await loadState(sim, stateDir);
     }
@@ -500,12 +500,14 @@ export async function devCommand(options: DevCommandOptions) {
     }
 
     // Graceful shutdown
+    let cleaningUp = false;
     const cleanup = async () => {
+      if (cleaningUp) return; // prevent double-fire
+      cleaningUp = true;
       console.log('\n  🛑 Shutting down...');
 
       // Save state before teardown
       try {
-        const { saveState } = await import('./persistence.js');
         await saveState(sim, stateDir);
       } catch (err: any) {
         console.error(`  ⚠️  Failed to save state: ${err.message}`);
@@ -519,8 +521,9 @@ export async function devCommand(options: DevCommandOptions) {
       process.exit(0);
     };
 
-    process.on('SIGINT', cleanup);
-    process.on('SIGTERM', cleanup);
+    // Must prevent default SIGINT behavior so our async cleanup can finish
+    process.on('SIGINT', () => { cleanup().catch(() => process.exit(1)); });
+    process.on('SIGTERM', () => { cleanup().catch(() => process.exit(1)); });
 
   } catch (err: any) {
     console.error(`  ❌ Failed to start Vite: ${err.message}`);
