@@ -59,46 +59,79 @@ interface DetectedModule {
  *   - Or a file that doesn't import @forge/react
  */
 function detectModuleType(appDir: string, manifest: ParsedManifest, mod: ManifestUIModule): DetectedModule | null {
-  if (!mod.resourceKey) {
-    // No resource = server-only module (no UI to render)
+  // ── Custom UI: module has a `resource` pointing to a static directory/file ──
+  if (mod.resourceKey) {
+    const resource = manifest.resources.get(mod.resourceKey);
+    if (!resource) return null;
+
+    const resourcePath = resolve(appDir, resource.path);
+
+    // Check if it's a directory with index.html (Custom UI)
+    if (existsSync(join(resourcePath, 'index.html'))) {
+      return { module: mod, resourcePath, mode: 'customui' };
+    }
+
+    // Check if the resource points to a file
+    const possibleFiles = [
+      resourcePath,
+      resourcePath + '.tsx',
+      resourcePath + '.ts',
+      resourcePath + '.jsx',
+      resourcePath + '.js',
+      join(resourcePath, 'index.tsx'),
+      join(resourcePath, 'index.ts'),
+      join(resourcePath, 'index.jsx'),
+      join(resourcePath, 'index.js'),
+    ];
+
+    for (const filePath of possibleFiles) {
+      if (existsSync(filePath)) {
+        try {
+          const content = readFileSync(filePath, 'utf-8');
+          if (content.includes('@forge/react') || content.includes('ForgeReconciler')) {
+            return { module: mod, resourcePath: filePath, mode: 'uikit' };
+          }
+        } catch {}
+        return { module: mod, resourcePath: filePath, mode: 'customui' };
+      }
+    }
+
     return null;
   }
 
-  const resource = manifest.resources.get(mod.resourceKey);
-  if (!resource) return null;
+  // ── UIKit: module has a `function` pointing to a handler ──
+  // This is the standard Forge UIKit pattern: function field references a
+  // function key whose handler is "src/index.handler" or similar.
+  if (mod.functionKey) {
+    const fn = manifest.functions.get(mod.functionKey);
+    if (!fn?.handler) return null;
 
-  const resourcePath = resolve(appDir, resource.path);
+    // handler is like "src/index.handler" — extract the file part
+    const lastDot = fn.handler.lastIndexOf('.');
+    const handlerFile = lastDot > 0 ? fn.handler.slice(0, lastDot) : fn.handler;
+    const handlerPath = resolve(appDir, handlerFile);
 
-  // Check if it's a directory with index.html (Custom UI)
-  if (existsSync(join(resourcePath, 'index.html'))) {
-    return { module: mod, resourcePath, mode: 'customui' };
-  }
+    const possibleFiles = [
+      handlerPath + '.tsx',
+      handlerPath + '.ts',
+      handlerPath + '.jsx',
+      handlerPath + '.js',
+      handlerPath,
+    ];
 
-  // Check if the resource points to a file
-  const possibleFiles = [
-    resourcePath,
-    resourcePath + '.tsx',
-    resourcePath + '.ts',
-    resourcePath + '.jsx',
-    resourcePath + '.js',
-    join(resourcePath, 'index.tsx'),
-    join(resourcePath, 'index.ts'),
-    join(resourcePath, 'index.jsx'),
-    join(resourcePath, 'index.js'),
-  ];
-
-  for (const filePath of possibleFiles) {
-    if (existsSync(filePath)) {
-      // Read file to check for @forge/react imports (UIKit indicator)
-      try {
-        const content = readFileSync(filePath, 'utf-8');
-        if (content.includes('@forge/react') || content.includes('ForgeReconciler')) {
-          return { module: mod, resourcePath: filePath, mode: 'uikit' };
-        }
-      } catch {}
-
-      // If no @forge/react import, assume Custom UI
-      return { module: mod, resourcePath: filePath, mode: 'customui' };
+    for (const filePath of possibleFiles) {
+      if (existsSync(filePath)) {
+        // Check if it uses @forge/react (UIKit) or is resolver-only
+        try {
+          const content = readFileSync(filePath, 'utf-8');
+          if (content.includes('@forge/react') || content.includes('ForgeReconciler')) {
+            return { module: mod, resourcePath: filePath, mode: 'uikit' };
+          }
+        } catch {}
+        // Function-based module without @forge/react — still a UIKit module
+        // (resolver-only apps that use forge-sim dev for the Tools UI)
+        return { module: mod, resourcePath: filePath, mode: 'uikit' };
+      }
     }
   }
 
