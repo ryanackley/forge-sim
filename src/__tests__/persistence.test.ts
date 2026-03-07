@@ -81,6 +81,49 @@ describe('Persistence', () => {
     });
   });
 
+  // ── SQL Persistence ─────────────────────────────────────────────────
+
+  describe('SQL', () => {
+    it('saves and restores SQL tables and data', async () => {
+      // Start SQL and create a table with data
+      await sim.sql.start();
+      await sim.sql.executeMultiStatement(`
+        CREATE TABLE users (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          name VARCHAR(255) NOT NULL,
+          email VARCHAR(255)
+        );
+        INSERT INTO users (name, email) VALUES ('Alice', 'alice@test.com');
+        INSERT INTO users (name, email) VALUES ('Bob', 'bob@test.com');
+      `);
+
+      // Save
+      await saveState(sim, stateDir);
+
+      // Verify dump file exists
+      const dump = await readFile(join(stateDir, 'sql.dump'), 'utf-8');
+      expect(dump).toContain('CREATE TABLE');
+      expect(dump).toContain('users');
+
+      // Create fresh simulator and restore
+      const sim2 = new ForgeSimulator();
+      await sim2.sql.start();
+      await loadState(sim2, stateDir);
+
+      // Query restored data
+      const rows = await sim2.sql.query<{ id: number; name: string; email: string }>('SELECT * FROM users ORDER BY id');
+      expect(rows).toHaveLength(2);
+      expect(rows[0].name).toBe('Alice');
+      expect(rows[1].name).toBe('Bob');
+
+      await sim2.sql.stop();
+    }, 60_000);
+
+    afterAll(async () => {
+      await sim.sql.stop();
+    }, 30_000);
+  });
+
   // ── hasPersistedState ──────────────────────────────────────────────
 
   describe('hasPersistedState', () => {

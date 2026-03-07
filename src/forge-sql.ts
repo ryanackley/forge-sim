@@ -203,6 +203,34 @@ export class SimulatedForgeSQL {
   get port(): number | null {
     return this.db?.port ?? null;
   }
+
+  /**
+   * Get connection config for external tools (e.g., mysqldump npm package).
+   */
+  getConnectionConfig(): { host: string; port: number; user: string; database: string } | null {
+    if (!this.db?.port) return null;
+    return { host: '127.0.0.1', port: this.db.port, user: 'root', database: 'forge_app' };
+  }
+
+  /**
+   * Execute raw multi-statement SQL (for restoring dumps).
+   * Creates a separate connection with multipleStatements enabled.
+   */
+  async executeMultiStatement(sql: string): Promise<void> {
+    if (!this.db?.port) throw new Error('SQL server not running');
+    const conn = await mysql.createConnection({
+      host: '127.0.0.1',
+      port: this.db.port,
+      user: 'root',
+      database: 'forge_app',
+      multipleStatements: true,
+    });
+    try {
+      await conn.query(sql);
+    } finally {
+      await conn.end();
+    }
+  }
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────
