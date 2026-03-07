@@ -1,48 +1,54 @@
 /**
- * Atlassian OAuth 2.0 (3LO) with PKCE for forge-sim.
+ * Atlassian OAuth 2.0 (3LO) flow for forge-sim.
  *
- * Uses PKCE (Proof Key for Code Exchange) — no client_secret needed.
- * The client_id is public and shipped with the package.
- * Security comes from the per-session code_verifier/code_challenge pair.
+ * Devs register their own OAuth app on developer.atlassian.com and
+ * provide their client_id + client_secret. Credentials are stored
+ * locally in ~/.forge-sim/config.json (never shipped with the package).
  *
  * Flow:
- *   1. Generate code_verifier + code_challenge (SHA256)
- *   2. Open browser to Atlassian auth with code_challenge
- *   3. Listen on localhost for the callback
- *   4. Exchange auth code + code_verifier for tokens
- *   5. Fetch user info and accessible resources (sites)
- *   6. Return a fully populated AtlassianAccount
+ *   1. Open browser to Atlassian auth
+ *   2. Listen on localhost for the callback with auth code
+ *   3. Exchange auth code + client_secret for tokens
+ *   4. Fetch user info and accessible resources (sites)
+ *   5. Return a fully populated AtlassianAccount
  */
 
 import { createServer, type Server } from 'node:http';
 import { URL } from 'node:url';
-import { randomBytes, createHash } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import type { AtlassianAccount } from './credentials.js';
 
 // ── OAuth Configuration ─────────────────────────────────────────────────────
-
-// Public client ID — safe to ship in the package (no secret)
-// TODO: Replace with actual client ID once registered
-let OAUTH_CLIENT_ID = '';
 
 const ATLASSIAN_AUTH_URL = 'https://auth.atlassian.com/authorize';
 const ATLASSIAN_TOKEN_URL = 'https://auth.atlassian.com/oauth/token';
 const ATLASSIAN_ME_URL = 'https://api.atlassian.com/me';
 const ATLASSIAN_RESOURCES_URL = 'https://api.atlassian.com/oauth/token/accessible-resources';
 
-/**
- * Set the OAuth client ID (can also be set via FORGE_SIM_OAUTH_CLIENT_ID env var).
- */
-export function setOAuthClientId(clientId: string): void {
-  OAUTH_CLIENT_ID = clientId;
+export interface OAuthAppConfig {
+  clientId: string;
+  clientSecret: string;
 }
 
-export function getOAuthClientId(): string {
-  return OAUTH_CLIENT_ID || process.env.FORGE_SIM_OAUTH_CLIENT_ID || '';
+// Runtime config — loaded from ~/.forge-sim/config.json or env vars
+let oauthConfig: OAuthAppConfig | null = null;
+
+export function setOAuthConfig(config: OAuthAppConfig): void {
+  oauthConfig = config;
+}
+
+export function getOAuthConfig(): OAuthAppConfig | null {
+  // Env vars override stored config
+  const envId = process.env.FORGE_SIM_OAUTH_CLIENT_ID;
+  const envSecret = process.env.FORGE_SIM_OAUTH_CLIENT_SECRET;
+  if (envId && envSecret) {
+    return { clientId: envId, clientSecret: envSecret };
+  }
+  return oauthConfig;
 }
 
 export function hasOAuthConfig(): boolean {
-  return getOAuthClientId().length > 0;
+  return getOAuthConfig() !== null;
 }
 
 // ── Types ───────────────────────────────────────────────────────────────────
@@ -75,32 +81,10 @@ export interface OAuthResult {
   resources: AccessibleResource[];
 }
 
-// ── PKCE Helpers ────────────────────────────────────────────────────────────
-
-/**
- * Generate a cryptographic code verifier (43-128 chars, RFC 7636).
- */
-function generateCodeVerifier(): string {
-  return randomBytes(64).toString('base64url');
-}
-
-/**
- * Generate code challenge from verifier (S256 method).
- */
-function generateCodeChallenge(verifier: string): string {
-  return createHash('sha256').update(verifier).digest('base64url');
-}
-
 // ── OAuth Flow ──────────────────────────────────────────────────────────────
 
 /**
- * Run the full OAuth 3LO + PKCE flow:
- * 1. Generate PKCE pair
- * 2. Start local callback server
- * 3. Open browser to Atlassian auth
- * 4. Wait for callback with auth code
- * 5. Exchange code + code_verifier for tokens (no client_secret!)
- * 6. Fetch user info + accessible resources
+ * Run the full OAuth 3LO flow.
  */
 export async function startOAuthFlow(options: {
   scopes: string[];
@@ -108,11 +92,9 @@ export async function startOAuthFlow(options: {
   callbackPath?: string;
   openBrowser?: (url: string) => void;
 }): Promise<OAuthResult> {
-  const clientId = getOAuthClientId();
-  if (!clientId) {
-    throw new Error(
-      'OAuth client ID not configured. Set FORGE_SIM_OAUTH_CLIENT_ID env var.'
-    );
+  const config = getOAuthConfig();
+  if (!config) {
+    throw new Error('OAuth not configured. Run `forge-sim auth` to set up your OAuth app.');
   }
 
   const port = options.port ?? 5173;
@@ -120,22 +102,15 @@ export async function startOAuthFlow(options: {
   const redirectUri = `http://localhost:${port}${callbackPath}`;
   const state = randomBytes(16).toString('hex');
 
-  // PKCE: generate verifier/challenge pair
-  const codeVerifier = generateCodeVerifier();
-  const codeChallenge = generateCodeChallenge(codeVerifier);
-
   // Build authorization URL
   const authUrl = new URL(ATLASSIAN_AUTH_URL);
   authUrl.searchParams.set('audience', 'api.atlassian.com');
-  authUrl.searchParams.set('client_id', clientId);
+  authUrl.searchParams.set('client_id', config.clientId);
   authUrl.searchParams.set('scope', options.scopes.join(' '));
   authUrl.searchParams.set('redirect_uri', redirectUri);
   authUrl.searchParams.set('state', state);
   authUrl.searchParams.set('response_type', 'code');
   authUrl.searchParams.set('prompt', 'consent');
-  // PKCE parameters
-  authUrl.searchParams.set('code_challenge', codeChallenge);
-  authUrl.searchParams.set('code_challenge_method', 'S256');
 
   // Wait for the callback
   const authCode = await waitForCallback(
@@ -144,8 +119,8 @@ export async function startOAuthFlow(options: {
     authUrl.toString(),
   );
 
-  // Exchange code for tokens (PKCE — code_verifier instead of client_secret)
-  const tokens = await exchangeCode(authCode, redirectUri, codeVerifier, clientId);
+  // Exchange code for tokens
+  const tokens = await exchangeCode(authCode, redirectUri, config);
 
   // Fetch user info
   const user = await fetchUser(tokens.access_token);
@@ -180,22 +155,22 @@ export async function startOAuthFlow(options: {
 
 /**
  * Refresh an expired access token.
- * Note: Atlassian refresh token exchange does NOT require client_secret
- * when the original auth used PKCE.
  */
 export async function refreshAccessToken(account: AtlassianAccount): Promise<{
   accessToken: string;
   refreshToken: string;
   expiresAt: number;
 }> {
-  const clientId = getOAuthClientId();
+  const config = getOAuthConfig();
+  if (!config) throw new Error('OAuth not configured');
 
   const response = await fetch(ATLASSIAN_TOKEN_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       grant_type: 'refresh_token',
-      client_id: clientId,
+      client_id: config.clientId,
+      client_secret: config.clientSecret,
       refresh_token: account.refreshToken,
     }),
   });
@@ -287,19 +262,17 @@ function waitForCallback(
 async function exchangeCode(
   code: string,
   redirectUri: string,
-  codeVerifier: string,
-  clientId: string,
+  config: OAuthAppConfig,
 ): Promise<OAuthTokenResponse> {
   const response = await fetch(ATLASSIAN_TOKEN_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       grant_type: 'authorization_code',
-      client_id: clientId,
+      client_id: config.clientId,
+      client_secret: config.clientSecret,
       code,
       redirect_uri: redirectUri,
-      code_verifier: codeVerifier,
-      // No client_secret — PKCE replaces it
     }),
   });
 

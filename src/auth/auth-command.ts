@@ -2,15 +2,17 @@
  * `forge-sim auth` command — manage Atlassian accounts.
  *
  * Usage:
- *   forge-sim auth              — interactive: add account or select default
+ *   forge-sim auth              — interactive: set up OAuth app or add account
  *   forge-sim auth --list       — list configured accounts
  *   forge-sim auth --clear      — remove all credentials
  *   forge-sim auth --local      — store credentials per-app instead of global
  *   forge-sim auth --remove <id> — remove a specific account
+ *   forge-sim auth --setup      — reconfigure OAuth app (client ID/secret)
  */
 
-import { loadCredentials, saveCredentials, upsertAccount, removeAccount, getDefaultAccount, clearCredentials } from './credentials.js';
-import { startOAuthFlow, setOAuthClientId, hasOAuthConfig, type AccessibleResource } from './oauth.js';
+import { loadCredentials, saveCredentials, upsertAccount, removeAccount, clearCredentials } from './credentials.js';
+import { startOAuthFlow, setOAuthConfig, hasOAuthConfig } from './oauth.js';
+import { getOAuthAppConfig, saveOAuthAppConfig } from './config.js';
 import { createInterface } from 'node:readline';
 
 // ── Default Scopes ──────────────────────────────────────────────────────────
@@ -39,15 +41,15 @@ export interface AuthCommandOptions {
   list?: boolean;
   clear?: boolean;
   remove?: string;
+  setup?: boolean;
   local?: string;  // app directory for per-app credentials
 }
 
 export async function authCommand(options: AuthCommandOptions): Promise<void> {
-  // Load OAuth client ID from environment or config
-  // (no client_secret needed — we use PKCE)
-  const clientId = process.env.FORGE_SIM_OAUTH_CLIENT_ID || '';
-  if (clientId) {
-    setOAuthClientId(clientId);
+  // Load OAuth app config from disk or env
+  const oauthAppConfig = await getOAuthAppConfig();
+  if (oauthAppConfig) {
+    setOAuthConfig(oauthAppConfig);
   }
 
   // ── List accounts ─────────────────────────────────────────────────────
@@ -92,6 +94,12 @@ export async function authCommand(options: AuthCommandOptions): Promise<void> {
     return;
   }
 
+  // ── Setup OAuth app (first time or --setup) ───────────────────────────
+  if (options.setup || !hasOAuthConfig()) {
+    await setupOAuthApp();
+    return;
+  }
+
   // ── Interactive: add account or select default ────────────────────────
   const store = await loadCredentials(options.local);
 
@@ -122,19 +130,6 @@ export async function authCommand(options: AuthCommandOptions): Promise<void> {
   }
 
   // ── Add new account via OAuth ─────────────────────────────────────────
-  if (!hasOAuthConfig()) {
-    console.log('');
-    console.log('  ⚠️  OAuth client ID not configured.');
-    console.log('');
-    console.log('  Set the environment variable:');
-    console.log('    FORGE_SIM_OAUTH_CLIENT_ID=<your-client-id>');
-    console.log('');
-    console.log('  Or create an OAuth app at https://developer.atlassian.com');
-    console.log('  with callback URL: http://localhost:5173/__tools/oauth/callback');
-    console.log('  (No client_secret needed — forge-sim uses PKCE)');
-    return;
-  }
-
   console.log('');
   console.log('  🔑 Starting Atlassian OAuth flow...');
   console.log('     Opening browser for authorization...');
@@ -146,7 +141,6 @@ export async function authCommand(options: AuthCommandOptions): Promise<void> {
     });
 
     // If multiple sites, let user pick
-    let selectedResource = result.resources[0];
     if (result.resources.length > 1) {
       console.log('  📍 Multiple Atlassian sites found:');
       result.resources.forEach((r, i) => {
@@ -155,8 +149,7 @@ export async function authCommand(options: AuthCommandOptions): Promise<void> {
       const siteChoice = await prompt(`  Select site [1-${result.resources.length}]: `);
       const siteNum = parseInt(siteChoice, 10);
       if (siteNum >= 1 && siteNum <= result.resources.length) {
-        selectedResource = result.resources[siteNum - 1];
-        // Update account with selected site
+        const selectedResource = result.resources[siteNum - 1];
         result.account.site = new URL(selectedResource.url).host;
         result.account.cloudId = selectedResource.id;
       }
@@ -173,6 +166,49 @@ export async function authCommand(options: AuthCommandOptions): Promise<void> {
     console.log('');
   } catch (err: any) {
     console.error(`  ❌ OAuth failed: ${err.message}`);
+  }
+}
+
+// ── OAuth App Setup ─────────────────────────────────────────────────────────
+
+async function setupOAuthApp(): Promise<void> {
+  console.log('');
+  console.log('  🔧 OAuth App Setup');
+  console.log('  ──────────────────');
+  console.log('');
+  console.log('  forge-sim needs an OAuth app to connect to Atlassian.');
+  console.log('  You only need to do this once.');
+  console.log('');
+  console.log('  1. Go to https://developer.atlassian.com/console/myapps/');
+  console.log('  2. Create a new app (or use an existing one)');
+  console.log('  3. Go to Authorization → OAuth 2.0 (3LO) → Configure');
+  console.log('  4. Set callback URL: http://localhost:5173/__tools/oauth/callback');
+  console.log('  5. Go to Permissions → add Jira API (and/or Confluence API)');
+  console.log('  6. Copy your Client ID and Secret from the Settings page');
+  console.log('');
+
+  const clientId = await prompt('  Client ID: ');
+  if (!clientId) {
+    console.log('  Cancelled.');
+    return;
+  }
+
+  const clientSecret = await prompt('  Client Secret: ');
+  if (!clientSecret) {
+    console.log('  Cancelled.');
+    return;
+  }
+
+  await saveOAuthAppConfig({ clientId, clientSecret });
+  setOAuthConfig({ clientId, clientSecret });
+
+  console.log('');
+  console.log('  ✅ OAuth app saved to ~/.forge-sim/config.json');
+  console.log('');
+
+  const addNow = await prompt('  Add an Atlassian account now? (Y/n): ');
+  if (addNow.toLowerCase() !== 'n') {
+    await authCommand({});
   }
 }
 
