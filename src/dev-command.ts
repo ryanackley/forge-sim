@@ -395,6 +395,38 @@ export async function devCommand(options: DevCommandOptions) {
     }
   }
 
+  // 4c. Connect to real Atlassian APIs if credentials exist
+  try {
+    const { getOAuthAppConfig } = await import('./auth/config.js');
+    const { loadCredentials, getDefaultAccount, saveCredentials, upsertAccount } = await import('./auth/credentials.js');
+    const { setOAuthConfig } = await import('./auth/oauth.js');
+
+    const oauthAppConfig = await getOAuthAppConfig();
+    if (oauthAppConfig) {
+      setOAuthConfig(oauthAppConfig);
+
+      const store = await loadCredentials(appDir);
+      const account = getDefaultAccount(store);
+
+      if (account) {
+        sim.productApi.connectRealApis(account, {
+          onTokenRefresh: (refreshedAccount) => {
+            // Persist refreshed tokens
+            upsertAccount(store, refreshedAccount);
+            saveCredentials(store).catch(() => {});
+          },
+        });
+      } else {
+        console.log(`  📡 No Atlassian accounts — using mock APIs`);
+        console.log(`     Run 'forge-sim auth' to connect to a real site`);
+      }
+    } else {
+      console.log(`  📡 Using mock APIs (no OAuth app configured)`);
+    }
+  } catch {
+    // Auth module not available or failed — continue with mocks
+  }
+
   console.log('');
 
   // 5. Start WebSocket dev server (for RPC: invoke, fetchProduct, etc.)
