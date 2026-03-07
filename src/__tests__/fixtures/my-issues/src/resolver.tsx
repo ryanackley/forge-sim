@@ -117,3 +117,4 @@ resolver.define('getMyself', async () => {
 });
 
 export const handler = resolver.getDefinitions();
+export default resolver;

@@ -1,16 +1,20 @@
 modules:
   jira:issuePanel:
     - key: my-issues-panel
-      title: My Issues
-      function: main
+      resource: main
       resolver:
         function: resolver
+      render: native
+      title: My Issues
+      icon: https://developer.atlassian.com/platform/forge/images/icons/issue-panel-icon.svg
 
   function:
-    - key: main
-      handler: src/index.handler
     - key: resolver
-      handler: src/index.resolver
+      handler: src/resolver.handler
+
+resources:
+  - key: main
+    path: src/frontend/index.tsx
 
 permissions:
   scopes:
