@@ -41,8 +41,7 @@ import { z } from 'zod';
 import { createServer } from 'node:http';
 import { ForgeSimulator } from './simulator.js';
 import { setSimulator } from './shims/globals.js';
-import { getLatestForgeDoc, resetBridge } from './ui/bridge.js';
-import { findByType, findByTypeAndText, simulateEvent, prettyPrint, getTextContent } from './ui/doc-utils.js';
+// UI access is now through sim.ui.* — no direct bridge/doc-utils imports
 
 // ── Simulator Instance ──────────────────────────────────────────────────
 
@@ -68,7 +67,7 @@ server.tool(
   async ({ appDir, reset }) => {
     if (reset !== false) {
       sim.reset();
-      resetBridge();
+      sim.ui.reset();
     }
 
     try {
@@ -207,7 +206,7 @@ server.tool(
   'forge.ui_state',
   'Get the current ForgeDoc UI tree. Shows what the Forge app UI looks like right now. Returns a pretty-printed component tree.',
   async () => {
-    const doc = getLatestForgeDoc();
+    const doc = sim.ui.getForgeDoc();
     if (!doc) {
       return {
         content: [{ type: 'text' as const, text: 'No UI rendered yet. Deploy an app with UI resources first, or invoke a resolver that triggers a render.' }],
@@ -215,7 +214,7 @@ server.tool(
     }
 
     return {
-      content: [{ type: 'text' as const, text: prettyPrint(doc) }],
+      content: [{ type: 'text' as const, text: sim.ui.prettyPrint(doc) }],
     };
   }
 );
@@ -231,7 +230,7 @@ server.tool(
     eventArgs: z.array(z.any()).optional().describe('Arguments to pass to the event handler'),
   },
   async ({ componentType, matchText, nthMatch, event, eventArgs }) => {
-    const doc = getLatestForgeDoc();
+    const doc = sim.ui.getForgeDoc();
     if (!doc) {
       return {
         content: [{ type: 'text' as const, text: 'No UI rendered. Deploy an app with UI first.' }],
@@ -240,11 +239,11 @@ server.tool(
     }
 
     try {
-      const node = findByTypeAndText(doc, componentType, matchText, nthMatch);
+      const node = sim.ui.findByTypeAndText(doc, componentType, matchText, nthMatch);
       const eventName = event ?? 'onClick';
 
       const consoleBefore = sim.getConsoleLogs().length;
-      const result = simulateEvent(node, eventName, ...(eventArgs ?? []));
+      const result = sim.ui.interact(node, eventName, ...(eventArgs ?? []));
 
       // If the handler is async, await it
       const finalResult = result instanceof Promise ? await result : result;
@@ -261,9 +260,9 @@ server.tool(
       }
 
       // Show updated UI if it changed
-      const updatedDoc = getLatestForgeDoc();
+      const updatedDoc = sim.ui.getForgeDoc();
       if (updatedDoc) {
-        output.updatedUI = prettyPrint(updatedDoc);
+        output.updatedUI = sim.ui.prettyPrint(updatedDoc);
       }
 
       return {
@@ -836,7 +835,7 @@ server.tool(
   'Reset the simulator — clears all state (KVS, queues, resolvers, logs, UI). Like a fresh install.',
   async () => {
     sim.reset();
-    resetBridge();
+    sim.ui.reset();
     return {
       content: [{ type: 'text' as const, text: '✅ Simulator reset. All state cleared.' }],
     };
@@ -912,7 +911,7 @@ server.resource(
   'forge.//state',
   { description: 'Full simulator state snapshot (KVS, queue, UI)', mimeType: 'application/json' },
   async () => {
-    const doc = getLatestForgeDoc();
+    const doc = sim.ui.getForgeDoc();
     const eventLog = sim.queue.getEventLog();
 
     return {
@@ -928,7 +927,7 @@ server.resource(
               body: e.event.body,
             })),
           },
-          ui: doc ? { rendered: true, tree: prettyPrint(doc) } : { rendered: false },
+          ui: doc ? { rendered: true, tree: sim.ui.prettyPrint(doc) } : { rendered: false },
           manifest: sim.getManifest()?.raw?.app ?? null,
         }, null, 2),
       }],

@@ -14,7 +14,11 @@ export { parseManifest, parseManifestContent } from './manifest.js';
 export { deploy } from './deployer.js';
 export { setSimulator, getSimulator } from './shims/globals.js';
 
-// UI rendering (bridge + doc utilities)
+// UI rendering (SimulatorUI is the primary API — access via sim.ui.*)
+export { SimulatorUI } from './ui/index.js';
+export type { ForgeDoc, BridgeCall } from './ui/index.js';
+
+// Backward-compat UI exports (deprecated — prefer sim.ui.*)
 export {
   installBridge,
   connectSimulator,
@@ -32,8 +36,6 @@ export {
   listComponentTypes,
   findByTypeAndText,
   prettyPrint,
-  type ForgeDoc,
-  type BridgeCall,
 } from './ui/index.js';
 
 export type {

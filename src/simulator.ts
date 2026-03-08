@@ -13,7 +13,7 @@ import { SimulatedForgeSQL, type ForgeSQLOptions } from './forge-sql.js';
 import { FunctionRegistry, type ForgeFunctionType } from './function-registry.js';
 import { parseManifest, parseManifestContent, type ParsedManifest } from './manifest.js';
 import { withCapture, type ConsoleLine } from './console-capture.js';
-import { resetBridge } from './ui/bridge.js';
+import { SimulatorUI } from './ui/simulator-ui.js';
 import type { SimulationConfig, ResolverContext, ProductApiHandler, ProductApiRequest, ProductApiResponse } from './types.js';
 
 export class ForgeSimulator {
@@ -23,6 +23,9 @@ export class ForgeSimulator {
   readonly productApi: SimulatedProductApi;
   readonly sql: SimulatedForgeSQL;
   readonly functions: FunctionRegistry;
+
+  /** UI API — ForgeDoc access, tree traversal, interaction, bridge lifecycle. */
+  readonly ui: SimulatorUI;
 
   /**
    * @deprecated Use sim.kvs instead — entity store is now unified into UnifiedKVS.
@@ -44,6 +47,7 @@ export class ForgeSimulator {
     this.productApi = new SimulatedProductApi();
     this.sql = new SimulatedForgeSQL(config?.forgeSQL);
     this.functions = new FunctionRegistry();
+    this.ui = new SimulatorUI(this);
 
     if (config?.storageLatency !== undefined) {
       this.kvs.setLatency(config.storageLatency);
@@ -397,7 +401,7 @@ export class ForgeSimulator {
 
   reset(): void {
     // Tear down UI bridge first — swallows stale React effects that fire after reset
-    resetBridge();
+    this.ui.reset();
     this.kvs.clear();
     this.queue.clear();
     this.resolver.clear();

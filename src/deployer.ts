@@ -13,7 +13,7 @@ import { access } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 import { parseManifest, type ParsedManifest, type ManifestFunction } from './manifest.js';
 import type { ForgeSimulator } from './simulator.js';
-import { installBridge, connectSimulator } from './ui/bridge.js';
+// Bridge is now managed by sim.ui — no direct bridge imports needed here
 
 export interface DeployResult {
   manifest: ParsedManifest;
@@ -116,8 +116,7 @@ export async function deploy(sim: ForgeSimulator, appDir: string): Promise<Deplo
 
   // 1b. If there are UI resources, install the bridge and connect to sim
   if (manifest.resources.size > 0) {
-    installBridge();
-    connectSimulator(sim);
+    sim.ui.ensureBridge();
   }
 
   const loadedFunctions: string[] = [];
