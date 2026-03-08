@@ -31,6 +31,7 @@
     "@forge/sql": "^3.0.18",
     "@types/node": "^22.0.0",
     "@types/ws": "^8.18.1",
+    "@vitest/coverage-v8": "^3.2.4",
     "typescript": "^5.7.0",
     "vitest": "^3.0.0"
   }
