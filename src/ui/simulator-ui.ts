@@ -46,8 +46,8 @@ export class SimulatorUI {
   /** Which module is currently rendering (set before invoke, cleared after) */
   private activeModuleKey: string | null = null;
 
-  /** Last resolver key used per module (for refresh) */
-  private moduleResolverKeys = new Map<string, string>();
+  /** Last render config per module (resolver key + context, for refresh) */
+  private moduleRenderConfig = new Map<string, { resolverKey: string; context?: Record<string, unknown> }>();
 
   /** Render listeners scoped per module */
   private moduleListeners = new Map<string, Array<(doc: ForgeDoc) => void>>();
@@ -165,7 +165,7 @@ export class SimulatorUI {
    *
    *   await sim.ui.render('simple-panel');
    */
-  async render(moduleKey: string, resolverKey?: string): Promise<ForgeDoc | null> {
+  async render(moduleKey: string, resolverKey?: string, options?: { context?: Record<string, unknown> }): Promise<ForgeDoc | null> {
     const manifest = this.sim.getManifest();
     if (!manifest) {
       throw new Error('No manifest loaded. Deploy an app first.');
@@ -202,11 +202,19 @@ export class SimulatorUI {
 
     this.ensureBridge();
     this.setActiveModule(moduleKey);
-    this.moduleResolverKeys.set(moduleKey, functionKey);
+    this.moduleRenderConfig.set(moduleKey, { resolverKey: functionKey, context: options?.context });
+
+    // Apply module-scoped context for this render
+    const previousContext = this.sim.resolver.getContextOverrides();
+    if (options?.context) {
+      this.sim.resolver.setContext(options.context);
+    }
 
     try {
       await this.sim.invoke(functionKey, {});
     } finally {
+      // Restore previous context
+      this.sim.resolver.setContext(previousContext);
       this.setActiveModule(null);
     }
 
@@ -221,9 +229,9 @@ export class SimulatorUI {
    */
   async refresh(moduleKey?: string): Promise<ForgeDoc | null> {
     const key = moduleKey ?? this.resolveOnlyModule();
-    const resolverKey = this.moduleResolverKeys.get(key);
+    const config = this.moduleRenderConfig.get(key);
     this.moduleDocs.delete(key);
-    return this.render(key, resolverKey);
+    return this.render(key, config?.resolverKey, { context: config?.context });
   }
 
   /** Resolve module key when there's exactly one rendered module. */
@@ -318,7 +326,7 @@ export class SimulatorUI {
   reset(): void {
     resetBridge();
     this.moduleDocs.clear();
-    this.moduleResolverKeys.clear();
+    this.moduleRenderConfig.clear();
     this.activeModuleKey = null;
   }
 
@@ -326,7 +334,7 @@ export class SimulatorUI {
   resetAll(): void {
     resetAll();
     this.moduleDocs.clear();
-    this.moduleResolverKeys.clear();
+    this.moduleRenderConfig.clear();
     this.moduleListeners.clear();
     this.activeModuleKey = null;
     this.bridgeInstalled = false;

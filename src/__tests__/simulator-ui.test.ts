@@ -187,6 +187,98 @@ describe('SimulatorUI', () => {
       expect(doc).not.toBeNull();
     });
 
+    it('render passes context to the resolver', async () => {
+      let receivedContext: any = null;
+      sim.resolver.define('contextPanel', async (req: any) => {
+        receivedContext = req.context;
+        const bridge = (globalThis as any).__bridge;
+        await bridge.callBridge('reconcile', {
+          forgeDoc: { type: 'App', props: {}, key: 'root', children: [] },
+        });
+      });
+      sim.loadManifestData({
+        functions: [{ key: 'contextPanel', handler: 'index.contextPanel' }],
+        consumers: [], triggers: [], scheduledTriggers: [],
+        uiModules: [{ type: 'jira:issuePanel', key: 'ctx-panel', resolverFunctionKey: 'contextPanel' }],
+        entities: [],
+      });
+
+      await sim.ui.render('ctx-panel', undefined, {
+        context: { issueKey: 'PROJ-42', projectKey: 'PROJ' },
+      });
+
+      expect(receivedContext).toBeDefined();
+      expect(receivedContext.issueKey).toBe('PROJ-42');
+      expect(receivedContext.projectKey).toBe('PROJ');
+    });
+
+    it('render context is scoped — does not leak to other renders', async () => {
+      let ctx1: any = null;
+      let ctx2: any = null;
+
+      sim.resolver.define('panel1', async (req: any) => {
+        ctx1 = req.context;
+        const bridge = (globalThis as any).__bridge;
+        await bridge.callBridge('reconcile', {
+          forgeDoc: { type: 'App', props: {}, key: 'r1', children: [] },
+        });
+      });
+      sim.resolver.define('panel2', async (req: any) => {
+        ctx2 = req.context;
+        const bridge = (globalThis as any).__bridge;
+        await bridge.callBridge('reconcile', {
+          forgeDoc: { type: 'App', props: {}, key: 'r2', children: [] },
+        });
+      });
+      sim.loadManifestData({
+        functions: [
+          { key: 'panel1', handler: 'index.panel1' },
+          { key: 'panel2', handler: 'index.panel2' },
+        ],
+        consumers: [], triggers: [], scheduledTriggers: [],
+        uiModules: [
+          { type: 'jira:issuePanel', key: 'p1', resolverFunctionKey: 'panel1' },
+          { type: 'confluence:contentAction', key: 'p2', resolverFunctionKey: 'panel2' },
+        ],
+        entities: [],
+      });
+
+      await sim.ui.render('p1', undefined, { context: { issueKey: 'PROJ-1' } });
+      await sim.ui.render('p2', undefined, { context: { spaceKey: 'DEV' } });
+
+      expect(ctx1.issueKey).toBe('PROJ-1');
+      expect(ctx1.spaceKey).toBeUndefined();
+      expect(ctx2.spaceKey).toBe('DEV');
+      expect(ctx2.issueKey).toBeUndefined();
+    });
+
+    it('refresh preserves original context', async () => {
+      let lastContext: any = null;
+      sim.resolver.define('memPanel', async (req: any) => {
+        lastContext = req.context;
+        const bridge = (globalThis as any).__bridge;
+        await bridge.callBridge('reconcile', {
+          forgeDoc: { type: 'App', props: {}, key: 'root', children: [] },
+        });
+      });
+      sim.loadManifestData({
+        functions: [{ key: 'memPanel', handler: 'index.memPanel' }],
+        consumers: [], triggers: [], scheduledTriggers: [],
+        uiModules: [{ type: 'jira:issuePanel', key: 'mem-panel', resolverFunctionKey: 'memPanel' }],
+        entities: [],
+      });
+
+      await sim.ui.render('mem-panel', undefined, {
+        context: { issueKey: 'PROJ-99' },
+      });
+      expect(lastContext.issueKey).toBe('PROJ-99');
+
+      // Refresh should reuse the same context
+      lastContext = null;
+      await sim.ui.refresh('mem-panel');
+      expect(lastContext.issueKey).toBe('PROJ-99');
+    });
+
     it('refresh throws with no modules rendered', async () => {
       sim.loadManifestData({
         functions: [], consumers: [], triggers: [], scheduledTriggers: [],
