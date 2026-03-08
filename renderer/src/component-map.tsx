@@ -106,10 +106,11 @@ import type { ForgeDoc } from './types';
 
 // ── Types ───────────────────────────────────────────────────────────────
 
-type ComponentRenderer = (
+export type ComponentRenderer = (
   props: Record<string, any>,
   children: React.ReactNode[],
-  doc: ForgeDoc
+  doc: ForgeDoc,
+  renderChild: (doc: ForgeDoc) => React.ReactNode
 ) => React.ReactElement;
 
 // ── Helpers ─────────────────────────────────────────────────────────────
@@ -217,6 +218,11 @@ export const COMPONENT_MAP: Record<string, ComponentRenderer> = {
   // ── Root ─────────────────────────────────────────────────────────────
   App: (_props, children) => <>{children}</>,
   String: (props) => <>{props.text ?? ''}</>,
+
+  // ContentWrapper is Forge's internal component for passing reconciled
+  // ReactNode props across the bridge. Transparent in most contexts —
+  // complex components like DynamicTable handle it explicitly.
+  ContentWrapper: (_props, children) => <>{children}</>,
 
   // ── Layout ──────────────────────────────────────────────────────────
   Box: (props, children) => <Box {...cleanProps(props)}>{children}</Box>,
@@ -478,14 +484,69 @@ export const COMPONENT_MAP: Record<string, ComponentRenderer> = {
   Cell: (_props, children) => (
     <td style={{ padding: '8px 12px', verticalAlign: 'top' }}>{children}</td>
   ),
-  DynamicTable: (props) => (
-    <DynamicTable
-      head={props.head}
-      rows={props.rows}
-      isLoading={props.isLoading}
-      rowsPerPage={props.rowsPerPage}
-    />
-  ),
+  DynamicTable: (_props, _children, doc, renderChild) => {
+    // Forge's @forge/react DynamicTable decomposes head/rows into a ForgeDoc
+    // child tree using ContentWrapper/Row/Cell nodes. We reconstruct the
+    // Atlaskit DynamicTable prop format from this tree, using renderChild
+    // to get fully-wired React nodes (with event handlers and all).
+    let head: any = undefined;
+    let rows: any = undefined;
+
+    for (const child of doc.children ?? []) {
+      if (child.type === 'ContentWrapper' && child.props?.name === 'head') {
+        head = {
+          cells: (child.children ?? []).map((cell) => {
+            const { cellKey, ...cellProps } = cell.props ?? {};
+            return {
+              key: cellKey,
+              content: (cell.children ?? []).length === 1
+                ? renderChild(cell.children[0])
+                : (cell.children ?? []).map((c, i) => (
+                    <React.Fragment key={c.key || `hc${i}`}>
+                      {renderChild(c)}
+                    </React.Fragment>
+                  )),
+              ...cellProps,
+            };
+          }),
+        };
+      } else if (child.type === 'ContentWrapper' && child.props?.name === 'rows') {
+        rows = (child.children ?? []).map((row) => {
+          const { rowKey, ...rowProps } = row.props ?? {};
+          return {
+            key: rowKey,
+            cells: (row.children ?? []).map((cell) => {
+              const { cellKey, ...cellProps } = cell.props ?? {};
+              return {
+                key: cellKey,
+                content: (cell.children ?? []).length === 1
+                  ? renderChild(cell.children[0])
+                  : (cell.children ?? []).map((c, i) => (
+                      <React.Fragment key={c.key || `rc${i}`}>
+                        {renderChild(c)}
+                      </React.Fragment>
+                    )),
+                ...cellProps,
+              };
+            }),
+            ...rowProps,
+          };
+        });
+      }
+    }
+
+    // Pass through remaining props (isLoading, rowsPerPage, etc.)
+    const { head: _h, rows: _r, ...tableProps } = doc.props ?? {};
+    return (
+      <DynamicTable
+        head={head}
+        rows={rows}
+        isLoading={tableProps.isLoading}
+        rowsPerPage={tableProps.rowsPerPage}
+        {...tableProps}
+      />
+    );
+  },
 
   // ── Tabs ────────────────────────────────────────────────────────────
   Tabs: (props, children) => <Tabs id={props.id ?? 'tabs'}>{children}</Tabs>,
@@ -846,7 +907,7 @@ export const COMPONENT_MAP: Record<string, ComponentRenderer> = {
 
 // ── Fallback ────────────────────────────────────────────────────────────
 
-export const FallbackComponent: ComponentRenderer = (_props, children, doc) => (
+export const FallbackComponent: ComponentRenderer = (_props, children, doc, _renderChild) => (
   <div
     style={{
       border: '1px dashed #ccc',

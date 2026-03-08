@@ -85,9 +85,15 @@ function renderNode(
   // Wire up event handlers
   const wiredProps = wireEventHandlers(doc.props, onEvent, onBridgeEvent);
 
+  // Bound render function for components that need to render ForgeDoc sub-trees
+  // (e.g. DynamicTable reconstructing head/rows from ContentWrapper children).
+  // Carries the same onEvent/onBridgeEvent context as the parent render.
+  const renderChild = (childDoc: ForgeDoc) =>
+    renderNode(childDoc, onEvent, onBridgeEvent);
+
   return (
     <React.Fragment key={doc.key}>
-      {renderer(wiredProps, children, { ...doc, props: wiredProps })}
+      {renderer(wiredProps, children, { ...doc, props: wiredProps }, renderChild)}
     </React.Fragment>
   );
 }
