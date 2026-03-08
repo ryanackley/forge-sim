@@ -55,6 +55,147 @@ describe('SimulatorUI', () => {
       expect(doc).not.toBeNull();
       expect(doc!.type).toBeDefined();
     });
+
+    it('invoke auto-tags ForgeDoc to module key from manifest', async () => {
+      // Register a resolver that triggers reconcile (simulating @forge/react)
+      sim.ui.ensureBridge();
+      sim.resolver.define('autoPanel', async () => {
+        const bridge = (globalThis as any).__bridge;
+        await bridge.callBridge('reconcile', {
+          forgeDoc: { type: 'App', props: {}, key: 'root', children: [
+            { type: 'String', props: { text: 'auto-tagged' }, key: 's1', children: [] },
+          ]},
+        });
+      });
+      sim.loadManifestData({
+        functions: [{ key: 'autoPanel', handler: 'index.autoPanel' }],
+        consumers: [], triggers: [], scheduledTriggers: [],
+        uiModules: [{ type: 'jira:issuePanel', key: 'auto-panel', resolverFunctionKey: 'autoPanel' }],
+        entities: [],
+      });
+
+      // Invoke directly (not through sim.ui.render) — should auto-detect module
+      await sim.invoke('autoPanel', {});
+
+      const modules = sim.ui.getRenderedModules();
+      expect(modules).toContain('auto-panel');
+      const doc = sim.ui.getForgeDoc('auto-panel');
+      expect(doc).not.toBeNull();
+      expect(sim.ui.getTextContent(doc!)).toBe('auto-tagged');
+    });
+  });
+
+  describe('render + refresh', () => {
+    it('render invokes module resolver and tags ForgeDoc', async () => {
+      // Use a simple inline resolver that triggers React rendering
+      sim.resolver.define('simplePanel', async () => {
+        // Simulate what @forge/react does: call reconcile via the bridge
+        const bridge = (globalThis as any).__bridge;
+        await bridge.callBridge('reconcile', {
+          forgeDoc: {
+            type: 'App', props: {}, key: 'root', children: [
+              { type: 'Text', props: {}, key: 't1', children: [
+                { type: 'String', props: { text: 'Rendered!' }, key: 's1', children: [] },
+              ]},
+            ],
+          },
+        });
+        return { body: 'ok' };
+      });
+
+      // Set up a manifest with a UI module pointing to our resolver
+      sim.loadManifestData({
+        functions: [{ key: 'simplePanel', handler: 'index.simplePanel' }],
+        consumers: [],
+        triggers: [],
+        scheduledTriggers: [],
+        uiModules: [{ type: 'jira:issuePanel', key: 'test-panel', resolverFunctionKey: 'simplePanel' }],
+        entities: [],
+      });
+
+      const doc = await sim.ui.render('test-panel');
+      expect(doc).not.toBeNull();
+      expect(sim.ui.getTextContent(doc!)).toBe('Rendered!');
+      expect(sim.ui.getForgeDoc('test-panel')).not.toBeNull();
+    });
+
+    it('render throws for unknown module key', async () => {
+      sim.loadManifestData({
+        functions: [], consumers: [], triggers: [], scheduledTriggers: [],
+        uiModules: [{ type: 'jira:issuePanel', key: 'real-panel', resolverFunctionKey: 'fn' }],
+        entities: [],
+      });
+
+      await expect(sim.ui.render('nonexistent')).rejects.toThrow('No UI module with key');
+    });
+
+    it('render throws without manifest', async () => {
+      await expect(sim.ui.render('anything')).rejects.toThrow('No manifest loaded');
+    });
+
+    it('render tells you to specify resolver when function has multiple definitions', async () => {
+      const fixtureDir = new URL('./fixtures/my-issues', import.meta.url).pathname;
+      await sim.deploy(fixtureDir);
+
+      // 'resolver' function registered multiple definitions — should get helpful error
+      await expect(sim.ui.render('my-issues-panel')).rejects.toThrow('multiple resolver definitions');
+    });
+
+    it('refresh re-renders a module', async () => {
+      let renderCount = 0;
+      sim.resolver.define('counterPanel', async () => {
+        renderCount++;
+        const bridge = (globalThis as any).__bridge;
+        await bridge.callBridge('reconcile', {
+          forgeDoc: {
+            type: 'App', props: {}, key: 'root', children: [
+              { type: 'String', props: { text: `Render #${renderCount}` }, key: 's1', children: [] },
+            ],
+          },
+        });
+      });
+      sim.loadManifestData({
+        functions: [{ key: 'counterPanel', handler: 'index.counterPanel' }],
+        consumers: [], triggers: [], scheduledTriggers: [],
+        uiModules: [{ type: 'jira:issuePanel', key: 'counter-panel', resolverFunctionKey: 'counterPanel' }],
+        entities: [],
+      });
+
+      await sim.ui.render('counter-panel');
+      expect(sim.ui.getTextContent(sim.ui.getForgeDoc('counter-panel')!)).toBe('Render #1');
+
+      await sim.ui.refresh('counter-panel');
+      expect(sim.ui.getTextContent(sim.ui.getForgeDoc('counter-panel')!)).toBe('Render #2');
+    });
+
+    it('refresh with no args works when only one module rendered', async () => {
+      sim.resolver.define('panel', async () => {
+        const bridge = (globalThis as any).__bridge;
+        await bridge.callBridge('reconcile', {
+          forgeDoc: { type: 'App', props: {}, key: 'root', children: [] },
+        });
+      });
+      sim.loadManifestData({
+        functions: [{ key: 'panel', handler: 'index.panel' }],
+        consumers: [], triggers: [], scheduledTriggers: [],
+        uiModules: [{ type: 'jira:issuePanel', key: 'only-panel', resolverFunctionKey: 'panel' }],
+        entities: [],
+      });
+
+      await sim.ui.render('only-panel');
+      const doc = await sim.ui.refresh(); // no key — should auto-resolve
+      expect(doc).not.toBeNull();
+    });
+
+    it('refresh throws with no modules rendered', async () => {
+      sim.loadManifestData({
+        functions: [], consumers: [], triggers: [], scheduledTriggers: [],
+        uiModules: [{ type: 'jira:issuePanel', key: 'p', resolverFunctionKey: 'fn' }],
+        entities: [],
+      });
+
+      await expect(sim.ui.refresh()).rejects.toThrow('No modules rendered');
+    });
   });
 
   describe('tree traversal', () => {
@@ -222,6 +363,104 @@ describe('SimulatorUI', () => {
       // After reset, doc should be null
       sim.ui.reset();
       expect(sim.ui.getForgeDoc()).toBeNull();
+    });
+  });
+
+  describe('multi-module isolation', () => {
+    it('modules have separate ForgeDoc trees', async () => {
+      sim.ui.ensureBridge();
+      const bridge = (globalThis as any).__bridge;
+
+      // Simulate rendering module A
+      sim.ui.setActiveModule('panel-a');
+      await bridge.callBridge('reconcile', {
+        forgeDoc: {
+          type: 'App', props: {}, key: 'root-a', children: [
+            { type: 'Text', props: {}, key: 't1', children: [
+              { type: 'String', props: { text: 'Panel A' }, key: 's1', children: [] },
+            ]},
+          ],
+        },
+      });
+      sim.ui.setActiveModule(null);
+
+      // Simulate rendering module B
+      sim.ui.setActiveModule('panel-b');
+      await bridge.callBridge('reconcile', {
+        forgeDoc: {
+          type: 'App', props: {}, key: 'root-b', children: [
+            { type: 'Text', props: {}, key: 't2', children: [
+              { type: 'String', props: { text: 'Panel B' }, key: 's2', children: [] },
+            ]},
+          ],
+        },
+      });
+      sim.ui.setActiveModule(null);
+
+      // Both should be independently accessible
+      const docA = sim.ui.getForgeDoc('panel-a');
+      const docB = sim.ui.getForgeDoc('panel-b');
+      expect(docA).not.toBeNull();
+      expect(docB).not.toBeNull();
+      expect(sim.ui.getTextContent(docA!)).toBe('Panel A');
+      expect(sim.ui.getTextContent(docB!)).toBe('Panel B');
+
+      // Rendered modules list
+      const modules = sim.ui.getRenderedModules();
+      expect(modules).toContain('panel-a');
+      expect(modules).toContain('panel-b');
+    });
+
+    it('getForgeDoc without key returns last rendered', async () => {
+      sim.ui.ensureBridge();
+      const bridge = (globalThis as any).__bridge;
+
+      sim.ui.setActiveModule('first');
+      await bridge.callBridge('reconcile', {
+        forgeDoc: { type: 'App', props: {}, key: 'r1', children: [] },
+      });
+
+      sim.ui.setActiveModule('second');
+      await bridge.callBridge('reconcile', {
+        forgeDoc: { type: 'App', props: {}, key: 'r2', children: [] },
+      });
+      sim.ui.setActiveModule(null);
+
+      // Without key, returns the global latest (last rendered)
+      const latest = sim.ui.getForgeDoc();
+      expect(latest).not.toBeNull();
+      expect(latest!.key).toBe('r2');
+    });
+
+    it('onModuleRender fires only for that module', async () => {
+      sim.ui.ensureBridge();
+      const bridge = (globalThis as any).__bridge;
+      const calls: string[] = [];
+
+      sim.ui.onModuleRender('target', (doc) => {
+        calls.push(sim.ui.getTextContent(doc));
+      });
+
+      // Render a different module — listener should NOT fire
+      sim.ui.setActiveModule('other');
+      await bridge.callBridge('reconcile', {
+        forgeDoc: { type: 'App', props: {}, key: 'r1', children: [
+          { type: 'String', props: { text: 'wrong' }, key: 's1', children: [] },
+        ]},
+      });
+
+      expect(calls).toHaveLength(0);
+
+      // Render the target module — listener SHOULD fire
+      sim.ui.setActiveModule('target');
+      await bridge.callBridge('reconcile', {
+        forgeDoc: { type: 'App', props: {}, key: 'r2', children: [
+          { type: 'String', props: { text: 'right' }, key: 's2', children: [] },
+        ]},
+      });
+      sim.ui.setActiveModule(null);
+
+      expect(calls).toEqual(['right']);
     });
   });
 

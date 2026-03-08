@@ -73,6 +73,11 @@ export class SimulatedResolver {
     return this.definitions.get(functionKey);
   }
 
+  /** Alias for getDefinitions() — returns all registered resolver keys. */
+  getAvailableKeys(): string[] {
+    return this.getDefinitions();
+  }
+
   /**
    * Get the current context overrides.
    */
