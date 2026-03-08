@@ -39,7 +39,7 @@ function installGlobalForgeFetch(sim: ForgeSimulator): void {
     if (descriptor.type === 'sql') {
       response = await sim.sql.handleRequest(path, init);
     } else if (descriptor.type === 'kvs') {
-      response = await sim.entityStore.handleRequest(path, init);
+      response = await sim.kvs.handleRequest(path, init);
     } else {
       const product = descriptor.remote ?? descriptor.provider ?? 'unknown';
       response = await sim.productApi.request(product, path, init);

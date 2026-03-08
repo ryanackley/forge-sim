@@ -5,12 +5,11 @@
  * into a unified simulated Forge environment.
  */
 
-import { SimulatedKVS } from './storage.js';
+import { UnifiedKVS } from './kvs.js';
 import { SimulatedQueue } from './queue.js';
 import { SimulatedResolver } from './resolver.js';
 import { SimulatedProductApi, route } from './product-api.js';
 import { SimulatedForgeSQL, type ForgeSQLOptions } from './forge-sql.js';
-import { SimulatedEntityStore, type EntitySchema } from './entity-store.js';
 import { FunctionRegistry, type ForgeFunctionType } from './function-registry.js';
 import { parseManifest, parseManifestContent, type ParsedManifest } from './manifest.js';
 import { withCapture, type ConsoleLine } from './console-capture.js';
@@ -18,13 +17,20 @@ import { resetBridge } from './ui/bridge.js';
 import type { SimulationConfig, ResolverContext, ProductApiHandler, ProductApiRequest, ProductApiResponse } from './types.js';
 
 export class ForgeSimulator {
-  readonly kvs: SimulatedKVS;
+  readonly kvs: UnifiedKVS;
   readonly queue: SimulatedQueue;
   readonly resolver: SimulatedResolver;
   readonly productApi: SimulatedProductApi;
   readonly sql: SimulatedForgeSQL;
-  readonly entityStore: SimulatedEntityStore;
   readonly functions: FunctionRegistry;
+
+  /**
+   * @deprecated Use sim.kvs instead — entity store is now unified into UnifiedKVS.
+   * This getter exists for backward compatibility only.
+   */
+  get entityStore(): UnifiedKVS {
+    return this.kvs;
+  }
 
   private manifest: ParsedManifest | null = null;
   private logs: LogEntry[] = [];
@@ -32,12 +38,11 @@ export class ForgeSimulator {
   private logListeners: Array<(entry: LogEntry) => void> = [];
 
   constructor(config?: SimulationConfig) {
-    this.kvs = new SimulatedKVS();
+    this.kvs = new UnifiedKVS();
     this.queue = new SimulatedQueue({ mode: config?.queueMode ?? 'sequential' });
     this.resolver = new SimulatedResolver();
     this.productApi = new SimulatedProductApi();
     this.sql = new SimulatedForgeSQL(config?.forgeSQL);
-    this.entityStore = new SimulatedEntityStore();
     this.functions = new FunctionRegistry();
 
     if (config?.storageLatency !== undefined) {
@@ -398,7 +403,6 @@ export class ForgeSimulator {
     this.resolver.clear();
     this.functions.clear();
     this.productApi.clear();
-    this.entityStore.clear();
     this.manifest = null;
     this.logs.length = 0;
     this.consoleLogs.length = 0;
@@ -423,18 +427,20 @@ export interface LogEntry {
 }
 
 // Re-export everything for convenience
-export { SimulatedKVS } from './storage.js';
+export { UnifiedKVS, WhereConditions, KVSQueryBuilder } from './kvs.js';
+/** @deprecated Use UnifiedKVS instead */
+export { UnifiedKVS as SimulatedKVS } from './kvs.js';
 export { SimulatedQueue } from './queue.js';
 export { SimulatedResolver } from './resolver.js';
 export { SimulatedProductApi, route } from './product-api.js';
 export { parseManifest, parseManifestContent } from './manifest.js';
-export { WhereConditions } from './storage.js';
 export { setSimulator, getSimulator } from './shims/globals.js';
 export type { ParsedManifest } from './manifest.js';
 export type { ConsoleLine } from './console-capture.js';
 export { SimulatedForgeSQL } from './forge-sql.js';
 export type { ForgeSQLOptions } from './forge-sql.js';
-export { SimulatedEntityStore } from './entity-store.js';
-export type { EntitySchema, IndexDefinition, StoredEntry } from './entity-store.js';
+/** @deprecated Use UnifiedKVS instead */
+export { UnifiedKVS as SimulatedEntityStore } from './kvs.js';
+export type { EntitySchema, IndexDefinition, StoredEntry } from './kvs.js';
 export { FunctionRegistry } from './function-registry.js';
 export type { ForgeFunctionType, RegisteredFunction } from './function-registry.js';

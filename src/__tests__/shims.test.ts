@@ -113,11 +113,19 @@ describe('Forge Shims', () => {
       expect(result.results.map((r: any) => r.key)).toEqual(['item:1', 'item:2']);
     });
 
-    it('kvs.transact() should atomically update', async () => {
-      await forgeKvs.kvs.set('counter', 0);
-      await forgeKvs.kvs.transact('counter', (val: number) => val + 1);
-      await forgeKvs.kvs.transact('counter', (val: number) => val + 1);
-      expect(await forgeKvs.kvs.get('counter')).toBe(2);
+    it('kvs.transact() builder should batch set and delete', async () => {
+      await forgeKvs.kvs.set('a', 1);
+      await forgeKvs.kvs.set('b', 2);
+
+      await forgeKvs.kvs.transact()
+        .set('a', 10)
+        .set('c', 3)
+        .delete('b')
+        .execute();
+
+      expect(await forgeKvs.kvs.get('a')).toBe(10);
+      expect(await forgeKvs.kvs.get('b')).toBeUndefined();
+      expect(await forgeKvs.kvs.get('c')).toBe(3);
     });
 
     it('secrets should use simulator secrets store', async () => {

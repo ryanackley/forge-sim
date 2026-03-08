@@ -3,7 +3,10 @@
  */
 
 export { ForgeSimulator } from './simulator.js';
-export { SimulatedKVS, WhereConditions, KVSQueryBuilder } from './storage.js';
+export { UnifiedKVS, WhereConditions, KVSQueryBuilder, EntityAPI, EntityQueryBuilder, TransactionBuilder } from './kvs.js';
+export type { EntitySchema, IndexDefinition, EntityStoreDump, StoredEntry } from './kvs.js';
+/** @deprecated Use UnifiedKVS instead */
+export { UnifiedKVS as SimulatedKVS } from './kvs.js';
 export { SimulatedQueue, SimulatedQueueInstance } from './queue.js';
 export { SimulatedResolver } from './resolver.js';
 export { SimulatedProductApi, route } from './product-api.js';

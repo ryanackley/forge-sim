@@ -42,7 +42,7 @@ export async function saveState(sim: ForgeSimulator, stateDir: string): Promise<
   }
 
   // ── Entity Store (Custom Entities + entity-store KVS + secrets) ──────
-  const entityDump = sim.entityStore.dumpAll();
+  const entityDump = sim.kvs.dumpAll();
   const entityKvsCount = entityDump.kvs?.length ?? 0;
   const entityCount = entityDump.entities?.length ?? 0;
   const secretCount = entityDump.secrets?.length ?? 0;
@@ -137,7 +137,7 @@ export async function loadState(sim: ForgeSimulator, stateDir: string): Promise<
     const total = entityKvsCount + entityCount + secretCount;
 
     if (total > 0) {
-      sim.entityStore.restoreAll(dump);
+      sim.kvs.restoreAll(dump);
       const parts: string[] = [];
       if (entityCount > 0) parts.push(`${entityCount} entities`);
       if (entityKvsCount > 0) parts.push(`${entityKvsCount} entity-store KVS`);

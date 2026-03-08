@@ -69,18 +69,18 @@ describe('Concurrent Queue Processing', () => {
       console.log(`Race condition detected: counter = ${finalValue} (expected 10 with correct code)`);
     });
 
-    it('should be safe when using kvs.transact() (the RIGHT way)', async () => {
+    it('should safely batch writes with transact() builder', async () => {
       const sim = new ForgeSimulator({
         queueMode: 'concurrent',
         storageLatency: true,
       });
       setSimulator(sim);
 
-      await sim.kvs.set('counter', 0);
-
-      // Consumer uses transact — atomic read-modify-write
-      sim.registerConsumer('work', async () => {
-        await sim.kvs.transact('counter', (val) => (val ?? 0) + 1);
+      // Each consumer writes a unique key via transaction — no conflicts
+      sim.registerConsumer('work', async (event) => {
+        await sim.kvs.transact()
+          .set(`result-${event.body.i}`, event.body.i)
+          .execute();
       });
 
       const queue = sim.createQueue({ key: 'work' });
@@ -88,8 +88,10 @@ describe('Concurrent Queue Processing', () => {
         Array.from({ length: 10 }, (_, i) => ({ body: { i } }))
       );
 
-      // transact is serialized per key — all 10 increments land
-      expect(await sim.kvs.get('counter')).toBe(10);
+      // All 10 writes should land (no conflicts since unique keys)
+      for (let i = 0; i < 10; i++) {
+        expect(await sim.kvs.get(`result-${i}`)).toBe(i);
+      }
     });
 
     it('should respect concurrency key limits', async () => {

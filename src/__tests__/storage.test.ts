@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { SimulatedKVS, WhereConditions } from '../storage.js';
+import { UnifiedKVS, WhereConditions } from '../kvs.js';
 
-describe('SimulatedKVS', () => {
-  let kvs: SimulatedKVS;
+describe('UnifiedKVS', () => {
+  let kvs: UnifiedKVS;
 
   beforeEach(() => {
-    kvs = new SimulatedKVS();
+    kvs = new UnifiedKVS();
   });
 
   describe('basic operations', () => {
@@ -131,11 +131,19 @@ describe('SimulatedKVS', () => {
   });
 
   describe('transactions', () => {
-    it('transact updates atomically', async () => {
-      await kvs.set('counter', 0);
-      const result = await kvs.transact('counter', (current) => current + 1);
-      expect(result).toBe(1);
-      expect(await kvs.get('counter')).toBe(1);
+    it('transact builder sets and deletes atomically', async () => {
+      await kvs.set('keep-me', 'hello');
+      await kvs.set('delete-me', 'goodbye');
+
+      await kvs.transact()
+        .set('new-key', 42)
+        .set('keep-me', 'updated')
+        .delete('delete-me')
+        .execute();
+
+      expect(await kvs.get('new-key')).toBe(42);
+      expect(await kvs.get('keep-me')).toBe('updated');
+      expect(await kvs.get('delete-me')).toBeUndefined();
     });
   });
 });

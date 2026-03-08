@@ -655,7 +655,7 @@ server.tool(
   },
   async ({ entityName, key }) => {
     try {
-      const res = await sim.entityStore.handleRequest('/api/v1/entity/get', {
+      const res = await sim.kvs.handleRequest('/api/v1/entity/get', {
         method: 'POST',
         body: JSON.stringify({ entityName, key }),
       });
@@ -694,7 +694,7 @@ server.tool(
         body.options = { ttlSeconds: options.ttlSeconds };
       }
 
-      const res = await sim.entityStore.handleRequest('/api/v1/entity/set', {
+      const res = await sim.kvs.handleRequest('/api/v1/entity/set', {
         method: 'POST',
         body: JSON.stringify(body),
       });
@@ -724,7 +724,7 @@ server.tool(
   },
   async ({ entityName, key }) => {
     try {
-      const res = await sim.entityStore.handleRequest('/api/v1/entity/delete', {
+      const res = await sim.kvs.handleRequest('/api/v1/entity/delete', {
         method: 'POST',
         body: JSON.stringify({ entityName, key }),
       });
@@ -776,7 +776,7 @@ server.tool(
       if (cursor) body.cursor = cursor;
       if (limit) body.limit = limit;
 
-      const res = await sim.entityStore.handleRequest('/api/v1/entity/query', {
+      const res = await sim.kvs.handleRequest('/api/v1/entity/query', {
         method: 'POST',
         body: JSON.stringify(body),
       });
@@ -802,8 +802,8 @@ server.tool(
     showSchemas: z.boolean().optional().describe('Include entity schema definitions (default: true)'),
   },
   async ({ entityName, showSchemas }) => {
-    const allEntities = sim.entityStore.dumpEntities();
-    const schemas = sim.entityStore.getEntitySchemas();
+    const allEntities = sim.kvs.dumpEntities();
+    const schemas = sim.kvs.getEntitySchemas();
 
     const output: any = {};
 

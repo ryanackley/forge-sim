@@ -42,8 +42,20 @@ const kvs = {
   deleteMany(keys: string[]) {
     return getSimulator().kvs.deleteMany(keys);
   },
-  transact(key: string, updater: (current: any) => any) {
-    return getSimulator().kvs.transact(key, updater);
+  entity(entityName: string) {
+    return getSimulator().kvs.entity(entityName);
+  },
+  transact() {
+    return getSimulator().kvs.transact();
+  },
+  batchGet(keys: string[]) {
+    return getSimulator().kvs.getMany(keys);
+  },
+  batchSet(items: Array<{ key: string; value: any }>) {
+    return getSimulator().kvs.setMany(items);
+  },
+  batchDelete(keys: string[]) {
+    return getSimulator().kvs.deleteMany(keys);
   },
 };
 
