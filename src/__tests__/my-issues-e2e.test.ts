@@ -25,9 +25,10 @@ describe('my-issues e2e', () => {
         avatarUrls: { '48x48': 'https://avatar.example.com/48.png' },
         active: true,
       },
-      'GET /rest/api/3/search': (path: string) => {
+      'POST /rest/api/3/search/jql': (path: string, opts: any) => {
+        const body = JSON.parse(opts?.body || '{}');
         // Return different results based on JQL
-        if (path.includes('assignee')) {
+        if (body.jql?.includes('assignee')) {
           return {
             total: 2,
             issues: [

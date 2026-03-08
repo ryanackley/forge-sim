@@ -43,6 +43,7 @@ export const Cell = realModule.Cell;
 export const SectionMessage = realModule.SectionMessage;
 export const Form = realModule.Form;
 export const TextField = realModule.TextField;
+export const Textfield = realModule.TextField; // Forge docs use lowercase 'f'
 export const TextArea = realModule.TextArea;
 export const Select = realModule.Select;
 export const Checkbox = realModule.Checkbox;

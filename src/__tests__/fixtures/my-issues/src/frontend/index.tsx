@@ -10,12 +10,9 @@ import ForgeReconciler, {
   Button,
   Spinner,
   SectionMessage,
-  Table,
-  Head,
-  Row,
-  Cell,
-  Link,
-  TextField,
+  DynamicTable,
+  Label,
+  Textfield,
 } from '@forge/react';
 import { invoke } from '@forge/bridge';
 
@@ -32,11 +29,8 @@ interface Issue {
 }
 
 interface UserInfo {
-  accountId: string;
   displayName: string;
   emailAddress: string;
-  avatarUrl: string;
-  active: boolean;
 }
 
 function statusAppearance(category: string): string {
@@ -49,7 +43,7 @@ function statusAppearance(category: string): string {
 }
 
 function priorityAppearance(priority: string): string {
-  switch (priority.toLowerCase()) {
+  switch ((priority || '').toLowerCase()) {
     case 'highest':
     case 'high': return 'removed';
     case 'medium': return 'default';
@@ -67,6 +61,48 @@ function timeAgo(dateStr: string): string {
   if (hours < 24) return `${hours}h ago`;
   const days = Math.floor(hours / 24);
   return `${days}d ago`;
+}
+
+const head = {
+  cells: [
+    { key: 'key', content: 'Key', isSortable: false, width: 10 },
+    { key: 'summary', content: 'Summary', isSortable: false, width: 40 },
+    { key: 'type', content: 'Type', isSortable: false, width: 10 },
+    { key: 'status', content: 'Status', isSortable: false, width: 15 },
+    { key: 'priority', content: 'Priority', isSortable: false, width: 10 },
+    { key: 'updated', content: 'Updated', isSortable: false, width: 15 },
+  ],
+};
+
+function issuesToRows(issues: Issue[]) {
+  return (issues || []).map((issue) => ({
+    key: issue.key,
+    cells: [
+      { key: 'key', content: <Text>{issue.key}</Text> },
+      { key: 'summary', content: <Text>{issue.summary}</Text> },
+      { key: 'type', content: <Lozenge>{issue.type}</Lozenge> },
+      {
+        key: 'status',
+        content: (
+          <Lozenge appearance={statusAppearance(issue.statusCategory)}>
+            {issue.status}
+          </Lozenge>
+        ),
+      },
+      {
+        key: 'priority',
+        content: (
+          <Lozenge appearance={priorityAppearance(issue.priority)}>
+            {issue.priority || 'None'}
+          </Lozenge>
+        ),
+      },
+      {
+        key: 'updated',
+        content: <Text>{issue.updated ? timeAgo(issue.updated) : '-'}</Text>,
+      },
+    ],
+  }));
 }
 
 const App = () => {
@@ -93,8 +129,8 @@ const App = () => {
 
       if (issuesResult.error) setError(issuesResult.error);
       else {
-        setIssues(issuesResult.issues);
-        setTotal(issuesResult.total);
+        setIssues(issuesResult.issues || []);
+        setTotal(issuesResult.total || 0);
       }
     } catch (err: any) {
       setError(err.message || 'Failed to load issues');
@@ -110,8 +146,8 @@ const App = () => {
       const result = await invoke('searchIssues', { query: searchQuery });
       if (result.error) setError(result.error);
       else {
-        setIssues(result.issues);
-        setTotal(result.total);
+        setIssues(result.issues || []);
+        setTotal(result.total || 0);
         setView('search');
       }
     } catch (err: any) {
@@ -139,19 +175,20 @@ const App = () => {
         {/* Header */}
         <Inline spread="space-between" alignBlock="center">
           <Inline space="space.100" alignBlock="center">
-            <Heading as="h3">
+            <Heading size="medium">
               {view === 'assigned' ? 'My Issues' : 'Search Results'}
             </Heading>
             <Badge appearance="primary">{total}</Badge>
           </Inline>
-          {user && (
-            <Text>{user.displayName}</Text>
-          )}
+          {user && <Text>{user.displayName}</Text>}
         </Inline>
 
         {/* Search */}
         <Inline space="space.100" alignBlock="center">
-          <TextField
+          <Label labelFor="search-field">Search</Label>
+          <Textfield
+            id="search-field"
+            name="search"
             placeholder="Search issues..."
             value={searchQuery}
             onChange={(e: any) => setSearchQuery(e.target.value)}
@@ -165,7 +202,7 @@ const App = () => {
           </Button>
           {view === 'search' && (
             <Button appearance="subtle" onClick={() => { setView('assigned'); loadMyIssues(); }}>
-              Back to My Issues
+              Back
             </Button>
           )}
         </Inline>
@@ -178,60 +215,29 @@ const App = () => {
         )}
 
         {/* Issues table */}
-        {issues.length === 0 ? (
+        {(issues || []).length === 0 ? (
           <SectionMessage appearance="information" title="No issues">
             <Text>
               {view === 'assigned'
-                ? 'No issues assigned to you. Nice work! 🎉'
+                ? 'No issues assigned to you.'
                 : 'No issues match your search.'}
             </Text>
           </SectionMessage>
         ) : (
-          <Table>
-            <Head>
-              <Cell><Text weight="bold">Key</Text></Cell>
-              <Cell><Text weight="bold">Summary</Text></Cell>
-              <Cell><Text weight="bold">Type</Text></Cell>
-              <Cell><Text weight="bold">Status</Text></Cell>
-              <Cell><Text weight="bold">Priority</Text></Cell>
-              <Cell><Text weight="bold">Updated</Text></Cell>
-            </Head>
-            {issues.map((issue) => (
-              <Row key={issue.key}>
-                <Cell>
-                  <Link href={`#`}>
-                    <Text>{issue.key}</Text>
-                  </Link>
-                </Cell>
-                <Cell><Text>{issue.summary}</Text></Cell>
-                <Cell><Lozenge>{issue.type}</Lozenge></Cell>
-                <Cell>
-                  <Lozenge appearance={statusAppearance(issue.statusCategory)}>
-                    {issue.status}
-                  </Lozenge>
-                </Cell>
-                <Cell>
-                  <Lozenge appearance={priorityAppearance(issue.priority)}>
-                    {issue.priority}
-                  </Lozenge>
-                </Cell>
-                <Cell>
-                  <Text>{issue.updated ? timeAgo(issue.updated) : '-'}</Text>
-                </Cell>
-              </Row>
-            ))}
-          </Table>
+          <DynamicTable
+            head={head}
+            rows={issuesToRows(issues)}
+            rowsPerPage={20}
+          />
         )}
 
         {/* Refresh */}
-        <Inline>
-          <Button
-            appearance="subtle"
-            onClick={() => { setView('assigned'); loadMyIssues(); }}
-          >
-            ↻ Refresh
-          </Button>
-        </Inline>
+        <Button
+          appearance="subtle"
+          onClick={() => { setView('assigned'); loadMyIssues(); }}
+        >
+          Refresh
+        </Button>
       </Stack>
     </Box>
   );
