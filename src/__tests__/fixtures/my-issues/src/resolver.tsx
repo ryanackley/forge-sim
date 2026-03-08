@@ -10,9 +10,15 @@ resolver.define('getMyIssues', async ({ context }) => {
   const accountId = context.accountId;
   const jql = `assignee = "${accountId}" AND resolution = Unresolved ORDER BY updated DESC`;
 
-  const response = await requestJira(
-    `/rest/api/3/search?jql=${encodeURIComponent(jql)}&maxResults=20&fields=summary,status,priority,issuetype,updated,project`
-  );
+  const response = await requestJira(`/rest/api/3/search/jql`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      jql,
+      maxResults: 20,
+      fields: ['summary', 'status', 'priority', 'issuetype', 'updated', 'project'],
+    }),
+  });
 
   if (!response.ok) {
     const text = await response.text();
@@ -76,9 +82,15 @@ resolver.define('searchIssues', async ({ payload }) => {
   const { query } = payload;
   const jql = `text ~ "${query}" ORDER BY updated DESC`;
 
-  const response = await requestJira(
-    `/rest/api/3/search?jql=${encodeURIComponent(jql)}&maxResults=10&fields=summary,status,issuetype,project`
-  );
+  const response = await requestJira(`/rest/api/3/search/jql`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      jql,
+      maxResults: 10,
+      fields: ['summary', 'status', 'issuetype', 'project'],
+    }),
+  });
 
   if (!response.ok) {
     return { issues: [], error: 'Search failed' };
