@@ -397,34 +397,33 @@ export async function devCommand(options: DevCommandOptions) {
 
   // 4c. Connect to real Atlassian APIs if credentials exist
   try {
-    const { getOAuthAppConfig } = await import('./auth/config.js');
     const { loadCredentials, getDefaultAccount, saveCredentials, upsertAccount } = await import('./auth/credentials.js');
-    const { setOAuthConfig } = await import('./auth/oauth.js');
+    const store = await loadCredentials(appDir);
+    const account = getDefaultAccount(store);
 
-    const oauthAppConfig = await getOAuthAppConfig();
-    if (oauthAppConfig) {
-      setOAuthConfig(oauthAppConfig);
-
-      const store = await loadCredentials(appDir);
-      const account = getDefaultAccount(store);
-
-      if (account) {
-        sim.productApi.connectRealApis(account, {
-          onTokenRefresh: (refreshedAccount) => {
-            // Persist refreshed tokens
-            upsertAccount(store, refreshedAccount);
-            saveCredentials(store).catch(() => {});
-          },
-        });
-      } else {
-        console.log(`  📡 No Atlassian accounts — using mock APIs`);
-        console.log(`     Run 'forge-sim auth' to connect to a real site`);
+    if (account) {
+      // Set up OAuth config for token refresh (only needed for OAuth accounts)
+      if (account.authType === 'oauth') {
+        try {
+          const { getOAuthAppConfig } = await import('./auth/config.js');
+          const { setOAuthConfig } = await import('./auth/oauth.js');
+          const oauthAppConfig = await getOAuthAppConfig();
+          if (oauthAppConfig) setOAuthConfig(oauthAppConfig);
+        } catch {}
       }
+
+      sim.productApi.connectRealApis(account, {
+        onTokenRefresh: (refreshedAccount) => {
+          upsertAccount(store, refreshedAccount);
+          saveCredentials(store).catch(() => {});
+        },
+      });
     } else {
-      console.log(`  📡 Using mock APIs (no OAuth app configured)`);
+      console.log(`  📡 No Atlassian accounts — using mock APIs`);
+      console.log(`     Run 'forge-sim auth' to connect to a real site`);
     }
-  } catch {
-    // Auth module not available or failed — continue with mocks
+  } catch (err: any) {
+    console.log(`  📡 Using mock APIs (auth load failed: ${err.message})`);
   }
 
   console.log('');
