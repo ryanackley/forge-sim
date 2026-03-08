@@ -89,6 +89,75 @@ async function tryResolveFile(specifier: string, parentURL?: string): Promise<st
   return null;
 }
 
+/**
+ * Load hook — transpile .ts and .tsx files so Node can execute them.
+ * Uses Node's built-in stripTypeScriptTypes for .ts (fast, no deps)
+ * and esbuild for .tsx (handles JSX transform).
+ */
+export async function load(
+  url: string,
+  context: { format?: string; conditions?: string[] },
+  nextLoad: Function
+): Promise<{ source: string | ArrayBuffer; format: string; shortCircuit?: boolean }> {
+  // Only handle file:// URLs with .ts or .tsx extension
+  if (!url.startsWith('file://')) return nextLoad(url, context);
+
+  // Strip cache-busting query string for extension check
+  const cleanUrl = url.split('?')[0];
+
+  if (cleanUrl.endsWith('.tsx')) {
+    // TSX needs esbuild for JSX transform
+    const filePath = fileURLToPath(cleanUrl);
+    const { readFile } = await import('node:fs/promises');
+    const source = await readFile(filePath, 'utf-8');
+
+    try {
+      const esbuild = await import('esbuild');
+      const result = await esbuild.transform(source, {
+        loader: 'tsx',
+        format: 'esm',
+        sourcefile: filePath,
+        target: 'node22',
+      });
+      return { source: result.code, format: 'module', shortCircuit: true };
+    } catch {
+      // esbuild not available — fall through to Node
+      return nextLoad(url, context);
+    }
+  }
+
+  if (cleanUrl.endsWith('.ts') && !cleanUrl.endsWith('.d.ts')) {
+    // Plain .ts — use Node's built-in type stripping (faster than esbuild)
+    const filePath = fileURLToPath(cleanUrl);
+    const { readFile } = await import('node:fs/promises');
+    const source = await readFile(filePath, 'utf-8');
+
+    try {
+      const { stripTypeScriptTypes } = await import('node:module') as any;
+      if (typeof stripTypeScriptTypes === 'function') {
+        const stripped = stripTypeScriptTypes(source, { mode: 'transform', sourceMap: false });
+        return { source: stripped, format: 'module', shortCircuit: true };
+      }
+    } catch {}
+
+    // Fallback to esbuild for older Node
+    try {
+      const esbuild = await import('esbuild');
+      const result = await esbuild.transform(source, {
+        loader: 'ts',
+        format: 'esm',
+        sourcefile: filePath,
+        target: 'node22',
+      });
+      return { source: result.code, format: 'module', shortCircuit: true };
+    } catch {}
+
+    return nextLoad(url, context);
+  }
+
+  return nextLoad(url, context);
+}
+
 export async function resolve(
   specifier: string,
   context: { parentURL?: string; conditions?: string[] },
