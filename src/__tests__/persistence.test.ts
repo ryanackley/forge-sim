@@ -165,6 +165,96 @@ describe('Persistence', () => {
     }, 30_000);
   });
 
+  // ── Entity Store Persistence ────────────────────────────────────────
+
+  describe('Entity Store', () => {
+    it('saves and restores Custom Entities', async () => {
+      // Populate entity store via handleRequest (simulates __forge_fetch__)
+      await sim.entityStore.handleRequest('/api/v1/entity/set', {
+        body: JSON.stringify({ entityName: 'Task', key: 'task-1', value: { title: 'Build tests', priority: 'high' } }),
+      });
+      await sim.entityStore.handleRequest('/api/v1/entity/set', {
+        body: JSON.stringify({ entityName: 'Task', key: 'task-2', value: { title: 'Ship feature', priority: 'medium' } }),
+      });
+      await sim.entityStore.handleRequest('/api/v1/entity/set', {
+        body: JSON.stringify({ entityName: 'User', key: 'user-1', value: { name: 'Ryan', role: 'admin' } }),
+      });
+
+      // Save
+      await saveState(sim, stateDir);
+
+      // Verify file exists
+      const raw = await readFile(join(stateDir, 'entities.json'), 'utf-8');
+      const saved = JSON.parse(raw);
+      expect(saved.entities).toHaveLength(3);
+
+      // Create fresh simulator and restore
+      const sim2 = new ForgeSimulator();
+      await loadState(sim2, stateDir);
+
+      // Verify entities are restored
+      const task1 = await sim2.entityStore.handleRequest('/api/v1/entity/get', {
+        body: JSON.stringify({ entityName: 'Task', key: 'task-1' }),
+      });
+      const task1Data = await task1.json();
+      expect(task1Data.value).toEqual({ title: 'Build tests', priority: 'high' });
+
+      const user1 = await sim2.entityStore.handleRequest('/api/v1/entity/get', {
+        body: JSON.stringify({ entityName: 'User', key: 'user-1' }),
+      });
+      const user1Data = await user1.json();
+      expect(user1Data.value).toEqual({ name: 'Ryan', role: 'admin' });
+    });
+
+    it('saves and restores entity-store plain KVS', async () => {
+      // Plain KVS through entity store (the __forge_fetch__ path)
+      await sim.entityStore.handleRequest('/api/v1/set', {
+        body: JSON.stringify({ key: 'config:theme', value: 'dark' }),
+      });
+
+      await saveState(sim, stateDir);
+
+      const sim2 = new ForgeSimulator();
+      await loadState(sim2, stateDir);
+
+      const resp = await sim2.entityStore.handleRequest('/api/v1/get', {
+        body: JSON.stringify({ key: 'config:theme' }),
+      });
+      const data = await resp.json();
+      expect(data.value).toBe('dark');
+    });
+
+    it('saves and restores secrets', async () => {
+      await sim.entityStore.handleRequest('/api/v1/secret/set', {
+        body: JSON.stringify({ key: 'api-key', value: 'sk-12345' }),
+      });
+
+      await saveState(sim, stateDir);
+
+      const sim2 = new ForgeSimulator();
+      await loadState(sim2, stateDir);
+
+      const resp = await sim2.entityStore.handleRequest('/api/v1/secret/get', {
+        body: JSON.stringify({ key: 'api-key' }),
+      });
+      const data = await resp.json();
+      expect(data.value).toBe('sk-12345');
+    });
+
+    it('skips save when entity store is empty', async () => {
+      await saveState(sim, stateDir);
+      await expect(access(join(stateDir, 'entities.json'))).rejects.toThrow();
+    });
+
+    it('hasPersistedState returns true when entities exist', async () => {
+      await sim.entityStore.handleRequest('/api/v1/entity/set', {
+        body: JSON.stringify({ entityName: 'Foo', key: 'bar', value: 'baz' }),
+      });
+      await saveState(sim, stateDir);
+      expect(await hasPersistedState(stateDir)).toBe(true);
+    });
+  });
+
   // ── hasPersistedState ──────────────────────────────────────────────
 
   describe('hasPersistedState', () => {

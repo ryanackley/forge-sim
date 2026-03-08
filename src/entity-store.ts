@@ -517,8 +517,53 @@ export class SimulatedEntityStore {
     return result;
   }
 
+  /** Dump full entity store state for persistence (KVS + entities + secrets) */
+  dumpAll(): EntityStoreDump {
+    return {
+      kvs: this.dumpKvsEntries(),
+      entities: this.dumpEntityEntries(),
+      secrets: this.dumpSecretEntries(),
+    };
+  }
+
+  /** Dump raw KVS entries (with metadata) */
+  private dumpKvsEntries(): StoredEntry[] {
+    return [...this.store.values()];
+  }
+
+  /** Dump raw entity entries (with metadata) */
+  private dumpEntityEntries(): StoredEntry[] {
+    return [...this.entities.values()];
+  }
+
+  /** Dump raw secret entries (with metadata) */
+  private dumpSecretEntries(): StoredEntry[] {
+    return [...this.secrets.values()];
+  }
+
+  /** Restore full entity store state from a dump */
+  restoreAll(dump: EntityStoreDump): void {
+    if (dump.kvs) {
+      for (const entry of dump.kvs) {
+        this.store.set(entry.key, { ...entry });
+      }
+    }
+    if (dump.entities) {
+      for (const entry of dump.entities) {
+        const ek = this.entityKey(entry.entityName!, entry.key);
+        this.entities.set(ek, { ...entry });
+      }
+    }
+    if (dump.secrets) {
+      for (const entry of dump.secrets) {
+        this.secrets.set(entry.key, { ...entry });
+      }
+    }
+  }
+
   get kvsSize(): number { return this.store.size; }
   get entitySize(): number { return this.entities.size; }
+  get secretSize(): number { return this.secrets.size; }
 
   /** Clear all storage */
   clear(): void {
@@ -536,6 +581,12 @@ export class SimulatedEntityStore {
 }
 
 // ── Types ─────────────────────────────────────────────────────────────
+
+export interface EntityStoreDump {
+  kvs?: StoredEntry[];
+  entities?: StoredEntry[];
+  secrets?: StoredEntry[];
+}
 
 export interface EntitySchema {
   attributes: Record<string, { type: string; default?: any }>;

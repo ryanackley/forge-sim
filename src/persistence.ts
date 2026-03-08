@@ -21,6 +21,7 @@ import { join } from 'node:path';
 import type { ForgeSimulator } from './simulator.js';
 
 const KVS_FILE = 'kvs.json';
+const ENTITY_FILE = 'entities.json';
 const SQL_FILE = 'sql.dump';
 
 /**
@@ -38,6 +39,22 @@ export async function saveState(sim: ForgeSimulator, stateDir: string): Promise<
   if (kvsEntryCount > 0) {
     writeFileSync(join(stateDir, KVS_FILE), JSON.stringify(kvsDump, null, 2));
     console.log(`  💾 Saved ${kvsEntryCount} KVS entries`);
+  }
+
+  // ── Entity Store (Custom Entities + entity-store KVS + secrets) ──────
+  const entityDump = sim.entityStore.dumpAll();
+  const entityKvsCount = entityDump.kvs?.length ?? 0;
+  const entityCount = entityDump.entities?.length ?? 0;
+  const secretCount = entityDump.secrets?.length ?? 0;
+  const totalEntityItems = entityKvsCount + entityCount + secretCount;
+
+  if (totalEntityItems > 0) {
+    writeFileSync(join(stateDir, ENTITY_FILE), JSON.stringify(entityDump, null, 2));
+    const parts: string[] = [];
+    if (entityCount > 0) parts.push(`${entityCount} entities`);
+    if (entityKvsCount > 0) parts.push(`${entityKvsCount} entity-store KVS`);
+    if (secretCount > 0) parts.push(`${secretCount} secrets`);
+    console.log(`  💾 Saved ${parts.join(', ')}`);
   }
 
   // ── SQL ──────────────────────────────────────────────────────────────
@@ -108,6 +125,30 @@ export async function loadState(sim: ForgeSimulator, stateDir: string): Promise<
     // No KVS state file — that's fine
   }
 
+  // ── Entity Store ─────────────────────────────────────────────────────
+  const entityPath = join(stateDir, ENTITY_FILE);
+  try {
+    await access(entityPath);
+    const raw = await readFile(entityPath, 'utf-8');
+    const dump = JSON.parse(raw);
+    const entityKvsCount = dump.kvs?.length ?? 0;
+    const entityCount = dump.entities?.length ?? 0;
+    const secretCount = dump.secrets?.length ?? 0;
+    const total = entityKvsCount + entityCount + secretCount;
+
+    if (total > 0) {
+      sim.entityStore.restoreAll(dump);
+      const parts: string[] = [];
+      if (entityCount > 0) parts.push(`${entityCount} entities`);
+      if (entityKvsCount > 0) parts.push(`${entityKvsCount} entity-store KVS`);
+      if (secretCount > 0) parts.push(`${secretCount} secrets`);
+      console.log(`  📂 Restored ${parts.join(', ')}`);
+      restored = true;
+    }
+  } catch {
+    // No entity state file — that's fine
+  }
+
   // SQL restore is handled via initSQLFilePath — already configured
   // before deploy in dev-command.ts (step 4a). No action needed here.
 
@@ -131,15 +172,13 @@ export async function getSQLDumpPath(stateDir: string): Promise<string | undefin
  * Check if persisted state exists.
  */
 export async function hasPersistedState(stateDir: string): Promise<boolean> {
-  try {
-    await access(join(stateDir, KVS_FILE));
-    return true;
-  } catch {
+  for (const file of [KVS_FILE, ENTITY_FILE, SQL_FILE]) {
     try {
-      await access(join(stateDir, SQL_FILE));
+      await access(join(stateDir, file));
       return true;
     } catch {
-      return false;
+      // continue
     }
   }
+  return false;
 }
