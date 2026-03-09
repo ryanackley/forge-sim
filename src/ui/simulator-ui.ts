@@ -257,6 +257,29 @@ export class SimulatorUI {
       if (!resourcePath) {
         throw new Error(`Resource file not found: "${resource.path}" (resolved from ${appDir})`);
       }
+
+      // Check if this is a Custom UI module (directory with index.html)
+      // Custom UI modules use @forge/bridge in the browser, not @forge/react.
+      // sim.ui.render() only works with UIKit modules.
+      const { statSync, existsSync: existsSyncCheck } = await import('node:fs');
+      const { join } = await import('node:path');
+      try {
+        const stat = statSync(resourcePath);
+        if (stat.isDirectory()) {
+          const hasIndexHtml = existsSyncCheck(join(resourcePath, 'index.html'));
+          throw new Error(
+            `UI module "${moduleKey}" is a Custom UI module` +
+            `${hasIndexHtml ? ' (has index.html)' : ''} — ` +
+            `sim.ui.render() only works with UIKit modules that use @forge/react. ` +
+            `Custom UI modules run in an iframe with @forge/bridge and need ` +
+            `\`forge-sim dev\` for browser-based rendering.`
+          );
+        }
+      } catch (e) {
+        if (e instanceof Error && e.message.includes('Custom UI module')) throw e;
+        // stat failed — let it continue and fail naturally
+      }
+
       this.resolvedResources.set(moduleKey, resourcePath);
     }
 
