@@ -1,0 +1,32 @@
+modules:
+  jira:issuePanel:
+    - key: issue-summary
+      resource: issue-frontend
+      resolver:
+        function: issue-resolver
+      render: native
+      title: Issue Summary
+
+  jira:adminPage:
+    - key: admin-settings
+      resource: admin-frontend
+      resolver:
+        function: admin-resolver
+      render: native
+      title: Admin Settings
+
+  function:
+    - key: issue-resolver
+      handler: src/issue-resolver.handler
+    - key: admin-resolver
+      handler: src/admin-resolver.handler
+
+resources:
+  - key: issue-frontend
+    path: src/issue-frontend.tsx
+  - key: admin-frontend
+    path: src/admin-frontend.tsx
+
+app:
+  id: ari:cloud:ecosystem::app/dual-panel-test
+  name: Dual Panel Test

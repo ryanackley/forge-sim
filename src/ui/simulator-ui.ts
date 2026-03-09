@@ -37,6 +37,7 @@ import {
   prettyPrint,
 } from './doc-utils.js';
 import type { ForgeSimulator } from '../simulator.js';
+import { setSimulator } from '../shims/globals.js';
 import { pathToFileURL } from 'node:url';
 
 export class SimulatorUI {
@@ -67,6 +68,9 @@ export class SimulatorUI {
    * unless you're setting up the bridge before deploying.
    */
   ensureBridge(): void {
+    // Make sure shims can access the simulator (for @forge/kvs, @forge/api, etc.)
+    setSimulator(this.sim as any);
+
     if (!this.bridgeInstalled) {
       installBridge();
       // Listen to every render and tag it with the active module key
@@ -148,6 +152,54 @@ export class SimulatorUI {
     };
   }
 
+  /**
+   * Wait until a module's ForgeDoc contains the expected text.
+   * Useful for async frontends that show "Loading..." then fetch data.
+   *
+   *   await sim.ui.render('issue-panel', { context: { issueKey: 'PROJ-1' } });
+   *   const doc = await sim.ui.waitForContent('issue-panel', 'PROJ-1');
+   */
+  async waitForContent(moduleKey: string, text: string, timeoutMs = 5000): Promise<ForgeDoc> {
+    const start = Date.now();
+
+    // Check if already there
+    const current = this.getForgeDoc(moduleKey);
+    if (current && getTextContent(current).includes(text)) {
+      return current;
+    }
+
+    // Wait for renders until content appears or timeout
+    return new Promise<ForgeDoc>((resolve, reject) => {
+      const unbind = this.onModuleRender(moduleKey, (doc) => {
+        if (getTextContent(doc).includes(text)) {
+          unbind();
+          resolve(doc);
+        }
+      });
+
+      // Also listen globally in case module key tagging missed it
+      const unbindGlobal = onRender((doc) => {
+        if (getTextContent(doc).includes(text)) {
+          unbindGlobal();
+          unbind();
+          resolve(doc);
+        }
+      });
+
+      setTimeout(() => {
+        unbind();
+        unbindGlobal();
+        const currentText = this.getForgeDoc(moduleKey)
+          ? getTextContent(this.getForgeDoc(moduleKey)!)
+          : '(no doc)';
+        reject(new Error(
+          `Timed out waiting for "${text}" in module "${moduleKey}" after ${timeoutMs}ms. ` +
+          `Current content: "${currentText}"`
+        ));
+      }, timeoutMs);
+    });
+  }
+
   /** Get all bridge calls made so far (for debugging/assertions). */
   getBridgeCalls(): BridgeCall[] {
     return getBridgeCalls();
@@ -213,7 +265,6 @@ export class SimulatorUI {
     this.moduleRenderConfig.set(moduleKey, { context: options?.context });
 
     // Apply module-scoped context for this render
-    const previousContext = this.sim.resolver.getContextOverrides();
     if (options?.context) {
       this.sim.resolver.setContext(options.context);
     }
@@ -232,8 +283,12 @@ export class SimulatorUI {
         await new Promise(resolve => setTimeout(resolve, 10));
       }
     } finally {
-      this.sim.resolver.setContext(previousContext);
-      this.setActiveModule(null);
+      // NOTE: We intentionally leave both activeModuleKey AND context set.
+      // React effects (useEffect) fire async invoke() calls that trigger
+      // re-renders AFTER this function returns. Those calls need:
+      //   1. activeModuleKey — to tag the ForgeDoc to the right module
+      //   2. context — so the resolver receives the correct context
+      // Both are overwritten on the next render() call, or cleared on reset().
     }
 
     return this.getForgeDoc(moduleKey);
