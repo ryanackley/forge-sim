@@ -2,6 +2,10 @@
  * Forge Sim Tools — REST API handler.
  *
  * Wraps the ForgeSimulator in HTTP endpoints for the tools UI.
+ * Used by both `forge-sim dev` (Vite middleware) and `forge-sim serve` (standalone daemon).
+ *
+ * The manifest can be passed directly (dev mode, known at startup) or
+ * resolved lazily from sim.getManifest() (daemon mode, set after deploy).
  */
 
 import type { IncomingMessage, ServerResponse } from 'node:http';
@@ -27,14 +31,81 @@ async function readBody(req: IncomingMessage): Promise<any> {
   });
 }
 
-export function createApiHandler(sim: ForgeSimulator, manifest: ParsedManifest): ApiHandler {
+/**
+ * Create the REST API handler.
+ *
+ * @param sim - ForgeSimulator instance
+ * @param manifestOrNull - If provided, used directly (dev mode). If null/undefined, resolved from sim.getManifest() per-request (daemon mode).
+ */
+export function createApiHandler(sim: ForgeSimulator, manifestOrNull?: ParsedManifest | null): ApiHandler {
   return async (req, res, url) => {
     const path = url.pathname;
     const method = req.method ?? 'GET';
+    const manifest = manifestOrNull ?? sim.getManifest();
 
     try {
+      // ── Health (daemon mode) ────────────────────────────────────────
+      if (path === '/api/health' && method === 'GET') {
+        return json(res, {
+          status: 'ok',
+          deployed: !!manifest,
+          appName: manifest?.raw?.app?.name ?? null,
+          uptime: process.uptime(),
+        });
+      }
+
+      // ── Deploy (daemon mode) ───────────────────────────────────────
+      if (path === '/api/deploy' && method === 'POST') {
+        const body = await readBody(req);
+        const { appDir, reset } = body;
+        if (!appDir) return json(res, { error: 'Missing appDir' }, 400);
+
+        if (reset !== false) {
+          sim.reset();
+          sim.ui.reset();
+        }
+
+        try {
+          const result = await sim.deploy(appDir);
+          return json(res, {
+            success: true,
+            app: result.manifest.raw.app,
+            loadedFunctions: result.loadedFunctions,
+            loadedResources: result.loadedResources,
+            resolvers: sim.resolver.getDefinitions(),
+            triggers: result.manifest.triggers.map((t) => ({
+              key: t.key,
+              events: t.events,
+              function: t.functionKey,
+            })),
+            consumers: result.manifest.consumers.map((c) => ({
+              key: c.key,
+              queue: c.queue,
+              function: c.functionKey,
+            })),
+            uiModules: result.manifest.uiModules.map((u) => ({
+              key: u.key,
+              type: u.type,
+              resource: u.resourceKey,
+              resolver: u.resolverFunctionKey,
+            })),
+            errors: result.errors,
+          });
+        } catch (err) {
+          return json(res, { error: err instanceof Error ? err.message : String(err) }, 500);
+        }
+      }
+
+      // ── Reset ──────────────────────────────────────────────────────
+      if (path === '/api/reset' && method === 'POST') {
+        sim.reset();
+        sim.ui.reset();
+        return json(res, { success: true, message: 'Simulator reset. All state cleared.' });
+      }
+
       // ── Manifest ───────────────────────────────────────────────────
       if (path === '/api/manifest' && method === 'GET') {
+        if (!manifest) return json(res, { error: 'No app deployed. Deploy an app first.' }, 404);
         return json(res, {
           appName: manifest.raw.app?.name,
           appId: manifest.raw.app?.id,
@@ -177,6 +248,25 @@ export function createApiHandler(sim: ForgeSimulator, manifest: ParsedManifest):
         try {
           const result = await sim.fireScheduledTrigger(key);
           return json(res, result);
+        } catch (err: any) {
+          return json(res, { error: err.message }, 500);
+        }
+      }
+
+      // ── UI State ──────────────────────────────────────────────────
+      if (path === '/api/ui/state' && method === 'GET') {
+        const doc = sim.ui.getForgeDoc();
+        if (!doc) return json(res, { rendered: false, message: 'No UI rendered yet.' });
+        return json(res, { rendered: true, tree: sim.ui.prettyPrint(doc) });
+      }
+
+      if (path === '/api/ui/render' && method === 'POST') {
+        const body = await readBody(req);
+        const { moduleKey, context } = body;
+        try {
+          const doc = await sim.ui.render(moduleKey, context);
+          if (!doc) return json(res, { rendered: false, message: 'Render returned no UI.' });
+          return json(res, { rendered: true, tree: sim.ui.prettyPrint(doc) });
         } catch (err: any) {
           return json(res, { error: err.message }, 500);
         }

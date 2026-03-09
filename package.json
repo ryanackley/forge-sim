@@ -5,10 +5,11 @@
   "type": "module",
   "bin": {
     "forge-sim": "./dist/cli.js",
-    "forge-sim-mcp": "./dist/mcp-server.js"
+    "forge-sim-mcp": "./dist/mcp-server.js",
+    "forge-sim-daemon": "./dist/daemon.js"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && chmod +x dist/cli.js dist/mcp-server.js dist/daemon.js",
     "test": "vitest run",
     "test:watch": "vitest"
   },
