@@ -78,7 +78,7 @@ export async function ensureDaemon(): Promise<number> {
       daemonScript,
     ], {
       detached: true,
-      stdio: ['ignore', 'pipe', 'ignore'],
+      stdio: ['ignore', 'pipe', 'pipe'],
       env: { ...process.env },
     });
 

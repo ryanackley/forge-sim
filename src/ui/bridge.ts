@@ -29,6 +29,8 @@ export interface BridgeCall {
   timestamp: number;
 }
 
+import type { ForgeContext } from '../context.js';
+
 // ── State ───────────────────────────────────────────────────────────────
 
 let simulator: ForgeSimulator | null = null;
@@ -37,6 +39,7 @@ let renderResolvers: Array<(doc: ForgeDoc) => void> = [];
 let renderListeners: Array<(doc: ForgeDoc) => void> = [];
 const bridgeCalls: BridgeCall[] = [];
 let tornDown = false;
+let currentForgeContext: ForgeContext | null = null;
 
 // ── Bridge command handlers ─────────────────────────────────────────────
 
@@ -90,18 +93,14 @@ async function handleFetchProduct(data: any): Promise<any> {
   };
 }
 
-async function handleGetContext(): Promise<any> {
-  // Return simulated Forge context
-  return {
-    accountId: simulator?.resolver
-      ? 'sim-user-001'
-      : 'sim-user-001',
-    cloudId: 'sim-cloud-001',
-    siteUrl: 'https://sim-site.atlassian.net',
-    moduleKey: 'sim-module',
-    extension: {},
-    locale: 'en-US',
-  };
+async function handleGetContext(): Promise<ForgeContext> {
+  if (currentForgeContext) {
+    return currentForgeContext;
+  }
+
+  // Fallback — no context has been set
+  const { buildDefaultContext } = await import('../context.js');
+  return buildDefaultContext('sim-module');
 }
 
 // ── Bridge dispatch ─────────────────────────────────────────────────────
@@ -152,6 +151,21 @@ export function connectSimulator(sim: ForgeSimulator): void {
   tornDown = false;
 }
 
+/**
+ * Set the Forge context for the current render.
+ * This is what view.getContext() / useProductContext() will return.
+ */
+export function setForgeContext(context: ForgeContext): void {
+  currentForgeContext = context;
+}
+
+/**
+ * Get the current Forge context (if set).
+ */
+export function getForgeContext(): ForgeContext | null {
+  return currentForgeContext;
+}
+
 // ── ForgeDoc access ─────────────────────────────────────────────────────
 
 /** Get the latest ForgeDoc produced by the reconciler. */
@@ -189,6 +203,7 @@ export function resetBridge(): void {
   latestForgeDoc = null;
   renderResolvers = [];
   bridgeCalls.length = 0;
+  currentForgeContext = null;
 }
 
 /** Full reset — disconnects simulator too. */

@@ -26,6 +26,7 @@ import { deploy } from './deployer.js';
 import { createDevServer } from './dev-server.js';
 import { parseManifest, type ParsedManifest, type ManifestUIModule } from './manifest.js';
 import { saveState, loadState, hasPersistedState, getSQLDumpPath } from './persistence.js';
+import { buildDefaultContext } from './context.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -434,20 +435,11 @@ export async function devCommand(options: DevCommandOptions) {
     port: wsPort,
     watchDir: join(appDir, 'src'),
     simulator: sim,
-    context: {
-      accountId: 'sim-user-001',
-      cloudId: 'sim-cloud-001',
-      siteUrl: 'https://sim-site.atlassian.net',
-      moduleKey: target.module.key,
-      environmentId: 'sim-env',
-      environmentType: 'DEVELOPMENT',
-      localId: `forge-sim-${Date.now()}`,
-      locale: 'en-US',
-      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-      extension: {
-        type: target.module.type,
-      },
-    },
+    context: buildDefaultContext(
+      target.module.key,
+      target.module.type,
+      sim.productApi.connectedAccount,
+    ),
   });
 
   // 6. Generate temp project for Vite

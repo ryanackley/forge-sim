@@ -188,18 +188,12 @@ export function createDevServer(options: DevServerOptions = {}): DevServer {
       }
 
       case 'getContext': {
-        return context ?? {
-          accountId: 'sim-user-001',
-          cloudId: 'sim-cloud-001',
-          siteUrl: 'https://sim-site.atlassian.net',
-          moduleKey: 'sim-module',
-          environmentId: 'sim-env',
-          environmentType: 'DEVELOPMENT',
-          localId: 'sim-local',
-          locale: 'en-US',
-          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-          extension: {},
-        };
+        // If a context was passed to createDevServer, use it.
+        // Otherwise build a default one.
+        if (context) return context;
+        const { buildDefaultContext } = await import('./context.js');
+        const account = simulator?.productApi.connectedAccount;
+        return buildDefaultContext('sim-module', undefined, account);
       }
 
       case 'viewSubmit':

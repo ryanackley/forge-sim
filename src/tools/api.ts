@@ -262,14 +262,23 @@ export function createApiHandler(sim: ForgeSimulator, manifestOrNull?: ParsedMan
 
       if (path === '/api/ui/render' && method === 'POST') {
         const body = await readBody(req);
-        const { moduleKey, context } = body;
+        const { moduleKey, context, issueKey, contentId, spaceKey, extension } = body;
         try {
-          const doc = await sim.ui.render(moduleKey, context);
+          const doc = await sim.ui.render(moduleKey, { context, issueKey, contentId, spaceKey, extension });
           if (!doc) return json(res, { rendered: false, message: 'Render returned no UI.' });
-          return json(res, { rendered: true, tree: sim.ui.prettyPrint(doc) });
+          const forgeContext = sim.ui.getContext(moduleKey);
+          return json(res, { rendered: true, tree: sim.ui.prettyPrint(doc), context: forgeContext });
         } catch (err: any) {
           return json(res, { error: err.message }, 500);
         }
+      }
+
+      // ── Context ────────────────────────────────────────────────────────
+      if (path === '/api/ui/context' && method === 'GET') {
+        const moduleKey = url.searchParams.get('module') ?? undefined;
+        const ctx = sim.ui.getContext(moduleKey);
+        if (!ctx) return json(res, { error: 'No context available. Render a module first.' }, 404);
+        return json(res, ctx);
       }
 
       // ── Entities ───────────────────────────────────────────────────

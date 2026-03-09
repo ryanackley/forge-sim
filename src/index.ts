@@ -17,6 +17,8 @@ export { setSimulator, getSimulator } from './shims/globals.js';
 // UI rendering (SimulatorUI is the primary API — access via sim.ui.*)
 export { SimulatorUI } from './ui/index.js';
 export type { ForgeDoc, BridgeCall } from './ui/index.js';
+export { buildForgeContext, buildDefaultContext } from './context.js';
+export type { ForgeContext, RenderContextOptions } from './context.js';
 
 // Backward-compat UI exports (deprecated — prefer sim.ui.*)
 export {

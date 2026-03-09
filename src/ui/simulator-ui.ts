@@ -25,7 +25,10 @@ import {
   resetBridge,
   onRender,
   resetAll,
+  setForgeContext,
+  getForgeContext,
 } from './bridge.js';
+import { buildForgeContext, type ForgeContext, type RenderContextOptions } from '../context.js';
 import {
   findByType,
   findFirstByType,
@@ -50,7 +53,10 @@ export class SimulatorUI {
   private activeModuleKey: string | null = null;
 
   /** Last render config per module (for refresh) */
-  private moduleRenderConfig = new Map<string, { context?: Record<string, unknown> }>();
+  private moduleRenderConfig = new Map<string, RenderContextOptions>();
+
+  /** Built Forge context per module (what useProductContext returns) */
+  private moduleContexts = new Map<string, ForgeContext>();
 
   /** Cached resource file paths (so we don't re-resolve on refresh) */
   private resolvedResources = new Map<string, string>();
@@ -119,6 +125,18 @@ export class SimulatorUI {
   /** Get all rendered module keys. */
   getRenderedModules(): string[] {
     return [...this.moduleDocs.keys()];
+  }
+
+  /**
+   * Get the Forge context for a module (what useProductContext() returns).
+   * Returns null if the module hasn't been rendered.
+   */
+  getContext(moduleKey?: string): ForgeContext | null {
+    if (moduleKey) {
+      return this.moduleContexts.get(moduleKey) ?? null;
+    }
+    // Return current bridge context
+    return getForgeContext();
   }
 
   /** Wait for the next render (reconcile) from any module. Returns the new ForgeDoc. */
@@ -215,12 +233,20 @@ export class SimulatorUI {
    * and produces a ForgeDoc. The frontend's invoke() calls are routed
    * to the module's resolver via the bridge.
    *
-   *   await sim.ui.render('my-issues-panel', {
+   *   // Full context object
+   *   await sim.ui.render('my-panel', {
    *     context: { issueKey: 'PROJ-1', projectKey: 'PROJ' }
    *   });
-   *   const doc = sim.ui.getForgeDoc('my-issues-panel');
+   *
+   *   // Item key shortcut — hydrates full context via product API
+   *   await sim.ui.render('my-panel', { issueKey: 'PROJ-42' });
+   *
+   *   // Confluence content
+   *   await sim.ui.render('my-macro', { contentId: '12345' });
+   *
+   *   const doc = sim.ui.getForgeDoc('my-panel');
    */
-  async render(moduleKey: string, options?: { context?: Record<string, unknown> }): Promise<ForgeDoc | null> {
+  async render(moduleKey: string, options?: RenderContextOptions): Promise<ForgeDoc | null> {
     const manifest = this.sim.getManifest();
     if (!manifest) {
       throw new Error('No manifest loaded. Deploy an app first.');
@@ -285,11 +311,26 @@ export class SimulatorUI {
 
     this.ensureBridge();
     this.setActiveModule(moduleKey);
-    this.moduleRenderConfig.set(moduleKey, { context: options?.context });
+    this.moduleRenderConfig.set(moduleKey, options ?? {});
 
-    // Apply module-scoped context for this render
-    if (options?.context) {
-      this.sim.resolver.setContext(options.context);
+    // Build the full Forge context for this module
+    const forgeContext = await buildForgeContext(
+      this.sim, moduleKey, uiModule.type, options ?? {},
+    );
+    this.moduleContexts.set(moduleKey, forgeContext);
+    setForgeContext(forgeContext);
+
+    // Also apply extension fields as resolver context overrides
+    // so resolver handlers get context.issueKey etc.
+    if (forgeContext.extension) {
+      const { type: _type, ...extensionFields } = forgeContext.extension;
+      this.sim.resolver.setContext({
+        ...extensionFields,
+        accountId: forgeContext.accountId,
+        cloudId: forgeContext.cloudId,
+        siteUrl: forgeContext.siteUrl,
+        moduleKey: forgeContext.moduleKey,
+      });
     }
 
     try {
@@ -327,7 +368,7 @@ export class SimulatorUI {
     const key = moduleKey ?? this.resolveOnlyModule();
     const config = this.moduleRenderConfig.get(key);
     this.moduleDocs.delete(key);
-    return this.render(key, { context: config?.context });
+    return this.render(key, config);
   }
 
   /** Resolve module key when there's exactly one rendered module. */
@@ -423,6 +464,7 @@ export class SimulatorUI {
     resetBridge();
     this.moduleDocs.clear();
     this.moduleRenderConfig.clear();
+    this.moduleContexts.clear();
     this.activeModuleKey = null;
   }
 
@@ -431,6 +473,7 @@ export class SimulatorUI {
     resetAll();
     this.moduleDocs.clear();
     this.moduleRenderConfig.clear();
+    this.moduleContexts.clear();
     this.resolvedResources.clear();
     this.moduleListeners.clear();
     this.activeModuleKey = null;

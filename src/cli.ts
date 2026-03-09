@@ -350,6 +350,76 @@ else if (command === 'sql') {
   }
 }
 
+// ── Render ──────────────────────────────────────────────────────────────
+
+else if (command === 'render') {
+  const moduleKey = args[1];
+  if (!moduleKey) {
+    console.error('Usage: forge-sim render <moduleKey> [options]');
+    console.error('  --issue PROJ-42        Set Jira issue context');
+    console.error('  --content 12345        Set Confluence content context');
+    console.error('  --space SPACEKEY       Set Confluence space context');
+    console.error('  --context \'{"k":"v"}\'   Set raw context JSON');
+    process.exit(1);
+  }
+
+  const renderOpts: Record<string, any> = {};
+
+  for (let i = 2; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === '--issue' && args[i + 1]) {
+      renderOpts.issueKey = args[++i];
+    } else if (arg === '--content' && args[i + 1]) {
+      renderOpts.contentId = args[++i];
+    } else if (arg === '--space' && args[i + 1]) {
+      renderOpts.spaceKey = args[++i];
+    } else if (arg === '--context' && args[i + 1]) {
+      try {
+        renderOpts.context = JSON.parse(args[++i]);
+      } catch {
+        console.error('Invalid JSON for --context');
+        process.exit(1);
+      }
+    }
+  }
+
+  const { daemonRequest } = await import('./daemon-client.js');
+  try {
+    const result = await daemonRequest('/api/ui/render', {
+      method: 'POST',
+      body: { moduleKey, ...renderOpts },
+      timeout: 30_000,
+    });
+
+    if (result.rendered) {
+      console.log(result.tree);
+      if (result.context?.extension) {
+        console.log('');
+        console.log('Context:');
+        console.log(`  Module:  ${result.context.moduleKey}`);
+        console.log(`  Account: ${result.context.accountId}`);
+        if (result.context.extension.issueKey) {
+          console.log(`  Issue:   ${result.context.extension.issueKey}`);
+        }
+        if (result.context.extension.projectKey) {
+          console.log(`  Project: ${result.context.extension.projectKey}`);
+        }
+        if (result.context.extension.contentId) {
+          console.log(`  Content: ${result.context.extension.contentId}`);
+        }
+        if (result.context.extension.spaceKey) {
+          console.log(`  Space:   ${result.context.extension.spaceKey}`);
+        }
+      }
+    } else {
+      console.log(result.message ?? 'No UI rendered.');
+    }
+  } catch (err: any) {
+    console.error(`❌ ${err.message}`);
+    process.exit(1);
+  }
+}
+
 // ── UI State ────────────────────────────────────────────────────────────
 
 else if (command === 'ui') {
