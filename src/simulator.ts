@@ -99,6 +99,19 @@ export class ForgeSimulator {
   /**
    * Set an already-parsed manifest (used by deployer).
    */
+  /** The app directory from the last deploy() — used by sim.ui.render() to resolve resources. */
+  private appDir: string | null = null;
+
+  /** Get the deployed app directory. */
+  getAppDir(): string | null {
+    return this.appDir;
+  }
+
+  /** Set the app directory (called by deployer). */
+  setAppDir(dir: string): void {
+    this.appDir = dir;
+  }
+
   loadManifestData(manifest: ParsedManifest): void {
     this.manifest = manifest;
 
@@ -139,14 +152,6 @@ export class ForgeSimulator {
   async invoke(functionKey: string, payload?: any): Promise<any> {
     this.log('invoke', `Invoking resolver: ${functionKey}`, payload);
 
-    // If a UI module uses this resolver, tag the render output with the module key
-    const moduleKey = this.manifest?.uiModules.find(
-      m => m.resolverFunctionKey === functionKey
-    )?.key ?? null;
-    if (moduleKey && !this.ui['activeModuleKey']) {
-      this.ui.setActiveModule(moduleKey);
-    }
-
     try {
       const { result, console: captured } = await withCapture(() =>
         this.resolver.invoke(functionKey, payload)
@@ -163,11 +168,6 @@ export class ForgeSimulator {
       }
       this.log('error', `Resolver "${functionKey}" failed: ${err}`);
       throw err;
-    } finally {
-      // Clear auto-detected module key (don't clear if sim.ui.render() set it)
-      if (moduleKey) {
-        this.ui.setActiveModule(null);
-      }
     }
   }
 

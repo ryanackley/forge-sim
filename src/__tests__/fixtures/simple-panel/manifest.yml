@@ -1,0 +1,20 @@
+modules:
+  jira:issuePanel:
+    - key: simple-panel
+      resource: main
+      resolver:
+        function: resolver
+      render: native
+      title: Simple Panel
+
+  function:
+    - key: resolver
+      handler: src/resolver.handler
+
+resources:
+  - key: main
+    path: src/frontend.tsx
+
+app:
+  id: ari:cloud:ecosystem::app/simple-panel-test
+  name: Simple Panel Test

@@ -7,8 +7,9 @@
  * Usage:
  *   const sim = new ForgeSimulator();
  *   await sim.deploy('./my-app');
- *   sim.resolver.setContext({ issueKey: 'PROJ-1' });
- *   await sim.ui.render('issue-panel');
+ *   await sim.ui.render('issue-panel', {
+ *     context: { issueKey: 'PROJ-1', projectKey: 'PROJ' }
+ *   });
  *   const doc = sim.ui.getForgeDoc('issue-panel');
  *   const btn = sim.ui.findByTypeAndText(doc, 'Button', 'Edit');
  *   sim.ui.interact(btn, 'onClick');
@@ -36,6 +37,7 @@ import {
   prettyPrint,
 } from './doc-utils.js';
 import type { ForgeSimulator } from '../simulator.js';
+import { pathToFileURL } from 'node:url';
 
 export class SimulatorUI {
   private bridgeInstalled = false;
@@ -46,8 +48,11 @@ export class SimulatorUI {
   /** Which module is currently rendering (set before invoke, cleared after) */
   private activeModuleKey: string | null = null;
 
-  /** Last render config per module (resolver key + context, for refresh) */
-  private moduleRenderConfig = new Map<string, { resolverKey: string; context?: Record<string, unknown> }>();
+  /** Last render config per module (for refresh) */
+  private moduleRenderConfig = new Map<string, { context?: Record<string, unknown> }>();
+
+  /** Cached resource file paths (so we don't re-resolve on refresh) */
+  private resolvedResources = new Map<string, string>();
 
   /** Render listeners scoped per module */
   private moduleListeners = new Map<string, Array<(doc: ForgeDoc) => void>>();
@@ -153,22 +158,25 @@ export class SimulatorUI {
   /**
    * Render a UI module by its manifest key.
    *
-   * For modules with a single resolver function, invokes it directly.
-   * For modules using @forge/react Resolver (which registers multiple
-   * definition keys like 'getMyIssues'), you need to specify which
-   * resolver to invoke:
+   * Loads the module's frontend resource (the file that calls
+   * ForgeReconciler.render()), which triggers React reconciliation
+   * and produces a ForgeDoc. The frontend's invoke() calls are routed
+   * to the module's resolver via the bridge.
    *
-   *   await sim.ui.render('my-issues-panel', 'getMyIssues');
-   *
-   * If the module's function key is directly registered as a resolver
-   * definition, it's invoked automatically:
-   *
-   *   await sim.ui.render('simple-panel');
+   *   await sim.ui.render('my-issues-panel', {
+   *     context: { issueKey: 'PROJ-1', projectKey: 'PROJ' }
+   *   });
+   *   const doc = sim.ui.getForgeDoc('my-issues-panel');
    */
-  async render(moduleKey: string, resolverKey?: string, options?: { context?: Record<string, unknown> }): Promise<ForgeDoc | null> {
+  async render(moduleKey: string, options?: { context?: Record<string, unknown> }): Promise<ForgeDoc | null> {
     const manifest = this.sim.getManifest();
     if (!manifest) {
       throw new Error('No manifest loaded. Deploy an app first.');
+    }
+
+    const appDir = this.sim.getAppDir();
+    if (!appDir) {
+      throw new Error('No app directory set. Deploy an app first.');
     }
 
     const uiModule = manifest.uiModules.find(m => m.key === moduleKey);
@@ -177,32 +185,32 @@ export class SimulatorUI {
       throw new Error(`No UI module with key "${moduleKey}". Available: ${available || 'none'}`);
     }
 
-    // Determine which resolver function to call
-    const functionKey = resolverKey ?? uiModule.resolverFunctionKey;
-    if (!functionKey) {
+    if (!uiModule.resourceKey) {
+      throw new Error(`UI module "${moduleKey}" has no resource defined in the manifest.`);
+    }
+
+    const resource = manifest.resources.get(uiModule.resourceKey);
+    if (!resource) {
       throw new Error(
-        `UI module "${moduleKey}" has no resolver function. ` +
-        `Pass the resolver key explicitly: sim.ui.render('${moduleKey}', 'myResolver')`
+        `UI module "${moduleKey}" references resource "${uiModule.resourceKey}" ` +
+        `but it's not defined in manifest resources.`
       );
     }
 
-    // Check if the function key is registered; if not, it might be a
-    // Resolver that registered multiple definitions — caller needs to
-    // specify which one.
-    const handler = this.sim.resolver.getHandler(functionKey);
-    if (!handler && !resolverKey) {
-      const available = this.sim.resolver.getAvailableKeys();
-      throw new Error(
-        `Module "${moduleKey}" references function "${functionKey}" which registered ` +
-        `multiple resolver definitions. Specify which one to render:\n` +
-        `  sim.ui.render('${moduleKey}', '<resolverKey>')\n` +
-        `Available: ${available.join(', ')}`
-      );
+    // Resolve the resource file path (cache it for refresh)
+    let resourcePath = this.resolvedResources.get(moduleKey);
+    if (!resourcePath) {
+      const { resolveResourceFile } = await import('../deployer.js');
+      resourcePath = await resolveResourceFile(appDir, resource.path) ?? undefined;
+      if (!resourcePath) {
+        throw new Error(`Resource file not found: "${resource.path}" (resolved from ${appDir})`);
+      }
+      this.resolvedResources.set(moduleKey, resourcePath);
     }
 
     this.ensureBridge();
     this.setActiveModule(moduleKey);
-    this.moduleRenderConfig.set(moduleKey, { resolverKey: functionKey, context: options?.context });
+    this.moduleRenderConfig.set(moduleKey, { context: options?.context });
 
     // Apply module-scoped context for this render
     const previousContext = this.sim.resolver.getContextOverrides();
@@ -211,9 +219,19 @@ export class SimulatorUI {
     }
 
     try {
-      await this.sim.invoke(functionKey, {});
+      // Import the frontend module — this triggers ForgeReconciler.render()
+      // which produces a ForgeDoc via the bridge.
+      // Cache-bust so refresh gets a fresh execution.
+      const fileUrl = pathToFileURL(resourcePath).href;
+      await import(fileUrl + '?t=' + Date.now());
+
+      // Give the reconciler a tick to produce the ForgeDoc
+      // (ForgeReconciler.render() is synchronous in our shim, but
+      // React effects/state updates may need a microtask)
+      if (!this.moduleDocs.has(moduleKey)) {
+        await new Promise(resolve => setTimeout(resolve, 10));
+      }
     } finally {
-      // Restore previous context
       this.sim.resolver.setContext(previousContext);
       this.setActiveModule(null);
     }
@@ -231,7 +249,7 @@ export class SimulatorUI {
     const key = moduleKey ?? this.resolveOnlyModule();
     const config = this.moduleRenderConfig.get(key);
     this.moduleDocs.delete(key);
-    return this.render(key, config?.resolverKey, { context: config?.context });
+    return this.render(key, { context: config?.context });
   }
 
   /** Resolve module key when there's exactly one rendered module. */
@@ -335,6 +353,7 @@ export class SimulatorUI {
     resetAll();
     this.moduleDocs.clear();
     this.moduleRenderConfig.clear();
+    this.resolvedResources.clear();
     this.moduleListeners.clear();
     this.activeModuleKey = null;
     this.bridgeInstalled = false;

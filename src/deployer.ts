@@ -69,7 +69,7 @@ async function resolveHandlerFile(appDir: string, fileStem: string): Promise<str
 /**
  * Find the actual file for a resource path, trying exact match first then extensions.
  */
-async function resolveResourceFile(appDir: string, resourcePath: string): Promise<string | null> {
+export async function resolveResourceFile(appDir: string, resourcePath: string): Promise<string | null> {
   const exact = resolve(appDir, resourcePath);
 
   // If the path ends in .tsx/.ts/.jsx, try .js first (Node can't import tsx natively)
@@ -288,45 +288,13 @@ export async function deploy(sim: ForgeSimulator, appDir: string): Promise<Deplo
     }
   }
 
-  // 6. Load UI resources
-  // Resources are front-end entry points (e.g. src/frontend/index.tsx) that
-  // call ForgeReconciler.render(). Loading them triggers the UI to mount
-  // and produce a ForgeDoc through the bridge.
-  for (const uiModule of manifest.uiModules) {
-    if (!uiModule.resourceKey) continue;
+  // 6. UI resources are NOT loaded during deploy.
+  // Use sim.ui.render(moduleKey) to load and render specific UI modules.
+  // This gives per-module ForgeDoc isolation and proper context scoping.
 
-    const resource = manifest.resources.get(uiModule.resourceKey);
-    if (!resource) {
-      errors.push({
-        functionKey: uiModule.key,
-        error: `UI module "${uiModule.key}" references resource "${uiModule.resourceKey}" but it's not defined in manifest resources`,
-      });
-      continue;
-    }
-
-    try {
-      const resourcePath = await resolveResourceFile(absDir, resource.path);
-      if (!resourcePath) {
-        errors.push({
-          functionKey: uiModule.key,
-          error: `Resource file not found: "${resource.path}"`,
-        });
-        continue;
-      }
-
-      const fileUrl = pathToFileURL(resourcePath).href;
-      await import(fileUrl + '?t=' + Date.now());
-      loadedResources.push(uiModule.resourceKey);
-    } catch (err) {
-      errors.push({
-        functionKey: uiModule.key,
-        error: `Failed to load resource "${resource.path}": ${err instanceof Error ? err.message : String(err)}`,
-      });
-    }
-  }
-
-  // Store manifest on simulator
+  // Store manifest + app dir on simulator
   sim.loadManifestData(manifest);
+  sim.setAppDir(absDir);
 
   return { manifest, loadedFunctions, loadedResources, errors };
 }

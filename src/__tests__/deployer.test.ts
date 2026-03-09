@@ -32,7 +32,7 @@ describe('Deployer', () => {
 
     expect(result.loadedFunctions).toContain('resolver');
     expect(result.loadedFunctions).toContain('queue-handler');
-    expect(result.loadedResources).toContain('main');
+    // Resources are no longer loaded at deploy time — use sim.ui.render() instead
     expect(result.errors).toHaveLength(0);
   });
 
@@ -83,12 +83,16 @@ describe('Deployer', () => {
     const result = await deploy(sim, TEST_APP_DIR);
 
     expect(result.loadedFunctions).toContain('resolver');
-    expect(result.loadedResources).toContain('main');
     expect(result.errors).toHaveLength(0);
 
-    // The UI resource was loaded, which triggers ForgeReconciler.render()
-    // Wait for the async data fetch to complete
-    const doc = await waitForRender();
+    // Render the UI module — this loads the frontend resource
+    // The frontend renders "Loading..." first, then async-fetches data and re-renders
+    const manifest = sim.getManifest()!;
+    const moduleKey = manifest.uiModules[0].key;
+    await sim.ui.render(moduleKey);
+
+    // Wait for the async data render (invoke→resolver→re-render)
+    const doc = await sim.ui.waitForRender();
     const text = getTextContent(doc);
 
     // The UI should show data from the resolver, which hit the mocked Jira API
