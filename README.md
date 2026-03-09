@@ -145,6 +145,37 @@ const rows = await sim.sql.query('SELECT * FROM objectives WHERE status = ?', ['
 expect(rows).toHaveLength(3);
 ```
 
+### Test your UI without a browser
+
+Render UIKit modules programmatically, interact with components, and assert on the ForgeDoc tree — no browser, no screenshots, no flaky selectors:
+
+```typescript
+// Render a Jira issue panel with context
+await sim.ui.render('issue-summary', {
+  context: { issueKey: 'PROJ-42' },
+});
+
+// Wait for async data to load
+const doc = await sim.ui.waitForContent('issue-summary', 'PROJ-42');
+
+// Assert on the rendered component tree
+const text = sim.ui.getTextContent(doc);
+expect(text).toContain('PROJ-42');
+expect(text).toContain('Views: 1');
+
+// Click a button — triggers real React state updates
+const { updatedDoc } = await sim.ui.interactWith('Button', { matchText: 'Load Comments' });
+
+// Verify the UI updated
+expect(sim.ui.getTextContent(updatedDoc)).toContain('3 comments');
+
+// Verify side effects (KVS writes, queue pushes, etc.)
+const views = await sim.kvs.get('views:PROJ-42');
+expect(views).toBe(1);
+```
+
+This is a **full integration test of your UI** — resolvers fire, KVS updates, queues process, and the ForgeDoc tree reflects the result. No mocking, no browser automation.
+
 ### Why not just mock `@forge/kvs`?
 
 Because mocking individual imports doesn't test your app. It tests your assumptions about the platform. forge-sim runs your **actual code** through an **actual runtime** — manifest parsing, function wiring, queue processing, transaction atomicity, SQL migrations — the works. When your tests pass here, they pass on Forge.

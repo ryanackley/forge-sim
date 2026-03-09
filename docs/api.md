@@ -132,18 +132,46 @@ await sim.connectRealApis({
 ### UI
 
 ```typescript
-// Render a UI module
-const doc = await sim.ui.render('my-panel', { issueKey: 'PROJ-1' });
+// Render a UI module with context
+const doc = await sim.ui.render('issue-panel', {
+  context: { issueKey: 'PROJ-42' },
+});
+
+// Wait for async content (resolvers, useEffect, etc.)
+const rendered = await sim.ui.waitForContent('issue-panel', 'PROJ-42');
 
 // Get current ForgeDoc tree
-const currentDoc = sim.ui.getForgeDoc();
+const currentDoc = sim.ui.getForgeDoc();        // default module
+const specific = sim.ui.getForgeDoc('my-panel'); // specific module
 
 // Pretty-print the UI
-console.log(sim.ui.prettyPrint(currentDoc));
+console.log(sim.ui.prettyPrint(rendered));
 
-// Find and interact with components
-const button = sim.ui.findByTypeAndText(doc, 'Button', 'Submit');
-await sim.ui.interact(button, 'onClick');
+// Get all text content as a flat string (great for assertions)
+const text = sim.ui.getTextContent(rendered);
+expect(text).toContain('PROJ-42');
+
+// Find components in the tree
+const buttons = sim.ui.findByType(doc, 'Button');
+const saveBtn = sim.ui.findByTypeAndText(doc, 'Button', 'Save');
+const primary = sim.ui.findByProps(doc, { appearance: 'primary' });
+
+// Interact with a component (fires real React event handlers)
+sim.ui.interact(saveBtn, 'onClick');
+sim.ui.interact(selectNode, 'onChange', 'option-a');
+
+// High-level: find + interact + get updated doc in one call
+const { result, updatedDoc } = await sim.ui.interactWith('Button', {
+  matchText: 'Load Comments',
+});
+
+// Render multiple modules independently (isolated ForgeDoc trees)
+await sim.ui.render('issue-summary', { context: { issueKey: 'PROJ-1' } });
+await sim.ui.render('admin-settings');
+const modules = sim.ui.getRenderedModules(); // ['issue-summary', 'admin-settings']
+
+// Refresh a module (re-renders with same context)
+await sim.ui.refresh('issue-summary');
 ```
 
 ### Logs
