@@ -312,7 +312,7 @@ UIKit components and hooks. The reconciler produces ForgeDoc.
 | `InlineEdit` | ✅ | — | Re-exported from @forge/react, rendered via @atlaskit/inline-edit |
 | `Popup` | ✅ | — | Re-exported from @forge/react, rendered via @atlaskit/popup |
 | `Comment` | ✅ | — | Re-exported + styled comment block with author/time |
-| `AdfRenderer` | ⚠️ | — | Re-exported, renders ADF as JSON preview (no full ADF → HTML rendering) |
+| `AdfRenderer` | ✅ | — | Re-exported, renders via @atlaskit/renderer ReactRenderer |
 | `Global` | ✅ | — | Re-exported, renders sidebar + main layout |
 | `User` | ✅ | — | Re-exported, renders avatar + accountId badge |
 | `UserGroup` | ✅ | — | Re-exported, renders grouped user avatars |
@@ -555,10 +555,10 @@ Features beyond individual APIs.
 | @forge/resolver | 3 | 0 | 0 | 3 |
 | @forge/react hooks | 11 | 0 | 2 | 13 |
 | @forge/react components (UIKit) | 70 | 0 | 0 | 70 |
-| @forge/react components (other) | 17 | 1 | 0 | 18 |
+| @forge/react components (other) | 18 | 0 | 0 | 18 |
 | @forge/bridge | 29 | 1 | 2 | 32 |
 | Manifest modules | 16 | 1 | 18 | 35 |
 | Platform features | 14 | 2 | 6 | 22 |
-| **Total** | **217** | **12** | **40** | **269** |
+| **Total** | **218** | **11** | **40** | **269** |
 
 **Coverage: 81% implemented, 4% partial, 15% missing**

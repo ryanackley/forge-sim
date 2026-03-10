@@ -61,6 +61,7 @@ import DynamicTable from '@atlaskit/dynamic-table';
 import Tile from '@atlaskit/tile';
 import InlineEdit from '@atlaskit/inline-edit';
 import Popup from '@atlaskit/popup';
+import { ReactRenderer as AdfReactRenderer } from '@atlaskit/renderer';
 
 // Form
 import Form, {
@@ -810,19 +811,11 @@ export const COMPONENT_MAP: Record<string, ComponentRenderer> = {
     </div>
   ),
 
-  AdfRenderer: (props) => (
-    <div style={{
-      border: '1px dashed #B3BAC5', borderRadius: '4px', padding: '8px 12px',
-      fontSize: '12px', color: '#6B778C',
-    }}>
-      <span style={{ fontWeight: 600 }}>📄 ADF Content</span>
-      {props.document && (
-        <pre style={{ fontSize: '11px', overflow: 'auto', maxHeight: '200px', marginTop: '4px' }}>
-          {typeof props.document === 'string' ? props.document : JSON.stringify(props.document, null, 2)}
-        </pre>
-      )}
-    </div>
-  ),
+  AdfRenderer: (props) => {
+    const doc = typeof props.document === 'string' ? JSON.parse(props.document) : props.document;
+    if (!doc) return null;
+    return <AdfReactRenderer document={doc} appearance={props.appearance ?? 'full-page'} />;
+  },
 
   Global: (_props, children, _doc, renderChild) => (
     <div style={{ display: 'flex', minHeight: '100vh' }}>
