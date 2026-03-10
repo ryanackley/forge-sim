@@ -59,6 +59,8 @@ import InlineDialog from '@atlaskit/inline-dialog';
 import Flag from '@atlaskit/flag';
 import DynamicTable from '@atlaskit/dynamic-table';
 import Tile from '@atlaskit/tile';
+import InlineEdit from '@atlaskit/inline-edit';
+import Popup from '@atlaskit/popup';
 
 // Form
 import Form, {
@@ -740,6 +742,147 @@ export const COMPONENT_MAP: Record<string, ComponentRenderer> = {
       </div>
       {props.defaultValue ?? 'Write a comment...'}
     </div>
+  ),
+
+  // ── Additional Components ──────────────────────────────────────────
+
+  InlineEdit: (props, children, _doc, renderChild) => {
+    const { defaultValue, onConfirm, label, isRequired, editView, readView, ...rest } = props;
+    return (
+      <InlineEdit
+        {...cleanProps(rest)}
+        label={label}
+        isRequired={isRequired}
+        defaultValue={defaultValue ?? ''}
+        onConfirm={(value: any) => callHandler(onConfirm, value)}
+        editView={({ errorMessage, ...fieldProps }: any) => (
+          <Textfield {...fieldProps} autoFocus />
+        )}
+        readView={() => (
+          <div style={{ padding: '8px 6px', lineHeight: '20px' }}>
+            {defaultValue || 'Click to edit'}
+          </div>
+        )}
+      />
+    );
+  },
+
+  Popup: (props, children, _doc, renderChild) => {
+    const { isOpen, content, trigger, onClose, placement, ...rest } = props;
+    return (
+      <Popup
+        {...cleanProps(rest)}
+        isOpen={isOpen ?? false}
+        onClose={() => callHandler(onClose)}
+        placement={placement ?? 'bottom-start'}
+        content={() => (
+          <div style={{ padding: '16px' }}>
+            {children.map((child, i) => renderChild(child, i))}
+          </div>
+        )}
+        trigger={(triggerProps: any) => (
+          <Button {...triggerProps} onClick={() => callHandler(trigger)}>
+            {props.triggerText ?? 'Open'}
+          </Button>
+        )}
+      />
+    );
+  },
+
+  Comment: (props, children, _doc, renderChild) => (
+    <div style={{
+      border: '1px solid #DFE1E6', borderRadius: '3px', padding: '12px 16px', margin: '4px 0',
+      background: '#fff',
+    }}>
+      {props.author && (
+        <div style={{ fontWeight: 600, fontSize: '14px', marginBottom: '4px', color: '#172B4D' }}>
+          {props.author}
+        </div>
+      )}
+      <div style={{ fontSize: '14px', color: '#172B4D' }}>
+        {children.map((child, i) => renderChild(child, i))}
+      </div>
+      {props.time && (
+        <div style={{ fontSize: '12px', color: '#6B778C', marginTop: '4px' }}>
+          {props.time}
+        </div>
+      )}
+    </div>
+  ),
+
+  AdfRenderer: (props) => (
+    <div style={{
+      border: '1px dashed #B3BAC5', borderRadius: '4px', padding: '8px 12px',
+      fontSize: '12px', color: '#6B778C',
+    }}>
+      <span style={{ fontWeight: 600 }}>📄 ADF Content</span>
+      {props.document && (
+        <pre style={{ fontSize: '11px', overflow: 'auto', maxHeight: '200px', marginTop: '4px' }}>
+          {typeof props.document === 'string' ? props.document : JSON.stringify(props.document, null, 2)}
+        </pre>
+      )}
+    </div>
+  ),
+
+  Global: (_props, children, _doc, renderChild) => (
+    <div style={{ display: 'flex', minHeight: '100vh' }}>
+      <nav style={{
+        width: '240px', background: '#f4f5f7', borderRight: '1px solid #DFE1E6',
+        padding: '16px',
+      }}>
+        {/* Sidebar placeholder */}
+      </nav>
+      <main style={{ flex: 1, padding: '24px' }}>
+        {children.map((child, i) => renderChild(child, i))}
+      </main>
+    </div>
+  ),
+
+  User: (props) => (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', gap: '4px',
+      background: '#F4F5F7', borderRadius: '3px', padding: '2px 6px',
+      fontSize: '14px', color: '#0052CC',
+    }}>
+      <span style={{
+        width: '20px', height: '20px', borderRadius: '50%',
+        background: '#0052CC', color: '#fff', display: 'inline-flex',
+        alignItems: 'center', justifyContent: 'center', fontSize: '10px',
+      }}>
+        {(props.accountId ?? '?').charAt(0).toUpperCase()}
+      </span>
+      {props.accountId ?? 'User'}
+    </span>
+  ),
+
+  UserGroup: (_props, children, _doc, renderChild) => (
+    <div style={{ display: 'inline-flex', gap: '-4px' }}>
+      {children.map((child, i) => renderChild(child, i))}
+    </div>
+  ),
+
+  Em: (_props, children, _doc, renderChild) => (
+    <em>{children.map((child, i) => renderChild(child, i))}</em>
+  ),
+
+  Strike: (_props, children, _doc, renderChild) => (
+    <s>{children.map((child, i) => renderChild(child, i))}</s>
+  ),
+
+  Strong: (_props, children, _doc, renderChild) => (
+    <strong>{children.map((child, i) => renderChild(child, i))}</strong>
+  ),
+
+  Frame: (props) => (
+    <iframe
+      src={props.url ?? ''}
+      title={props.title ?? 'Embedded content'}
+      style={{
+        width: '100%', height: props.height ?? '400px',
+        border: '1px solid #DFE1E6', borderRadius: '4px',
+      }}
+      sandbox="allow-scripts allow-same-origin"
+    />
   ),
 
   // ── Charts (using recharts) ─────────────────────────────────────────

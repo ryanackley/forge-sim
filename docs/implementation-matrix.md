@@ -309,17 +309,17 @@ UIKit components and hooks. The reconciler produces ForgeDoc.
 | `Link` | ✅ | — | |
 | `UserPicker` | ✅ | — | |
 | `Table` / `Head` / `Row` / `Cell` | ✅ | — | |
-| `InlineEdit` | ❌ | — | Separate module, not re-exported in shim |
-| `Popup` | ❌ | — | Separate module, not re-exported in shim |
-| `Comment` | ❌ | — | Renders ADF comment blocks |
-| `AdfRenderer` | ❌ | — | Renders Atlassian Document Format content |
-| `Global` | ❌ | — | Global page layout with sidebar |
-| `User` | ❌ | — | Renders user avatar + name by accountId |
-| `UserGroup` | ❌ | — | Renders multiple user avatars |
-| `Em` | ❌ | — | Inline emphasis markup |
-| `Strike` | ❌ | — | Strikethrough markup |
-| `Strong` | ❌ | — | Bold markup |
-| `Frame` | ❌ | — | Iframe embedding |
+| `InlineEdit` | ✅ | — | Re-exported from @forge/react, rendered via @atlaskit/inline-edit |
+| `Popup` | ✅ | — | Re-exported from @forge/react, rendered via @atlaskit/popup |
+| `Comment` | ✅ | — | Re-exported + styled comment block with author/time |
+| `AdfRenderer` | ⚠️ | — | Re-exported, renders ADF as JSON preview (no full ADF → HTML rendering) |
+| `Global` | ✅ | — | Re-exported, renders sidebar + main layout |
+| `User` | ✅ | — | Re-exported, renders avatar + accountId badge |
+| `UserGroup` | ✅ | — | Re-exported, renders grouped user avatars |
+| `Em` | ✅ | — | Re-exported, renders `<em>` |
+| `Strike` | ✅ | — | Re-exported, renders `<s>` |
+| `Strong` | ✅ | — | Re-exported, renders `<strong>` |
+| `Frame` | ✅ | — | Re-exported, renders sandboxed `<iframe>` |
 | `InlineDialog` | ✅ | — | Already in shim (via Flag/InlineDialog) |
 | `Flag` | ✅ | — | Already in shim |
 
@@ -555,10 +555,10 @@ Features beyond individual APIs.
 | @forge/resolver | 3 | 0 | 0 | 3 |
 | @forge/react hooks | 11 | 0 | 2 | 13 |
 | @forge/react components (UIKit) | 70 | 0 | 0 | 70 |
-| @forge/react components (other) | 7 | 0 | 10 | 17 |
+| @forge/react components (other) | 17 | 1 | 0 | 18 |
 | @forge/bridge | 29 | 1 | 2 | 32 |
 | Manifest modules | 16 | 1 | 18 | 35 |
 | Platform features | 14 | 2 | 6 | 22 |
-| **Total** | **207** | **12** | **50** | **269** |
+| **Total** | **217** | **12** | **40** | **269** |
 
-**Coverage: 77% implemented, 4% partial, 19% missing**
+**Coverage: 81% implemented, 4% partial, 15% missing**
