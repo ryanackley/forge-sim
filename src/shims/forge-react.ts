@@ -78,4 +78,13 @@ export const useProductContext = realModule.useProductContext;
 export const useConfig = realModule.useConfig;
 export const useTheme = realModule.useTheme;
 export const usePermissions = realModule.usePermissions;
+
+// Property hooks — these use @forge/bridge internally (requestJira/requestConfluence + view.getContext)
+// They work because our bridge shim properly routes these calls through the simulator.
+export const useIssueProperty = realModule.useIssueProperty;
+export const useContentProperty = realModule.useContentProperty;
+export const useSpaceProperty = realModule.useSpaceProperty;
+
+// Form hook — wraps react-hook-form, re-exported from real package
+export const useForm = realModule.useForm;
 export const xcss = realModule.xcss;

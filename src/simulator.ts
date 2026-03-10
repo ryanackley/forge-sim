@@ -14,6 +14,7 @@ import { FunctionRegistry, type ForgeFunctionType } from './function-registry.js
 import { parseManifest, parseManifestContent, type ParsedManifest } from './manifest.js';
 import { withCapture, type ConsoleLine } from './console-capture.js';
 import { SimulatorUI } from './ui/simulator-ui.js';
+import { PropertyStore } from './property-store.js';
 import type { SimulationConfig, ResolverContext, ProductApiHandler, ProductApiRequest, ProductApiResponse } from './types.js';
 
 export class ForgeSimulator {
@@ -23,6 +24,7 @@ export class ForgeSimulator {
   readonly productApi: SimulatedProductApi;
   readonly sql: SimulatedForgeSQL;
   readonly functions: FunctionRegistry;
+  readonly properties: PropertyStore;
 
   /** UI API — ForgeDoc access, tree traversal, interaction, bridge lifecycle. */
   readonly ui: SimulatorUI;
@@ -47,7 +49,11 @@ export class ForgeSimulator {
     this.productApi = new SimulatedProductApi();
     this.sql = new SimulatedForgeSQL(config?.forgeSQL);
     this.functions = new FunctionRegistry();
+    this.properties = new PropertyStore();
     this.ui = new SimulatorUI(this);
+
+    // Register property store as fallback routes for product APIs
+    this.productApi.registerPropertyStore(this.properties);
 
     if (config?.storageLatency !== undefined) {
       this.kvs.setLatency(config.storageLatency);
@@ -421,6 +427,7 @@ export class ForgeSimulator {
     this.resolver.clear();
     this.functions.clear();
     this.productApi.clear();
+    this.properties.clear();
     this.manifest = null;
     this.logs.length = 0;
     this.consoleLogs.length = 0;

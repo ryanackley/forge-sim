@@ -7,6 +7,7 @@
 
 import type { ProductApiHandler, ProductApiRequest, ProductApiResponse } from './types.js';
 import type { AtlassianAccount } from './auth/credentials.js';
+import type { PropertyStore } from './property-store.js';
 
 function makeResponse(
   status: number,
@@ -48,12 +49,21 @@ export class SimulatedProductApi {
   private mockRouteHandlers = new Map<string, ProductApiHandler>();
   private realApiAccount: AtlassianAccount | null = null;
   private onTokenRefresh?: (account: AtlassianAccount) => void;
+  private propertyStore: PropertyStore | null = null;
 
   constructor() {
     // Set up defaults that return helpful errors
     for (const product of ['jira', 'confluence', 'bitbucket']) {
       this.handlers.set(product, unmockedHandler(product));
     }
+  }
+
+  /**
+   * Register a PropertyStore for handling issue/content/space property routes.
+   * Property routes are checked before mock routes and real API.
+   */
+  registerPropertyStore(store: PropertyStore): void {
+    this.propertyStore = store;
   }
 
   /**
@@ -246,6 +256,17 @@ export class SimulatedProductApi {
     path: string,
     options?: ProductApiRequest
   ): Promise<ProductApiResponse> {
+    // Check property store first (issue/content/space properties)
+    if (this.propertyStore) {
+      let propResult: ProductApiResponse | null = null;
+      if (product === 'jira') {
+        propResult = this.propertyStore.handleJiraRoute(path, options);
+      } else if (product === 'confluence') {
+        propResult = this.propertyStore.handleConfluenceRoute(path, options);
+      }
+      if (propResult) return propResult;
+    }
+
     const handler = this.handlers.get(product);
     if (!handler) {
       return makeResponse(501, {
