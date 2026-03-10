@@ -17,6 +17,17 @@
 // ALL mutable state must live on globalThis.__forgeSim so every copy shares it.
 
 type ReconcileListener = (forgeDoc: any) => void;
+type ModalCloseCallback = (payload?: any) => void;
+
+interface ActiveModal {
+  overlay: HTMLElement;
+  dialog: HTMLElement;
+  iframe: HTMLIFrameElement;
+  messageHandler: (e: MessageEvent) => void;
+  escapeHandler: (e: KeyboardEvent) => void;
+  resolve: (payload?: any) => void;
+  onClose?: ModalCloseCallback;
+}
 
 const G = globalThis as any;
 if (!G.__forgeSim) {
@@ -30,6 +41,9 @@ if (!G.__forgeSim) {
     // Reconcile
     reconcileListeners: [] as ReconcileListener[],
     lastForgeDoc: null as any,
+    // Modal
+    activeModal: null as ActiveModal | null,
+    viewOnCloseCallback: null as ModalCloseCallback | null,
   };
 }
 
@@ -181,6 +195,139 @@ export function configure(opts: { wsUrl?: string }) {
   if (opts.wsUrl) G.__forgeSim.wsUrl = opts.wsUrl;
 }
 
+// ── Modal helpers ────────────────────────────────────────────────────────
+
+const MODAL_SIZES: Record<string, number> = {
+  small: 400,
+  medium: 600,
+  large: 800,
+  'x-large': 968,
+};
+
+export function isInModal(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    if (window === window.parent) return false;
+  } catch {
+    // cross-origin — assume modal
+    return true;
+  }
+  const params = new URLSearchParams(window.location.search);
+  return params.get('_modal') === 'true';
+}
+
+export function buildModalIframeURL(resource: string, context?: any): string {
+  let url = `/module/${encodeURIComponent(resource)}/?_modal=true`;
+  if (context != null) {
+    const b64 = btoa(JSON.stringify(context));
+    url += `&context=${encodeURIComponent(b64)}`;
+  }
+  return url;
+}
+
+function closeActiveModal(payload?: any) {
+  const S = G.__forgeSim;
+  const modal = S.activeModal as ActiveModal | null;
+  if (!modal) return;
+
+  window.removeEventListener('message', modal.messageHandler);
+  document.removeEventListener('keydown', modal.escapeHandler);
+  modal.overlay.remove();
+  S.activeModal = null;
+
+  if (modal.onClose) {
+    try { modal.onClose(payload); } catch {}
+  }
+  modal.resolve(payload);
+}
+
+function openModalOverlay(data: any): Promise<any> {
+  const S = G.__forgeSim;
+
+  // Close existing modal if one is open
+  if (S.activeModal) closeActiveModal();
+
+  const size = MODAL_SIZES[data?.size] || MODAL_SIZES.medium;
+  const closeOnOverlayClick = data?.closeOnOverlayClick !== false;
+  const closeOnEscape = data?.closeOnEscape !== false;
+
+  // Create overlay
+  const overlay = document.createElement('div');
+  overlay.setAttribute('data-testid', 'forge-sim-modal-overlay');
+  Object.assign(overlay.style, {
+    position: 'fixed', top: '0', left: '0', right: '0', bottom: '0',
+    backgroundColor: 'rgba(9, 30, 66, 0.54)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    zIndex: '1000',
+  });
+
+  // Create dialog
+  const dialog = document.createElement('div');
+  dialog.setAttribute('data-testid', 'forge-sim-modal-dialog');
+  dialog.setAttribute('role', 'dialog');
+  Object.assign(dialog.style, {
+    backgroundColor: '#fff', borderRadius: '3px',
+    boxShadow: '0 0 0 1px rgba(9,30,66,0.08), 0 2px 1px rgba(9,30,66,0.08), 0 0 20px -6px rgba(9,30,66,0.31)',
+    width: `${size}px`, maxHeight: '90vh',
+    display: 'flex', flexDirection: 'column', overflow: 'hidden',
+  });
+
+  // Optional title bar
+  if (data?.title) {
+    const titleBar = document.createElement('div');
+    Object.assign(titleBar.style, {
+      padding: '16px 20px', borderBottom: '1px solid #ebecf0',
+      fontSize: '20px', fontWeight: '500',
+    });
+    titleBar.textContent = data.title;
+    dialog.appendChild(titleBar);
+  }
+
+  // Create iframe
+  const iframe = document.createElement('iframe');
+  iframe.setAttribute('data-testid', 'forge-sim-modal-iframe');
+  iframe.src = buildModalIframeURL(data?.resource, data?.context);
+  Object.assign(iframe.style, {
+    width: '100%', flex: '1', border: 'none', minHeight: '200px',
+  });
+  dialog.appendChild(iframe);
+  overlay.appendChild(dialog);
+
+  return new Promise((resolve) => {
+    // Message handler for submit/close from modal iframe
+    const messageHandler = (e: MessageEvent) => {
+      if (!e.data || typeof e.data !== 'object') return;
+      if (e.data.type === 'forge-sim-modal-submit' || e.data.type === 'forge-sim-modal-close') {
+        closeActiveModal(e.data.payload);
+      }
+    };
+
+    // Escape key handler
+    const escapeHandler = (e: KeyboardEvent) => {
+      if (closeOnEscape && e.key === 'Escape') {
+        closeActiveModal();
+      }
+    };
+
+    // Overlay click handler
+    if (closeOnOverlayClick) {
+      overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) closeActiveModal();
+      });
+    }
+
+    window.addEventListener('message', messageHandler);
+    document.addEventListener('keydown', escapeHandler);
+
+    S.activeModal = {
+      overlay, dialog, iframe, messageHandler, escapeHandler, resolve,
+      onClose: data?.onClose,
+    } satisfies ActiveModal;
+
+    document.body.appendChild(overlay);
+  });
+}
+
 // ── callBridge (used internally by @forge/react reconciler) ─────────────
 
 /**
@@ -225,6 +372,29 @@ async function callBridge(cmd: string, data?: any): Promise<any> {
         contextOptions: getContextFromURL(),
       });
 
+    case 'openModal':
+      return openModalOverlay(data);
+
+    case 'submit':
+      if (isInModal()) {
+        window.parent.postMessage({ type: 'forge-sim-modal-submit', payload: data?.payload ?? data }, '*');
+        return;
+      }
+      return rpc('viewSubmit', { payload: data?.payload ?? data });
+
+    case 'close':
+      if (isInModal()) {
+        window.parent.postMessage({ type: 'forge-sim-modal-close', payload: data?.payload ?? data }, '*');
+        return;
+      }
+      return rpc('viewClose', { payload: data?.payload ?? data });
+
+    case 'onClose': {
+      const S = G.__forgeSim;
+      S.viewOnCloseCallback = data;
+      return;
+    }
+
     case 'onError':
       console.error('[forge-bridge-shim] App error:', data?.error);
       return;
@@ -268,9 +438,9 @@ export const view = {
     moduleKey: getModuleKeyFromURL(),
     contextOptions: getContextFromURL(),
   }),
-  submit: (payload?: any) => rpc('viewSubmit', { payload }),
-  close: (payload?: any) => rpc('viewClose', { payload }),
-  onClose: (_cb: () => Promise<void>) => Promise.resolve(),
+  submit: (payload?: any) => callBridge('submit', { payload }),
+  close: (payload?: any) => callBridge('close', { payload }),
+  onClose: (cb: () => Promise<void>) => { callBridge('onClose', cb); return Promise.resolve(); },
   open: () => Promise.resolve(),
   refresh: (payload?: any) => rpc('viewRefresh', { payload }),
   createHistory: () => Promise.reject(new Error('createHistory not supported in forge-sim')),
@@ -331,10 +501,10 @@ export async function requestRemote(remoteKey: string, fetchOptions?: RequestIni
 /** Modal API */
 export const Modal = class {
   private opts: any;
-  constructor(opts?: any) { this.opts = opts; }
-  open() { return rpc('modalOpen', this.opts); }
-  close(payload?: any) { return rpc('modalClose', { payload }); }
-  onClose(_cb: () => void) { return Promise.resolve(); }
+  constructor(opts?: any) { this.opts = opts || {}; }
+  open() { return callBridge('openModal', this.opts); }
+  close(payload?: any) { closeActiveModal(payload); return Promise.resolve(); }
+  onClose(cb: () => void) { this.opts.onClose = cb; return Promise.resolve(); }
 };
 
 /** Flag API */
