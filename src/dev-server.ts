@@ -188,8 +188,25 @@ export function createDevServer(options: DevServerOptions = {}): DevServer {
       }
 
       case 'getContext': {
-        // If a context was passed to createDevServer, use it.
-        // Otherwise build a default one.
+        const { moduleKey: reqModuleKey, contextOptions } = params ?? {};
+
+        // If the client sent context options (from URL query params),
+        // build a rich context using buildForgeContext
+        if (contextOptions && simulator) {
+          const { buildForgeContext } = await import('./context.js');
+          // Look up the module type from the manifest if available
+          const manifest = simulator.getManifest?.();
+          const mod = manifest?.uiModules.find((m: any) => m.key === reqModuleKey);
+          const moduleType = mod?.type ?? 'jira:issuePanel';
+          return buildForgeContext(simulator, reqModuleKey ?? 'sim-module', moduleType, contextOptions);
+        }
+
+        // If the client sent a moduleKey, rebuild context for that module
+        if (reqModuleKey && context) {
+          return { ...context, moduleKey: reqModuleKey };
+        }
+
+        // Fall back to the default context passed at startup
         if (context) return context;
         const { buildDefaultContext } = await import('./context.js');
         const account = simulator?.productApi.connectedAccount;

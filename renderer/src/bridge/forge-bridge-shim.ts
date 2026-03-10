@@ -124,6 +124,56 @@ async function rpc(method: string, params: any = {}): Promise<any> {
   });
 }
 
+// ── URL-based context extraction ────────────────────────────────────────
+
+/**
+ * Extract the module key from the current URL path.
+ * Pattern: /module/<key>/...
+ */
+function getModuleKeyFromURL(): string | undefined {
+  if (typeof window === 'undefined') return undefined;
+  const match = window.location.pathname.match(/^\/module\/([^/]+)/);
+  return match?.[1];
+}
+
+/**
+ * Extract context options from URL query params.
+ * Supports:
+ *   ?issueKey=TEST-1
+ *   ?contentId=12345
+ *   ?spaceKey=DEV
+ *   ?context=<base64-encoded JSON>
+ */
+function getContextFromURL(): Record<string, any> | undefined {
+  if (typeof window === 'undefined') return undefined;
+  const params = new URLSearchParams(window.location.search);
+
+  const result: Record<string, any> = {};
+  let hasAny = false;
+
+  const issueKey = params.get('issueKey');
+  if (issueKey) { result.issueKey = issueKey; hasAny = true; }
+
+  const contentId = params.get('contentId');
+  if (contentId) { result.contentId = contentId; hasAny = true; }
+
+  const spaceKey = params.get('spaceKey');
+  if (spaceKey) { result.spaceKey = spaceKey; hasAny = true; }
+
+  const contextB64 = params.get('context');
+  if (contextB64) {
+    try {
+      const decoded = JSON.parse(atob(contextB64));
+      Object.assign(result, decoded);
+      hasAny = true;
+    } catch {
+      console.warn('[forge-bridge-shim] Failed to decode ?context param');
+    }
+  }
+
+  return hasAny ? result : undefined;
+}
+
 // ── Configure ───────────────────────────────────────────────────────────
 
 /** Set the WebSocket URL for the forge-sim backend */
@@ -170,7 +220,10 @@ async function callBridge(cmd: string, data?: any): Promise<any> {
       });
 
     case 'getContext':
-      return rpc('getContext');
+      return rpc('getContext', {
+        moduleKey: getModuleKeyFromURL(),
+        contextOptions: getContextFromURL(),
+      });
 
     case 'onError':
       console.error('[forge-bridge-shim] App error:', data?.error);
@@ -211,7 +264,10 @@ export function makeInvoke() {
 }
 
 export const view = {
-  getContext: () => rpc('getContext'),
+  getContext: () => rpc('getContext', {
+    moduleKey: getModuleKeyFromURL(),
+    contextOptions: getContextFromURL(),
+  }),
   submit: (payload?: any) => rpc('viewSubmit', { payload }),
   close: (payload?: any) => rpc('viewClose', { payload }),
   onClose: (_cb: () => Promise<void>) => Promise.resolve(),

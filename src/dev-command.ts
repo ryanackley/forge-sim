@@ -42,7 +42,7 @@ export interface DevCommandOptions {
 
 // ── UI Module Detection ──────────────────────────────────────────────────
 
-interface DetectedModule {
+export interface DetectedModule {
   module: ManifestUIModule;
   resourcePath: string;
   mode: 'uikit' | 'customui';
@@ -59,7 +59,7 @@ interface DetectedModule {
  *   - Have a resource that points to a directory with index.html
  *   - Or a file that doesn't import @forge/react
  */
-function detectModuleType(appDir: string, manifest: ParsedManifest, mod: ManifestUIModule): DetectedModule | null {
+export function detectModuleType(appDir: string, manifest: ParsedManifest, mod: ManifestUIModule): DetectedModule | null {
   if (!mod.resourceKey) {
     // No resource = server-only module (no UI to render)
     return null;
@@ -182,23 +182,141 @@ function generateIndexHtml(title: string): string {
 </html>`;
 }
 
+// ── Module Picker Page ────────────────────────────────────────────────────
+
+export function generateModulePickerHtml(modules: DetectedModule[]): string {
+  const rows = modules.map((m) => {
+    const modeLabel = m.mode === 'uikit' ? 'UIKit 2' : 'Custom UI';
+    const modeBadge = m.mode === 'uikit'
+      ? '<span style="background:#0052CC;color:#fff;padding:2px 8px;border-radius:3px;font-size:12px">UIKit</span>'
+      : '<span style="background:#00875A;color:#fff;padding:2px 8px;border-radius:3px;font-size:12px">Custom UI</span>';
+    return `
+      <a href="/module/${m.module.key}/" style="display:block;padding:16px 20px;border:1px solid #DFE1E6;border-radius:8px;margin-bottom:12px;text-decoration:none;color:inherit;transition:box-shadow 0.15s">
+        <div style="display:flex;align-items:center;gap:12px">
+          <div style="flex:1">
+            <div style="font-size:16px;font-weight:600;color:#172B4D">${m.module.key}</div>
+            <div style="font-size:13px;color:#6B778C;margin-top:4px">${m.module.type}${m.module.title ? ' — ' + m.module.title : ''}</div>
+          </div>
+          ${modeBadge}
+        </div>
+      </a>`;
+  }).join('');
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>forge-sim — Module Picker</title>
+  <style>
+    body { margin:0; background:#F4F5F7; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Oxygen,Ubuntu,sans-serif; }
+    a:hover { box-shadow:0 2px 8px rgba(0,0,0,0.12) !important; }
+  </style>
+</head>
+<body>
+  <div style="max-width:600px;margin:60px auto;padding:0 20px">
+    <h1 style="font-size:24px;color:#172B4D;margin-bottom:8px">forge-sim dev</h1>
+    <p style="color:#6B778C;margin-bottom:32px">${modules.length} UI module${modules.length !== 1 ? 's' : ''} detected. Pick one to render:</p>
+    ${rows}
+    <div style="margin-top:24px;text-align:center">
+      <a href="/__tools/" style="color:#0052CC;font-size:13px">Open Dev Tools</a>
+    </div>
+  </div>
+</body>
+</html>`;
+}
+
+// ── Multi-Module Vite Middleware ───────────────────────────────────────────
+
+/**
+ * Installs Vite middleware that:
+ * - `/` → module picker page
+ * - `/module/<key>/` → serves that module's entry
+ * - Everything else passes through to Vite (including __tools)
+ */
+export function installModuleRouting(
+  viteServer: any,
+  modules: DetectedModule[],
+  tempDir: string,
+): void {
+  const modulesByKey = new Map(modules.map((m) => [m.module.key, m]));
+
+  const middleware = (req: any, res: any, next: any) => {
+    const url = new URL(req.url ?? '/', 'http://localhost');
+
+    // Root → module picker (but only for exact '/' with no file extension)
+    if (url.pathname === '/') {
+      res.writeHead(200, { 'Content-Type': 'text/html', 'Cache-Control': 'no-cache' });
+      res.end(generateModulePickerHtml(modules));
+      return;
+    }
+
+    // /module/<key>/ → rewrite to serve that module's index.html via Vite
+    const match = url.pathname.match(/^\/module\/([^/]+)(\/.*)?$/);
+    if (match) {
+      const key = match[1];
+      const rest = match[2] || '/';
+      const mod = modulesByKey.get(key);
+
+      if (!mod) {
+        res.writeHead(404, { 'Content-Type': 'text/html' });
+        res.end(`<h1>404</h1><p>Module "${key}" not found.</p><p><a href="/">Back to module picker</a></p>`);
+        return;
+      }
+
+      if (mod.mode === 'uikit') {
+        // Rewrite URL to serve from the module's temp subdirectory
+        // /module/<key>/ → /<key>/index.html
+        // /module/<key>/entry.tsx → /<key>/entry.tsx
+        if (rest === '/' || rest === '/index.html') {
+          req.url = `/${key}/index.html`;
+        } else {
+          req.url = `/${key}${rest}`;
+        }
+      } else {
+        // Custom UI — rewrite to serve from /_customui_<key>/ virtual prefix
+        // The Vite alias handles mapping this to the actual resource directory
+        if (rest === '/' || rest === '/index.html') {
+          req.url = `/_customui_${key}/index.html`;
+        } else {
+          req.url = `/_customui_${key}${rest}`;
+        }
+      }
+    }
+
+    next();
+  };
+
+  // Prepend to Vite's middleware stack (before Vite's catch-all)
+  const stack = (viteServer.middlewares as any).stack;
+  if (Array.isArray(stack)) {
+    stack.unshift({ route: '', handle: middleware });
+  } else {
+    viteServer.middlewares.use(middleware);
+  }
+}
+
 // ── Vite Config Builder ───────────────────────────────────────────────────
 
 /**
  * Build the Vite config as a JS object — passed directly to createServer().
  * No config file needed, so Vite doesn't have to resolve 'vite' or plugin
  * imports from the app's directory.
+ *
+ * Multi-module mode: Vite root is the temp dir containing per-module
+ * subdirectories (<key>/entry.tsx + index.html for UIKit modules).
+ * Custom UI modules are served via aliases mapping /_customui_<key>/ paths
+ * to their resource directories.
  */
 async function buildViteConfig(opts: {
   appDir: string;
   tempDir: string;
-  resourceDir: string;
-  mode: 'uikit' | 'customui';
+  modules: DetectedModule[];
   wsPort: number;
   port: number;
   forgeSimRoot: string;
 }): Promise<any> {
-  const { appDir, tempDir, resourceDir, mode, wsPort, port, forgeSimRoot } = opts;
+  const { appDir, tempDir, modules, wsPort, port, forgeSimRoot } = opts;
   const shimPath = join(forgeSimRoot, 'renderer', 'src', 'bridge', 'forge-bridge-shim.ts');
   const bridgeBarrel = join(forgeSimRoot, 'renderer', 'src', 'bridge', 'index.ts');
 
@@ -209,68 +327,77 @@ async function buildViteConfig(opts: {
   // Import the plugin directly — it's in forge-sim's node_modules
   const reactPlugin = (await import('@vitejs/plugin-react')).default;
 
-  if (mode === 'customui') {
-    // Custom UI: serve the resource directory directly.
-    // The dev's index.html is the root — @forge/bridge is aliased to our shim.
-    return {
-      configFile: false as const,
-      root: resourceDir,
-      plugins: [reactPlugin()],
-      server: {
-        port,
-        host: true,
-        open: false,
-        fs: {
-          allow: [forgeSimRoot, appDir],
-        },
-      },
-      resolve: {
-        alias: {
-          // @forge/bridge → our WebSocket shim (the FULL bridge shim, not the barrel)
-          '@forge/bridge': shimPath,
-          // For the bootstrap script import
-          'forge-sim/renderer/bridge-shim': shimPath,
-        },
-        modules: [
-          // Let the dev's custom UI find its own node_modules
-          join(resourceDir, 'node_modules'),
-          appNodeModules,
-          rendererNodeModules,
-          mainNodeModules,
-          'node_modules',
-        ],
-      },
-      define: {
-        '__FORGE_SIM_WS_URL__': JSON.stringify(`ws://localhost:${wsPort}`),
-      },
-      // Custom UI apps may not use React at all — don't force it
-      optimizeDeps: {
-        exclude: [] as string[],
-      },
-    };
+  // Build alias map: standard aliases + Custom UI resource directories
+  const aliases: Record<string, string> = {
+    '@forge/bridge': shimPath,
+    'forge-sim/renderer/bridge': bridgeBarrel,
+    'forge-sim/renderer/bridge-shim': shimPath,
+    'forge-sim/renderer/ForgeDocRenderer': join(forgeSimRoot, 'renderer', 'src', 'ForgeDocRenderer.tsx'),
+    'forge-sim/renderer/ForgeSimShell': join(forgeSimRoot, 'renderer', 'src', 'ForgeSimShell.tsx'),
+  };
+
+  // Collect all directories Vite needs fs access to
+  const fsAllow = [forgeSimRoot, appDir, tempDir];
+
+  // For Custom UI modules, add a Vite plugin to resolve /_customui_<key>/ paths
+  const customUiModules = modules.filter((m) => m.mode === 'customui');
+  for (const m of customUiModules) {
+    fsAllow.push(m.resourcePath);
   }
 
-  // UIKit: use the temp directory with generated entry point
+  // Custom UI rewrite plugin — maps /_customui_<key>/path to the resource directory
+  const customUiPlugin = {
+    name: 'forge-sim-custom-ui',
+    configureServer(server: any) {
+      server.middlewares.use((req: any, _res: any, next: any) => {
+        if (!req.url) return next();
+        const match = req.url.match(/^\/_customui_([^/]+)(\/.*)?$/);
+        if (!match) return next();
+        const key = match[1];
+        const rest = match[2] || '/index.html';
+        const mod = modules.find((m) => m.module.key === key && m.mode === 'customui');
+        if (!mod) return next();
+        // Rewrite to serve from the resource directory
+        // For directory-based Custom UI (with index.html), resourcePath is the dir
+        const resourceDir = existsSync(join(mod.resourcePath, 'index.html'))
+          ? mod.resourcePath
+          : dirname(mod.resourcePath);
+        req.url = rest;
+        // Use Vite's static file serving by changing the url
+        // We need to actually serve the file from the right directory
+        const filePath = join(resourceDir, rest);
+        if (existsSync(filePath)) {
+          const content = readFileSync(filePath);
+          const ext = filePath.split('.').pop() || '';
+          const mimeTypes: Record<string, string> = {
+            html: 'text/html', js: 'application/javascript', ts: 'application/javascript',
+            tsx: 'application/javascript', jsx: 'application/javascript',
+            css: 'text/css', json: 'application/json', svg: 'image/svg+xml',
+            png: 'image/png', jpg: 'image/jpeg', ico: 'image/x-icon',
+          };
+          _res.writeHead(200, { 'Content-Type': mimeTypes[ext] || 'application/octet-stream' });
+          _res.end(content);
+          return;
+        }
+        next();
+      });
+    },
+  };
+
   return {
     configFile: false as const,
     root: tempDir,
-    plugins: [reactPlugin()],
+    plugins: [reactPlugin(), customUiPlugin],
     server: {
       port,
       host: true,
       open: false,
       fs: {
-        allow: [forgeSimRoot, appDir],
+        allow: [...new Set(fsAllow)],
       },
     },
     resolve: {
-      alias: {
-        '@forge/bridge': shimPath,
-        'forge-sim/renderer/bridge': bridgeBarrel,
-        'forge-sim/renderer/bridge-shim': shimPath,
-        'forge-sim/renderer/ForgeDocRenderer': join(forgeSimRoot, 'renderer', 'src', 'ForgeDocRenderer.tsx'),
-        'forge-sim/renderer/ForgeSimShell': join(forgeSimRoot, 'renderer', 'src', 'ForgeSimShell.tsx'),
-      },
+      alias: aliases,
       modules: [
         rendererNodeModules,
         appNodeModules,
@@ -328,23 +455,18 @@ export async function devCommand(options: DevCommandOptions) {
     process.exit(1);
   }
 
-  // Use the first detected module (or the one matching --module key)
-  const target = moduleKey
+  // In multi-module mode, we serve ALL modules. The --module flag
+  // determines the default redirect from / when there's only one.
+  const primaryModule = moduleKey
     ? detectedModules.find((d) => d.module.key === moduleKey) ?? detectedModules[0]
     : detectedModules[0];
 
-  const modeLabel = target.mode === 'uikit' ? 'UIKit 2' : 'Custom UI';
-  console.log(`  🎯 Module: ${target.module.key} (${target.module.type})`);
-  console.log(`  🖼️  Mode: ${modeLabel}`);
-  console.log(`  📁 Resource: ${relative(appDir, target.resourcePath)}`);
-  console.log('');
-
-  if (detectedModules.length > 1) {
-    console.log(`  ℹ️  Found ${detectedModules.length} UI modules. Using "${target.module.key}".`);
-    console.log(`     Use --module <key> to pick a different one.`);
-    console.log(`     Available: ${detectedModules.map((d) => d.module.key).join(', ')}`);
-    console.log('');
+  for (const mod of detectedModules) {
+    const modeLabel = mod.mode === 'uikit' ? 'UIKit 2' : 'Custom UI';
+    console.log(`  🎯 Module: ${mod.module.key} (${mod.module.type}) — ${modeLabel}`);
+    console.log(`     Resource: ${relative(appDir, mod.resourcePath)}`);
   }
+  console.log('');
 
   // 4. Create simulator and deploy resolvers
   console.log(`  ⚙️  Starting simulator...`);
@@ -436,13 +558,13 @@ export async function devCommand(options: DevCommandOptions) {
     watchDir: join(appDir, 'src'),
     simulator: sim,
     context: buildDefaultContext(
-      target.module.key,
-      target.module.type,
+      primaryModule.module.key,
+      primaryModule.module.type,
       sim.productApi.connectedAccount,
     ),
   });
 
-  // 6. Generate temp project for Vite
+  // 6. Generate temp project for Vite (multi-module)
   const forgeSimRoot = resolve(__dirname, '..');
   const tempDir = join(appDir, '.forge-sim', 'tmp');
 
@@ -450,26 +572,33 @@ export async function devCommand(options: DevCommandOptions) {
   if (existsSync(tempDir)) {
     rmSync(tempDir, { recursive: true, force: true });
   }
+  mkdirSync(tempDir, { recursive: true });
+  writeFileSync(join(appDir, '.forge-sim', '.gitignore'), '*\n');
 
-  if (target.mode === 'uikit') {
-    // UIKit: generate entry point and index.html in temp dir
-    mkdirSync(tempDir, { recursive: true });
+  // Generate per-module entry points
+  for (const mod of detectedModules) {
+    if (mod.mode === 'uikit') {
+      const moduleDir = join(tempDir, mod.module.key);
+      mkdirSync(moduleDir, { recursive: true });
 
-    const appResourceRelative = relative(tempDir, target.resourcePath).replace(/\\/g, '/');
-    const appResourceImportPath = appResourceRelative.startsWith('.') ? appResourceRelative : './' + appResourceRelative;
-    const entryContent = generateUIKitEntry(appResourceImportPath, wsPort);
+      const appResourceRelative = relative(moduleDir, mod.resourcePath).replace(/\\/g, '/');
+      const appResourceImportPath = appResourceRelative.startsWith('.') ? appResourceRelative : './' + appResourceRelative;
+      const entryContent = generateUIKitEntry(appResourceImportPath, wsPort);
 
-    writeFileSync(join(tempDir, 'entry.tsx'), entryContent);
-    writeFileSync(join(tempDir, 'index.html'), generateIndexHtml(manifest.raw.app?.name ?? 'Forge App'));
-    // .gitignore at .forge-sim/ level covers both tmp/ and state/
-    writeFileSync(join(appDir, '.forge-sim', '.gitignore'), '*\n');
-
-    console.log(`  📦 Generated UIKit dev environment in .forge-sim/tmp/`);
-  } else {
-    // Custom UI: serve the resource directory directly.
-    // Vite uses the dev's index.html as-is, @forge/bridge is aliased to our shim.
-    console.log(`  📦 Custom UI — serving ${relative(appDir, target.resourcePath)}/ directly`);
+      writeFileSync(join(moduleDir, 'entry.tsx'), entryContent);
+      writeFileSync(join(moduleDir, 'index.html'), generateIndexHtml(
+        `${mod.module.key} — ${manifest.raw.app?.name ?? 'Forge App'}`
+      ));
+    }
+    // Custom UI modules don't need temp files — served from resource dir via middleware
   }
+
+  // Write a minimal root index.html (Vite needs one at root)
+  writeFileSync(join(tempDir, 'index.html'), generateIndexHtml(manifest.raw.app?.name ?? 'Forge App'));
+
+  const uikitCount = detectedModules.filter((m) => m.mode === 'uikit').length;
+  const customUiCount = detectedModules.filter((m) => m.mode === 'customui').length;
+  console.log(`  📦 Generated multi-module dev environment (${uikitCount} UIKit, ${customUiCount} Custom UI)`);
   console.log('');
 
   // 7. Start Vite
@@ -482,14 +611,16 @@ export async function devCommand(options: DevCommandOptions) {
     const viteConfig = await buildViteConfig({
       appDir,
       tempDir,
-      resourceDir: target.resourcePath,
-      mode: target.mode,
+      modules: detectedModules,
       wsPort,
       port,
       forgeSimRoot,
     });
 
     const viteServer = await createServer(viteConfig);
+
+    // Install multi-module routing middleware (before Vite's catch-all)
+    installModuleRouting(viteServer, detectedModules, tempDir);
 
     await viteServer.listen();
 
@@ -501,7 +632,7 @@ export async function devCommand(options: DevCommandOptions) {
     console.log('');
     console.log(`  🔥 forge-sim dev server running!`);
     console.log('');
-    console.log(`     ${modeLabel} mode • ${target.module.type}:${target.module.key}`);
+    console.log(`     ${detectedModules.length} module${detectedModules.length !== 1 ? 's' : ''} available`);
     console.log('');
     console.log(`     ➜ Local:   ${localUrl}`);
     if (networkUrl) {
@@ -520,7 +651,10 @@ export async function devCommand(options: DevCommandOptions) {
 
     console.log(`     ➜ Tools:   ${localUrl}__tools/`);
     console.log('');
-    console.log(`     ${target.mode === 'uikit' ? '🎨 Rendering with real Atlaskit components' : '🖥️  Custom UI — your app renders directly'}`);
+    for (const mod of detectedModules) {
+      console.log(`     ➜ ${mod.module.key}: ${localUrl}module/${mod.module.key}/`);
+    }
+    console.log('');
     console.log(`     🔧 Source maps enabled — debug in Chrome DevTools`);
     console.log(`     ♻️  HMR enabled — edits refresh automatically`);
     console.log('');
