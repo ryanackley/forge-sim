@@ -125,9 +125,12 @@ export async function buildForgeContext(
     if (options.context.issueKey && JIRA_ISSUE_MODULES.has(moduleType)) {
       try {
         base.extension = await hydrateJiraIssueContext(sim, moduleType, options.context.issueKey as string);
-        // Merge any extra fields they passed
-        const { issueKey: _ik, issueId: _ii, projectKey: _pk, ...extra } = options.context;
-        Object.assign(base.extension, extra);
+        // Merge extra fields from original context, but don't overwrite hydrated values
+        for (const [key, value] of Object.entries(options.context)) {
+          if (!(key in base.extension)) {
+            base.extension[key] = value;
+          }
+        }
         return base;
       } catch {
         // Fall through to simple merge if API call fails
@@ -177,15 +180,19 @@ async function hydrateJiraIssueContext(
       extension.projectKey = extension.project.key;
       extension.projectId = extension.project.id;
     } else {
-      // API call failed — use the key as-is
+      // API call failed — use the key as-is with project key extracted
       extension.issueKey = issueKey;
       extension.issue = { key: issueKey };
+      const projectKey = issueKey.split('-')[0];
+      if (projectKey) {
+        extension.projectKey = projectKey;
+        extension.project = { key: projectKey };
+      }
     }
   } catch {
     // No real API available — use the key as-is with minimal context
     extension.issueKey = issueKey;
     extension.issue = { key: issueKey };
-    // Try to extract project key from issue key (PROJ-123 → PROJ)
     const projectKey = issueKey.split('-')[0];
     if (projectKey) {
       extension.projectKey = projectKey;
