@@ -242,9 +242,82 @@ export const featureFlags = {
 
 // ── i18n ────────────────────────────────────────────────────────────────
 
+/**
+ * Get the I18nStore from the simulator (if available).
+ * Falls back to a stub that returns keys as-is.
+ */
+function getI18nStore(): import('../i18n-store.js').I18nStore | null {
+  try {
+    const sim = (globalThis as any).__forgeSimulator;
+    return sim?.i18n ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export type TranslationFunction = (i18nKey: string, defaultValue?: string) => string;
+
+export interface GetTranslationsResult {
+  locale: string;
+  translations: Record<string, any> | null;
+}
+
+export interface GetTranslationsOptions {
+  fallback: boolean;
+}
+
+let translationFunctionCache: Map<string, TranslationFunction> = new Map();
+
 export const i18n = {
-  getLocale(): Promise<string> {
-    return Promise.resolve('en');
+  resetTranslationsCache(): void {
+    translationFunctionCache.clear();
+    const store = getI18nStore();
+    if (store) {
+      store.clear();
+    }
+  },
+
+  async getTranslations(
+    locale?: string | null,
+    options: GetTranslationsOptions = { fallback: true }
+  ): Promise<GetTranslationsResult> {
+    let targetLocale: string = locale ?? '';
+    if (!targetLocale) {
+      const ctx = await view.getContext();
+      targetLocale = ctx.locale ?? 'en-US';
+    }
+
+    const store = getI18nStore();
+    if (store?.hasTranslations) {
+      return store.getTranslations(targetLocale, options);
+    }
+
+    // No store or no translations loaded — return empty
+    return { locale: targetLocale, translations: null };
+  },
+
+  async createTranslationFunction(locale?: string | null): Promise<TranslationFunction> {
+    let targetLocale: string = locale ?? '';
+    if (!targetLocale) {
+      const ctx = await view.getContext();
+      targetLocale = ctx.locale ?? 'en-US';
+    }
+
+    // Check cache
+    const cached = translationFunctionCache.get(targetLocale);
+    if (cached) return cached;
+
+    const store = getI18nStore();
+    if (store?.hasTranslations) {
+      const fn = await store.createTranslationFunction(targetLocale);
+      translationFunctionCache.set(targetLocale, fn);
+      return fn;
+    }
+
+    // No translations — return identity function (key or defaultValue)
+    const fn: TranslationFunction = (key, defaultValue) => defaultValue ?? key;
+    translationFunctionCache.set(targetLocale, fn);
+    return fn;
   },
 };
 

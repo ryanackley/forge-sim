@@ -69,3 +69,6 @@ export type {
   ManifestScheduledTrigger,
   ManifestUIModule,
 } from './manifest.js';
+
+export { I18nStore } from './i18n-store.js';
+export type { I18nInfoConfig, TranslationResource, GetTranslationsResult } from './i18n-store.js';

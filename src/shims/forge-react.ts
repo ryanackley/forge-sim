@@ -88,3 +88,8 @@ export const useSpaceProperty = realModule.useSpaceProperty;
 // Form hook — wraps react-hook-form, re-exported from real package
 export const useForm = realModule.useForm;
 export const xcss = realModule.xcss;
+
+// i18n — useTranslation reads from I18nContext (set by I18nProvider),
+// which calls bridge.i18n.createTranslationFunction → our I18nStore
+export const useTranslation = realModule.useTranslation;
+export const I18nProvider = realModule.I18nProvider;

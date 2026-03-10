@@ -15,6 +15,7 @@ import { parseManifest, parseManifestContent, type ParsedManifest } from './mani
 import { withCapture, type ConsoleLine } from './console-capture.js';
 import { SimulatorUI } from './ui/simulator-ui.js';
 import { PropertyStore } from './property-store.js';
+import { I18nStore } from './i18n-store.js';
 import type { SimulationConfig, ResolverContext, ProductApiHandler, ProductApiRequest, ProductApiResponse } from './types.js';
 
 export class ForgeSimulator {
@@ -25,6 +26,7 @@ export class ForgeSimulator {
   readonly sql: SimulatedForgeSQL;
   readonly functions: FunctionRegistry;
   readonly properties: PropertyStore;
+  readonly i18n: I18nStore;
 
   /** UI API — ForgeDoc access, tree traversal, interaction, bridge lifecycle. */
   readonly ui: SimulatorUI;
@@ -50,6 +52,7 @@ export class ForgeSimulator {
     this.sql = new SimulatedForgeSQL(config?.forgeSQL);
     this.functions = new FunctionRegistry();
     this.properties = new PropertyStore();
+    this.i18n = new I18nStore();
     this.ui = new SimulatorUI(this);
 
     // Register property store as fallback routes for product APIs
@@ -116,6 +119,8 @@ export class ForgeSimulator {
   /** Set the app directory (called by deployer). */
   setAppDir(dir: string): void {
     this.appDir = dir;
+    // Auto-load translations if the app has a __LOCALES__ directory
+    this.i18n.loadFromAppDir(dir);
   }
 
   loadManifestData(manifest: ParsedManifest): void {
@@ -428,6 +433,7 @@ export class ForgeSimulator {
     this.functions.clear();
     this.productApi.clear();
     this.properties.clear();
+    this.i18n.clear();
     this.manifest = null;
     this.logs.length = 0;
     this.consoleLogs.length = 0;

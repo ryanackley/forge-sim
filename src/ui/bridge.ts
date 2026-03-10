@@ -149,6 +149,8 @@ export function installBridge(): void {
 export function connectSimulator(sim: ForgeSimulator): void {
   simulator = sim;
   tornDown = false;
+  // Expose simulator on globalThis so the bridge shim can access i18n store etc.
+  (globalThis as any).__forgeSimulator = sim;
 }
 
 /**
