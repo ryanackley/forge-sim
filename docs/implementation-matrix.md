@@ -3,7 +3,7 @@
 Complete mapping of every Forge API, hook, component, and platform feature against forge-sim's implementation status.
 
 **Last updated:** 2026-03-10  
-**forge-sim test count:** 417 tests across 28 files
+**forge-sim test count:** 499 tests across 31 files
 
 ### Legend
 
@@ -353,9 +353,9 @@ Frontend API for Custom UI apps (runs in iframe).
 | API | Status | Tests | Notes |
 |-----|--------|-------|-------|
 | `view.getContext()` | ✅ | `custom-ui-e2e.test.ts` | Full ForgeContext: accountId, cloudId, locale, timezone, theme, license, extension data. Hydrates via product API for Jira Issue + Confluence Content modules |
-| `view.submit(payload)` | 🔇 | — | Logs but doesn't propagate to parent/modal opener |
-| `view.close(payload)` | 🔇 | — | Logs but doesn't close anything |
-| `view.onClose(callback)` | 🔇 | — | Registered but never fires |
+| `view.submit(payload)` | ✅ | `modal-bridge.test.ts` | In modal: postMessage to parent → closes overlay → fires onClose. Outside modal: RPC to backend |
+| `view.close(payload)` | ✅ | `modal-bridge.test.ts` | Same as submit — postMessage in modal, RPC otherwise |
+| `view.onClose(callback)` | ✅ | `modal-bridge.test.ts` | Stores callback, fires when modal closes |
 | `view.open()` | 🔇 | — | No-op |
 | `view.refresh(payload)` | 🔇 | — | No-op (should re-render the module) |
 | `view.createHistory()` | ❌ | — | Client-side routing history. Returns nothing |
@@ -368,8 +368,8 @@ Frontend API for Custom UI apps (runs in iframe).
 
 | API | Status | Tests | Notes |
 |-----|--------|-------|-------|
-| `new Modal(options)` | ⚠️ | — | Constructor works, stores options |
-| `modal.open()` | 🔇 | — | Logs but doesn't render a modal. Should load the modal's resource and display it |
+| `new Modal(options)` | ✅ | `modal-bridge.test.ts` | Full options: resource, onClose, size, context, closeOnEscape, closeOnOverlayClick, title |
+| `modal.open()` | ✅ | `modal-bridge.test.ts` | Creates Atlaskit-style overlay + iframe to `/module/<resource>/?_modal=true&context=<b64>` |
 
 ### Router
 
@@ -556,9 +556,9 @@ Features beyond individual APIs.
 | @forge/react hooks | 11 | 0 | 2 | 13 |
 | @forge/react components (UIKit) | 70 | 0 | 0 | 70 |
 | @forge/react components (other) | 7 | 0 | 10 | 17 |
-| @forge/bridge | 14 | 8 | 10 | 32 |
+| @forge/bridge | 19 | 5 | 8 | 32 |
 | Manifest modules | 16 | 1 | 18 | 35 |
 | Platform features | 14 | 2 | 6 | 22 |
-| **Total** | **192** | **19** | **58** | **269** |
+| **Total** | **197** | **16** | **56** | **269** |
 
-**Coverage: 71% implemented, 7% partial, 22% missing**
+**Coverage: 73% implemented, 6% partial, 21% missing**
