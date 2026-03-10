@@ -2,8 +2,8 @@
 
 Complete mapping of every Forge API, hook, component, and platform feature against forge-sim's implementation status.
 
-**Last updated:** 2026-03-09  
-**forge-sim test count:** 384 tests across 26 files
+**Last updated:** 2026-03-10  
+**forge-sim test count:** 417 tests across 28 files
 
 ### Legend
 
@@ -73,7 +73,7 @@ The main backend API package. Imported by resolver/trigger/consumer functions.
 | `privacy.check()` | 🔇 | — | Always returns `{ hasAccess: true }` |
 | `privacy.reportPersonalData()` | ❌ | — | Not implemented |
 | `permissions.check()` | 🔇 | — | Always returns `{ hasAccess: true }` |
-| `i18n.getMessage(key)` | ⚠️ | — | Returns the key as-is (no translation) |
+| `i18n.getMessage(key)` | ⚠️ | — | Backend i18n — returns the key as-is (no translation). See @forge/bridge i18n for frontend |
 | `createRequestStargateAsApp()` | 🔇 | — | Returns same API client |
 | `__fetchProduct()` | ✅ | `forge-sql.test.ts` | Handles SQL fetch function and product API calls |
 
@@ -215,13 +215,13 @@ UIKit components and hooks. The reconciler produces ForgeDoc.
 | `useConfig()` | ✅ | — | Re-exported from real package |
 | `useTheme()` | ✅ | — | Re-exported from real package |
 | `usePermissions()` | ✅ | — | Re-exported from real package |
-| `useIssueProperty(key, init)` | ❌ | — | Reads/writes Jira issue properties. Very common. Needs product API integration |
-| `useContentProperty(key, init)` | ❌ | — | Reads/writes Confluence content properties. Needs product API integration |
-| `useSpaceProperty(key, init)` | ❌ | — | Reads/writes Confluence space properties. Needs product API integration |
-| `useTranslation()` | ❌ | — | Returns translated strings. Needs i18n file loading |
-| `I18nProvider` | ❌ | — | Wraps app for i18n context |
-| `useForm()` | ❌ | — | Form state management (wraps react-hook-form). Could re-export directly |
-| `useObjectStore()` | ❌ | — | File upload/download. Needs Object Store backend |
+| `useIssueProperty(key, init)` | ✅ | — | Re-exported from real package; routes through bridge shim → PropertyStore |
+| `useContentProperty(key, init)` | ✅ | — | Re-exported from real package; routes through bridge shim → PropertyStore |
+| `useSpaceProperty(key, init)` | ✅ | — | Re-exported from real package; routes through bridge shim → PropertyStore |
+| `useTranslation()` | ✅ | — | Re-exported from real package; reads from I18nProvider context → bridge i18n → I18nStore |
+| `I18nProvider` | ✅ | — | Re-exported from real package; calls bridge.i18n.createTranslationFunction() |
+| `useForm()` | ✅ | — | Re-exported from real package (wraps react-hook-form) |
+| `useObjectStore()` | ❌ | — | File upload/download. Needs Object Store backend (EAP) |
 | `replaceUnsupportedDocumentNodes()` | ❌ | — | ADF utility |
 
 ### UIKit Components (from ui-kit-components.d.ts)
@@ -352,7 +352,7 @@ Frontend API for Custom UI apps (runs in iframe).
 
 | API | Status | Tests | Notes |
 |-----|--------|-------|-------|
-| `view.getContext()` | ⚠️ | `custom-ui-e2e.test.ts` | Returns basic context. Missing: `license`, `locale`, `timezone`, `theme`, `surfaceColor`, `userAccess`, `permissions`, full `extension` data |
+| `view.getContext()` | ✅ | `custom-ui-e2e.test.ts` | Full ForgeContext: accountId, cloudId, locale, timezone, theme, license, extension data. Hydrates via product API for Jira Issue + Confluence Content modules |
 | `view.submit(payload)` | 🔇 | — | Logs but doesn't propagate to parent/modal opener |
 | `view.close(payload)` | 🔇 | — | Logs but doesn't close anything |
 | `view.onClose(callback)` | 🔇 | — | Registered but never fires |
@@ -385,10 +385,10 @@ Frontend API for Custom UI apps (runs in iframe).
 
 | API | Status | Tests | Notes |
 |-----|--------|-------|-------|
-| `events.emit(event, payload)` | 🔇 | — | Logged but events don't reach other modules |
-| `events.on(event, callback)` | 🔇 | — | Registers but never fires |
-| `events.emitPublic(event, payload)` | 🔇 | — | Cross-app events, not implemented |
-| `events.onPublic(event, callback)` | 🔇 | — | Not implemented |
+| `events.emit(event, payload)` | ✅ | — | Local dispatch within process (in-memory listener registry) |
+| `events.on(event, callback)` | ✅ | — | Registers listener, returns unsubscribe handle |
+| `events.emitPublic(event, payload)` | ⚠️ | — | Dispatches locally but doesn't cross app boundaries |
+| `events.onPublic(event, callback)` | ⚠️ | — | Routes to local events with `public:` prefix |
 
 ### Realtime (pub/sub)
 
@@ -415,7 +415,9 @@ Frontend API for Custom UI apps (runs in iframe).
 | `showFlag(options)` | ⚠️ | — | Creates Flag object but doesn't display in UI |
 | `rovo.open(payload)` | ❌ | — | Rovo AI agent sidebar |
 | `rovo.isEnabled()` | ❌ | — | |
-| `i18n.getLocale()` | 🔇 | — | Returns 'en' |
+| `i18n.getTranslations(locale, options)` | ✅ | — | Reads from I18nStore (app's __LOCALES__ dir) |
+| `i18n.createTranslationFunction(locale)` | ✅ | — | Returns t(key, defaultValue) backed by I18nStore |
+| `i18n.resetTranslationsCache()` | ✅ | — | Clears translation cache and store |
 | `permissions.check()` | 🔇 | — | Always returns permitted |
 | `featureFlags.evaluate()` | 🔇 | — | Returns undefined |
 | `invokeRemote(key, options)` | 🔇 | — | Forge Remotes not simulated |
@@ -438,7 +440,7 @@ Frontend API for Custom UI apps (runs in iframe).
 | Package | Status | Notes |
 |---------|--------|-------|
 | `@forge/auth` | ❌ | `authorizeJiraWithFetch`, `authorizeConfluenceWithFetch`. Not intercepted by loader hooks. |
-| `@forge/i18n` | ❌ | Translation utilities, locale constants. Not intercepted. Real package may partially work. |
+| `@forge/i18n` | ⚠️ | Not intercepted by loader hooks, but bridge shim's I18nStore provides equivalent functionality. Real package partially works for types/constants. |
 | `@forge/egress` | ❌ | Egress filtering rules. Not intercepted. Not commonly imported directly by apps. |
 | `@forge/manifest` | ❌ | Manifest types. Not intercepted. Types-only usage would work at compile time. |
 | `@forge/storage` | ⚠️ | Not directly shimmed, but `@forge/api` re-exports its query types. Direct `import { storage } from '@forge/storage'` would load the real package. |
@@ -551,12 +553,12 @@ Features beyond individual APIs.
 | @forge/sql | 6 | 0 | 2 | 8 |
 | @forge/events | 12 | 0 | 4 | 16 |
 | @forge/resolver | 3 | 0 | 0 | 3 |
-| @forge/react hooks | 5 | 0 | 7 | 12 |
+| @forge/react hooks | 11 | 0 | 2 | 13 |
 | @forge/react components (UIKit) | 70 | 0 | 0 | 70 |
 | @forge/react components (other) | 7 | 0 | 10 | 17 |
-| @forge/bridge | 8 | 9 | 12 | 29 |
+| @forge/bridge | 14 | 8 | 10 | 32 |
 | Manifest modules | 16 | 1 | 18 | 35 |
 | Platform features | 14 | 2 | 6 | 22 |
-| **Total** | **180** | **20** | **65** | **265** |
+| **Total** | **192** | **19** | **58** | **269** |
 
-**Coverage: 68% implemented, 8% partial, 24% missing**
+**Coverage: 71% implemented, 7% partial, 22% missing**
