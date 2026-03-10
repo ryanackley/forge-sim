@@ -3,7 +3,7 @@
 Complete mapping of every Forge API, hook, component, and platform feature against forge-sim's implementation status.
 
 **Last updated:** 2026-03-10  
-**forge-sim test count:** 499 tests across 31 files
+**forge-sim test count:** 531 tests across 32 files
 
 ### Legend
 
@@ -357,11 +357,11 @@ Frontend API for Custom UI apps (runs in iframe).
 | `view.close(payload)` | ✅ | `modal-bridge.test.ts` | Same as submit — postMessage in modal, RPC otherwise |
 | `view.onClose(callback)` | ✅ | `modal-bridge.test.ts` | Stores callback, fires when modal closes |
 | `view.open()` | 🔇 | — | No-op |
-| `view.refresh(payload)` | 🔇 | — | No-op (should re-render the module) |
+| `view.refresh(payload)` | ✅ | — | Triggers page reload to re-render module |
 | `view.createHistory()` | ❌ | — | Client-side routing history. Returns nothing |
-| `view.theme.enable()` | 🔇 | — | No-op (should enable dark mode tokens) |
-| `view.changeWindowTitle(title)` | 🔇 | — | No-op |
-| `view.emitReadyEvent()` | 🔇 | — | No-op |
+| `view.theme.enable()` | ✅ | `bridge-features.test.ts` | Sets `data-color-mode=dark` on document root |
+| `view.changeWindowTitle(title)` | ✅ | `bridge-features.test.ts` | Sets `document.title` |
+| `view.emitReadyEvent()` | ✅ | `bridge-features.test.ts` | Dispatches `forge-sim:ready` custom event |
 | `view.createAdfRendererIframeProps()` | ❌ | — | ADF rendering setup |
 
 ### Modal
@@ -375,10 +375,10 @@ Frontend API for Custom UI apps (runs in iframe).
 
 | API | Status | Tests | Notes |
 |-----|--------|-------|-------|
-| `router.navigate(location)` | 🔇 | — | Logs but doesn't navigate |
-| `router.open(location)` | 🔇 | — | Logs but doesn't open |
-| `router.getUrl(location)` | 🔇 | — | Returns null |
-| `router.reload()` | 🔇 | — | No-op |
+| `router.navigate(location)` | ✅ | `bridge-features.test.ts` | Resolves NavigationTarget to product URL, navigates |
+| `router.open(location)` | ✅ | `bridge-features.test.ts` | Resolves NavigationTarget to product URL, opens in new tab |
+| `router.getUrl(location)` | ✅ | `bridge-features.test.ts` | Resolves NavigationTarget → URL (Issue, Content, Space, Dashboard, etc.) |
+| `router.reload()` | ✅ | — | Calls `window.location.reload()` |
 | `NavigationTarget` | ✅ | — | Constant exported |
 
 ### Events (cross-module communication)
@@ -387,8 +387,8 @@ Frontend API for Custom UI apps (runs in iframe).
 |-----|--------|-------|-------|
 | `events.emit(event, payload)` | ✅ | — | Local dispatch within process (in-memory listener registry) |
 | `events.on(event, callback)` | ✅ | — | Registers listener, returns unsubscribe handle |
-| `events.emitPublic(event, payload)` | ⚠️ | — | Dispatches locally but doesn't cross app boundaries |
-| `events.onPublic(event, callback)` | ⚠️ | — | Routes to local events with `public:` prefix |
+| `events.emitPublic(event, payload)` | ✅ | `bridge-features.test.ts` | Dispatches locally with `public:` prefix + notifies server |
+| `events.onPublic(event, callback)` | ✅ | `bridge-features.test.ts` | Subscribes with `public:` prefix, returns unsubscribe handle |
 
 ### Realtime (pub/sub)
 
@@ -412,14 +412,14 @@ Frontend API for Custom UI apps (runs in iframe).
 
 | API | Status | Tests | Notes |
 |-----|--------|-------|-------|
-| `showFlag(options)` | ⚠️ | — | Creates Flag object but doesn't display in UI |
+| `showFlag(options)` | ✅ | `bridge-features.test.ts` | Renders Atlaskit-styled toast in browser (stacking, auto-dismiss, actions, close handle) |
 | `rovo.open(payload)` | ❌ | — | Rovo AI agent sidebar |
 | `rovo.isEnabled()` | ❌ | — | |
 | `i18n.getTranslations(locale, options)` | ✅ | — | Reads from I18nStore (app's __LOCALES__ dir) |
 | `i18n.createTranslationFunction(locale)` | ✅ | — | Returns t(key, defaultValue) backed by I18nStore |
 | `i18n.resetTranslationsCache()` | ✅ | — | Clears translation cache and store |
-| `permissions.check()` | 🔇 | — | Always returns permitted |
-| `featureFlags.evaluate()` | 🔇 | — | Returns undefined |
+| `permissions.check()` | ✅ | `bridge-features.test.ts` | Always returns `{ hasPermission: true }` |
+| `featureFlags.evaluate()` | 🔇 | `bridge-features.test.ts` | Returns undefined (stub — no feature flag backend) |
 | `invokeRemote(key, options)` | 🔇 | — | Forge Remotes not simulated |
 | `invokeService(key, options)` | 🔇 | — | |
 
@@ -556,9 +556,9 @@ Features beyond individual APIs.
 | @forge/react hooks | 11 | 0 | 2 | 13 |
 | @forge/react components (UIKit) | 70 | 0 | 0 | 70 |
 | @forge/react components (other) | 7 | 0 | 10 | 17 |
-| @forge/bridge | 19 | 5 | 8 | 32 |
+| @forge/bridge | 29 | 1 | 2 | 32 |
 | Manifest modules | 16 | 1 | 18 | 35 |
 | Platform features | 14 | 2 | 6 | 22 |
-| **Total** | **197** | **16** | **56** | **269** |
+| **Total** | **207** | **12** | **50** | **269** |
 
-**Coverage: 73% implemented, 6% partial, 21% missing**
+**Coverage: 77% implemented, 4% partial, 19% missing**

@@ -442,16 +442,32 @@ export const view = {
   close: (payload?: any) => callBridge('close', { payload }),
   onClose: (cb: () => Promise<void>) => { callBridge('onClose', cb); return Promise.resolve(); },
   open: () => Promise.resolve(),
-  refresh: (payload?: any) => rpc('viewRefresh', { payload }),
-  createHistory: () => Promise.reject(new Error('createHistory not supported in forge-sim')),
-  theme: {
-    enable: () => Promise.resolve(),
-  },
-  changeWindowTitle: (title: string) => {
-    document.title = title;
+  refresh: (_payload?: any) => {
+    // Trigger a page reload to re-render the module
+    if (typeof window !== 'undefined') window.location.reload();
     return Promise.resolve();
   },
-  emitReadyEvent: () => Promise.resolve(),
+  createHistory: () => Promise.reject(new Error('createHistory not supported in forge-sim')),
+  theme: {
+    enable: () => {
+      // Apply dark mode tokens by setting the Atlaskit theme attribute
+      if (typeof document !== 'undefined') {
+        document.documentElement.setAttribute('data-color-mode', 'dark');
+      }
+      return Promise.resolve();
+    },
+  },
+  changeWindowTitle: (title: string) => {
+    if (typeof document !== 'undefined') document.title = title;
+    return Promise.resolve();
+  },
+  emitReadyEvent: () => {
+    // Dispatch a custom event that the shell can listen for
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('forge-sim:ready'));
+    }
+    return Promise.resolve();
+  },
   createAdfRendererIframeProps: () => Promise.reject(new Error('ADF renderer not supported in forge-sim')),
 };
 
@@ -507,43 +523,242 @@ export const Modal = class {
   onClose(cb: () => void) { this.opts.onClose = cb; return Promise.resolve(); }
 };
 
-/** Flag API */
-export const Flag = class {
-  private opts: any;
-  constructor(opts?: any) { this.opts = opts; }
-  show() { return rpc('flagShow', this.opts); }
+// ── showFlag — browser toast notifications ──────────────────────────────
+
+const FLAG_COLORS: Record<string, { bg: string; border: string; icon: string }> = {
+  info:    { bg: '#DEEBFF', border: '#0052CC', icon: 'ℹ️' },
+  success: { bg: '#E3FCEF', border: '#00875A', icon: '✅' },
+  warning: { bg: '#FFFAE6', border: '#FF8B00', icon: '⚠️' },
+  error:   { bg: '#FFEBE6', border: '#DE350B', icon: '❌' },
 };
 
-/** Router */
-export const router = {
-  open: (url: string) => { window.open(url, '_blank'); return Promise.resolve(); },
-  navigate: (url: string) => { window.location.href = url; return Promise.resolve(); },
-  reload: () => { window.location.reload(); return Promise.resolve(); },
-};
+let flagContainer: HTMLElement | null = null;
+
+function ensureFlagContainer(): HTMLElement {
+  if (flagContainer && document.body.contains(flagContainer)) return flagContainer;
+  flagContainer = document.createElement('div');
+  flagContainer.setAttribute('data-testid', 'forge-sim-flag-container');
+  Object.assign(flagContainer.style, {
+    position: 'fixed', bottom: '24px', left: '24px',
+    display: 'flex', flexDirection: 'column-reverse', gap: '8px',
+    zIndex: '1100', maxWidth: '400px',
+  });
+  document.body.appendChild(flagContainer);
+  return flagContainer;
+}
+
+export function showFlag(options: {
+  id?: number | string;
+  title?: string;
+  description?: string;
+  type?: string;
+  appearance?: string;
+  actions?: Array<{ text: string; onClick?: () => void }>;
+  isAutoDismiss?: boolean;
+}): { close: () => Promise<boolean | void> } {
+  const type = options.appearance ?? options.type ?? 'info';
+  const colors = FLAG_COLORS[type] || FLAG_COLORS.info;
+
+  const container = ensureFlagContainer();
+  const flag = document.createElement('div');
+  flag.setAttribute('data-testid', 'forge-sim-flag');
+  Object.assign(flag.style, {
+    background: colors.bg, borderLeft: `3px solid ${colors.border}`,
+    borderRadius: '4px', padding: '12px 16px',
+    boxShadow: '0 1px 1px rgba(9,30,66,0.25), 0 0 1px rgba(9,30,66,0.31)',
+    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+    fontSize: '14px', color: '#172B4D',
+    animation: 'forge-sim-flag-in 0.2s ease-out',
+    transition: 'opacity 0.2s, transform 0.2s',
+  });
+
+  // Title
+  if (options.title) {
+    const title = document.createElement('div');
+    title.style.fontWeight = '600';
+    title.textContent = `${colors.icon} ${options.title}`;
+    flag.appendChild(title);
+  }
+
+  // Description
+  if (options.description) {
+    const desc = document.createElement('div');
+    desc.style.marginTop = '4px';
+    desc.style.color = '#6B778C';
+    desc.textContent = options.description;
+    flag.appendChild(desc);
+  }
+
+  // Actions
+  if (options.actions?.length) {
+    const actions = document.createElement('div');
+    actions.style.marginTop = '8px';
+    actions.style.display = 'flex';
+    actions.style.gap = '8px';
+    for (const action of options.actions) {
+      const btn = document.createElement('button');
+      Object.assign(btn.style, {
+        background: 'none', border: 'none', color: colors.border,
+        cursor: 'pointer', fontWeight: '600', fontSize: '13px', padding: '0',
+      });
+      btn.textContent = action.text;
+      if (action.onClick) btn.addEventListener('click', action.onClick);
+      actions.appendChild(btn);
+    }
+    flag.appendChild(actions);
+  }
+
+  container.appendChild(flag);
+
+  const close = () => {
+    flag.style.opacity = '0';
+    flag.style.transform = 'translateX(-20px)';
+    setTimeout(() => flag.remove(), 200);
+    return Promise.resolve();
+  };
+
+  // Auto-dismiss after 5s unless explicitly disabled
+  if (options.isAutoDismiss !== false) {
+    setTimeout(close, 5000);
+  }
+
+  return { close };
+}
+
+// ── Router — product navigation ─────────────────────────────────────────
 
 export const NavigationTarget = {
-  url: (url: string) => url,
-  module: (key: string) => key,
+  ContentView: 'contentView' as const,
+  ContentEdit: 'contentEdit' as const,
+  ContentList: 'contentList' as const,
+  SpaceView: 'spaceView' as const,
+  Module: 'module' as const,
+  UserProfile: 'userProfile' as const,
+  Dashboard: 'dashboard' as const,
+  Issue: 'issue' as const,
+  ProjectSettingsDetails: 'projectSettingsDetails' as const,
 };
 
-/** Events API (pub/sub) */
+type NavigationLocation = { target: string; [key: string]: any };
+
+function resolveNavigationUrl(location: string | NavigationLocation): string {
+  if (typeof location === 'string') return location;
+
+  // Build product URLs from navigation targets
+  switch (location.target) {
+    case NavigationTarget.Issue:
+      return `/browse/${location.issueKey}`;
+    case NavigationTarget.ContentView:
+      return `/wiki/pages/${location.contentId}`;
+    case NavigationTarget.ContentEdit:
+      return `/wiki/pages/edit-v2/${location.contentId}`;
+    case NavigationTarget.SpaceView:
+      return `/wiki/spaces/${location.spaceKey}`;
+    case NavigationTarget.Dashboard:
+      return `/jira/dashboards/${location.dashboardId}`;
+    case NavigationTarget.UserProfile:
+      return `/people/${location.accountId}`;
+    case NavigationTarget.Module:
+      return `/module/${location.moduleKey}/`;
+    case NavigationTarget.ContentList:
+      return `/wiki/spaces/${location.spaceKey}/pages`;
+    case NavigationTarget.ProjectSettingsDetails:
+      return `/jira/software/projects/${location.projectKey}/settings`;
+    default:
+      return '/';
+  }
+}
+
+export const router = {
+  navigate: (location: string | NavigationLocation): Promise<void> => {
+    const url = resolveNavigationUrl(location);
+    if (typeof window !== 'undefined') window.location.href = url;
+    return Promise.resolve();
+  },
+  open: (location: string | NavigationLocation): Promise<void> => {
+    const url = resolveNavigationUrl(location);
+    if (typeof window !== 'undefined') window.open(url, '_blank');
+    return Promise.resolve();
+  },
+  getUrl: (location: string | NavigationLocation): Promise<URL | null> => {
+    try {
+      const url = resolveNavigationUrl(location);
+      const base = typeof window !== 'undefined' ? window.location.origin : 'http://localhost';
+      return Promise.resolve(new URL(url, base));
+    } catch {
+      return Promise.resolve(null);
+    }
+  },
+  reload: (): Promise<void> => {
+    if (typeof window !== 'undefined') window.location.reload();
+    return Promise.resolve();
+  },
+};
+
+// ── Events — cross-module pub/sub ───────────────────────────────────────
+
+const eventListeners = new Map<string, Set<(payload?: any) => any>>();
+
 export const events = {
-  on: (_event: string, _cb: Function) => ({ unsubscribe: () => {} }),
-  emit: (event: string, payload?: any) => rpc('eventEmit', { event, payload }),
+  async emit(event: string, payload?: any): Promise<void> {
+    // Dispatch locally
+    const listeners = eventListeners.get(event);
+    if (listeners) {
+      for (const cb of listeners) {
+        try { cb(payload); } catch (e) { console.error('[forge-bridge-shim] Event handler error:', e); }
+      }
+    }
+    // Also notify server
+    rpc('eventEmit', { event, payload }).catch(() => {});
+  },
+
+  async on(event: string, callback: (payload?: any) => any): Promise<{ unsubscribe: () => void }> {
+    if (!eventListeners.has(event)) eventListeners.set(event, new Set());
+    eventListeners.get(event)!.add(callback);
+    return { unsubscribe: () => eventListeners.get(event)?.delete(callback) };
+  },
+
+  async emitPublic(event: string, payload?: any): Promise<void> {
+    return events.emit(`public:${event}`, payload);
+  },
+
+  async onPublic(event: string, callback: (payload?: any) => any): Promise<{ unsubscribe: () => void }> {
+    return events.on(`public:${event}`, callback);
+  },
 };
 
-/** Permissions */
+// ── Permissions ─────────────────────────────────────────────────────────
+
 export const permissions = {
-  request: (scopes: string[]) => rpc('permissionsRequest', { scopes }),
+  check: (): Promise<{ hasPermission: boolean }> => Promise.resolve({ hasPermission: true }),
+  request: (scopes: string[]): Promise<{ granted: boolean }> => {
+    console.log('[forge-bridge-shim] permissions.request:', scopes);
+    return Promise.resolve({ granted: true });
+  },
 };
 
-/** i18n */
+// ── i18n (bridge-level) ─────────────────────────────────────────────────
+
 export const i18n = {
-  getText: (key: string) => Promise.resolve(key),
+  getLocale: (): Promise<string> => {
+    if (typeof navigator !== 'undefined') return Promise.resolve(navigator.language);
+    return Promise.resolve('en-US');
+  },
+  getTranslations: (locale?: string, options?: any) => rpc('getContext').then((ctx: any) => {
+    return rpc('i18nGetTranslations', { locale: locale ?? ctx.locale, options });
+  }).catch(() => ({ locale: locale ?? 'en-US', translations: null })),
+  createTranslationFunction: (locale?: string) => rpc('getContext').then((ctx: any) => {
+    return rpc('i18nCreateTranslationFunction', { locale: locale ?? ctx.locale });
+  }).catch(() => ((key: string, defaultValue?: string) => defaultValue ?? key)),
+  resetTranslationsCache: (): void => {
+    rpc('i18nResetTranslationsCache', {}).catch(() => {});
+  },
 };
 
-/** Feature flags (stub) */
+// ── Feature flags (stub) ────────────────────────────────────────────────
+
 export const featureFlags = {
-  checkBooleanFlag: (_flag: string) => Promise.resolve(false),
-  checkStringFlag: (_flag: string) => Promise.resolve(''),
+  evaluate: (_flag: string, _defaultValue?: any): Promise<any> => Promise.resolve(undefined),
+  checkBooleanFlag: (_flag: string): Promise<boolean> => Promise.resolve(false),
+  checkStringFlag: (_flag: string): Promise<string> => Promise.resolve(''),
 };
