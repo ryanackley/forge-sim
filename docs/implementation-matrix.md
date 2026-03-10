@@ -312,7 +312,7 @@ UIKit components and hooks. The reconciler produces ForgeDoc.
 | `InlineEdit` | ✅ | — | Re-exported from @forge/react, rendered via @atlaskit/inline-edit |
 | `Popup` | ✅ | — | Re-exported from @forge/react, rendered via @atlaskit/popup |
 | `Comment` | ✅ | — | Re-exported + styled comment block with author/time |
-| `AdfRenderer` | ✅ | — | Re-exported, renders via @atlaskit/renderer ReactRenderer |
+| `AdfRenderer` | ✅ | — | Lightweight ADF renderer — handles paragraphs, headings, lists, code blocks, tables, panels, tasks, media, mentions, dates, etc. (not @atlaskit/renderer — that pulls in 100+ broken deps) |
 | `Global` | ✅ | — | Re-exported, renders sidebar + main layout |
 | `User` | ✅ | — | Re-exported, renders avatar + accountId badge |
 | `UserGroup` | ✅ | — | Re-exported, renders grouped user avatars |
