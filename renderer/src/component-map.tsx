@@ -84,8 +84,8 @@ import Modal, {
   ModalTransition,
 } from '@atlaskit/modal-dialog';
 
-// Icons
-import Icon from '@atlaskit/icon';
+// Icons — resolved via static registry of @atlaskit/icon/core components
+import { iconRegistry } from './icon-registry';
 
 // Charts (using recharts since Atlassian's viz-platform-charts is internal)
 import {
@@ -122,6 +122,8 @@ function cleanProps(props: Record<string, any>): Record<string, any> {
   const { text, ...rest } = props;
   return rest;
 }
+
+
 
 /** Default chart colors matching Atlaskit's palette */
 const CHART_COLORS = [
@@ -310,6 +312,33 @@ function renderAdfNode(node: any, key: number): React.ReactNode {
   }
 }
 
+// ── Stateful wrapper components (hooks require real React components) ────
+
+function PopupWrapper({ placement, triggerText, children }: {
+  placement?: string;
+  triggerText?: string;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = React.useState(false);
+  return (
+    <Popup
+      isOpen={open}
+      onClose={() => setOpen(false)}
+      placement={placement ?? 'bottom-start'}
+      content={() => (
+        <div style={{ padding: '16px' }}>
+          {children}
+        </div>
+      )}
+      trigger={(triggerProps: any) => (
+        <Button {...triggerProps} onClick={() => setOpen(!open)}>
+          {triggerText ?? 'Toggle Popup'}
+        </Button>
+      )}
+    />
+  );
+}
+
 // ── Component Map ───────────────────────────────────────────────────────
 
 export const COMPONENT_MAP: Record<string, ComponentRenderer> = {
@@ -324,12 +353,26 @@ export const COMPONENT_MAP: Record<string, ComponentRenderer> = {
   ContentWrapper: (_props, children) => <>{children}</>,
 
   // ── Layout ──────────────────────────────────────────────────────────
-  Box: (props, children) => <Box {...cleanProps(props)}>{children}</Box>,
-  Stack: (props, children) => <Stack {...cleanProps(props)}>{children}</Stack>,
-  Inline: (props, children) => <Inline {...cleanProps(props)}>{children}</Inline>,
-  Pressable: (props, children) => (
-    <Pressable onClick={props.onClick} xcss={props.xcss}>{children}</Pressable>
-  ),
+  Box: (props, children) => {
+    const { xcss: rawXcss, ...rest } = cleanProps(props);
+    const compiledXcss = rawXcss && typeof rawXcss === 'object' ? xcss(rawXcss) : rawXcss;
+    return <Box {...rest} xcss={compiledXcss}>{children}</Box>;
+  },
+  Stack: (props, children) => {
+    const { xcss: rawXcss, ...rest } = cleanProps(props);
+    const compiledXcss = rawXcss && typeof rawXcss === 'object' ? xcss(rawXcss) : rawXcss;
+    return <Stack {...rest} xcss={compiledXcss}>{children}</Stack>;
+  },
+  Inline: (props, children) => {
+    const { xcss: rawXcss, ...rest } = cleanProps(props);
+    const compiledXcss = rawXcss && typeof rawXcss === 'object' ? xcss(rawXcss) : rawXcss;
+    return <Inline {...rest} xcss={compiledXcss}>{children}</Inline>;
+  },
+  Pressable: (props, children) => {
+    const { xcss: rawXcss, ...rest } = props;
+    const compiledXcss = rawXcss && typeof rawXcss === 'object' ? xcss(rawXcss) : rawXcss;
+    return <Pressable onClick={rest.onClick} xcss={compiledXcss}>{children}</Pressable>;
+  },
 
   // ── Typography ──────────────────────────────────────────────────────
   Text: (props, children) => {
@@ -541,9 +584,14 @@ export const COMPONENT_MAP: Record<string, ComponentRenderer> = {
   Image: (props) => (
     <img src={props.src} alt={props.alt ?? ''} style={{ maxWidth: '100%' }} />
   ),
-  Icon: (props) => (
-    <Icon glyph={() => <span>{props.name ?? '?'}</span>} label={props.label ?? ''} />
-  ),
+  Icon: (props) => {
+    const glyphName = props.glyph ?? props.name ?? '';
+    const label = props.label ?? '';
+    const color = props.color ?? props.primaryColor ?? 'currentColor';
+    const IconComponent = iconRegistry[glyphName];
+    if (!IconComponent) return <span title={`${label} (${glyphName})`} style={{ fontSize: '20px' }}>❓</span>;
+    return <IconComponent label={label} color={color} />;
+  },
   Flag: (props) => (
     <Flag
       title={props.title ?? ''}
@@ -655,9 +703,7 @@ export const COMPONENT_MAP: Record<string, ComponentRenderer> = {
 
   // ── Modal ───────────────────────────────────────────────────────────
   Modal: (props, children) => (
-    <ModalTransition>
-      <Modal onClose={props.onClose}>{children}</Modal>
-    </ModalTransition>
+    <Modal onClose={props.onClose}>{children}</Modal>
   ),
   ModalHeader: (_props, children) => <ModalHeader>{children}</ModalHeader>,
   ModalTitle: (_props, children) => <ModalTitle>{children}</ModalTitle>,
@@ -864,27 +910,11 @@ export const COMPONENT_MAP: Record<string, ComponentRenderer> = {
     );
   },
 
-  Popup: (props, children, _doc, renderChild) => {
-    const { isOpen, content, trigger, onClose, placement, ...rest } = props;
-    return (
-      <Popup
-        {...cleanProps(rest)}
-        isOpen={isOpen ?? false}
-        onClose={() => callHandler(onClose)}
-        placement={placement ?? 'bottom-start'}
-        content={() => (
-          <div style={{ padding: '16px' }}>
-            {children.map((child, i) => renderChild(child, i))}
-          </div>
-        )}
-        trigger={(triggerProps: any) => (
-          <Button {...triggerProps} onClick={() => callHandler(trigger)}>
-            {props.triggerText ?? 'Open'}
-          </Button>
-        )}
-      />
-    );
-  },
+  Popup: (_props, children) => (
+    <PopupWrapper placement={_props.placement} triggerText={_props.triggerText}>
+      {children}
+    </PopupWrapper>
+  ),
 
   Comment: (props, children, _doc, renderChild) => (
     <div style={{
@@ -950,16 +980,16 @@ export const COMPONENT_MAP: Record<string, ComponentRenderer> = {
     </div>
   ),
 
-  Em: (_props, children, _doc, renderChild) => (
-    <em>{children.map((child, i) => renderChild(child, i))}</em>
+  Em: (_props, children) => (
+    <em>{children}</em>
   ),
 
-  Strike: (_props, children, _doc, renderChild) => (
-    <s>{children.map((child, i) => renderChild(child, i))}</s>
+  Strike: (_props, children) => (
+    <s>{children}</s>
   ),
 
-  Strong: (_props, children, _doc, renderChild) => (
-    <strong>{children.map((child, i) => renderChild(child, i))}</strong>
+  Strong: (_props, children) => (
+    <strong>{children}</strong>
   ),
 
   Frame: (props) => (

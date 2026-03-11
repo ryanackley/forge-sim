@@ -91,11 +91,14 @@ function renderNode(
   const renderChild = (childDoc: ForgeDoc) =>
     renderNode(childDoc, onEvent, onBridgeEvent);
 
-  return (
-    <React.Fragment key={doc.key}>
-      {renderer(wiredProps, children, { ...doc, props: wiredProps }, renderChild)}
-    </React.Fragment>
-  );
+  const element = renderer(wiredProps, children, { ...doc, props: wiredProps }, renderChild);
+  // Attach the ForgeDoc key directly on the rendered element — no Fragment wrapper.
+  // This matters because components like Atlaskit Tooltip use cloneElement on children
+  // and Fragments swallow the cloned props (event handlers, refs).
+  if (doc.key && React.isValidElement(element)) {
+    return React.cloneElement(element, { key: doc.key });
+  }
+  return element;
 }
 
 export function ForgeDocRenderer({ doc, onEvent, onBridgeEvent }: ForgeDocRendererProps) {

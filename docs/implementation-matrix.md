@@ -297,7 +297,7 @@ UIKit components and hooks. The reconciler produces ForgeDoc.
 | `AtlassianIcon` | ✅ | — | In renderer mapping |
 | `TimePicker` | ✅ | — | In renderer mapping |
 | `Toggle` | ✅ | — | |
-| `Tooltip` | ✅ | — | |
+| `Tooltip` | ⚠️ | — | Portal flickers under React.StrictMode due to [@atlaskit/portal double-effect bug](https://ecosystem.atlassian.net/browse/DSP-XXXXX). Works correctly with StrictMode off. |
 | `ValidMessage` | ✅ | — | In renderer mapping |
 
 ### Non-UIKit Components (from components/index.d.ts)
@@ -310,7 +310,7 @@ UIKit components and hooks. The reconciler produces ForgeDoc.
 | `UserPicker` | ✅ | — | |
 | `Table` / `Head` / `Row` / `Cell` | ✅ | — | |
 | `InlineEdit` | ✅ | — | Re-exported from @forge/react, rendered via @atlaskit/inline-edit |
-| `Popup` | ✅ | — | Re-exported from @forge/react, rendered via @atlaskit/popup |
+| `Popup` | ⚠️ | — | Portal flickers under React.StrictMode — same @atlaskit/portal bug as Tooltip. Works with StrictMode off. |
 | `Comment` | ✅ | — | Re-exported + styled comment block with author/time |
 | `AdfRenderer` | ✅ | — | Lightweight ADF renderer — handles paragraphs, headings, lists, code blocks, tables, panels, tasks, media, mentions, dates, etc. (not @atlaskit/renderer — that pulls in 100+ broken deps) |
 | `Global` | ✅ | — | Re-exported, renders sidebar + main layout |

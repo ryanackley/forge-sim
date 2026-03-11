@@ -554,10 +554,102 @@ export const tableDemo: ForgeDoc = {
   ],
 };
 
+/** Tooltip isolation test */
+export const tooltipTest: ForgeDoc = {
+  type: 'App',
+  props: {},
+  key: 'root',
+  children: [
+    {
+      type: 'Stack',
+      props: { space: 'space.300' },
+      key: 'stack-1',
+      children: [
+        {
+          type: 'Heading',
+          props: { size: 'medium' },
+          key: 'heading-1',
+          children: [
+            { type: 'String', props: { text: 'Tooltip Test' }, key: 's-h1', children: [] },
+          ],
+        },
+        {
+          type: 'Tooltip',
+          props: { content: 'Hello from tooltip!' },
+          key: 'tooltip-1',
+          children: [
+            {
+              type: 'Button',
+              props: { appearance: 'primary' },
+              key: 'tooltip-btn-1',
+              children: [
+                { type: 'String', props: { text: 'Hover me — basic tooltip' }, key: 's-tb1', children: [] },
+              ],
+            },
+          ],
+        },
+        {
+          type: 'Tooltip',
+          props: { content: 'Positioned on the right', position: 'right' },
+          key: 'tooltip-2',
+          children: [
+            {
+              type: 'Button',
+              props: { appearance: 'subtle' },
+              key: 'tooltip-btn-2',
+              children: [
+                { type: 'String', props: { text: 'Hover me — right position' }, key: 's-tb2', children: [] },
+              ],
+            },
+          ],
+        },
+        {
+          type: 'Inline',
+          props: { space: 'space.100' },
+          key: 'inline-tooltips',
+          children: [
+            {
+              type: 'Tooltip',
+              props: { content: 'First button' },
+              key: 'tooltip-3',
+              children: [
+                {
+                  type: 'Button',
+                  props: { appearance: 'default' },
+                  key: 'tooltip-btn-3',
+                  children: [
+                    { type: 'String', props: { text: 'Button A' }, key: 's-tb3', children: [] },
+                  ],
+                },
+              ],
+            },
+            {
+              type: 'Tooltip',
+              props: { content: 'Second button' },
+              key: 'tooltip-4',
+              children: [
+                {
+                  type: 'Button',
+                  props: { appearance: 'default' },
+                  key: 'tooltip-btn-4',
+                  children: [
+                    { type: 'String', props: { text: 'Button B' }, key: 's-tb4', children: [] },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    },
+  ],
+};
+
 export const ALL_SAMPLES: Record<string, ForgeDoc> = {
   'Issue Panel': issuePanel,
   'Create Form': formExample,
   'Kitchen Sink': kitchenSink,
   'Charts': chartsDemo,
   'Table & Files': tableDemo,
+  'Tooltip Test': tooltipTest,
 };

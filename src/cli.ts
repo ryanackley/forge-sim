@@ -76,6 +76,7 @@ if (command === '--help' || command === '-h' || !command) {
     --no-open                  Don't open browser automatically
     --module <key>             Specific UI module key to render
     --clean                    Start fresh (wipe app state, keep credentials)
+    --strict-mode              Enable React.StrictMode (off by default — breaks Atlaskit portals)
 
   Auth Options:
     --list                     List configured accounts
@@ -97,6 +98,7 @@ if (command === 'dev') {
   let open = true;
   let moduleKey: string | undefined;
   let clean = false;
+  let strictMode = false;
 
   for (let i = 0; i < restArgs.length; i++) {
     const arg = restArgs[i];
@@ -110,6 +112,8 @@ if (command === 'dev') {
       moduleKey = restArgs[++i];
     } else if (arg === '--clean') {
       clean = true;
+    } else if (arg === '--strict-mode') {
+      strictMode = true;
     } else if (!arg.startsWith('-')) {
       appDir = arg;
     }
@@ -123,6 +127,7 @@ if (command === 'dev') {
     open,
     moduleKey,
     clean,
+    strictMode,
   });
 }
 
