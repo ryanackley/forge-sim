@@ -645,6 +645,91 @@ export const tooltipTest: ForgeDoc = {
   ],
 };
 
+/** Editor components demo */
+export const editorsDemo: ForgeDoc = {
+  type: 'Root',
+  props: {},
+  key: 'root',
+  children: [
+    {
+      type: 'Stack',
+      props: { space: 'space.300' },
+      key: 'editors-stack',
+      children: [
+        {
+          type: 'Heading',
+          props: { as: 'h2' },
+          key: 'h-chromeless',
+          children: [{ type: 'Text', props: { content: 'ChromelessEditor' }, key: 't-h1', children: [] }],
+        },
+        {
+          type: 'Text',
+          props: { content: 'No toolbar — interact via markdown shortcuts (e.g. **bold**, # heading):' },
+          key: 't-desc1',
+          children: [],
+        },
+        {
+          type: 'ChromelessEditor',
+          props: {
+            defaultValue: {
+              version: 1,
+              type: 'doc',
+              content: [
+                {
+                  type: 'paragraph',
+                  content: [
+                    { type: 'text', text: 'Start typing here... try ' },
+                    { type: 'text', text: 'bold text', marks: [{ type: 'strong' }] },
+                    { type: 'text', text: ' or ' },
+                    { type: 'text', text: 'slash commands', marks: [{ type: 'em' }] },
+                  ],
+                },
+              ],
+            },
+            onChange: '__fn__:chromeless-onChange',
+          },
+          key: 'chromeless-editor',
+          children: [],
+        },
+        {
+          type: 'Heading',
+          props: { as: 'h2' },
+          key: 'h-comment',
+          children: [{ type: 'Text', props: { content: 'CommentEditor' }, key: 't-h2', children: [] }],
+        },
+        {
+          type: 'Text',
+          props: { content: 'Full toolbar with Save/Cancel buttons:' },
+          key: 't-desc2',
+          children: [],
+        },
+        {
+          type: 'CommentEditor',
+          props: {
+            defaultValue: {
+              version: 1,
+              type: 'doc',
+              content: [
+                {
+                  type: 'paragraph',
+                  content: [
+                    { type: 'text', text: 'This is a comment with a toolbar above.' },
+                  ],
+                },
+              ],
+            },
+            onChange: '__fn__:comment-onChange',
+            onSave: '__fn__:comment-onSave',
+            onCancel: '__fn__:comment-onCancel',
+          },
+          key: 'comment-editor',
+          children: [],
+        },
+      ],
+    },
+  ],
+};
+
 export const ALL_SAMPLES: Record<string, ForgeDoc> = {
   'Issue Panel': issuePanel,
   'Create Form': formExample,
@@ -652,4 +737,5 @@ export const ALL_SAMPLES: Record<string, ForgeDoc> = {
   'Charts': chartsDemo,
   'Table & Files': tableDemo,
   'Tooltip Test': tooltipTest,
+  'Editors': editorsDemo,
 };

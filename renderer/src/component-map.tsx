@@ -20,7 +20,7 @@
  *   StackBarChart, HorizontalStackBarChart (rendered via recharts)
  * - Tiles: Tile, AtlassianTile, AtlassianIcon
  * - File: FileCard, FilePicker
- * - Editors: ChromelessEditor, CommentEditor (placeholder)
+ * - Editors: ChromelessEditor, CommentEditor (@atlaskit/editor-core)
  */
 
 import React from 'react';
@@ -63,6 +63,9 @@ import Avatar, { AvatarItem } from '@atlaskit/avatar';
 import AvatarGroup from '@atlaskit/avatar-group';
 import InlineEdit from '@atlaskit/inline-edit';
 import Popup from '@atlaskit/popup';
+
+// Editors
+import { ForgeChromelessEditor, ForgeCommentEditor } from './editors/ForgeEditors';
 
 // Form
 import Form, {
@@ -857,36 +860,24 @@ export const COMPONENT_MAP: Record<string, ComponentRenderer> = {
     </div>
   ),
 
-  // ── Editors (placeholder — these need a rich text editor) ───────────
+  // ── Editors (@atlaskit/editor-core) ─────────────────────────────────
   ChromelessEditor: (props) => (
-    <div style={{
-      minHeight: '100px',
-      padding: '12px',
-      border: '1px solid #dfe1e6',
-      borderRadius: '4px',
-      fontSize: '14px',
-      color: '#172b4d',
-    }}>
-      <div style={{ color: '#6b778c', fontStyle: 'italic', fontSize: '12px', marginBottom: '8px' }}>
-        ⚠ ChromelessEditor (rich text) — placeholder
-      </div>
-      {props.defaultValue ?? ''}
-    </div>
+    <ForgeChromelessEditor
+      defaultValue={props.defaultValue}
+      features={props.features}
+      isDisabled={props.isDisabled}
+      onChange={props.onChange}
+    />
   ),
   CommentEditor: (props) => (
-    <div style={{
-      minHeight: '80px',
-      padding: '12px',
-      border: '1px solid #dfe1e6',
-      borderRadius: '4px',
-      fontSize: '14px',
-      color: '#172b4d',
-    }}>
-      <div style={{ color: '#6b778c', fontStyle: 'italic', fontSize: '12px', marginBottom: '8px' }}>
-        ⚠ CommentEditor — placeholder
-      </div>
-      {props.defaultValue ?? 'Write a comment...'}
-    </div>
+    <ForgeCommentEditor
+      defaultValue={props.defaultValue}
+      features={props.features}
+      isDisabled={props.isDisabled}
+      onChange={props.onChange}
+      onSave={props.onSave}
+      onCancel={props.onCancel}
+    />
   ),
 
   // ── Additional Components ──────────────────────────────────────────
