@@ -8,9 +8,9 @@ import { App } from './App';
  * get proper theme tokens (colors, spacing, typography).
  */
 ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
+  
     <AppProvider defaultColorMode="light">
       <App />
     </AppProvider>
-  </React.StrictMode>
+ 
 );

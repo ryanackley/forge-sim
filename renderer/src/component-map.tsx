@@ -67,6 +67,9 @@ import Popup from '@atlaskit/popup';
 // Editors
 import { ForgeChromelessEditor, ForgeCommentEditor } from './editors/ForgeEditors';
 
+// ADF Renderer
+import { ReactRenderer as AtlaskitRenderer } from '@atlaskit/renderer';
+
 // Form
 import Form, {
   FormHeader,
@@ -220,102 +223,7 @@ function ChartWrapper({ title, subtitle, width, height, showBorder, children }: 
   );
 }
 
-// ── Lightweight ADF Renderer ─────────────────────────────────────────────
-// Renders Atlassian Document Format JSON without @atlaskit/renderer
-// (which drags in @atlaskit/editor-common and 100+ broken transitive deps).
-// Covers the common ADF nodes used in Forge apps.
-
-function renderAdfNodes(nodes: any[]): React.ReactNode[] {
-  return nodes.map((node: any, i: number) => renderAdfNode(node, i));
-}
-
-function renderAdfMarks(text: string, marks?: any[]): React.ReactNode {
-  if (!marks || marks.length === 0) return text;
-  return marks.reduce((acc: React.ReactNode, mark: any) => {
-    switch (mark.type) {
-      case 'strong': return <strong>{acc}</strong>;
-      case 'em': return <em>{acc}</em>;
-      case 'strike': return <s>{acc}</s>;
-      case 'code': return <code style={{ background: '#f4f5f7', padding: '1px 4px', borderRadius: '3px', fontFamily: 'monospace', fontSize: '0.9em' }}>{acc}</code>;
-      case 'underline': return <u>{acc}</u>;
-      case 'link': return <a href={mark.attrs?.href} target="_blank" rel="noopener noreferrer" style={{ color: '#0052CC' }}>{acc}</a>;
-      case 'textColor': return <span style={{ color: mark.attrs?.color }}>{acc}</span>;
-      case 'subsup': return mark.attrs?.type === 'sub' ? <sub>{acc}</sub> : <sup>{acc}</sup>;
-      default: return acc;
-    }
-  }, text);
-}
-
-function renderAdfNode(node: any, key: number): React.ReactNode {
-  if (!node) return null;
-  const children = node.content ? renderAdfNodes(node.content) : [];
-
-  switch (node.type) {
-    case 'doc': return <React.Fragment key={key}>{children}</React.Fragment>;
-    case 'paragraph': return <p key={key} style={{ margin: '0 0 12px 0' }}>{children.length ? children : '\u00A0'}</p>;
-    case 'text': return <React.Fragment key={key}>{renderAdfMarks(node.text ?? '', node.marks)}</React.Fragment>;
-    case 'heading': {
-      const level = node.attrs?.level ?? 1;
-      const sizes: Record<number, string> = { 1: '24px', 2: '20px', 3: '16px', 4: '14px', 5: '12px', 6: '11px' };
-      return <div key={key} style={{ fontSize: sizes[level] || '16px', fontWeight: 600, margin: '24px 0 4px 0', color: '#172B4D' }}>{children}</div>;
-    }
-    case 'bulletList': return <ul key={key} style={{ paddingLeft: '24px', margin: '0 0 12px 0' }}>{children}</ul>;
-    case 'orderedList': return <ol key={key} style={{ paddingLeft: '24px', margin: '0 0 12px 0' }} start={node.attrs?.order}>{children}</ol>;
-    case 'listItem': return <li key={key}>{children}</li>;
-    case 'blockquote': return <blockquote key={key} style={{ borderLeft: '3px solid #DFE1E6', paddingLeft: '16px', margin: '12px 0', color: '#6B778C' }}>{children}</blockquote>;
-    case 'codeBlock': {
-      const code = (node.content ?? []).map((c: any) => c.text ?? '').join('');
-      return <pre key={key} style={{ background: '#f4f5f7', padding: '12px 16px', borderRadius: '4px', overflow: 'auto', fontFamily: 'SFMono-Regular, Consolas, monospace', fontSize: '13px', margin: '12px 0' }}><code>{code}</code></pre>;
-    }
-    case 'rule': return <hr key={key} style={{ border: 'none', borderTop: '1px solid #DFE1E6', margin: '16px 0' }} />;
-    case 'hardBreak': return <br key={key} />;
-    case 'table': return <table key={key} style={{ borderCollapse: 'collapse', width: '100%', margin: '12px 0' }}>{children}</table>;
-    case 'tableRow': return <tr key={key}>{children}</tr>;
-    case 'tableCell': return <td key={key} style={{ border: '1px solid #DFE1E6', padding: '8px 12px', verticalAlign: 'top' }} colSpan={node.attrs?.colspan} rowSpan={node.attrs?.rowspan}>{children}</td>;
-    case 'tableHeader': return <th key={key} style={{ border: '1px solid #DFE1E6', padding: '8px 12px', background: '#f4f5f7', fontWeight: 600, textAlign: 'left' }} colSpan={node.attrs?.colspan} rowSpan={node.attrs?.rowspan}>{children}</th>;
-    case 'panel': {
-      const panelColors: Record<string, { bg: string; border: string }> = {
-        info: { bg: '#DEEBFF', border: '#0052CC' },
-        note: { bg: '#EAE6FF', border: '#6554C0' },
-        success: { bg: '#E3FCEF', border: '#00875A' },
-        warning: { bg: '#FFFAE6', border: '#FF8B00' },
-        error: { bg: '#FFEBE6', border: '#DE350B' },
-      };
-      const colors = panelColors[node.attrs?.panelType] || panelColors.info;
-      return <div key={key} style={{ background: colors.bg, borderLeft: `3px solid ${colors.border}`, padding: '12px 16px', borderRadius: '4px', margin: '12px 0' }}>{children}</div>;
-    }
-    case 'expand': return (
-      <details key={key} style={{ margin: '8px 0' }}>
-        <summary style={{ cursor: 'pointer', fontWeight: 600, color: '#172B4D' }}>{node.attrs?.title || 'Expand'}</summary>
-        <div style={{ padding: '8px 0 0 0' }}>{children}</div>
-      </details>
-    );
-    case 'emoji': return <span key={key}>{node.attrs?.shortName ?? node.attrs?.text ?? '😀'}</span>;
-    case 'mention': return <span key={key} style={{ background: '#E6FCFF', color: '#0052CC', padding: '1px 4px', borderRadius: '3px' }}>@{node.attrs?.text ?? node.attrs?.id ?? 'user'}</span>;
-    case 'date': {
-      const ts = node.attrs?.timestamp;
-      const dateStr = ts ? new Date(Number(ts)).toLocaleDateString() : '(date)';
-      return <span key={key} style={{ background: '#DEEBFF', padding: '2px 6px', borderRadius: '3px', color: '#0052CC' }}>{dateStr}</span>;
-    }
-    case 'status': return <span key={key} style={{ background: '#DFE1E6', padding: '2px 8px', borderRadius: '3px', fontSize: '12px', fontWeight: 600, textTransform: 'uppercase' as const, color: node.attrs?.color ?? '#172B4D' }}>{node.attrs?.text ?? 'STATUS'}</span>;
-    case 'taskList': return <div key={key} style={{ margin: '8px 0' }}>{children}</div>;
-    case 'taskItem': return <div key={key} style={{ display: 'flex', gap: '8px', alignItems: 'flex-start', margin: '4px 0' }}><input type="checkbox" checked={node.attrs?.state === 'DONE'} readOnly style={{ marginTop: '3px' }} /><div>{children}</div></div>;
-    case 'decisionList': return <div key={key} style={{ margin: '8px 0' }}>{children}</div>;
-    case 'decisionItem': return <div key={key} style={{ display: 'flex', gap: '8px', margin: '4px 0', paddingLeft: '4px' }}><span style={{ color: '#00875A' }}>▸</span><div>{children}</div></div>;
-    case 'mediaSingle': return <div key={key} style={{ margin: '16px 0' }}>{children}</div>;
-    case 'media': {
-      const alt = node.attrs?.alt ?? '';
-      if (node.attrs?.url) return <img key={key} src={node.attrs.url} alt={alt} style={{ maxWidth: '100%', borderRadius: '4px' }} />;
-      return <div key={key} style={{ background: '#f4f5f7', padding: '24px', borderRadius: '4px', textAlign: 'center' as const, color: '#6B778C' }}>📎 {alt || 'Media attachment'}</div>;
-    }
-    case 'inlineCard': return <a key={key} href={node.attrs?.url} style={{ color: '#0052CC' }}>{node.attrs?.url ?? 'Link'}</a>;
-    case 'blockCard': return <div key={key} style={{ border: '1px solid #DFE1E6', borderRadius: '4px', padding: '12px', margin: '8px 0' }}><a href={node.attrs?.url} style={{ color: '#0052CC' }}>{node.attrs?.url ?? 'Link'}</a></div>;
-    default:
-      // Unknown node type — render children if any, else show placeholder
-      if (children.length > 0) return <div key={key}>{children}</div>;
-      return <span key={key} style={{ color: '#6B778C', fontSize: '12px' }}>[{node.type}]</span>;
-  }
-}
+// Hand-rolled ADF renderer removed — now using @atlaskit/renderer (ReactRenderer)
 
 // ── Stateful wrapper components (hooks require real React components) ────
 
@@ -940,7 +848,7 @@ export const COMPONENT_MAP: Record<string, ComponentRenderer> = {
   AdfRenderer: (props) => {
     const doc = typeof props.document === 'string' ? JSON.parse(props.document) : props.document;
     if (!doc || !doc.content) return null;
-    return <div style={{ fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif", lineHeight: 1.714, color: '#172B4D' }}>{renderAdfNodes(doc.content)}</div>;
+    return <AtlaskitRenderer document={doc} />;
   },
 
   Global: (_props, children, _doc, renderChild) => (

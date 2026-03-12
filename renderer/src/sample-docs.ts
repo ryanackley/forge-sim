@@ -730,6 +730,103 @@ export const editorsDemo: ForgeDoc = {
   ],
 };
 
+/** ADF Renderer demo */
+export const adfRendererDemo: ForgeDoc = {
+  type: 'Root',
+  props: {},
+  key: 'root',
+  children: [
+    {
+      type: 'Stack',
+      props: { space: 'space.300' },
+      key: 'adf-stack',
+      children: [
+        {
+          type: 'Heading',
+          props: { as: 'h2' },
+          key: 'h-adf',
+          children: [{ type: 'Text', props: { content: 'ADF Renderer (@atlaskit/renderer)' }, key: 't-h', children: [] }],
+        },
+        {
+          type: 'AdfRenderer',
+          props: {
+            document: {
+              version: 1,
+              type: 'doc',
+              content: [
+                {
+                  type: 'heading',
+                  attrs: { level: 3 },
+                  content: [{ type: 'text', text: 'Rich Content Demo' }],
+                },
+                {
+                  type: 'paragraph',
+                  content: [
+                    { type: 'text', text: 'This is ' },
+                    { type: 'text', text: 'bold', marks: [{ type: 'strong' }] },
+                    { type: 'text', text: ', ' },
+                    { type: 'text', text: 'italic', marks: [{ type: 'em' }] },
+                    { type: 'text', text: ', and ' },
+                    { type: 'text', text: 'linked', marks: [{ type: 'link', attrs: { href: 'https://atlassian.design' } }] },
+                    { type: 'text', text: ' text.' },
+                  ],
+                },
+                {
+                  type: 'bulletList',
+                  content: [
+                    { type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Bullet one' }] }] },
+                    { type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Bullet two' }] }] },
+                  ],
+                },
+                {
+                  type: 'codeBlock',
+                  attrs: { language: 'typescript' },
+                  content: [{ type: 'text', text: 'const app = forge.run();\nconsole.log(app);' }],
+                },
+                {
+                  type: 'panel',
+                  attrs: { panelType: 'success' },
+                  content: [
+                    { type: 'paragraph', content: [{ type: 'text', text: 'Rendered by the real @atlaskit/renderer — pixel-perfect ADF.' }] },
+                  ],
+                },
+                {
+                  type: 'table',
+                  content: [
+                    {
+                      type: 'tableRow',
+                      content: [
+                        { type: 'tableHeader', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Component' }] }] },
+                        { type: 'tableHeader', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Status' }] }] },
+                      ],
+                    },
+                    {
+                      type: 'tableRow',
+                      content: [
+                        { type: 'tableCell', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Editor' }] }] },
+                        { type: 'tableCell', content: [{ type: 'paragraph', content: [{ type: 'text', text: '✅ Done' }] }] },
+                      ],
+                    },
+                    {
+                      type: 'tableRow',
+                      content: [
+                        { type: 'tableCell', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'ADF Renderer' }] }] },
+                        { type: 'tableCell', content: [{ type: 'paragraph', content: [{ type: 'text', text: '✅ Done' }] }] },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+          },
+          key: 'adf-renderer',
+          children: [],
+        },
+      ],
+    },
+  ],
+};
+
 export const ALL_SAMPLES: Record<string, ForgeDoc> = {
   'Issue Panel': issuePanel,
   'Create Form': formExample,
@@ -738,4 +835,5 @@ export const ALL_SAMPLES: Record<string, ForgeDoc> = {
   'Table & Files': tableDemo,
   'Tooltip Test': tooltipTest,
   'Editors': editorsDemo,
+  'ADF Renderer': adfRendererDemo,
 };
