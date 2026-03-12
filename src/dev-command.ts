@@ -412,6 +412,10 @@ async function buildViteConfig(opts: {
     },
     define: {
       '__FORGE_SIM_WS_URL__': JSON.stringify(`ws://localhost:${wsPort}`),
+      // @atlaskit/editor-core and @atlaskit/renderer deep deps reference
+      // process.env (Node global) which doesn't exist in the browser.
+      'process.env.NODE_ENV': JSON.stringify('development'),
+      'process.env': JSON.stringify({}),
     },
     optimizeDeps: {
       include: ['react', 'react-dom', 'react/jsx-runtime'],
