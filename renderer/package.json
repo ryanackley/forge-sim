@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@atlaskit/app-provider": "^4.1.0",
+    "@atlaskit/avatar-group": "^12.4.10",
     "@atlaskit/badge": "^18.4.0",
     "@atlaskit/button": "^23.9.0",
     "@atlaskit/calendar": "^17.2.9",

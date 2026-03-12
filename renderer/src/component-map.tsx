@@ -59,6 +59,8 @@ import InlineDialog from '@atlaskit/inline-dialog';
 import Flag from '@atlaskit/flag';
 import DynamicTable from '@atlaskit/dynamic-table';
 import Tile from '@atlaskit/tile';
+import Avatar, { AvatarItem } from '@atlaskit/avatar';
+import AvatarGroup from '@atlaskit/avatar-group';
 import InlineEdit from '@atlaskit/inline-edit';
 import Popup from '@atlaskit/popup';
 
@@ -889,23 +891,30 @@ export const COMPONENT_MAP: Record<string, ComponentRenderer> = {
 
   // ── Additional Components ──────────────────────────────────────────
 
-  InlineEdit: (props, children, _doc, renderChild) => {
-    const { defaultValue, onConfirm, label, isRequired, editView, readView, ...rest } = props;
+  InlineEdit: (props, _children, doc, renderChild) => {
+    // Forge's InlineEdit evaluates readView/editView on the reconciler side
+    // and sends results as ContentWrapper children:
+    //   ContentWrapper(name="editView") → rendered edit UI
+    //   ContentWrapper(name="readView") → rendered read UI
+    let editViewContent: React.ReactNode = null;
+    let readViewContent: React.ReactNode = null;
+
+    for (const child of doc.children ?? []) {
+      if (child.type === 'ContentWrapper' && child.props?.name === 'editView') {
+        editViewContent = (child.children ?? []).map((c) => renderChild(c));
+      } else if (child.type === 'ContentWrapper' && child.props?.name === 'readView') {
+        readViewContent = (child.children ?? []).map((c) => renderChild(c));
+      }
+    }
+
     return (
       <InlineEdit
-        {...cleanProps(rest)}
-        label={label}
-        isRequired={isRequired}
-        defaultValue={defaultValue ?? ''}
-        onConfirm={(value: any) => callHandler(onConfirm, value)}
-        editView={({ errorMessage, ...fieldProps }: any) => (
-          <Textfield {...fieldProps} autoFocus />
-        )}
-        readView={() => (
-          <div style={{ padding: '8px 6px', lineHeight: '20px' }}>
-            {defaultValue || 'Click to edit'}
-          </div>
-        )}
+        label={props.label}
+        isRequired={props.isRequired}
+        defaultValue={props.defaultValue ?? ''}
+        onConfirm={(value: any) => props.onConfirm?.(value)}
+        editView={() => <>{editViewContent}</>}
+        readView={() => <>{readViewContent || props.defaultValue || 'Click to edit'}</>}
       />
     );
   },
@@ -957,28 +966,24 @@ export const COMPONENT_MAP: Record<string, ComponentRenderer> = {
     </div>
   ),
 
-  User: (props) => (
-    <span style={{
-      display: 'inline-flex', alignItems: 'center', gap: '4px',
-      background: '#F4F5F7', borderRadius: '3px', padding: '2px 6px',
-      fontSize: '14px', color: '#0052CC',
-    }}>
-      <span style={{
-        width: '20px', height: '20px', borderRadius: '50%',
-        background: '#0052CC', color: '#fff', display: 'inline-flex',
-        alignItems: 'center', justifyContent: 'center', fontSize: '10px',
-      }}>
-        {(props.accountId ?? '?').charAt(0).toUpperCase()}
-      </span>
-      {props.accountId ?? 'User'}
-    </span>
-  ),
+  User: (props) => {
+    const name = props.name ?? props.accountId ?? 'User';
+    return (
+      <AvatarItem
+        avatar={<Avatar name={name} size="small" />}
+        primaryText={name}
+      />
+    );
+  },
 
-  UserGroup: (_props, children, _doc, renderChild) => (
-    <div style={{ display: 'inline-flex', gap: '-4px' }}>
-      {children.map((child, i) => renderChild(child, i))}
-    </div>
-  ),
+  UserGroup: (_props, _children, doc) => {
+    // Extract avatar data from raw ForgeDoc children (User nodes)
+    const data = (doc?.children ?? []).map((child, i) => ({
+      key: child.key ?? `user-${i}`,
+      name: child.props?.name ?? child.props?.accountId ?? 'User',
+    }));
+    return <AvatarGroup appearance="stack" data={data} />;
+  },
 
   Em: (_props, children) => (
     <em>{children}</em>
