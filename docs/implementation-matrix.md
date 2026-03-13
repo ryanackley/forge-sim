@@ -236,10 +236,10 @@ UIKit components and hooks. The reconciler produces ForgeDoc.
 | `Calendar` | ✅ | — | |
 | `Checkbox` | ✅ | — | |
 | `CheckboxGroup` | ✅ | — | |
-| `ChromelessEditor` | ✅ | — | Placeholder in renderer |
+| `ChromelessEditor` | ✅ | — | Real `@atlaskit/editor-core` (ComposableEditor, appearance=chromeless) |
 | `Code` | ✅ | — | |
 | `CodeBlock` | ✅ | — | |
-| `CommentEditor` | ✅ | — | Placeholder in renderer |
+| `CommentEditor` | ✅ | — | Real `@atlaskit/editor-core` (ComposableEditor, appearance=comment) + Save/Cancel |
 | `DatePicker` | ✅ | — | |
 | `DonutChart` | ✅ | — | |
 | `EmptyState` | ✅ | — | |
@@ -312,7 +312,7 @@ UIKit components and hooks. The reconciler produces ForgeDoc.
 | `InlineEdit` | ✅ | — | Re-exported from @forge/react, rendered via @atlaskit/inline-edit |
 | `Popup` | ⚠️ | — | Portal flickers under React.StrictMode — same @atlaskit/portal bug as Tooltip. Works with StrictMode off. |
 | `Comment` | ✅ | — | Re-exported + styled comment block with author/time |
-| `AdfRenderer` | ✅ | — | Lightweight ADF renderer — handles paragraphs, headings, lists, code blocks, tables, panels, tasks, media, mentions, dates, etc. (not @atlaskit/renderer — that pulls in 100+ broken deps) |
+| `AdfRenderer` | ✅ | — | Real `@atlaskit/renderer` (ReactRenderer) — pixel-perfect ADF rendering |
 | `Global` | ✅ | — | Re-exported, renders sidebar + main layout |
 | `User` | ✅ | — | Re-exported, renders avatar + accountId badge |
 | `UserGroup` | ✅ | — | Re-exported, renders grouped user avatars |

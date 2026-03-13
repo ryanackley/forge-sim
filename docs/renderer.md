@@ -71,7 +71,7 @@ Every UIKit 2 component is mapped to its real Atlaskit equivalent:
 | **List** | List, ListItem |
 | **Tiles** | Tile, AtlassianTile, AtlassianIcon |
 | **File** | FileCard, FilePicker |
-| **Editors** | ChromelessEditor, CommentEditor (placeholder) |
+| **Editors** | ChromelessEditor, CommentEditor (`@atlaskit/editor-core`), AdfRenderer (`@atlaskit/renderer`) |
 | **Charts** | BarChart, StackBarChart, HorizontalBarChart, HorizontalStackBarChart, LineChart, PieChart, DonutChart |
 
 ## ForgeDoc
