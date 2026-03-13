@@ -177,10 +177,7 @@ Async events and queue processing.
 | `PartialSuccessError` | ✅ | | |
 | `InternalServerError` | ✅ | | |
 | `JobDoesNotExistError` | ✅ | | |
-| `appEvents.onInstalled()` | 🔇 | — | No-op callback |
-| `appEvents.onUninstalled()` | 🔇 | — | No-op callback |
-| `appEvents.onEnabled()` | 🔇 | — | No-op callback |
-| `appEvents.onDisabled()` | 🔇 | — | No-op callback |
+| `appEvents.publish(events)` | ❌ | — | Publishes custom app events (requires Atlassian backend) |
 
 ---
 
@@ -535,7 +532,7 @@ Features beyond individual APIs.
 | MCP server (HTTP) | ✅ | — | StreamableHTTP transport |
 | Egress filtering | ❌ | — | No enforcement of `permissions.external` |
 | Content Security Policy | ❌ | — | No CSP enforcement |
-| App installation lifecycle | 🔇 | — | `onInstalled` etc. are no-ops |
+| App installation lifecycle | 🔇 | — | Manifest lifecycle triggers (install/uninstall/enable/disable) — not simulated |
 | Scoped permissions enforcement | ❌ | — | No checking of `permissions.scopes` |
 | Rate limiting simulation | ❌ | — | No simulation of Forge rate limits |
 | Memory/timeout limits | ❌ | — | No simulation of 128MB/25s limits |
@@ -551,7 +548,7 @@ Features beyond individual APIs.
 | @forge/api | 21 | 8 | 6 | 35 |
 | @forge/kvs | 18 | 0 | 0 | 18 |
 | @forge/sql | 6 | 0 | 2 | 8 |
-| @forge/events | 12 | 0 | 4 | 16 |
+| @forge/events | 12 | 0 | 1 | 13 |
 | @forge/resolver | 3 | 0 | 0 | 3 |
 | @forge/react hooks | 11 | 0 | 2 | 13 |
 | @forge/react components (UIKit) | 70 | 0 | 0 | 70 |
@@ -559,6 +556,6 @@ Features beyond individual APIs.
 | @forge/bridge | 29 | 1 | 2 | 32 |
 | Manifest modules | 16 | 1 | 18 | 35 |
 | Platform features | 14 | 2 | 6 | 22 |
-| **Total** | **218** | **11** | **40** | **269** |
+| **Total** | **218** | **11** | **37** | **266** |
 
-**Coverage: 81% implemented, 4% partial, 15% missing**
+**Coverage: 82% implemented, 4% partial, 14% missing**
