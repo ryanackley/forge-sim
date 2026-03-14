@@ -98,7 +98,7 @@ describe('groupFormSectionChildren', () => {
     ]);
   });
 
-  it('Label + RequiredAsterisk + TextField creates isRequired Field', () => {
+  it('Label + RequiredAsterisk sibling + TextField creates isRequired Field', () => {
     const children = [
       makeLabel('Username', 'username'),
       makeDoc('RequiredAsterisk'),
@@ -111,6 +111,25 @@ describe('groupFormSectionChildren', () => {
     expect(g.isRequired).toBe(true);
     expect(g.name).toBe('username');
     expect(g.labelText).toBe('Username');
+  });
+
+  it('RequiredAsterisk as child of Label creates isRequired Field', () => {
+    // Standard Forge pattern: <Label>Text<RequiredAsterisk /></Label>
+    const label = makeDoc('Label', { htmlFor: 'email' }, [
+      makeDoc('String', { text: 'Email' }),
+      makeDoc('RequiredAsterisk'),
+    ]);
+    const children = [
+      label,
+      makeField('TextField', 'email'),
+    ];
+    const groups = groupFormSectionChildren(children);
+
+    expect(groups).toHaveLength(1);
+    const g = groups[0] as FieldGroup;
+    expect(g.isRequired).toBe(true);
+    expect(g.name).toBe('email');
+    expect(g.labelText).toBe('Email');
   });
 
   it('passes through non-field children unchanged', () => {
@@ -244,11 +263,30 @@ describe('groupFormSectionChildren', () => {
     expect(cg.messages).toHaveLength(0);
   });
 
-  it('Label + RequiredAsterisk + CheckboxGroup sets isRequired', () => {
+  it('Label + RequiredAsterisk sibling + CheckboxGroup sets isRequired', () => {
     const options = [{ value: 'a', label: 'A' }];
     const children = [
       makeLabel('Required Choices'),
       makeDoc('RequiredAsterisk'),
+      makeDoc('CheckboxGroup', { name: 'choices', options }),
+    ];
+    const groups = groupFormSectionChildren(children);
+
+    expect(groups).toHaveLength(1);
+    const cg = groups[0] as CheckboxGroupItem;
+    expect(cg.kind).toBe('checkbox-group');
+    expect(cg.isRequired).toBe(true);
+    expect(cg.name).toBe('choices');
+  });
+
+  it('RequiredAsterisk as child of Label + CheckboxGroup sets isRequired', () => {
+    const options = [{ value: 'a', label: 'A' }];
+    const label = makeDoc('Label', { htmlFor: 'choices' }, [
+      makeDoc('String', { text: 'Required Choices' }),
+      makeDoc('RequiredAsterisk'),
+    ]);
+    const children = [
+      label,
       makeDoc('CheckboxGroup', { name: 'choices', options }),
     ];
     const groups = groupFormSectionChildren(children);

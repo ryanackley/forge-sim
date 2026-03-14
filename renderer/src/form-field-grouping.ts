@@ -84,7 +84,12 @@ export function groupFormSectionChildren(children: ForgeDoc[]): GroupedFormItem[
       let isRequired = false;
       let j = i + 1;
 
-      // Optional RequiredAsterisk between Label and field
+      // Check for RequiredAsterisk as a child of the Label node (standard pattern)
+      if (child.children?.some((c) => c.type === 'RequiredAsterisk')) {
+        isRequired = true;
+      }
+
+      // Also check for RequiredAsterisk as a sibling after Label (fallback pattern)
       if (j < children.length && children[j].type === 'RequiredAsterisk') {
         isRequired = true;
         j++;
