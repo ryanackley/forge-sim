@@ -73,8 +73,6 @@ import { ReactRenderer as AtlaskitRenderer } from '@atlaskit/renderer';
 // Form
 import Form, {
   Field,
-  CheckboxField,
-  RangeField,
   Fieldset,
   FormHeader,
   FormFooter,
@@ -348,57 +346,31 @@ export const COMPONENT_MAP: Record<string, ComponentRenderer> = {
         {groups.map((item, idx) => {
           if (item.kind === 'checkbox-group') {
             const cg = item as CheckboxGroupItem;
-            const selectedValues: string[] =
-              cg.checkboxGroupDoc.props?.value ?? cg.checkboxGroupDoc.props?.defaultValue ?? [];
             const legendContent = cg.isRequired
               ? <>{cg.labelText} <AtlaskitRequiredAsterisk /></>
               : cg.labelText;
             return (
               <Fieldset key={cg.checkboxGroupDoc.key || `cg-${idx}`} legend={legendContent}>
-                {cg.options.map((opt) => (
-                  <CheckboxField
-                    key={opt.value}
-                    name={cg.name}
-                    value={opt.value}
-                    isRequired={cg.isRequired}
-                    defaultIsChecked={selectedValues.includes(opt.value)}
-                  >
-                    {({ fieldProps }) => (
-                      <Checkbox
-                        {...fieldProps}
-                        label={opt.label}
-                        isDisabled={opt.isDisabled || cg.checkboxGroupDoc.props?.isDisabled}
-                      />
-                    )}
-                  </CheckboxField>
-                ))}
+                {renderChild(cg.checkboxGroupDoc)}
                 {cg.messages.map((m) => renderChild(m))}
               </Fieldset>
             );
           }
           if (item.kind === 'range-field') {
             const rf = item as RangeFieldItem;
-            const rangeProps = rf.rangeDoc.props ?? {};
             return (
-              <RangeField
+              <Field
                 key={rf.rangeDoc.key || `range-${idx}`}
                 name={rf.name}
                 label={rf.labelText}
-                defaultValue={rangeProps.defaultValue ?? rangeProps.value ?? 50}
-                isDisabled={rangeProps.isDisabled}
               >
                 {({ fieldProps }) => (
                   <>
-                    <Range
-                      {...fieldProps}
-                      min={rangeProps.min ?? 0}
-                      max={rangeProps.max ?? 100}
-                      step={rangeProps.step ?? 1}
-                    />
+                    {renderChild(rf.rangeDoc)}
                     {rf.messages.map((m) => renderChild(m))}
                   </>
                 )}
-              </RangeField>
+              </Field>
             );
           }
           if (item.kind === 'field') {
