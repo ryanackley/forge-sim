@@ -256,6 +256,59 @@ function PopupWrapper({ placement, triggerText, children }: {
   );
 }
 
+// ── Stateful CheckboxGroup wrapper ──────────────────────────────────────
+
+/**
+ * UIKit CheckboxGroup onChange expects (values: string[]) — the full array of
+ * currently checked values. Atlaskit Checkbox onChange fires a React ChangeEvent
+ * per individual checkbox. This wrapper bridges the gap: tracks selected values
+ * and funnels individual changes into the UIKit array format.
+ */
+function CheckboxGroupWrapper({ name, options, value, defaultValue, isDisabled, onChange }: {
+  name: string;
+  options: Array<{ value: string; label: string; isDisabled?: boolean }>;
+  value?: string[];
+  defaultValue?: string[];
+  isDisabled?: boolean;
+  onChange?: (values: string[]) => void;
+}) {
+  // Controlled (value prop) vs uncontrolled (defaultValue)
+  const isControlled = Array.isArray(value);
+  const [internalValues, setInternalValues] = React.useState<string[]>(
+    Array.isArray(defaultValue) ? defaultValue : []
+  );
+
+  const selectedValues = isControlled ? value : internalValues;
+
+  const handleChange = (optValue: string) => (_e: React.ChangeEvent<HTMLInputElement>) => {
+    const isCurrentlyChecked = selectedValues.includes(optValue);
+    const newValues = isCurrentlyChecked
+      ? selectedValues.filter((v) => v !== optValue)
+      : [...selectedValues, optValue];
+
+    if (!isControlled) {
+      setInternalValues(newValues);
+    }
+    onChange?.(newValues);
+  };
+
+  return (
+    <>
+      {options.map((opt) => (
+        <Checkbox
+          key={opt.value}
+          name={name}
+          label={opt.label}
+          value={opt.value}
+          isChecked={selectedValues.includes(opt.value)}
+          isDisabled={opt.isDisabled || isDisabled}
+          onChange={handleChange(opt.value)}
+        />
+      ))}
+    </>
+  );
+}
+
 // ── Component Map ───────────────────────────────────────────────────────
 
 export const COMPONENT_MAP: Record<string, ComponentRenderer> = {
@@ -444,18 +497,14 @@ export const COMPONENT_MAP: Record<string, ComponentRenderer> = {
     />
   ),
   CheckboxGroup: (props) => (
-    <>{(props.options ?? []).map((opt: any) => (
-      <Checkbox
-        key={opt.value}
-        name={props.name}
-        label={opt.label}
-        value={opt.value}
-        isChecked={Array.isArray(props.value) ? props.value.includes(opt.value) : false}
-        defaultChecked={Array.isArray(props.defaultValue) ? props.defaultValue.includes(opt.value) : false}
-        isDisabled={opt.isDisabled || props.isDisabled}
-        onChange={props.onChange}
-      />
-    ))}</>
+    <CheckboxGroupWrapper
+      name={props.name}
+      options={props.options ?? []}
+      value={props.value}
+      defaultValue={props.defaultValue}
+      isDisabled={props.isDisabled}
+      onChange={props.onChange}
+    />
   ),
   RadioGroup: (props) => (
     <RadioGroup
