@@ -471,7 +471,20 @@ export const COMPONENT_MAP: Record<string, ComponentRenderer> = {
       onChange={props.onChange}
     />
   ),
-  CheckboxGroup: (_props, children) => <>{children}</>,
+  CheckboxGroup: (props) => (
+    <>{(props.options ?? []).map((opt: any) => (
+      <Checkbox
+        key={opt.value}
+        name={props.name}
+        label={opt.label}
+        value={opt.value}
+        isChecked={props.value?.includes(opt.value)}
+        defaultChecked={props.defaultValue?.includes(opt.value)}
+        isDisabled={opt.isDisabled || props.isDisabled}
+        onChange={props.onChange}
+      />
+    ))}</>
+  ),
   RadioGroup: (props) => (
     <RadioGroup
       options={props.options ?? []}
