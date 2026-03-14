@@ -4,6 +4,7 @@ import {
   extractLabelText,
   type FieldGroup,
   type CheckboxGroupItem,
+  type RangeFieldItem,
 } from '../form-field-grouping';
 import type { ForgeDoc } from '../types';
 
@@ -186,7 +187,7 @@ describe('groupFormSectionChildren', () => {
   it('recognizes all field component types', () => {
     const fieldTypes = [
       'TextField', 'Textfield', 'TextArea', 'Select', 'DatePicker',
-      'TimePicker', 'Checkbox', 'Range', 'RadioGroup', 'Toggle',
+      'TimePicker', 'Checkbox', 'RadioGroup', 'Toggle',
     ];
 
     for (const type of fieldTypes) {
@@ -316,5 +317,95 @@ describe('groupFormSectionChildren', () => {
 
     expect(groups[2].kind).toBe('field');
     expect((groups[2] as FieldGroup).name).toBe('priority');
+  });
+
+  // ── RangeField tests ──────────────────────────────────────────────────
+
+  it('groups Label + Range into a range-field item', () => {
+    const children = [
+      makeLabel('Brightness'),
+      makeDoc('Range', { name: 'brightness', value: 50, min: 0, max: 100, step: 1 }),
+    ];
+    const groups = groupFormSectionChildren(children);
+
+    expect(groups).toHaveLength(1);
+    expect(groups[0].kind).toBe('range-field');
+
+    const rf = groups[0] as RangeFieldItem;
+    expect(rf.labelText).toBe('Brightness');
+    expect(rf.name).toBe('brightness');
+    expect(rf.rangeDoc.type).toBe('Range');
+    expect(rf.rangeDoc.props?.min).toBe(0);
+    expect(rf.rangeDoc.props?.max).toBe(100);
+    expect(rf.messages).toHaveLength(0);
+  });
+
+  it('Label + Range + HelperMessage collects messages', () => {
+    const children = [
+      makeLabel('Volume'),
+      makeDoc('Range', { name: 'volume', value: 75 }),
+      makeDoc('HelperMessage', {}, [makeDoc('String', { text: 'Move the slider' })]),
+    ];
+    const groups = groupFormSectionChildren(children);
+
+    expect(groups).toHaveLength(1);
+    const rf = groups[0] as RangeFieldItem;
+    expect(rf.kind).toBe('range-field');
+    expect(rf.messages).toHaveLength(1);
+    expect(rf.messages[0].type).toBe('HelperMessage');
+  });
+
+  it('Range NOT preceded by Label passes through', () => {
+    const children = [
+      makeDoc('Range', { name: 'standalone', value: 50 }),
+    ];
+    const groups = groupFormSectionChildren(children);
+
+    expect(groups).toHaveLength(1);
+    expect(groups[0].kind).toBe('passthrough');
+  });
+
+  it('mixes regular Field groups, RangeField, and CheckboxGroup', () => {
+    const options = [{ value: 'a', label: 'A' }];
+    const children = [
+      makeLabel('Name', 'name'),
+      makeField('TextField', 'name'),
+      makeLabel('Brightness'),
+      makeDoc('Range', { name: 'brightness', value: 50 }),
+      makeDoc('HelperMessage', {}, [makeDoc('String', { text: 'Adjust' })]),
+      makeLabel('Options'),
+      makeDoc('CheckboxGroup', { name: 'opts', options }),
+    ];
+    const groups = groupFormSectionChildren(children);
+
+    expect(groups).toHaveLength(3);
+    expect(groups[0].kind).toBe('field');
+    expect((groups[0] as FieldGroup).name).toBe('name');
+
+    expect(groups[1].kind).toBe('range-field');
+    const rf = groups[1] as RangeFieldItem;
+    expect(rf.name).toBe('brightness');
+    expect(rf.messages).toHaveLength(1);
+
+    expect(groups[2].kind).toBe('checkbox-group');
+    expect((groups[2] as CheckboxGroupItem).name).toBe('opts');
+  });
+
+  it('Label + RequiredAsterisk + Range still produces range-field (asterisk consumed)', () => {
+    const children = [
+      makeLabel('Contrast'),
+      makeDoc('RequiredAsterisk'),
+      makeDoc('Range', { name: 'contrast', value: 60 }),
+    ];
+    const groups = groupFormSectionChildren(children);
+
+    expect(groups).toHaveLength(1);
+    expect(groups[0].kind).toBe('range-field');
+
+    const rf = groups[0] as RangeFieldItem;
+    expect(rf.labelText).toBe('Contrast');
+    expect(rf.name).toBe('contrast');
+    // RangeField doesn't support isRequired — no such property on the item
+    expect(rf.rangeDoc.type).toBe('Range');
   });
 });

@@ -29,18 +29,26 @@ export interface CheckboxGroupItem {
   messages: ForgeDoc[];
 }
 
+export interface RangeFieldItem {
+  kind: 'range-field';
+  labelText: string;
+  name: string;
+  rangeDoc: ForgeDoc;
+  messages: ForgeDoc[];
+}
+
 export interface PassthroughItem {
   kind: 'passthrough';
   doc: ForgeDoc;
 }
 
-export type GroupedFormItem = FieldGroup | CheckboxGroupItem | PassthroughItem;
+export type GroupedFormItem = FieldGroup | CheckboxGroupItem | RangeFieldItem | PassthroughItem;
 
 // ── Constants ────────────────────────────────────────────────────────────
 
 const FIELD_TYPES = new Set([
   'TextField', 'Textfield', 'TextArea', 'Select', 'DatePicker',
-  'TimePicker', 'Checkbox', 'Range', 'RadioGroup', 'Toggle',
+  'TimePicker', 'Checkbox', 'RadioGroup', 'Toggle',
 ]);
 
 const MESSAGE_TYPES = new Set([
@@ -107,6 +115,25 @@ export function groupFormSectionChildren(children: ForgeDoc[]): GroupedFormItem[
           checkboxGroupDoc: cgDoc,
           messages,
         });
+        i = j;
+        continue;
+      }
+
+      // Range branch — uses RangeField (typed for numbers), not generic Field
+      if (j < children.length && children[j].type === 'Range') {
+        const rangeDoc = children[j];
+        const name = rangeDoc.props?.name ?? `range-${i}`;
+        const labelText = extractLabelText(child);
+        j++;
+
+        // Collect trailing message nodes
+        const messages: ForgeDoc[] = [];
+        while (j < children.length && MESSAGE_TYPES.has(children[j].type)) {
+          messages.push(children[j]);
+          j++;
+        }
+
+        result.push({ kind: 'range-field', labelText, name, rangeDoc, messages });
         i = j;
         continue;
       }

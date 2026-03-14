@@ -74,6 +74,7 @@ import { ReactRenderer as AtlaskitRenderer } from '@atlaskit/renderer';
 import Form, {
   Field,
   CheckboxField,
+  RangeField,
   Fieldset,
   FormHeader,
   FormFooter,
@@ -117,7 +118,7 @@ import {
 } from 'recharts';
 
 import type { ForgeDoc } from './types';
-import { groupFormSectionChildren, type CheckboxGroupItem } from './form-field-grouping';
+import { groupFormSectionChildren, type CheckboxGroupItem, type RangeFieldItem } from './form-field-grouping';
 
 // ── Types ───────────────────────────────────────────────────────────────
 
@@ -373,6 +374,31 @@ export const COMPONENT_MAP: Record<string, ComponentRenderer> = {
                 ))}
                 {cg.messages.map((m) => renderChild(m))}
               </Fieldset>
+            );
+          }
+          if (item.kind === 'range-field') {
+            const rf = item as RangeFieldItem;
+            const rangeProps = rf.rangeDoc.props ?? {};
+            return (
+              <RangeField
+                key={rf.rangeDoc.key || `range-${idx}`}
+                name={rf.name}
+                label={rf.labelText}
+                defaultValue={rangeProps.defaultValue ?? rangeProps.value ?? 50}
+                isDisabled={rangeProps.isDisabled}
+              >
+                {({ fieldProps }) => (
+                  <>
+                    <Range
+                      {...fieldProps}
+                      min={rangeProps.min ?? 0}
+                      max={rangeProps.max ?? 100}
+                      step={rangeProps.step ?? 1}
+                    />
+                    {rf.messages.map((m) => renderChild(m))}
+                  </>
+                )}
+              </RangeField>
             );
           }
           if (item.kind === 'field') {
