@@ -156,6 +156,32 @@ Make `requestJira()`, `requestConfluence()`, etc. hit real Atlassian APIs instea
 
 ---
 
+## Priority 3.5: Renderer Integration Tests
+
+Add `@testing-library/react` tests for `ForgeDocRenderer` + `component-map.tsx`. Currently we only have unit tests on the pure grouping logic (`form-field-grouping.ts`) and screenshot-based e2e tests via Playwright. Neither catches render-level bugs (e.g. a component map entry that silently renders nothing).
+
+### Why
+- The `CheckboxGroup: (_props, children) => <>{children}</>` bug shipped with zero test failures — it rendered *nothing* and we only caught it during manual testing
+- Screenshot tests are brittle (font rendering, Atlaskit style changes) and slow (need full forge-sim dev server)
+- `@testing-library/react` tests would catch "component renders empty" and "Field wrapper has correct props" without any visual baseline maintenance
+
+### What to Test
+- Each form field grouping path: `Field` wrapper, `Fieldset` + `CheckboxField`, `RangeField`
+- Standalone components that take props instead of children (CheckboxGroup, RadioGroup, etc.)
+- Event handler wiring (bridge mode `__fn__:` markers → real callbacks)
+- Fallback component renders for unknown types
+
+### Setup Needed
+- Install `@testing-library/react` + `@testing-library/jest-dom` in renderer
+- Configure vitest with `jsdom` environment for renderer tests
+- May need to mock some Atlaskit internals that expect a full theme provider
+
+### Estimated Effort
+- Setup: half a day
+- Core test coverage: 1-2 days
+
+---
+
 ## Priority 4: Web Triggers
 
 Add HTTP endpoints for web trigger modules. Simple hole to fill.
