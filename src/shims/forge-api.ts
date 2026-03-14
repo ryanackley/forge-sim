@@ -46,7 +46,97 @@ function makeApiClient() {
   };
 }
 
-function asUser() { return makeApiClient(); }
+// ── External Auth (withProvider) ────────────────────────────────────────
+
+function makeExternalAuthAccountMethods(providerKey: string, _remoteName?: string, _accountId?: string) {
+  const store = () => getSimulator().externalAuth;
+  const api = () => getSimulator().productApi;
+
+  // Resolve the remote name: explicit > first in provider's list > providerKey
+  const resolveRemote = () => {
+    const provider = store().getProvider(providerKey);
+    return _remoteName ?? provider?.remotes?.[0] ?? providerKey;
+  };
+
+  return {
+    async hasCredentials(scopes?: string[]): Promise<boolean> {
+      return store().hasCredentials(providerKey, scopes);
+    },
+
+    async requestCredentials(_scopes?: string[]): Promise<boolean> {
+      if (store().hasCredentials(providerKey)) return true;
+
+      // Attempt interactive OAuth flow (opens browser popup)
+      const token = await store().interactiveOAuthFlow(providerKey);
+      return token !== null;
+    },
+
+    async fetch(url: string, options?: any): Promise<any> {
+      const remoteName = resolveRemote();
+
+      // Always try mock routes first (same pattern as product API)
+      const mockResult = await api().request(remoteName, url, options);
+      if (mockResult.status !== 501) {
+        // Mock route matched (or returned a real mock response)
+        return mockResult;
+      }
+
+      // No mock — try real HTTP with token injection
+      const token = await store().ensureValidToken(providerKey);
+      if (token) {
+        const baseUrl = store().getProviderBaseUrl(providerKey, _remoteName);
+        if (baseUrl) {
+          const fullUrl = url.startsWith('/') ? `${baseUrl}${url}` : `${baseUrl}/${url}`;
+          const bearerMethod = store().getProvider(providerKey)?.bearerMethod ?? 'authorization-header';
+          const fetchOptions: any = { ...options, headers: { ...options?.headers } };
+
+          if (bearerMethod === 'authorization-header') {
+            fetchOptions.headers['Authorization'] = `Bearer ${token.accessToken}`;
+          } else if (bearerMethod === 'uri-query') {
+            const u = new URL(fullUrl);
+            u.searchParams.set('access_token', token.accessToken);
+            return globalThis.fetch(u.toString(), fetchOptions);
+          }
+
+          return globalThis.fetch(fullUrl, fetchOptions);
+        }
+      }
+
+      // No mock, no token — return the 501 from mock layer
+      return mockResult;
+    },
+
+    async getAccount() {
+      return store().getAccount(providerKey);
+    },
+  };
+}
+
+function makeExternalAuthClient(providerKey: string, remoteName?: string) {
+  const accountMethods = makeExternalAuthAccountMethods(providerKey, remoteName);
+  return {
+    ...accountMethods,
+
+    async listAccounts() {
+      return getSimulator().externalAuth.listAccounts(providerKey);
+    },
+
+    asAccount(externalAccountId: string) {
+      return makeExternalAuthAccountMethods(providerKey, remoteName, externalAccountId);
+    },
+  };
+}
+
+function asUser() {
+  const client = makeApiClient();
+  return {
+    ...client,
+    withProvider(provider: string, remoteName?: string) {
+      return makeExternalAuthClient(provider, remoteName);
+    },
+  };
+}
+
 function asApp() { return makeApiClient(); }
 
 // Top-level convenience (these use asUser by default in real Forge)
@@ -185,8 +275,51 @@ const webTrigger = {
 
 function createRequestStargateAsApp() { return makeApiClient(); }
 
+// ── Privacy (GDPR personal data reporting) ──────────────────────────────
+
+interface PrivacyAccount {
+  accountId: string;
+  [key: string]: any;
+}
+
+interface PrivacyAccountUpdate {
+  accountId: string;
+  status: string;
+  [key: string]: any;
+}
+
+const REPORT_URL = '/app/report-accounts';
+const REPORT_BATCH_LIMIT = 90;
+
 const privacy = {
-  check: async () => ({ hasAccess: true }),
+  async reportPersonalData(accounts: PrivacyAccount[]): Promise<PrivacyAccountUpdate[]> {
+    if (accounts.length === 0) return [];
+
+    const batch = accounts.slice(0, REPORT_BATCH_LIMIT);
+    const rest = accounts.slice(REPORT_BATCH_LIMIT);
+
+    const resp = await getSimulator().productApi.request('jira', REPORT_URL, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ accounts: batch }),
+    });
+
+    let results: PrivacyAccountUpdate[];
+    if (resp.status === 200) {
+      const json = await resp.json();
+      results = json.accounts;
+    } else if (resp.status === 204) {
+      results = [];
+    } else {
+      throw new Error(`reportPersonalData failed: ${resp.status} ${resp.statusText}`);
+    }
+
+    if (rest.length > 0) {
+      const moreResults = await privacy.reportPersonalData(rest);
+      return results.concat(moreResults);
+    }
+    return results;
+  },
 };
 
 function __fetchProduct(productOrDescriptor: string | { provider?: string; remote?: string; type?: string }, path?: string, options?: any) {
@@ -217,12 +350,72 @@ const getAppContext = async () => ({
   moduleKey: 'sim-module',
 });
 
+// ── i18n (backed by I18nStore, same as @forge/bridge) ───────────────────
+
+type TranslationFunction = (i18nKey: string, defaultValue?: string) => string;
+
+function getI18nStore(): import('../i18n-store.js').I18nStore | null {
+  try {
+    return getSimulator().i18n ?? null;
+  } catch {
+    return null;
+  }
+}
+
+const translationFunctionCache = new Map<string, TranslationFunction>();
+
 const i18n = {
-  getMessage: (key: string) => key,
+  resetTranslationsCache(): void {
+    translationFunctionCache.clear();
+    const store = getI18nStore();
+    if (store) store.clear();
+  },
+
+  async getTranslations(
+    locale: string,
+    options: { fallback: boolean } = { fallback: true }
+  ): Promise<{ locale: string; translations: Record<string, any> | null }> {
+    const store = getI18nStore();
+    if (store?.hasTranslations) {
+      return store.getTranslations(locale, options);
+    }
+    return { locale, translations: null };
+  },
+
+  async createTranslationFunction(locale: string): Promise<TranslationFunction> {
+    const cached = translationFunctionCache.get(locale);
+    if (cached) return cached;
+
+    const store = getI18nStore();
+    if (store?.hasTranslations) {
+      const fn = await store.createTranslationFunction(locale);
+      translationFunctionCache.set(locale, fn);
+      return fn;
+    }
+
+    // No translations — return identity (key or defaultValue)
+    const fn: TranslationFunction = (key, defaultValue) => defaultValue ?? key;
+    translationFunctionCache.set(locale, fn);
+    return fn;
+  },
 };
 
+// ── Permissions (manifest-based permission checks) ──────────────────────
+
 const permissions = {
-  check: async () => ({ hasAccess: true }),
+  hasPermission(_requirements: any): { granted: boolean; missing?: any } {
+    // In simulation, all permissions are granted
+    return { granted: true };
+  },
+  hasScope(_scope: string): boolean {
+    return true;
+  },
+  canFetchFrom(_type: 'backend' | 'client', _url: string): boolean {
+    return true;
+  },
+  canLoadResource(_type: string, _url: string): boolean {
+    return true;
+  },
 };
 
 // ── Exports (matches real @forge/api) ───────────────────────────────────
@@ -270,6 +463,10 @@ export {
   i18n,
   permissions,
 };
+
+// Named re-exports matching real @forge/api
+const { resetTranslationsCache, getTranslations, createTranslationFunction } = i18n;
+export { resetTranslationsCache, getTranslations, createTranslationFunction };
 
 export default {
   asApp,

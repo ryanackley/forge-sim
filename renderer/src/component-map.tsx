@@ -72,12 +72,16 @@ import { ReactRenderer as AtlaskitRenderer } from '@atlaskit/renderer';
 
 // Form
 import Form, {
+  Field,
+  CheckboxField,
+  Fieldset,
   FormHeader,
   FormFooter,
   FormSection,
   ErrorMessage,
   HelperMessage,
   ValidMessage,
+  RequiredAsterisk as AtlaskitRequiredAsterisk,
 } from '@atlaskit/form';
 
 // Tabs
@@ -113,6 +117,7 @@ import {
 } from 'recharts';
 
 import type { ForgeDoc } from './types';
+import { groupFormSectionChildren, type CheckboxGroupItem } from './form-field-grouping';
 
 // ── Types ───────────────────────────────────────────────────────────────
 
@@ -335,7 +340,67 @@ export const COMPONENT_MAP: Record<string, ComponentRenderer> = {
   ),
   FormHeader: (props, children) => <FormHeader {...cleanProps(props)}>{children}</FormHeader>,
   FormFooter: (props, children) => <FormFooter {...cleanProps(props)}>{children}</FormFooter>,
-  FormSection: (props, children) => <FormSection {...cleanProps(props)}>{children}</FormSection>,
+  FormSection: (props, _children, doc, renderChild) => {
+    const groups = groupFormSectionChildren(doc.children ?? []);
+    return (
+      <FormSection {...cleanProps(props)}>
+        {groups.map((item, idx) => {
+          if (item.kind === 'checkbox-group') {
+            const cg = item as CheckboxGroupItem;
+            const selectedValues: string[] =
+              cg.checkboxGroupDoc.props?.value ?? cg.checkboxGroupDoc.props?.defaultValue ?? [];
+            const legendContent = cg.isRequired
+              ? <>{cg.labelText} <AtlaskitRequiredAsterisk /></>
+              : cg.labelText;
+            return (
+              <Fieldset key={cg.checkboxGroupDoc.key || `cg-${idx}`} legend={legendContent}>
+                {cg.options.map((opt) => (
+                  <CheckboxField
+                    key={opt.value}
+                    name={cg.name}
+                    value={opt.value}
+                    isRequired={cg.isRequired}
+                    defaultIsChecked={selectedValues.includes(opt.value)}
+                  >
+                    {({ fieldProps }) => (
+                      <Checkbox
+                        {...fieldProps}
+                        label={opt.label}
+                        isDisabled={opt.isDisabled || cg.checkboxGroupDoc.props?.isDisabled}
+                      />
+                    )}
+                  </CheckboxField>
+                ))}
+                {cg.messages.map((m) => renderChild(m))}
+              </Fieldset>
+            );
+          }
+          if (item.kind === 'field') {
+            return (
+              <Field
+                key={item.fieldDoc.key || `field-group-${idx}`}
+                name={item.name}
+                label={item.labelText}
+                isRequired={item.isRequired}
+              >
+                {({ fieldProps }) => (
+                  <>
+                    {renderChild(item.fieldDoc)}
+                    {item.messages.map((m) => renderChild(m))}
+                  </>
+                )}
+              </Field>
+            );
+          }
+          return (
+            <React.Fragment key={item.doc.key || `ps-${idx}`}>
+              {renderChild(item.doc)}
+            </React.Fragment>
+          );
+        })}
+      </FormSection>
+    );
+  },
   TextField: (props) => (
     <Textfield
       name={props.name}

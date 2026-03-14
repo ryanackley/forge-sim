@@ -71,4 +71,5 @@ export type {
 } from './manifest.js';
 
 export { I18nStore } from './i18n-store.js';
+export { ExternalAuthStore, loadProviderSecrets, saveProviderSecrets } from './external-auth-store.js';
 export type { I18nInfoConfig, TranslationResource, GetTranslationsResult } from './i18n-store.js';

@@ -42,11 +42,20 @@ export interface AtlassianAccount {
   default?: boolean;
 }
 
+export interface ExternalAuthAccount {
+  id: string;
+  displayName: string;
+  avatarUrl?: string;
+  scopes: string[];
+}
+
 export interface ThirdPartyToken {
   provider: string;
   accessToken: string;
   refreshToken?: string;
   expiresAt?: number;
+  scopes?: string[];
+  account?: ExternalAuthAccount;
 }
 
 export interface CredentialStore {

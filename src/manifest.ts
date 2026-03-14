@@ -7,7 +7,7 @@
 
 import { parse as parseYaml } from 'yaml';
 import { readFile } from 'fs/promises';
-import type { ForgeManifest, ManifestModule } from './types.js';
+import type { ForgeManifest, ManifestModule, ManifestRemote, ManifestAuthProvider } from './types.js';
 
 export interface ParsedManifest {
   raw: ForgeManifest;
@@ -18,6 +18,8 @@ export interface ParsedManifest {
   scheduledTriggers: ManifestScheduledTrigger[];
   uiModules: ManifestUIModule[];
   permissions: string[];
+  remotes: Map<string, ManifestRemote>;
+  authProviders: Map<string, ManifestAuthProvider>;
 }
 
 export interface ManifestResource {
@@ -142,6 +144,22 @@ export function parseManifestContent(content: string): ParsedManifest {
     }
   }
 
+  // Parse remotes
+  const remotes = new Map<string, ManifestRemote>();
+  for (const remote of (raw.remotes ?? []) as ManifestRemote[]) {
+    if (remote.key && remote.baseUrl) {
+      remotes.set(remote.key, { key: remote.key, baseUrl: remote.baseUrl });
+    }
+  }
+
+  // Parse auth providers
+  const authProviders = new Map<string, ManifestAuthProvider>();
+  for (const provider of (raw.providers?.auth ?? []) as ManifestAuthProvider[]) {
+    if (provider.key) {
+      authProviders.set(provider.key, provider);
+    }
+  }
+
   return {
     raw,
     functions,
@@ -151,5 +169,7 @@ export function parseManifestContent(content: string): ParsedManifest {
     scheduledTriggers,
     uiModules,
     permissions: raw.permissions?.scopes ?? [],
+    remotes,
+    authProviders,
   };
 }

@@ -34,12 +34,15 @@ The main backend API package. Imported by resolver/trigger/consumer functions.
 | `asApp().requestBitbucket()` | ✅ | — | |
 | `asApp().requestGraph()` | ❌ | — | GraphQL API not implemented |
 | `asUser().requestGraph()` | ❌ | — | GraphQL API not implemented |
-| `asApp().requestConnectedData()` | ❌ | — | Connected Data API not implemented |
-| `asUser().requestConnectedData()` | ❌ | — | Connected Data API not implemented |
 | `asApp().requestAtlassian()` | ❌ | — | Generic Atlassian API not implemented |
 | `asUser().requestAtlassian()` | ❌ | — | Generic Atlassian API not implemented |
-| `asUser().requestTeamworkGraph()` | ❌ | — | Teamwork Graph API not implemented |
-| `asUser().withProvider()` (External Auth) | ❌ | — | External auth / third-party OAuth not implemented |
+| `asUser().withProvider(provider, remote)` | ✅ | `external-auth.test.ts` | Full `ExternalAuthFetchMethods` interface |
+| `.withProvider().hasCredentials(scopes?)` | ✅ | `external-auth.test.ts` | Checks token existence, expiry, and scopes |
+| `.withProvider().requestCredentials(scopes?)` | ✅ | `external-auth.test.ts` | Opens browser for OAuth dance if secret configured; falls back to warning |
+| `.withProvider().fetch(url, options)` | ✅ | `external-auth.test.ts` | Mock routes first, then real HTTP with Bearer injection |
+| `.withProvider().getAccount()` | ✅ | `external-auth.test.ts` | Returns `ExternalAuthAccount` from stored token |
+| `.withProvider().listAccounts()` | ✅ | `external-auth.test.ts` | Lists linked accounts (max 1 per provider in sim) |
+| `.withProvider().asAccount(id)` | ✅ | `external-auth.test.ts` | Returns account-scoped methods |
 | `fetch(url, options)` | ✅ | — | Passes through to real `globalThis.fetch` with warning log |
 | `route\`...\`` | ✅ | `shims.test.ts` | Template tag with encoding |
 | `routeFromAbsolute()` | 🔇 | — | Exported but untested |
@@ -70,10 +73,14 @@ The main backend API package. Imported by resolver/trigger/consumer functions.
 | `getAppContext()` | ⚠️ | — | Returns hardcoded values (`sim-app`, `sim-env`, etc.) |
 | `__getRuntime()` | 🔇 | — | Returns `{ isEcosystemApp: false }` |
 | `bindInvocationContext(fn)` | 🔇 | — | Returns the function unchanged |
-| `privacy.check()` | 🔇 | — | Always returns `{ hasAccess: true }` |
-| `privacy.reportPersonalData()` | ❌ | — | Not implemented |
-| `permissions.check()` | 🔇 | — | Always returns `{ hasAccess: true }` |
-| `i18n.getMessage(key)` | ⚠️ | — | Backend i18n — returns the key as-is (no translation). See @forge/bridge i18n for frontend |
+| `privacy.reportPersonalData(accounts)` | ✅ | `shims.test.ts` | POST `/app/report-accounts` via product API; batches in groups of 90 |
+| `permissions.hasPermission(requirements)` | 🔇 | `shims.test.ts` | Always returns `{ granted: true }` in simulation |
+| `permissions.hasScope(scope)` | 🔇 | `shims.test.ts` | Always returns `true` |
+| `permissions.canFetchFrom(type, url)` | 🔇 | `shims.test.ts` | Always returns `true` |
+| `permissions.canLoadResource(type, url)` | 🔇 | `shims.test.ts` | Always returns `true` |
+| `i18n.getTranslations(locale, options)` | ✅ | `shims.test.ts` | Backed by I18nStore (reads `__LOCALES__/` JSON files) |
+| `i18n.createTranslationFunction(locale)` | ✅ | `shims.test.ts` | Backed by I18nStore; dot-path keys, fallback chains |
+| `i18n.resetTranslationsCache()` | ✅ | `shims.test.ts` | Clears translation cache and I18nStore |
 | `createRequestStargateAsApp()` | 🔇 | — | Returns same API client |
 | `__fetchProduct()` | ✅ | `forge-sql.test.ts` | Handles SQL fetch function and product API calls |
 

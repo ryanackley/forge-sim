@@ -16,6 +16,7 @@ import { withCapture, type ConsoleLine } from './console-capture.js';
 import { SimulatorUI } from './ui/simulator-ui.js';
 import { PropertyStore } from './property-store.js';
 import { I18nStore } from './i18n-store.js';
+import { ExternalAuthStore } from './external-auth-store.js';
 import type { SimulationConfig, ResolverContext, ProductApiHandler, ProductApiRequest, ProductApiResponse } from './types.js';
 
 export class ForgeSimulator {
@@ -27,6 +28,7 @@ export class ForgeSimulator {
   readonly functions: FunctionRegistry;
   readonly properties: PropertyStore;
   readonly i18n: I18nStore;
+  readonly externalAuth: ExternalAuthStore;
 
   /** UI API — ForgeDoc access, tree traversal, interaction, bridge lifecycle. */
   readonly ui: SimulatorUI;
@@ -53,6 +55,7 @@ export class ForgeSimulator {
     this.functions = new FunctionRegistry();
     this.properties = new PropertyStore();
     this.i18n = new I18nStore();
+    this.externalAuth = new ExternalAuthStore();
     this.ui = new SimulatorUI(this);
 
     // Register property store as fallback routes for product APIs
@@ -96,6 +99,14 @@ export class ForgeSimulator {
     // Log discovered modules
     for (const ui of this.manifest.uiModules) {
       this.log('info', `Found UI module: ${ui.type} "${ui.key}"`);
+    }
+
+    // Wire up external auth providers from manifest
+    if (this.manifest.authProviders.size > 0) {
+      this.externalAuth.loadFromManifest(this.manifest.authProviders, this.manifest.remotes);
+      for (const [key, provider] of this.manifest.authProviders) {
+        this.log('info', `Found auth provider: "${key}" (${provider.name})`);
+      }
     }
 
     return this.manifest;

@@ -52,6 +52,26 @@ sim.mockProductRoutes('jira', {
 });
 ```
 
+### External auth providers (optional)
+
+If your app uses `asUser().withProvider()` for third-party OAuth (Google, GitHub, etc.):
+
+```bash
+# Authenticate with providers defined in your manifest.yml
+npx forge-sim auth --provider google
+
+# Or authenticate all providers at once
+npx forge-sim auth --providers
+```
+
+In mock mode (the default), just register mock routes — no tokens needed:
+
+```typescript
+sim.mockProductRoutes('google-apis', {
+  'GET /userinfo/v2/me': { id: '12345', email: 'test@gmail.com' },
+});
+```
+
 ---
 
 ## 🤖 AI-Driven Development
@@ -222,7 +242,7 @@ npm install -g forge-sim
 See [docs/](./docs/) for the full reference:
 
 - [CLI Reference](./docs/cli.md) — All commands and options
-- [Authentication](./docs/auth.md) — API tokens, OAuth, credential management
+- [Authentication](./docs/auth.md) — API tokens, OAuth, external auth providers, credential management
 - [Programmatic API](./docs/api.md) — Using forge-sim in code
 - [MCP Server](./docs/mcp.md) — AI agent integration
 - [UIKit Renderer](./docs/renderer.md) — Architecture, browser mode, component coverage

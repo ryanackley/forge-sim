@@ -392,12 +392,15 @@ describe('submit/close in non-modal context', () => {
   it('view.submit does NOT postMessage when not in a modal', async () => {
     const postMessageSpy = vi.spyOn(window.parent, 'postMessage');
 
-    // view.submit should route to RPC (which will fail due to no WS, but it shouldn't postMessage)
-    // We catch the RPC error
+    // view.submit should route to RPC (which will fail/hang due to no WS).
+    // Race with a short timeout — we only care that postMessage wasn't called.
     try {
-      await shimModule.view.submit({ data: 'test' });
+      await Promise.race([
+        shimModule.view.submit({ data: 'test' }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 500)),
+      ]);
     } catch {
-      // Expected — no WS connection
+      // Expected — no WS connection or timeout
     }
 
     // postMessage should NOT have been called with modal message types

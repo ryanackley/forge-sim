@@ -4,3 +4,7 @@ dist/
 .DS_Store
 renderer/test-results/
 coverage/
+.forge-sim/
+.env.e2e
+e2e/test-results/
+# Snapshot baselines (*.e2e.ts-snapshots/) ARE committed — they're the reference images

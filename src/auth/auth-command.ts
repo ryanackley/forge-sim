@@ -39,9 +39,35 @@ export interface AuthCommandOptions {
   setup?: boolean;
   oauth?: boolean;
   local?: string;
+  /** External auth: specific provider key */
+  provider?: string;
+  /** External auth: all providers */
+  providers?: boolean;
+  /** External auth: set client secret */
+  secret?: boolean;
+  /** App directory (for manifest + local credentials) */
+  appDir?: string;
+  /** Manifest path override */
+  manifestPath?: string;
 }
 
 export async function authCommand(options: AuthCommandOptions): Promise<void> {
+  // ── External auth providers (--provider / --providers) ────────────────
+  if (options.provider || options.providers) {
+    const { externalAuthCommand } = await import('./external-auth-command.js');
+    const appDir = options.appDir ?? options.local ?? process.cwd();
+    const manifestPath = options.manifestPath ?? `${appDir}/manifest.yml`;
+    await externalAuthCommand({
+      provider: options.provider,
+      providers: options.providers,
+      list: options.list,
+      secret: options.secret,
+      appDir,
+      manifestPath,
+    });
+    return;
+  }
+
   // Load OAuth app config if it exists
   const oauthAppConfig = await getOAuthAppConfig();
   if (oauthAppConfig) setOAuthConfig(oauthAppConfig);

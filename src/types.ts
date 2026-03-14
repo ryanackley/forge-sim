@@ -14,6 +14,32 @@ export interface ForgeManifest {
     scopes?: string[];
     external?: { fetch?: { backend?: string[] } };
   };
+  remotes?: ManifestRemote[];
+  providers?: {
+    auth?: ManifestAuthProvider[];
+  };
+}
+
+export interface ManifestRemote {
+  key: string;
+  baseUrl: string;
+}
+
+export interface ManifestAuthProvider {
+  key: string;
+  name: string;
+  type: string; // 'oauth2'
+  clientId?: string;
+  scopes?: string[];
+  remotes?: string[];  // remote keys
+  bearerMethod?: string;
+  actions: {
+    authorization: { remote: string; path: string; queryParameters?: Record<string, string> };
+    exchange: { remote: string; path: string; resolvers?: Record<string, string>; useBasicAuth?: boolean };
+    refreshToken?: { remote: string; path: string; resolvers?: Record<string, string>; useBasicAuth?: boolean };
+    revokeToken?: { remote: string; path: string };
+    retrieveProfile?: { remote: string; path: string; resolvers?: Record<string, string> };
+  };
 }
 
 export interface ManifestModule {

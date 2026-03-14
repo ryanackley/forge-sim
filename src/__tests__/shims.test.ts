@@ -213,4 +213,137 @@ describe('Forge Shims', () => {
       expect(queueEvents).toHaveLength(2);
     });
   });
+
+  // ── @forge/api i18n ─────────────────────────────────────────────────
+
+  describe('@forge/api i18n', () => {
+    it('getTranslations returns translations from I18nStore', async () => {
+      sim.i18n.setTranslations('en-US', { greeting: 'Hello', farewell: 'Goodbye' });
+      sim.i18n.setTranslations('fr-FR', { greeting: 'Bonjour', farewell: 'Au revoir' });
+
+      const result = await forgeApi.i18n.getTranslations('fr-FR');
+      expect(result.locale).toBe('fr-FR');
+      expect(result.translations?.greeting).toBe('Bonjour');
+    });
+
+    it('getTranslations returns null when no translations loaded', async () => {
+      // Fresh simulator — no translations set
+      const result = await forgeApi.i18n.getTranslations('en-US');
+      expect(result.locale).toBe('en-US');
+      expect(result.translations).toBeNull();
+    });
+
+    it('createTranslationFunction translates keys', async () => {
+      sim.i18n.setTranslations('en-US', {
+        greeting: 'Hello',
+        nav: { home: 'Home', settings: 'Settings' },
+      });
+
+      const t = await forgeApi.i18n.createTranslationFunction('en-US');
+      expect(t('greeting')).toBe('Hello');
+      expect(t('nav.home')).toBe('Home');
+    });
+
+    it('createTranslationFunction returns key/defaultValue when no translations', async () => {
+      const t = await forgeApi.i18n.createTranslationFunction('en-US');
+      expect(t('missing.key')).toBe('missing.key');
+      expect(t('missing.key', 'Fallback')).toBe('Fallback');
+    });
+
+    it('resetTranslationsCache clears cache and store', async () => {
+      sim.i18n.setTranslations('en-US', { greeting: 'Hello' });
+
+      // Warm the cache
+      const t1 = await forgeApi.i18n.createTranslationFunction('en-US');
+      expect(t1('greeting')).toBe('Hello');
+
+      // Reset and verify store is cleared
+      forgeApi.i18n.resetTranslationsCache();
+      expect(sim.i18n.hasTranslations).toBe(false);
+    });
+
+    it('named exports match i18n object methods', () => {
+      expect(forgeApi.resetTranslationsCache).toBe(forgeApi.i18n.resetTranslationsCache);
+      expect(forgeApi.getTranslations).toBe(forgeApi.i18n.getTranslations);
+      expect(forgeApi.createTranslationFunction).toBe(forgeApi.i18n.createTranslationFunction);
+    });
+  });
+
+  // ── privacy.reportPersonalData ──────────────────────────────────────
+
+  describe('privacy.reportPersonalData', () => {
+    it('posts accounts to /app/report-accounts and returns updates', async () => {
+      sim.productApi.mockRoutes('jira', {
+        'POST /app/report-accounts': (path: string, options: any) => {
+          const body = JSON.parse(options.body);
+          return {
+            accounts: body.accounts.map((a: any) => ({
+              accountId: a.accountId,
+              status: 'CLOSED',
+            })),
+          };
+        },
+      });
+
+      const result = await forgeApi.privacy.reportPersonalData([
+        { accountId: 'user-1' },
+        { accountId: 'user-2' },
+      ]);
+
+      expect(result).toEqual([
+        { accountId: 'user-1', status: 'CLOSED' },
+        { accountId: 'user-2', status: 'CLOSED' },
+      ]);
+    });
+
+    it('returns empty array for empty input', async () => {
+      const result = await forgeApi.privacy.reportPersonalData([]);
+      expect(result).toEqual([]);
+    });
+
+    it('batches in groups of 90', async () => {
+      const batches: number[] = [];
+
+      sim.productApi.mockRoutes('jira', {
+        'POST /app/report-accounts': (path: string, options: any) => {
+          const body = JSON.parse(options.body);
+          batches.push(body.accounts.length);
+          return {
+            accounts: body.accounts.map((a: any) => ({
+              accountId: a.accountId,
+              status: 'CLOSED',
+            })),
+          };
+        },
+      });
+
+      // Create 95 accounts — should split into 90 + 5
+      const accounts = Array.from({ length: 95 }, (_, i) => ({ accountId: `user-${i}` }));
+      const result = await forgeApi.privacy.reportPersonalData(accounts);
+
+      expect(batches).toEqual([90, 5]);
+      expect(result).toHaveLength(95);
+    });
+  });
+
+  // ── permissions ─────────────────────────────────────────────────────
+
+  describe('permissions', () => {
+    it('hasPermission returns granted: true', () => {
+      expect(forgeApi.permissions.hasPermission({ scopes: ['read:jira-work'] }))
+        .toEqual({ granted: true });
+    });
+
+    it('hasScope returns true', () => {
+      expect(forgeApi.permissions.hasScope('read:jira-work')).toBe(true);
+    });
+
+    it('canFetchFrom returns true', () => {
+      expect(forgeApi.permissions.canFetchFrom('backend', 'https://api.example.com')).toBe(true);
+    });
+
+    it('canLoadResource returns true', () => {
+      expect(forgeApi.permissions.canLoadResource('scripts', 'https://cdn.example.com/app.js')).toBe(true);
+    });
+  });
 });
