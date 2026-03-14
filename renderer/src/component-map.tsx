@@ -450,8 +450,8 @@ export const COMPONENT_MAP: Record<string, ComponentRenderer> = {
         name={props.name}
         label={opt.label}
         value={opt.value}
-        isChecked={props.value?.includes(opt.value)}
-        defaultChecked={props.defaultValue?.includes(opt.value)}
+        isChecked={Array.isArray(props.value) ? props.value.includes(opt.value) : false}
+        defaultChecked={Array.isArray(props.defaultValue) ? props.defaultValue.includes(opt.value) : false}
         isDisabled={opt.isDisabled || props.isDisabled}
         onChange={props.onChange}
       />
