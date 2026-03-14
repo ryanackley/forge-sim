@@ -71,8 +71,8 @@ The main backend API package. Imported by resolver/trigger/consumer functions.
 | `invokeService(key, payload)` | 🔇 | — | Returns `null` |
 | `webTrigger.getUrl(key)` | ⚠️ | — | Returns fake URL, not a real endpoint |
 | `getAppContext()` | ⚠️ | — | Returns hardcoded values (`sim-app`, `sim-env`, etc.) |
-| `__getRuntime()` | 🔇 | — | Returns `{ isEcosystemApp: false }` |
-| `bindInvocationContext(fn)` | 🔇 | — | Returns the function unchanged |
+| `__getRuntime()` | 🔇 | — | Internal, undocumented; necessary for `@forge/api` import chain not to explode. Returns `{ isEcosystemApp: false }` |
+| `bindInvocationContext(fn)` | 🔇 | — | Internal, undocumented; necessary for `@forge/api` import chain not to explode. Returns the function unchanged |
 | `privacy.reportPersonalData(accounts)` | ✅ | `shims.test.ts` | POST `/app/report-accounts` via product API; batches in groups of 90 |
 | `permissions.hasPermission(requirements)` | 🔇 | `shims.test.ts` | Always returns `{ granted: true }` in simulation |
 | `permissions.hasScope(scope)` | 🔇 | `shims.test.ts` | Always returns `true` |
@@ -81,8 +81,8 @@ The main backend API package. Imported by resolver/trigger/consumer functions.
 | `i18n.getTranslations(locale, options)` | ✅ | `shims.test.ts` | Backed by I18nStore (reads `__LOCALES__/` JSON files) |
 | `i18n.createTranslationFunction(locale)` | ✅ | `shims.test.ts` | Backed by I18nStore; dot-path keys, fallback chains |
 | `i18n.resetTranslationsCache()` | ✅ | `shims.test.ts` | Clears translation cache and I18nStore |
-| `createRequestStargateAsApp()` | 🔇 | — | Returns same API client |
-| `__fetchProduct()` | ✅ | `forge-sql.test.ts` | Handles SQL fetch function and product API calls |
+| `createRequestStargateAsApp()` | 🔇 | — | Internal, undocumented; necessary for `@forge/api` import chain not to explode. Returns same API client |
+| `__fetchProduct()` | ✅ | `forge-sql.test.ts` | Internal, undocumented; necessary for `@forge/api` import chain not to explode. Factory behind `requestJira`/`requestConfluence`/SQL; handles `{ provider, remote, type }` descriptors |
 
 ### Error Classes
 
