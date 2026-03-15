@@ -17,6 +17,8 @@ import { SimulatorUI } from './ui/simulator-ui.js';
 import { PropertyStore } from './property-store.js';
 import { I18nStore } from './i18n-store.js';
 import { ExternalAuthStore } from './external-auth-store.js';
+import { FITProvider } from './fit-provider.js';
+import { RemoteProxy } from './remote-proxy.js';
 import type { SimulationConfig, ResolverContext, ProductApiHandler, ProductApiRequest, ProductApiResponse } from './types.js';
 
 export class ForgeSimulator {
@@ -29,6 +31,8 @@ export class ForgeSimulator {
   readonly properties: PropertyStore;
   readonly i18n: I18nStore;
   readonly externalAuth: ExternalAuthStore;
+  readonly fit: FITProvider;
+  readonly remotes: RemoteProxy;
 
   /** UI API — ForgeDoc access, tree traversal, interaction, bridge lifecycle. */
   readonly ui: SimulatorUI;
@@ -56,6 +60,8 @@ export class ForgeSimulator {
     this.properties = new PropertyStore();
     this.i18n = new I18nStore();
     this.externalAuth = new ExternalAuthStore();
+    this.fit = new FITProvider();
+    this.remotes = new RemoteProxy(this.productApi, this.fit);
     this.ui = new SimulatorUI(this);
 
     // Register property store as fallback routes for product APIs
@@ -101,6 +107,15 @@ export class ForgeSimulator {
       this.log('info', `Found UI module: ${ui.type} "${ui.key}"`);
     }
 
+    // Wire up remotes from manifest
+    this.remotes.setManifest(this.manifest);
+    for (const [key, remote] of this.manifest.remotes) {
+      this.log('info', `Found remote: "${key}" → ${remote.baseUrl}`);
+    }
+    for (const [key, ep] of this.manifest.endpoints) {
+      this.log('info', `Found endpoint: "${key}" → remote "${ep.remote}"`);
+    }
+
     // Wire up external auth providers from manifest
     if (this.manifest.authProviders.size > 0) {
       this.externalAuth.loadFromManifest(this.manifest.authProviders, this.manifest.remotes);
@@ -142,6 +157,19 @@ export class ForgeSimulator {
     }
     for (const ui of manifest.uiModules) {
       this.log('info', `Found UI module: ${ui.type} "${ui.key}"`);
+    }
+
+    // Wire up remotes with manifest data
+    this.remotes.setManifest(manifest);
+    if (manifest.remotes.size > 0) {
+      for (const [key, remote] of manifest.remotes) {
+        this.log('info', `Found remote: "${key}" → ${remote.baseUrl}`);
+      }
+    }
+    if (manifest.endpoints.size > 0) {
+      for (const [key, ep] of manifest.endpoints) {
+        this.log('info', `Found endpoint: "${key}" → remote "${ep.remote}"`);
+      }
     }
   }
 
@@ -445,6 +473,7 @@ export class ForgeSimulator {
     this.productApi.clear();
     this.properties.clear();
     this.i18n.clear();
+    this.remotes.setManifest(null);
     this.manifest = null;
     this.logs.length = 0;
     this.consoleLogs.length = 0;
@@ -486,3 +515,5 @@ export { UnifiedKVS as SimulatedEntityStore } from './kvs.js';
 export type { EntitySchema, IndexDefinition, StoredEntry } from './kvs.js';
 export { FunctionRegistry } from './function-registry.js';
 export type { ForgeFunctionType, RegisteredFunction } from './function-registry.js';
+export { FITProvider } from './fit-provider.js';
+export { RemoteProxy } from './remote-proxy.js';

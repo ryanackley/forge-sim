@@ -266,7 +266,14 @@ function isHostedCodeError(err: any): boolean {
 // ── Stubs for less common APIs ──────────────────────────────────────────
 
 function authorize(_provider: string) { return Promise.resolve(); }
-function invokeRemote(_key: string, _payload?: any) { return Promise.resolve(null); }
+
+async function invokeRemote(
+  remoteKey: string,
+  options: { path: string; method?: string; headers?: Record<string, string>; body?: string } & Record<string, any> = { path: '/' }
+): Promise<any> {
+  return getSimulator().remotes.invoke(remoteKey, options);
+}
+
 function invokeService(_key: string, _payload?: any) { return Promise.resolve(null); }
 
 const webTrigger = {

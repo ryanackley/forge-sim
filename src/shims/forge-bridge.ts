@@ -323,9 +323,39 @@ export const i18n = {
 
 // ── Forge Remotes ───────────────────────────────────────────────────────
 
-export function invokeRemote(remoteKey: string, options?: any): Promise<any> {
-  console.warn(`[forge-sim] invokeRemote("${remoteKey}") — Forge Remotes not simulated`);
-  return Promise.resolve(null);
+function getRemoteProxy(): import('../remote-proxy.js').RemoteProxy | null {
+  try {
+    const sim = (globalThis as any)[Symbol.for('forge-sim.instance')];
+    return sim?.remotes ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Bridge invokeRemote — takes a single options object { path, method, headers, body }.
+ * No remoteKey arg — resolves the remote from the current module's endpoint config.
+ */
+export function invokeRemote(input: { path: string; method?: string; headers?: Record<string, string>; body?: any }): Promise<any> {
+  const proxy = getRemoteProxy();
+  if (!proxy) {
+    console.warn('[forge-sim] invokeRemote — no simulator connected');
+    return Promise.resolve(null);
+  }
+  return proxy.invokeFromBridge(input);
+}
+
+/**
+ * Bridge requestRemote — direct fetch to a remote, returns Response-like object.
+ * Takes (remoteKey, { path, ...requestInit }).
+ */
+export function requestRemote(remoteKey: string, options?: { path: string; method?: string; headers?: Record<string, string>; body?: string }): Promise<any> {
+  const proxy = getRemoteProxy();
+  if (!proxy) {
+    console.warn('[forge-sim] requestRemote — no simulator connected');
+    return Promise.resolve(null);
+  }
+  return proxy.request(remoteKey, options);
 }
 
 export function invokeService(serviceKey: string, options?: any): Promise<any> {

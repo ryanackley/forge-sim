@@ -23,6 +23,21 @@ export interface ForgeManifest {
 export interface ManifestRemote {
   key: string;
   baseUrl: string;
+  operations?: string[];  // 'storage' | 'compute' | 'fetch' | 'other'
+  auth?: {
+    appUserToken?: { enabled: boolean };
+    appSystemToken?: { enabled: boolean };
+  };
+}
+
+export interface ManifestEndpoint {
+  key: string;
+  remote: string;
+  route?: { path: string };
+  auth?: {
+    appUserToken?: { enabled: boolean };
+    appSystemToken?: { enabled: boolean };
+  };
 }
 
 export interface ManifestAuthProvider {
@@ -45,7 +60,7 @@ export interface ManifestAuthProvider {
 export interface ManifestModule {
   key: string;
   function?: string;
-  resolver?: { function: string };
+  resolver?: { function?: string; endpoint?: string };
   resource?: string;
   title?: string;
   queue?: string;

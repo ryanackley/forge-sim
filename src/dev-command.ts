@@ -658,6 +658,26 @@ export async function devCommand(options: DevCommandOptions) {
       toolsServer.broadcastLog(entry);
     });
 
+    // 8b. Serve FIT JWKS endpoint at /__forge/jwks.json
+    const forgeMiddleware = (req: any, res: any, next: any) => {
+      const url = new URL(req.url ?? '/', 'http://localhost');
+      if (url.pathname === '/__forge/jwks.json') {
+        res.setHeader('Content-Type', 'application/json');
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Cache-Control', 'public, max-age=3600');
+        res.writeHead(200);
+        res.end(JSON.stringify(sim.fit.getJWKS()));
+        return;
+      }
+      next();
+    };
+    const viteStack = (viteServer.middlewares as any).stack;
+    if (Array.isArray(viteStack)) {
+      viteStack.unshift({ route: '', handle: forgeMiddleware });
+    } else {
+      viteServer.middlewares.use(forgeMiddleware);
+    }
+
     console.log(`     ➜ Tools:   ${localUrl}__tools/`);
     console.log('');
     for (const mod of detectedModules) {

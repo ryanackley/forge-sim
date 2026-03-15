@@ -7,7 +7,7 @@
 
 import { parse as parseYaml } from 'yaml';
 import { readFile } from 'fs/promises';
-import type { ForgeManifest, ManifestModule, ManifestRemote, ManifestAuthProvider } from './types.js';
+import type { ForgeManifest, ManifestModule, ManifestRemote, ManifestEndpoint, ManifestAuthProvider } from './types.js';
 
 export interface ParsedManifest {
   raw: ForgeManifest;
@@ -19,6 +19,7 @@ export interface ParsedManifest {
   uiModules: ManifestUIModule[];
   permissions: string[];
   remotes: Map<string, ManifestRemote>;
+  endpoints: Map<string, ManifestEndpoint>;
   authProviders: Map<string, ManifestAuthProvider>;
 }
 
@@ -56,6 +57,7 @@ export interface ManifestUIModule {
   key: string;
   title?: string;
   resolverFunctionKey?: string;
+  endpointKey?: string;
   resourceKey?: string;
 }
 
@@ -139,6 +141,7 @@ export function parseManifestContent(content: string): ParsedManifest {
         key: mod.key,
         title: mod.title,
         resolverFunctionKey: mod.resolver?.function,
+        endpointKey: mod.resolver?.endpoint,
         resourceKey: mod.resource,
       });
     }
@@ -146,9 +149,23 @@ export function parseManifestContent(content: string): ParsedManifest {
 
   // Parse remotes
   const remotes = new Map<string, ManifestRemote>();
-  for (const remote of (raw.remotes ?? []) as ManifestRemote[]) {
+  for (const remote of (raw.remotes ?? []) as any[]) {
     if (remote.key && remote.baseUrl) {
-      remotes.set(remote.key, { key: remote.key, baseUrl: remote.baseUrl });
+      const parsed: ManifestRemote = { key: remote.key, baseUrl: remote.baseUrl };
+      if (remote.operations) parsed.operations = remote.operations;
+      if (remote.auth) parsed.auth = remote.auth;
+      remotes.set(remote.key, parsed);
+    }
+  }
+
+  // Parse endpoints
+  const endpoints = new Map<string, ManifestEndpoint>();
+  for (const ep of (modules.endpoint ?? []) as any[]) {
+    if (ep.key && ep.remote) {
+      const parsed: ManifestEndpoint = { key: ep.key, remote: ep.remote };
+      if (ep.route) parsed.route = ep.route;
+      if (ep.auth) parsed.auth = ep.auth;
+      endpoints.set(ep.key, parsed);
     }
   }
 
@@ -170,6 +187,7 @@ export function parseManifestContent(content: string): ParsedManifest {
     uiModules,
     permissions: raw.permissions?.scopes ?? [],
     remotes,
+    endpoints,
     authProviders,
   };
 }

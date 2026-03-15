@@ -292,6 +292,11 @@ export async function deploy(sim: ForgeSimulator, appDir: string): Promise<Deplo
   // Use sim.ui.render(moduleKey) to load and render specific UI modules.
   // This gives per-module ForgeDoc isolation and proper context scoping.
 
+  // Initialize FIT provider if the manifest has remotes
+  if (manifest.remotes.size > 0) {
+    await sim.fit.init(absDir);
+  }
+
   // Store manifest + app dir on simulator
   sim.loadManifestData(manifest);
   sim.setAppDir(absDir);
