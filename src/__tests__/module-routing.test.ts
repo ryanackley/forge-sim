@@ -124,6 +124,31 @@ remotes:
     baseUrl: https://api.example.com
 `;
 
+/** Non-standard module types (jira:fullPage, etc.) should still be detected */
+const FULLPAGE_MANIFEST = `
+app:
+  id: ari:cloud:ecosystem::app/fullpage-test
+modules:
+  jira:fullPage:
+    - key: my-fullpage
+      resource: main
+      resolver:
+        endpoint: my-endpoint
+      title: Full Page
+  endpoint:
+    - key: my-endpoint
+      remote: my-backend
+  function:
+    - key: resolver
+      handler: resolver.handler
+resources:
+  - key: main
+    path: static/build
+remotes:
+  - key: my-backend
+    baseUrl: http://localhost:7071/
+`;
+
 // ── Module Route Registration ───────────────────────────────────────────
 
 describe('Module route registration', () => {
@@ -165,6 +190,12 @@ describe('Module route registration', () => {
     await sim.loadManifest(RESOLVER_ONLY_MANIFEST);
     expect(sim.getModuleRoute('local-panel')).toBeDefined(); // still exists (same key)
     expect(sim.getModuleRoute('remote-panel')).toBeUndefined(); // gone
+  });
+
+  it('registers non-standard module types like jira:fullPage', async () => {
+    await sim.loadManifest(FULLPAGE_MANIFEST);
+    const route = sim.getModuleRoute('my-fullpage');
+    expect(route).toEqual({ resolverFunctionKey: undefined, endpointKey: 'my-endpoint' });
   });
 
   it('clears module routes on reset', async () => {

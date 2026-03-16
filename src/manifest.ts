@@ -124,18 +124,20 @@ export function parseManifestContent(content: string): ParsedManifest {
 
   // Parse UI modules (any module with a resolver or resource)
   const uiModules: ManifestUIModule[] = [];
-  const uiModuleTypes = new Set([
-    'jira:issuePanel', 'jira:issueActivity', 'jira:issueContext',
-    'jira:issueGlance', 'jira:issueAction', 'jira:globalPage',
-    'jira:projectPage', 'jira:adminPage', 'jira:dashboardGadget',
-    'confluence:globalPage', 'confluence:spacePage', 'confluence:contentAction',
-    'confluence:contentBylineItem', 'confluence:contextMenu',
-    'macro',
+  // Non-UI module types that should never be treated as UI modules
+  // (they appear at the top level of modules: but don't render UI)
+  const nonUIModuleTypes = new Set([
+    'function', 'endpoint', 'consumer', 'scheduledTrigger',
+    'trigger', 'webtrigger', 'remote',
   ]);
 
   for (const [moduleType, moduleDefs] of Object.entries(modules)) {
-    if (!uiModuleTypes.has(moduleType)) continue;
+    if (nonUIModuleTypes.has(moduleType)) continue;
+    if (!Array.isArray(moduleDefs)) continue;
     for (const mod of moduleDefs as any[]) {
+      // A UI module must have a resource key (Custom UI or UIKit entry)
+      // or a render property — skip anything that doesn't look like UI
+      if (!mod.resource && !mod.render && !mod.function) continue;
       uiModules.push({
         type: moduleType,
         key: mod.key,
