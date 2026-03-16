@@ -167,6 +167,11 @@ export class RemoteProxy {
 
     this.log('info', `Remote fetch: ${method} ${url}`);
 
+    // Ensure body is serialized — it may arrive as an object from the bridge
+    const body = options.body != null && typeof options.body !== 'string'
+      ? JSON.stringify(options.body)
+      : options.body;
+
     try {
       const response = await globalThis.fetch(url, {
         method,
@@ -175,7 +180,7 @@ export class RemoteProxy {
           'Content-Type': 'application/json',
           ...options.headers,
         },
-        body: options.body,
+        body,
       });
 
       const responseText = await response.text();
