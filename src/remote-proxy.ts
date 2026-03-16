@@ -127,36 +127,30 @@ export class RemoteProxy {
       moduleType: input.moduleType,
       endpointKey,
     });
-    const body = await response.text();
+    const bodyText = await response.text();
     const headers = response.headers ?? {};
 
+    // Parse body — bridge expects pre-parsed JSON
+    let body: any;
+    try {
+      body = JSON.parse(bodyText);
+    } catch {
+      body = bodyText;
+    }
+
     if (!response.ok) {
-      this.log('error', `invokeRemote failed: ${response.status} ${response.statusText} — ${body.slice(0, 500)}`, {
+      this.log('error', `invokeRemote failed: ${response.status} ${response.statusText} — ${bodyText.slice(0, 500)}`, {
         endpoint: endpointKey, remote: remoteKey, path: input.path, status: response.status,
       });
-      // Match @forge/bridge's _setupInvokeEndpointFn expected response format:
-      // { success: false, error: { status, statusText, headers, body } }
       return {
         success: false,
-        error: {
-          status: response.status,
-          statusText: response.statusText,
-          headers,
-          body,
-        },
+        error: { status: response.status, statusText: response.statusText, headers, body },
       };
     }
 
-    // Match @forge/bridge's _setupInvokeEndpointFn expected response format:
-    // { success: true, payload: { status, statusText, headers, body } }
     return {
       success: true,
-      payload: {
-        status: response.status,
-        statusText: response.statusText,
-        headers,
-        body,
-      },
+      payload: { status: response.status, statusText: response.statusText, headers, body },
     };
   }
 

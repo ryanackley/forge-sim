@@ -373,7 +373,7 @@ describe('invokeRemote from @forge/bridge', () => {
     // Response is unwrapped: { status, statusText, headers, body }
     const response = await forgeBridge.invokeRemote({ path: '/items' });
     expect(response.status).toBe(200);
-    expect(JSON.parse(response.body)).toEqual([{ id: 1 }, { id: 2 }]);
+    expect(response.body).toEqual([{ id: 1 }, { id: 2 }]);
   });
 
   it('fails when active module has no endpoint', async () => {

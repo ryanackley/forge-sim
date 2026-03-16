@@ -158,7 +158,7 @@ describe('Dev Server RPC invoke routing', () => {
     expect(result.success).toBe(true);
     expect(result.payload).toBeDefined();
     expect(result.payload.status).toBe(200);
-    expect(JSON.parse(result.payload.body)).toEqual({ success: true, action: 'LoadProjects', data: [] });
+    expect(result.payload.body).toEqual({ success: true, action: 'LoadProjects', data: [] });
   });
 
   it('routes GET invokeRemote to remote proxy', async () => {
@@ -168,7 +168,7 @@ describe('Dev Server RPC invoke routing', () => {
       moduleKey: 'panel',
     });
     expect(result.success).toBe(true);
-    expect(JSON.parse(result.payload.body)).toEqual({ status: 'ok' });
+    expect(result.payload.body).toEqual({ status: 'ok' });
   });
 
   it('invokeRemote returns error for unknown mock path', async () => {
