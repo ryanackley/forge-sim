@@ -178,9 +178,11 @@ export function createDevServer(options: DevServerOptions = {}): DevServer {
       }
 
       case 'fetchRemote': {
-        const { remoteKey, path, fetchRequestInit } = params;
+        const { remoteKey, fetchRequestInit } = params;
+        // path can come as a top-level param (renderer shim) or inside fetchRequestInit (real @forge/bridge)
+        const path = params.path ?? fetchRequestInit?.path ?? '/';
         const response = await simulator.remotes.request(remoteKey, {
-          path: path ?? '/',
+          path,
           method: fetchRequestInit?.method,
           headers: fetchRequestInit?.headers,
           body: fetchRequestInit?.body,

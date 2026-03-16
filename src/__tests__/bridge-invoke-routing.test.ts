@@ -178,11 +178,21 @@ describe('Dev Server RPC invoke routing', () => {
 
   // ── fetchRemote (renderer bridge shim path) ──────────────────────
 
-  it('routes fetchRemote to remote proxy with remoteKey', async () => {
+  it('routes fetchRemote with top-level path (renderer shim style)', async () => {
     const result = await rpc(ws, 'fetchRemote', {
       remoteKey: 'my-backend',
       path: '/api/health',
       fetchRequestInit: { method: 'GET' },
+    });
+    expect(result.status).toBe(200);
+    expect(JSON.parse(result.body)).toEqual({ status: 'ok' });
+  });
+
+  it('routes fetchRemote with path inside fetchRequestInit (real @forge/bridge style)', async () => {
+    // Real @forge/bridge puts path inside fetchRequestInit (spread from fetchOptions)
+    const result = await rpc(ws, 'fetchRemote', {
+      remoteKey: 'my-backend',
+      fetchRequestInit: { method: 'GET', path: '/api/health' },
     });
     expect(result.status).toBe(200);
     expect(JSON.parse(result.body)).toEqual({ status: 'ok' });

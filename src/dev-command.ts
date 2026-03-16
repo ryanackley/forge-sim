@@ -247,6 +247,11 @@ function generateBridgeInlineScript(wsPort: number): string {
           product: data && data.product, restPath: data && data.restPath,
           fetchRequestInit: data && data.fetchRequestInit
         });
+      case 'fetchRemote':
+        return rpc('fetchRemote', {
+          remoteKey: data && data.remoteKey,
+          fetchRequestInit: data && data.fetchRequestInit
+        });
       case 'getContext':
         return rpc('getContext', { moduleKey: getModuleKeyFromURL() });
       case 'submit':
