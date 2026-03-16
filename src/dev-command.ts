@@ -564,7 +564,7 @@ export async function devCommand(options: DevCommandOptions) {
   console.log(`  🔌 Starting WebSocket bridge on port ${wsPort}...`);
   const devServer = createDevServer({
     port: wsPort,
-    watchDir: join(appDir, 'src'),
+    watchDir: existsSync(join(appDir, 'src')) ? join(appDir, 'src') : undefined,
     simulator: sim,
     context: buildDefaultContext(
       primaryModule.module.key,
