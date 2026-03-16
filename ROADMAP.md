@@ -182,7 +182,23 @@ Add `@testing-library/react` tests for `ForgeDocRenderer` + `component-map.tsx`.
 
 ---
 
-## Priority 4: Web Triggers
+## Priority 4: Universal Dev Server Proxy
+
+Make forge-sim work with **any** frontend build system (webpack, Vite, Parcel, etc.) by acting as a reverse proxy that injects the `window.__bridge` shim into HTML responses. Zero config for developers — just `forge-sim dev --proxy http://localhost:3000`.
+
+**Full proposal:** [proposals/universal-dev-server-proxy.md](proposals/universal-dev-server-proxy.md)
+
+### Key Points
+- HTTP reverse proxy in front of the developer's existing dev server
+- Intercepts HTML responses → injects bridge script before app code runs
+- WebSocket routing: forge-sim bridge on `/__forge-sim/ws`, upstream HMR passes through
+- Bundler-agnostic — no plugins needed, works with webpack/Vite/Parcel/anything
+- Replaces forgebuilder's custom forge shim entirely
+- Estimated effort: 1–1.5 days
+
+---
+
+## Priority 5: Web Triggers
 
 Add HTTP endpoints for web trigger modules. Simple hole to fill.
 
@@ -202,7 +218,7 @@ Add HTTP endpoints for web trigger modules. Simple hole to fill.
 
 ---
 
-## Priority 5: Forge Realtime
+## Priority 6: Forge Realtime
 
 Real-time pub/sub channels (currently Preview, targeting GA).
 
