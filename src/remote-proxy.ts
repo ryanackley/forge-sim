@@ -109,7 +109,9 @@ export class RemoteProxy {
     const remoteKey = endpoint.remote;
     // Prefix path with endpoint route if defined
     if (endpoint.route?.path && !input.path.startsWith(endpoint.route.path)) {
-      input = { ...input, path: endpoint.route.path + input.path };
+      const routeBase = endpoint.route.path.replace(/\/+$/, '');
+      const inputPath = input.path.startsWith('/') ? input.path : '/' + input.path;
+      input = { ...input, path: routeBase + inputPath };
     }
 
     this.log('info', `invokeRemote → endpoint "${endpointKey}" → remote "${remoteKey}" ${input.method ?? 'GET'} ${input.path}`);
@@ -143,7 +145,11 @@ export class RemoteProxy {
    * Make a real HTTP request to the remote backend with FIT auth.
    */
   private async realFetch(baseUrl: string, options: RemoteInvokeOptions): Promise<ProductApiResponse> {
-    const url = `${baseUrl}${options.path}`;
+    // Join baseUrl and path cleanly — avoid double slashes, handle both
+    // "http://host:port/" + "/api/foo" and "http://host:port" + "api/foo"
+    const base = baseUrl.replace(/\/+$/, '');
+    const path = options.path.replace(/^\/+/, '/');
+    const url = `${base}${path.startsWith('/') ? path : '/' + path}`;
     const method = options.method ?? 'GET';
 
     // Build FIT token
