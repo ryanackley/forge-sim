@@ -80,6 +80,7 @@ export class ForgeSimulator {
     this.externalAuth = new ExternalAuthStore();
     this.fit = new FITProvider();
     this.remotes = new RemoteProxy(this.productApi, this.fit);
+    this.remotes.onLog((level, message, detail) => this.log(level, message, detail));
     this.ui = new SimulatorUI(this);
 
     // Register property store as fallback routes for product APIs
