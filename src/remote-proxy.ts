@@ -60,7 +60,7 @@ export class RemoteProxy {
    * Takes a remoteKey and options with path/method/headers/body.
    * Returns a Response-like object (same shape as ProductApiResponse).
    */
-  async invoke(remoteKey: string, options: RemoteInvokeOptions): Promise<ProductApiResponse> {
+  async invoke(remoteKey: string, options: RemoteInvokeOptions, endpointAuth?: { appSystemToken?: { enabled: boolean }; appUserToken?: { enabled: boolean } }): Promise<ProductApiResponse> {
     const remote = this.manifest?.remotes.get(remoteKey);
     if (!remote) {
       const msg = `Unknown remote: "${remoteKey}". Available: ${[...(this.manifest?.remotes.keys() ?? [])].join(', ')}`;
@@ -81,7 +81,7 @@ export class RemoteProxy {
     }
 
     // Fall back to real HTTP
-    return this.realFetch(remote.baseUrl, options);
+    return this.realFetch(remote.baseUrl, options, endpointAuth);
   }
 
   /**
@@ -116,7 +116,7 @@ export class RemoteProxy {
 
     this.log('info', `invokeRemote → endpoint "${endpointKey}" → remote "${remoteKey}" ${input.method ?? 'GET'} ${input.path}`);
 
-    const response = await this.invoke(remoteKey, input);
+    const response = await this.invoke(remoteKey, input, endpoint.auth);
     const result = await response.json();
 
     if (!response.ok) {
@@ -144,7 +144,7 @@ export class RemoteProxy {
   /**
    * Make a real HTTP request to the remote backend with FIT auth.
    */
-  private async realFetch(baseUrl: string, options: RemoteInvokeOptions): Promise<ProductApiResponse> {
+  private async realFetch(baseUrl: string, options: RemoteInvokeOptions, endpointAuth?: { appSystemToken?: { enabled: boolean }; appUserToken?: { enabled: boolean } }): Promise<ProductApiResponse> {
     // Join baseUrl and path cleanly — avoid double slashes, handle both
     // "http://host:port/" + "/api/foo" and "http://host:port" + "api/foo"
     const base = baseUrl.replace(/\/+$/, '');
@@ -152,8 +152,17 @@ export class RemoteProxy {
     const url = `${base}${path.startsWith('/') ? path : '/' + path}`;
     const method = options.method ?? 'GET';
 
-    // Build FIT token
-    let authHeader: string | undefined;
+    // Build required Forge Remote contract headers
+    // See: https://developer.atlassian.com/platform/forge/forge-remote-invocation-contract/
+    const forgeHeaders: Record<string, string> = {};
+
+    // Required: x-b3-traceid and x-b3-spanid (trace context)
+    const traceId = this.generateTraceId();
+    const spanId = this.generateSpanId();
+    forgeHeaders['x-b3-traceid'] = traceId;
+    forgeHeaders['x-b3-spanid'] = spanId;
+
+    // Required: authorization — FIT as bearer token
     if (this.fit.isInitialized) {
       const token = await this.fit.sign({
         aud: this.appId,
@@ -162,10 +171,25 @@ export class RemoteProxy {
           siteUrl: 'https://sim.atlassian.net',
         },
       });
-      authHeader = `Bearer ${token}`;
+      forgeHeaders['authorization'] = `Bearer ${token}`;
+    } else {
+      this.log('error', `FIT not initialized — authorization header will be missing from remote request to ${url}. ` +
+        `Remote backends that validate the FIT will reject this request.`);
     }
 
-    this.log('info', `Remote fetch: ${method} ${url}`);
+    // Optional: x-forge-oauth-system (if endpoint.auth.appSystemToken is enabled)
+    if (endpointAuth?.appSystemToken?.enabled) {
+      // In real Forge, this is an OAuth system token for calling Atlassian APIs.
+      // In forge-sim, we provide a placeholder — the remote should use the FIT for validation.
+      forgeHeaders['x-forge-oauth-system'] = 'forge-sim-system-token';
+    }
+
+    // Optional: x-forge-oauth-user (if endpoint.auth.appUserToken is enabled)
+    if (endpointAuth?.appUserToken?.enabled) {
+      forgeHeaders['x-forge-oauth-user'] = 'forge-sim-user-token';
+    }
+
+    this.log('info', `Remote fetch: ${method} ${url} (trace: ${traceId})`);
 
     // Ensure body is serialized — it may arrive as an object from the bridge
     const body = options.body != null && typeof options.body !== 'string'
@@ -176,9 +200,9 @@ export class RemoteProxy {
       const response = await globalThis.fetch(url, {
         method,
         headers: {
-          ...(authHeader ? { Authorization: authHeader } : {}),
           'Content-Type': 'application/json',
-          ...options.headers,
+          ...forgeHeaders,
+          ...options.headers, // App-specified headers can override
         },
         body,
       });
@@ -216,6 +240,20 @@ export class RemoteProxy {
       });
       return this.makeErrorResponse(502, `Remote request failed: ${detail}`);
     }
+  }
+
+  /** Generate a 128-bit hex trace ID (matches x-b3-traceid format). */
+  private generateTraceId(): string {
+    const bytes = new Uint8Array(16);
+    crypto.getRandomValues(bytes);
+    return [...bytes].map(b => b.toString(16).padStart(2, '0')).join('');
+  }
+
+  /** Generate a 64-bit hex span ID (matches x-b3-spanid format). */
+  private generateSpanId(): string {
+    const bytes = new Uint8Array(8);
+    crypto.getRandomValues(bytes);
+    return [...bytes].map(b => b.toString(16).padStart(2, '0')).join('');
   }
 
   private makeErrorResponse(status: number, message: string): ProductApiResponse {

@@ -1022,6 +1022,11 @@ async function deployResolversOnly(
     }
   }
 
+  // Initialize FIT provider if manifest has remotes
+  if (manifest.remotes.size > 0) {
+    await sim.fit.init(appDir);
+  }
+
   // Wire up consumers
   for (const consumer of manifest.consumers) {
     const handlerMap = sim.resolver.getHandlerMap();
