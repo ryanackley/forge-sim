@@ -782,6 +782,9 @@ export async function devCommand(options: DevCommandOptions) {
       console.log(`     ➜ Network: ${networkUrl}`);
     }
     console.log(`     ➜ WS:      ws://localhost:${wsPort}`);
+    if (manifest.remotes.size > 0) {
+      console.log(`     ➜ JWKS:    ${localUrl}/__forge/jwks.json`);
+    }
 
     // 8. Start Forge Sim Tools (uses Vite's HTTP server via middleware)
     const { attachToolsToVite } = await import('./tools/server.js');
