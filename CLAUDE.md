@@ -1,5 +1,11 @@
 # CLAUDE.md — forge-sim
 
+## Core Principle
+
+> **If it works in forge-sim, it should work in Forge. If it wouldn't work in Forge, it shouldn't work in forge-sim.**
+
+This is the foundational ethos. forge-sim is not a loose approximation — it's a faithful simulation. When we make design decisions, validate inputs, resolve endpoints, or handle errors, we match Forge's real behavior. Silently succeeding where Forge would fail is a bug. Throwing where Forge would succeed is also a bug. The goal is **behavioral parity**: developers can trust that passing forge-sim means passing production.
+
 ## What is this?
 
 Simulated Atlassian Forge runtime for AI-driven development and testing. An AI agent (or human) can deploy a Forge app into the sim, invoke resolvers, interact with UIKit components, run SQL queries against real MySQL, manipulate Custom Entities, and validate behavior — all without deploying to Atlassian.
