@@ -67,7 +67,7 @@ export class FITProvider {
       }
     }
 
-    const { privateKey, publicKey } = await generateKeyPair(ALG);
+    const { privateKey, publicKey } = await generateKeyPair(ALG, { extractable: true });
     this.privateKey = privateKey;
 
     // Export public key as JWK
@@ -93,7 +93,7 @@ export class FITProvider {
    * Useful for testing.
    */
   async initInMemory(): Promise<void> {
-    const { privateKey, publicKey } = await generateKeyPair(ALG);
+    const { privateKey, publicKey } = await generateKeyPair(ALG, { extractable: true });
     this.privateKey = privateKey;
 
     const jwk = await exportJWK(publicKey);
