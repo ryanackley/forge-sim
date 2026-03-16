@@ -172,6 +172,27 @@ export function createDevServer(options: DevServerOptions = {}): DevServer {
         return simulator.invoke(functionKey, payload);
       }
 
+      case 'invokeRemote': {
+        const { path, method, headers, body } = params;
+        return simulator.remotes.invokeFromBridge({ path, method, headers, body });
+      }
+
+      case 'fetchRemote': {
+        const { remoteKey, path, fetchRequestInit } = params;
+        const response = await simulator.remotes.request(remoteKey, {
+          path: path ?? '/',
+          method: fetchRequestInit?.method,
+          headers: fetchRequestInit?.headers,
+          body: fetchRequestInit?.body,
+        });
+        return {
+          status: response.status,
+          statusText: response.statusText,
+          body: await response.text(),
+          headers: response.headers,
+        };
+      }
+
       case 'fetchProduct': {
         const { product, restPath, fetchRequestInit } = params;
         const response = await simulator.productApi.request(product, restPath, {

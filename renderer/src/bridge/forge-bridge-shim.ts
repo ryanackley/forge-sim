@@ -352,6 +352,15 @@ async function callBridge(cmd: string, data?: any): Promise<any> {
       return;
 
     case 'invoke':
+      // Remote fetch has invokeType 'ui-remote-fetch' — route to remote proxy
+      if (data?.invokeType === 'ui-remote-fetch') {
+        return rpc('invokeRemote', {
+          path: data.path,
+          method: data.method,
+          headers: data.headers,
+          body: data.body,
+        });
+      }
       // Route to forge-sim backend
       return rpc('invoke', {
         functionKey: data?.functionKey,
