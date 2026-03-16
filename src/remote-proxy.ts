@@ -60,7 +60,12 @@ export class RemoteProxy {
    * Takes a remoteKey and options with path/method/headers/body.
    * Returns a Response-like object (same shape as ProductApiResponse).
    */
-  async invoke(remoteKey: string, options: RemoteInvokeOptions, endpointAuth?: { appSystemToken?: { enabled: boolean }; appUserToken?: { enabled: boolean } }): Promise<ProductApiResponse> {
+  async invoke(remoteKey: string, options: RemoteInvokeOptions, invokeContext?: {
+    endpointAuth?: { appSystemToken?: { enabled: boolean }; appUserToken?: { enabled: boolean } };
+    moduleKey?: string;
+    moduleType?: string;
+    endpointKey?: string;
+  }): Promise<ProductApiResponse> {
     const remote = this.manifest?.remotes.get(remoteKey);
     if (!remote) {
       const msg = `Unknown remote: "${remoteKey}". Available: ${[...(this.manifest?.remotes.keys() ?? [])].join(', ')}`;
@@ -81,7 +86,7 @@ export class RemoteProxy {
     }
 
     // Fall back to real HTTP
-    return this.realFetch(remote.baseUrl, options, endpointAuth);
+    return this.realFetch(remote.baseUrl, options, invokeContext);
   }
 
   /**
@@ -116,16 +121,43 @@ export class RemoteProxy {
 
     this.log('info', `invokeRemote → endpoint "${endpointKey}" → remote "${remoteKey}" ${input.method ?? 'GET'} ${input.path}`);
 
-    const response = await this.invoke(remoteKey, input, endpoint.auth);
-    const result = await response.json();
+    const response = await this.invoke(remoteKey, input, {
+      endpointAuth: endpoint.auth,
+      moduleKey: input.moduleKey,
+      moduleType: input.moduleType,
+      endpointKey,
+    });
+    const body = await response.text();
+    const headers = response.headers ?? {};
 
     if (!response.ok) {
-      this.log('error', `invokeRemote failed: ${response.status} ${response.statusText} — ${JSON.stringify(result)}`, {
+      this.log('error', `invokeRemote failed: ${response.status} ${response.statusText} — ${body.slice(0, 500)}`, {
         endpoint: endpointKey, remote: remoteKey, path: input.path, status: response.status,
       });
+      // Match @forge/bridge's _setupInvokeEndpointFn expected response format:
+      // { success: false, error: { status, statusText, headers, body } }
+      return {
+        success: false,
+        error: {
+          status: response.status,
+          statusText: response.statusText,
+          headers,
+          body,
+        },
+      };
     }
 
-    return result;
+    // Match @forge/bridge's _setupInvokeEndpointFn expected response format:
+    // { success: true, payload: { status, statusText, headers, body } }
+    return {
+      success: true,
+      payload: {
+        status: response.status,
+        statusText: response.statusText,
+        headers,
+        body,
+      },
+    };
   }
 
   /**
@@ -144,7 +176,12 @@ export class RemoteProxy {
   /**
    * Make a real HTTP request to the remote backend with FIT auth.
    */
-  private async realFetch(baseUrl: string, options: RemoteInvokeOptions, endpointAuth?: { appSystemToken?: { enabled: boolean }; appUserToken?: { enabled: boolean } }): Promise<ProductApiResponse> {
+  private async realFetch(baseUrl: string, options: RemoteInvokeOptions, invokeContext?: {
+    endpointAuth?: { appSystemToken?: { enabled: boolean }; appUserToken?: { enabled: boolean } };
+    moduleKey?: string;
+    moduleType?: string;
+    endpointKey?: string;
+  }): Promise<ProductApiResponse> {
     // Join baseUrl and path cleanly — avoid double slashes, handle both
     // "http://host:port/" + "/api/foo" and "http://host:port" + "api/foo"
     const base = baseUrl.replace(/\/+$/, '');
@@ -162,14 +199,37 @@ export class RemoteProxy {
     forgeHeaders['x-b3-traceid'] = traceId;
     forgeHeaders['x-b3-spanid'] = spanId;
 
+    // Build context from connected account (if available) or defaults
+    const connectedAccount = this.productApi.connectedAccount;
+    const cloudId = connectedAccount?.cloudId ?? 'sim-cloud-001';
+    const siteUrl = connectedAccount ? `https://${connectedAccount.site}` : 'https://sim.atlassian.net';
+    const accountId = connectedAccount?.accountId ?? 'sim-user-001';
+    const endpointAuth = invokeContext?.endpointAuth;
+
     // Required: authorization — FIT as bearer token
     if (this.fit.isInitialized) {
       const token = await this.fit.sign({
         aud: this.appId,
-        context: {
-          cloudId: 'sim-cloud-001',
-          siteUrl: 'https://sim.atlassian.net',
+        app: {
+          id: this.appId,
+          version: '1.0.0',
+          installationId: `${this.appId}/install/${cloudId}`,
+          environment: {
+            type: 'DEVELOPMENT',
+            id: `${this.appId}/env/development`,
+          },
+          module: invokeContext?.moduleKey ? {
+            type: invokeContext.moduleType ?? 'unknown',
+            key: invokeContext.moduleKey,
+          } : undefined,
         },
+        context: {
+          cloudId,
+          siteUrl,
+          moduleKey: invokeContext?.moduleKey,
+          localId: invokeContext?.endpointKey,
+        },
+        principal: accountId,
       });
       forgeHeaders['authorization'] = `Bearer ${token}`;
     } else {

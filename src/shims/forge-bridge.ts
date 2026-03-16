@@ -345,7 +345,11 @@ export async function invokeRemote(input: { path: string; method?: string; heade
   }
   // Resolve endpoint from the active module's config
   const endpointKey = sim.currentModuleKey ? sim.resolveModuleEndpoint(sim.currentModuleKey) : undefined;
-  return proxy.invokeFromBridge({ ...input, endpointKey });
+  const bridgeResponse = await proxy.invokeFromBridge({ ...input, endpointKey });
+
+  // Unwrap the { success, payload, error } format (same as real @forge/bridge's _setupInvokeEndpointFn)
+  const { success, payload, error } = bridgeResponse ?? {};
+  return { ...(success ? payload : error) };
 }
 
 /**

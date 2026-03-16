@@ -181,6 +181,7 @@ export async function deploy(sim: ForgeSimulator, appDir: string): Promise<Deplo
     sim.registerModuleRoute(uiModule.key, {
       resolverFunctionKey: uiModule.resolverFunctionKey,
       endpointKey: uiModule.endpointKey,
+      moduleType: uiModule.type,
     });
 
     if (!uiModule.resolverFunctionKey) continue;

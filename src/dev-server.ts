@@ -176,7 +176,9 @@ export function createDevServer(options: DevServerOptions = {}): DevServer {
         const { path, method, headers, body, moduleKey } = params;
         // Resolve endpoint from module context
         const endpointKey = moduleKey ? simulator.resolveModuleEndpoint(moduleKey) : undefined;
-        return simulator.remotes.invokeFromBridge({ path, method, headers, body, endpointKey });
+        // Look up module type for FIT claims
+        const moduleType = moduleKey ? simulator.getModuleType(moduleKey) : undefined;
+        return simulator.remotes.invokeFromBridge({ path, method, headers, body, endpointKey, moduleKey, moduleType });
       }
 
       case 'fetchRemote': {

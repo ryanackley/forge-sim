@@ -162,13 +162,13 @@ describe('Module route registration', () => {
   it('registers module routes from manifest with resolver', async () => {
     await sim.loadManifest(RESOLVER_ONLY_MANIFEST);
     const route = sim.getModuleRoute('local-panel');
-    expect(route).toEqual({ resolverFunctionKey: 'my-resolver', endpointKey: undefined });
+    expect(route).toEqual({ resolverFunctionKey: 'my-resolver', endpointKey: undefined, moduleType: 'jira:issuePanel' });
   });
 
   it('registers module routes from manifest with endpoint', async () => {
     await sim.loadManifest(ENDPOINT_ONLY_MANIFEST);
     const route = sim.getModuleRoute('remote-panel');
-    expect(route).toEqual({ resolverFunctionKey: undefined, endpointKey: 'my-endpoint' });
+    expect(route).toEqual({ resolverFunctionKey: undefined, endpointKey: 'my-endpoint', moduleType: 'jira:issuePanel' });
   });
 
   it('registers both resolver and endpoint modules', async () => {
@@ -176,10 +176,12 @@ describe('Module route registration', () => {
     expect(sim.getModuleRoute('local-panel')).toEqual({
       resolverFunctionKey: 'my-resolver',
       endpointKey: undefined,
+      moduleType: 'jira:issuePanel',
     });
     expect(sim.getModuleRoute('remote-panel')).toEqual({
       resolverFunctionKey: undefined,
       endpointKey: 'my-endpoint',
+      moduleType: 'jira:issuePanel',
     });
   });
 
@@ -195,7 +197,7 @@ describe('Module route registration', () => {
   it('registers non-standard module types like jira:fullPage', async () => {
     await sim.loadManifest(FULLPAGE_MANIFEST);
     const route = sim.getModuleRoute('my-fullpage');
-    expect(route).toEqual({ resolverFunctionKey: undefined, endpointKey: 'my-endpoint' });
+    expect(route).toEqual({ resolverFunctionKey: undefined, endpointKey: 'my-endpoint', moduleType: 'jira:fullPage' });
   });
 
   it('clears module routes on reset', async () => {

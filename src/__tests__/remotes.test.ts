@@ -364,14 +364,16 @@ describe('invokeRemote from @forge/bridge', () => {
     sim.currentModuleKey = 'panel';
   });
 
-  it('resolves endpoint to remote and returns parsed JSON', async () => {
+  it('resolves endpoint to remote and returns response envelope', async () => {
     sim.mockProductRoutes('my-backend', {
       'GET /api/v1/items': [{ id: 1 }, { id: 2 }],
     });
 
     // Bridge invokeRemote uses endpoint resolution from active module
-    const data = await forgeBridge.invokeRemote({ path: '/items' });
-    expect(data).toEqual([{ id: 1 }, { id: 2 }]);
+    // Response is unwrapped: { status, statusText, headers, body }
+    const response = await forgeBridge.invokeRemote({ path: '/items' });
+    expect(response.status).toBe(200);
+    expect(JSON.parse(response.body)).toEqual([{ id: 1 }, { id: 2 }]);
   });
 
   it('fails when active module has no endpoint', async () => {

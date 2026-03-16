@@ -24,12 +24,29 @@ const KID = 'forge-sim-1';
 export interface FITClaims {
   /** Audience — app ID from manifest */
   aud: string;
+  /** App metadata */
+  app?: {
+    id: string;
+    version?: string;
+    installationId?: string;
+    environment?: {
+      type: string;
+      id: string;
+    };
+    module?: {
+      type: string;
+      key: string;
+    };
+  };
   /** Context object embedded in the token */
   context?: {
     cloudId?: string;
     siteUrl?: string;
     moduleKey?: string;
+    localId?: string;
   };
+  /** Principal — the acting user's account ID */
+  principal?: string;
   /** OAuth app system token (if available) */
   appSystemToken?: string;
   /** OAuth app user token (if available) */
@@ -114,7 +131,9 @@ export class FITProvider {
     }
 
     const builder = new SignJWT({
+      app: claims.app,
       context: claims.context,
+      principal: claims.principal,
       ...(claims.appSystemToken ? { appSystemToken: claims.appSystemToken } : {}),
       ...(claims.appUserToken ? { appUserToken: claims.appUserToken } : {}),
     })

@@ -5,8 +5,9 @@
       "name": "forge-sim dev (forgebuilder)",
       "type": "node",
       "request": "launch",
-      "runtimeExecutable": "${workspaceFolder}/node_modules/.bin/tsx",
+      "runtimeExecutable": "node",
       "args": [
+        "--import", "tsx/esm",
         "${workspaceFolder}/src/cli.ts",
         "dev",
         "--dir",
@@ -15,6 +16,10 @@
       "cwd": "/Users/nyx/Projects/forgebuilder/forge-app",
       "console": "integratedTerminal",
       "sourceMaps": true,
+      "resolveSourceMapLocations": [
+        "${workspaceFolder}/**",
+        "!**/node_modules/**"
+      ],
       "skipFiles": ["<node_internals>/**"]
     }
   ]

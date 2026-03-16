@@ -154,7 +154,11 @@ describe('Dev Server RPC invoke routing', () => {
       body: JSON.stringify({ action: 'LoadProjects' }),
       moduleKey: 'panel', // module with endpoint: forge-proxy
     });
-    expect(result).toEqual({ success: true, action: 'LoadProjects', data: [] });
+    // Response matches @forge/bridge's _setupInvokeEndpointFn expected format
+    expect(result.success).toBe(true);
+    expect(result.payload).toBeDefined();
+    expect(result.payload.status).toBe(200);
+    expect(JSON.parse(result.payload.body)).toEqual({ success: true, action: 'LoadProjects', data: [] });
   });
 
   it('routes GET invokeRemote to remote proxy', async () => {
@@ -163,17 +167,18 @@ describe('Dev Server RPC invoke routing', () => {
       method: 'GET',
       moduleKey: 'panel',
     });
-    expect(result).toEqual({ status: 'ok' });
+    expect(result.success).toBe(true);
+    expect(JSON.parse(result.payload.body)).toEqual({ status: 'ok' });
   });
 
-  it('invokeRemote returns mock 404 for unknown path', async () => {
+  it('invokeRemote returns error for unknown mock path', async () => {
     const result = await rpc(ws, 'invokeRemote', {
       path: '/api/unknown',
       method: 'GET',
       moduleKey: 'panel',
     });
-    expect(result).toBeDefined();
-    expect(result.error).toMatch(/No mock route matched/);
+    expect(result.success).toBe(false);
+    expect(result.error.status).toBe(404);
   });
 
   it('invokeRemote fails without module context', async () => {

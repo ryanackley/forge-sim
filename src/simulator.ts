@@ -54,7 +54,7 @@ export class ForgeSimulator {
    * Module routing: maps moduleKey → { resolverFunctionKey?, endpointKey? }
    * Built by the deployer from manifest UI modules.
    */
-  private moduleRouting = new Map<string, { resolverFunctionKey?: string; endpointKey?: string }>();
+  private moduleRouting = new Map<string, { resolverFunctionKey?: string; endpointKey?: string; moduleType?: string }>();
 
   /**
    * The currently active module key (set by dev-command when rendering a module).
@@ -131,6 +131,7 @@ export class ForgeSimulator {
       this.registerModuleRoute(ui.key, {
         resolverFunctionKey: ui.resolverFunctionKey,
         endpointKey: ui.endpointKey,
+        moduleType: ui.type,
       });
     }
 
@@ -189,6 +190,7 @@ export class ForgeSimulator {
       this.registerModuleRoute(ui.key, {
         resolverFunctionKey: ui.resolverFunctionKey,
         endpointKey: ui.endpointKey,
+        moduleType: ui.type,
       });
     }
 
@@ -221,7 +223,7 @@ export class ForgeSimulator {
    * Register a UI module's routing info (called by deployer).
    * Maps moduleKey → resolver function key or endpoint key.
    */
-  registerModuleRoute(moduleKey: string, route: { resolverFunctionKey?: string; endpointKey?: string }): void {
+  registerModuleRoute(moduleKey: string, route: { resolverFunctionKey?: string; endpointKey?: string; moduleType?: string }): void {
     this.moduleRouting.set(moduleKey, route);
   }
 
@@ -235,8 +237,15 @@ export class ForgeSimulator {
   /**
    * Get the module route for a given module key.
    */
-  getModuleRoute(moduleKey: string): { resolverFunctionKey?: string; endpointKey?: string } | undefined {
+  getModuleRoute(moduleKey: string): { resolverFunctionKey?: string; endpointKey?: string; moduleType?: string } | undefined {
     return this.moduleRouting.get(moduleKey);
+  }
+
+  /**
+   * Get the module type (e.g., 'jira:issuePanel', 'confluence:globalPage') for a module key.
+   */
+  getModuleType(moduleKey: string): string | undefined {
+    return this.moduleRouting.get(moduleKey)?.moduleType;
   }
 
   /**
