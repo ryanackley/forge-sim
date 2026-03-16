@@ -233,7 +233,7 @@ function generateBridgeInlineScript(wsPort: number): string {
         }
         return Promise.resolve();
       case 'invoke':
-        if (data && data.invokeType === 'ui-remote-fetch') {
+        if (data && data.invokeType && data.invokeType.startsWith('ui-') && data.invokeType.endsWith('-fetch')) {
           return rpc('invokeRemote', {
             path: data.path,
             method: data.method,

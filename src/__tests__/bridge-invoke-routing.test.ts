@@ -219,31 +219,7 @@ describe('Bridge callBridge invokeType dispatch', () => {
 
   it('dispatches ui-remote-fetch to invokeRemote RPC', () => {
     const rpcCalls: Array<{ method: string; params: any }> = [];
-    const mockRpc = (method: string, params: any) => {
-      rpcCalls.push({ method, params });
-      return Promise.resolve();
-    };
 
-    // Simulate the callBridge dispatch logic from generateBridgeInlineScript
-    function callBridge(cmd: string, data: any) {
-      if (cmd === 'invoke') {
-        if (data && data.invokeType === 'ui-remote-fetch') {
-          return mockRpc('invokeRemote', {
-            path: data.path,
-            method: data.method,
-            headers: data.headers,
-            body: data.body,
-          });
-        }
-        return mockRpc('invoke', {
-          functionKey: data && data.functionKey,
-          payload: data && data.payload,
-        });
-      }
-      return Promise.resolve();
-    }
-
-    // Test remote fetch dispatch
     callBridge('invoke', {
       path: '/api/ForgeProxy',
       method: 'POST',
@@ -260,35 +236,47 @@ describe('Bridge callBridge invokeType dispatch', () => {
       headers: { 'Content-Type': 'application/json' },
       body: { action: 'LoadProjects' },
     });
+
+    // Helper shared by all dispatch tests
+    function callBridge(cmd: string, data: any) {
+      if (cmd === 'invoke') {
+        if (data && data.invokeType && data.invokeType.startsWith('ui-') && data.invokeType.endsWith('-fetch')) {
+          rpcCalls.push({ method: 'invokeRemote', params: { path: data.path, method: data.method, headers: data.headers, body: data.body } });
+          return;
+        }
+        rpcCalls.push({ method: 'invoke', params: { functionKey: data?.functionKey, payload: data?.payload } });
+      }
+    }
+  });
+
+  it('dispatches ui-container-fetch (invokeService) to invokeRemote RPC', () => {
+    const rpcCalls: Array<{ method: string; params: any }> = [];
+
+    callBridge('invoke', {
+      path: '/service/health',
+      method: 'GET',
+      invokeType: 'ui-container-fetch',
+    });
+
+    expect(rpcCalls).toHaveLength(1);
+    expect(rpcCalls[0].method).toBe('invokeRemote');
+    expect(rpcCalls[0].params.path).toBe('/service/health');
+
+    function callBridge(cmd: string, data: any) {
+      if (cmd === 'invoke') {
+        if (data && data.invokeType && data.invokeType.startsWith('ui-') && data.invokeType.endsWith('-fetch')) {
+          rpcCalls.push({ method: 'invokeRemote', params: { path: data.path, method: data.method, headers: data.headers, body: data.body } });
+          return;
+        }
+        rpcCalls.push({ method: 'invoke', params: { functionKey: data?.functionKey, payload: data?.payload } });
+      }
+    }
   });
 
   it('dispatches normal invoke to resolver RPC', () => {
     const rpcCalls: Array<{ method: string; params: any }> = [];
-    const mockRpc = (method: string, params: any) => {
-      rpcCalls.push({ method, params });
-      return Promise.resolve();
-    };
 
-    function callBridge(cmd: string, data: any) {
-      if (cmd === 'invoke') {
-        if (data && data.invokeType === 'ui-remote-fetch') {
-          return mockRpc('invokeRemote', {
-            path: data.path,
-            method: data.method,
-            headers: data.headers,
-            body: data.body,
-          });
-        }
-        return mockRpc('invoke', {
-          functionKey: data && data.functionKey,
-          payload: data && data.payload,
-        });
-      }
-      return Promise.resolve();
-    }
-
-    // Test normal resolver dispatch
-    callBridge('invoke', {
+    dispatchInvoke(rpcCalls, {
       functionKey: 'resolver',
       payload: { action: 'getItems' },
     });
@@ -303,31 +291,9 @@ describe('Bridge callBridge invokeType dispatch', () => {
 
   it('does not route to invokeRemote without invokeType', () => {
     const rpcCalls: Array<{ method: string; params: any }> = [];
-    const mockRpc = (method: string, params: any) => {
-      rpcCalls.push({ method, params });
-      return Promise.resolve();
-    };
-
-    function callBridge(cmd: string, data: any) {
-      if (cmd === 'invoke') {
-        if (data && data.invokeType === 'ui-remote-fetch') {
-          return mockRpc('invokeRemote', {
-            path: data.path,
-            method: data.method,
-            headers: data.headers,
-            body: data.body,
-          });
-        }
-        return mockRpc('invoke', {
-          functionKey: data && data.functionKey,
-          payload: data && data.payload,
-        });
-      }
-      return Promise.resolve();
-    }
 
     // Data has path/method but no invokeType — should go to resolver
-    callBridge('invoke', {
+    dispatchInvoke(rpcCalls, {
       functionKey: 'resolver',
       path: '/api/something',
       method: 'POST',
@@ -339,33 +305,10 @@ describe('Bridge callBridge invokeType dispatch', () => {
     expect(rpcCalls[0].params.functionKey).toBe('resolver');
   });
 
-  it('does not route unknown invokeType to remote', () => {
+  it('does not route invokeType without ui- prefix to remote', () => {
     const rpcCalls: Array<{ method: string; params: any }> = [];
-    const mockRpc = (method: string, params: any) => {
-      rpcCalls.push({ method, params });
-      return Promise.resolve();
-    };
 
-    function callBridge(cmd: string, data: any) {
-      if (cmd === 'invoke') {
-        if (data && data.invokeType === 'ui-remote-fetch') {
-          return mockRpc('invokeRemote', {
-            path: data.path,
-            method: data.method,
-            headers: data.headers,
-            body: data.body,
-          });
-        }
-        return mockRpc('invoke', {
-          functionKey: data && data.functionKey,
-          payload: data && data.payload,
-        });
-      }
-      return Promise.resolve();
-    }
-
-    // Unknown invokeType — should fall through to normal invoke
-    callBridge('invoke', {
+    dispatchInvoke(rpcCalls, {
       functionKey: 'resolver',
       invokeType: 'something-else',
       payload: {},
@@ -374,4 +317,27 @@ describe('Bridge callBridge invokeType dispatch', () => {
     expect(rpcCalls).toHaveLength(1);
     expect(rpcCalls[0].method).toBe('invoke');
   });
+
+  it('does not route partial ui- invokeType without -fetch suffix', () => {
+    const rpcCalls: Array<{ method: string; params: any }> = [];
+
+    dispatchInvoke(rpcCalls, {
+      path: '/api/test',
+      invokeType: 'ui-remote-something',
+    });
+
+    expect(rpcCalls).toHaveLength(1);
+    expect(rpcCalls[0].method).toBe('invoke');
+  });
+
+  /**
+   * Mirrors the dispatch logic from generateBridgeInlineScript / renderer bridge shim.
+   */
+  function dispatchInvoke(rpcCalls: Array<{ method: string; params: any }>, data: any) {
+    if (data && data.invokeType && data.invokeType.startsWith('ui-') && data.invokeType.endsWith('-fetch')) {
+      rpcCalls.push({ method: 'invokeRemote', params: { path: data.path, method: data.method, headers: data.headers, body: data.body } });
+    } else {
+      rpcCalls.push({ method: 'invoke', params: { functionKey: data?.functionKey, payload: data?.payload } });
+    }
+  }
 });

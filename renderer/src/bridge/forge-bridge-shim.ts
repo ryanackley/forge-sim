@@ -352,8 +352,8 @@ async function callBridge(cmd: string, data?: any): Promise<any> {
       return;
 
     case 'invoke':
-      // Remote fetch has invokeType 'ui-remote-fetch' — route to remote proxy
-      if (data?.invokeType === 'ui-remote-fetch') {
+      // Endpoint invocations: invokeRemote → 'ui-remote-fetch', invokeService → 'ui-container-fetch'
+      if (data?.invokeType?.startsWith('ui-') && data.invokeType.endsWith('-fetch')) {
         return rpc('invokeRemote', {
           path: data.path,
           method: data.method,
