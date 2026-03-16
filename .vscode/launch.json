@@ -1,0 +1,21 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "forge-sim dev (forgebuilder)",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "${workspaceFolder}/node_modules/.bin/tsx",
+      "args": [
+        "${workspaceFolder}/src/cli.ts",
+        "dev",
+        "--dir",
+        "/Users/nyx/Projects/forgebuilder/forge-app"
+      ],
+      "cwd": "/Users/nyx/Projects/forgebuilder/forge-app",
+      "console": "integratedTerminal",
+      "sourceMaps": true,
+      "skipFiles": ["<node_internals>/**"]
+    }
+  ]
+}

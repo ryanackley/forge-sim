@@ -59,8 +59,12 @@ export class FITProvider {
       this.publicJWK = jwks.keys[0];
       this.initialized = true;
       return;
-    } catch {
-      // Keys don't exist — generate new ones
+    } catch (err: any) {
+      // Keys don't exist or are corrupt/incompatible — regenerate
+      // Common: "CryptoKey is not extractable" when key was saved by different crypto backend
+      if (err?.code !== 'ENOENT') {
+        console.warn(`[fit] Regenerating keys: ${err.message}`);
+      }
     }
 
     const { privateKey, publicKey } = await generateKeyPair(ALG);

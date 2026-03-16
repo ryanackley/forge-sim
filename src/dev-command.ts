@@ -1022,9 +1022,18 @@ async function deployResolversOnly(
     }
   }
 
-  // Initialize FIT provider if manifest has remotes
+  // Register manifest data FIRST — module routing, remotes, endpoints
+  // This must happen before anything that might fail (FIT, scheduled triggers)
+  sim.loadManifestData(manifest);
+
+  // Initialize FIT provider if manifest has remotes (non-fatal)
   if (manifest.remotes.size > 0) {
-    await sim.fit.init(appDir);
+    try {
+      await sim.fit.init(appDir);
+    } catch (err: any) {
+      console.error(`  ⚠️  FIT initialization failed: ${err.message}`);
+      console.error(`     Remote requests will be sent without authorization headers.`);
+    }
   }
 
   // Wire up consumers
@@ -1051,7 +1060,8 @@ async function deployResolversOnly(
     }
   }
 
-  sim.loadManifestData(manifest);
+  // Note: sim.loadManifestData(manifest) is called at the TOP of this function
+  // to ensure module routing is always registered, even if later steps fail.
   return { loadedFunctions, errors };
 }
 
