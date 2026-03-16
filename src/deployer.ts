@@ -172,11 +172,17 @@ export async function deploy(sim: ForgeSimulator, appDir: string): Promise<Deplo
     if (uiModule.resolverFunctionKey) resolverFnKeys.add(uiModule.resolverFunctionKey);
   }
 
-  // 3. Wire up resolvers (UI bridge pattern)
+  // 3. Wire up resolvers (UI bridge pattern) and register module routing
   // UI modules reference functions via resolver.function — those functions
   // export a Resolver's getDefinitions() result (a map of handler functions).
   // Resolver-defined functions get { payload, context } as a single wrapped object.
   for (const uiModule of manifest.uiModules) {
+    // Register module routing (resolver function key and/or endpoint key)
+    sim.registerModuleRoute(uiModule.key, {
+      resolverFunctionKey: uiModule.resolverFunctionKey,
+      endpointKey: uiModule.endpointKey,
+    });
+
     if (!uiModule.resolverFunctionKey) continue;
 
     const exported = handlerExports.get(uiModule.resolverFunctionKey);
@@ -187,10 +193,12 @@ export async function deploy(sim: ForgeSimulator, appDir: string): Promise<Deplo
       for (const [defKey, defHandler] of Object.entries(exported)) {
         if (typeof defHandler === 'function') {
           sim.resolver.define(defKey, defHandler as any);
+          sim.registerResolverOwnership(defKey, uiModule.resolverFunctionKey);
         }
       }
     } else if (typeof exported === 'function') {
       sim.resolver.define(uiModule.resolverFunctionKey, exported);
+      sim.registerResolverOwnership(uiModule.resolverFunctionKey, uiModule.resolverFunctionKey);
     }
   }
 

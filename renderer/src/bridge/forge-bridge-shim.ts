@@ -359,12 +359,14 @@ async function callBridge(cmd: string, data?: any): Promise<any> {
           method: data.method,
           headers: data.headers,
           body: data.body,
+          moduleKey: getModuleKeyFromURL(),
         });
       }
       // Route to forge-sim backend
       return rpc('invoke', {
         functionKey: data?.functionKey,
         payload: data?.payload,
+        moduleKey: getModuleKeyFromURL(),
       });
 
     case 'fetchProduct':

@@ -168,13 +168,15 @@ export function createDevServer(options: DevServerOptions = {}): DevServer {
 
     switch (method) {
       case 'invoke': {
-        const { functionKey, payload } = params;
-        return simulator.invoke(functionKey, payload);
+        const { functionKey, payload, moduleKey } = params;
+        return simulator.invoke(functionKey, payload, moduleKey);
       }
 
       case 'invokeRemote': {
-        const { path, method, headers, body } = params;
-        return simulator.remotes.invokeFromBridge({ path, method, headers, body });
+        const { path, method, headers, body, moduleKey } = params;
+        // Resolve endpoint from module context
+        const endpointKey = moduleKey ? simulator.resolveModuleEndpoint(moduleKey) : undefined;
+        return simulator.remotes.invokeFromBridge({ path, method, headers, body, endpointKey });
       }
 
       case 'fetchRemote': {

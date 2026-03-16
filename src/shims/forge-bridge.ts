@@ -336,13 +336,16 @@ function getRemoteProxy(): import('../remote-proxy.js').RemoteProxy | null {
  * Bridge invokeRemote — takes a single options object { path, method, headers, body }.
  * No remoteKey arg — resolves the remote from the current module's endpoint config.
  */
-export function invokeRemote(input: { path: string; method?: string; headers?: Record<string, string>; body?: any }): Promise<any> {
-  const proxy = getRemoteProxy();
+export async function invokeRemote(input: { path: string; method?: string; headers?: Record<string, string>; body?: any }): Promise<any> {
+  const sim = (globalThis as any)[Symbol.for('forge-sim.instance')];
+  const proxy = sim?.remotes;
   if (!proxy) {
     console.warn('[forge-sim] invokeRemote — no simulator connected');
-    return Promise.resolve(null);
+    return null;
   }
-  return proxy.invokeFromBridge(input);
+  // Resolve endpoint from the active module's config
+  const endpointKey = sim.currentModuleKey ? sim.resolveModuleEndpoint(sim.currentModuleKey) : undefined;
+  return proxy.invokeFromBridge({ ...input, endpointKey });
 }
 
 /**

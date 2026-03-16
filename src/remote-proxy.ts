@@ -72,27 +72,26 @@ export class RemoteProxy {
    * Returns parsed JSON (not a Response — bridge convention).
    */
   async invokeFromBridge(input: RemoteInvokeOptions & { endpointKey?: string }): Promise<any> {
-    // Resolve endpoint → remote
     const endpointKey = input.endpointKey;
-    let remoteKey: string | undefined;
 
-    let endpoint = endpointKey ? this.manifest?.endpoints.get(endpointKey) : undefined;
+    if (!endpointKey) {
+      throw new Error(
+        'invokeRemote requires an endpoint key. The calling module must have resolver.endpoint configured in the manifest. ' +
+        `Available endpoints: ${[...(this.manifest?.endpoints.keys() ?? [])].join(', ') || 'none'}`
+      );
+    }
 
+    const endpoint = this.manifest?.endpoints.get(endpointKey);
     if (!endpoint) {
-      // Fall back to first endpoint in manifest
-      endpoint = this.manifest?.endpoints.values().next().value ?? undefined;
+      throw new Error(
+        `Unknown endpoint "${endpointKey}". Available endpoints: ${[...(this.manifest?.endpoints.keys() ?? [])].join(', ') || 'none'}`
+      );
     }
 
-    if (endpoint) {
-      remoteKey = endpoint.remote;
-      // Prefix path with endpoint route if defined
-      if (endpoint.route?.path && !input.path.startsWith(endpoint.route.path)) {
-        input = { ...input, path: endpoint.route.path + input.path };
-      }
-    }
-
-    if (!remoteKey) {
-      throw new Error('No endpoint/remote found for bridge invokeRemote. Define endpoints in manifest.');
+    const remoteKey = endpoint.remote;
+    // Prefix path with endpoint route if defined
+    if (endpoint.route?.path && !input.path.startsWith(endpoint.route.path)) {
+      input = { ...input, path: endpoint.route.path + input.path };
     }
 
     const response = await this.invoke(remoteKey, input);

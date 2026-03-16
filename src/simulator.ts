@@ -50,6 +50,24 @@ export class ForgeSimulator {
   private consoleLogs: ConsoleLine[] = [];
   private logListeners: Array<(entry: LogEntry) => void> = [];
 
+  /**
+   * Module routing: maps moduleKey → { resolverFunctionKey?, endpointKey? }
+   * Built by the deployer from manifest UI modules.
+   */
+  private moduleRouting = new Map<string, { resolverFunctionKey?: string; endpointKey?: string }>();
+
+  /**
+   * The currently active module key (set by dev-command when rendering a module).
+   * Used by server-side shims that don't have URL context.
+   */
+  currentModuleKey: string | undefined;
+
+  /**
+   * Resolver ownership: maps define()'d function key → manifest resolver function key (which module's resolver owns it)
+   * Used to scope function lookups to the correct module's resolver.
+   */
+  private resolverOwnership = new Map<string, string>();
+
   constructor(config?: SimulationConfig) {
     this.kvs = new UnifiedKVS();
     this.queue = new SimulatedQueue({ mode: config?.queueMode ?? 'sequential' });
@@ -97,14 +115,22 @@ export class ForgeSimulator {
       this.manifest = await parseManifest(pathOrContent);
     }
 
+    // Clear previous routing state
+    this.moduleRouting.clear();
+    this.resolverOwnership.clear();
+
     // Wire up consumers from manifest
     for (const consumer of this.manifest.consumers) {
       this.log('info', `Registered consumer "${consumer.key}" for queue "${consumer.queue}"`);
     }
 
-    // Log discovered modules
+    // Register module routing and log discovered modules
     for (const ui of this.manifest.uiModules) {
       this.log('info', `Found UI module: ${ui.type} "${ui.key}"`);
+      this.registerModuleRoute(ui.key, {
+        resolverFunctionKey: ui.resolverFunctionKey,
+        endpointKey: ui.endpointKey,
+      });
     }
 
     // Wire up remotes from manifest
@@ -151,12 +177,18 @@ export class ForgeSimulator {
 
   loadManifestData(manifest: ParsedManifest): void {
     this.manifest = manifest;
+    this.moduleRouting.clear();
+    this.resolverOwnership.clear();
 
     for (const consumer of manifest.consumers) {
       this.log('info', `Registered consumer "${consumer.key}" for queue "${consumer.queue}"`);
     }
     for (const ui of manifest.uiModules) {
       this.log('info', `Found UI module: ${ui.type} "${ui.key}"`);
+      this.registerModuleRoute(ui.key, {
+        resolverFunctionKey: ui.resolverFunctionKey,
+        endpointKey: ui.endpointKey,
+      });
     }
 
     // Wire up remotes with manifest data
@@ -182,6 +214,91 @@ export class ForgeSimulator {
     return deploy(this, appDir);
   }
 
+  // ── Module Routing ────────────────────────────────────────────────────────
+
+  /**
+   * Register a UI module's routing info (called by deployer).
+   * Maps moduleKey → resolver function key or endpoint key.
+   */
+  registerModuleRoute(moduleKey: string, route: { resolverFunctionKey?: string; endpointKey?: string }): void {
+    this.moduleRouting.set(moduleKey, route);
+  }
+
+  /**
+   * Register resolver ownership: a define()'d function key belongs to a manifest resolver.
+   */
+  registerResolverOwnership(definedKey: string, resolverFunctionKey: string): void {
+    this.resolverOwnership.set(definedKey, resolverFunctionKey);
+  }
+
+  /**
+   * Get the module route for a given module key.
+   */
+  getModuleRoute(moduleKey: string): { resolverFunctionKey?: string; endpointKey?: string } | undefined {
+    return this.moduleRouting.get(moduleKey);
+  }
+
+  /**
+   * Validate that a function key is reachable from a module.
+   * If moduleKey is provided, checks that the function key belongs to that module's resolver.
+   * Returns the function key if valid, throws if not.
+   */
+  validateResolverAccess(functionKey: string, moduleKey?: string): void {
+    if (!moduleKey) return; // No module context — skip validation (backward compat)
+
+    const route = this.moduleRouting.get(moduleKey);
+    if (!route) {
+      throw new Error(
+        `Unknown module "${moduleKey}". Available modules: ${[...this.moduleRouting.keys()].join(', ') || 'none'}`
+      );
+    }
+
+    if (route.endpointKey && !route.resolverFunctionKey) {
+      throw new Error(
+        `Module "${moduleKey}" is configured with endpoint "${route.endpointKey}", not a resolver. Use invokeRemote() instead of invoke().`
+      );
+    }
+
+    if (!route.resolverFunctionKey) {
+      throw new Error(
+        `Module "${moduleKey}" has no resolver or endpoint configured.`
+      );
+    }
+
+    // Check that the function key belongs to this module's resolver
+    const owner = this.resolverOwnership.get(functionKey);
+    if (owner && owner !== route.resolverFunctionKey) {
+      throw new Error(
+        `Function "${functionKey}" belongs to resolver "${owner}", but module "${moduleKey}" uses resolver "${route.resolverFunctionKey}". ` +
+        `In Forge, each module can only invoke functions defined in its own resolver.`
+      );
+    }
+  }
+
+  /**
+   * Validate and resolve the endpoint for a remote invoke from a module.
+   * Returns the endpoint key. Throws if module has no endpoint.
+   */
+  resolveModuleEndpoint(moduleKey?: string): string | undefined {
+    if (!moduleKey) return undefined; // No context — let remote proxy fall back
+
+    const route = this.moduleRouting.get(moduleKey);
+    if (!route) {
+      throw new Error(
+        `Unknown module "${moduleKey}". Available modules: ${[...this.moduleRouting.keys()].join(', ') || 'none'}`
+      );
+    }
+
+    if (!route.endpointKey) {
+      throw new Error(
+        `Module "${moduleKey}" has no endpoint configured. invokeRemote() requires a resolver.endpoint in the manifest. ` +
+        `Available modules with endpoints: ${[...this.moduleRouting.entries()].filter(([, r]) => r.endpointKey).map(([k]) => k).join(', ') || 'none'}`
+      );
+    }
+
+    return route.endpointKey;
+  }
+
   // ── Function Registration ────────────────────────────────────────────────
 
   /**
@@ -198,9 +315,15 @@ export class ForgeSimulator {
   /**
    * Invoke a resolver function, simulating the @forge/bridge invoke() call.
    * This uses the resolver's { payload, context } wrapping — the UI bridge pattern.
+   *
+   * If moduleKey is provided, validates that the function key is accessible
+   * from that module's resolver (behavioral parity with Forge).
    */
-  async invoke(functionKey: string, payload?: any): Promise<any> {
-    this.log('invoke', `Invoking resolver: ${functionKey}`, payload);
+  async invoke(functionKey: string, payload?: any, moduleKey?: string): Promise<any> {
+    this.log('invoke', `Invoking resolver: ${functionKey}${moduleKey ? ` (module: ${moduleKey})` : ''}`, payload);
+
+    // Validate module → resolver access if module context is available
+    this.validateResolverAccess(functionKey, moduleKey);
 
     try {
       const { result, console: captured } = await withCapture(() =>
@@ -474,6 +597,8 @@ export class ForgeSimulator {
     this.properties.clear();
     this.i18n.clear();
     this.remotes.setManifest(null);
+    this.moduleRouting.clear();
+    this.resolverOwnership.clear();
     this.manifest = null;
     this.logs.length = 0;
     this.consoleLogs.length = 0;

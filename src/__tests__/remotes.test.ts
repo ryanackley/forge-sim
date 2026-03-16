@@ -360,6 +360,8 @@ describe('invokeRemote from @forge/bridge', () => {
     setSimulator(sim);
     await sim.loadManifest(FULL_MANIFEST);
     await sim.fit.initInMemory();
+    // Set active module so bridge shim can resolve endpoint
+    sim.currentModuleKey = 'panel';
   });
 
   it('resolves endpoint to remote and returns parsed JSON', async () => {
@@ -367,18 +369,27 @@ describe('invokeRemote from @forge/bridge', () => {
       'GET /api/v1/items': [{ id: 1 }, { id: 2 }],
     });
 
-    // Bridge invokeRemote uses endpoint resolution
+    // Bridge invokeRemote uses endpoint resolution from active module
     const data = await forgeBridge.invokeRemote({ path: '/items' });
     expect(data).toEqual([{ id: 1 }, { id: 2 }]);
   });
 
-  it('falls back to first endpoint when no endpointKey specified', async () => {
-    sim.mockProductRoutes('my-backend', {
-      'GET /api/v1/test': { result: 'from-first-endpoint' },
-    });
+  it('fails when active module has no endpoint', async () => {
+    // Load basic manifest where the module has resolver.function, not endpoint
+    await sim.loadManifest(BASIC_MANIFEST);
+    sim.currentModuleKey = 'main';
 
-    const data = await forgeBridge.invokeRemote({ path: '/test' });
-    expect(data.result).toBe('from-first-endpoint');
+    await expect(
+      forgeBridge.invokeRemote({ path: '/test' })
+    ).rejects.toThrow(/has no endpoint configured/);
+  });
+
+  it('fails when no active module is set and no endpoint key provided', async () => {
+    sim.currentModuleKey = undefined;
+
+    await expect(
+      forgeBridge.invokeRemote({ path: '/test' })
+    ).rejects.toThrow(/requires an endpoint key/);
   });
 });
 

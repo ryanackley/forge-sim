@@ -101,10 +101,8 @@ describe('Dev Server RPC invoke routing', () => {
     // Deploy a fixture app so resolver infrastructure is wired up
     await sim.deploy(FIXTURE_DIR);
 
-    // Now load the remotes manifest on top to get remote config
-    const { parseManifestContent } = await import('../manifest.js');
-    const manifest = parseManifestContent(REMOTES_MANIFEST);
-    sim.remotes.setManifest(manifest);
+    // Load the remotes manifest on top to get remote + endpoint config
+    await sim.loadManifest(REMOTES_MANIFEST);
 
     // Mock a remote route so invokeRemote has something to return
     sim.mockProductRoutes('my-backend', {
@@ -148,12 +146,13 @@ describe('Dev Server RPC invoke routing', () => {
 
   // ── invokeRemote (ui-remote-fetch) ────────────────────────────────
 
-  it('routes invokeRemote to remote proxy', async () => {
+  it('routes invokeRemote to remote proxy with module context', async () => {
     const result = await rpc(ws, 'invokeRemote', {
       path: '/api/ForgeProxy',
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'LoadProjects' }),
+      moduleKey: 'panel', // module with endpoint: forge-proxy
     });
     expect(result).toEqual({ success: true, action: 'LoadProjects', data: [] });
   });
@@ -162,18 +161,29 @@ describe('Dev Server RPC invoke routing', () => {
     const result = await rpc(ws, 'invokeRemote', {
       path: '/api/health',
       method: 'GET',
+      moduleKey: 'panel',
     });
     expect(result).toEqual({ status: 'ok' });
   });
 
   it('invokeRemote returns mock 404 for unknown path', async () => {
-    // Unknown mock path returns mock 404 (not a throw — it's a valid response)
     const result = await rpc(ws, 'invokeRemote', {
       path: '/api/unknown',
       method: 'GET',
+      moduleKey: 'panel',
     });
     expect(result).toBeDefined();
     expect(result.error).toMatch(/No mock route matched/);
+  });
+
+  it('invokeRemote fails without module context', async () => {
+    await expect(
+      rpc(ws, 'invokeRemote', {
+        path: '/api/health',
+        method: 'GET',
+        // no moduleKey — should fail
+      })
+    ).rejects.toThrow(/requires an endpoint key/);
   });
 
   // ── fetchRemote (renderer bridge shim path) ──────────────────────
