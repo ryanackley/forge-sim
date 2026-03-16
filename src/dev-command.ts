@@ -156,6 +156,114 @@ boot().catch((err) => {
 `;
 }
 
+/**
+ * Generate a self-contained inline script that installs window.__bridge
+ * for pre-built Custom UI apps. This runs before any bundled app code,
+ * so @forge/bridge's getCallBridge() finds our bridge immediately.
+ */
+function generateBridgeInlineScript(wsPort: number): string {
+  return `
+(function() {
+  var S = {
+    ws: null, wsReady: false, wsUrl: 'ws://localhost:${wsPort}',
+    pendingRequests: {}, requestCounter: 0, reconcileListeners: [], lastForgeDoc: null
+  };
+  window.__forgeSim = S;
+
+  function ensureConnection() {
+    if (S.ws && S.wsReady) return Promise.resolve();
+    return new Promise(function(resolve, reject) {
+      if (S.ws && S.ws.readyState === WebSocket.CONNECTING) {
+        S.ws.addEventListener('open', function() { resolve(); }, { once: true });
+        return;
+      }
+      S.ws = new WebSocket(S.wsUrl);
+      S.ws.onopen = function() { S.wsReady = true; resolve(); };
+      S.ws.onmessage = function(event) {
+        try {
+          var msg = JSON.parse(event.data);
+          if (msg.requestId && S.pendingRequests[msg.requestId]) {
+            var pending = S.pendingRequests[msg.requestId];
+            delete S.pendingRequests[msg.requestId];
+            if (msg.error) pending.reject(new Error(msg.error));
+            else pending.resolve(msg.result);
+          }
+        } catch(e) {}
+      };
+      S.ws.onclose = function() {
+        S.wsReady = false;
+        Object.keys(S.pendingRequests).forEach(function(id) {
+          S.pendingRequests[id].reject(new Error('WebSocket disconnected'));
+          delete S.pendingRequests[id];
+        });
+        setTimeout(function() { ensureConnection(); }, 2000);
+      };
+      S.ws.onerror = function() { S.wsReady = false; reject(new Error('WebSocket connection failed')); };
+    });
+  }
+
+  function rpc(method, params) {
+    return ensureConnection().then(function() {
+      var requestId = 'rpc-' + (++S.requestCounter) + '-' + Date.now();
+      return new Promise(function(resolve, reject) {
+        var timeout = setTimeout(function() {
+          delete S.pendingRequests[requestId];
+          reject(new Error('RPC timeout: ' + method));
+        }, 30000);
+        S.pendingRequests[requestId] = {
+          resolve: function(v) { clearTimeout(timeout); resolve(v); },
+          reject: function(e) { clearTimeout(timeout); reject(e); }
+        };
+        S.ws.send(JSON.stringify({ type: 'rpc', requestId: requestId, method: method, params: params || {} }));
+      });
+    });
+  }
+
+  function getModuleKeyFromURL() {
+    var match = window.location.pathname.match(/\\/module\\/([^/]+)/);
+    return match ? match[1] : undefined;
+  }
+
+  function callBridge(cmd, data) {
+    switch(cmd) {
+      case 'reconcile':
+        if (data && data.forgeDoc) {
+          S.lastForgeDoc = data.forgeDoc;
+          S.reconcileListeners.forEach(function(l) { try { l(data.forgeDoc); } catch(e) {} });
+        }
+        return Promise.resolve();
+      case 'invoke':
+        return rpc('invoke', { functionKey: data && data.functionKey, payload: data && data.payload });
+      case 'fetchProduct':
+        return rpc('fetchProduct', {
+          product: data && data.product, restPath: data && data.restPath,
+          fetchRequestInit: data && data.fetchRequestInit
+        });
+      case 'getContext':
+        return rpc('getContext', { moduleKey: getModuleKeyFromURL() });
+      case 'submit':
+        return rpc('viewSubmit', { payload: data && data.payload || data });
+      case 'close':
+        return rpc('viewClose', { payload: data && data.payload || data });
+      case 'refresh':
+        window.location.reload();
+        return Promise.resolve();
+      case 'enableTheming':
+        return Promise.resolve();
+      default:
+        console.warn('[forge-sim bridge] Unhandled command: ' + cmd);
+        return Promise.resolve();
+    }
+  }
+
+  window.__bridge = { callBridge: callBridge };
+
+  // Pre-connect WebSocket so it's ready when the app loads
+  ensureConnection();
+})();
+`;
+}
+
 function generateCustomUIEntry(_appResourcePath: string, wsPort: number): string {
   // For Custom UI, we generate a small bootstrap script that Vite injects.
   // The dev's index.html is served directly — this script just configures the bridge.
@@ -372,7 +480,6 @@ async function buildViteConfig(opts: {
         // We need to actually serve the file from the right directory
         const filePath = join(resourceDir, rest);
         if (existsSync(filePath)) {
-          const content = readFileSync(filePath);
           const ext = filePath.split('.').pop() || '';
           const mimeTypes: Record<string, string> = {
             html: 'text/html', js: 'application/javascript', ts: 'application/javascript',
@@ -380,6 +487,19 @@ async function buildViteConfig(opts: {
             css: 'text/css', json: 'application/json', svg: 'image/svg+xml',
             png: 'image/png', jpg: 'image/jpeg', ico: 'image/x-icon',
           };
+
+          // For HTML files, inject the bridge shim before any app scripts
+          if (ext === 'html') {
+            let html = readFileSync(filePath, 'utf-8');
+            const bridgeScript = generateBridgeInlineScript(wsPort);
+            // Inject right after <head> (before any other scripts)
+            html = html.replace(/<head([^>]*)>/i, `<head$1>\n<script>${bridgeScript}</script>`);
+            _res.writeHead(200, { 'Content-Type': 'text/html' });
+            _res.end(html);
+            return;
+          }
+
+          const content = readFileSync(filePath);
           _res.writeHead(200, { 'Content-Type': mimeTypes[ext] || 'application/octet-stream' });
           _res.end(content);
           return;
