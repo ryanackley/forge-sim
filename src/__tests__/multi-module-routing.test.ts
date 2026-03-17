@@ -191,7 +191,10 @@ describe('Multi-Module Routing', () => {
         }],
       });
 
-      const mod = manifest.uiModules[0];
+      // Module without resource won't appear in uiModules (manifest parser
+      // requires resource key). Test detectModuleType directly with a
+      // manually constructed module object.
+      const mod = { key: 'no-resource', type: 'jira:issuePanel' } as any;
       const result = detectModuleType(appDir, manifest, mod);
       expect(result).toBeNull();
     });

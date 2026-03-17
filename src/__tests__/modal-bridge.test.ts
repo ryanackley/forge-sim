@@ -14,6 +14,22 @@ beforeEach(async () => {
   delete (globalThis as any).__forgeSim;
   delete (globalThis as any).__bridge;
 
+  // Mock WebSocket globally to prevent real connections.
+  // The bridge shim auto-connects on import; undici's WebSocket in Node 25
+  // fires events that cross jsdom/Node realms → unhandled error.
+  const MockWS = vi.fn().mockImplementation(() => ({
+    send: vi.fn(),
+    close: vi.fn(),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    readyState: 0,
+    onopen: null,
+    onclose: null,
+    onmessage: null,
+    onerror: null,
+  }));
+  (globalThis as any).WebSocket = MockWS;
+
   // Fresh import each time
   vi.resetModules();
   shimModule = await import('../../renderer/src/bridge/forge-bridge-shim');
@@ -22,6 +38,16 @@ beforeEach(async () => {
 afterEach(() => {
   // Clean up any modal overlays left in the DOM
   document.querySelectorAll('[data-testid="forge-sim-modal-overlay"]').forEach(el => el.remove());
+
+  // Close any lingering WebSocket connections from the bridge shim.
+  // The shim auto-connects on import; if the WS is left open, undici fires
+  // an Event that crosses jsdom/Node realms → "event must be instance of Event" error.
+  const state = (globalThis as any).__forgeSim;
+  if (state?.ws) {
+    try { state.ws.close(); } catch {}
+    state.ws = null;
+    state.wsReady = false;
+  }
 });
 
 describe('isInModal()', () => {
