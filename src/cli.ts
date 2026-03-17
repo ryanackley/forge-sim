@@ -77,6 +77,7 @@ if (command === '--help' || command === '-h' || !command) {
     --module <key>             Specific UI module key to render
     --clean                    Start fresh (wipe app state, keep credentials)
     --strict-mode              Enable React.StrictMode (off by default — breaks Atlaskit portals)
+    --proxy <url>              Proxy mode: reverse-proxy an existing dev server, inject bridge shim
 
   Auth Options:
     --list                     List configured accounts
@@ -99,6 +100,7 @@ if (command === 'dev') {
   let moduleKey: string | undefined;
   let clean = false;
   let strictMode = false;
+  let proxy: string | undefined;
 
   for (let i = 0; i < restArgs.length; i++) {
     const arg = restArgs[i];
@@ -114,6 +116,8 @@ if (command === 'dev') {
       clean = true;
     } else if (arg === '--strict-mode') {
       strictMode = true;
+    } else if (arg === '--proxy' && restArgs[i + 1]) {
+      proxy = restArgs[++i];
     } else if (!arg.startsWith('-')) {
       appDir = arg;
     }
@@ -128,6 +132,7 @@ if (command === 'dev') {
     moduleKey,
     clean,
     strictMode,
+    proxy,
   });
 }
 

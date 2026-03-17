@@ -40,6 +40,8 @@ export interface DevCommandOptions {
   clean?: boolean;
   /** Enable React.StrictMode (off by default — Atlaskit portals break under it) */
   strictMode?: boolean;
+  /** Upstream dev server URL for proxy mode (e.g., http://localhost:3000) */
+  proxy?: string;
 }
 
 // ── UI Module Detection ──────────────────────────────────────────────────
@@ -161,7 +163,7 @@ boot().catch((err) => {
  * for pre-built Custom UI apps. This runs before any bundled app code,
  * so @forge/bridge's getCallBridge() finds our bridge immediately.
  */
-function generateBridgeInlineScript(wsPort: number): string {
+export function generateBridgeInlineScript(wsPort: number): string {
   return `
 (function() {
   var S = {
@@ -560,7 +562,7 @@ async function buildViteConfig(opts: {
 // ── Main Dev Command ──────────────────────────────────────────────────────
 
 export async function devCommand(options: DevCommandOptions) {
-  const { appDir, port, wsPort, open, moduleKey, clean, strictMode } = options;
+  const { appDir, port, wsPort, open, moduleKey, clean, strictMode, proxy } = options;
   const stateDir = join(appDir, '.forge-sim', 'state');
 
   console.log('');
@@ -706,6 +708,106 @@ export async function devCommand(options: DevCommandOptions) {
       sim.productApi.connectedAccount,
     ),
   });
+
+  // ── Proxy mode: skip Vite, create reverse proxy instead ─────────────
+  if (proxy) {
+    const { createProxyServer } = await import('./proxy-server.js');
+    const proxyServer = createProxyServer({
+      upstream: proxy,
+      wsPort,
+    });
+
+    // Attach tools middleware and JWKS to the proxy server
+    const { attachToolsToVite } = await import('./tools/server.js');
+
+    proxyServer.listen(port);
+
+    const localUrl = `http://localhost:${port}`;
+
+    // Wire up tools API as middleware on the proxy
+    const { createApiHandler } = await import('./tools/api.js');
+    const apiHandler = createApiHandler(sim, manifest);
+    proxyServer.addMiddleware('/__tools', (req, res, pathname, searchParams) => {
+      const toolsPath = pathname.slice('/__tools'.length) || '/';
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+      if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return true; }
+      if (toolsPath.startsWith('/api/')) {
+        const apiUrl = new URL(toolsPath + (searchParams ? '?' + searchParams : ''), 'http://localhost');
+        apiHandler(req, res, apiUrl).catch((err: any) => {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: err.message }));
+        });
+        return true;
+      }
+      // Serve tools UI fallback for non-API /__tools/ paths
+      res.writeHead(200, { 'Content-Type': 'text/html', 'Cache-Control': 'no-cache' });
+      res.end('<!DOCTYPE html><html><head><title>Forge Sim Tools</title></head><body><h1>Forge Sim Tools</h1><p>Tools UI in proxy mode</p></body></html>');
+      return true;
+    });
+
+    // Serve JWKS endpoint
+    proxyServer.addMiddleware('/__forge', (req, res, pathname) => {
+      if (pathname === '/__forge/jwks.json') {
+        res.setHeader('Content-Type', 'application/json');
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Cache-Control', 'public, max-age=3600');
+        res.writeHead(200);
+        res.end(JSON.stringify(sim.fit.getJWKS()));
+        return true;
+      }
+      return false;
+    });
+
+    // Hook simulator logs (basic — no tools WS in proxy mode)
+    sim.onLog((entry: any) => {
+      // Logs captured in simulator, viewable via /__tools/api/logs
+    });
+
+    console.log('  ─────────────────────────────────────────────');
+    console.log('');
+    console.log(`  🔥 forge-sim dev (proxy mode)`);
+    console.log('');
+    console.log(`     Upstream:  ${proxy}`);
+    console.log(`     ➜ Local:   ${localUrl}`);
+    console.log(`     ➜ WS:      ws://localhost:${wsPort}`);
+    console.log(`     ➜ Tools:   ${localUrl}/__tools/`);
+    if (manifest.remotes.size > 0) {
+      console.log(`     ➜ JWKS:    ${localUrl}/__forge/jwks.json`);
+    }
+    console.log('');
+    console.log(`     🔧 Proxying all requests to ${proxy}`);
+    console.log(`     💉 Bridge script injected into HTML responses`);
+    console.log('');
+    console.log('  ─────────────────────────────────────────────');
+    console.log('');
+
+    if (open) {
+      const { exec: execCmd } = await import('node:child_process');
+      const openCommand = process.platform === 'darwin'
+        ? `open "${localUrl}"`
+        : process.platform === 'win32'
+          ? `start "${localUrl}"`
+          : `xdg-open "${localUrl}" 2>/dev/null || true`;
+      execCmd(openCommand);
+    }
+
+    // Graceful shutdown
+    let cleaningUp = false;
+    const cleanup = async () => {
+      if (cleaningUp) return;
+      cleaningUp = true;
+      console.log('\n  🛑 Shutting down...');
+      try { await saveState(sim, stateDir); } catch (err: any) { console.error(`  ⚠️  Failed to save state: ${err.message}`); }
+      devServer.close();
+      proxyServer.close();
+      process.exit(0);
+    };
+    process.on('SIGINT', () => { cleanup().catch(() => process.exit(1)); });
+    process.on('SIGTERM', () => { cleanup().catch(() => process.exit(1)); });
+    return;
+  }
 
   // 6. Generate temp project for Vite (multi-module)
   const forgeSimRoot = resolve(__dirname, '..');
