@@ -51,6 +51,13 @@ Verify that forge-sim fails clearly when the Forge app would be broken in produc
 - [ ] `requestJira()` / `requestConfluence()` to a path not matching any mock and no real API connected → clear error (not silent empty response)
 - [ ] OAuth scopes: calling an API that requires scopes not declared in manifest → warning
 
+### Test Isolation
+Tests must be self-contained — no references to `~/Projects/` or external directories.
+
+- [ ] Audit all test files for paths outside the repo (grep for `/Users/`, `~/Projects/`, hardcoded absolute paths)
+- [ ] Move any external fixture apps into `src/__tests__/fixtures/` with minimal manifests
+- [ ] Ensure `npm test` works on a clean clone with zero external dependencies
+
 ### Edge Cases in Manifest Parsing
 - [ ] Malformed YAML → clear parse error with line number
 - [ ] Missing `app.id` → error
