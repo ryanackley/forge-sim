@@ -87,18 +87,17 @@
 
 ## Current Priorities
 
-### 1. Renderer Integration Tests
-Add `@testing-library/react` tests for `ForgeDocRenderer` + `component-map.tsx`.
+### 1. General Hardening ⬅️ NOW
+Make forge-sim bulletproof. Testing, error handling, parity, performance, docs.
 
-**Why:** The CheckboxGroup-renders-nothing bug shipped with zero test failures. Screenshot e2e tests are brittle and slow. Need render-level coverage.
+**Full plan:** [proposals/general-hardening.md](proposals/general-hardening.md)
 
-**What to test:**
-- Form field grouping paths (Field wrapper, Fieldset + CheckboxField, RangeField)
-- Standalone components that take props instead of children
-- Event handler wiring (bridge mode `__fn__:` markers → real callbacks)
-- Fallback component renders for unknown types
-
-**Effort:** 1-2 days
+Five areas, ~74 items:
+1. **Testing gaps** — renderer integration tests, e2e dev server tests, negative case testing (verify clear errors when the app would break in real Forge), manifest edge cases
+2. **Error handling & DX** — silent error audit, structured error messages, `--verbose` flag
+3. **Behavioral parity audit** — bridge commands, context object, response formats
+4. **Performance & reliability** — MySQL race, file watcher debounce, port conflicts, memory leaks
+5. **Documentation** — README overhaul, `--help`, examples, troubleshooting guide
 
 ### 2. Web Triggers
 HTTP endpoints for `webTrigger` modules.
