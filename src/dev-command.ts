@@ -588,10 +588,20 @@ export async function devCommand(options: DevCommandOptions) {
 
   // 3. Find UI module to render
   const detectedModules: DetectedModule[] = [];
-  for (const mod of manifest.uiModules) {
-    if (moduleKey && mod.key !== moduleKey) continue;
-    const detected = detectModuleType(appDir, manifest, mod);
-    if (detected) detectedModules.push(detected);
+  if (proxy) {
+    // Proxy mode: skip resource path validation entirely.
+    // The upstream dev server serves the UI — we just need module metadata
+    // for routing, endpoint resolution, and context.
+    for (const mod of manifest.uiModules) {
+      if (moduleKey && mod.key !== moduleKey) continue;
+      detectedModules.push({ module: mod, resourcePath: '', mode: 'customui' });
+    }
+  } else {
+    for (const mod of manifest.uiModules) {
+      if (moduleKey && mod.key !== moduleKey) continue;
+      const detected = detectModuleType(appDir, manifest, mod);
+      if (detected) detectedModules.push(detected);
+    }
   }
 
   if (detectedModules.length === 0) {
@@ -607,9 +617,11 @@ export async function devCommand(options: DevCommandOptions) {
     : detectedModules[0];
 
   for (const mod of detectedModules) {
-    const modeLabel = mod.mode === 'uikit' ? 'UIKit 2' : 'Custom UI';
+    const modeLabel = mod.mode === 'uikit' ? 'UIKit 2' : proxy ? 'Proxied' : 'Custom UI';
     console.log(`  🎯 Module: ${mod.module.key} (${mod.module.type}) — ${modeLabel}`);
-    console.log(`     Resource: ${relative(appDir, mod.resourcePath)}`);
+    if (mod.resourcePath) {
+      console.log(`     Resource: ${relative(appDir, mod.resourcePath)}`);
+    }
   }
   console.log('');
 
