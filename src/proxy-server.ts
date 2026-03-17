@@ -137,6 +137,8 @@ function proxyRequest(
       headers: {
         ...clientReq.headers,
         host: `${upstreamUrl.hostname}:${upstreamUrl.port}`,
+        // Request uncompressed responses so we can inspect/modify HTML
+        'accept-encoding': 'identity',
       },
     },
     (proxyRes) => {
@@ -152,10 +154,11 @@ function proxyRequest(
           // Inject right after <head> (before any other scripts)
           html = html.replace(/<head([^>]*)>/i, `<head$1>\n${bridgeTag}`);
 
-          // Forward headers but fix content-length
+          // Forward headers but fix content-length and strip encoding
           const headers = { ...proxyRes.headers };
           delete headers['content-length'];
           delete headers['transfer-encoding'];
+          delete headers['content-encoding'];
           headers['content-length'] = String(Buffer.byteLength(html));
 
           clientRes.writeHead(proxyRes.statusCode ?? 200, headers);
