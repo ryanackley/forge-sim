@@ -95,7 +95,16 @@ export class RemoteProxy {
    * Returns parsed JSON (not a Response — bridge convention).
    */
   async invokeFromBridge(input: RemoteInvokeOptions & { endpointKey?: string }): Promise<any> {
-    const endpointKey = input.endpointKey;
+    let endpointKey = input.endpointKey;
+
+    // If no endpoint key from module context, auto-resolve when unambiguous
+    if (!endpointKey && this.manifest) {
+      const endpointKeys = [...this.manifest.endpoints.keys()];
+      if (endpointKeys.length === 1) {
+        endpointKey = endpointKeys[0];
+        this.log('info', `No module context — auto-resolved to endpoint "${endpointKey}"`);
+      }
+    }
 
     if (!endpointKey) {
       const msg = 'invokeRemote requires an endpoint key. The calling module must have resolver.endpoint configured in the manifest. ' +

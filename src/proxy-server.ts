@@ -21,6 +21,8 @@ export interface ProxyServerOptions {
   upstream: string;
   /** WebSocket port for the bridge (the forge-sim dev server WS port) */
   wsPort: number;
+  /** Default module key to bake into the bridge script (for endpoint resolution) */
+  defaultModuleKey?: string;
 }
 
 export type MiddlewareHandler = (
@@ -43,9 +45,9 @@ export interface ProxyServer {
 }
 
 export function createProxyServer(options: ProxyServerOptions): ProxyServer {
-  const { upstream, wsPort } = options;
+  const { upstream, wsPort, defaultModuleKey } = options;
   const upstreamUrl = new URL(upstream);
-  const bridgeScript = generateBridgeInlineScript(wsPort);
+  const bridgeScript = generateBridgeInlineScript(wsPort, defaultModuleKey);
   const bridgeTag = `<script>${bridgeScript}</script>`;
 
   const middlewares: Array<{ prefix: string; handler: MiddlewareHandler }> = [];

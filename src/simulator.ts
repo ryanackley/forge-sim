@@ -290,7 +290,14 @@ export class ForgeSimulator {
    * Returns the endpoint key. Throws if module has no endpoint.
    */
   resolveModuleEndpoint(moduleKey?: string): string | undefined {
-    if (!moduleKey) return undefined; // No context — let remote proxy fall back
+    if (!moduleKey) {
+      // No module context — fall back to single-endpoint auto-resolve
+      const modulesWithEndpoints = [...this.moduleRouting.entries()].filter(([, r]) => r.endpointKey);
+      if (modulesWithEndpoints.length === 1) {
+        return modulesWithEndpoints[0][1].endpointKey;
+      }
+      return undefined;
+    }
 
     const route = this.moduleRouting.get(moduleKey);
     if (!route) {

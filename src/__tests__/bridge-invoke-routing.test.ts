@@ -181,14 +181,15 @@ describe('Dev Server RPC invoke routing', () => {
     expect(result.error.status).toBe(404);
   });
 
-  it('invokeRemote fails without module context', async () => {
-    await expect(
-      rpc(ws, 'invokeRemote', {
-        path: '/api/health',
-        method: 'GET',
-        // no moduleKey — should fail
-      })
-    ).rejects.toThrow(/requires an endpoint key/);
+  it('invokeRemote auto-resolves when single endpoint and no module context', async () => {
+    // When there's only one endpoint in the manifest and no moduleKey is provided,
+    // it should auto-resolve instead of throwing (proxy mode support)
+    const result = await rpc(ws, 'invokeRemote', {
+      path: '/api/health',
+      method: 'GET',
+      // no moduleKey — auto-resolves to the only endpoint
+    });
+    expect(result.success).toBe(true);
   });
 
   // ── fetchRemote (renderer bridge shim path) ──────────────────────

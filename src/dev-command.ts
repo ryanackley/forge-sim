@@ -163,7 +163,7 @@ boot().catch((err) => {
  * for pre-built Custom UI apps. This runs before any bundled app code,
  * so @forge/bridge's getCallBridge() finds our bridge immediately.
  */
-export function generateBridgeInlineScript(wsPort: number): string {
+export function generateBridgeInlineScript(wsPort: number, defaultModuleKey?: string): string {
   return `
 (function() {
   var S = {
@@ -223,7 +223,7 @@ export function generateBridgeInlineScript(wsPort: number): string {
 
   function getModuleKeyFromURL() {
     var match = window.location.pathname.match(/\\/module\\/([^/]+)/);
-    return match ? match[1] : undefined;
+    return match ? match[1] : ${defaultModuleKey ? `'${defaultModuleKey}'` : 'undefined'};
   }
 
   function callBridge(cmd, data) {
@@ -727,6 +727,7 @@ export async function devCommand(options: DevCommandOptions) {
     const proxyServer = createProxyServer({
       upstream: proxy,
       wsPort,
+      defaultModuleKey: primaryModule.module.key,
     });
 
     // Attach tools middleware and JWKS to the proxy server
