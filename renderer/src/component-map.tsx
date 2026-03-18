@@ -361,6 +361,7 @@ export const COMPONENT_MAP: Record<string, ComponentRenderer> = {
       appearance={props.appearance ?? 'default'}
       onClick={props.onClick}
       isDisabled={props.isDisabled}
+      type={props.type}
     >
       {children}
     </Button>
@@ -379,6 +380,7 @@ export const COMPONENT_MAP: Record<string, ComponentRenderer> = {
       isLoading={props.isLoading}
       isDisabled={props.isDisabled}
       onClick={props.onClick}
+      type={props.type}
     >
       {children}
     </LoadingButton>
