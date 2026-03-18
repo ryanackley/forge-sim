@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+<head><title>Custom UI Bridge Test</title></head>
+<body>
+  <h1>Custom UI Bridge E2E</h1>
+
+  <button id="btn-invoke" onclick="testInvoke()">Test invoke</button>
+  <button id="btn-jira" onclick="testJira()">Test requestJira</button>
+  <button id="btn-confluence" onclick="testConfluence()">Test requestConfluence</button>
+  <button id="btn-context" onclick="testContext()">Test getContext</button>
+
+  <div id="invoke-result" data-testid="invoke-result"></div>
+  <div id="jira-result" data-testid="jira-result"></div>
+  <div id="confluence-result" data-testid="confluence-result"></div>
+  <div id="context-result" data-testid="context-result"></div>
+
+  <script>
+    function callBridge(cmd, data) {
+      return window.__bridge.callBridge(cmd, data);
+    }
+
+    async function testInvoke() {
+      try {
+        const result = await callBridge('invoke', {
+          functionKey: 'echo',
+          payload: { message: 'hello from custom ui' }
+        });
+        document.getElementById('invoke-result').textContent = JSON.stringify(result);
+      } catch (err) {
+        document.getElementById('invoke-result').textContent = 'ERROR: ' + err.message;
+      }
+    }
+
+    async function testJira() {
+      try {
+        const result = await callBridge('fetchProduct', {
+          product: 'jira',
+          restPath: '/rest/api/3/myself',
+          fetchRequestInit: { method: 'GET' }
+        });
+        document.getElementById('jira-result').textContent = JSON.stringify(result);
+      } catch (err) {
+        document.getElementById('jira-result').textContent = 'ERROR: ' + err.message;
+      }
+    }
+
+    async function testConfluence() {
+      try {
+        const result = await callBridge('fetchProduct', {
+          product: 'confluence',
+          restPath: '/wiki/api/v2/spaces',
+          fetchRequestInit: { method: 'GET' }
+        });
+        document.getElementById('confluence-result').textContent = JSON.stringify(result);
+      } catch (err) {
+        document.getElementById('confluence-result').textContent = 'ERROR: ' + err.message;
+      }
+    }
+
+    async function testContext() {
+      try {
+        const result = await callBridge('getContext', {});
+        document.getElementById('context-result').textContent = JSON.stringify(result);
+      } catch (err) {
+        document.getElementById('context-result').textContent = 'ERROR: ' + err.message;
+      }
+    }
+  </script>
+</body>
+</html>

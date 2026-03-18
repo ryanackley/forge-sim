@@ -1,0 +1,24 @@
+app:
+  id: ari:cloud:ecosystem::app/e2e-uikit-bridge
+  name: E2E UIKit Bridge Test
+
+modules:
+  jira:issuePanel:
+    - key: test-panel
+      title: UIKit Bridge Test
+      resource: main
+      resolver:
+        function: resolver
+
+  function:
+    - key: resolver
+      handler: src/resolvers.handler
+
+resources:
+  - key: main
+    path: src/index.tsx
+
+permissions:
+  scopes:
+    - read:jira-work
+    - read:confluence-space.summary

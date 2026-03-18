@@ -43,5 +43,9 @@ export default defineConfig({
       name: 'e2e',
       testMatch: '**/*.e2e.ts',
     },
+    {
+      name: 'bridge',
+      testMatch: '**/*.spec.ts',
+    },
   ],
 });
