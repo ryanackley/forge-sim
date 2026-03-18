@@ -25,7 +25,6 @@ const App = () => {
       <Text>conf-result:{confResult}</Text>
       <Text>echo-result:{echoResult}</Text>
       <Button
-        text="Test Confluence"
         onClick={async () => {
           try {
             const res = await invoke('getConfluenceData');
@@ -34,9 +33,8 @@ const App = () => {
             setConfResult(`confluence-error:${err.message}`);
           }
         }}
-      />
+      >Test Confluence</Button>
       <Button
-        text="Test Echo"
         onClick={async () => {
           try {
             const res = await invoke('echo', { message: 'hello from uikit' });
@@ -45,7 +43,7 @@ const App = () => {
             setEchoResult(`echo-error:${err.message}`);
           }
         }}
-      />
+      >Test Echo</Button>
     </Stack>
   );
 };

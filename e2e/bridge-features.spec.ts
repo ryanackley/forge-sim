@@ -128,10 +128,7 @@ test.describe('UIKit Bridge', () => {
     // Wait for initial render
     await expect(page.getByText('conf-result:waiting...')).toBeVisible({ timeout: 15_000 });
 
-    // UIKit Button 'text' prop may not render as visible text in the Atlaskit button
-    // (ForgeDoc reconciler issue — text prop vs children). Use nth button selector.
-    const buttons = page.getByRole('button');
-    await buttons.first().click();
+    await page.getByRole('button', { name: 'Test Confluence' }).click();
 
     // Should update from 'waiting...' to resolver result
     await expect(page.getByText(/conf-result:confluence:\{/)).toBeVisible({ timeout: 15_000 });
@@ -141,9 +138,7 @@ test.describe('UIKit Bridge', () => {
     await page.goto(`${server.url}/module/test-panel/`);
     await expect(page.getByText('echo-result:waiting...')).toBeVisible({ timeout: 15_000 });
 
-    // Second button triggers echo
-    const buttons = page.getByRole('button');
-    await buttons.nth(1).click();
+    await page.getByRole('button', { name: 'Test Echo' }).click();
 
     // Should render the echo response with our message
     await expect(page.getByText(/echo-result:echo:\{/)).toBeVisible({ timeout: 15_000 });
