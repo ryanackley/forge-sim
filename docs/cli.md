@@ -10,18 +10,42 @@ forge-sim dev [appDir]
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `--port <port>` | 5173 | Vite dev server port |
+| `--port <port>` | 5173 | Dev server port |
 | `--ws-port <port>` | 5174 | WebSocket bridge port |
+| `--proxy <url>` | — | Proxy mode: reverse-proxy an existing dev server, inject bridge shim |
 | `--no-open` | — | Don't open browser automatically |
 | `--module <key>` | auto | Specific UI module key to render |
 | `--clean` | — | Start fresh (wipe app state, keep credentials) |
 
 **What starts:**
-- Vite dev server at `http://localhost:5173` (app preview)
+- Dev server at `http://localhost:5173` (app preview — Vite for UIKit/Custom UI, reverse proxy with `--proxy`)
 - WebSocket bridge at `ws://localhost:5174` (event bridge)
 - Dev tools at `http://localhost:5173/__tools/` (KVS browser, SQL console, logs, events)
+- JWKS endpoint at `http://localhost:5173/__forge/jwks.json` (when remotes are configured)
 
 **State persistence:** On exit (`Ctrl+C`), KVS and SQL data are saved to `<app>/.forge-sim/state/`. On next startup, state is restored. Use `--clean` to ignore persisted state.
+
+### Proxy Mode
+
+Use `--proxy` when your Custom UI app has its own dev server (webpack, Vite, Parcel, etc.):
+
+```bash
+# Your dev server runs at http://localhost:3000
+forge-sim dev --proxy http://localhost:3000
+```
+
+In proxy mode, forge-sim:
+
+- **Reverse-proxies** all HTTP requests to your upstream dev server
+- **Injects the bridge shim** into HTML responses (after `<head>`) so `@forge/bridge` works
+- **Passes through WebSocket** upgrades to upstream (HMR continues to work)
+- **Intercepts forge-sim routes** (`/__tools/*`, `/__forge/*`) before proxying
+- **Bakes the module key** into the bridge script for automatic endpoint resolution
+- **Requests uncompressed responses** (`accept-encoding: identity`) from upstream so HTML injection works reliably
+
+If the upstream server is unreachable, forge-sim returns a styled 502 error page with the connection error details.
+
+**Note:** In proxy mode, the `/__tools/` UI is minimal. The tools API endpoints still work for programmatic access.
 
 ---
 

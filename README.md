@@ -52,6 +52,78 @@ sim.mockProductRoutes('jira', {
 });
 ```
 
+### Proxy mode — use your own dev server (optional)
+
+Already have a webpack, Vite, or Parcel dev server? Use `--proxy` instead of forge-sim's built-in Vite:
+
+```bash
+# Start your dev server as usual
+cd my-custom-ui-app && npm start  # → http://localhost:3000
+
+# In another terminal, proxy it through forge-sim
+npx forge-sim dev --proxy http://localhost:3000
+```
+
+forge-sim sits in front of your dev server and:
+
+- **Injects the bridge shim** into HTML responses so `@forge/bridge` works
+- **Passes through WebSocket** upgrades for HMR (hot module reload)
+- **Intercepts forge-sim routes** (`/__tools/*`, `/__forge/*`) before proxying
+- **Bakes in the module key** so endpoint resolution works automatically
+
+Your existing dev workflow stays exactly the same — forge-sim just adds the Forge runtime on top.
+
+```
+🔥 forge-sim dev (proxy mode)
+
+   Proxied • jira:issuePanel:my-panel
+   Upstream:  http://localhost:3000
+
+   ➜ Local:   http://localhost:5173/
+   ➜ Tools:   http://localhost:5173/__tools/
+   ➜ JWKS:    http://localhost:5173/__forge/jwks.json
+   ➜ WS:      ws://localhost:5174
+
+   🔧 Proxying all requests to http://localhost:3000
+```
+
+### Forge Remotes — call your own backend (optional)
+
+If your app calls external services via `invokeRemote()` or `requestRemote()`, forge-sim handles the full flow:
+
+```yaml
+# manifest.yml
+remotes:
+  - key: my-backend
+    baseUrl: https://api.example.com
+
+modules:
+  endpoint:
+    - key: my-endpoint
+      remote: my-backend
+      route:
+        path: /api/v1
+```
+
+forge-sim signs every remote request with a **FIT (Forge Invocation Token)** — an RS256 JWT matching the [Forge Remote Invocation Contract](https://developer.atlassian.com/platform/forge/forge-remote-invocation-contract/). Your backend validates it against the local JWKS endpoint:
+
+```
+http://localhost:5173/__forge/jwks.json
+```
+
+For testing, mock remote responses without a real backend:
+
+```typescript
+sim.mockProductRoutes('my-backend', {
+  'GET /api/v1/tasks': [{ id: 1, name: 'Write docs' }],
+  'POST /api/v1/tasks': (path, opts) => ({
+    id: 2, name: JSON.parse(opts?.body).name,
+  }),
+});
+```
+
+See [Remotes documentation](./docs/remotes.md) for the full guide — FIT claims, key persistence, backend validation, and error handling.
+
 ### External auth providers (optional)
 
 If your app uses `asUser().withProvider()` for third-party OAuth (Google, GitHub, etc.):
@@ -210,6 +282,8 @@ Because mocking individual imports doesn't test your app. It tests your assumpti
 | Resolvers (`@forge/resolver`) | Full |
 | Async Events/Queues (`@forge/events`) | Full — concurrent processing, concurrency keys |
 | Product APIs (Jira/Confluence/Bitbucket) | Mock + real API proxy |
+| Forge Remotes | Full — FIT JWT auth, JWKS endpoint, mock routing |
+| Custom UI | Full — built-in Vite or `--proxy` your own dev server |
 | UIKit 2 (`@forge/react`) | Full — 73/73 components, live preview |
 | Event & Scheduled Triggers | Full — with contract validation |
 | Manifest parsing + auto-deploy | Full |
@@ -243,9 +317,11 @@ See [docs/](./docs/) for the full reference:
 
 - [CLI Reference](./docs/cli.md) — All commands and options
 - [Authentication](./docs/auth.md) — API tokens, OAuth, external auth providers, credential management
+- [Forge Remotes](./docs/remotes.md) — External backends, FIT JWT auth, JWKS endpoint, mock routing
 - [Programmatic API](./docs/api.md) — Using forge-sim in code
 - [MCP Server](./docs/mcp.md) — AI agent integration
 - [UIKit Renderer](./docs/renderer.md) — Architecture, browser mode, component coverage
+- [Implementation Matrix](./docs/implementation-matrix.md) — Full API coverage status
 - [Dev Tools](./docs/tools.md) — Built-in KVS browser, SQL console, log viewer
 
 ## Development
@@ -253,7 +329,7 @@ See [docs/](./docs/) for the full reference:
 ```bash
 npm install
 npm run build      # TypeScript compile
-npm test           # 384 tests across 26 test files
+npm test           # 679 tests across 39 test files (core) + 112 renderer + 18 e2e
 ```
 
 ## License

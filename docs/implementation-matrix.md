@@ -2,8 +2,8 @@
 
 Complete mapping of every Forge API, hook, component, and platform feature against forge-sim's implementation status.
 
-**Last updated:** 2026-03-10  
-**forge-sim test count:** 531 tests across 32 files
+**Last updated:** 2026-03-19  
+**forge-sim test count:** 679 core tests (39 files) + 112 renderer tests (2 files) + 18 e2e tests (2 files) + 17 visual regression tests (1 file) = **826 total**
 
 ### Legend
 
@@ -67,8 +67,8 @@ The main backend API package. Imported by resolver/trigger/consumer functions.
 | API | Status | Tests | Notes |
 |-----|--------|-------|-------|
 | `authorize(provider)` | 🔇 | — | No-op, always resolves |
-| `invokeRemote(key, payload)` | 🔇 | — | Returns `null` — Forge Remotes not simulated |
-| `invokeService(key, payload)` | 🔇 | — | Returns `null` |
+| `invokeRemote(key, payload)` | ✅ | `remotes.test.ts` | Full — RemoteProxy with mock-first routing, real HTTP fallback with FIT auth |
+| `invokeService(key, payload)` | ✅ | `remotes.test.ts` | Same system as invokeRemote |
 | `webTrigger.getUrl(key)` | ⚠️ | — | Returns fake URL, not a real endpoint |
 | `getAppContext()` | ⚠️ | — | Returns hardcoded values (`sim-app`, `sim-env`, etc.) |
 | `__getRuntime()` | 🔇 | — | Internal, undocumented; necessary for `@forge/api` import chain not to explode. Returns `{ isEcosystemApp: false }` |
@@ -350,7 +350,7 @@ Frontend API for Custom UI apps (runs in iframe).
 | `requestJira(path, options)` | ✅ | `custom-ui-e2e.test.ts` | Routes through bridge to product API |
 | `requestConfluence(path, options)` | ✅ | — | |
 | `requestBitbucket(path, options)` | ✅ | — | |
-| `requestRemote(remoteKey, options)` | ⚠️ | — | Stubbed in browser shim, logs warning |
+| `requestRemote(remoteKey, options)` | ✅ | `remotes.test.ts` | Direct fetch with FIT auth, mock-first routing |
 
 ### View
 
@@ -424,8 +424,8 @@ Frontend API for Custom UI apps (runs in iframe).
 | `i18n.resetTranslationsCache()` | ✅ | — | Clears translation cache and store |
 | `permissions.check()` | ✅ | `bridge-features.test.ts` | Always returns `{ hasPermission: true }` |
 | `featureFlags.evaluate()` | 🔇 | `bridge-features.test.ts` | Returns undefined (stub — no feature flag backend) |
-| `invokeRemote(key, options)` | 🔇 | — | Forge Remotes not simulated |
-| `invokeService(key, options)` | 🔇 | — | |
+| `invokeRemote(key, options)` | ✅ | `remotes.test.ts`, `bridge-invoke-routing.test.ts` | Endpoint resolution, route prefix, FIT auth, mock-first |
+| `invokeService(key, options)` | ✅ | `remotes.test.ts` | Same system as invokeRemote |
 
 ---
 
@@ -534,6 +534,7 @@ Features beyond individual APIs.
 | UIKit → Atlaskit rendering | ✅ | — | 73/73 component mappings in renderer |
 | Custom UI serving | ✅ | `custom-ui-e2e.test.ts` | Vite serves resource directory |
 | Dev server (HMR + WebSocket) | ✅ | — | `forge-sim dev` |
+| Dev server proxy mode | ✅ | `proxy-server.test.ts` | `forge-sim dev --proxy <url>` — reverse-proxy with bridge injection, WS passthrough |
 | Stateful daemon (CLI) | ✅ | — | Auto-start, idle timeout, PID management |
 | MCP server (stdio) | ✅ | `mcp-server.test.ts` | 20 tools, 4 resources |
 | MCP server (HTTP) | ✅ | — | StreamableHTTP transport |
@@ -543,7 +544,7 @@ Features beyond individual APIs.
 | Scoped permissions enforcement | ❌ | — | No checking of `permissions.scopes` |
 | Rate limiting simulation | ❌ | — | No simulation of Forge rate limits |
 | Memory/timeout limits | ❌ | — | No simulation of 128MB/25s limits |
-| Forge Remotes | ❌ | — | External API integration via manifest `remotes:` |
+| Forge Remotes | ✅ | `remotes.test.ts` | Full: manifest parsing, endpoint resolution, mock routing, real HTTP with FIT JWT auth, JWKS endpoint. See [remotes.md](./remotes.md) |
 | Forge Environments | ⚠️ | — | Always returns "DEVELOPMENT" |
 
 ---
@@ -552,7 +553,7 @@ Features beyond individual APIs.
 
 | Category | Implemented | Partial/Stub | Not Implemented | Total |
 |----------|-------------|-------------|-----------------|-------|
-| @forge/api | 21 | 8 | 6 | 35 |
+| @forge/api | 23 | 6 | 6 | 35 |
 | @forge/kvs | 18 | 0 | 0 | 18 |
 | @forge/sql | 6 | 0 | 2 | 8 |
 | @forge/events | 12 | 0 | 1 | 13 |
@@ -560,9 +561,9 @@ Features beyond individual APIs.
 | @forge/react hooks | 11 | 0 | 2 | 13 |
 | @forge/react components (UIKit) | 70 | 0 | 0 | 70 |
 | @forge/react components (other) | 18 | 0 | 0 | 18 |
-| @forge/bridge | 29 | 1 | 2 | 32 |
+| @forge/bridge | 33 | 1 | 0 | 34 |
 | Manifest modules | 16 | 1 | 18 | 35 |
-| Platform features | 14 | 2 | 6 | 22 |
-| **Total** | **218** | **11** | **37** | **266** |
+| Platform features | 16 | 2 | 5 | 23 |
+| **Total** | **226** | **10** | **34** | **270** |
 
-**Coverage: 82% implemented, 4% partial, 14% missing**
+**Coverage: 84% implemented, 4% partial, 13% missing**
