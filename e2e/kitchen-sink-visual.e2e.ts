@@ -1,7 +1,7 @@
 /**
  * Visual regression tests for UIKit 2 component rendering.
  *
- * Uses the kitchen-sink app (~/Projects/kitchen-sink) which renders every
+ * Uses the kitchen-sink app (e2e/fixtures/kitchen-sink) which renders every
  * UIKit 2 component on a single page. forge-sim dev serves it, then
  * Playwright screenshots each section and compares against baselines.
  *
@@ -24,7 +24,7 @@ import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const KITCHEN_SINK_DIR = resolve(process.env.HOME!, 'Projects/kitchen-sink');
+const KITCHEN_SINK_DIR = resolve(__dirname, 'fixtures/kitchen-sink');
 const DEV_PORT = 19500;
 const WS_PORT = 19501;
 const DEV_URL = `http://localhost:${DEV_PORT}`;

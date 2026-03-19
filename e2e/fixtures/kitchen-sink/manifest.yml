@@ -1,0 +1,17 @@
+modules:
+  jira:issuePanel:
+    - key: kitchen-sink
+      title: Kitchen Sink
+      resource: main
+      resolver:
+        function: resolver
+      render: native
+  function:
+    - key: resolver
+      handler: src/resolver.handler
+resources:
+  - key: main
+    path: src/frontend.tsx
+app:
+  id: kitchen-sink-test
+  name: Kitchen Sink Visual Test
