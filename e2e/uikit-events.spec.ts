@@ -189,15 +189,54 @@ test.describe('UIKit Events', () => {
     await expect(page.getByText('edited:Click to edit')).toBeVisible();
 
     // Click the read view to enter edit mode
-    await page.getByText('Click to edit').first().click();
+    const inlineSection = page.locator('text=inline-edit-test').locator('..');
+    await inlineSection.getByText('Click to edit').first().click();
 
-    // Find the edit field and type new value
-    const editField = page.getByRole('textbox').last();
+    // Find the edit field within the inline-edit section
+    const editField = inlineSection.getByRole('textbox');
     await editField.fill('New Value');
 
-    // Confirm by pressing Enter or clicking confirm button
+    // Confirm by pressing Enter
     await editField.press('Enter');
 
     await expect(page.getByText('edited:New Value')).toBeVisible({ timeout: 5_000 });
+  });
+
+  // ── 10. ChromelessEditor renders with default content ────────────────
+
+  test('ChromelessEditor renders default ADF content', async ({ page }) => {
+    await loadApp(page);
+
+    // The editor should render with the default value "Hello editor"
+    // ProseMirror renders ADF into contenteditable divs
+    const editorSection = page.locator('text=editor-test').locator('..');
+    
+    // The editor content should be visible in the ProseMirror contenteditable area
+    await expect(editorSection.locator('[contenteditable="true"]')).toBeVisible({ timeout: 10_000 });
+    await expect(editorSection.getByText('Hello editor')).toBeVisible({ timeout: 5_000 });
+  });
+
+  // ── 11. ChromelessEditor onChange fires on typing ────────────────────
+
+  test('ChromelessEditor onChange fires on edit', async ({ page }) => {
+    await loadApp(page);
+
+    await expect(page.getByText('editor-changed:false')).toBeVisible();
+
+    // Find the contenteditable area in the editor section
+    const editorSection = page.locator('text=editor-test').locator('..');
+    const editorArea = editorSection.locator('[contenteditable="true"]');
+    await expect(editorArea).toBeVisible({ timeout: 10_000 });
+
+    // Click into the editor and type
+    await editorArea.click();
+    await page.keyboard.press('End');
+    await page.keyboard.type(' world');
+
+    // onChange should have fired
+    await expect(page.getByText('editor-changed:true')).toBeVisible({ timeout: 10_000 });
+
+    // The content should reflect the typed text
+    await expect(page.getByText(/editor-content:.*Hello editor.*world/)).toBeVisible({ timeout: 5_000 });
   });
 });

@@ -17,6 +17,7 @@ import ForgeReconciler, {
   Toggle,
   DynamicTable,
   InlineEdit,
+  ChromelessEditor,
   useForm,
   ErrorMessage,
 } from '@forge/react';
@@ -254,6 +255,46 @@ const InlineEditTest = () => {
   );
 };
 
+// ── Section 10: ChromelessEditor ────────────────────────────────────────
+
+const editorDefaultValue = {
+  version: 1,
+  type: 'doc',
+  content: [
+    {
+      type: 'paragraph',
+      content: [
+        { type: 'text', text: 'Hello editor' },
+      ],
+    },
+  ],
+};
+
+const ChromelessEditorTest = () => {
+  const [changed, setChanged] = useState('false');
+  const [lastAdf, setLastAdf] = useState('none');
+  return (
+    <Stack>
+      <Heading as="h3">editor-test</Heading>
+      <ChromelessEditor
+        defaultValue={editorDefaultValue}
+        onChange={(adf: any) => {
+          setChanged('true');
+          if (adf) {
+            // Extract plain text from ADF for easy assertion
+            const text = (adf.content ?? [])
+              .flatMap((block: any) => (block.content ?? []).map((n: any) => n.text ?? ''))
+              .join('');
+            setLastAdf(text);
+          }
+        }}
+      />
+      <Text testId="editor-changed">editor-changed:{changed}</Text>
+      <Text testId="editor-content">editor-content:{lastAdf}</Text>
+    </Stack>
+  );
+};
+
 // ── Main App ───────────────────────────────────────────────────────────
 
 const App = () => {
@@ -269,6 +310,7 @@ const App = () => {
       <TableButtonTest />
       <RadioTest />
       <InlineEditTest />
+      <ChromelessEditorTest />
     </Stack>
   );
 };
