@@ -78,13 +78,13 @@ export function parseManifestContent(content: string): ParsedManifest {
 
   // Parse resources (top-level, not under modules)
   const resources = new Map<string, ManifestResource>();
-  for (const res of ((raw as any).resources ?? []) as any[]) {
+  for (const res of (Array.isArray((raw as any).resources) ? (raw as any).resources : []) as any[]) {
     resources.set(res.key, { key: res.key, path: res.path });
   }
 
   // Parse functions
   const functions = new Map<string, ManifestFunction>();
-  for (const fn of (modules.function ?? []) as any[]) {
+  for (const fn of (Array.isArray(modules.function) ? modules.function : []) as any[]) {
     functions.set(fn.key, {
       key: fn.key,
       handler: fn.handler,
@@ -94,7 +94,7 @@ export function parseManifestContent(content: string): ParsedManifest {
 
   // Parse consumers
   const consumers: ManifestConsumer[] = [];
-  for (const consumer of (modules.consumer ?? []) as any[]) {
+  for (const consumer of (Array.isArray(modules.consumer) ? modules.consumer : []) as any[]) {
     consumers.push({
       key: consumer.key,
       queue: consumer.queue,
@@ -104,7 +104,7 @@ export function parseManifestContent(content: string): ParsedManifest {
 
   // Parse triggers
   const triggers: ManifestTrigger[] = [];
-  for (const trigger of (modules.trigger ?? []) as any[]) {
+  for (const trigger of (Array.isArray(modules.trigger) ? modules.trigger : []) as any[]) {
     triggers.push({
       key: trigger.key,
       functionKey: trigger.function,
@@ -114,7 +114,7 @@ export function parseManifestContent(content: string): ParsedManifest {
 
   // Parse scheduled triggers
   const scheduledTriggers: ManifestScheduledTrigger[] = [];
-  for (const st of (modules.scheduledTrigger ?? []) as any[]) {
+  for (const st of (Array.isArray(modules.scheduledTrigger) ? modules.scheduledTrigger : []) as any[]) {
     scheduledTriggers.push({
       key: st.key,
       functionKey: st.function,
@@ -160,7 +160,7 @@ export function parseManifestContent(content: string): ParsedManifest {
 
   // Parse remotes
   const remotes = new Map<string, ManifestRemote>();
-  for (const remote of (raw.remotes ?? []) as any[]) {
+  for (const remote of (Array.isArray(raw.remotes) ? raw.remotes : []) as any[]) {
     if (remote.key && remote.baseUrl) {
       const parsed: ManifestRemote = { key: remote.key, baseUrl: remote.baseUrl };
       if (remote.operations) parsed.operations = remote.operations;
@@ -171,7 +171,7 @@ export function parseManifestContent(content: string): ParsedManifest {
 
   // Parse endpoints
   const endpoints = new Map<string, ManifestEndpoint>();
-  for (const ep of (modules.endpoint ?? []) as any[]) {
+  for (const ep of (Array.isArray(modules.endpoint) ? modules.endpoint : []) as any[]) {
     if (ep.key && ep.remote) {
       const parsed: ManifestEndpoint = { key: ep.key, remote: ep.remote };
       if (ep.route) parsed.route = ep.route;
@@ -182,7 +182,7 @@ export function parseManifestContent(content: string): ParsedManifest {
 
   // Parse auth providers
   const authProviders = new Map<string, ManifestAuthProvider>();
-  for (const provider of (raw.providers?.auth ?? []) as ManifestAuthProvider[]) {
+  for (const provider of (Array.isArray(raw.providers?.auth) ? raw.providers.auth : []) as ManifestAuthProvider[]) {
     if (provider.key) {
       authProviders.set(provider.key, provider);
     }

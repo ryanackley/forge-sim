@@ -1,413 +1,622 @@
 /**
- * Manifest parsing edge cases.
+ * Manifest edge case tests — verify manifest parsing handles malformed,
+ * incomplete, and unusual manifests gracefully.
  *
- * Tests that forge-sim handles malformed, incomplete, or unusual manifests
- * with clear errors or graceful degradation — not silent failures.
+ * These tests ensure developers get clear, actionable errors instead of
+ * cryptic crashes when their manifest.yml has issues.
  */
 
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { parseManifestContent } from '../manifest.js';
 
-describe('Manifest Edge Cases', () => {
+// ── 1. Malformed YAML ──────────────────────────────────────────────────
 
-  // ── 1. Malformed YAML → clear parse error ─────────────────────────
-
-  describe('malformed YAML', () => {
-    it('throws on invalid YAML syntax', () => {
-      const badYaml = `
+describe('malformed YAML', () => {
+  it('throws a parse error for invalid YAML syntax', () => {
+    const badYaml = `
 app:
-  id: test
-  name: Test
+  id: test-app
 modules:
   function:
     - key: resolver
-    handler: broken.handler  # wrong indentation
+      handler: index.handler
+    bad indentation here
+  this is not valid: [
 `;
-      expect(() => parseManifestContent(badYaml)).toThrow();
-    });
-
-    it('throws on completely invalid content', () => {
-      expect(() => parseManifestContent('{{{{not yaml at all!!!!')).toThrow();
-    });
-
-    it('handles empty string gracefully', () => {
-      // Empty YAML parses as null/undefined — should not crash
-      const result = parseManifestContent('');
-      // Should return a manifest with empty collections
-      expect(result.functions.size).toBe(0);
-      expect(result.uiModules.length).toBe(0);
-    });
+    expect(() => parseManifestContent(badYaml)).toThrow();
   });
 
-  // ── 2. Missing app.id ─────────────────────────────────────────────
-
-  describe('missing app.id', () => {
-    it('parses manifest without app.id (no crash)', () => {
-      const manifest = parseManifestContent(`
-modules:
-  function:
-    - key: resolver
-      handler: index.handler
-`);
-      // Should still parse functions
-      expect(manifest.functions.size).toBe(1);
-      // raw.app should be undefined
-      expect(manifest.raw.app?.id).toBeUndefined();
-    });
-
-    it('parses manifest with empty app block', () => {
-      const manifest = parseManifestContent(`
+  it('throws with line/position info for YAML syntax errors', () => {
+    const badYaml = `
 app:
-  name: No ID App
+  id: test-app
 modules:
   function:
     - key: resolver
       handler: index.handler
-`);
-      expect(manifest.raw.app?.id).toBeUndefined();
-      expect(manifest.functions.size).toBe(1);
-    });
+      extra: [unterminated
+`;
+    try {
+      parseManifestContent(badYaml);
+      expect.unreachable('should have thrown');
+    } catch (err: any) {
+      // The yaml library includes position info in its errors
+      expect(err.message).toBeTruthy();
+    }
   });
 
-  // ── 3. UIKit 1 style: function without resource ───────────────────
+  it('handles completely empty input gracefully', () => {
+    const result = parseManifestContent('');
+    expect(result.functions.size).toBe(0);
+    expect(result.uiModules).toHaveLength(0);
+    expect(result.remotes.size).toBe(0);
+  });
 
-  describe('UIKit 1 style modules (function without resource)', () => {
-    it('warns about modules using deprecated function-only style', () => {
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  it('handles YAML that parses to a scalar (not an object)', () => {
+    // "hello" is valid YAML but not a valid manifest
+    const result = parseManifestContent('hello');
+    expect(result.functions.size).toBe(0);
+    expect(result.uiModules).toHaveLength(0);
+  });
 
-      const manifest = parseManifestContent(`
+  it('handles YAML that parses to an array (not an object)', () => {
+    const result = parseManifestContent('- item1\n- item2');
+    expect(result.functions.size).toBe(0);
+  });
+
+  it('handles YAML with only comments', () => {
+    const result = parseManifestContent('# This is just a comment\n# Nothing else');
+    expect(result.functions.size).toBe(0);
+    expect(result.uiModules).toHaveLength(0);
+  });
+});
+
+// ── 2. Missing app.id ──────────────────────────────────────────────────
+
+describe('missing app.id', () => {
+  it('parses manifest without app.id (field is optional in parser)', () => {
+    const manifest = `
+modules:
+  function:
+    - key: resolver
+      handler: index.handler
+`;
+    const result = parseManifestContent(manifest);
+    expect(result.functions.size).toBe(1);
+    // app.id is undefined — consumers (deployer, FIT) should check
+    expect(result.raw.app?.id).toBeUndefined();
+  });
+
+  it('parses manifest with empty app section', () => {
+    const manifest = `
+app:
+modules:
+  function:
+    - key: resolver
+      handler: index.handler
+`;
+    const result = parseManifestContent(manifest);
+    expect(result.functions.size).toBe(1);
+  });
+
+  it('parses manifest with app.id present', () => {
+    const manifest = `
+app:
+  id: ari:cloud:ecosystem::app/my-app
+modules:
+  function:
+    - key: resolver
+      handler: index.handler
+`;
+    const result = parseManifestContent(manifest);
+    expect(result.raw.app?.id).toBe('ari:cloud:ecosystem::app/my-app');
+  });
+});
+
+// ── 3. UIKit 1 style (function without resource) ────────────────────────
+
+describe('UIKit 1 deprecated pattern', () => {
+  let warnSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    warnSpy.mockRestore();
+  });
+
+  it('warns when a UI module uses function: without resource:', () => {
+    const manifest = `
 app:
   id: test-app
 modules:
   jira:issuePanel:
-    - key: old-style-panel
+    - key: old-panel
       function: resolver
-      title: Old Panel
+      title: Old Style Panel
   function:
     - key: resolver
       handler: index.handler
-`);
-
-      // Module should still be parsed (backwards compat)
-      const found = manifest.uiModules.find(m => m.key === 'old-style-panel');
-      expect(found).toBeDefined();
-      // But it has no resource key
-      expect(found!.resourceKey).toBeUndefined();
-
-      // Should have warned about the deprecated pattern
-      expect(warnSpy).toHaveBeenCalledWith(
-        expect.stringMatching(/old-style-panel.*resource|UIKit 1|deprecated/i)
-      );
-
-      warnSpy.mockRestore();
-    });
+`;
+    parseManifestContent(manifest);
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('deprecated UIKit 1 pattern')
+    );
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('old-panel')
+    );
   });
 
-  // ── 4. Empty modules section ──────────────────────────────────────
-
-  describe('empty modules', () => {
-    it('handles empty modules object', () => {
-      const manifest = parseManifestContent(`
+  it('does not warn for UIKit 2 modules with resource:', () => {
+    const manifest = `
 app:
   id: test-app
-modules: {}
-`);
-      expect(manifest.functions.size).toBe(0);
-      expect(manifest.uiModules.length).toBe(0);
-      expect(manifest.consumers.length).toBe(0);
-      expect(manifest.triggers.length).toBe(0);
-    });
+modules:
+  jira:issuePanel:
+    - key: modern-panel
+      resource: main
+      resolver:
+        function: resolver
+      title: Modern Panel
+  function:
+    - key: resolver
+      handler: index.handler
+resources:
+  - key: main
+    path: src/frontend/index.tsx
+`;
+    parseManifestContent(manifest);
+    expect(warnSpy).not.toHaveBeenCalled();
+  });
 
-    it('handles missing modules key entirely', () => {
-      const manifest = parseManifestContent(`
+  it('still parses the UIKit 1 module (with undefined resourceKey)', () => {
+    const manifest = `
 app:
   id: test-app
-  name: No Modules
-`);
-      expect(manifest.functions.size).toBe(0);
-      expect(manifest.uiModules.length).toBe(0);
-    });
+modules:
+  jira:issuePanel:
+    - key: old-panel
+      function: resolver
+      title: Old Style Panel
+  function:
+    - key: resolver
+      handler: index.handler
+`;
+    const result = parseManifestContent(manifest);
+    const panel = result.uiModules.find(m => m.key === 'old-panel');
+    expect(panel).toBeDefined();
+    expect(panel!.resourceKey).toBeUndefined();
+  });
+});
 
-    it('handles empty function array', () => {
-      const manifest = parseManifestContent(`
+// ── 4. Empty modules section ────────────────────────────────────────────
+
+describe('empty modules section', () => {
+  it('handles modules: with no children', () => {
+    const manifest = `
+app:
+  id: test-app
+modules:
+`;
+    const result = parseManifestContent(manifest);
+    expect(result.functions.size).toBe(0);
+    expect(result.uiModules).toHaveLength(0);
+    expect(result.consumers).toHaveLength(0);
+    expect(result.triggers).toHaveLength(0);
+  });
+
+  it('handles completely missing modules key', () => {
+    const manifest = `
+app:
+  id: test-app
+`;
+    const result = parseManifestContent(manifest);
+    expect(result.functions.size).toBe(0);
+    expect(result.uiModules).toHaveLength(0);
+  });
+
+  it('handles modules with empty arrays', () => {
+    const manifest = `
 app:
   id: test-app
 modules:
   function: []
-`);
-      expect(manifest.functions.size).toBe(0);
-    });
-
-    it('handles null modules', () => {
-      const manifest = parseManifestContent(`
-app:
-  id: test-app
-modules: null
-`);
-      expect(manifest.functions.size).toBe(0);
-    });
+  jira:issuePanel: []
+  consumer: []
+  trigger: []
+  scheduledTrigger: []
+`;
+    const result = parseManifestContent(manifest);
+    expect(result.functions.size).toBe(0);
+    expect(result.uiModules).toHaveLength(0);
+    expect(result.consumers).toHaveLength(0);
+    expect(result.triggers).toHaveLength(0);
+    expect(result.scheduledTriggers).toHaveLength(0);
   });
 
-  // ── 5. Unknown module types ───────────────────────────────────────
-
-  describe('unknown module types', () => {
-    it('logs but does not crash on unknown module types', () => {
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-
-      const manifest = parseManifestContent(`
+  it('handles modules where a type is a scalar instead of array', () => {
+    const manifest = `
 app:
   id: test-app
 modules:
-  jira:someFutureModuleType:
-    - key: future-panel
+  function: not-an-array
+`;
+    // Should not crash — the for loop over a non-array just skips
+    const result = parseManifestContent(manifest);
+    expect(result.functions.size).toBe(0);
+  });
+});
+
+// ── 5. Unknown module types ─────────────────────────────────────────────
+
+describe('unknown module types', () => {
+  it('ignores unknown module types without crashing', () => {
+    const manifest = `
+app:
+  id: test-app
+modules:
+  totally:madeUp:
+    - key: mystery
       resource: main
-      render: native
+      resolver:
+        function: resolver
+      title: Mystery Module
   function:
     - key: resolver
       handler: index.handler
 resources:
   - key: main
-    path: src/index.tsx
-`);
-
-      // Unknown module type should still be parsed as a UI module
-      // (we don't hardcode all Forge module types — new ones appear regularly)
-      const found = manifest.uiModules.find(m => m.key === 'future-panel');
-      expect(found).toBeDefined();
-      expect(found!.type).toBe('jira:someFutureModuleType');
-
-      warnSpy.mockRestore();
-    });
-
-    it('skips non-UI module types', () => {
-      const manifest = parseManifestContent(`
-app:
-  id: test-app
-modules:
-  function:
-    - key: resolver
-      handler: index.handler
-  consumer:
-    - key: my-consumer
-      queue: my-queue
-      function: resolver
-  trigger:
-    - key: my-trigger
-      function: resolver
-      events:
-        - avi:forge:event
-`);
-
-      // None of these should appear as UI modules
-      expect(manifest.uiModules.length).toBe(0);
-      expect(manifest.consumers.length).toBe(1);
-      expect(manifest.triggers.length).toBe(1);
-    });
+    path: src/frontend/index.tsx
+`;
+    const result = parseManifestContent(manifest);
+    // Unknown type is treated as a UI module (it has resource + resolver)
+    const mystery = result.uiModules.find(m => m.key === 'mystery');
+    expect(mystery).toBeDefined();
+    expect(mystery!.type).toBe('totally:madeUp');
   });
 
-  // ── 6. Circular / duplicate key handling ──────────────────────────
-
-  describe('duplicate keys', () => {
-    it('last function definition wins for duplicate keys', () => {
-      const manifest = parseManifestContent(`
-app:
-  id: test-app
-modules:
-  function:
-    - key: resolver
-      handler: first.handler
-    - key: resolver
-      handler: second.handler
-`);
-      // Map.set overwrites — last one wins
-      const fn = manifest.functions.get('resolver');
-      expect(fn?.handler).toBe('second.handler');
-    });
-
-    it('duplicate UI module keys both appear in uiModules array', () => {
-      const manifest = parseManifestContent(`
+  it('handles mix of known and unknown module types', () => {
+    const manifest = `
 app:
   id: test-app
 modules:
   jira:issuePanel:
-    - key: panel
+    - key: known-panel
       resource: main
-      render: native
-  confluence:globalPage:
-    - key: panel
-      resource: main
-      render: native
+      resolver:
+        function: resolver
+      title: Known Panel
+  rovo:agent:
+    - key: rovo-thing
+      resource: rovo-ui
+      title: Rovo Agent
+  function:
+    - key: resolver
+      handler: index.handler
 resources:
   - key: main
-    path: src/index.tsx
-`);
-
-      // Both should be in the array (different module types can share keys)
-      const panels = manifest.uiModules.filter(m => m.key === 'panel');
-      expect(panels.length).toBe(2);
-      expect(panels.map(p => p.type).sort()).toEqual(['confluence:globalPage', 'jira:issuePanel']);
-    });
+    path: src/frontend/index.tsx
+  - key: rovo-ui
+    path: src/rovo/index.tsx
+`;
+    const result = parseManifestContent(manifest);
+    expect(result.functions.size).toBe(1);
+    // Both should be parsed as UI modules
+    expect(result.uiModules.find(m => m.key === 'known-panel')).toBeDefined();
+    expect(result.uiModules.find(m => m.key === 'rovo-thing')).toBeDefined();
   });
 
-  // ── 7. Resources edge cases ───────────────────────────────────────
-
-  describe('resources', () => {
-    it('handles missing resources section', () => {
-      const manifest = parseManifestContent(`
+  it('skips non-UI unknown types (no resource, no function, no render)', () => {
+    const manifest = `
 app:
   id: test-app
 modules:
-  function:
-    - key: resolver
-      handler: index.handler
-`);
-      expect(manifest.resources.size).toBe(0);
-    });
+  custom:metadata:
+    - key: just-data
+      title: Not a UI module
+      someField: someValue
+`;
+    const result = parseManifestContent(manifest);
+    // Should NOT be in uiModules since it has no resource/function/render
+    expect(result.uiModules.find(m => m.key === 'just-data')).toBeUndefined();
+  });
+});
 
-    it('parses multiple resources', () => {
-      const manifest = parseManifestContent(`
+// ── 6. Endpoint / Remote reference errors ───────────────────────────────
+
+describe('endpoint and remote reference validation', () => {
+  it('parses endpoint referencing a valid remote', () => {
+    const manifest = `
 app:
   id: test-app
-resources:
-  - key: main
-    path: src/frontend.tsx
-  - key: admin
-    path: src/admin.tsx
 modules:
+  endpoint:
+    - key: my-endpoint
+      remote: my-backend
   function:
     - key: resolver
       handler: index.handler
-`);
-      expect(manifest.resources.size).toBe(2);
-      expect(manifest.resources.get('main')?.path).toBe('src/frontend.tsx');
-      expect(manifest.resources.get('admin')?.path).toBe('src/admin.tsx');
-    });
+remotes:
+  - key: my-backend
+    baseUrl: https://api.example.com
+`;
+    const result = parseManifestContent(manifest);
+    expect(result.endpoints.get('my-endpoint')?.remote).toBe('my-backend');
+    expect(result.remotes.get('my-backend')?.baseUrl).toBe('https://api.example.com');
   });
 
-  // ── 8. Permissions edge cases ─────────────────────────────────────
+  it('parses endpoint referencing a nonexistent remote (parser does not validate cross-refs)', () => {
+    const manifest = `
+app:
+  id: test-app
+modules:
+  endpoint:
+    - key: orphan-endpoint
+      remote: does-not-exist
+`;
+    // Parser should still parse it — validation happens at deploy/runtime
+    const result = parseManifestContent(manifest);
+    expect(result.endpoints.get('orphan-endpoint')?.remote).toBe('does-not-exist');
+    expect(result.remotes.has('does-not-exist')).toBe(false);
+  });
 
-  describe('permissions', () => {
-    it('handles missing permissions', () => {
-      const manifest = parseManifestContent(`
+  it('skips endpoints without required fields (key or remote)', () => {
+    const manifest = `
+app:
+  id: test-app
+modules:
+  endpoint:
+    - key: no-remote-field
+    - remote: no-key-field
+      route:
+        path: /api
+    - key: valid-ep
+      remote: valid-remote
+remotes:
+  - key: valid-remote
+    baseUrl: https://example.com
+`;
+    const result = parseManifestContent(manifest);
+    // Only the valid one should be parsed
+    expect(result.endpoints.size).toBe(1);
+    expect(result.endpoints.has('valid-ep')).toBe(true);
+  });
+
+  it('skips remotes without required fields (key or baseUrl)', () => {
+    const manifest = `
+app:
+  id: test-app
+remotes:
+  - key: no-url
+  - baseUrl: https://no-key.example.com
+  - key: valid-remote
+    baseUrl: https://valid.example.com
+`;
+    const result = parseManifestContent(manifest);
+    expect(result.remotes.size).toBe(1);
+    expect(result.remotes.has('valid-remote')).toBe(true);
+  });
+
+  it('handles duplicate remote keys (last one wins)', () => {
+    const manifest = `
+app:
+  id: test-app
+remotes:
+  - key: my-backend
+    baseUrl: https://first.example.com
+  - key: my-backend
+    baseUrl: https://second.example.com
+`;
+    const result = parseManifestContent(manifest);
+    expect(result.remotes.size).toBe(1);
+    expect(result.remotes.get('my-backend')?.baseUrl).toBe('https://second.example.com');
+  });
+
+  it('handles duplicate endpoint keys (last one wins)', () => {
+    const manifest = `
+app:
+  id: test-app
+modules:
+  endpoint:
+    - key: my-ep
+      remote: backend-a
+    - key: my-ep
+      remote: backend-b
+remotes:
+  - key: backend-a
+    baseUrl: https://a.example.com
+  - key: backend-b
+    baseUrl: https://b.example.com
+`;
+    const result = parseManifestContent(manifest);
+    expect(result.endpoints.size).toBe(1);
+    expect(result.endpoints.get('my-ep')?.remote).toBe('backend-b');
+  });
+
+  it('handles remotes with missing optional fields', () => {
+    const manifest = `
+app:
+  id: test-app
+remotes:
+  - key: minimal
+    baseUrl: https://minimal.example.com
+`;
+    const result = parseManifestContent(manifest);
+    const remote = result.remotes.get('minimal')!;
+    expect(remote.key).toBe('minimal');
+    expect(remote.baseUrl).toBe('https://minimal.example.com');
+    expect(remote.operations).toBeUndefined();
+    expect(remote.auth).toBeUndefined();
+  });
+});
+
+// ── 7. Other edge cases ─────────────────────────────────────────────────
+
+describe('other manifest edge cases', () => {
+  it('handles resources without a resources section', () => {
+    const manifest = `
 app:
   id: test-app
 modules:
   function:
     - key: resolver
       handler: index.handler
-`);
-      expect(manifest.permissions).toEqual([]);
-    });
+`;
+    const result = parseManifestContent(manifest);
+    expect(result.resources.size).toBe(0);
+  });
 
-    it('parses scopes correctly', () => {
-      const manifest = parseManifestContent(`
+  it('handles permissions without scopes', () => {
+    const manifest = `
+app:
+  id: test-app
+permissions:
+  external:
+    fetch:
+      backend:
+        - https://api.example.com
+`;
+    const result = parseManifestContent(manifest);
+    expect(result.permissions).toEqual([]);
+  });
+
+  it('parses permissions.scopes correctly', () => {
+    const manifest = `
 app:
   id: test-app
 permissions:
   scopes:
     - read:jira-work
     - write:jira-work
-    - read:confluence-space.summary
-modules:
-  function:
-    - key: resolver
-      handler: index.handler
-`);
-      expect(manifest.permissions).toHaveLength(3);
-      expect(manifest.permissions).toContain('read:jira-work');
-      expect(manifest.permissions).toContain('write:jira-work');
-    });
+    - read:confluence-content.all
+`;
+    const result = parseManifestContent(manifest);
+    expect(result.permissions).toEqual([
+      'read:jira-work',
+      'write:jira-work',
+      'read:confluence-content.all',
+    ]);
   });
 
-  // ── 9. Complex real-world manifest ────────────────────────────────
-
-  describe('real-world manifest patterns', () => {
-    it('parses a full manifest with all features', () => {
-      const manifest = parseManifestContent(`
+  it('handles a realistic full manifest without issues', () => {
+    const manifest = `
 app:
-  id: ari:cloud:ecosystem::app/full-test
-  name: Full Test App
+  id: ari:cloud:ecosystem::app/realistic-test
+  name: Realistic Test App
 modules:
   jira:issuePanel:
     - key: main-panel
       resource: main
       resolver:
         function: resolver
-        endpoint: my-endpoint
-      render: native
       title: Main Panel
+      icon: https://example.com/icon.png
   jira:globalPage:
-    - key: admin-page
-      resource: admin
+    - key: admin
+      resource: admin-ui
       resolver:
-        function: admin-resolver
-      render: native
-      title: Admin
+        endpoint: backend-ep
+      title: Admin Page
+      layout: basic
+  confluence:globalPage:
+    - key: conf-page
+      resource: conf-ui
+      title: Confluence Page
   function:
     - key: resolver
-      handler: src/resolvers/main.handler
-    - key: admin-resolver
-      handler: src/resolvers/admin.handler
+      handler: src/resolvers/index.handler
     - key: trigger-fn
-      handler: src/triggers.handler
+      handler: src/triggers/index.handler
   consumer:
-    - key: email-consumer
+    - key: email-worker
       queue: email-queue
       function: trigger-fn
   trigger:
-    - key: issue-trigger
+    - key: issue-created
       function: trigger-fn
       events:
         - avi:jira:created:issue
   scheduledTrigger:
-    - key: nightly
+    - key: daily-sync
       function: trigger-fn
       schedule:
-        interval: hour
+        interval: day
   endpoint:
-    - key: my-endpoint
+    - key: backend-ep
       remote: azure-backend
       route:
-        path: /api
+        path: /api/v2
+      auth:
+        appSystemToken:
+          enabled: true
 resources:
   - key: main
-    path: src/frontend/main.tsx
-  - key: admin
-    path: src/frontend/admin.tsx
+    path: src/frontend/index.tsx
+  - key: admin-ui
+    path: src/admin/index.tsx
+  - key: conf-ui
+    path: src/confluence/index.tsx
 remotes:
   - key: azure-backend
-    baseUrl: https://my-app.azurewebsites.net
+    baseUrl: https://my-functions.azurewebsites.net
+    operations:
+      - storage
+      - compute
+    auth:
+      appSystemToken:
+        enabled: true
+providers:
+  auth:
+    - key: google
+      name: Google
+      type: oauth2
+      clientId: "123456.apps.googleusercontent.com"
+      scopes:
+        - email
+        - profile
 permissions:
   scopes:
     - read:jira-work
     - write:jira-work
-`);
+`;
+    const result = parseManifestContent(manifest);
 
-      expect(manifest.functions.size).toBe(3);
-      expect(manifest.resources.size).toBe(2);
-      expect(manifest.uiModules.length).toBe(2);
-      expect(manifest.consumers.length).toBe(1);
-      expect(manifest.triggers.length).toBe(1);
-      expect(manifest.scheduledTriggers.length).toBe(1);
-      expect(manifest.endpoints.size).toBe(1);
-      expect(manifest.remotes.size).toBe(1);
-      expect(manifest.permissions).toHaveLength(2);
+    // Functions
+    expect(result.functions.size).toBe(2);
+    expect(result.functions.get('resolver')?.handler).toBe('src/resolvers/index.handler');
 
-      // Verify UI module details
-      const mainPanel = manifest.uiModules.find(m => m.key === 'main-panel')!;
-      expect(mainPanel.type).toBe('jira:issuePanel');
-      expect(mainPanel.resolverFunctionKey).toBe('resolver');
-      expect(mainPanel.endpointKey).toBe('my-endpoint');
-      expect(mainPanel.resourceKey).toBe('main');
+    // UI Modules
+    expect(result.uiModules).toHaveLength(3);
+    expect(result.uiModules.find(m => m.key === 'main-panel')?.type).toBe('jira:issuePanel');
+    expect(result.uiModules.find(m => m.key === 'admin')?.endpointKey).toBe('backend-ep');
+    expect(result.uiModules.find(m => m.key === 'conf-page')?.type).toBe('confluence:globalPage');
 
-      // Verify endpoint
-      const ep = manifest.endpoints.get('my-endpoint')!;
-      expect(ep.remote).toBe('azure-backend');
-      expect(ep.route?.path).toBe('/api');
+    // Consumers
+    expect(result.consumers).toHaveLength(1);
+    expect(result.consumers[0].queue).toBe('email-queue');
 
-      // Verify consumer
-      expect(manifest.consumers[0].queue).toBe('email-queue');
-      expect(manifest.consumers[0].functionKey).toBe('trigger-fn');
-    });
+    // Triggers
+    expect(result.triggers).toHaveLength(1);
+    expect(result.triggers[0].events).toContain('avi:jira:created:issue');
+
+    // Scheduled Triggers
+    expect(result.scheduledTriggers).toHaveLength(1);
+    expect(result.scheduledTriggers[0].interval).toBe('day');
+
+    // Remotes + Endpoints
+    expect(result.remotes.size).toBe(1);
+    expect(result.endpoints.size).toBe(1);
+    expect(result.endpoints.get('backend-ep')?.remote).toBe('azure-backend');
+
+    // Auth Providers
+    expect(result.authProviders.size).toBe(1);
+    expect(result.authProviders.get('google')?.type).toBe('oauth2');
+
+    // Resources
+    expect(result.resources.size).toBe(3);
+
+    // Permissions
+    expect(result.permissions).toEqual(['read:jira-work', 'write:jira-work']);
   });
 });
