@@ -73,7 +73,7 @@ export async function parseManifest(manifestPath: string): Promise<ParsedManifes
  * Parse manifest content string (useful for testing without files).
  */
 export function parseManifestContent(content: string): ParsedManifest {
-  const raw = parseYaml(content) as ForgeManifest;
+  const raw = (parseYaml(content) ?? {}) as ForgeManifest;
   const modules = raw.modules ?? {};
 
   // Parse resources (top-level, not under modules)
@@ -138,6 +138,15 @@ export function parseManifestContent(content: string): ParsedManifest {
       // A UI module must have a resource key (Custom UI or UIKit entry)
       // or a render property — skip anything that doesn't look like UI
       if (!mod.resource && !mod.render && !mod.function) continue;
+      // Warn about UIKit 1 style: module has function but no resource
+      if (mod.function && !mod.resource) {
+        console.warn(
+          `[forge-sim] Warning: module "${mod.key}" (${moduleType}) uses "function:" without "resource:". ` +
+          `This is the deprecated UIKit 1 pattern. UIKit 2 modules should have "resource: <key>" and "render: native". ` +
+          `See: https://developer.atlassian.com/platform/forge/ui-kit-2/`
+        );
+      }
+
       uiModules.push({
         type: moduleType,
         key: mod.key,
