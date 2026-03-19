@@ -24,6 +24,12 @@ export class SimulatedResolver {
    * Define a resolver function (mirrors Resolver.define()).
    */
   define(functionKey: string, handler: ResolverHandler): void {
+    if (this.definitions.has(functionKey)) {
+      console.warn(
+        `[forge-sim] Warning: resolver.define("${functionKey}") is overwriting an existing definition. ` +
+        `In Forge, duplicate resolver names across files may cause unexpected behavior.`
+      );
+    }
     this.definitions.set(functionKey, handler);
   }
 
