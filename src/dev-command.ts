@@ -184,6 +184,11 @@ export function generateBridgeInlineScript(wsPort: number, defaultModuleKey?: st
       S.ws.onmessage = function(event) {
         try {
           var msg = JSON.parse(event.data);
+          // History commands from server (UIKit push/replace/go)
+          if (msg.type === 'historyCommand') {
+            handleHistoryCommand(msg);
+            return;
+          }
           if (msg.requestId && S.pendingRequests[msg.requestId]) {
             var pending = S.pendingRequests[msg.requestId];
             delete S.pendingRequests[msg.requestId];
@@ -373,6 +378,55 @@ export function generateBridgeInlineScript(wsPort: number, defaultModuleKey?: st
   }
 
   window.__bridge = { callBridge: callBridge };
+
+  // ── History command handler (server → browser) ──────────────────────
+  function getCurrentLocation() {
+    return {
+      pathname: window.location.pathname,
+      search: window.location.search,
+      hash: window.location.hash,
+      state: window.history.state,
+      key: (window.history.state && window.history.state.__key) || 'default'
+    };
+  }
+
+  function handleHistoryCommand(msg) {
+    var requestId = msg.requestId;
+    var cmd = msg.cmd;
+    var data = msg.data;
+    var loc, stateObj, href;
+
+    if (cmd === 'history.push') {
+      loc = typeof data.to === 'string' ? data.to : ((data.to.pathname || '') + (data.to.search || '') + (data.to.hash || ''));
+      stateObj = data.state || null;
+      if (stateObj && typeof stateObj === 'object') stateObj.__key = Math.random().toString(36).slice(2, 10);
+      else stateObj = { __key: Math.random().toString(36).slice(2, 10) };
+      window.history.pushState(stateObj, '', loc);
+    } else if (cmd === 'history.replace') {
+      loc = typeof data.to === 'string' ? data.to : ((data.to.pathname || '') + (data.to.search || '') + (data.to.hash || ''));
+      stateObj = data.state || null;
+      if (stateObj && typeof stateObj === 'object') stateObj.__key = Math.random().toString(36).slice(2, 10);
+      else stateObj = { __key: Math.random().toString(36).slice(2, 10) };
+      window.history.replaceState(stateObj, '', loc);
+    } else if (cmd === 'history.go') {
+      window.history.go(data.delta);
+      // popstate will fire asynchronously — ack will come from the popstate handler
+      return;
+    }
+
+    // Acknowledge with updated location
+    var action = cmd === 'history.push' ? 'PUSH' : 'REPLACE';
+    if (S.ws && S.wsReady) {
+      S.ws.send(JSON.stringify({ type: 'historyAck', requestId: requestId, action: action, location: getCurrentLocation() }));
+    }
+  }
+
+  // Listen for browser back/forward → notify server
+  window.addEventListener('popstate', function() {
+    if (S.ws && S.wsReady) {
+      S.ws.send(JSON.stringify({ type: 'historyEvent', action: 'POP', location: getCurrentLocation() }));
+    }
+  });
 
   // Pre-connect WebSocket so it's ready when the app loads
   ensureConnection();

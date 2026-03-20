@@ -103,6 +103,110 @@ async function handleGetContext(): Promise<ForgeContext> {
   return buildDefaultContext('sim-module');
 }
 
+// ── createHistory (WS-proxied browser history for UIKit) ────────────────
+
+/**
+ * Listeners registered by UIKit app code via history.listen().
+ * Populated by handleCreateHistory(), notified by notifyHistoryListeners()
+ * when the browser sends popstate/navigation events over WS.
+ */
+type HistoryListener = (update: { action: string; location: any }) => void;
+const historyListeners: HistoryListener[] = [];
+let currentHistoryLocation: any = { pathname: '/', search: '', hash: '', state: null, key: 'default' };
+let currentHistoryAction = 'POP';
+
+/**
+ * Called by the dev server when the browser sends a history navigation event
+ * (popstate, or acknowledgement of push/replace with updated location).
+ */
+export function notifyHistoryListeners(action: string, location: any): void {
+  currentHistoryAction = action;
+  currentHistoryLocation = location;
+  for (const fn of historyListeners) {
+    try { fn({ action, location }); } catch (e) { console.error(e); }
+  }
+}
+
+/**
+ * Send a history command to the browser via the dev server WS.
+ * Returns a promise that resolves when the browser acknowledges.
+ */
+let historyWsSender: ((cmd: string, data: any) => Promise<any>) | null = null;
+
+export function setHistoryWsSender(sender: (cmd: string, data: any) => Promise<any>): void {
+  historyWsSender = sender;
+}
+
+async function handleCreateHistory(): Promise<any> {
+  const history = {
+    get action() { return currentHistoryAction; },
+    get location() { return currentHistoryLocation; },
+
+    createHref(to: string | Record<string, any>): string {
+      if (typeof to === 'string') return to;
+      return (to.pathname || '') + (to.search || '') + (to.hash || '');
+    },
+
+    async push(to: string | Record<string, any>, state?: any): Promise<void> {
+      if (historyWsSender) {
+        await historyWsSender('history.push', { to, state });
+      } else {
+        // No WS connection (e.g., MCP/headless mode) — update in-memory
+        currentHistoryLocation = parseTo(to, state);
+        currentHistoryAction = 'PUSH';
+        notifyHistoryListeners('PUSH', currentHistoryLocation);
+      }
+    },
+
+    async replace(to: string | Record<string, any>, state?: any): Promise<void> {
+      if (historyWsSender) {
+        await historyWsSender('history.replace', { to, state });
+      } else {
+        currentHistoryLocation = parseTo(to, state);
+        currentHistoryAction = 'REPLACE';
+        notifyHistoryListeners('REPLACE', currentHistoryLocation);
+      }
+    },
+
+    async go(delta: number): Promise<void> {
+      if (historyWsSender) {
+        await historyWsSender('history.go', { delta });
+      }
+    },
+
+    back(): void { history.go(-1); },
+    forward(): void { history.go(1); },
+
+    listen(fn: HistoryListener): () => void {
+      historyListeners.push(fn);
+      return () => {
+        const idx = historyListeners.indexOf(fn);
+        if (idx >= 0) historyListeners.splice(idx, 1);
+      };
+    },
+
+    block(_fn: any): () => void {
+      // Blocking requires intercepting browser navigation — not supported in WS proxy mode
+      console.warn('[forge-sim] history.block() is not supported in UIKit mode');
+      return () => {};
+    },
+  };
+
+  return history;
+}
+
+function parseTo(to: string | Record<string, any>, state?: any): any {
+  if (typeof to === 'string') {
+    let pathname = to, search = '', hash = '';
+    const hashIdx = to.indexOf('#');
+    if (hashIdx >= 0) { hash = to.slice(hashIdx); to = to.slice(0, hashIdx); }
+    const searchIdx = to.indexOf('?');
+    if (searchIdx >= 0) { search = to.slice(searchIdx); pathname = to.slice(0, searchIdx); }
+    return { pathname, search, hash, state: state ?? null, key: Math.random().toString(36).slice(2, 10) };
+  }
+  return { pathname: to.pathname || '/', search: to.search || '', hash: to.hash || '', state: state ?? null, key: Math.random().toString(36).slice(2, 10) };
+}
+
 // ── Bridge dispatch ─────────────────────────────────────────────────────
 
 const HANDLERS: Record<string, (data: any) => Promise<any>> = {
@@ -110,6 +214,7 @@ const HANDLERS: Record<string, (data: any) => Promise<any>> = {
   invoke: handleInvoke,
   fetchProduct: handleFetchProduct,
   getContext: handleGetContext,
+  createHistory: handleCreateHistory,
 };
 
 function callBridge(cmd: string, data?: any): any {
