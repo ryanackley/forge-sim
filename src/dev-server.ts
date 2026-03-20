@@ -268,7 +268,11 @@ export function createDevServer(options: DevServerOptions = {}): DevServer {
 
   // ── Client event handling ───────────────────────────────────────────
 
-  // ── History WS proxy (UIKit ↔ browser) ───────────────────────────
+  // ── History WS proxy (headless/MCP mode only) ───────────────────
+  // In the normal dev server flow, both UIKit and Custom UI app code runs
+  // in the browser, so createHistory uses window.history directly (no WS needed).
+  // This WS proxy is only used when the server-side bridge (ui/bridge.ts)
+  // handles createHistory in headless/MCP mode without a browser.
 
   let historyRequestCounter = 0;
   const historyPendingRequests = new Map<string, { resolve: (v: any) => void; reject: (e: any) => void }>();

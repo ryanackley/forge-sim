@@ -362,7 +362,7 @@ Frontend API for Custom UI apps (runs in iframe).
 | `view.onClose(callback)` | ✅ | `modal-bridge.test.ts` | Stores callback, fires when modal closes |
 | `view.open()` | 🔇 | — | No-op |
 | `view.refresh(payload)` | ✅ | — | Triggers page reload to re-render module |
-| `view.createHistory()` | ✅ | `create-history.test.ts` | Full history v5 interface: browser history (pushState/popstate) in Custom UI, memory history in server shim. Works with react-router. |
+| `view.createHistory()` | ✅ | `create-history.test.ts` | Full history v5 interface wrapping browser `pushState`/`replaceState`/`popstate`. Works for both UIKit and Custom UI (both run in browser). Back/forward buttons work. Memory history fallback for headless/MCP mode. Compatible with react-router. Available in full-page modules (globalPage, projectPage, adminPage, spacePage, etc.) |
 | `view.theme.enable()` | ✅ | `bridge-features.test.ts` | Sets `data-color-mode=dark` on document root |
 | `view.changeWindowTitle(title)` | ✅ | `bridge-features.test.ts` | Sets `document.title` |
 | `view.emitReadyEvent()` | ✅ | `bridge-features.test.ts` | Dispatches `forge-sim:ready` custom event |

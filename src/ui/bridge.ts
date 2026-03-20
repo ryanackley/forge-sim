@@ -103,12 +103,19 @@ async function handleGetContext(): Promise<ForgeContext> {
   return buildDefaultContext('sim-module');
 }
 
-// ── createHistory (WS-proxied browser history for UIKit) ────────────────
+// ── createHistory (server-side bridge — headless/MCP mode) ──────────────
+//
+// In the normal dev server flow, both UIKit and Custom UI app code runs in
+// the browser, so createHistory is handled by the inline bridge script
+// (dev-command.ts) using window.history directly — this code is NOT involved.
+//
+// This handler is only used when app code runs through the server-side bridge
+// (headless/MCP mode). It supports optional WS proxying to a browser if one
+// is connected, otherwise falls back to an in-memory history.
 
 /**
- * Listeners registered by UIKit app code via history.listen().
- * Populated by handleCreateHistory(), notified by notifyHistoryListeners()
- * when the browser sends popstate/navigation events over WS.
+ * Listeners registered via history.listen().
+ * Notified by notifyHistoryListeners() when location changes.
  */
 type HistoryListener = (update: { action: string; location: any }) => void;
 const historyListeners: HistoryListener[] = [];
