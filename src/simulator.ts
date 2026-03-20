@@ -576,7 +576,9 @@ export class ForgeSimulator {
     };
     this.logs.push(entry);
     for (const listener of this.logListeners) {
-      try { listener(entry); } catch {}
+      try { listener(entry); } catch (err) {
+        console.error('[forge-sim] Log listener threw:', err instanceof Error ? err.message : err);
+      }
     }
   }
 

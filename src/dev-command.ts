@@ -190,7 +190,7 @@ export function generateBridgeInlineScript(wsPort: number, defaultModuleKey?: st
             if (msg.error) pending.reject(new Error(msg.error));
             else pending.resolve(msg.result);
           }
-        } catch(e) {}
+        } catch(e) { console.warn('[forge-sim] Failed to parse WS message:', e); }
       };
       S.ws.onclose = function() {
         S.wsReady = false;
@@ -231,7 +231,7 @@ export function generateBridgeInlineScript(wsPort: number, defaultModuleKey?: st
       case 'reconcile':
         if (data && data.forgeDoc) {
           S.lastForgeDoc = data.forgeDoc;
-          S.reconcileListeners.forEach(function(l) { try { l(data.forgeDoc); } catch(e) {} });
+          S.reconcileListeners.forEach(function(l) { try { l(data.forgeDoc); } catch(e) { console.warn('[forge-sim] Reconcile listener error:', e); } });
         }
         return Promise.resolve();
       case 'invoke':
@@ -664,7 +664,12 @@ export async function devCommand(options: DevCommandOptions) {
       }
     }
   } catch (err: any) {
-    console.warn(`     ⚠️  Deploy warning: ${err.message}`);
+    console.error(`  ❌ Deploy failed: ${err.message}`);
+    if (err.stack) {
+      console.error(`     ${err.stack.split('\n').slice(1, 4).join('\n     ')}`);
+    }
+    console.error(`     The dev server will start but no functions are loaded.`);
+    console.error(`     Fix the error above and save — forge-sim will auto-redeploy.`);
   }
 
   // 4b. Restore KVS state (unless --clean)
