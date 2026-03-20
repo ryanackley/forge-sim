@@ -32,6 +32,9 @@
     "yaml": "^2.7.0"
   },
   "devDependencies": {
+    "@forge/confluence-bridge": "^3.1.0",
+    "@forge/dashboards-bridge": "^0.1.17",
+    "@forge/jira-bridge": "^0.40.0",
     "@forge/kvs": "^1.3.1",
     "@forge/sql": "^3.0.18",
     "@playwright/test": "^1.58.2",

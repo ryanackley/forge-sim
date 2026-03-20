@@ -2,8 +2,8 @@
 
 Complete mapping of every Forge API, hook, component, and platform feature against forge-sim's implementation status.
 
-**Last updated:** 2026-03-19  
-**forge-sim test count:** 679 core tests (39 files) + 112 renderer tests (2 files) + 18 e2e tests (2 files) + 17 visual regression tests (1 file) = **826 total**
+**Last updated:** 2026-03-20  
+**forge-sim test count:** 716 core tests (40 files) + 112 renderer tests (2 files) + 18 e2e tests (2 files) + 17 visual regression tests (1 file) = **863 total**
 
 ### Legend
 
@@ -439,6 +439,51 @@ Frontend API for Custom UI apps (runs in iframe).
 
 ---
 
+## @forge/jira-bridge
+
+Product-specific bridge APIs for Jira host UI. All no-ops in forge-sim — the host product isn't present. App code that imports these won't crash.
+
+| API | Status | Tests | Notes |
+|-----|--------|-------|-------|
+| `new ViewIssueModal(opts).open()` | 🔇 | `product-bridges.test.ts` | Logs + resolves. Stores onClose but never fires it (no host) |
+| `new CreateIssueModal(opts).open()` | 🔇 | `product-bridges.test.ts` | Logs + resolves. Context and onClose stored but inert |
+| `workflowRules.onConfigure(fn)` | 🔇 | `product-bridges.test.ts` | Registers callback (host-driven, never fires in sim) |
+| `uiModificationsApi.onInit(cb, registerCb)` | 🔇 | `product-bridges.test.ts` | Registers hooks for issue create/edit forms (host-driven) |
+| `uiModificationsApi.onChange(cb, registerCb)` | 🔇 | `product-bridges.test.ts` | Registers field-change hooks (host-driven) |
+| `uiModificationsApi.onError(cb)` | 🔇 | `product-bridges.test.ts` | Registers error handler (host-driven) |
+| `customFieldApi.getFieldData(cb)` | 🔇 | `product-bridges.test.ts` | Registers callback (host pushes data, no host in sim) |
+| `REQUEST_TYPE_CF_TYPE` | ✅ | `product-bridges.test.ts` | String constant: `"com.atlassian.servicedesk:vp-origin"` |
+
+---
+
+## @forge/confluence-bridge
+
+Product-specific bridge APIs for Confluence editor/macro/byline. All no-ops — returns sensible defaults.
+
+| API | Status | Tests | Notes |
+|-----|--------|-------|-------|
+| `getEditorContent()` | 🔇 | `product-bridges.test.ts` | Returns `{ data: '' }` — no Confluence editor in sim |
+| `getMacroContent()` | 🔇 | `product-bridges.test.ts` | Returns `{ data: '' }` |
+| `updateMacro(content)` | 🔇 | `product-bridges.test.ts` | Returns `true` (no-op) |
+| `setMacroViewportHeight(height)` | 🔇 | `product-bridges.test.ts` | Returns `true` (no-op) |
+| `updateBylineProperties(payload)` | 🔇 | `product-bridges.test.ts` | No-op |
+
+---
+
+## @forge/dashboards-bridge
+
+Product-specific bridge APIs for Jira Dashboard widgets. All no-ops — callback registration stubs.
+
+| API | Status | Tests | Notes |
+|-----|--------|-------|-------|
+| `widgetEdit.onSave(cb)` | 🔇 | `product-bridges.test.ts` | Registers save callback (host-driven) |
+| `widgetEdit.onProductSave(cb)` | 🔇 | `product-bridges.test.ts` | Registers product-save callback (host-driven) |
+| `widgetEdit.onSaveError(cb)` | 🔇 | `product-bridges.test.ts` | Registers error callback (host-driven) |
+| `widgetEdit.updateConfig(config)` | 🔇 | `product-bridges.test.ts` | Pushes config to host (no-op + log) |
+| `widget.setPreviewConfig(config)` | 🔇 | `product-bridges.test.ts` | Pushes preview config to host (no-op + log) |
+
+---
+
 ## Packages Not Shimmed (direct imports will load real package or fail)
 
 | Package | Status | Notes |
@@ -562,8 +607,11 @@ Features beyond individual APIs.
 | @forge/react components (UIKit) | 70 | 0 | 0 | 70 |
 | @forge/react components (other) | 18 | 0 | 0 | 18 |
 | @forge/bridge | 33 | 1 | 0 | 34 |
+| @forge/jira-bridge | 1 | 7 | 0 | 8 |
+| @forge/confluence-bridge | 0 | 5 | 0 | 5 |
+| @forge/dashboards-bridge | 0 | 5 | 0 | 5 |
 | Manifest modules | 16 | 1 | 18 | 35 |
 | Platform features | 16 | 2 | 5 | 23 |
-| **Total** | **226** | **10** | **34** | **270** |
+| **Total** | **227** | **27** | **34** | **288** |
 
-**Coverage: 84% implemented, 4% partial, 13% missing**
+**Coverage: 79% implemented, 9% stubbed no-op, 12% missing**
