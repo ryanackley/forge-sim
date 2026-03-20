@@ -349,7 +349,11 @@ export class SimulatedProductApi {
 
     await this.ensureValidToken();
 
-    const url = 'https://api.atlassian.com/graphql';
+    // OAuth uses api.atlassian.com/graphql
+    // PAT/API tokens use {site}/gateway/api/graphql (tenanted gateway)
+    const url = this.realApiAccount.authType === 'pat'
+      ? `https://${this.realApiAccount.site}/gateway/api/graphql`
+      : 'https://api.atlassian.com/graphql';
     const authHeader = this.realApiAccount.authType === 'pat'
       ? `Basic ${Buffer.from(`${this.realApiAccount.email}:${this.realApiAccount.accessToken}`).toString('base64')}`
       : `Bearer ${this.realApiAccount.accessToken}`;
