@@ -43,6 +43,9 @@ function makeApiClient() {
     requestBitbucket(path: string, options?: any) {
       return getSimulator().productApi.request('bitbucket', path, options);
     },
+    requestGraph(query: string, variables?: any, headers?: Record<string, string>) {
+      return getSimulator().productApi.requestGraph(query, variables, headers);
+    },
   };
 }
 

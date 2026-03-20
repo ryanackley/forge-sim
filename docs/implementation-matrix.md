@@ -3,7 +3,7 @@
 Complete mapping of every Forge API, hook, component, and platform feature against forge-sim's implementation status.
 
 **Last updated:** 2026-03-20  
-**forge-sim test count:** 716 core tests (40 files) + 112 renderer tests (2 files) + 18 e2e tests (2 files) + 17 visual regression tests (1 file) = **863 total**
+**forge-sim test count:** 734 core tests (41 files) + 112 renderer tests (2 files) + 18 e2e tests (2 files) + 17 visual regression tests (1 file) = **881 total**
 
 ### Legend
 
@@ -32,8 +32,8 @@ The main backend API package. Imported by resolver/trigger/consumer functions.
 | `asUser(accountId).requestJira()` | ⚠️ | — | `accountId` param is ignored — no user impersonation |
 | `asApp().requestConfluence()` | ✅ | `shims.test.ts` | |
 | `asApp().requestBitbucket()` | ✅ | — | |
-| `asApp().requestGraph()` | ❌ | — | GraphQL API not implemented |
-| `asUser().requestGraph()` | ❌ | — | GraphQL API not implemented |
+| `asApp().requestGraph()` | ✅ | `graphql.test.ts` | Mock by operation name + real API fallback via Atlassian Gateway |
+| `asUser().requestGraph()` | ✅ | `graphql.test.ts` | Same as asApp |
 | `asApp().requestAtlassian()` | ❌ | — | Generic Atlassian API not implemented |
 | `asUser().requestAtlassian()` | ❌ | — | Generic Atlassian API not implemented |
 | `asUser().withProvider(provider, remote)` | ✅ | `external-auth.test.ts` | Full `ExternalAuthFetchMethods` interface |
@@ -598,7 +598,7 @@ Features beyond individual APIs.
 
 | Category | Implemented | Partial/Stub | Not Implemented | Total |
 |----------|-------------|-------------|-----------------|-------|
-| @forge/api | 23 | 6 | 6 | 35 |
+| @forge/api | 25 | 6 | 4 | 35 |
 | @forge/kvs | 18 | 0 | 0 | 18 |
 | @forge/sql | 6 | 0 | 2 | 8 |
 | @forge/events | 12 | 0 | 1 | 13 |
@@ -612,6 +612,6 @@ Features beyond individual APIs.
 | @forge/dashboards-bridge | 0 | 5 | 0 | 5 |
 | Manifest modules | 16 | 1 | 18 | 35 |
 | Platform features | 16 | 2 | 5 | 23 |
-| **Total** | **227** | **27** | **34** | **288** |
+| **Total** | **229** | **27** | **32** | **288** |
 
-**Coverage: 79% implemented, 9% stubbed no-op, 12% missing**
+**Coverage: 80% implemented, 9% stubbed no-op, 11% missing**

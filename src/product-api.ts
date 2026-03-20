@@ -44,9 +44,27 @@ const PRODUCT_BASE_URLS: Record<string, (cloudId: string) => string> = {
   bitbucket: () => `https://api.bitbucket.org/2.0`,
 };
 
+// ── GraphQL types ───────────────────────────────────────────────────────
+
+export type GraphQLHandler = (
+  query: string,
+  variables?: Record<string, any>,
+) => any | Promise<any>;
+
+/**
+ * Extract the operation name from a GraphQL query string.
+ * Matches: query OperationName, mutation OperationName, subscription OperationName
+ * Returns null for anonymous operations.
+ */
+function extractOperationName(query: string): string | null {
+  const match = query.match(/(?:query|mutation|subscription)\s+(\w+)/);
+  return match ? match[1] : null;
+}
+
 export class SimulatedProductApi {
   private handlers = new Map<string, ProductApiHandler>();
   private mockRouteHandlers = new Map<string, ProductApiHandler>();
+  private graphqlMocks = new Map<string, GraphQLHandler | any>();
   private realApiAccount: AtlassianAccount | null = null;
   private onTokenRefresh?: (account: AtlassianAccount) => void;
   private propertyStore: PropertyStore | null = null;
@@ -276,9 +294,108 @@ export class SimulatedProductApi {
     return handler(path, options);
   }
 
+  // ── GraphQL (Atlassian Gateway) ───────────────────────────────────────
+
+  /**
+   * Register mock handlers for GraphQL operations, keyed by operation name.
+   * 
+   * Values can be:
+   * - A static object (returned as-is as the response body)
+   * - A function (query, variables) => response body
+   * 
+   * Use '*' as a catch-all for anonymous queries or unmatched operations.
+   * 
+   * Example:
+   *   sim.productApi.mockGraphQL({
+   *     'GetIssue': { data: { issue: { key: 'TEST-1' } } },
+   *     'SearchUsers': (query, variables) => ({ data: { users: [] } }),
+   *     '*': { errors: [{ message: 'Unknown operation' }] },
+   *   });
+   */
+  mockGraphQL(mocks: Record<string, GraphQLHandler | any>): void {
+    for (const [key, value] of Object.entries(mocks)) {
+      this.graphqlMocks.set(key, value);
+    }
+  }
+
+  /**
+   * Execute a GraphQL request. Checks mocks first (by operation name),
+   * then falls back to the real Atlassian Gateway if connected.
+   */
+  async requestGraph(
+    query: string,
+    variables?: Record<string, any>,
+    headers?: Record<string, string>,
+  ): Promise<ProductApiResponse> {
+    const operationName = extractOperationName(query);
+
+    // 1. Check mocks — exact operation name match, then '*' catch-all
+    const mockHandler = (operationName && this.graphqlMocks.get(operationName))
+      || this.graphqlMocks.get('*');
+
+    if (mockHandler !== undefined) {
+      const body = typeof mockHandler === 'function'
+        ? await mockHandler(query, variables)
+        : mockHandler;
+      return makeResponse(200, body);
+    }
+
+    // 2. Real API fallback
+    if (!this.realApiAccount) {
+      return makeResponse(501, {
+        error: `Unmocked GraphQL operation: ${operationName ?? '(anonymous)'}. Register a handler with sim.mockGraphQL({ '${operationName ?? '*'}': ... })`,
+      });
+    }
+
+    await this.ensureValidToken();
+
+    const url = 'https://api.atlassian.com/graphql';
+    const authHeader = this.realApiAccount.authType === 'pat'
+      ? `Basic ${Buffer.from(`${this.realApiAccount.email}:${this.realApiAccount.accessToken}`).toString('base64')}`
+      : `Bearer ${this.realApiAccount.accessToken}`;
+
+    const requestBody: Record<string, any> = { query };
+    if (variables) requestBody.variables = variables;
+
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': authHeader,
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          ...headers,
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      const responseText = await response.text();
+      let responseJson: any;
+      try {
+        responseJson = JSON.parse(responseText);
+      } catch {
+        responseJson = responseText;
+      }
+
+      return {
+        status: response.status,
+        statusText: response.statusText,
+        headers: Object.fromEntries(response.headers.entries()),
+        ok: response.ok,
+        json: async () => responseJson,
+        text: async () => responseText,
+      };
+    } catch (err: any) {
+      return makeResponse(502, {
+        error: `GraphQL request failed: ${err.message}`,
+      });
+    }
+  }
+
   clear(): void {
     this.handlers.clear();
     this.mockRouteHandlers.clear();
+    this.graphqlMocks.clear();
     this.realApiAccount = null;
     this.onTokenRefresh = undefined;
     for (const product of ['jira', 'confluence', 'bitbucket']) {

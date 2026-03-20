@@ -392,6 +392,14 @@ export class ForgeSimulator {
     this.productApi.mockRoutes(product, routes);
   }
 
+  /**
+   * Mock GraphQL responses by operation name.
+   * See SimulatedProductApi.mockGraphQL for details.
+   */
+  mockGraphQL(mocks: Record<string, any>): void {
+    this.productApi.mockGraphQL(mocks);
+  }
+
   // ── Queue shortcuts ─────────────────────────────────────────────────────
 
   /**
