@@ -261,6 +261,106 @@ export function generateBridgeInlineScript(wsPort: number, defaultModuleKey?: st
         return rpc('viewSubmit', { payload: data && data.payload || data });
       case 'close':
         return rpc('viewClose', { payload: data && data.payload || data });
+      case 'createHistory':
+        return Promise.resolve((function() {
+          var listeners = [];
+          var blockers = [];
+          var action = 'POP';
+
+          function parsePath(path) {
+            if (typeof path === 'object') return { pathname: path.pathname || '/', search: path.search || '', hash: path.hash || '' };
+            var p = path || '/';
+            var searchIdx = p.indexOf('?');
+            var hashIdx = p.indexOf('#');
+            var pathname = p, search = '', hash = '';
+            if (hashIdx >= 0) { hash = p.slice(hashIdx); p = p.slice(0, hashIdx); }
+            if (searchIdx >= 0) { search = p.slice(searchIdx); pathname = p.slice(0, searchIdx); }
+            else { pathname = p; }
+            return { pathname: pathname, search: search, hash: hash };
+          }
+
+          function createLocation(to, state) {
+            var parsed = (typeof to === 'string') ? parsePath(to) : to;
+            return {
+              pathname: parsed.pathname || '/',
+              search: parsed.search || '',
+              hash: parsed.hash || '',
+              state: state === undefined ? null : state,
+              key: Math.random().toString(36).slice(2, 10)
+            };
+          }
+
+          function getCurrentLocation() {
+            return {
+              pathname: window.location.pathname,
+              search: window.location.search,
+              hash: window.location.hash,
+              state: window.history.state,
+              key: (window.history.state && window.history.state.__key) || 'default'
+            };
+          }
+
+          var history = {
+            action: action,
+            location: getCurrentLocation(),
+            createHref: function(to) {
+              if (typeof to === 'string') return to;
+              return (to.pathname || '') + (to.search || '') + (to.hash || '');
+            },
+            push: function(to, state) {
+              var loc = createLocation(to, state);
+              var update = { action: 'PUSH', location: loc };
+              for (var i = 0; i < blockers.length; i++) {
+                var blocked = false;
+                blockers[i]({ action: 'PUSH', location: loc, retry: function() { history.push(to, state); } });
+                blocked = true;
+                if (blocked) return;
+              }
+              var stateObj = state === undefined ? null : state;
+              if (stateObj && typeof stateObj === 'object') stateObj = Object.assign({}, stateObj, { __key: loc.key });
+              else stateObj = { __key: loc.key };
+              window.history.pushState(stateObj, '', history.createHref(loc));
+              history.action = 'PUSH';
+              history.location = loc;
+              listeners.forEach(function(fn) { try { fn(update); } catch(e) { console.error(e); } });
+            },
+            replace: function(to, state) {
+              var loc = createLocation(to, state);
+              var update = { action: 'REPLACE', location: loc };
+              for (var i = 0; i < blockers.length; i++) {
+                blockers[i]({ action: 'REPLACE', location: loc, retry: function() { history.replace(to, state); } });
+                return;
+              }
+              var stateObj = state === undefined ? null : state;
+              if (stateObj && typeof stateObj === 'object') stateObj = Object.assign({}, stateObj, { __key: loc.key });
+              else stateObj = { __key: loc.key };
+              window.history.replaceState(stateObj, '', history.createHref(loc));
+              history.action = 'REPLACE';
+              history.location = loc;
+              listeners.forEach(function(fn) { try { fn(update); } catch(e) { console.error(e); } });
+            },
+            go: function(delta) { window.history.go(delta); },
+            back: function() { window.history.go(-1); },
+            forward: function() { window.history.go(1); },
+            listen: function(fn) {
+              listeners.push(fn);
+              return function() { listeners = listeners.filter(function(l) { return l !== fn; }); };
+            },
+            block: function(fn) {
+              blockers.push(fn);
+              return function() { blockers = blockers.filter(function(b) { return b !== fn; }); };
+            }
+          };
+
+          window.addEventListener('popstate', function() {
+            history.action = 'POP';
+            history.location = getCurrentLocation();
+            var update = { action: 'POP', location: history.location };
+            listeners.forEach(function(fn) { try { fn(update); } catch(e) { console.error(e); } });
+          });
+
+          return history;
+        })());
       case 'refresh':
         window.location.reload();
         return Promise.resolve();

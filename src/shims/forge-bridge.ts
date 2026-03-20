@@ -17,6 +17,122 @@ function getBridge() {
   return bridge;
 }
 
+// ── Memory History (history v5 compatible) ──────────────────────────────
+
+interface HistoryLocation {
+  pathname: string;
+  search: string;
+  hash: string;
+  state: any;
+  key: string;
+}
+
+interface HistoryUpdate {
+  action: string;
+  location: HistoryLocation;
+}
+
+function createMemoryHistory(): any {
+  const entries: HistoryLocation[] = [
+    { pathname: '/', search: '', hash: '', state: null, key: 'default' },
+  ];
+  let index = 0;
+  let listeners: Array<(update: HistoryUpdate) => void> = [];
+  let blockers: Array<(tx: any) => void> = [];
+
+  function generateKey(): string {
+    return Math.random().toString(36).slice(2, 10);
+  }
+
+  function parsePath(to: string | Partial<HistoryLocation>): Partial<HistoryLocation> {
+    if (typeof to === 'object') return to;
+    const path = to || '/';
+    let pathname = path, search = '', hash = '';
+    const hashIdx = path.indexOf('#');
+    if (hashIdx >= 0) { hash = path.slice(hashIdx); pathname = path.slice(0, hashIdx); }
+    const searchIdx = pathname.indexOf('?');
+    if (searchIdx >= 0) { search = pathname.slice(searchIdx); pathname = pathname.slice(0, searchIdx); }
+    return { pathname, search, hash };
+  }
+
+  function createLocation(to: string | Partial<HistoryLocation>, state?: any): HistoryLocation {
+    const parsed = parsePath(to);
+    return {
+      pathname: parsed.pathname || '/',
+      search: parsed.search || '',
+      hash: parsed.hash || '',
+      state: state ?? null,
+      key: generateKey(),
+    };
+  }
+
+  function notify(action: string): void {
+    const update = { action, location: entries[index] };
+    for (const fn of listeners) {
+      try { fn(update); } catch (e) { console.error(e); }
+    }
+  }
+
+  const history = {
+    get action() { return 'POP'; },
+    get location() { return entries[index]; },
+    set location(loc: HistoryLocation) { /* mutable per history v5 spec */ },
+
+    createHref(to: string | Partial<HistoryLocation>): string {
+      if (typeof to === 'string') return to;
+      return (to.pathname || '') + (to.search || '') + (to.hash || '');
+    },
+
+    push(to: string | Partial<HistoryLocation>, state?: any): void {
+      const loc = createLocation(to, state);
+      if (blockers.length > 0) {
+        blockers[0]({ action: 'PUSH', location: loc, retry: () => history.push(to, state) });
+        return;
+      }
+      // Truncate forward stack and push
+      entries.splice(index + 1);
+      entries.push(loc);
+      index = entries.length - 1;
+      notify('PUSH');
+    },
+
+    replace(to: string | Partial<HistoryLocation>, state?: any): void {
+      const loc = createLocation(to, state);
+      if (blockers.length > 0) {
+        blockers[0]({ action: 'REPLACE', location: loc, retry: () => history.replace(to, state) });
+        return;
+      }
+      entries[index] = loc;
+      notify('REPLACE');
+    },
+
+    go(delta: number): void {
+      const nextIndex = Math.max(0, Math.min(entries.length - 1, index + delta));
+      if (nextIndex === index) return;
+      index = nextIndex;
+      notify('POP');
+    },
+
+    back(): void { history.go(-1); },
+    forward(): void { history.go(1); },
+
+    listen(fn: (update: HistoryUpdate) => void): () => void {
+      listeners.push(fn);
+      return () => { listeners = listeners.filter(l => l !== fn); };
+    },
+
+    block(fn: (tx: any) => void): () => void {
+      blockers.push(fn);
+      return () => { blockers = blockers.filter(b => b !== fn); };
+    },
+  };
+
+  return history;
+}
+
+// Expose for testing
+export { createMemoryHistory };
+
 // ── Response wrapper ────────────────────────────────────────────────────
 
 /**
@@ -82,13 +198,7 @@ export const view = {
     return Promise.resolve();
   },
   createHistory(): Promise<any> {
-    console.log('[forge-sim] view.createHistory() — not implemented');
-    return Promise.resolve({
-      push: (path: string) => console.log(`[forge-sim] history.push(${path})`),
-      replace: (path: string) => console.log(`[forge-sim] history.replace(${path})`),
-      go: (n: number) => console.log(`[forge-sim] history.go(${n})`),
-      listen: () => () => {},
-    });
+    return Promise.resolve(createMemoryHistory());
   },
   theme: {
     enable(): void {

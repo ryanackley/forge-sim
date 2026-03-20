@@ -3,7 +3,7 @@
 Complete mapping of every Forge API, hook, component, and platform feature against forge-sim's implementation status.
 
 **Last updated:** 2026-03-20  
-**forge-sim test count:** 734 core tests (41 files) + 112 renderer tests (2 files) + 18 e2e tests (2 files) + 17 visual regression tests (1 file) = **881 total**
+**forge-sim test count:** 761 core tests (42 files) + 112 renderer tests (2 files) + 18 e2e tests (2 files) + 17 visual regression tests (1 file) = **908 total**
 
 ### Legend
 
@@ -362,7 +362,7 @@ Frontend API for Custom UI apps (runs in iframe).
 | `view.onClose(callback)` | ✅ | `modal-bridge.test.ts` | Stores callback, fires when modal closes |
 | `view.open()` | 🔇 | — | No-op |
 | `view.refresh(payload)` | ✅ | — | Triggers page reload to re-render module |
-| `view.createHistory()` | ❌ | — | Client-side routing history. Returns nothing |
+| `view.createHistory()` | ✅ | `create-history.test.ts` | Full history v5 interface: browser history (pushState/popstate) in Custom UI, memory history in server shim. Works with react-router. |
 | `view.theme.enable()` | ✅ | `bridge-features.test.ts` | Sets `data-color-mode=dark` on document root |
 | `view.changeWindowTitle(title)` | ✅ | `bridge-features.test.ts` | Sets `document.title` |
 | `view.emitReadyEvent()` | ✅ | `bridge-features.test.ts` | Dispatches `forge-sim:ready` custom event |
@@ -606,12 +606,12 @@ Features beyond individual APIs.
 | @forge/react hooks | 11 | 0 | 2 | 13 |
 | @forge/react components (UIKit) | 70 | 0 | 0 | 70 |
 | @forge/react components (other) | 18 | 0 | 0 | 18 |
-| @forge/bridge | 33 | 1 | 0 | 34 |
+| @forge/bridge | 33 | 2 | 10 | 45 |
 | @forge/jira-bridge | 1 | 7 | 0 | 8 |
 | @forge/confluence-bridge | 0 | 5 | 0 | 5 |
 | @forge/dashboards-bridge | 0 | 5 | 0 | 5 |
 | Manifest modules | 16 | 1 | 18 | 35 |
 | Platform features | 16 | 2 | 5 | 23 |
-| **Total** | **229** | **27** | **32** | **288** |
+| **Total** | **229** | **28** | **42** | **299** |
 
-**Coverage: 80% implemented, 9% stubbed no-op, 11% missing**
+**Coverage: 77% implemented, 9% stubbed no-op, 14% missing**
