@@ -3,7 +3,7 @@
 Complete mapping of every Forge API, hook, component, and platform feature against forge-sim's implementation status.
 
 **Last updated:** 2026-03-20  
-**forge-sim test count:** 761 core tests (42 files) + 112 renderer tests (2 files) + 18 e2e tests (2 files) + 17 visual regression tests (1 file) = **908 total**
+**forge-sim test count:** 766 core tests (42 files) + 112 renderer tests (2 files) + 18 e2e tests (2 files) + 17 visual regression tests (1 file) = **913 total**
 
 ### Legend
 
@@ -70,7 +70,7 @@ The main backend API package. Imported by resolver/trigger/consumer functions.
 | `invokeRemote(key, payload)` | ✅ | `remotes.test.ts` | Full — RemoteProxy with mock-first routing, real HTTP fallback with FIT auth |
 | `invokeService(key, payload)` | ✅ | `remotes.test.ts` | Same system as invokeRemote |
 | `webTrigger.getUrl(key)` | ⚠️ | — | Returns fake URL, not a real endpoint |
-| `getAppContext()` | ⚠️ | — | Returns hardcoded values (`sim-app`, `sim-env`, etc.) |
+| `getAppContext()` | ✅ | `shims.test.ts` | Returns real values from manifest (appId, moduleKey) and connected account (cloudId). ARIs match Atlassian format. `invocationRemainingTimeInMillis()` returns 25s. |
 | `__getRuntime()` | 🔇 | — | Internal, undocumented; necessary for `@forge/api` import chain not to explode. Returns `{ isEcosystemApp: false }` |
 | `bindInvocationContext(fn)` | 🔇 | — | Internal, undocumented; necessary for `@forge/api` import chain not to explode. Returns the function unchanged |
 | `privacy.reportPersonalData(accounts)` | ✅ | `shims.test.ts` | POST `/app/report-accounts` via product API; batches in groups of 90 |
@@ -598,7 +598,7 @@ Features beyond individual APIs.
 
 | Category | Implemented | Partial/Stub | Not Implemented | Total |
 |----------|-------------|-------------|-----------------|-------|
-| @forge/api | 25 | 6 | 4 | 35 |
+| @forge/api | 26 | 5 | 4 | 35 |
 | @forge/kvs | 18 | 0 | 0 | 18 |
 | @forge/sql | 6 | 0 | 2 | 8 |
 | @forge/events | 12 | 0 | 1 | 13 |
@@ -612,6 +612,6 @@ Features beyond individual APIs.
 | @forge/dashboards-bridge | 0 | 5 | 0 | 5 |
 | Manifest modules | 16 | 1 | 18 | 35 |
 | Platform features | 16 | 2 | 5 | 23 |
-| **Total** | **229** | **28** | **42** | **299** |
+| **Total** | **230** | **27** | **42** | **299** |
 
 **Coverage: 77% implemented, 9% stubbed no-op, 14% missing**

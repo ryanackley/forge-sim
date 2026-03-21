@@ -90,6 +90,67 @@ describe('Forge Shims', () => {
       await forgeApi.storage.delete('foo');
       expect(await forgeApi.storage.get('foo')).toBeUndefined();
     });
+
+    describe('getAppContext()', () => {
+      it('returns default values when no manifest is loaded', () => {
+        const ctx = forgeApi.getAppContext();
+        expect(ctx.appAri.appId).toBe('sim-app');
+        expect(ctx.appAri.toString()).toContain('ari:cloud:ecosystem::app/sim-app');
+        expect(ctx.environmentType).toBe('DEVELOPMENT');
+        expect(ctx.moduleKey).toBe('sim-module');
+        expect(typeof ctx.invocationRemainingTimeInMillis).toBe('function');
+        expect(ctx.invocationRemainingTimeInMillis()).toBe(25000);
+        expect(ctx.invocationId).toMatch(/^sim-invocation-/);
+      });
+
+      it('returns app ID from manifest when loaded', async () => {
+        await sim.loadManifest(`
+app:
+  id: ari:cloud:ecosystem::app/real-app-123
+modules:
+  jira:issuePanel:
+    - key: my-panel
+      title: Test Panel
+      resource: main
+      render: native
+      resolver:
+        function: resolver
+  function:
+    - key: resolver
+      handler: index.handler
+resources:
+  - key: main
+    path: src/frontend/index.tsx
+`);
+        sim.currentModuleKey = 'my-panel';
+
+        const ctx = forgeApi.getAppContext();
+        expect(ctx.appAri.appId).toBe('ari:cloud:ecosystem::app/real-app-123');
+        expect(ctx.appAri.toString()).toContain('real-app-123');
+        expect(ctx.moduleKey).toBe('my-panel');
+        expect(ctx.environmentAri.toString()).toContain('real-app-123');
+        expect(ctx.installationAri.toString()).toContain('real-app-123');
+      });
+
+      it('uses current module key from simulator', () => {
+        sim.currentModuleKey = 'custom-module';
+        const ctx = forgeApi.getAppContext();
+        expect(ctx.moduleKey).toBe('custom-module');
+      });
+
+      it('ARIs serialize correctly via toJSON', () => {
+        const ctx = forgeApi.getAppContext();
+        const json = JSON.stringify({ app: ctx.appAri });
+        expect(json).toContain('ari:cloud:ecosystem::app/');
+      });
+
+      it('returns installation contexts with cloudId', () => {
+        const ctx = forgeApi.getAppContext();
+        expect(ctx.installation).toBeDefined();
+        expect(ctx.installation!.contexts).toHaveLength(1);
+        expect(ctx.installation!.contexts[0].cloudId).toBe('sim-cloud-001');
+      });
+    });
   });
 
   describe('@forge/kvs shim', () => {

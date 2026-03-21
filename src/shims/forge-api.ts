@@ -352,13 +352,57 @@ const __requestAtlassianAsApp = makeApiClient;
 const __requestAtlassianAsUser = makeApiClient;
 const __getRuntime = () => ({ isEcosystemApp: false });
 const bindInvocationContext = (fn: Function) => fn;
-const getAppContext = async () => ({
-  appId: 'sim-app',
-  environmentId: 'sim-env',
-  environmentType: 'DEVELOPMENT',
-  installationId: 'sim-install',
-  moduleKey: 'sim-module',
-});
+/**
+ * getAppContext() — returns app-level metadata for the current invocation.
+ * Pulls real values from the simulator's manifest and current module context.
+ * Called by resolver/trigger/consumer code (server-side).
+ */
+function getAppContext() {
+  const sim = getSimulator();
+  const manifest = sim.getManifest?.();
+  const appId = manifest?.raw?.app?.id ?? 'sim-app';
+  const moduleKey = sim.currentModuleKey ?? 'sim-module';
+  const environmentId = `sim-env-${appId}`;
+  const installationId = `sim-install-${appId}`;
+  const cloudId = sim.productApi.connectedAccount?.cloudId ?? 'sim-cloud-001';
+
+  // Build ARIs matching Atlassian's format
+  const appAri = {
+    appId,
+    toString: () => `ari:cloud:ecosystem::app/${appId}`,
+    toJSON: () => `ari:cloud:ecosystem::app/${appId}`,
+  };
+  const environmentAri = {
+    environmentId,
+    toString: () => `ari:cloud:ecosystem::app/${appId}/environment/${environmentId}`,
+    toJSON: () => `ari:cloud:ecosystem::app/${appId}/environment/${environmentId}`,
+  };
+  const installationAri = {
+    installationId,
+    toString: () => `ari:cloud:ecosystem::app/${appId}/installation/${installationId}`,
+    toJSON: () => `ari:cloud:ecosystem::app/${appId}/installation/${installationId}`,
+  };
+
+  return {
+    appAri,
+    appVersion: '0.0.1-dev',
+    environmentAri,
+    environmentType: 'DEVELOPMENT',
+    invocationId: `sim-invocation-${Date.now()}`,
+    invocationRemainingTimeInMillis: () => 25000, // Forge default: 25s
+    installationAri,
+    moduleKey,
+    license: undefined,
+    installation: {
+      ari: installationAri,
+      contexts: [{
+        cloudId,
+        toString: () => `ari:cloud:jira::site/${cloudId}`,
+      }],
+    },
+    permissions: undefined,
+  };
+}
 
 // ── i18n (backed by I18nStore, same as @forge/bridge) ───────────────────
 
