@@ -147,24 +147,83 @@ With concurrent mode + `storageLatency: true`:
 
 ## Testing
 
+**967 tests total** across three test suites:
+
+### Core Tests (804 tests, 44 files) — vitest
 ```bash
-npm test          # 100 tests across 12 files
-npm run build     # TypeScript compile
+npx vitest run                    # from project root
 ```
 
-Test files:
-- `__tests__/storage.test.ts` — KVS operations, secrets, query, batch, transact
-- `__tests__/queue.test.ts` — Queue push/consume, stats, limits
-- `__tests__/simulator.test.ts` — Orchestrator integration
-- `__tests__/shims.test.ts` — @forge/* shim layer + full integration flow
-- `__tests__/deployer.test.ts` — Manifest-driven deploy
-- `__tests__/ui-integration.test.ts` — UIKit → bridge → simulator
-- `__tests__/concurrency.test.ts` — Race detection, semaphores, transact safety
-- `__tests__/mcp-server.test.ts` — MCP server integration (deploy → invoke → state)
-- `__tests__/forge-sql.test.ts` — SQL simulation unit tests
-- `__tests__/forge-sql-e2e.test.ts` — E2E: real @forge/sql → global bridge → MySQL
-- `__tests__/entity-store.test.ts` — Entity store unit tests (CRUD, queries, filters, TTL)
-- `__tests__/entity-store-e2e.test.ts` — E2E: real @forge/kvs → global bridge → entity store
+| File | Area |
+|------|------|
+| `src/__tests__/storage.test.ts` | KVS operations, secrets, query, batch, transact |
+| `src/__tests__/queue.test.ts` | Queue push/consume, stats, limits |
+| `src/__tests__/simulator.test.ts` | Orchestrator integration |
+| `src/__tests__/shims.test.ts` | @forge/* shim layer + full integration flow |
+| `src/__tests__/deployer.test.ts` | Manifest-driven deploy |
+| `src/__tests__/deploy-e2e.test.ts` | Deploy end-to-end with real apps |
+| `src/__tests__/ui-integration.test.ts` | UIKit → bridge → simulator |
+| `src/__tests__/simulator-ui.test.ts` | Simulator UI subsystem |
+| `src/__tests__/concurrency.test.ts` | Race detection, semaphores, transact safety |
+| `src/__tests__/mcp-server.test.ts` | MCP server integration (deploy → invoke → state) |
+| `src/__tests__/forge-sql.test.ts` | SQL simulation unit tests |
+| `src/__tests__/forge-sql-e2e.test.ts` | E2E: real @forge/sql → global bridge → MySQL |
+| `src/__tests__/entity-store.test.ts` | Entity store unit tests (CRUD, queries, filters, TTL) |
+| `src/__tests__/entity-store-e2e.test.ts` | E2E: real @forge/kvs → global bridge → entity store |
+| `src/__tests__/product-context.test.ts` | Context building, hydration, module-specific extension |
+| `src/__tests__/dev-context.test.ts` | Dev command context flags (--issue, --content, etc.) |
+| `src/__tests__/web-trigger.test.ts` | Web trigger HTTP endpoints, request/response mapping |
+| `src/__tests__/manifest-edge-cases.test.ts` | Manifest parsing edge cases |
+| `src/__tests__/module-routing.test.ts` | Module → resolver/endpoint routing |
+| `src/__tests__/multi-module-routing.test.ts` | Multi-module dev server routing |
+| `src/__tests__/bridge-features.test.ts` | Bridge features (history, theming, etc.) |
+| `src/__tests__/bridge-invoke-routing.test.ts` | Bridge invoke → resolver routing |
+| `src/__tests__/modal-bridge.test.ts` | Modal open/close/submit bridge |
+| `src/__tests__/function-contracts.test.ts` | Function calling conventions per type |
+| `src/__tests__/remotes.test.ts` | Forge Remotes (invokeRemote, FIT JWT) |
+| `src/__tests__/external-auth.test.ts` | External auth (third-party OAuth) |
+| `src/__tests__/product-api-proxy.test.ts` | Real API proxy, mock fallback |
+| `src/__tests__/product-bridges.test.ts` | Product bridge shims (Jira, Confluence) |
+| `src/__tests__/credentials.test.ts` | Auth credential management |
+| `src/__tests__/persistence.test.ts` | KVS/SQL/Entity state save/restore |
+| `src/__tests__/proxy-server.test.ts` | Reverse proxy server |
+| `src/__tests__/loader-hooks.test.ts` | Node.js import hook shim resolution |
+| `src/__tests__/negative-cases.test.ts` | Error handling, invalid inputs |
+| `src/__tests__/graphql.test.ts` | GraphQL API simulation |
+| `src/__tests__/i18n-store.test.ts` | Internationalization store |
+| `src/__tests__/property-hooks.test.ts` | Property hooks (entity/issue properties) |
+| `src/__tests__/dual-panel.test.ts` | Multi-panel rendering |
+| `src/__tests__/create-history.test.ts` | Browser history API (SPA routing) |
+| `src/__tests__/kvs.test.ts` | KVS unit tests |
+| `src/__tests__/retro-board-e2e.test.ts` | E2E: retro-board app (resolvers, KVS, queues) |
+| `src/__tests__/okr-tracker-e2e.test.ts` | E2E: okr-tracker app (Forge SQL, JOINs) |
+| `src/__tests__/my-issues-e2e.test.ts` | E2E: my-issues app (UIKit 2, real API) |
+| `src/__tests__/custom-ui-e2e.test.ts` | E2E: Custom UI bridge integration |
+| `src/__tests__/persistence-okr.test.ts` | OKR tracker state persistence |
+
+### Renderer Tests (112 tests, 2 files) — vitest
+```bash
+npx vitest run --config renderer/vitest.config.ts
+```
+
+| File | Area |
+|------|------|
+| `renderer/src/__tests__/renderer-smoke.test.tsx` | ForgeDoc → Atlaskit component mapping (73 components) |
+| `renderer/src/__tests__/form-field-grouping.test.tsx` | Form field grouping logic |
+
+### E2E / Visual Tests (51 tests, 5 files) — Playwright
+```bash
+npx playwright test                                    # root: dev server e2e (40 tests)
+npx playwright test --config renderer/playwright.config.ts  # renderer e2e (11 tests)
+```
+
+| File | Area |
+|------|------|
+| `e2e/kitchen-sink-visual.e2e.ts` | Visual regression (screenshot comparison) |
+| `e2e/dev-server.e2e.ts` | Dev server lifecycle, module picker |
+| `e2e/bridge-rpc.e2e.ts` | WebSocket bridge RPC in browser |
+| `e2e/uikit-events.spec.ts` | UIKit component event handling in browser |
+| `renderer/e2e/dynamic-table.spec.ts` | DynamicTable component rendering + interactions |
 
 ## MCP Server
 
@@ -232,10 +291,11 @@ sim.mockProductRoutes('jira', {
 
 ## What's NOT Built Yet
 
-- **Scheduled trigger execution** (manifest parses them, no timer fires them)
-- **Web trigger modules** (HTTP endpoint simulation)
 - **Auth context / permissions simulation**
-- **ForgeDoc visual renderer** (rendering the UIKit tree to HTML)
+- **Custom fields** (`jira:customField`) — nested view/edit resource pattern not parsed
+- **Rovo agents / actions** — AI agent orchestration, different paradigm entirely
+
+See `docs/module-improvement-plan.md` for the full roadmap.
 
 ## Forge Platform Quirks to Know
 
