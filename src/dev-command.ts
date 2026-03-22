@@ -27,6 +27,7 @@ import { createDevServer } from './dev-server.js';
 import { parseManifest, type ParsedManifest, type ManifestUIModule } from './manifest.js';
 import { saveState, loadState, hasPersistedState, getSQLDumpPath } from './persistence.js';
 import { buildDefaultContext, buildForgeContext, type RenderContextOptions } from './context.js';
+import { createWebTriggerHandler } from './web-trigger.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -935,6 +936,16 @@ export async function devCommand(options: DevCommandOptions) {
       return false;
     });
 
+    // Web trigger endpoints
+    if (manifest.webTriggers.length > 0) {
+      const webTriggerHandler = createWebTriggerHandler({ triggers: manifest.webTriggers, simulator: sim });
+      proxyServer.addMiddleware('/__trigger', (req, res, pathname) => {
+        webTriggerHandler(req, res, pathname);
+        return true;
+      });
+      (globalThis as any).__forgeSim_devPort__ = port;
+    }
+
     // Hook simulator logs (basic — no tools WS in proxy mode)
     sim.onLog((entry: any) => {
       // Logs captured in simulator, viewable via /__tools/api/logs
@@ -950,6 +961,11 @@ export async function devCommand(options: DevCommandOptions) {
     console.log(`     ➜ Tools:   ${localUrl}/__tools/`);
     if (manifest.remotes.size > 0) {
       console.log(`     ➜ JWKS:    ${localUrl}/__forge/jwks.json`);
+    }
+    if (manifest.webTriggers.length > 0) {
+      for (const wt of manifest.webTriggers) {
+        console.log(`     ➜ Trigger: ${localUrl}/__trigger/${wt.key}`);
+      }
     }
     console.log('');
     console.log(`     🔧 Proxying all requests to ${proxy}`);
@@ -1092,7 +1108,35 @@ export async function devCommand(options: DevCommandOptions) {
       viteServer.middlewares.use(forgeMiddleware);
     }
 
+    // 8c. Serve web trigger endpoints at /__trigger/<key>
+    if (manifest.webTriggers.length > 0) {
+      const webTriggerHandler = createWebTriggerHandler({ triggers: manifest.webTriggers, simulator: sim });
+      const triggerMiddleware = (req: any, res: any, next: any) => {
+        const url = new URL(req.url ?? '/', 'http://localhost');
+        if (url.pathname.startsWith('/__trigger/')) {
+          webTriggerHandler(req, res, url.pathname).catch((err: any) => {
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: err.message }));
+          });
+          return;
+        }
+        next();
+      };
+      const triggerStack = (viteServer.middlewares as any).stack;
+      if (Array.isArray(triggerStack)) {
+        triggerStack.unshift({ route: '', handle: triggerMiddleware });
+      } else {
+        viteServer.middlewares.use(triggerMiddleware);
+      }
+      (globalThis as any).__forgeSim_devPort__ = port;
+    }
+
     console.log(`     ➜ Tools:   ${localUrl}__tools/`);
+    if (manifest.webTriggers.length > 0) {
+      for (const wt of manifest.webTriggers) {
+        console.log(`     ➜ Trigger: ${localUrl}__trigger/${wt.key}`);
+      }
+    }
     console.log('');
     for (const mod of detectedModules) {
       console.log(`     ➜ ${mod.module.key}: ${localUrl}module/${mod.module.key}/`);

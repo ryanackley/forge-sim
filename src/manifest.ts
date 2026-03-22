@@ -17,6 +17,7 @@ export interface ParsedManifest {
   triggers: ManifestTrigger[];
   scheduledTriggers: ManifestScheduledTrigger[];
   uiModules: ManifestUIModule[];
+  webTriggers: ManifestWebTrigger[];
   permissions: string[];
   remotes: Map<string, ManifestRemote>;
   endpoints: Map<string, ManifestEndpoint>;
@@ -50,6 +51,11 @@ export interface ManifestScheduledTrigger {
   key: string;
   functionKey: string;
   interval: string;
+}
+
+export interface ManifestWebTrigger {
+  key: string;
+  functionKey: string;
 }
 
 export interface ManifestUIModule {
@@ -119,6 +125,15 @@ export function parseManifestContent(content: string): ParsedManifest {
       key: st.key,
       functionKey: st.function,
       interval: st.schedule?.interval ?? st.interval,
+    });
+  }
+
+  // Parse web triggers
+  const webTriggers: ManifestWebTrigger[] = [];
+  for (const wt of (Array.isArray(modules.webtrigger) ? modules.webtrigger : []) as any[]) {
+    webTriggers.push({
+      key: wt.key,
+      functionKey: wt.function,
     });
   }
 
@@ -196,6 +211,7 @@ export function parseManifestContent(content: string): ParsedManifest {
     triggers,
     scheduledTriggers,
     uiModules,
+    webTriggers,
     permissions: raw.permissions?.scopes ?? [],
     remotes,
     endpoints,

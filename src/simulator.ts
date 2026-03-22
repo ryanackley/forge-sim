@@ -194,6 +194,10 @@ export class ForgeSimulator {
       });
     }
 
+    for (const wt of manifest.webTriggers) {
+      this.log('info', `Found web trigger: "${wt.key}" → function "${wt.functionKey}"`);
+    }
+
     // Wire up remotes with manifest data
     this.remotes.setManifest(manifest);
     if (manifest.remotes.size > 0) {

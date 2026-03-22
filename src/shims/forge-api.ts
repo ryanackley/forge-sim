@@ -280,7 +280,12 @@ async function invokeRemote(
 function invokeService(_key: string, _payload?: any) { return Promise.resolve(null); }
 
 const webTrigger = {
-  getUrl: async (_key: string) => `https://sim.atlassian.net/x/trigger/${_key}`,
+  getUrl: async (_key: string) => {
+    // If dev server port is set, return real local URL
+    const port = (globalThis as any).__forgeSim_devPort__;
+    if (port) return `http://localhost:${port}/__trigger/${_key}`;
+    return `https://sim.atlassian.net/x/trigger/${_key}`;
+  },
 };
 
 function createRequestStargateAsApp() { return makeApiClient(); }

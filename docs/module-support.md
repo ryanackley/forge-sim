@@ -25,7 +25,7 @@ Every Forge module falls into one of these patterns:
 | **Function (trigger)** | `trigger` module with `function:` and `events:[]`. Called as `(event, context)` | ✅ Fireable via MCP/CLI |
 | **Function (consumer)** | `consumer` module with `function:` and `queue:`. Called as `(event, context)` | ✅ Wired to SimulatedQueue |
 | **Function (scheduled)** | `scheduledTrigger` with `function:` and `schedule.interval`. Called as `(request)` single arg | ✅ Fireable via MCP/CLI |
-| **Function (web trigger)** | `webtrigger` with `function:`. Called as `(request, context)` → returns `{ statusCode, headers, body }` | ⚠️ Parsed, calling convention known, but no HTTP endpoint served |
+| **Function (web trigger)** | `webtrigger` with `function:`. Called as `(request, context)` → returns `{ statusCode, headers, body }` | ✅ HTTP endpoints at `/__trigger/<key>`, full request/response mapping |
 | **Config-only** | Pure manifest declaration, no function or resource. Declares metadata for Forge platform. | N/A — nothing to simulate |
 | **Host-driven** | Has `function:` but only invoked by host product during specific workflows (not user-initiated) | 🔇 Function loads but no invocation path |
 | **Nested UI** | Has `view.resource` / `edit.resource` instead of top-level `resource:` | ❌ Manifest parser doesn't extract nested resources |
@@ -40,7 +40,7 @@ Every Forge module falls into one of these patterns:
 | `consumer` | Function (consumer) | ✅ Full | Wired to queues, correct `(event, context)` calling convention |
 | `trigger` | Function (trigger) | ✅ Full | Registered by event name, fireable via `fire_trigger` |
 | `scheduledTrigger` | Function (scheduled) | ✅ Full | Single-arg `(request)` convention, fireable on demand |
-| `webtrigger` | Function (web trigger) | ⚠️ Partial | Manifest parsed, function registered as `webTrigger` type with correct `(request, context)` → `{ statusCode, headers, body }` contract. **Missing: no HTTP endpoint served.** `webTrigger.getUrl()` returns a fake URL. Next on the roadmap. |
+| `webtrigger` | Function (web trigger) | ✅ Full | Manifest parsed, function registered, HTTP endpoints served at `/__trigger/<key>`. Full request/response mapping: headers and query params as multi-value maps, CORS support. `webTrigger.getUrl()` returns the real local URL when dev server is running. |
 | `endpoint` | — | ✅ Full | Parsed, used for Forge Remotes endpoint resolution |
 
 ---
@@ -227,14 +227,14 @@ All JSM modules follow standard UI patterns but target the customer portal, whic
 
 | Level | Count | Modules |
 |-------|-------|---------|
-| ✅ Full | 21 | `function`, `consumer`, `trigger`, `scheduledTrigger`, `endpoint`, `jira:issuePanel`, `jira:issueActivity`, `jira:issueContext`, `jira:issueGlance`, `jira:issueAction`, `jira:globalPage`, `jira:projectPage`, `jira:adminPage`, `jira:dashboardGadget`, `confluence:globalPage`, `confluence:spacePage`, `confluence:contentAction`, `confluence:contentBylineItem`, `confluence:contextMenu`, `macro`, `jira:fullPage` |
-| ⚠️ Partial | 34 | `webtrigger`, all Bitbucket UI, all JSM portal, all Compass UI, background scripts, Jira preview modules, Confluence secondary pages |
+| ✅ Full | 22 | `function`, `consumer`, `trigger`, `scheduledTrigger`, `webtrigger`, `endpoint`, `jira:issuePanel`, `jira:issueActivity`, `jira:issueContext`, `jira:issueGlance`, `jira:issueAction`, `jira:globalPage`, `jira:projectPage`, `jira:adminPage`, `jira:dashboardGadget`, `confluence:globalPage`, `confluence:spacePage`, `confluence:contentAction`, `confluence:contentBylineItem`, `confluence:contextMenu`, `macro`, `jira:fullPage` |
+| ⚠️ Partial | 33 | all Bitbucket UI, all JSM portal, all Compass UI, background scripts, Jira preview modules, Confluence secondary pages |
 | 🔇 Stub | 1 | `jira:uiModifications` |
 | ❌ None | 17 | `jira:customField`, `jira:customFieldType`, `jira:jqlFunction`, `jira:entityProperty`, `jira:globalPermission`, `jira:projectPermission`, `jira:timeTrackingProvider`, `jira:workflowValidator`, `jira:workflowCondition`, `jira:workflowPostFunction`, `bitbucket:mergeCheck`, `bitbucket:dynamicPipelinesProvider`, `compass:dataProvider`, `rovo:agent`, `action`, `automation:*`, `teamwork:*` |
 
 ## Key Gaps (Ordered by Impact)
 
-1. **Web triggers** — Parsed but no HTTP endpoint. Half-day fix. High value.
+1. ~~**Web triggers** — Parsed but no HTTP endpoint. Half-day fix. High value.~~ ✅ **Done!** HTTP endpoints at `/__trigger/<key>`, full request/response mapping, dynamic `getUrl()`.
 2. **Custom fields** (`jira:customField`, `jira:customFieldType`) — Nested `view`/`edit` resource pattern breaks our manifest parser. Medium-high effort. Would unlock a significant class of Forge apps.
 3. **Background scripts** — Work but show in module picker as visible panels. Quick UX fix (filter by module type).
 4. **JQL functions** — Resolver exists but no invocation path outside UI context. Niche but some apps depend on it.

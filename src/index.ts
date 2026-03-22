@@ -60,6 +60,7 @@ export type {
 
 // Dev server (live preview)
 export { createDevServer, type DevServer, type DevServerOptions, type DevEvent } from './dev-server.js';
+export { createWebTriggerHandler, getWebTriggerUrl, type WebTriggerConfig } from './web-trigger.js';
 
 export type {
   ParsedManifest,

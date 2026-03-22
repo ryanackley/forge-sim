@@ -26,6 +26,7 @@ forge-sim dev [appDir]
 - WebSocket bridge at `ws://localhost:5174` (event bridge)
 - Dev tools at `http://localhost:5173/__tools/` (KVS browser, SQL console, logs, events)
 - JWKS endpoint at `http://localhost:5173/__forge/jwks.json` (when remotes are configured)
+- Web trigger endpoints at `http://localhost:5173/__trigger/<key>` (when web triggers are defined)
 
 **State persistence:** On exit (`Ctrl+C`), KVS and SQL data are saved to `<app>/.forge-sim/state/`. On next startup, state is restored. Use `--clean` to ignore persisted state.
 
