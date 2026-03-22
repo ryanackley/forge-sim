@@ -26,7 +26,8 @@ export class ViewIssueModal {
   }
 
   async open(): Promise<void> {
-    console.log(`[forge-sim] ViewIssueModal.open(issueKey=${this.context.issueKey}) — no-op in simulator`);
+    console.log(`[forge-sim] ViewIssueModal.open(issueKey=${this.context.issueKey}) — simulated`);
+    setTimeout(() => this.onClose?.(), 100);
   }
 }
 
@@ -45,7 +46,8 @@ export class CreateIssueModal {
   }
 
   async open(): Promise<void> {
-    console.log('[forge-sim] CreateIssueModal.open() — no-op in simulator');
+    console.log('[forge-sim] CreateIssueModal.open() — simulated');
+    setTimeout(() => this.onClose?.({ payload: [] }), 100);
   }
 }
 

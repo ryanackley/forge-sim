@@ -36,10 +36,30 @@ describe('@forge/jira-bridge', () => {
       await expect(modal.open()).resolves.toBeUndefined();
     });
 
-    it('defaults onClose to a no-op', () => {
+    it('fires onClose callback after open()', async () => {
+      const onClose = vi.fn();
+      const modal = new ViewIssueModal({ context: { issueKey: 'TEST-123' }, onClose });
+      await modal.open();
+
+      // onClose fires asynchronously via setTimeout
+      await new Promise(r => setTimeout(r, 150));
+      expect(onClose).toHaveBeenCalledOnce();
+    });
+
+    it('defaults onClose to a no-op that does not throw', async () => {
       const modal = new ViewIssueModal({ context: { issueKey: 'TEST-1' } });
       expect(typeof modal.onClose).toBe('function');
-      modal.onClose(); // should not throw
+      await modal.open();
+      // Should not throw even with default no-op
+      await new Promise(r => setTimeout(r, 150));
+    });
+
+    it('does not throw when onClose is nulled after construction', async () => {
+      const modal = new ViewIssueModal({ context: { issueKey: 'TEST-1' } });
+      (modal as any).onClose = null;
+      await modal.open();
+      await new Promise(r => setTimeout(r, 150));
+      // No error = pass
     });
   });
 
@@ -56,10 +76,28 @@ describe('@forge/jira-bridge', () => {
       await expect(modal.open()).resolves.toBeUndefined();
     });
 
+    it('fires onClose with empty payload after open()', async () => {
+      const onClose = vi.fn();
+      const modal = new CreateIssueModal({ onClose });
+      await modal.open();
+
+      await new Promise(r => setTimeout(r, 150));
+      expect(onClose).toHaveBeenCalledOnce();
+      expect(onClose).toHaveBeenCalledWith({ payload: [] });
+    });
+
     it('constructs with no arguments', async () => {
       const modal = new CreateIssueModal();
       expect(modal.context).toEqual({});
       await expect(modal.open()).resolves.toBeUndefined();
+    });
+
+    it('does not throw when onClose is nulled after construction', async () => {
+      const modal = new CreateIssueModal();
+      (modal as any).onClose = null;
+      await modal.open();
+      await new Promise(r => setTimeout(r, 150));
+      // No error = pass
     });
   });
 
