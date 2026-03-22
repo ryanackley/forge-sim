@@ -26,7 +26,7 @@ import { deploy } from './deployer.js';
 import { createDevServer } from './dev-server.js';
 import { parseManifest, type ParsedManifest, type ManifestUIModule } from './manifest.js';
 import { saveState, loadState, hasPersistedState, getSQLDumpPath } from './persistence.js';
-import { buildDefaultContext } from './context.js';
+import { buildDefaultContext, buildForgeContext, type RenderContextOptions } from './context.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -42,6 +42,8 @@ export interface DevCommandOptions {
   strictMode?: boolean;
   /** Upstream dev server URL for proxy mode (e.g., http://localhost:3000) */
   proxy?: string;
+  /** Context options for the rendered module (issue key, content ID, etc.) */
+  renderContext?: RenderContextOptions;
 }
 
 // ── UI Module Detection ──────────────────────────────────────────────────
@@ -716,7 +718,7 @@ async function buildViteConfig(opts: {
 // ── Main Dev Command ──────────────────────────────────────────────────────
 
 export async function devCommand(options: DevCommandOptions) {
-  const { appDir, port, wsPort, open, moduleKey, clean, strictMode, proxy } = options;
+  const { appDir, port, wsPort, open, moduleKey, clean, strictMode, proxy, renderContext } = options;
   const stateDir = join(appDir, '.forge-sim', 'state');
 
   console.log('');
@@ -869,15 +871,16 @@ export async function devCommand(options: DevCommandOptions) {
 
   // 5. Start WebSocket dev server (for RPC: invoke, fetchProduct, etc.)
   console.log(`  🔌 Starting WebSocket bridge on port ${wsPort}...`);
+  // Build context — use full async buildForgeContext if render options were provided
+  const moduleContext = renderContext
+    ? await buildForgeContext(sim, primaryModule.module.key, primaryModule.module.type, renderContext)
+    : buildDefaultContext(primaryModule.module.key, primaryModule.module.type, sim.productApi.connectedAccount);
+
   const devServer = createDevServer({
     port: wsPort,
     watchDir: appDir,
     simulator: sim,
-    context: buildDefaultContext(
-      primaryModule.module.key,
-      primaryModule.module.type,
-      sim.productApi.connectedAccount,
-    ),
+    context: moduleContext,
   });
 
   // ── Proxy mode: skip Vite, create reverse proxy instead ─────────────

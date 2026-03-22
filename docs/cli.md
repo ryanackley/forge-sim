@@ -16,6 +16,10 @@ forge-sim dev [appDir]
 | `--no-open` | — | Don't open browser automatically |
 | `--module <key>` | auto | Specific UI module key to render |
 | `--clean` | — | Start fresh (wipe app state, keep credentials) |
+| `--issue <key>` | — | Set Jira issue context (e.g., `PROJ-42`) — hydrates via real API if connected |
+| `--content <id>` | — | Set Confluence content context (e.g., `12345`) |
+| `--space <key>` | — | Set Confluence space context (e.g., `SPACEKEY`) |
+| `--context <json>` | — | Set raw context JSON (merged into `extension`) |
 
 **What starts:**
 - Dev server at `http://localhost:5173` (app preview — Vite for UIKit/Custom UI, reverse proxy with `--proxy`)
@@ -24,6 +28,31 @@ forge-sim dev [appDir]
 - JWKS endpoint at `http://localhost:5173/__forge/jwks.json` (when remotes are configured)
 
 **State persistence:** On exit (`Ctrl+C`), KVS and SQL data are saved to `<app>/.forge-sim/state/`. On next startup, state is restored. Use `--clean` to ignore persisted state.
+
+### Module Context
+
+UI modules like `jira:issuePanel` need product context to render properly. Use the context flags to provide it:
+
+```bash
+# Issue panel with real Jira issue data (hydrated via API if authenticated)
+forge-sim dev --issue PROJ-42
+
+# Confluence macro with content + space context
+forge-sim dev --content 12345 --space MYSPACE
+
+# Arbitrary context JSON (merged into the extension object)
+forge-sim dev --context '{"issueKey":"PROJ-42","customField":"value"}'
+
+# Combine with other flags
+forge-sim dev --module my-issue-panel --issue PROJ-42 --port 3000
+```
+
+**Context resolution order:**
+1. `--issue` / `--content` / `--space` — shortcut flags, hydrated via real product API if an account is connected (falls back to minimal synthetic context)
+2. `--context` — raw JSON merged into the `extension` object (smart detection: if you pass `issueKey` for a Jira module, it tries to hydrate)
+3. Defaults — `{ type: moduleType }` if nothing is provided
+
+When connected to a real Atlassian site (`forge-sim auth`), `--issue PROJ-42` fetches the actual issue data (type, project, IDs) so your app gets the same context it would in production.
 
 ### Proxy Mode
 

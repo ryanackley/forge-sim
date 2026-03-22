@@ -78,6 +78,10 @@ if (command === '--help' || command === '-h' || !command) {
     --clean                    Start fresh (wipe app state, keep credentials)
     --strict-mode              Enable React.StrictMode (off by default — breaks Atlaskit portals)
     --proxy <url>              Proxy mode: reverse-proxy an existing dev server, inject bridge shim
+    --issue <key>              Set Jira issue context (e.g., PROJ-42)
+    --content <id>             Set Confluence content context (e.g., 12345)
+    --space <key>              Set Confluence space context (e.g., SPACEKEY)
+    --context '{"k":"v"}'      Set raw context JSON (merged into extension)
 
   Auth Options:
     --list                     List configured accounts
@@ -101,6 +105,10 @@ if (command === 'dev') {
   let clean = false;
   let strictMode = false;
   let proxy: string | undefined;
+  let issueKey: string | undefined;
+  let contentId: string | undefined;
+  let spaceKey: string | undefined;
+  let rawContext: Record<string, unknown> | undefined;
 
   for (let i = 0; i < restArgs.length; i++) {
     const arg = restArgs[i];
@@ -118,10 +126,29 @@ if (command === 'dev') {
       strictMode = true;
     } else if (arg === '--proxy' && restArgs[i + 1]) {
       proxy = restArgs[++i];
+    } else if (arg === '--issue' && restArgs[i + 1]) {
+      issueKey = restArgs[++i];
+    } else if (arg === '--content' && restArgs[i + 1]) {
+      contentId = restArgs[++i];
+    } else if (arg === '--space' && restArgs[i + 1]) {
+      spaceKey = restArgs[++i];
+    } else if (arg === '--context' && restArgs[i + 1]) {
+      try {
+        rawContext = JSON.parse(restArgs[++i]);
+      } catch {
+        console.error('Invalid JSON for --context');
+        process.exit(1);
+      }
     } else if (!arg.startsWith('-')) {
       appDir = arg;
     }
   }
+
+  // Build render context from CLI flags (if any provided)
+  const hasContextFlags = issueKey || contentId || spaceKey || rawContext;
+  const renderContext = hasContextFlags
+    ? { issueKey, contentId, spaceKey, context: rawContext }
+    : undefined;
 
   const { devCommand } = await import('./dev-command.js');
   await devCommand({
@@ -133,6 +160,7 @@ if (command === 'dev') {
     clean,
     strictMode,
     proxy,
+    renderContext,
   });
 }
 
