@@ -376,6 +376,19 @@ export function parseManifestContent(content: string): ParsedManifest {
     }
   }
 
+  // Check for runtime version mismatch with local Node
+  if (raw.app?.runtime?.name && VALID_RUNTIME_NAMES.includes(raw.app.runtime.name)) {
+    const manifestMajor = parseInt(raw.app.runtime.name.replace('nodejs', '').replace('.x', ''), 10);
+    const localMajor = parseInt(process.versions.node.split('.')[0], 10);
+    if (!isNaN(manifestMajor) && !isNaN(localMajor) && manifestMajor !== localMajor) {
+      warnings.push({
+        level: 'warning',
+        message: `Runtime mismatch: manifest specifies ${raw.app.runtime.name} but local Node is v${process.versions.node}. ` +
+          `Your app will run on Node ${manifestMajor} in Forge — behavior may differ locally.`,
+      });
+    }
+  }
+
   return {
     raw,
     functions,

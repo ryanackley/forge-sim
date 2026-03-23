@@ -737,12 +737,58 @@ modules:
     expect(memWarnings).toHaveLength(0);
   });
 
-  it('should return no warnings for fully valid manifest', () => {
+  it('should warn on runtime version mismatch with local Node', () => {
+    // Our local Node is v25, so nodejs20.x should trigger a mismatch warning
+    const localMajor = parseInt(process.versions.node.split('.')[0], 10);
+    const mismatchVersion = localMajor === 22 ? 'nodejs20.x' : 'nodejs22.x';
     const result = parseManifestContent(`
 app:
   id: test-app
   runtime:
-    name: nodejs24.x
+    name: ${mismatchVersion}
+modules:
+  function:
+    - key: resolver
+      handler: index.handler
+`);
+    const mismatchWarnings = result.warnings.filter((w) => w.message.includes('Runtime mismatch'));
+    expect(mismatchWarnings).toHaveLength(1);
+    expect(mismatchWarnings[0].level).toBe('warning');
+    expect(mismatchWarnings[0].message).toContain(process.versions.node);
+  });
+
+  it('should not warn when runtime matches local Node major version', () => {
+    const localMajor = parseInt(process.versions.node.split('.')[0], 10);
+    // Use the matching runtime name if it's a known Forge version, otherwise skip
+    const matchingRuntime = `nodejs${localMajor}.x`;
+    const knownRuntimes = ['nodejs24.x', 'nodejs22.x', 'nodejs20.x'];
+    if (!knownRuntimes.includes(matchingRuntime)) return; // skip if local Node isn't a Forge version
+    const result = parseManifestContent(`
+app:
+  id: test-app
+  runtime:
+    name: ${matchingRuntime}
+modules:
+  function:
+    - key: resolver
+      handler: index.handler
+`);
+    const mismatchWarnings = result.warnings.filter((w) => w.message.includes('Runtime mismatch'));
+    expect(mismatchWarnings).toHaveLength(0);
+  });
+
+  it('should return no warnings for fully valid manifest (matching local Node)', () => {
+    const localMajor = parseInt(process.versions.node.split('.')[0], 10);
+    const knownRuntimes = ['nodejs24.x', 'nodejs22.x', 'nodejs20.x'];
+    const matchingRuntime = `nodejs${localMajor}.x`;
+    // If local Node matches a known Forge runtime, expect zero warnings
+    // Otherwise use nodejs24.x and expect only the mismatch warning
+    const runtimeName = knownRuntimes.includes(matchingRuntime) ? matchingRuntime : 'nodejs24.x';
+    const result = parseManifestContent(`
+app:
+  id: test-app
+  runtime:
+    name: ${runtimeName}
     architecture: arm64
     memoryMB: 1024
 modules:
@@ -750,6 +796,12 @@ modules:
     - key: resolver
       handler: index.handler
 `);
-    expect(result.warnings).toHaveLength(0);
+    if (knownRuntimes.includes(matchingRuntime)) {
+      expect(result.warnings).toHaveLength(0);
+    } else {
+      // Only the mismatch warning, no other errors
+      expect(result.warnings).toHaveLength(1);
+      expect(result.warnings[0].message).toContain('Runtime mismatch');
+    }
   });
 });
