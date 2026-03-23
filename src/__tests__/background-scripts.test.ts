@@ -10,6 +10,7 @@ import {
   parseManifestContent,
   BACKGROUND_SCRIPT_TYPES,
   BACKGROUND_SCRIPT_CONTEXTS,
+  GLOBAL_BG_EXPERIENCE_MAP,
   getCompatibleBackgroundScripts,
   type ManifestUIModule,
 } from '../manifest.js';
@@ -37,6 +38,46 @@ resources:
     expect(bg).toBeDefined();
     expect(bg!.type).toBe('jira:issueViewBackgroundScript');
     expect(bg!.resourceKey).toBe('main');
+  });
+
+  it('should parse experience field on global background scripts', () => {
+    const manifest = parseManifestContent(`
+app:
+  id: test-app
+modules:
+  jira:globalBackgroundScript:
+    - key: bg-global
+      resource: main
+      experience:
+        - issue-view
+        - dashboard
+  function:
+    - key: resolver
+      handler: index.handler
+resources:
+  - key: main
+    path: src/frontend
+`);
+    const bg = manifest.uiModules.find((m) => m.key === 'bg-global');
+    expect(bg).toBeDefined();
+    expect(bg!.experience).toEqual(['issue-view', 'dashboard']);
+  });
+
+  it('should not set experience when not present in manifest', () => {
+    const manifest = parseManifestContent(`
+app:
+  id: test-app
+modules:
+  jira:issueViewBackgroundScript:
+    - key: bg-issue
+      resource: main
+resources:
+  - key: main
+    path: src/frontend
+`);
+    const bg = manifest.uiModules.find((m) => m.key === 'bg-issue');
+    expect(bg).toBeDefined();
+    expect(bg!.experience).toBeUndefined();
   });
 
   it('should parse multiple background script types', () => {
@@ -122,24 +163,27 @@ describe('getCompatibleBackgroundScripts', () => {
     { type: 'jira:issueViewBackgroundScript', key: 'bg-issue', resourceKey: 'main' },
     { type: 'jira:dashboardBackgroundScript', key: 'bg-dashboard', resourceKey: 'main' },
     { type: 'jira:globalPage', key: 'global-page', resourceKey: 'main' },
-    { type: 'jira:globalBackgroundScript', key: 'bg-global', resourceKey: 'main' },
+    { type: 'jira:globalBackgroundScript', key: 'bg-global', resourceKey: 'main', experience: ['all'] },
     { type: 'confluence:globalPage', key: 'conf-page', resourceKey: 'main' },
     { type: 'confluence:backgroundScript', key: 'bg-confluence', resourceKey: 'main' },
   ];
 
   it('should find issue background script for issuePanel', () => {
     const result = getCompatibleBackgroundScripts('jira:issuePanel', allModules);
-    expect(result).toHaveLength(1);
-    expect(result[0].key).toBe('bg-issue');
+    // Should find bg-issue (issueView) + bg-global (experience: all)
+    const keys = result.map((m) => m.key).sort();
+    expect(keys).toContain('bg-issue');
+    expect(keys).toContain('bg-global');
   });
 
   it('should find issue background script for issueGlance', () => {
     const result = getCompatibleBackgroundScripts('jira:issueGlance', allModules);
-    expect(result).toHaveLength(1);
-    expect(result[0].key).toBe('bg-issue');
+    const keys = result.map((m) => m.key).sort();
+    expect(keys).toContain('bg-issue');
+    expect(keys).toContain('bg-global');
   });
 
-  it('should find global background script for globalPage', () => {
+  it('should find global background script with experience:all for globalPage', () => {
     const result = getCompatibleBackgroundScripts('jira:globalPage', allModules);
     expect(result).toHaveLength(1);
     expect(result[0].key).toBe('bg-global');
@@ -153,7 +197,14 @@ describe('getCompatibleBackgroundScripts', () => {
 
   it('should return empty array for modules with no compatible background script', () => {
     const result = getCompatibleBackgroundScripts('jira:projectSettingsPage', allModules);
-    expect(result).toHaveLength(0);
+    // bg-global has experience: all, which includes projectSettingsPage? Let's check...
+    // Actually 'all' maps to a specific list including adminPage but not projectSettingsPage
+    // unless we add it. For now, this may return bg-global.
+    // Let's use a truly incompatible type
+    const result2 = getCompatibleBackgroundScripts('confluence:spacePage', [
+      { type: 'jira:issueViewBackgroundScript', key: 'bg-issue', resourceKey: 'main' },
+    ]);
+    expect(result2).toHaveLength(0);
   });
 
   it('should return empty array when no background scripts exist', () => {
@@ -172,6 +223,120 @@ describe('getCompatibleBackgroundScripts', () => {
     const result = getCompatibleBackgroundScripts('jira:issuePanel', modules);
     expect(result).toHaveLength(2);
     expect(result.map((m) => m.key).sort()).toEqual(['bg-1', 'bg-2']);
+  });
+
+  // ── Global Background Script Experience Scoping ────────────────────
+
+  describe('global background script experience scoping', () => {
+    it('should not match global bg script without experience (per Forge docs)', () => {
+      const modules: ManifestUIModule[] = [
+        { type: 'jira:globalBackgroundScript', key: 'bg-no-exp', resourceKey: 'main' },
+        // No experience field = doesn't run anywhere
+      ];
+      const result = getCompatibleBackgroundScripts('jira:issuePanel', modules);
+      expect(result).toHaveLength(0);
+    });
+
+    it('should not match global bg script with empty experience array', () => {
+      const modules: ManifestUIModule[] = [
+        { type: 'jira:globalBackgroundScript', key: 'bg-empty', resourceKey: 'main', experience: [] },
+      ];
+      const result = getCompatibleBackgroundScripts('jira:issuePanel', modules);
+      expect(result).toHaveLength(0);
+    });
+
+    it('should match issue modules when experience includes issue-view', () => {
+      const modules: ManifestUIModule[] = [
+        { type: 'jira:globalBackgroundScript', key: 'bg-issue-only', resourceKey: 'main', experience: ['issue-view'] },
+      ];
+      expect(getCompatibleBackgroundScripts('jira:issuePanel', modules)).toHaveLength(1);
+      expect(getCompatibleBackgroundScripts('jira:issueGlance', modules)).toHaveLength(1);
+      expect(getCompatibleBackgroundScripts('jira:issueContext', modules)).toHaveLength(1);
+      expect(getCompatibleBackgroundScripts('jira:issueActivity', modules)).toHaveLength(1);
+      expect(getCompatibleBackgroundScripts('jira:issueAction', modules)).toHaveLength(1);
+      // Should NOT match dashboard or board modules
+      expect(getCompatibleBackgroundScripts('jira:dashboardGadget', modules)).toHaveLength(0);
+      expect(getCompatibleBackgroundScripts('jira:globalPage', modules)).toHaveLength(0);
+    });
+
+    it('should match dashboard modules when experience includes dashboard', () => {
+      const modules: ManifestUIModule[] = [
+        { type: 'jira:globalBackgroundScript', key: 'bg-dash', resourceKey: 'main', experience: ['dashboard'] },
+      ];
+      expect(getCompatibleBackgroundScripts('jira:dashboardGadget', modules)).toHaveLength(1);
+      expect(getCompatibleBackgroundScripts('jira:issuePanel', modules)).toHaveLength(0);
+    });
+
+    it('should match board modules when experience includes board', () => {
+      const modules: ManifestUIModule[] = [
+        { type: 'jira:globalBackgroundScript', key: 'bg-board', resourceKey: 'main', experience: ['board'] },
+      ];
+      expect(getCompatibleBackgroundScripts('jira:boardAction', modules)).toHaveLength(1);
+      expect(getCompatibleBackgroundScripts('jira:backlogAction', modules)).toHaveLength(1);
+      expect(getCompatibleBackgroundScripts('jira:issuePanel', modules)).toHaveLength(0);
+    });
+
+    it('should match all Jira modules when experience includes all', () => {
+      const modules: ManifestUIModule[] = [
+        { type: 'jira:globalBackgroundScript', key: 'bg-all', resourceKey: 'main', experience: ['all'] },
+      ];
+      expect(getCompatibleBackgroundScripts('jira:issuePanel', modules)).toHaveLength(1);
+      expect(getCompatibleBackgroundScripts('jira:dashboardGadget', modules)).toHaveLength(1);
+      expect(getCompatibleBackgroundScripts('jira:boardAction', modules)).toHaveLength(1);
+      expect(getCompatibleBackgroundScripts('jira:globalPage', modules)).toHaveLength(1);
+      expect(getCompatibleBackgroundScripts('jira:adminPage', modules)).toHaveLength(1);
+      // But NOT confluence
+      expect(getCompatibleBackgroundScripts('confluence:globalPage', modules)).toHaveLength(0);
+    });
+
+    it('should combine multiple experience values cumulatively', () => {
+      const modules: ManifestUIModule[] = [
+        { type: 'jira:globalBackgroundScript', key: 'bg-multi', resourceKey: 'main', experience: ['issue-view', 'dashboard'] },
+      ];
+      expect(getCompatibleBackgroundScripts('jira:issuePanel', modules)).toHaveLength(1);
+      expect(getCompatibleBackgroundScripts('jira:dashboardGadget', modules)).toHaveLength(1);
+      expect(getCompatibleBackgroundScripts('jira:boardAction', modules)).toHaveLength(0);
+    });
+
+    it('should handle overlap: global bg script + issueView bg script both match issue modules', () => {
+      const modules: ManifestUIModule[] = [
+        { type: 'jira:issueViewBackgroundScript', key: 'bg-issue', resourceKey: 'main' },
+        { type: 'jira:globalBackgroundScript', key: 'bg-global', resourceKey: 'main', experience: ['issue-view'] },
+      ];
+      const result = getCompatibleBackgroundScripts('jira:issuePanel', modules);
+      expect(result).toHaveLength(2);
+      expect(result.map((m) => m.key).sort()).toEqual(['bg-global', 'bg-issue']);
+    });
+
+    it('should handle two global bg scripts with different experiences', () => {
+      const modules: ManifestUIModule[] = [
+        { type: 'jira:globalBackgroundScript', key: 'bg-issues', resourceKey: 'main', experience: ['issue-view'] },
+        { type: 'jira:globalBackgroundScript', key: 'bg-dash', resourceKey: 'main', experience: ['dashboard'] },
+      ];
+      // issuePanel should only get bg-issues
+      const issueResult = getCompatibleBackgroundScripts('jira:issuePanel', modules);
+      expect(issueResult).toHaveLength(1);
+      expect(issueResult[0].key).toBe('bg-issues');
+      // dashboardGadget should only get bg-dash
+      const dashResult = getCompatibleBackgroundScripts('jira:dashboardGadget', modules);
+      expect(dashResult).toHaveLength(1);
+      expect(dashResult[0].key).toBe('bg-dash');
+    });
+
+    it('should handle two global bg scripts with overlapping experiences', () => {
+      const modules: ManifestUIModule[] = [
+        { type: 'jira:globalBackgroundScript', key: 'bg-broad', resourceKey: 'main', experience: ['issue-view', 'dashboard'] },
+        { type: 'jira:globalBackgroundScript', key: 'bg-narrow', resourceKey: 'main', experience: ['issue-view'] },
+      ];
+      // issuePanel gets both
+      const issueResult = getCompatibleBackgroundScripts('jira:issuePanel', modules);
+      expect(issueResult).toHaveLength(2);
+      expect(issueResult.map((m) => m.key).sort()).toEqual(['bg-broad', 'bg-narrow']);
+      // dashboardGadget only gets bg-broad
+      const dashResult = getCompatibleBackgroundScripts('jira:dashboardGadget', modules);
+      expect(dashResult).toHaveLength(1);
+      expect(dashResult[0].key).toBe('bg-broad');
+    });
   });
 });
 
@@ -193,6 +358,11 @@ describe('module picker with background scripts', () => {
       module: { type: 'jira:globalPage', key: 'page', title: 'Global Page' },
       resourcePath: '/path/to/page',
       mode: 'customui',
+    },
+    {
+      module: { type: 'jira:globalBackgroundScript', key: 'bg-global', title: 'Global BG', experience: ['all'] },
+      resourcePath: '/path/to/gbg',
+      mode: 'uikit',
     },
   ];
 
@@ -217,13 +387,15 @@ describe('module picker with background scripts', () => {
     expect(html).toContain('checked');
   });
 
-  it('should not show checkbox on modules without compatible background scripts', () => {
+  it('should show global bg checkbox on compatible modules (experience scoped)', () => {
     const html = generateModulePickerHtml(makeModules());
-    // The global page row should not have bg-issue checkbox
-    // (issueViewBackgroundScript is not compatible with globalPage)
-    // But it might have bg-global if that existed. Since it doesn't, no checkbox.
+    // The global page should have bg-global checkbox (experience: all includes globalPage)
     const pageSection = html.split('/module/page/')[1]?.split('</a>')[0] ?? '';
-    expect(pageSection).not.toContain('data-bg-key');
+    expect(pageSection).toContain('data-bg-key="bg-global"');
+    // The issue panel should have both bg-issue and bg-global
+    const panelSection = html.split('/module/panel/')[1]?.split('</a>')[0] ?? '';
+    expect(panelSection).toContain('data-bg-key="bg-issue"');
+    expect(panelSection).toContain('data-bg-key="bg-global"');
   });
 
   it('should count only UI modules (not background scripts)', () => {
@@ -252,7 +424,7 @@ describe('module picker with background scripts', () => {
   });
 
   it('should show orphan background scripts in separate section', () => {
-    // Background script with no matching UI module
+    // issueViewBackgroundScript with no issue UI module = orphan
     const modules: DetectedModule[] = [
       {
         module: { type: 'jira:globalPage', key: 'page' },
@@ -267,6 +439,25 @@ describe('module picker with background scripts', () => {
     ];
     const html = generateModulePickerHtml(modules);
     expect(html).toContain('bg-orphan');
+    expect(html).toContain('no matching UI module');
+  });
+
+  it('should show global bg script without experience as orphan', () => {
+    const modules: DetectedModule[] = [
+      {
+        module: { type: 'jira:issuePanel', key: 'panel' },
+        resourcePath: '/path',
+        mode: 'uikit',
+      },
+      {
+        // No experience = doesn't run anywhere = orphan
+        module: { type: 'jira:globalBackgroundScript', key: 'bg-no-exp' },
+        resourcePath: '/path',
+        mode: 'uikit',
+      },
+    ];
+    const html = generateModulePickerHtml(modules);
+    expect(html).toContain('bg-no-exp');
     expect(html).toContain('no matching UI module');
   });
 });

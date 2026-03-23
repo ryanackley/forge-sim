@@ -65,6 +65,8 @@ export interface ManifestUIModule {
   resolverFunctionKey?: string;
   endpointKey?: string;
   resourceKey?: string;
+  /** For jira:globalBackgroundScript — which experiences this script runs on */
+  experience?: string[];
 }
 
 // ── Background Script Support ───────────────────────────────────────────
@@ -86,8 +88,15 @@ export const BACKGROUND_SCRIPT_CONTEXTS: Record<string, string[]> = {
   'jira:dashboardBackgroundScript': [
     'jira:dashboardGadget',
   ],
+  // Global background scripts use the `experience` field to scope
+  // where they run. Without experience, they don't run anywhere.
+  // The mapping here covers all possible experiences.
   'jira:globalBackgroundScript': [
     'jira:globalPage', 'jira:fullPage',
+    'jira:issuePanel', 'jira:issueContext', 'jira:issueGlance',
+    'jira:issueActivity', 'jira:issueAction',
+    'jira:dashboardGadget',
+    'jira:boardAction', 'jira:backlogAction',
   ],
   'confluence:backgroundScript': [
     'confluence:globalPage', 'confluence:spacePage', 'confluence:contentByLineItem',
@@ -96,17 +105,77 @@ export const BACKGROUND_SCRIPT_CONTEXTS: Record<string, string[]> = {
 };
 
 /**
+ * Maps global background script `experience` values to the UI module types
+ * they're compatible with. Used to scope globalBackgroundScript by experience.
+ *
+ * Per Forge docs: if no experience is specified, the script won't run anywhere.
+ */
+export const GLOBAL_BG_EXPERIENCE_MAP: Record<string, string[]> = {
+  'issue-view': [
+    'jira:issuePanel', 'jira:issueContext', 'jira:issueGlance',
+    'jira:issueActivity', 'jira:issueAction',
+  ],
+  'dashboard': [
+    'jira:dashboardGadget',
+  ],
+  'board': [
+    'jira:boardAction', 'jira:backlogAction',
+  ],
+  'all': [
+    // all means everywhere — matches any Jira module
+    'jira:issuePanel', 'jira:issueContext', 'jira:issueGlance',
+    'jira:issueActivity', 'jira:issueAction',
+    'jira:globalPage', 'jira:fullPage',
+    'jira:dashboardGadget',
+    'jira:boardAction', 'jira:backlogAction',
+    'jira:projectPage', 'jira:projectSettingsPage', 'jira:adminPage',
+  ],
+};
+
+/**
  * Find background scripts compatible with a given UI module type.
  * Returns the ManifestUIModule entries for matching background scripts.
+ *
+ * For jira:globalBackgroundScript, respects the `experience` field:
+ * - If experience includes 'all', matches any Jira module
+ * - If experience includes specific values (issue-view, dashboard, board),
+ *   only matches modules in those contexts
+ * - If no experience is set, the script doesn't match anything
+ *   (per Forge docs: "will not run anywhere on Jira")
  */
 export function getCompatibleBackgroundScripts(
   moduleType: string,
   allModules: ManifestUIModule[],
 ): ManifestUIModule[] {
   const bgScripts: ManifestUIModule[] = [];
-  for (const [bgType, compatibleTypes] of Object.entries(BACKGROUND_SCRIPT_CONTEXTS)) {
-    if (compatibleTypes.includes(moduleType)) {
-      bgScripts.push(...allModules.filter((m) => m.type === bgType));
+
+  for (const [bgType, defaultCompatibleTypes] of Object.entries(BACKGROUND_SCRIPT_CONTEXTS)) {
+    const candidates = allModules.filter((m) => m.type === bgType);
+
+    for (const bg of candidates) {
+      // Global background scripts use experience-based scoping
+      if (bgType === 'jira:globalBackgroundScript') {
+        if (!bg.experience || bg.experience.length === 0) {
+          // No experience = doesn't run anywhere
+          continue;
+        }
+        // Build the set of compatible module types from experience values
+        const compatibleFromExperience = new Set<string>();
+        for (const exp of bg.experience) {
+          const mapped = GLOBAL_BG_EXPERIENCE_MAP[exp];
+          if (mapped) {
+            for (const t of mapped) compatibleFromExperience.add(t);
+          }
+        }
+        if (compatibleFromExperience.has(moduleType)) {
+          bgScripts.push(bg);
+        }
+      } else {
+        // Non-global background scripts use static context mapping
+        if (defaultCompatibleTypes.includes(moduleType)) {
+          bgScripts.push(bg);
+        }
+      }
     }
   }
   return bgScripts;
@@ -207,14 +276,19 @@ export function parseManifestContent(content: string): ParsedManifest {
         );
       }
 
-      uiModules.push({
+      const uiModule: ManifestUIModule = {
         type: moduleType,
         key: mod.key,
         title: mod.title,
         resolverFunctionKey: mod.resolver?.function,
         endpointKey: mod.resolver?.endpoint,
         resourceKey: mod.resource,
-      });
+      };
+      // Parse experience field for global background scripts
+      if (Array.isArray(mod.experience) && mod.experience.length > 0) {
+        uiModule.experience = mod.experience;
+      }
+      uiModules.push(uiModule);
     }
   }
 
