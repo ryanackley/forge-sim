@@ -72,9 +72,16 @@ export interface ManifestUIModule {
   resolverFunctionKey?: string;
   endpointKey?: string;
   resourceKey?: string;
+  /** Icon URL or resource reference (e.g. "resource:main;icons/icon.svg" or absolute URL) */
+  icon?: string;
   /** For jira:globalBackgroundScript — which experiences this script runs on */
   experience?: string[];
 }
+
+/** Module types where `icon` is required per the Forge manifest schema */
+export const ICON_REQUIRED_MODULES = new Set([
+  'jira:issuePanel',
+]);
 
 // ── Background Script Support ───────────────────────────────────────────
 
@@ -291,6 +298,10 @@ export function parseManifestContent(content: string): ParsedManifest {
         endpointKey: mod.resolver?.endpoint,
         resourceKey: mod.resource,
       };
+      // Parse icon
+      if (mod.icon) {
+        uiModule.icon = mod.icon;
+      }
       // Parse experience field for global background scripts
       if (Array.isArray(mod.experience) && mod.experience.length > 0) {
         uiModule.experience = mod.experience;
@@ -372,6 +383,19 @@ export function parseManifestContent(content: string): ParsedManifest {
       warnings.push({
         level: 'warning',
         message: `runtime.memoryMB (${mem}) is outside the valid range of 128-1024 MB.`,
+      });
+    }
+  }
+
+  // Validate icon on modules that require it
+  for (const mod of uiModules) {
+    if (ICON_REQUIRED_MODULES.has(mod.type) && !mod.icon) {
+      warnings.push({
+        level: 'error',
+        message: `Module "${mod.key}" (${mod.type}) is missing the required "icon" property. ` +
+          'Use an absolute URL or a resource reference:\n' +
+          '  icon: https://example.com/icon.svg\n' +
+          '  icon: resource:<resource-key>;icons/icon.svg',
       });
     }
   }

@@ -737,6 +737,95 @@ modules:
     expect(memWarnings).toHaveLength(0);
   });
 
+  it('should error when issuePanel is missing icon', () => {
+    const result = parseManifestContent(`
+app:
+  id: test-app
+  runtime:
+    name: nodejs22.x
+modules:
+  jira:issuePanel:
+    - key: my-panel
+      title: Test Panel
+      resource: main
+      render: native
+resources:
+  - key: main
+    path: src/frontend
+`);
+    const iconErrors = result.warnings.filter((w) => w.message.includes('icon'));
+    expect(iconErrors).toHaveLength(1);
+    expect(iconErrors[0].level).toBe('error');
+    expect(iconErrors[0].message).toContain('my-panel');
+    expect(iconErrors[0].message).toContain('jira:issuePanel');
+    expect(iconErrors[0].message).toContain('resource:');
+  });
+
+  it('should accept issuePanel with absolute URL icon', () => {
+    const result = parseManifestContent(`
+app:
+  id: test-app
+  runtime:
+    name: nodejs22.x
+modules:
+  jira:issuePanel:
+    - key: my-panel
+      title: Test Panel
+      icon: https://example.com/icon.svg
+      resource: main
+      render: native
+resources:
+  - key: main
+    path: src/frontend
+`);
+    const iconErrors = result.warnings.filter((w) => w.message.includes('icon'));
+    expect(iconErrors).toHaveLength(0);
+  });
+
+  it('should accept issuePanel with resource reference icon', () => {
+    const result = parseManifestContent(`
+app:
+  id: test-app
+  runtime:
+    name: nodejs22.x
+modules:
+  jira:issuePanel:
+    - key: my-panel
+      title: Test Panel
+      icon: resource:main;icons/panel-icon.svg
+      resource: main
+      render: native
+resources:
+  - key: main
+    path: src/frontend
+`);
+    const iconErrors = result.warnings.filter((w) => w.message.includes('icon'));
+    expect(iconErrors).toHaveLength(0);
+    // Verify icon is parsed onto the module
+    const panel = result.uiModules.find((m) => m.key === 'my-panel');
+    expect(panel?.icon).toBe('resource:main;icons/panel-icon.svg');
+  });
+
+  it('should not require icon for modules where it is optional', () => {
+    const result = parseManifestContent(`
+app:
+  id: test-app
+  runtime:
+    name: nodejs22.x
+modules:
+  jira:globalPage:
+    - key: my-page
+      title: Test Page
+      resource: main
+      render: native
+resources:
+  - key: main
+    path: src/frontend
+`);
+    const iconErrors = result.warnings.filter((w) => w.message.includes('icon'));
+    expect(iconErrors).toHaveLength(0);
+  });
+
   it('should warn on runtime version mismatch with local Node', () => {
     // Our local Node is v25, so nodejs20.x should trigger a mismatch warning
     const localMajor = parseInt(process.versions.node.split('.')[0], 10);
