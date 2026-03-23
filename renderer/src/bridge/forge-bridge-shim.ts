@@ -85,6 +85,19 @@ function ensureConnection(): Promise<void> {
     S.ws.onmessage = (event: MessageEvent) => {
       try {
         const msg = JSON.parse(event.data);
+
+        // ── Forge events relay (from other modules via server) ──────
+        if (msg.type === 'forgeEvent') {
+          const eventKey = msg.isPublic ? `public:${msg.eventName}` : msg.eventName;
+          const listeners = eventListeners.get(eventKey);
+          if (listeners) {
+            for (const cb of listeners) {
+              try { cb(msg.payload); } catch (e) { console.error('[forge-bridge-shim] Event handler error:', e); }
+            }
+          }
+          return;
+        }
+
         if (msg.requestId && S.pendingRequests.has(msg.requestId)) {
           const pending = S.pendingRequests.get(msg.requestId)!;
           S.pendingRequests.delete(msg.requestId);
@@ -719,8 +732,11 @@ export const events = {
         try { cb(payload); } catch (e) { console.error('[forge-bridge-shim] Event handler error:', e); }
       }
     }
-    // Also notify server
-    rpc('eventEmit', { event, payload }).catch(() => {});
+    // Send to server for cross-module relay (background script ↔ UI module)
+    const s = G.__forgeSim;
+    if (s?.ws && s.wsReady) {
+      s.ws.send(JSON.stringify({ type: 'forgeEvent', eventName: event, payload, isPublic: false }));
+    }
   },
 
   async on(event: string, callback: (payload?: any) => any): Promise<{ unsubscribe: () => void }> {
@@ -730,7 +746,18 @@ export const events = {
   },
 
   async emitPublic(event: string, payload?: any): Promise<void> {
-    return events.emit(`public:${event}`, payload);
+    // Dispatch locally with public prefix
+    const listeners = eventListeners.get(`public:${event}`);
+    if (listeners) {
+      for (const cb of listeners) {
+        try { cb(payload); } catch (e) { console.error('[forge-bridge-shim] Event handler error:', e); }
+      }
+    }
+    // Send to server for cross-module relay
+    const s2 = G.__forgeSim;
+    if (s2?.ws && s2.wsReady) {
+      s2.ws.send(JSON.stringify({ type: 'forgeEvent', eventName: event, payload, isPublic: true }));
+    }
   },
 
   async onPublic(event: string, callback: (payload?: any) => any): Promise<{ unsubscribe: () => void }> {

@@ -2,7 +2,7 @@
 
 Every Forge module type catalogued with forge-sim's implementation level.
 
-**Last updated:** 2026-03-21
+**Last updated:** 2026-03-23
 
 ## Legend
 
@@ -74,9 +74,9 @@ These all follow the **UI + Resolver** or **UI + Custom UI** pattern. They have 
 
 | Module Key | Level | Notes |
 |------------|-------|-------|
-| `jira:issueViewBackgroundScript` | ⚠️ Partial | Has `resource:` so gets parsed as a UI module. Would render/serve correctly. **Issue:** shows up in module picker as if it's a visible panel. Should be invisible. Uses `events` API for cross-module communication. |
-| `jira:dashboardBackgroundScript` | ⚠️ Partial | Same as above. Invisible container for dashboard data sharing. |
-| `jira:globalBackgroundScript` | ⚠️ Partial | Same pattern. (Preview) |
+| `jira:issueViewBackgroundScript` | ✅ Full | Filtered from module picker. Loaded via hidden iframe when compatible UI module has checkbox enabled. Cross-module events relay via WebSocket. Compatible with: issuePanel, issueContext, issueGlance, issueActivity, issueAction. |
+| `jira:dashboardBackgroundScript` | ✅ Full | Same pattern. Compatible with: dashboardGadget. |
+| `jira:globalBackgroundScript` | ✅ Full | Same pattern. Compatible with: globalPage, fullPage. (Preview) |
 
 ### Custom Fields
 
@@ -140,7 +140,7 @@ These all follow the **UI + Resolver** or **UI + Custom UI** pattern. They have 
 
 | Module Key | Level | Notes |
 |------------|-------|-------|
-| `confluence:backgroundScript` | ⚠️ Partial | Same situation as Jira background scripts — parsed as UI module, would render, but should be invisible. |
+| `confluence:backgroundScript` | ✅ Full | Same iframe + events pattern as Jira background scripts. Compatible with: globalPage, spacePage, contentByLineItem, contextMenu, contentAction, homepageFeed. |
 
 ---
 
@@ -227,8 +227,8 @@ All JSM modules follow standard UI patterns but target the customer portal, whic
 
 | Level | Count | Modules |
 |-------|-------|---------|
-| ✅ Full | 22 | `function`, `consumer`, `trigger`, `scheduledTrigger`, `webtrigger`, `endpoint`, `jira:issuePanel`, `jira:issueActivity`, `jira:issueContext`, `jira:issueGlance`, `jira:issueAction`, `jira:globalPage`, `jira:projectPage`, `jira:adminPage`, `jira:dashboardGadget`, `confluence:globalPage`, `confluence:spacePage`, `confluence:contentAction`, `confluence:contentBylineItem`, `confluence:contextMenu`, `macro`, `jira:fullPage` |
-| ⚠️ Partial | 33 | all Bitbucket UI, all JSM portal, all Compass UI, background scripts, Jira preview modules, Confluence secondary pages |
+| ✅ Full | 26 | `function`, `consumer`, `trigger`, `scheduledTrigger`, `webtrigger`, `endpoint`, `jira:issuePanel`, `jira:issueActivity`, `jira:issueContext`, `jira:issueGlance`, `jira:issueAction`, `jira:globalPage`, `jira:projectPage`, `jira:adminPage`, `jira:dashboardGadget`, `jira:issueViewBackgroundScript`, `jira:dashboardBackgroundScript`, `jira:globalBackgroundScript`, `confluence:globalPage`, `confluence:spacePage`, `confluence:contentAction`, `confluence:contentBylineItem`, `confluence:contextMenu`, `confluence:backgroundScript`, `macro`, `jira:fullPage` |
+| ⚠️ Partial | 29 | all Bitbucket UI, all JSM portal, all Compass UI, Jira preview modules, Confluence secondary pages |
 | 🔇 Stub | 1 | `jira:uiModifications` |
 | ❌ None | 17 | `jira:customField`, `jira:customFieldType`, `jira:jqlFunction`, `jira:entityProperty`, `jira:globalPermission`, `jira:projectPermission`, `jira:timeTrackingProvider`, `jira:workflowValidator`, `jira:workflowCondition`, `jira:workflowPostFunction`, `bitbucket:mergeCheck`, `bitbucket:dynamicPipelinesProvider`, `compass:dataProvider`, `rovo:agent`, `action`, `automation:*`, `teamwork:*` |
 
@@ -236,7 +236,7 @@ All JSM modules follow standard UI patterns but target the customer portal, whic
 
 1. ~~**Web triggers** — Parsed but no HTTP endpoint. Half-day fix. High value.~~ ✅ **Done!** HTTP endpoints at `/__trigger/<key>`, full request/response mapping, dynamic `getUrl()`.
 2. **Custom fields** (`jira:customField`, `jira:customFieldType`) — Nested `view`/`edit` resource pattern breaks our manifest parser. Medium-high effort. Would unlock a significant class of Forge apps.
-3. **Background scripts** — Work but show in module picker as visible panels. Quick UX fix (filter by module type).
+3. ~~**Background scripts**~~ ✅ Done — Filtered from picker, loaded via hidden iframe with checkbox, cross-module events via WS relay.
 4. **JQL functions** — Resolver exists but no invocation path outside UI context. Niche but some apps depend on it.
 5. **Bitbucket/Compass/JSM context** — UI renders but extension context is generic. Low priority unless someone's actually building for those products.
 6. **Rovo** — Completely different paradigm (AI agents). Not worth simulating until Atlassian's Rovo story stabilizes.

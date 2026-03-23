@@ -12,26 +12,9 @@ Implemented! HTTP endpoints at `/__trigger/<key>` in both Vite and proxy dev ser
 
 ---
 
-## 2. Background Scripts — ⚠️ → ✅
+## ~~2. Background Scripts — ⚠️ → ✅~~ ✅ DONE (2026-03-23)
 
-**Current state:** Parsed as UI modules because they have `resource:`. Show up in the module picker alongside real panels. Functionally they *work* — they load and run — but the UX is wrong.
-
-**Affected modules:**
-- `jira:issueViewBackgroundScript`
-- `jira:dashboardBackgroundScript`
-- `jira:globalBackgroundScript`
-- `confluence:backgroundScript`
-
-**Plan:**
-1. Add a `BACKGROUND_SCRIPT_MODULES` set in `manifest.ts` (or `dev-command.ts`)
-2. In the module picker (`generateModulePickerHtml`), either:
-   - Filter them out entirely, OR
-   - Show them in a separate "Background Scripts" section with a different badge (grey, "BG")
-3. In the dev server, still load and serve them — they're valid resources that need to run. Just don't present them as "click to view" modules.
-4. The `events` API (`view.on` / `view.emit`) that background scripts use for cross-module communication is already stubbed. If we want full support, wire `view.emit()` in one module to `view.on()` listeners in other modules via the WebSocket bridge.
-
-**Effort:** ~2 hours for the UX fix, ~4 hours if we add cross-module events  
-**Tests:** Module picker filtering, background script loading without errors
+Implemented! Background scripts are filtered from the module picker. Compatible UI modules show a checkbox (checked by default) that loads the background script in a hidden iframe via `?bg=<key>`. Cross-module events relay through WebSocket — `events.emit()` in one module dispatches to `events.on()` listeners in other modules. Works for both UIKit and Custom UI. 30 tests covering manifest parsing, context mapping, module picker filtering, and event relay.
 
 ---
 
@@ -229,7 +212,7 @@ These modules have no practical simulation path. Documenting why and moving on.
 | Priority | Item | Effort | Impact |
 |----------|------|--------|--------|
 | ~~🔴 P1~~ | ~~Web triggers~~ | ✅ Done | ~~Unlocks HTTP-triggered Forge apps~~ |
-| 🔴 P1 | Background script UX | ~2h | Fixes module picker noise |
+| ~~🔴 P1~~ | ~~Background script UX~~ | ✅ Done | ~~Fixes module picker noise~~ |
 | 🟡 P2 | Custom fields (basic) | ~6-8h | Unlocks major app category |
 | 🟡 P2 | Partial context (4a-4d) | ~2h | Quick wins, better DX for existing modules |
 | 🟢 P3 | Rovo actions | ~3h | Forward-looking, schema-validated functions |

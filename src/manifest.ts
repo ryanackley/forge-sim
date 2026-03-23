@@ -67,6 +67,51 @@ export interface ManifestUIModule {
   resourceKey?: string;
 }
 
+// ── Background Script Support ───────────────────────────────────────────
+
+/** Background script module types and the UI module contexts they auto-load with */
+export const BACKGROUND_SCRIPT_TYPES = new Set([
+  'jira:issueViewBackgroundScript',
+  'jira:dashboardBackgroundScript',
+  'jira:globalBackgroundScript',
+  'confluence:backgroundScript',
+]);
+
+/** Maps background script types to the UI module types they run alongside */
+export const BACKGROUND_SCRIPT_CONTEXTS: Record<string, string[]> = {
+  'jira:issueViewBackgroundScript': [
+    'jira:issuePanel', 'jira:issueContext', 'jira:issueGlance',
+    'jira:issueActivity', 'jira:issueAction',
+  ],
+  'jira:dashboardBackgroundScript': [
+    'jira:dashboardGadget',
+  ],
+  'jira:globalBackgroundScript': [
+    'jira:globalPage', 'jira:fullPage',
+  ],
+  'confluence:backgroundScript': [
+    'confluence:globalPage', 'confluence:spacePage', 'confluence:contentByLineItem',
+    'confluence:contextMenu', 'confluence:contentAction', 'confluence:homepageFeed',
+  ],
+};
+
+/**
+ * Find background scripts compatible with a given UI module type.
+ * Returns the ManifestUIModule entries for matching background scripts.
+ */
+export function getCompatibleBackgroundScripts(
+  moduleType: string,
+  allModules: ManifestUIModule[],
+): ManifestUIModule[] {
+  const bgScripts: ManifestUIModule[] = [];
+  for (const [bgType, compatibleTypes] of Object.entries(BACKGROUND_SCRIPT_CONTEXTS)) {
+    if (compatibleTypes.includes(moduleType)) {
+      bgScripts.push(...allModules.filter((m) => m.type === bgType));
+    }
+  }
+  return bgScripts;
+}
+
 /**
  * Parse a Forge manifest.yml file.
  */

@@ -24,7 +24,7 @@ import { fileURLToPath } from 'node:url';
 import { ForgeSimulator } from './simulator.js';
 import { deploy } from './deployer.js';
 import { createDevServer } from './dev-server.js';
-import { parseManifest, type ParsedManifest, type ManifestUIModule } from './manifest.js';
+import { parseManifest, type ParsedManifest, type ManifestUIModule, BACKGROUND_SCRIPT_TYPES, getCompatibleBackgroundScripts } from './manifest.js';
 import { saveState, loadState, hasPersistedState, getSQLDumpPath } from './persistence.js';
 import { buildDefaultContext, buildForgeContext, type RenderContextOptions } from './context.js';
 import { createWebTriggerHandler } from './web-trigger.js';
@@ -171,7 +171,8 @@ export function generateBridgeInlineScript(wsPort: number, defaultModuleKey?: st
 (function() {
   var S = {
     ws: null, wsReady: false, wsUrl: 'ws://localhost:${wsPort}',
-    pendingRequests: {}, requestCounter: 0, reconcileListeners: [], lastForgeDoc: null
+    pendingRequests: {}, requestCounter: 0, reconcileListeners: [], lastForgeDoc: null,
+    eventListeners: {}
   };
   window.__forgeSim = S;
 
@@ -190,6 +191,13 @@ export function generateBridgeInlineScript(wsPort: number, defaultModuleKey?: st
           // History commands from server (UIKit push/replace/go)
           if (msg.type === 'historyCommand') {
             handleHistoryCommand(msg);
+            return;
+          }
+          // Forge events relay (from other modules via server)
+          if (msg.type === 'forgeEvent') {
+            var eventKey = msg.isPublic ? ('public:' + msg.eventName) : msg.eventName;
+            var cbs = S.eventListeners[eventKey];
+            if (cbs) { cbs.forEach(function(cb) { try { cb(msg.payload); } catch(e) { console.error(e); } }); }
             return;
           }
           if (msg.requestId && S.pendingRequests[msg.requestId]) {
@@ -369,6 +377,38 @@ export function generateBridgeInlineScript(wsPort: number, defaultModuleKey?: st
 
           return history;
         })());
+      case 'emit':
+        // Dispatch locally
+        var emitKey = data && data.event;
+        var emitCbs = S.eventListeners[emitKey];
+        if (emitCbs) { emitCbs.forEach(function(cb) { try { cb(data.payload); } catch(e) { console.error(e); } }); }
+        // Send to server for cross-module relay
+        if (S.ws && S.wsReady) {
+          S.ws.send(JSON.stringify({ type: 'forgeEvent', eventName: emitKey, payload: data.payload, isPublic: false }));
+        }
+        return Promise.resolve();
+      case 'on':
+        var onKey = data && data.event;
+        if (!S.eventListeners[onKey]) S.eventListeners[onKey] = [];
+        S.eventListeners[onKey].push(data.callback);
+        return Promise.resolve({ unsubscribe: function() {
+          S.eventListeners[onKey] = (S.eventListeners[onKey] || []).filter(function(cb) { return cb !== data.callback; });
+        }});
+      case 'emitPublic':
+        var emitPubKey = 'public:' + (data && data.event);
+        var emitPubCbs = S.eventListeners[emitPubKey];
+        if (emitPubCbs) { emitPubCbs.forEach(function(cb) { try { cb(data.payload); } catch(e) { console.error(e); } }); }
+        if (S.ws && S.wsReady) {
+          S.ws.send(JSON.stringify({ type: 'forgeEvent', eventName: data.event, payload: data.payload, isPublic: true }));
+        }
+        return Promise.resolve();
+      case 'onPublic':
+        var onPubKey = 'public:' + (data && data.event);
+        if (!S.eventListeners[onPubKey]) S.eventListeners[onPubKey] = [];
+        S.eventListeners[onPubKey].push(data.callback);
+        return Promise.resolve({ unsubscribe: function() {
+          S.eventListeners[onPubKey] = (S.eventListeners[onPubKey] || []).filter(function(cb) { return cb !== data.callback; });
+        }});
       case 'refresh':
         window.location.reload();
         return Promise.resolve();
@@ -464,29 +504,87 @@ function generateIndexHtml(title: string): string {
   <body>
     <div id="root"></div>
     <script type="module" src="./entry.tsx"></script>
+    ${BACKGROUND_SCRIPT_IFRAME_INJECTOR}
   </body>
 </html>`;
 }
 
+/**
+ * Inline script that reads ?bg=key1,key2 from the URL and injects
+ * hidden iframes for each background script module.
+ */
+const BACKGROUND_SCRIPT_IFRAME_INJECTOR = `<script>
+(function() {
+  var params = new URLSearchParams(window.location.search);
+  var bg = params.get('bg');
+  if (!bg) return;
+  bg.split(',').forEach(function(key) {
+    if (!key) return;
+    var iframe = document.createElement('iframe');
+    iframe.src = '/module/' + key + '/';
+    iframe.style.display = 'none';
+    iframe.setAttribute('data-forge-sim-bg', key);
+    iframe.setAttribute('aria-hidden', 'true');
+    document.body.appendChild(iframe);
+  });
+})();
+</script>`;
+
+
 // ── Module Picker Page ────────────────────────────────────────────────────
 
 export function generateModulePickerHtml(modules: DetectedModule[]): string {
-  const rows = modules.map((m) => {
+  // Separate UI modules from background scripts
+  const uiModules = modules.filter((m) => !BACKGROUND_SCRIPT_TYPES.has(m.module.type));
+  const bgModules = modules.filter((m) => BACKGROUND_SCRIPT_TYPES.has(m.module.type));
+
+  const rows = uiModules.map((m) => {
     const modeLabel = m.mode === 'uikit' ? 'UIKit 2' : 'Custom UI';
     const modeBadge = m.mode === 'uikit'
       ? '<span style="background:#0052CC;color:#fff;padding:2px 8px;border-radius:3px;font-size:12px">UIKit</span>'
       : '<span style="background:#00875A;color:#fff;padding:2px 8px;border-radius:3px;font-size:12px">Custom UI</span>';
+
+    // Find compatible background scripts for this module
+    const compatBg = getCompatibleBackgroundScripts(m.module.type, modules.map((d) => d.module));
+    const bgCheckboxes = compatBg.map((bg) =>
+      `<label style="display:inline-flex;align-items:center;gap:4px;font-size:12px;color:#6B778C;margin-top:6px;cursor:pointer" onclick="event.preventDefault();event.stopPropagation();this.querySelector('input').click()">
+        <input type="checkbox" checked data-bg-key="${bg.key}" onclick="event.stopPropagation()" style="cursor:pointer" />
+        ${bg.key} <span style="color:#97A0AF">(${bg.type.split(':').pop()})</span>
+      </label>`
+    ).join(' ');
+
+    // Encode compatible BG keys as a data attribute for the link
+    const bgKeysAttr = compatBg.length > 0 ? ` data-bg-keys="${compatBg.map((b) => b.key).join(',')}"` : '';
+
     return `
-      <a href="/module/${m.module.key}/" style="display:block;padding:16px 20px;border:1px solid #DFE1E6;border-radius:8px;margin-bottom:12px;text-decoration:none;color:inherit;transition:box-shadow 0.15s">
+      <a href="/module/${m.module.key}/" ${bgKeysAttr} style="display:block;padding:16px 20px;border:1px solid #DFE1E6;border-radius:8px;margin-bottom:12px;text-decoration:none;color:inherit;transition:box-shadow 0.15s" onclick="handleModuleClick(event, this)">
         <div style="display:flex;align-items:center;gap:12px">
           <div style="flex:1">
             <div style="font-size:16px;font-weight:600;color:#172B4D">${m.module.key}</div>
             <div style="font-size:13px;color:#6B778C;margin-top:4px">${m.module.type}${m.module.title ? ' — ' + m.module.title : ''}</div>
+            ${bgCheckboxes ? `<div style="margin-top:4px">${bgCheckboxes}</div>` : ''}
           </div>
           ${modeBadge}
         </div>
       </a>`;
   }).join('');
+
+  // Show background scripts in a separate section if they exist but aren't linked to any UI module
+  const orphanBg = bgModules.filter((bg) => {
+    // Check if any UI module in the list has this as a compatible background script
+    return !uiModules.some((ui) =>
+      getCompatibleBackgroundScripts(ui.module.type, modules.map((d) => d.module))
+        .some((b) => b.key === bg.module.key)
+    );
+  });
+  const orphanSection = orphanBg.length > 0
+    ? `<div style="margin-top:24px;padding:16px 20px;border:1px solid #DFE1E6;border-radius:8px;background:#FAFBFC">
+        <div style="font-size:14px;font-weight:600;color:#6B778C;margin-bottom:8px">Background Scripts (no matching UI module)</div>
+        ${orphanBg.map((bg) => `<div style="font-size:13px;color:#97A0AF;margin-bottom:4px">${bg.module.key} — ${bg.module.type}</div>`).join('')}
+      </div>`
+    : '';
+
+  const uiCount = uiModules.length;
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -502,12 +600,27 @@ export function generateModulePickerHtml(modules: DetectedModule[]): string {
 <body>
   <div style="max-width:600px;margin:60px auto;padding:0 20px">
     <h1 style="font-size:24px;color:#172B4D;margin-bottom:8px">forge-sim dev</h1>
-    <p style="color:#6B778C;margin-bottom:32px">${modules.length} UI module${modules.length !== 1 ? 's' : ''} detected. Pick one to render:</p>
+    <p style="color:#6B778C;margin-bottom:32px">${uiCount} UI module${uiCount !== 1 ? 's' : ''} detected. Pick one to render:</p>
     ${rows}
+    ${orphanSection}
     <div style="margin-top:24px;text-align:center">
       <a href="/__tools/" style="color:#0052CC;font-size:13px">Open Dev Tools</a>
     </div>
   </div>
+  <script>
+    function handleModuleClick(event, el) {
+      // Check which background script checkboxes are checked
+      var checkboxes = el.querySelectorAll('input[data-bg-key]');
+      var enabledBg = [];
+      checkboxes.forEach(function(cb) { if (cb.checked) enabledBg.push(cb.getAttribute('data-bg-key')); });
+      var url = el.getAttribute('href');
+      if (enabledBg.length > 0) {
+        url += '?bg=' + enabledBg.join(',');
+      }
+      event.preventDefault();
+      window.location.href = url;
+    }
+  </script>
 </body>
 </html>`;
 }
@@ -667,6 +780,8 @@ async function buildViteConfig(opts: {
             const bridgeScript = generateBridgeInlineScript(wsPort);
             // Inject right after <head> (before any other scripts)
             html = html.replace(/<head([^>]*)>/i, `<head$1>\n<script>${bridgeScript}</script>`);
+            // Inject background script iframe loader before </body>
+            html = html.replace(/<\/body>/i, `${BACKGROUND_SCRIPT_IFRAME_INJECTOR}\n</body>`);
             _res.writeHead(200, { 'Content-Type': 'text/html' });
             _res.end(html);
             return;
