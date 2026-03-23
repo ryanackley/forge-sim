@@ -9,6 +9,11 @@ import { parse as parseYaml } from 'yaml';
 import { readFile } from 'fs/promises';
 import type { ForgeManifest, ManifestModule, ManifestRemote, ManifestEndpoint, ManifestAuthProvider } from './types.js';
 
+export interface ManifestWarning {
+  level: 'error' | 'warning';
+  message: string;
+}
+
 export interface ParsedManifest {
   raw: ForgeManifest;
   functions: Map<string, ManifestFunction>;
@@ -22,6 +27,8 @@ export interface ParsedManifest {
   remotes: Map<string, ManifestRemote>;
   endpoints: Map<string, ManifestEndpoint>;
   authProviders: Map<string, ManifestAuthProvider>;
+  /** Validation warnings/errors found during parsing */
+  warnings: ManifestWarning[];
 }
 
 export interface ManifestResource {
@@ -322,6 +329,53 @@ export function parseManifestContent(content: string): ParsedManifest {
     }
   }
 
+  // ── Manifest Validation ──────────────────────────────────────────────
+
+  const warnings: ManifestWarning[] = [];
+  const VALID_RUNTIME_NAMES = ['nodejs24.x', 'nodejs22.x', 'nodejs20.x'];
+
+  // app.runtime is required (legacy sandbox runtime is deprecated)
+  if (!raw.app?.runtime) {
+    warnings.push({
+      level: 'error',
+      message: 'Missing required field: app.runtime. Add a runtime section to your manifest:\n' +
+        '  app:\n    runtime:\n      name: nodejs22.x\n' +
+        'Valid values: ' + VALID_RUNTIME_NAMES.join(', '),
+    });
+  } else if (!raw.app.runtime.name) {
+    warnings.push({
+      level: 'error',
+      message: 'Missing required field: app.runtime.name. ' +
+        'Valid values: ' + VALID_RUNTIME_NAMES.join(', '),
+    });
+  } else if (!VALID_RUNTIME_NAMES.includes(raw.app.runtime.name)) {
+    warnings.push({
+      level: 'warning',
+      message: `Unknown runtime name: "${raw.app.runtime.name}". ` +
+        'Known values: ' + VALID_RUNTIME_NAMES.join(', '),
+    });
+  }
+
+  // Validate runtime.architecture if present
+  if (raw.app?.runtime?.architecture && !['arm64', 'x86_64'].includes(raw.app.runtime.architecture)) {
+    warnings.push({
+      level: 'warning',
+      message: `Unknown runtime architecture: "${raw.app.runtime.architecture}". ` +
+        'Valid values: arm64, x86_64',
+    });
+  }
+
+  // Validate runtime.memoryMB if present
+  if (raw.app?.runtime?.memoryMB != null) {
+    const mem = raw.app.runtime.memoryMB;
+    if (mem < 128 || mem > 1024) {
+      warnings.push({
+        level: 'warning',
+        message: `runtime.memoryMB (${mem}) is outside the valid range of 128-1024 MB.`,
+      });
+    }
+  }
+
   return {
     raw,
     functions,
@@ -335,5 +389,6 @@ export function parseManifestContent(content: string): ParsedManifest {
     remotes,
     endpoints,
     authProviders,
+    warnings,
   };
 }

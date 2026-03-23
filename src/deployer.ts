@@ -114,6 +114,12 @@ export async function deploy(sim: ForgeSimulator, appDir: string): Promise<Deplo
   // 1. Parse manifest
   const manifest = await parseManifest(manifestPath);
 
+  // Surface manifest validation warnings
+  for (const w of manifest.warnings) {
+    const prefix = w.level === 'error' ? '❌' : '⚠️';
+    console.warn(`[forge-sim] ${prefix} ${w.message}`);
+  }
+
   // 1b. If there are UI resources, install the bridge and connect to sim
   if (manifest.resources.size > 0) {
     sim.ui.ensureBridge();

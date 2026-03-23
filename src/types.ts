@@ -8,6 +8,11 @@ export interface ForgeManifest {
   app: {
     id?: string;
     name?: string;
+    runtime?: {
+      name?: string;       // nodejs24.x | nodejs22.x | nodejs20.x
+      architecture?: string; // arm64 | x86_64
+      memoryMB?: number;     // 128-1024, default 512
+    };
   };
   modules: Record<string, ManifestModule[]>;
   permissions?: {

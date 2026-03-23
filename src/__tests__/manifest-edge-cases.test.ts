@@ -620,3 +620,136 @@ permissions:
     expect(result.permissions).toEqual(['read:jira-work', 'write:jira-work']);
   });
 });
+
+// ── Runtime Validation ──────────────────────────────────────────────────
+
+describe('runtime validation', () => {
+  it('should error when app.runtime is missing', () => {
+    const result = parseManifestContent(`
+app:
+  id: test-app
+modules:
+  function:
+    - key: resolver
+      handler: index.handler
+`);
+    const runtimeErrors = result.warnings.filter((w) => w.message.includes('app.runtime'));
+    expect(runtimeErrors).toHaveLength(1);
+    expect(runtimeErrors[0].level).toBe('error');
+    expect(runtimeErrors[0].message).toContain('Missing required field');
+  });
+
+  it('should error when app.runtime.name is missing', () => {
+    const result = parseManifestContent(`
+app:
+  id: test-app
+  runtime:
+    architecture: arm64
+modules:
+  function:
+    - key: resolver
+      handler: index.handler
+`);
+    const runtimeErrors = result.warnings.filter((w) => w.message.includes('runtime.name'));
+    expect(runtimeErrors).toHaveLength(1);
+    expect(runtimeErrors[0].level).toBe('error');
+  });
+
+  it('should accept valid runtime names', () => {
+    for (const name of ['nodejs24.x', 'nodejs22.x', 'nodejs20.x']) {
+      const result = parseManifestContent(`
+app:
+  id: test-app
+  runtime:
+    name: ${name}
+modules:
+  function:
+    - key: resolver
+      handler: index.handler
+`);
+      const runtimeWarnings = result.warnings.filter((w) => w.message.includes('runtime'));
+      expect(runtimeWarnings).toHaveLength(0);
+    }
+  });
+
+  it('should warn on unknown runtime name', () => {
+    const result = parseManifestContent(`
+app:
+  id: test-app
+  runtime:
+    name: nodejs18.x
+modules:
+  function:
+    - key: resolver
+      handler: index.handler
+`);
+    const runtimeWarnings = result.warnings.filter((w) => w.message.includes('Unknown runtime name'));
+    expect(runtimeWarnings).toHaveLength(1);
+    expect(runtimeWarnings[0].level).toBe('warning');
+  });
+
+  it('should warn on invalid architecture', () => {
+    const result = parseManifestContent(`
+app:
+  id: test-app
+  runtime:
+    name: nodejs22.x
+    architecture: sparc
+modules:
+  function:
+    - key: resolver
+      handler: index.handler
+`);
+    const archWarnings = result.warnings.filter((w) => w.message.includes('architecture'));
+    expect(archWarnings).toHaveLength(1);
+  });
+
+  it('should warn on memoryMB out of range', () => {
+    const result = parseManifestContent(`
+app:
+  id: test-app
+  runtime:
+    name: nodejs22.x
+    memoryMB: 2048
+modules:
+  function:
+    - key: resolver
+      handler: index.handler
+`);
+    const memWarnings = result.warnings.filter((w) => w.message.includes('memoryMB'));
+    expect(memWarnings).toHaveLength(1);
+    expect(memWarnings[0].message).toContain('2048');
+  });
+
+  it('should accept valid memoryMB within range', () => {
+    const result = parseManifestContent(`
+app:
+  id: test-app
+  runtime:
+    name: nodejs22.x
+    memoryMB: 512
+modules:
+  function:
+    - key: resolver
+      handler: index.handler
+`);
+    const memWarnings = result.warnings.filter((w) => w.message.includes('memoryMB'));
+    expect(memWarnings).toHaveLength(0);
+  });
+
+  it('should return no warnings for fully valid manifest', () => {
+    const result = parseManifestContent(`
+app:
+  id: test-app
+  runtime:
+    name: nodejs24.x
+    architecture: arm64
+    memoryMB: 1024
+modules:
+  function:
+    - key: resolver
+      handler: index.handler
+`);
+    expect(result.warnings).toHaveLength(0);
+  });
+});

@@ -856,6 +856,12 @@ export async function devCommand(options: DevCommandOptions) {
   console.log(`     App: ${manifest.raw.app?.name ?? manifest.raw.app?.id ?? 'unnamed'}`);
   console.log(`     Functions: ${manifest.functions.size}`);
   console.log(`     UI modules: ${manifest.uiModules.length}`);
+
+  // Surface manifest validation warnings
+  for (const w of manifest.warnings) {
+    const prefix = w.level === 'error' ? '  ❌' : '  ⚠️';
+    console.warn(`${prefix}  ${w.message}`);
+  }
   console.log('');
 
   // 3. Find UI module to render
