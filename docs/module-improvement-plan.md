@@ -14,7 +14,7 @@ Implemented! HTTP endpoints at `/__trigger/<key>` in both Vite and proxy dev ser
 
 ## ~~2. Background Scripts — ⚠️ → ✅~~ ✅ DONE (2026-03-23)
 
-Implemented! Background scripts are filtered from the module picker. Compatible UI modules show a checkbox (checked by default) that loads the background script in a hidden iframe via `?bg=<key>`. Cross-module events relay through WebSocket — `events.emit()` in one module dispatches to `events.on()` listeners in other modules. Works for both UIKit and Custom UI. 30 tests covering manifest parsing, context mapping, module picker filtering, and event relay.
+Implemented! Background scripts are filtered from the module picker. Compatible UI modules show a checkbox (checked by default) that loads the background script in a hidden iframe via `?bg=<key>`. Cross-module events relay via `window.postMessage` with the parent page acting as broker — matching how real Forge relays events between module iframes. Experience scoping for `jira:globalBackgroundScript` (`issue-view`, `board`, `dashboard`, `all`). 43 tests covering manifest parsing, context mapping, experience scoping, module picker filtering, and event relay.
 
 ---
 
