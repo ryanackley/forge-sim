@@ -1271,7 +1271,6 @@ export const COMPONENT_MAP: Record<string, ComponentRenderer> = {
       </ChartWrapper>
     );
   },
-};
 
   // ── Jira-Specific Components ──────────────────────────────────────────
 
