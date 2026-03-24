@@ -120,6 +120,9 @@ export function createDevServer(options: DevServerOptions = {}): DevServer {
   let lastRawDoc: ForgeDoc | null = null;
   let watcher: ReturnType<typeof watch> | null = null;
 
+  // ── Custom field value store (persists across view/edit tab switches) ──
+  const fieldValues = new Map<string, any>();
+
   // ── WebSocket handling ──────────────────────────────────────────────
 
   wss.on('connection', (ws) => {
@@ -231,7 +234,13 @@ export function createDevServer(options: DevServerOptions = {}): DevServer {
 
         // If the client sent a moduleKey, rebuild context for that module
         if (reqModuleKey && context) {
-          return { ...context, moduleKey: reqModuleKey };
+          const ctx = { ...context, moduleKey: reqModuleKey, extension: { ...context.extension } };
+          // Inject stored field value for custom field modules
+          const cfBaseKey = reqModuleKey.replace(/--(?:view|edit)$/, '');
+          if (cfBaseKey !== reqModuleKey && fieldValues.has(cfBaseKey)) {
+            ctx.extension.fieldValue = fieldValues.get(cfBaseKey);
+          }
+          return ctx;
         }
 
         // Fall back to the default context passed at startup
@@ -241,7 +250,28 @@ export function createDevServer(options: DevServerOptions = {}): DevServer {
         return buildDefaultContext('sim-module', undefined, account);
       }
 
-      case 'viewSubmit':
+      case 'viewSubmit': {
+        console.log(`[dev-server] View action: ${method}`, params);
+        // For custom field edit modules, store the submitted value
+        const submitModuleKey = params?.moduleKey ?? context?.moduleKey;
+        if (submitModuleKey && submitModuleKey.endsWith('--edit')) {
+          const baseKey = submitModuleKey.replace(/--edit$/, '');
+          const submittedValue = params?.payload;
+          fieldValues.set(baseKey, submittedValue);
+          console.log(`[dev-server] Custom field "${baseKey}" updated:`, submittedValue);
+          // Broadcast to all clients so the parent page can switch tabs
+          for (const client of clients) {
+            if (client.readyState === WebSocket.OPEN) {
+              client.send(JSON.stringify({
+                type: 'fieldValueUpdate',
+                fieldKey: baseKey,
+                value: submittedValue,
+              }));
+            }
+          }
+        }
+        return;
+      }
       case 'viewClose':
       case 'viewRefresh':
         console.log(`[dev-server] View action: ${method}`, params);

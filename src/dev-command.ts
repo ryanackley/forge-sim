@@ -268,7 +268,7 @@ export function generateBridgeInlineScript(wsPort: number, defaultModuleKey?: st
       case 'getContext':
         return rpc('getContext', { moduleKey: getModuleKeyFromURL() });
       case 'submit':
-        return rpc('viewSubmit', { payload: data && data.payload || data });
+        return rpc('viewSubmit', { payload: data && data.payload || data, moduleKey: getModuleKeyFromURL() });
       case 'close':
         return rpc('viewClose', { payload: data && data.payload || data });
       case 'createHistory':
@@ -510,6 +510,108 @@ function generateIndexHtml(title: string): string {
 }
 
 /**
+ * Generate a combined custom field page with View/Edit tabs.
+ * Both modes are loaded as iframes; tab switching is instant.
+ * When the edit iframe calls view.submit(), a WS message triggers
+ * the parent to switch to the view tab and reload it.
+ */
+export function generateCustomFieldPageHtml(
+  baseKey: string,
+  title: string,
+  hasView: boolean,
+  hasEdit: boolean,
+  fieldType: string,
+  wsPort: number,
+): string {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>${title} — forge-sim</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; }
+    body { background: #f4f5f7; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    .cf-header { background: #fff; border-bottom: 1px solid #DFE1E6; padding: 16px 24px; }
+    .cf-title { font-size: 18px; font-weight: 600; color: #172B4D; }
+    .cf-subtitle { font-size: 13px; color: #6B778C; margin-top: 4px; }
+    .cf-tabs { display: flex; gap: 0; margin-top: 12px; }
+    .cf-tab { padding: 8px 20px; font-size: 14px; font-weight: 600; border: 1px solid #DFE1E6; cursor: pointer; background: #FAFBFC; color: #505F79; transition: all 0.15s; }
+    .cf-tab:first-child { border-radius: 4px 0 0 4px; }
+    .cf-tab:last-child { border-radius: 0 4px 4px 0; }
+    .cf-tab.active { background: #0052CC; color: #fff; border-color: #0052CC; }
+    .cf-tab:hover:not(.active) { background: #EBECF0; }
+    .cf-frame { width: 100%; border: none; min-height: 200px; }
+    .cf-container { padding: 24px; }
+    .cf-badge { display: inline-block; background: #6554C0; color: #fff; padding: 2px 8px; border-radius: 3px; font-size: 12px; margin-left: 8px; }
+    .cf-type-badge { display: inline-block; background: #EBECF0; color: #505F79; padding: 2px 8px; border-radius: 3px; font-size: 12px; margin-left: 4px; }
+    .cf-back { font-size: 13px; color: #0052CC; text-decoration: none; margin-bottom: 12px; display: inline-block; }
+    .cf-back:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <div class="cf-header">
+    <a href="/" class="cf-back">← Back to modules</a>
+    <div>
+      <span class="cf-title">${baseKey}</span>
+      <span class="cf-badge">Custom Field</span>
+      ${fieldType ? `<span class="cf-type-badge">${fieldType}</span>` : ''}
+    </div>
+    <div class="cf-subtitle">${title}</div>
+    ${hasView && hasEdit ? `
+    <div class="cf-tabs">
+      <button class="cf-tab active" data-mode="view" onclick="switchTab('view')">View</button>
+      <button class="cf-tab" data-mode="edit" onclick="switchTab('edit')">Edit</button>
+    </div>` : ''}
+  </div>
+  <div class="cf-container">
+    ${hasView ? `<iframe id="cf-view" class="cf-frame" src="/module/${baseKey}--view/"></iframe>` : ''}
+    ${hasEdit ? `<iframe id="cf-edit" class="cf-frame" src="/module/${baseKey}--edit/" style="${hasView ? 'display:none' : ''}"></iframe>` : ''}
+  </div>
+  <script>
+    var currentTab = '${hasView ? 'view' : 'edit'}';
+
+    function switchTab(mode) {
+      currentTab = mode;
+      var viewFrame = document.getElementById('cf-view');
+      var editFrame = document.getElementById('cf-edit');
+      var tabs = document.querySelectorAll('.cf-tab');
+      tabs.forEach(function(t) {
+        t.classList.toggle('active', t.getAttribute('data-mode') === mode);
+      });
+      if (viewFrame) viewFrame.style.display = mode === 'view' ? '' : 'none';
+      if (editFrame) editFrame.style.display = mode === 'edit' ? '' : 'none';
+    }
+
+    // Listen for fieldValueUpdate from dev server via WS
+    var ws = new WebSocket('ws://localhost:${wsPort}');
+    ws.onmessage = function(event) {
+      try {
+        var msg = JSON.parse(event.data);
+        if (msg.type === 'fieldValueUpdate' && msg.fieldKey === '${baseKey}') {
+          // Switch to view tab and reload view iframe to pick up new value
+          switchTab('view');
+          var viewFrame = document.getElementById('cf-view');
+          if (viewFrame) viewFrame.src = viewFrame.src; // reload
+        }
+      } catch(e) {}
+    };
+
+    // Auto-resize iframes
+    window.addEventListener('message', function(e) {
+      if (e.data && e.data.type === 'resize') {
+        var frame = e.source === document.getElementById('cf-view')?.contentWindow
+          ? document.getElementById('cf-view')
+          : document.getElementById('cf-edit');
+        if (frame && e.data.height) frame.style.height = e.data.height + 'px';
+      }
+    });
+  </script>
+</body>
+</html>`;
+}
+
+/**
  * Inline script that reads ?bg=key1,key2 from the URL and injects
  * hidden iframes for each background script module.
  * Also acts as the postMessage broker for cross-module Forge events —
@@ -606,7 +708,7 @@ export function generateModulePickerHtml(modules: DetectedModule[]): string {
       </a>`;
   }).join('');
 
-  // Custom field rows with view/edit toggle
+  // Custom field rows — link to combined view/edit page
   const cfRows = [...cfGroups.entries()].map(([baseKey, group]) => {
     const fieldBadge = `<span style="background:#6554C0;color:#fff;padding:2px 8px;border-radius:3px;font-size:12px">Custom Field</span>`;
     const typeBadge = group.fieldType
@@ -614,34 +716,19 @@ export function generateModulePickerHtml(modules: DetectedModule[]): string {
       : '';
     const hasView = !!group.view;
     const hasEdit = !!group.edit;
-
-    // Mode toggle buttons (view / edit)
-    const viewBtn = hasView
-      ? `<button data-cf-mode="view" data-cf-key="${baseKey}--view" onclick="handleCfClick(event, this)" style="padding:6px 14px;border:1px solid #0052CC;background:#0052CC;color:#fff;border-radius:4px 0 0 4px;cursor:pointer;font-size:12px;font-weight:600">View</button>`
-      : '';
-    const editBtn = hasEdit
-      ? `<button data-cf-mode="edit" data-cf-key="${baseKey}--edit" onclick="handleCfClick(event, this)" style="padding:6px 14px;border:1px solid #0052CC;background:#fff;color:#0052CC;border-radius:0 4px 4px 0;cursor:pointer;font-size:12px;font-weight:600">Edit</button>`
-      : '';
-    const onlyView = hasView && !hasEdit;
-    const onlyEdit = !hasView && hasEdit;
-    const singleBtn = onlyView
-      ? `<button data-cf-key="${baseKey}--view" onclick="handleCfClick(event, this)" style="padding:6px 14px;border:1px solid #0052CC;background:#0052CC;color:#fff;border-radius:4px;cursor:pointer;font-size:12px;font-weight:600">View</button>`
-      : onlyEdit
-        ? `<button data-cf-key="${baseKey}--edit" onclick="handleCfClick(event, this)" style="padding:6px 14px;border:1px solid #0052CC;background:#0052CC;color:#fff;border-radius:4px;cursor:pointer;font-size:12px;font-weight:600">Edit</button>`
-        : '';
-    const toggle = (hasView && hasEdit) ? `<div style="display:inline-flex;margin-top:8px">${viewBtn}${editBtn}</div>` : `<div style="margin-top:8px">${singleBtn}</div>`;
+    const modes = [hasView ? 'view' : '', hasEdit ? 'edit' : ''].filter(Boolean).join(' + ');
 
     return `
-      <div style="display:block;padding:16px 20px;border:1px solid #DFE1E6;border-radius:8px;margin-bottom:12px">
+      <a href="/module/${baseKey}/" style="display:block;padding:16px 20px;border:1px solid #DFE1E6;border-radius:8px;margin-bottom:12px;text-decoration:none;color:inherit;transition:box-shadow 0.15s">
         <div style="display:flex;align-items:center;gap:12px">
           <div style="flex:1">
             <div style="font-size:16px;font-weight:600;color:#172B4D">${baseKey}</div>
             <div style="font-size:13px;color:#6B778C;margin-top:4px">${group.type} — ${group.title}</div>
-            ${toggle}
+            <div style="font-size:12px;color:#97A0AF;margin-top:4px">${modes}</div>
           </div>
           <div style="display:flex;gap:6px">${fieldBadge}${typeBadge}</div>
         </div>
-      </div>`;
+      </a>`;
   }).join('');
 
   const rows = regularRows + cfRows;
@@ -697,12 +784,7 @@ export function generateModulePickerHtml(modules: DetectedModule[]): string {
       event.preventDefault();
       window.location.href = url;
     }
-    function handleCfClick(event, btn) {
-      event.preventDefault();
-      event.stopPropagation();
-      var key = btn.getAttribute('data-cf-key');
-      window.location.href = '/module/' + key + '/';
-    }
+
   </script>
 </body>
 </html>`;
@@ -720,8 +802,24 @@ export function installModuleRouting(
   viteServer: any,
   modules: DetectedModule[],
   tempDir: string,
+  wsPort?: number,
 ): void {
   const modulesByKey = new Map(modules.map((m) => [m.module.key, m]));
+
+  // Build custom field groups for combined page routing
+  const CUSTOM_FIELD_TYPES = new Set(['jira:customField', 'jira:customFieldType']);
+  const cfGroups = new Map<string, { view?: DetectedModule; edit?: DetectedModule; title: string; fieldType?: string }>();
+  for (const m of modules) {
+    if (!CUSTOM_FIELD_TYPES.has(m.module.type) || !m.module.viewMode) continue;
+    const baseKey = m.module.key.replace(/--(?:view|edit)$/, '');
+    if (!cfGroups.has(baseKey)) {
+      const baseTitle = (m.module.title || baseKey).replace(/ \((?:View|Edit)\)$/, '');
+      cfGroups.set(baseKey, { title: baseTitle, fieldType: m.module.fieldType });
+    }
+    const group = cfGroups.get(baseKey)!;
+    if (m.module.viewMode === 'view') group.view = m;
+    else if (m.module.viewMode === 'edit') group.edit = m;
+  }
 
   const middleware = (req: any, res: any, next: any) => {
     const url = new URL(req.url ?? '/', 'http://localhost');
@@ -738,6 +836,22 @@ export function installModuleRouting(
     if (match) {
       const key = match[1];
       const rest = match[2] || '/';
+
+      // Check if this is a custom field base key (combined view/edit page)
+      const cfGroup = cfGroups.get(key);
+      if (cfGroup && (rest === '/' || rest === '/index.html')) {
+        res.writeHead(200, { 'Content-Type': 'text/html', 'Cache-Control': 'no-cache' });
+        res.end(generateCustomFieldPageHtml(
+          key,
+          cfGroup.title,
+          !!cfGroup.view,
+          !!cfGroup.edit,
+          cfGroup.fieldType || '',
+          wsPort || 5174,
+        ));
+        return;
+      }
+
       const mod = modulesByKey.get(key);
 
       if (!mod) {
@@ -1262,7 +1376,7 @@ export async function devCommand(options: DevCommandOptions) {
     const viteServer = await createServer(viteConfig);
 
     // Install multi-module routing middleware (before Vite's catch-all)
-    installModuleRouting(viteServer, detectedModules, tempDir);
+    installModuleRouting(viteServer, detectedModules, tempDir, wsPort);
 
     await viteServer.listen();
 

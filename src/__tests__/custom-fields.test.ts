@@ -7,7 +7,7 @@ import {
   parseManifestContent,
   type ManifestUIModule,
 } from '../manifest.js';
-import { generateModulePickerHtml, detectModuleType, type DetectedModule } from '../dev-command.js';
+import { generateModulePickerHtml, generateCustomFieldPageHtml, detectModuleType, type DetectedModule } from '../dev-command.js';
 import { buildDefaultContext } from '../context.js';
 
 // ── Manifest Parsing ──────────────────────────────────────────────────
@@ -358,7 +358,7 @@ describe('custom field module picker', () => {
     };
   }
 
-  it('should group view and edit into a single row with toggle', () => {
+  it('should group view and edit into a single clickable row', () => {
     const modules: DetectedModule[] = [
       makeMockDetected({ key: 'points--view', type: 'jira:customField', title: 'Points (View)', viewMode: 'view', fieldType: 'number' }),
       makeMockDetected({ key: 'points--edit', type: 'jira:customField', title: 'Points (Edit)', viewMode: 'edit', fieldType: 'number' }),
@@ -368,26 +368,27 @@ describe('custom field module picker', () => {
 
     // Should have "points" as the base key displayed
     expect(html).toContain('points');
-    // Should have both View and Edit buttons
-    expect(html).toContain('data-cf-mode="view"');
-    expect(html).toContain('data-cf-mode="edit"');
+    // Should link to combined page at /module/points/
+    expect(html).toContain('href="/module/points/"');
     // Should have Custom Field badge
     expect(html).toContain('Custom Field');
     // Should have the field type badge
     expect(html).toContain('number');
+    // Should show view + edit modes
+    expect(html).toContain('view + edit');
     // Should show 1 module (grouped), not 2
     expect(html).toContain('1 UI module');
   });
 
-  it('should show single button for view-only field', () => {
+  it('should show view-only field as single row', () => {
     const modules: DetectedModule[] = [
       makeMockDetected({ key: 'score--view', type: 'jira:customField', title: 'Score (View)', viewMode: 'view', fieldType: 'number' }),
     ];
 
     const html = generateModulePickerHtml(modules);
-    expect(html).toContain('data-cf-key="score--view"');
-    // No edit button
-    expect(html).not.toContain('data-cf-mode="edit"');
+    expect(html).toContain('href="/module/score/"');
+    expect(html).toContain('view');
+    expect(html).not.toContain('view + edit');
   });
 
   it('should show regular modules alongside custom field modules', () => {
@@ -401,15 +402,6 @@ describe('custom field module picker', () => {
     expect(html).toContain('my-panel');
     expect(html).toContain('Custom Field');
     expect(html).toContain('2 UI modules'); // 1 regular + 1 grouped custom field
-  });
-
-  it('should include handleCfClick function', () => {
-    const modules: DetectedModule[] = [
-      makeMockDetected({ key: 'f--view', type: 'jira:customField', title: 'F (View)', viewMode: 'view' }),
-    ];
-
-    const html = generateModulePickerHtml(modules);
-    expect(html).toContain('handleCfClick');
   });
 });
 
@@ -464,5 +456,55 @@ describe('custom field context', () => {
   it('should work for customFieldType too', () => {
     const ctx = buildDefaultContext('type--view', 'jira:customFieldType', null, { fieldType: 'number' });
     expect(ctx.extension.fieldValue).toBe(42);
+  });
+});
+
+// ── Combined Custom Field Page ────────────────────────────────────────
+
+describe('custom field combined page', () => {
+  it('should generate page with View and Edit tabs', () => {
+    const html = generateCustomFieldPageHtml('priority-score', 'Priority Score', true, true, 'number', 5174);
+
+    // Should have both tabs
+    expect(html).toContain('data-mode="view"');
+    expect(html).toContain('data-mode="edit"');
+    // Should have both iframes
+    expect(html).toContain('src="/module/priority-score--view/"');
+    expect(html).toContain('src="/module/priority-score--edit/"');
+    // Edit iframe should be hidden initially
+    expect(html).toContain('id="cf-edit"');
+    expect(html).toContain('display:none');
+    // Should have WS connection for fieldValueUpdate
+    expect(html).toContain('fieldValueUpdate');
+    expect(html).toContain('ws://localhost:5174');
+    // Should have field badges
+    expect(html).toContain('Custom Field');
+    expect(html).toContain('number');
+    // Should have back link
+    expect(html).toContain('Back to modules');
+  });
+
+  it('should generate view-only page without tab toggle', () => {
+    const html = generateCustomFieldPageHtml('computed', 'Computed', true, false, 'number', 5174);
+
+    // Should have view iframe
+    expect(html).toContain('src="/module/computed--view/"');
+    // Should NOT have edit iframe
+    expect(html).not.toContain('src="/module/computed--edit/"');
+    // Should NOT have tab toggle buttons
+    expect(html).not.toContain('onclick="switchTab');
+  });
+
+  it('should generate edit-only page without tab toggle', () => {
+    const html = generateCustomFieldPageHtml('manual', 'Manual', false, true, 'string', 5174);
+
+    expect(html).not.toContain('src="/module/manual--view/"');
+    expect(html).toContain('src="/module/manual--edit/"');
+    expect(html).not.toContain('onclick="switchTab');
+  });
+
+  it('should include switchTab function', () => {
+    const html = generateCustomFieldPageHtml('test', 'Test', true, true, 'string', 5174);
+    expect(html).toContain('function switchTab');
   });
 });

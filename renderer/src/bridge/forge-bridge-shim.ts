@@ -394,7 +394,7 @@ async function callBridge(cmd: string, data?: any): Promise<any> {
         window.parent.postMessage({ type: 'forge-sim-modal-submit', payload: data?.payload ?? data }, '*');
         return;
       }
-      return rpc('viewSubmit', { payload: data?.payload ?? data });
+      return rpc('viewSubmit', { payload: data?.payload ?? data, moduleKey: getModuleKeyFromURL() });
 
     case 'close':
       if (isInModal()) {
