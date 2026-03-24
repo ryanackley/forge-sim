@@ -476,8 +476,8 @@ describe('background script iframe injection', () => {
 
 describe('cross-module events (bridge shim)', () => {
   // These tests verify the renderer bridge shim's event relay behavior.
-  // The actual WS relay is tested in dev-server tests; here we test the
-  // bridge shim's local dispatch + WS send behavior.
+  // Events relay via postMessage between iframes (parent page brokers).
+  // Here we test the bridge shim's local dispatch + postMessage send behavior.
 
   it('should export events with emit/on/emitPublic/onPublic', async () => {
     const { events } = await import('../../renderer/src/bridge/forge-bridge-shim.js');
@@ -527,11 +527,12 @@ describe('inline bridge events', () => {
     expect(script).toContain("case 'emitPublic':");
     expect(script).toContain("case 'onPublic':");
 
-    // Should send forgeEvent messages over WS
+    // Should send forgeEvent via postMessage for cross-module relay
     expect(script).toContain("type: 'forgeEvent'");
+    expect(script).toContain("postMessage");
 
-    // Should handle incoming forgeEvent messages
-    expect(script).toContain("msg.type === 'forgeEvent'");
+    // Should listen for incoming forgeEvent postMessages
+    expect(script).toContain("e.data.type !== 'forgeEvent'");
   });
 
   it('should include background script iframe injector in inline script', async () => {

@@ -59,7 +59,6 @@ export type ClientEvent =
   | { type: 'uiEvent'; requestId: string; handlerId: string; eventName: string; args: any[] }
   | { type: 'rpc'; requestId: string; method: string; params: any }
   | { type: 'historyEvent'; action: string; location: any }
-  | { type: 'forgeEvent'; eventName: string; payload?: any; isPublic?: boolean }
   | { type: 'ping' };
 
 // Keep the old name as an alias for backwards compat
@@ -317,18 +316,7 @@ export function createDevServer(options: DevServerOptions = {}): DevServer {
   async function handleClientEvent(event: ClientEvent, ws: WebSocket) {
     if (event.type === 'ping') return;
 
-    // ── Forge events relay (cross-module events via iframe boundary) ──
-    if (event.type === 'forgeEvent') {
-      const { eventName, payload, isPublic } = event as any;
-      console.log(`[dev-server] ${isPublic ? 'Public event' : 'Event'}: ${eventName}`);
-      // Broadcast to all other connected clients (background script ↔ UI module)
-      for (const client of clients) {
-        if (client !== ws && client.readyState === WebSocket.OPEN) {
-          client.send(JSON.stringify({ type: 'forgeEvent', eventName, payload, isPublic }));
-        }
-      }
-      return;
-    }
+    // (forgeEvent relay removed — events now use postMessage between iframes)
 
     // ── History events from browser (popstate → server) ─────────────
     if (event.type === 'historyEvent') {

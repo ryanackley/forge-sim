@@ -193,13 +193,7 @@ export function generateBridgeInlineScript(wsPort: number, defaultModuleKey?: st
             handleHistoryCommand(msg);
             return;
           }
-          // Forge events relay (from other modules via server)
-          if (msg.type === 'forgeEvent') {
-            var eventKey = msg.isPublic ? ('public:' + msg.eventName) : msg.eventName;
-            var cbs = S.eventListeners[eventKey];
-            if (cbs) { cbs.forEach(function(cb) { try { cb(msg.payload); } catch(e) { console.error(e); } }); }
-            return;
-          }
+          // (forgeEvent relay moved to postMessage — see below)
           if (msg.requestId && S.pendingRequests[msg.requestId]) {
             var pending = S.pendingRequests[msg.requestId];
             delete S.pendingRequests[msg.requestId];
@@ -382,10 +376,8 @@ export function generateBridgeInlineScript(wsPort: number, defaultModuleKey?: st
         var emitKey = data && data.event;
         var emitCbs = S.eventListeners[emitKey];
         if (emitCbs) { emitCbs.forEach(function(cb) { try { cb(data.payload); } catch(e) { console.error(e); } }); }
-        // Send to server for cross-module relay
-        if (S.ws && S.wsReady) {
-          S.ws.send(JSON.stringify({ type: 'forgeEvent', eventName: emitKey, payload: data.payload, isPublic: false }));
-        }
+        // Post to parent for cross-module relay (parent page brokers between iframes)
+        window.parent.postMessage({ type: 'forgeEvent', eventName: emitKey, payload: data.payload, isPublic: false }, '*');
         return Promise.resolve();
       case 'on':
         var onKey = data && data.event;
@@ -398,9 +390,7 @@ export function generateBridgeInlineScript(wsPort: number, defaultModuleKey?: st
         var emitPubKey = 'public:' + (data && data.event);
         var emitPubCbs = S.eventListeners[emitPubKey];
         if (emitPubCbs) { emitPubCbs.forEach(function(cb) { try { cb(data.payload); } catch(e) { console.error(e); } }); }
-        if (S.ws && S.wsReady) {
-          S.ws.send(JSON.stringify({ type: 'forgeEvent', eventName: data.event, payload: data.payload, isPublic: true }));
-        }
+        window.parent.postMessage({ type: 'forgeEvent', eventName: data.event, payload: data.payload, isPublic: true }, '*');
         return Promise.resolve();
       case 'onPublic':
         var onPubKey = 'public:' + (data && data.event);
@@ -421,6 +411,16 @@ export function generateBridgeInlineScript(wsPort: number, defaultModuleKey?: st
   }
 
   window.__bridge = { callBridge: callBridge };
+
+  // ── Forge events relay via postMessage (parent page brokers between frames) ──
+  window.addEventListener('message', function(e) {
+    if (!e.data || e.data.type !== 'forgeEvent') return;
+    // Only dispatch events from OTHER windows (the broker or sibling frames)
+    if (e.source === window) return;
+    var eventKey = e.data.isPublic ? ('public:' + e.data.eventName) : e.data.eventName;
+    var cbs = S.eventListeners[eventKey];
+    if (cbs) { cbs.forEach(function(cb) { try { cb(e.data.payload); } catch(err) { console.error(err); } }); }
+  });
 
   // ── History command handler (server → browser) ──────────────────────
   function getCurrentLocation() {
@@ -512,12 +512,15 @@ function generateIndexHtml(title: string): string {
 /**
  * Inline script that reads ?bg=key1,key2 from the URL and injects
  * hidden iframes for each background script module.
+ * Also acts as the postMessage broker for cross-module Forge events —
+ * mirroring how the real Forge host page relays events between iframes.
  */
 const BACKGROUND_SCRIPT_IFRAME_INJECTOR = `<script>
 (function() {
   var params = new URLSearchParams(window.location.search);
   var bg = params.get('bg');
   if (!bg) return;
+  var iframes = [];
   bg.split(',').forEach(function(key) {
     if (!key) return;
     var iframe = document.createElement('iframe');
@@ -526,6 +529,22 @@ const BACKGROUND_SCRIPT_IFRAME_INJECTOR = `<script>
     iframe.setAttribute('data-forge-sim-bg', key);
     iframe.setAttribute('aria-hidden', 'true');
     document.body.appendChild(iframe);
+    iframes.push(iframe);
+  });
+
+  // ── Event broker: relay forgeEvent postMessages between all frames ──
+  window.addEventListener('message', function(e) {
+    if (!e.data || e.data.type !== 'forgeEvent') return;
+    // Forward to all BG iframes (except the sender)
+    iframes.forEach(function(iframe) {
+      if (iframe.contentWindow && iframe.contentWindow !== e.source) {
+        iframe.contentWindow.postMessage(e.data, '*');
+      }
+    });
+    // Forward to main window (self) if event came from an iframe
+    if (e.source !== window) {
+      window.postMessage(e.data, '*');
+    }
   });
 })();
 </script>`;

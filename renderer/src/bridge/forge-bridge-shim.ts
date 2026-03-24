@@ -86,17 +86,7 @@ function ensureConnection(): Promise<void> {
       try {
         const msg = JSON.parse(event.data);
 
-        // ── Forge events relay (from other modules via server) ──────
-        if (msg.type === 'forgeEvent') {
-          const eventKey = msg.isPublic ? `public:${msg.eventName}` : msg.eventName;
-          const listeners = eventListeners.get(eventKey);
-          if (listeners) {
-            for (const cb of listeners) {
-              try { cb(msg.payload); } catch (e) { console.error('[forge-bridge-shim] Event handler error:', e); }
-            }
-          }
-          return;
-        }
+        // (forgeEvent relay moved to postMessage — see window message listener below)
 
         if (msg.requestId && S.pendingRequests.has(msg.requestId)) {
           const pending = S.pendingRequests.get(msg.requestId)!;
@@ -732,10 +722,9 @@ export const events = {
         try { cb(payload); } catch (e) { console.error('[forge-bridge-shim] Event handler error:', e); }
       }
     }
-    // Send to server for cross-module relay (background script ↔ UI module)
-    const s = G.__forgeSim;
-    if (s?.ws && s.wsReady) {
-      s.ws.send(JSON.stringify({ type: 'forgeEvent', eventName: event, payload, isPublic: false }));
+    // Post to parent for cross-module relay (parent page brokers between iframes)
+    if (typeof window !== 'undefined' && window.parent) {
+      window.parent.postMessage({ type: 'forgeEvent', eventName: event, payload, isPublic: false }, '*');
     }
   },
 
@@ -753,10 +742,9 @@ export const events = {
         try { cb(payload); } catch (e) { console.error('[forge-bridge-shim] Event handler error:', e); }
       }
     }
-    // Send to server for cross-module relay
-    const s2 = G.__forgeSim;
-    if (s2?.ws && s2.wsReady) {
-      s2.ws.send(JSON.stringify({ type: 'forgeEvent', eventName: event, payload, isPublic: true }));
+    // Post to parent for cross-module relay
+    if (typeof window !== 'undefined' && window.parent) {
+      window.parent.postMessage({ type: 'forgeEvent', eventName: event, payload, isPublic: true }, '*');
     }
   },
 
@@ -764,6 +752,22 @@ export const events = {
     return events.on(`public:${event}`, callback);
   },
 };
+
+// ── Forge events relay via postMessage (parent page brokers between frames) ──
+if (typeof window !== 'undefined') {
+  window.addEventListener('message', (e: MessageEvent) => {
+    if (!e.data || e.data.type !== 'forgeEvent') return;
+    // Only dispatch events from OTHER windows (the broker or sibling frames)
+    if (e.source === window) return;
+    const eventKey = e.data.isPublic ? `public:${e.data.eventName}` : e.data.eventName;
+    const listeners = eventListeners.get(eventKey);
+    if (listeners) {
+      for (const cb of listeners) {
+        try { cb(e.data.payload); } catch (err) { console.error('[forge-bridge-shim] Event handler error:', err); }
+      }
+    }
+  });
+}
 
 // ── Permissions ─────────────────────────────────────────────────────────
 
