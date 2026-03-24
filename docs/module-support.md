@@ -82,8 +82,8 @@ These all follow the **UI + Resolver** or **UI + Custom UI** pattern. They have 
 
 | Module Key | Level | Notes |
 |------------|-------|-------|
-| `jira:customField` | ❌ None | **Nested UI pattern.** Has `view.resource`, `edit.resource`, `view.value.function`, `formatter.expression` — none of which our manifest parser extracts. These are structurally different from standard UI modules. Would need: (1) nested resource extraction, (2) view/edit mode switching, (3) Jira expression evaluation for formatters, (4) value function invocation. |
-| `jira:customFieldType` | ❌ None | Same as `jira:customField` but defines a reusable type. Also has `resolver:` for data. Even more complex — needs `schema` validation and `searchSuggestions` expression eval. |
+| `jira:customField` | ✅ Full | **View and edit sub-modules** extracted from nested `view.resource` / `edit.resource`. Module picker shows grouped row with View/Edit toggle. Mock `fieldValue` provided in context based on field type (number, string, user, group, date, datetime, object). Value function registered as resolver. Formatter expressions (Jira Expressions DSL) and search suggestions are **not** evaluated. |
+| `jira:customFieldType` | ✅ Full | Same treatment as `jira:customField`. View/edit extraction, context enrichment, value function registration. Schema validation not enforced locally. |
 
 ### Data / Logic Modules
 
@@ -227,16 +227,16 @@ All JSM modules follow standard UI patterns but target the customer portal, whic
 
 | Level | Count | Modules |
 |-------|-------|---------|
-| ✅ Full | 26 | `function`, `consumer`, `trigger`, `scheduledTrigger`, `webtrigger`, `endpoint`, `jira:issuePanel`, `jira:issueActivity`, `jira:issueContext`, `jira:issueGlance`, `jira:issueAction`, `jira:globalPage`, `jira:projectPage`, `jira:adminPage`, `jira:dashboardGadget`, `jira:issueViewBackgroundScript`, `jira:dashboardBackgroundScript`, `jira:globalBackgroundScript`, `confluence:globalPage`, `confluence:spacePage`, `confluence:contentAction`, `confluence:contentBylineItem`, `confluence:contextMenu`, `confluence:backgroundScript`, `macro`, `jira:fullPage` |
+| ✅ Full | 28 | `function`, `consumer`, `trigger`, `scheduledTrigger`, `webtrigger`, `endpoint`, `jira:issuePanel`, `jira:issueActivity`, `jira:issueContext`, `jira:issueGlance`, `jira:issueAction`, `jira:globalPage`, `jira:projectPage`, `jira:adminPage`, `jira:dashboardGadget`, `jira:issueViewBackgroundScript`, `jira:dashboardBackgroundScript`, `jira:globalBackgroundScript`, `jira:customField`, `jira:customFieldType`, `confluence:globalPage`, `confluence:spacePage`, `confluence:contentAction`, `confluence:contentBylineItem`, `confluence:contextMenu`, `confluence:backgroundScript`, `macro`, `jira:fullPage` |
 | ⚠️ Partial | 29 | all Bitbucket UI, all JSM portal, all Compass UI, Jira preview modules, Confluence secondary pages |
 | 🔇 Stub | 1 | `jira:uiModifications` |
-| ❌ None | 17 | `jira:customField`, `jira:customFieldType`, `jira:jqlFunction`, `jira:entityProperty`, `jira:globalPermission`, `jira:projectPermission`, `jira:timeTrackingProvider`, `jira:workflowValidator`, `jira:workflowCondition`, `jira:workflowPostFunction`, `bitbucket:mergeCheck`, `bitbucket:dynamicPipelinesProvider`, `compass:dataProvider`, `rovo:agent`, `action`, `automation:*`, `teamwork:*` |
+| ❌ None | 15 | `jira:jqlFunction`, `jira:entityProperty`, `jira:globalPermission`, `jira:projectPermission`, `jira:timeTrackingProvider`, `jira:workflowValidator`, `jira:workflowCondition`, `jira:workflowPostFunction`, `bitbucket:mergeCheck`, `bitbucket:dynamicPipelinesProvider`, `compass:dataProvider`, `rovo:agent`, `action`, `automation:*`, `teamwork:*` |
 
 ## Key Gaps (Ordered by Impact)
 
 1. ~~**Web triggers** — Parsed but no HTTP endpoint. Half-day fix. High value.~~ ✅ **Done!** HTTP endpoints at `/__trigger/<key>`, full request/response mapping, dynamic `getUrl()`.
-2. **Custom fields** (`jira:customField`, `jira:customFieldType`) — Nested `view`/`edit` resource pattern breaks our manifest parser. Medium-high effort. Would unlock a significant class of Forge apps.
-3. ~~**Background scripts**~~ ✅ Done — Filtered from picker, loaded via hidden iframe with checkbox, cross-module events via WS relay.
+2. ~~**Custom fields**~~ ✅ Done — View/edit sub-module extraction, grouped module picker with toggle, mock fieldValue in context, value function registration. Formatter expressions (Jira Expressions) not evaluated.
+3. ~~**Background scripts**~~ ✅ Done — Filtered from picker, loaded via hidden iframe with checkbox, cross-module events via postMessage relay.
 4. **JQL functions** — Resolver exists but no invocation path outside UI context. Niche but some apps depend on it.
 5. **Bitbucket/Compass/JSM context** — UI renders but extension context is generic. Low priority unless someone's actually building for those products.
 6. **Rovo** — Completely different paradigm (AI agents). Not worth simulating until Atlassian's Rovo story stabilizes.

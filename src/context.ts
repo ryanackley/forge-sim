@@ -69,6 +69,24 @@ const JIRA_PROJECT_MODULES = new Set([
   'jira:projectPage',
 ]);
 
+const CUSTOM_FIELD_TYPES = new Set([
+  'jira:customField', 'jira:customFieldType',
+]);
+
+/** Provide a sensible default field value based on the field's data type */
+function getDefaultFieldValue(fieldType?: string): any {
+  switch (fieldType) {
+    case 'number': return 42;
+    case 'string': return 'Sample value';
+    case 'user': return { accountId: 'sim-user-001', displayName: 'Sim User' };
+    case 'group': return { groupId: 'sim-group-001', name: 'Sim Group' };
+    case 'date': return new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+    case 'datetime': return new Date().toISOString();
+    case 'object': return { key: 'value' };
+    default: return 'Sample value';
+  }
+}
+
 // ── Context Builder ─────────────────────────────────────────────────────
 
 /**
@@ -141,7 +159,15 @@ export async function buildForgeContext(
     return base;
   }
 
-  // 4. Defaults — module type has no item context
+  // 4. Custom field defaults — provide mock fieldValue and fieldType
+  // (fieldType should be passed via buildDefaultContext's extraExtension in the dev command)
+  if (CUSTOM_FIELD_TYPES.has(moduleType)) {
+    if (!base.extension.fieldValue) {
+      base.extension.fieldValue = getDefaultFieldValue(base.extension.fieldType);
+    }
+  }
+
+  // 5. Defaults — module type has no item context
   return base;
 }
 
@@ -259,7 +285,21 @@ export function buildDefaultContext(
   moduleKey: string,
   moduleType?: string,
   account?: { accountId: string; cloudId: string; site: string } | null,
+  extraExtension?: Record<string, any>,
 ): ForgeContext {
+  const extension: Record<string, any> = moduleType ? { type: moduleType } : {};
+
+  // Enrich custom field modules with mock fieldValue
+  if (moduleType && CUSTOM_FIELD_TYPES.has(moduleType)) {
+    const fieldType = extraExtension?.fieldType || 'string';
+    extension.fieldValue = getDefaultFieldValue(fieldType);
+    extension.fieldType = fieldType;
+  }
+
+  if (extraExtension) {
+    Object.assign(extension, extraExtension);
+  }
+
   return {
     accountId: account?.accountId ?? 'sim-user-001',
     cloudId: account?.cloudId ?? 'sim-cloud-001',
@@ -270,6 +310,6 @@ export function buildDefaultContext(
     localId: `forge-sim-${Date.now()}`,
     locale: 'en-US',
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-    extension: moduleType ? { type: moduleType } : {},
+    extension,
   };
 }

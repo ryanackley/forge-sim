@@ -557,8 +557,26 @@ export function generateModulePickerHtml(modules: DetectedModule[]): string {
   const uiModules = modules.filter((m) => !BACKGROUND_SCRIPT_TYPES.has(m.module.type));
   const bgModules = modules.filter((m) => BACKGROUND_SCRIPT_TYPES.has(m.module.type));
 
-  const rows = uiModules.map((m) => {
-    const modeLabel = m.mode === 'uikit' ? 'UIKit 2' : 'Custom UI';
+  // Group custom field view/edit sub-modules together
+  const CUSTOM_FIELD_TYPES = new Set(['jira:customField', 'jira:customFieldType']);
+  const customFieldModules = uiModules.filter((m) => CUSTOM_FIELD_TYPES.has(m.module.type));
+  const regularModules = uiModules.filter((m) => !CUSTOM_FIELD_TYPES.has(m.module.type));
+
+  // Group custom fields by base key (strip --view/--edit suffix)
+  const cfGroups = new Map<string, { view?: DetectedModule; edit?: DetectedModule; type: string; title: string; fieldType?: string }>();
+  for (const m of customFieldModules) {
+    const baseKey = m.module.key.replace(/--(?:view|edit)$/, '');
+    if (!cfGroups.has(baseKey)) {
+      // Strip " (View)" / " (Edit)" from title for the group label
+      const baseTitle = (m.module.title || baseKey).replace(/ \((?:View|Edit)\)$/, '');
+      cfGroups.set(baseKey, { type: m.module.type, title: baseTitle, fieldType: m.module.fieldType });
+    }
+    const group = cfGroups.get(baseKey)!;
+    if (m.module.viewMode === 'view') group.view = m;
+    else if (m.module.viewMode === 'edit') group.edit = m;
+  }
+
+  const regularRows = regularModules.map((m) => {
     const modeBadge = m.mode === 'uikit'
       ? '<span style="background:#0052CC;color:#fff;padding:2px 8px;border-radius:3px;font-size:12px">UIKit</span>'
       : '<span style="background:#00875A;color:#fff;padding:2px 8px;border-radius:3px;font-size:12px">Custom UI</span>';
@@ -588,6 +606,46 @@ export function generateModulePickerHtml(modules: DetectedModule[]): string {
       </a>`;
   }).join('');
 
+  // Custom field rows with view/edit toggle
+  const cfRows = [...cfGroups.entries()].map(([baseKey, group]) => {
+    const fieldBadge = `<span style="background:#6554C0;color:#fff;padding:2px 8px;border-radius:3px;font-size:12px">Custom Field</span>`;
+    const typeBadge = group.fieldType
+      ? `<span style="background:#EBECF0;color:#505F79;padding:2px 8px;border-radius:3px;font-size:12px">${group.fieldType}</span>`
+      : '';
+    const hasView = !!group.view;
+    const hasEdit = !!group.edit;
+
+    // Mode toggle buttons (view / edit)
+    const viewBtn = hasView
+      ? `<button data-cf-mode="view" data-cf-key="${baseKey}--view" onclick="handleCfClick(event, this)" style="padding:6px 14px;border:1px solid #0052CC;background:#0052CC;color:#fff;border-radius:4px 0 0 4px;cursor:pointer;font-size:12px;font-weight:600">View</button>`
+      : '';
+    const editBtn = hasEdit
+      ? `<button data-cf-mode="edit" data-cf-key="${baseKey}--edit" onclick="handleCfClick(event, this)" style="padding:6px 14px;border:1px solid #0052CC;background:#fff;color:#0052CC;border-radius:0 4px 4px 0;cursor:pointer;font-size:12px;font-weight:600">Edit</button>`
+      : '';
+    const onlyView = hasView && !hasEdit;
+    const onlyEdit = !hasView && hasEdit;
+    const singleBtn = onlyView
+      ? `<button data-cf-key="${baseKey}--view" onclick="handleCfClick(event, this)" style="padding:6px 14px;border:1px solid #0052CC;background:#0052CC;color:#fff;border-radius:4px;cursor:pointer;font-size:12px;font-weight:600">View</button>`
+      : onlyEdit
+        ? `<button data-cf-key="${baseKey}--edit" onclick="handleCfClick(event, this)" style="padding:6px 14px;border:1px solid #0052CC;background:#0052CC;color:#fff;border-radius:4px;cursor:pointer;font-size:12px;font-weight:600">Edit</button>`
+        : '';
+    const toggle = (hasView && hasEdit) ? `<div style="display:inline-flex;margin-top:8px">${viewBtn}${editBtn}</div>` : `<div style="margin-top:8px">${singleBtn}</div>`;
+
+    return `
+      <div style="display:block;padding:16px 20px;border:1px solid #DFE1E6;border-radius:8px;margin-bottom:12px">
+        <div style="display:flex;align-items:center;gap:12px">
+          <div style="flex:1">
+            <div style="font-size:16px;font-weight:600;color:#172B4D">${baseKey}</div>
+            <div style="font-size:13px;color:#6B778C;margin-top:4px">${group.type} — ${group.title}</div>
+            ${toggle}
+          </div>
+          <div style="display:flex;gap:6px">${fieldBadge}${typeBadge}</div>
+        </div>
+      </div>`;
+  }).join('');
+
+  const rows = regularRows + cfRows;
+
   // Show background scripts in a separate section if they exist but aren't linked to any UI module
   const orphanBg = bgModules.filter((bg) => {
     // Check if any UI module in the list has this as a compatible background script
@@ -603,7 +661,7 @@ export function generateModulePickerHtml(modules: DetectedModule[]): string {
       </div>`
     : '';
 
-  const uiCount = uiModules.length;
+  const uiCount = regularModules.length + cfGroups.size;
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -638,6 +696,12 @@ export function generateModulePickerHtml(modules: DetectedModule[]): string {
       }
       event.preventDefault();
       window.location.href = url;
+    }
+    function handleCfClick(event, btn) {
+      event.preventDefault();
+      event.stopPropagation();
+      var key = btn.getAttribute('data-cf-key');
+      window.location.href = '/module/' + key + '/';
     }
   </script>
 </body>
@@ -1013,9 +1077,11 @@ export async function devCommand(options: DevCommandOptions) {
   // 5. Start WebSocket dev server (for RPC: invoke, fetchProduct, etc.)
   console.log(`  🔌 Starting WebSocket bridge on port ${wsPort}...`);
   // Build context — use full async buildForgeContext if render options were provided
+  // For custom field modules, pass fieldType into context
+  const cfExtra = primaryModule.module.fieldType ? { fieldType: primaryModule.module.fieldType } : undefined;
   const moduleContext = renderContext
     ? await buildForgeContext(sim, primaryModule.module.key, primaryModule.module.type, renderContext)
-    : buildDefaultContext(primaryModule.module.key, primaryModule.module.type, sim.productApi.connectedAccount);
+    : buildDefaultContext(primaryModule.module.key, primaryModule.module.type, sim.productApi.connectedAccount, cfExtra);
 
   const devServer = createDevServer({
     port: wsPort,

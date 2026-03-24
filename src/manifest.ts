@@ -76,6 +76,15 @@ export interface ManifestUIModule {
   icon?: string;
   /** For jira:globalBackgroundScript — which experiences this script runs on */
   experience?: string[];
+  // ── Custom Field Properties ──
+  /** For jira:customField / jira:customFieldType sub-modules */
+  viewMode?: 'view' | 'edit';
+  /** The data type of the custom field (number, string, user, etc.) */
+  fieldType?: string;
+  /** The key of the value function (computes field value from issue data) */
+  valueFunctionKey?: string;
+  /** Whether the field is read-only */
+  readOnly?: boolean;
 }
 
 /** Module types where `icon` is required per the Forge manifest schema */
@@ -274,9 +283,69 @@ export function parseManifestContent(content: string): ParsedManifest {
     'trigger', 'webtrigger', 'remote',
   ]);
 
+  // Module types with nested resource patterns (view.resource / edit.resource)
+  const CUSTOM_FIELD_TYPES = new Set(['jira:customField', 'jira:customFieldType']);
+
   for (const [moduleType, moduleDefs] of Object.entries(modules)) {
     if (nonUIModuleTypes.has(moduleType)) continue;
     if (!Array.isArray(moduleDefs)) continue;
+
+    // ── Custom field modules: extract view/edit as separate sub-modules ──
+    if (CUSTOM_FIELD_TYPES.has(moduleType)) {
+      for (const mod of moduleDefs as any[]) {
+        if (!mod.key) continue;
+        const baseName = mod.name
+          ? (typeof mod.name === 'string' ? mod.name : mod.name.i18n || mod.key)
+          : mod.key;
+        const resolver = mod.resolver?.function || mod.resolver?.endpoint;
+        const resolverFunctionKey = mod.resolver?.function;
+        const endpointKey = mod.resolver?.endpoint;
+        const valueFnKey = mod.value?.function || mod.view?.value?.function;
+
+        // View sub-module
+        const viewResource = mod.view?.resource || mod.resource;
+        if (viewResource) {
+          uiModules.push({
+            type: moduleType,
+            key: `${mod.key}--view`,
+            title: `${baseName} (View)`,
+            resolverFunctionKey,
+            endpointKey,
+            resourceKey: viewResource,
+            viewMode: 'view',
+            fieldType: mod.type,
+            valueFunctionKey: valueFnKey,
+            readOnly: mod.readOnly === true,
+          });
+        }
+
+        // Edit sub-module (optional — not all custom fields have edit UI)
+        const editResource = mod.edit?.resource;
+        if (editResource) {
+          uiModules.push({
+            type: moduleType,
+            key: `${mod.key}--edit`,
+            title: `${baseName} (Edit)`,
+            resolverFunctionKey,
+            endpointKey,
+            resourceKey: editResource,
+            viewMode: 'edit',
+            fieldType: mod.type,
+            readOnly: mod.readOnly === true,
+          });
+        }
+
+        // Register value function as a resolver if present
+        if (valueFnKey) {
+          const existing = functions.get(valueFnKey);
+          if (!existing) {
+            functions.set(valueFnKey, { key: valueFnKey, handler: valueFnKey });
+          }
+        }
+      }
+      continue;
+    }
+
     for (const mod of moduleDefs as any[]) {
       // A UI module must have a resource key (Custom UI or UIKit entry)
       // or a render property — skip anything that doesn't look like UI

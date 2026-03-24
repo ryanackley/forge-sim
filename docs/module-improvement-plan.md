@@ -18,46 +18,15 @@ Implemented! Background scripts are filtered from the module picker. Compatible 
 
 ---
 
-## 3. Jira Custom Fields — ❌ → ⚠️
+## ~~3. Jira Custom Fields — ❌ → ✅~~ ✅ DONE (2026-03-24)
 
-**Current state:** Not parsed at all. The manifest parser skips them because they use a nested resource pattern (`view.resource`, `edit.resource`) instead of top-level `resource:`.
-
-**Affected modules:**
-- `jira:customField`
-- `jira:customFieldType`
-
-**Plan:**
-1. **Manifest parser** — Extend `parseManifest` to detect nested resource patterns:
-   ```yaml
-   jira:customField:
-     - key: my-field
-       name: Priority Score
-       type: number
-       view:
-         resource: main
-       edit:
-         resource: main
-       value:
-         function: calculateValue
-       formatter:
-         expression: "value"
-   ```
-   Extract `view.resource` and `edit.resource` as separate "sub-modules" or as a single module with multiple resource modes.
-
-2. **Mode switching UI** — In the dev server, render custom fields with a toggle:
-   - **View mode** — Renders the `view.resource` component (read-only display of field value)
-   - **Edit mode** — Renders the `edit.resource` component (input for changing value)
-   - Provide a mock field value in context that the view/edit components can read
-
-3. **Value function** — If `value.function` is defined, register it as a resolver. This function computes the field value from issue data.
-
-4. **Skip formatter expressions** — `formatter.expression` uses Jira Expressions (a DSL). Not worth implementing. Document as unsupported.
-
-5. **Skip search suggestions** — `jira:customFieldType` has `searchSuggestions.expression`. Same story — Jira Expressions, skip it.
-
-**Effort:** ~6-8 hours for basic view/edit rendering, value function  
-**Tests:** Nested resource extraction, view/edit mode toggle, value function invocation  
-**What we skip:** Jira Expressions (formatter, searchSuggestions), schema validation, `jira:customFieldType` reuse patterns
+Implemented! `jira:customField` and `jira:customFieldType` modules are now fully supported:
+- **Manifest parser** extracts `view.resource` and `edit.resource` as separate sub-modules (`<key>--view`, `<key>--edit`)
+- **Module picker** groups view/edit sub-modules into a single row with View/Edit toggle buttons and a purple "Custom Field" badge + field type badge
+- **Context enrichment** provides mock `fieldValue` based on field data type (number→42, string→"Sample value", user→mock user, etc.) and `fieldType` in `extension`
+- **Value function** registered as resolver if present
+- 22 new tests covering manifest parsing, module picker grouping, and context enrichment
+- **Not implemented:** Jira Expressions (formatter, searchSuggestions, validation), schema validation, `jira:customFieldType` reuse patterns
 
 ---
 
@@ -213,7 +182,7 @@ These modules have no practical simulation path. Documenting why and moving on.
 |----------|------|--------|--------|
 | ~~🔴 P1~~ | ~~Web triggers~~ | ✅ Done | ~~Unlocks HTTP-triggered Forge apps~~ |
 | ~~🔴 P1~~ | ~~Background script UX~~ | ✅ Done | ~~Fixes module picker noise~~ |
-| 🟡 P2 | Custom fields (basic) | ~6-8h | Unlocks major app category |
+| ~~🟡 P2~~ | ~~Custom fields~~ | ✅ Done | ~~Unlocks major app category~~ |
 | 🟡 P2 | Partial context (4a-4d) | ~2h | Quick wins, better DX for existing modules |
 | 🟢 P3 | Rovo actions | ~3h | Forward-looking, schema-validated functions |
 | 🟢 P3 | Command palette | ~1-3h | Nice UX polish |
