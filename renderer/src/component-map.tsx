@@ -309,6 +309,81 @@ function CheckboxGroupWrapper({ name, options, value, defaultValue, isDisabled, 
   );
 }
 
+// ── CustomFieldEdit (Jira-specific wrapper for inline edit) ─────────────
+
+/**
+ * Wrapper that provides inline edit behavior for custom fields:
+ * - Submit on blur (unless disabled)
+ * - Submit on Enter (unless disabled)
+ * - Cancel on Escape
+ * - Optional confirm/cancel buttons
+ * - Listens for 'forge-sim-submit' event from parent page's Save button
+ */
+function CustomFieldEditComponent({
+  onSubmit,
+  hideActionButtons,
+  disableSubmitOnBlur,
+  disableSubmitOnEnter,
+  children,
+}: {
+  onSubmit?: () => void;
+  hideActionButtons: boolean;
+  disableSubmitOnBlur: boolean;
+  disableSubmitOnEnter: boolean;
+  children: React.ReactNode;
+}) {
+  // Listen for external submit trigger (Save button on combined custom field page)
+  React.useEffect(() => {
+    if (!onSubmit) return;
+    const handler = () => onSubmit();
+    window.addEventListener('forge-sim-submit', handler);
+    return () => window.removeEventListener('forge-sim-submit', handler);
+  }, [onSubmit]);
+
+  const handleBlur = () => {
+    if (!disableSubmitOnBlur && onSubmit) onSubmit();
+  };
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (!disableSubmitOnEnter && e.key === 'Enter' && onSubmit) {
+      e.preventDefault();
+      onSubmit();
+    }
+    if (e.key === 'Escape') {
+      (e.target as HTMLElement)?.blur?.();
+    }
+  };
+
+  return (
+    <div
+      onBlur={handleBlur}
+      onKeyDown={handleKeyDown}
+      style={{ position: 'relative' }}
+    >
+      {children}
+      {!hideActionButtons && onSubmit && (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '4px', marginTop: '4px' }}>
+          <button
+            onClick={onSubmit}
+            style={{
+              background: '#0052CC', color: '#fff', border: 'none', borderRadius: '3px',
+              padding: '4px 8px', cursor: 'pointer', fontSize: '12px',
+            }}
+            title="Confirm"
+          >✓</button>
+          <button
+            onClick={() => (document.activeElement as HTMLElement)?.blur?.()}
+            style={{
+              background: '#F4F5F7', color: '#505F79', border: '1px solid #DFE1E6', borderRadius: '3px',
+              padding: '4px 8px', cursor: 'pointer', fontSize: '12px',
+            }}
+            title="Cancel"
+          >✕</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Component Map ───────────────────────────────────────────────────────
 
 export const COMPONENT_MAP: Record<string, ComponentRenderer> = {
@@ -1196,6 +1271,18 @@ export const COMPONENT_MAP: Record<string, ComponentRenderer> = {
       </ChartWrapper>
     );
   },
+};
+
+  // ── Jira-Specific Components ──────────────────────────────────────────
+
+  CustomFieldEdit: (props, children) => (
+    <CustomFieldEditComponent
+      onSubmit={props.onSubmit as (() => void) | undefined}
+      hideActionButtons={props.hideActionButtons === true}
+      disableSubmitOnBlur={props.disableSubmitOnBlur === true}
+      disableSubmitOnEnter={props.disableSubmitOnEnter === true}
+    >{children}</CustomFieldEditComponent>
+  ),
 };
 
 // ── Fallback ────────────────────────────────────────────────────────────

@@ -756,15 +756,21 @@ export const events = {
 // ── Forge events relay via postMessage (parent page brokers between frames) ──
 if (typeof window !== 'undefined') {
   window.addEventListener('message', (e: MessageEvent) => {
-    if (!e.data || e.data.type !== 'forgeEvent') return;
-    // Only dispatch events from OTHER windows (the broker or sibling frames)
-    if (e.source === window) return;
-    const eventKey = e.data.isPublic ? `public:${e.data.eventName}` : e.data.eventName;
-    const listeners = eventListeners.get(eventKey);
-    if (listeners) {
-      for (const cb of listeners) {
-        try { cb(e.data.payload); } catch (err) { console.error('[forge-bridge-shim] Event handler error:', err); }
+    if (!e.data) return;
+    if (e.data.type === 'forgeEvent') {
+      // Only dispatch events from OTHER windows (the broker or sibling frames)
+      if (e.source === window) return;
+      const eventKey = e.data.isPublic ? `public:${e.data.eventName}` : e.data.eventName;
+      const listeners = eventListeners.get(eventKey);
+      if (listeners) {
+        for (const cb of listeners) {
+          try { cb(e.data.payload); } catch (err) { console.error('[forge-bridge-shim] Event handler error:', err); }
+        }
       }
+    }
+    // Parent page triggers submit (Save button on custom field combined page)
+    if (e.data.type === 'forge-sim-trigger-submit') {
+      window.dispatchEvent(new CustomEvent('forge-sim-submit'));
     }
   });
 }

@@ -414,12 +414,19 @@ export function generateBridgeInlineScript(wsPort: number, defaultModuleKey?: st
 
   // ── Forge events relay via postMessage (parent page brokers between frames) ──
   window.addEventListener('message', function(e) {
-    if (!e.data || e.data.type !== 'forgeEvent') return;
-    // Only dispatch events from OTHER windows (the broker or sibling frames)
-    if (e.source === window) return;
-    var eventKey = e.data.isPublic ? ('public:' + e.data.eventName) : e.data.eventName;
-    var cbs = S.eventListeners[eventKey];
-    if (cbs) { cbs.forEach(function(cb) { try { cb(e.data.payload); } catch(err) { console.error(err); } }); }
+    if (!e.data) return;
+    if (e.data.type === 'forgeEvent') {
+      // Only dispatch events from OTHER windows (the broker or sibling frames)
+      if (e.source === window) return;
+      var eventKey = e.data.isPublic ? ('public:' + e.data.eventName) : e.data.eventName;
+      var cbs = S.eventListeners[eventKey];
+      if (cbs) { cbs.forEach(function(cb) { try { cb(e.data.payload); } catch(err) { console.error(err); } }); }
+    }
+    // Parent page triggers submit (Save button on custom field combined page)
+    if (e.data.type === 'forge-sim-trigger-submit') {
+      // Dispatch a custom event that CustomFieldEdit listens for
+      window.dispatchEvent(new CustomEvent('forge-sim-submit'));
+    }
   });
 
   // ── History command handler (server → browser) ──────────────────────
@@ -554,6 +561,8 @@ export function generateCustomFieldPageHtml(
     .cf-type-badge { display: inline-block; background: #EBECF0; color: #505F79; padding: 2px 8px; border-radius: 3px; font-size: 12px; margin-left: 4px; }
     .cf-back { font-size: 13px; color: #0052CC; text-decoration: none; margin-bottom: 12px; display: inline-block; }
     .cf-back:hover { text-decoration: underline; }
+    .cf-save { margin-left: auto; padding: 6px 16px; font-size: 13px; font-weight: 600; background: #00875A; color: #fff; border: none; border-radius: 4px; cursor: pointer; transition: background 0.15s; }
+    .cf-save:hover { background: #006644; }
   </style>
 </head>
 <body>
@@ -569,6 +578,7 @@ export function generateCustomFieldPageHtml(
     <div class="cf-tabs">
       <button class="cf-tab active" data-mode="view" onclick="switchTab('view')">View</button>
       <button class="cf-tab" data-mode="edit" onclick="switchTab('edit')">Edit</button>
+      <button id="cf-save-btn" class="cf-save" style="display:none" onclick="triggerSubmit()">💾 Save</button>
     </div>` : ''}
   </div>
   <div class="cf-container">
@@ -589,6 +599,15 @@ export function generateCustomFieldPageHtml(
       });
       if (viewFrame) viewFrame.style.display = mode === 'view' ? '' : 'none';
       if (editFrame) editFrame.style.display = mode === 'edit' ? '' : 'none';
+      var saveBtn = document.getElementById('cf-save-btn');
+      if (saveBtn) saveBtn.style.display = mode === 'edit' ? '' : 'none';
+    }
+
+    function triggerSubmit() {
+      var editFrame = document.getElementById('cf-edit');
+      if (editFrame && editFrame.contentWindow) {
+        editFrame.contentWindow.postMessage({ type: 'forge-sim-trigger-submit' }, '*');
+      }
     }
 
     // Listen for fieldValueUpdate from dev server via WS

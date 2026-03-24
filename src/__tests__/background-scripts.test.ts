@@ -532,7 +532,7 @@ describe('inline bridge events', () => {
     expect(script).toContain("postMessage");
 
     // Should listen for incoming forgeEvent postMessages
-    expect(script).toContain("e.data.type !== 'forgeEvent'");
+    expect(script).toContain("e.data.type === 'forgeEvent'");
   });
 
   it('should include background script iframe injector in inline script', async () => {
