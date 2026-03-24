@@ -522,7 +522,14 @@ export function generateCustomFieldPageHtml(
   hasEdit: boolean,
   fieldType: string,
   wsPort: number,
+  warnings?: string[],
 ): string {
+  const warningBanner = warnings && warnings.length > 0
+    ? `<div style="background:#FFFAE6;border:1px solid #FF991F;border-radius:4px;padding:12px 16px;margin-bottom:16px">
+        <div style="font-weight:600;color:#172B4D;font-size:13px;margin-bottom:4px">⚠️ Parity Warning</div>
+        ${warnings.map((w) => `<div style="font-size:13px;color:#505F79;margin-top:4px">${w}</div>`).join('')}
+      </div>`
+    : '';
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -565,6 +572,7 @@ export function generateCustomFieldPageHtml(
     </div>` : ''}
   </div>
   <div class="cf-container">
+    ${warningBanner}
     ${hasView ? `<iframe id="cf-view" class="cf-frame" src="/module/${baseKey}--view/"></iframe>` : ''}
     ${hasEdit ? `<iframe id="cf-edit" class="cf-frame" src="/module/${baseKey}--edit/" style="${hasView ? 'display:none' : ''}"></iframe>` : ''}
   </div>
@@ -803,6 +811,7 @@ export function installModuleRouting(
   modules: DetectedModule[],
   tempDir: string,
   wsPort?: number,
+  manifestWarnings?: Array<{ level: string; message: string }>,
 ): void {
   const modulesByKey = new Map(modules.map((m) => [m.module.key, m]));
 
@@ -841,6 +850,10 @@ export function installModuleRouting(
       const cfGroup = cfGroups.get(key);
       if (cfGroup && (rest === '/' || rest === '/index.html')) {
         res.writeHead(200, { 'Content-Type': 'text/html', 'Cache-Control': 'no-cache' });
+        // Filter manifest warnings relevant to this custom field
+        const cfWarnings = (manifestWarnings || [])
+          .filter((w) => w.message.includes(`"${key}"`))
+          .map((w) => w.message);
         res.end(generateCustomFieldPageHtml(
           key,
           cfGroup.title,
@@ -848,6 +861,7 @@ export function installModuleRouting(
           !!cfGroup.edit,
           cfGroup.fieldType || '',
           wsPort || 5174,
+          cfWarnings,
         ));
         return;
       }
@@ -1376,7 +1390,7 @@ export async function devCommand(options: DevCommandOptions) {
     const viteServer = await createServer(viteConfig);
 
     // Install multi-module routing middleware (before Vite's catch-all)
-    installModuleRouting(viteServer, detectedModules, tempDir, wsPort);
+    installModuleRouting(viteServer, detectedModules, tempDir, wsPort, manifest.warnings);
 
     await viteServer.listen();
 

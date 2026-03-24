@@ -507,4 +507,124 @@ describe('custom field combined page', () => {
     const html = generateCustomFieldPageHtml('test', 'Test', true, true, 'string', 5174);
     expect(html).toContain('function switchTab');
   });
+
+  it('should show parity warning banner when warnings provided', () => {
+    const html = generateCustomFieldPageHtml('test', 'Test', true, true, 'string', 5174, [
+      'Custom field "test" has a view resource but no view.experience.',
+    ]);
+    expect(html).toContain('Parity Warning');
+    expect(html).toContain('no view.experience');
+  });
+
+  it('should not show banner when no warnings', () => {
+    const html = generateCustomFieldPageHtml('test', 'Test', true, true, 'string', 5174, []);
+    expect(html).not.toContain('Parity Warning');
+  });
+});
+
+// ── Experience Warnings ───────────────────────────────────────────────
+
+describe('custom field experience warnings', () => {
+  it('should warn when view has resource but no experience', () => {
+    const manifest = parseManifestContent(`
+modules:
+  jira:customField:
+    - key: no-exp
+      name: No Experience
+      description: Missing experience
+      type: number
+      resolver:
+        function: resolver
+      view:
+        resource: v
+        render: native
+  function:
+    - key: resolver
+      handler: index.handler
+resources:
+  - key: v
+    path: src/view.tsx
+app:
+  runtime:
+    name: nodejs22.x
+`);
+    const viewWarning = manifest.warnings.find((w) => w.message.includes('"no-exp"') && w.message.includes('view.experience'));
+    expect(viewWarning).toBeDefined();
+    expect(viewWarning!.level).toBe('warning');
+  });
+
+  it('should warn when edit has resource but no experience', () => {
+    const manifest = parseManifestContent(`
+modules:
+  jira:customField:
+    - key: no-edit-exp
+      name: No Edit Experience
+      description: Missing edit experience
+      type: number
+      resolver:
+        function: resolver
+      view:
+        resource: v
+        render: native
+        experience:
+          - issue-view
+      edit:
+        resource: e
+        render: native
+  function:
+    - key: resolver
+      handler: index.handler
+resources:
+  - key: v
+    path: src/view.tsx
+  - key: e
+    path: src/edit.tsx
+app:
+  runtime:
+    name: nodejs22.x
+`);
+    // View should NOT warn (has experience)
+    const viewWarning = manifest.warnings.find((w) => w.message.includes('"no-edit-exp"') && w.message.includes('view.experience'));
+    expect(viewWarning).toBeUndefined();
+    // Edit SHOULD warn
+    const editWarning = manifest.warnings.find((w) => w.message.includes('"no-edit-exp"') && w.message.includes('edit.experience'));
+    expect(editWarning).toBeDefined();
+  });
+
+  it('should not warn when experience is provided', () => {
+    const manifest = parseManifestContent(`
+modules:
+  jira:customField:
+    - key: has-exp
+      name: Has Experience
+      description: Has experience
+      type: number
+      resolver:
+        function: resolver
+      view:
+        resource: v
+        render: native
+        experience:
+          - issue-view
+      edit:
+        resource: e
+        render: native
+        experience:
+          - issue-view
+          - issue-create
+  function:
+    - key: resolver
+      handler: index.handler
+resources:
+  - key: v
+    path: src/view.tsx
+  - key: e
+    path: src/edit.tsx
+app:
+  runtime:
+    name: nodejs22.x
+`);
+    const cfWarnings = manifest.warnings.filter((w) => w.message.includes('"has-exp"'));
+    expect(cfWarnings).toHaveLength(0);
+  });
 });

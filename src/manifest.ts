@@ -276,6 +276,7 @@ export function parseManifestContent(content: string): ParsedManifest {
 
   // Parse UI modules (any module with a resolver or resource)
   const uiModules: ManifestUIModule[] = [];
+  const warnings: ManifestWarning[] = [];
   // Non-UI module types that should never be treated as UI modules
   // (they appear at the top level of modules: but don't render UI)
   const nonUIModuleTypes = new Set([
@@ -341,6 +342,27 @@ export function parseManifestContent(content: string): ParsedManifest {
           if (!existing) {
             functions.set(valueFnKey, { key: valueFnKey, handler: valueFnKey });
           }
+        }
+
+        // Warn about missing experience — without it, Jira renders the
+        // built-in control instead of the custom view/edit UI
+        const viewExperience = mod.view?.experience;
+        const editExperience = mod.edit?.experience;
+        if (viewResource && (!Array.isArray(viewExperience) || viewExperience.length === 0)) {
+          warnings.push({
+            level: 'warning',
+            message: `Custom field "${mod.key}" has a view resource but no view.experience. ` +
+              `In Jira, this field will render the built-in control instead of your custom view UI. ` +
+              `Add view.experience (e.g. ["issue-view"]) to your manifest.`,
+          });
+        }
+        if (editResource && (!Array.isArray(editExperience) || editExperience.length === 0)) {
+          warnings.push({
+            level: 'warning',
+            message: `Custom field "${mod.key}" has an edit resource but no edit.experience. ` +
+              `In Jira, this field will render the built-in edit control instead of your custom edit UI. ` +
+              `Add edit.experience (e.g. ["issue-view", "issue-create", "issue-transition"]) to your manifest.`,
+          });
         }
       }
       continue;
@@ -410,8 +432,6 @@ export function parseManifestContent(content: string): ParsedManifest {
   }
 
   // ── Manifest Validation ──────────────────────────────────────────────
-
-  const warnings: ManifestWarning[] = [];
   const VALID_RUNTIME_NAMES = ['nodejs24.x', 'nodejs22.x', 'nodejs20.x'];
 
   // app.runtime is required (legacy sandbox runtime is deprecated)
