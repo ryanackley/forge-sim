@@ -423,9 +423,16 @@ export function generateBridgeInlineScript(wsPort: number, defaultModuleKey?: st
       if (cbs) { cbs.forEach(function(cb) { try { cb(e.data.payload); } catch(err) { console.error(err); } }); }
     }
     // Parent page triggers submit (Save button on custom field combined page)
+    // Triggers the same code path as CustomFieldEdit's onBlur/confirm button
     if (e.data.type === 'forge-sim-trigger-submit') {
-      // Dispatch a custom event that CustomFieldEdit listens for
-      window.dispatchEvent(new CustomEvent('forge-sim-submit'));
+      // 1. Blur active element — triggers CustomFieldEdit's onBlur → onSubmit → view.submit()
+      if (document.activeElement && document.activeElement !== document.body) {
+        document.activeElement.blur();
+      } else {
+        // 2. Fallback: click the first button (app's own save button)
+        var btn = document.querySelector('button[type="submit"], button');
+        if (btn) btn.click();
+      }
     }
   });
 

@@ -313,11 +313,14 @@ function CheckboxGroupWrapper({ name, options, value, defaultValue, isDisabled, 
 
 /**
  * Wrapper that provides inline edit behavior for custom fields:
- * - Submit on blur (unless disabled)
- * - Submit on Enter (unless disabled)
+ * - Submit when focus leaves the wrapper entirely (unless disableSubmitOnBlur)
+ * - Submit on Enter key (unless disableSubmitOnEnter)
  * - Cancel on Escape
- * - Optional confirm/cancel buttons
- * - Listens for 'forge-sim-submit' event from parent page's Save button
+ * - Optional confirm ✓ / cancel ✕ buttons
+ *
+ * Uses React's onBlur (which is actually focusout and bubbles) with
+ * relatedTarget check — only submits when focus leaves the wrapper,
+ * not when moving between fields inside it.
  */
 function CustomFieldEditComponent({
   onSubmit,
@@ -332,30 +335,50 @@ function CustomFieldEditComponent({
   disableSubmitOnEnter: boolean;
   children: React.ReactNode;
 }) {
-  // Listen for external submit trigger (Save button on combined custom field page)
-  React.useEffect(() => {
-    if (!onSubmit) return;
-    const handler = () => onSubmit();
-    window.addEventListener('forge-sim-submit', handler);
-    return () => window.removeEventListener('forge-sim-submit', handler);
-  }, [onSubmit]);
+  const wrapperRef = React.useRef<HTMLDivElement>(null);
 
-  const handleBlur = () => {
-    if (!disableSubmitOnBlur && onSubmit) onSubmit();
+  const handleBlur = (e: React.FocusEvent) => {
+    if (disableSubmitOnBlur || !onSubmit) return;
+    // relatedTarget = element receiving focus next
+    // If it's still inside the wrapper, don't submit (user is tabbing between fields)
+    if (e.relatedTarget && wrapperRef.current?.contains(e.relatedTarget as Node)) return;
+    onSubmit();
   };
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (!disableSubmitOnEnter && e.key === 'Enter' && onSubmit) {
       e.preventDefault();
       onSubmit();
     }
     if (e.key === 'Escape') {
-      (e.target as HTMLElement)?.blur?.();
+      // Cancel — blur without submitting
+      const wrapper = wrapperRef.current;
+      if (wrapper) {
+        // Temporarily disable blur submit, then blur
+        wrapper.dataset.escaping = '1';
+        (e.target as HTMLElement)?.blur?.();
+        delete wrapper.dataset.escaping;
+      }
     }
+  };
+
+  const handleBlurGuarded = (e: React.FocusEvent) => {
+    // Skip submit if we're escaping (Escape key was pressed)
+    if (wrapperRef.current?.dataset.escaping) return;
+    handleBlur(e);
+  };
+
+  const handleCancel = () => {
+    // Blur the active element without triggering submit
+    if (wrapperRef.current) wrapperRef.current.dataset.escaping = '1';
+    (document.activeElement as HTMLElement)?.blur?.();
+    if (wrapperRef.current) delete wrapperRef.current.dataset.escaping;
   };
 
   return (
     <div
-      onBlur={handleBlur}
+      ref={wrapperRef}
+      onBlur={handleBlurGuarded}
       onKeyDown={handleKeyDown}
       style={{ position: 'relative' }}
     >
@@ -371,7 +394,7 @@ function CustomFieldEditComponent({
             title="Confirm"
           >✓</button>
           <button
-            onClick={() => (document.activeElement as HTMLElement)?.blur?.()}
+            onClick={handleCancel}
             style={{
               background: '#F4F5F7', color: '#505F79', border: '1px solid #DFE1E6', borderRadius: '3px',
               padding: '4px 8px', cursor: 'pointer', fontSize: '12px',

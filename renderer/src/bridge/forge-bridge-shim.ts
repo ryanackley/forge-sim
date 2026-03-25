@@ -770,7 +770,12 @@ if (typeof window !== 'undefined') {
     }
     // Parent page triggers submit (Save button on custom field combined page)
     if (e.data.type === 'forge-sim-trigger-submit') {
-      window.dispatchEvent(new CustomEvent('forge-sim-submit'));
+      if (document.activeElement && document.activeElement !== document.body) {
+        (document.activeElement as HTMLElement).blur();
+      } else {
+        const btn = document.querySelector('button[type="submit"], button');
+        if (btn) (btn as HTMLElement).click();
+      }
     }
   });
 }
