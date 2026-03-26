@@ -55,6 +55,7 @@ export function attachToolsToVite(options: ToolsServerOptions): ToolsServer {
   const apiHandler = createApiHandler(sim, manifest);
   const clients = new Set<WebSocket>();
   let lastTypeErrors: { errors: any[]; critical: any[]; checking: boolean } | null = null;
+  const serverSessionId = Math.random().toString(36).slice(2);
 
   const PREFIX = '/__tools';
 
@@ -136,6 +137,7 @@ export function attachToolsToVite(options: ToolsServerOptions): ToolsServer {
     ws.send(JSON.stringify({
       type: 'init',
       data: {
+        sessionId: serverSessionId,
         manifest: {
           appName: manifest.raw.app?.name ?? 'Unknown',
           functions: manifest.functions.size,
@@ -401,6 +403,7 @@ const API = '${prefix}';
 const WS_URL = location.origin.replace('http','ws') + '${prefix}/ws';
 let ws;
 let paused = false;
+let serverSessionId = null;
 let logs = [];
 let kvsData = [];
 let enabledLevels = new Set(['info','invoke','trigger','warn','error','console.log','console.warn','console.error','scheduledTrigger']);
@@ -428,6 +431,16 @@ function connect() {
 }
 
 function updateStatus(data) {
+  // Detect server restart — reload if session changed
+  if (data.sessionId) {
+    if (serverSessionId && serverSessionId !== data.sessionId) {
+      console.log('[forge-sim tools] Server restarted, reloading...');
+      location.reload();
+      return;
+    }
+    serverSessionId = data.sessionId;
+  }
+
   const m = data.manifest;
   document.getElementById('status').textContent =
     m.appName + ' • ' + m.functions + ' functions • ' + data.functionCount + ' registered';
