@@ -54,6 +54,7 @@ export function attachToolsToVite(options: ToolsServerOptions): ToolsServer {
   const { sim, manifest, viteServer, appDir } = options;
   const apiHandler = createApiHandler(sim, manifest);
   const clients = new Set<WebSocket>();
+  let lastTypeErrors: { errors: any[]; critical: any[]; checking: boolean } | null = null;
 
   const PREFIX = '/__tools';
 
@@ -146,6 +147,11 @@ export function attachToolsToVite(options: ToolsServerOptions): ToolsServer {
         functionCount: sim.functions.keys().length,
       },
     }));
+
+    // Send cached type checker state if available
+    if (lastTypeErrors) {
+      ws.send(JSON.stringify({ type: 'typeErrors', data: lastTypeErrors }));
+    }
   });
 
   function broadcast(message: any): void {
@@ -165,7 +171,8 @@ export function attachToolsToVite(options: ToolsServerOptions): ToolsServer {
       broadcast({ type: 'stateChange', changeType: type, data });
     },
     broadcastTypeErrors(errors: any[], critical: any[], checking: boolean) {
-      broadcast({ type: 'typeErrors', data: { errors, critical, checking } });
+      lastTypeErrors = { errors, critical, checking };
+      broadcast({ type: 'typeErrors', data: lastTypeErrors });
     },
     get clientCount() { return clients.size; },
     close() {
