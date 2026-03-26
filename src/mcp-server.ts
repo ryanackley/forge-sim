@@ -41,6 +41,7 @@ import { z } from 'zod';
 import { createServer } from 'node:http';
 import { ForgeSimulator } from './simulator.js';
 import { setSimulator } from './shims/globals.js';
+import { typeCheck } from './type-checker.js';
 // UI access is now through sim.ui.* — no direct bridge/doc-utils imports
 
 // ── Simulator Instance ──────────────────────────────────────────────────
@@ -71,8 +72,11 @@ server.tool(
     }
 
     try {
+      // Run type checking before deploy (non-blocking — errors reported alongside results)
+      const typeErrors = typeCheck(appDir);
+
       const result = await sim.deploy(appDir);
-      const summary = {
+      const summary: Record<string, any> = {
         app: result.manifest.raw.app,
         loadedFunctions: result.loadedFunctions,
         loadedResources: result.loadedResources,
@@ -96,12 +100,28 @@ server.tool(
         errors: result.errors,
       };
 
+      // Include type errors if any were found
+      if (typeErrors.length > 0) {
+        summary.typeErrors = typeErrors;
+      }
+
+      const hasDeployErrors = result.errors.length > 0;
+      const hasTypeErrors = typeErrors.length > 0;
+      let statusLine: string;
+      if (hasDeployErrors && hasTypeErrors) {
+        statusLine = `⚠️ Deployed with ${result.errors.length} deploy error(s) and ${typeErrors.length} type error(s):`;
+      } else if (hasDeployErrors) {
+        statusLine = `⚠️ Deployed with ${result.errors.length} error(s):`;
+      } else if (hasTypeErrors) {
+        statusLine = `⚠️ Deployed successfully but found ${typeErrors.length} type error(s):`;
+      } else {
+        statusLine = `✅ Deployed successfully:`;
+      }
+
       return {
         content: [{
           type: 'text' as const,
-          text: result.errors.length > 0
-            ? `⚠️ Deployed with ${result.errors.length} error(s):\n${JSON.stringify(summary, null, 2)}`
-            : `✅ Deployed successfully:\n${JSON.stringify(summary, null, 2)}`,
+          text: `${statusLine}\n${JSON.stringify(summary, null, 2)}`,
         }],
       };
     } catch (err) {

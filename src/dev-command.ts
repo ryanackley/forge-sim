@@ -28,6 +28,7 @@ import { parseManifest, type ParsedManifest, type ManifestUIModule, BACKGROUND_S
 import { saveState, loadState, hasPersistedState, getSQLDumpPath } from './persistence.js';
 import { buildDefaultContext, buildForgeContext, type RenderContextOptions } from './context.js';
 import { createWebTriggerHandler } from './web-trigger.js';
+import { startTypeCheckWatch, type TypeCheckWatcher } from './type-checker.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -960,7 +961,7 @@ async function buildViteConfig(opts: {
   const mainNodeModules = join(forgeSimRoot, 'node_modules');
   const appNodeModules = join(appDir, 'node_modules');
 
-  // Import the plugin directly — it's in forge-sim's node_modules
+  // Import plugins directly — they're in forge-sim's node_modules
   const reactPlugin = (await import('@vitejs/plugin-react')).default;
 
   // Build alias map: standard aliases + Custom UI resource directories
@@ -1311,6 +1312,25 @@ export async function devCommand(options: DevCommandOptions) {
       // Logs captured in simulator, viewable via /__tools/api/logs
     });
 
+    // Start TypeScript type checker (console-only in proxy mode)
+    const proxyTypeCheckWatcher = startTypeCheckWatch({
+      appDir,
+      onErrors: (errors, critical) => {
+        if (critical.length > 0) {
+          console.log(`\n  ❌ TypeScript: ${critical.length} critical error${critical.length !== 1 ? 's' : ''}:`);
+          for (const e of critical.slice(0, 10)) {
+            console.log(`     ${e.file}:${e.line} — ${e.code}: ${e.message}`);
+          }
+          if (critical.length > 10) console.log(`     ... and ${critical.length - 10} more`);
+          console.log('');
+        } else if (errors.length > 0) {
+          console.log(`  ✅ TypeScript: no critical errors (${errors.length} non-critical)`);
+        } else {
+          console.log('  ✅ TypeScript: no errors');
+        }
+      },
+    });
+
     console.log('  ─────────────────────────────────────────────');
     console.log('');
     console.log(`  🔥 forge-sim dev (proxy mode)`);
@@ -1351,6 +1371,7 @@ export async function devCommand(options: DevCommandOptions) {
       cleaningUp = true;
       console.log('\n  🛑 Shutting down...');
       try { await saveState(sim, stateDir); } catch (err: any) { console.error(`  ⚠️  Failed to save state: ${err.message}`); }
+      proxyTypeCheckWatcher?.close();
       devServer.close();
       proxyServer.close();
       process.exit(0);
@@ -1448,6 +1469,30 @@ export async function devCommand(options: DevCommandOptions) {
       toolsServer.broadcastLog(entry);
     });
 
+    // 8a. Start TypeScript type checker (tsc --watch --noEmit)
+    const typeCheckWatcher = startTypeCheckWatch({
+      appDir,
+      onCheckStart: () => {
+        toolsServer.broadcastTypeErrors([], [], true);
+      },
+      onErrors: (errors, critical) => {
+        toolsServer.broadcastTypeErrors(errors, critical, false);
+        // Log critical errors to console
+        if (critical.length > 0) {
+          console.log(`\n  ❌ TypeScript: ${critical.length} critical error${critical.length !== 1 ? 's' : ''}:`);
+          for (const e of critical.slice(0, 10)) {
+            console.log(`     ${e.file}:${e.line} — ${e.code}: ${e.message}`);
+          }
+          if (critical.length > 10) console.log(`     ... and ${critical.length - 10} more`);
+          console.log('');
+        } else if (errors.length > 0) {
+          console.log(`  ✅ TypeScript: no critical errors (${errors.length} non-critical)`);
+        } else {
+          console.log('  ✅ TypeScript: no errors');
+        }
+      },
+    });
+
     // 8b. Serve FIT JWKS endpoint at /__forge/jwks.json
     const forgeMiddleware = (req: any, res: any, next: any) => {
       const url = new URL(req.url ?? '/', 'http://localhost');
@@ -1534,6 +1579,7 @@ export async function devCommand(options: DevCommandOptions) {
         console.error(`  ⚠️  Failed to save state: ${err.message}`);
       }
 
+      typeCheckWatcher?.close();
       toolsServer.close();
       devServer.close();
       await viteServer.close();

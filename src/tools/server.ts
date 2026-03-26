@@ -37,6 +37,8 @@ export interface ToolsServer {
   broadcastLog(entry: any): void;
   /** Broadcast a state change event */
   broadcastStateChange(type: string, data?: any): void;
+  /** Broadcast TypeScript errors to all connected clients */
+  broadcastTypeErrors(errors: any[], critical: any[], checking: boolean): void;
   /** Number of connected WebSocket clients */
   readonly clientCount: number;
   /** Close the server */
@@ -162,6 +164,9 @@ export function attachToolsToVite(options: ToolsServerOptions): ToolsServer {
     broadcastStateChange(type: string, data?: any) {
       broadcast({ type: 'stateChange', changeType: type, data });
     },
+    broadcastTypeErrors(errors: any[], critical: any[], checking: boolean) {
+      broadcast({ type: 'typeErrors', data: { errors, critical, checking } });
+    },
     get clientCount() { return clients.size; },
     close() {
       for (const client of clients) client.close();
@@ -257,6 +262,24 @@ function generateFallbackHTML(prefix: string): string {
   textarea.payload { width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: 4px; padding: 8px; color: var(--text); font-family: var(--font); font-size: 12px; min-height: 80px; margin: 8px 0; outline: none; resize: vertical; }
   .result-box { background: var(--bg); border: 1px solid var(--border); border-radius: 4px; padding: 8px; font-family: var(--font); font-size: 12px; max-height: 200px; overflow: auto; white-space: pre-wrap; margin-top: 8px; }
   
+  /* TypeScript Panel */
+  .ts-toolbar { padding: 8px 16px; background: var(--surface); border-bottom: 1px solid var(--border); display: flex; gap: 12px; align-items: center; font-size: 13px; }
+  .ts-status { font-weight: 600; }
+  .ts-status.ok { color: var(--green); }
+  .ts-status.error { color: var(--red); }
+  .ts-status.checking { color: var(--yellow); }
+  .ts-list { flex: 1; overflow-y: auto; font-family: var(--font); font-size: 12px; }
+  .ts-error { padding: 6px 16px; border-bottom: 1px solid var(--border); cursor: pointer; }
+  .ts-error:hover { background: var(--surface2); }
+  .ts-error .ts-file { color: var(--blue); }
+  .ts-error .ts-code { color: var(--purple); font-size: 11px; margin-left: 8px; }
+  .ts-error .ts-msg { color: var(--text); margin-top: 2px; }
+  .ts-error.critical { border-left: 3px solid var(--red); }
+  .ts-error.non-critical { border-left: 3px solid var(--yellow); opacity: 0.7; }
+  .ts-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; border-radius: 9px; font-size: 11px; font-weight: 700; padding: 0 5px; margin-left: 6px; }
+  .ts-badge.error { background: var(--red); color: var(--bg); }
+  .ts-badge.ok { background: var(--green); color: var(--bg); }
+
   /* Buttons */
   .btn-sm { padding: 4px 8px; font-size: 12px; }
   .empty { color: var(--subtext); text-align: center; padding: 40px; font-size: 14px; }
@@ -275,6 +298,7 @@ function generateFallbackHTML(prefix: string): string {
   <div class="tab" data-panel="kvs">KVS</div>
   <div class="tab" data-panel="sql">SQL</div>
   <div class="tab" data-panel="events">Events</div>
+  <div class="tab" data-panel="typescript" id="tsTab">TypeScript</div>
 </div>
 
 <div class="content">
@@ -325,6 +349,18 @@ function generateFallbackHTML(prefix: string): string {
           <div class="empty" id="sqlEmpty">Run a query or click a table</div>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- TypeScript Panel -->
+  <div class="panel" id="panel-typescript">
+    <div class="ts-toolbar">
+      <span class="ts-status" id="tsStatus">⏳ Waiting for first check...</span>
+      <div style="flex:1"></div>
+      <label><input type="checkbox" id="tsShowAll"> Show all errors</label>
+    </div>
+    <div class="ts-list" id="tsList">
+      <div class="empty">Type checker initializing...</div>
     </div>
   </div>
 
@@ -380,6 +416,7 @@ function connect() {
     if (msg.type === 'log') addLog(msg.data);
     if (msg.type === 'stateChange') handleStateChange(msg);
     if (msg.type === 'init') updateStatus(msg.data);
+    if (msg.type === 'typeErrors') updateTypeErrors(msg.data);
   };
 }
 
@@ -590,6 +627,76 @@ async function pushQueue() {
 
 function escapeHtml(s) {
   return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── TypeScript ─────────────────────────────────────────────────
+
+let tsErrors = { errors: [], critical: [], checking: true };
+let tsShowAll = false;
+
+document.getElementById('tsShowAll')?.addEventListener('change', (e) => {
+  tsShowAll = e.target.checked;
+  renderTypeErrors();
+});
+
+function updateTypeErrors(data) {
+  tsErrors = data;
+  renderTypeErrors();
+  updateTsBadge();
+}
+
+function renderTypeErrors() {
+  const statusEl = document.getElementById('tsStatus');
+  const listEl = document.getElementById('tsList');
+
+  if (tsErrors.checking) {
+    statusEl.textContent = '⏳ Checking...';
+    statusEl.className = 'ts-status checking';
+    return;
+  }
+
+  const display = tsShowAll ? tsErrors.errors : tsErrors.critical;
+  const criticalSet = new Set(tsErrors.critical.map(e => e.file + ':' + e.line + ':' + e.code));
+
+  if (display.length === 0) {
+    const total = tsErrors.errors.length;
+    if (total === 0) {
+      statusEl.textContent = '✅ No errors';
+      statusEl.className = 'ts-status ok';
+    } else {
+      statusEl.textContent = '✅ No critical errors (' + total + ' non-critical hidden)';
+      statusEl.className = 'ts-status ok';
+    }
+    listEl.innerHTML = '<div class="empty">' + (total === 0 ? 'All clear! No TypeScript errors.' : 'No deploy-breaking errors. Toggle "Show all" to see ' + total + ' non-critical issues.') + '</div>';
+    return;
+  }
+
+  statusEl.textContent = '❌ ' + tsErrors.critical.length + ' critical error' + (tsErrors.critical.length !== 1 ? 's' : '') + (tsErrors.errors.length > tsErrors.critical.length ? ' (' + tsErrors.errors.length + ' total)' : '');
+  statusEl.className = 'ts-status error';
+
+  listEl.innerHTML = display.map(e => {
+    const isCritical = criticalSet.has(e.file + ':' + e.line + ':' + e.code);
+    return '<div class="ts-error ' + (isCritical ? 'critical' : 'non-critical') + '">'
+      + '<div><span class="ts-file">' + escapeHtml(e.file) + ':' + e.line + ':' + e.column + '</span>'
+      + '<span class="ts-code">' + e.code + '</span></div>'
+      + '<div class="ts-msg">' + escapeHtml(e.message) + '</div></div>';
+  }).join('');
+}
+
+function updateTsBadge() {
+  const tab = document.getElementById('tsTab');
+  // Remove existing badge
+  const existing = tab.querySelector('.ts-badge');
+  if (existing) existing.remove();
+
+  if (tsErrors.checking) return;
+
+  const count = tsErrors.critical.length;
+  if (count > 0) {
+    tab.insertAdjacentHTML('beforeend', '<span class="ts-badge error">' + count + '</span>');
+  } else {
+    tab.insertAdjacentHTML('beforeend', '<span class="ts-badge ok">✓</span>');
+  }
 }
 
 // ── Init ───────────────────────────────────────────────────────────
