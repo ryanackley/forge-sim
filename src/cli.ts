@@ -79,6 +79,7 @@ if (command === '--help' || command === '-h' || !command) {
     --strict-mode              Enable React.StrictMode (off by default — breaks Atlaskit portals)
     --proxy <url>              Proxy mode: reverse-proxy an existing dev server, inject bridge shim
     --issue <key>              Set Jira issue context (e.g., PROJ-42)
+    --project <key>            Set Jira project context (e.g., PROJ)
     --content <id>             Set Confluence content context (e.g., 12345)
     --space <key>              Set Confluence space context (e.g., SPACEKEY)
     --context '{"k":"v"}'      Set raw context JSON (merged into extension)
@@ -106,6 +107,7 @@ if (command === 'dev') {
   let strictMode = false;
   let proxy: string | undefined;
   let issueKey: string | undefined;
+  let projectKey: string | undefined;
   let contentId: string | undefined;
   let spaceKey: string | undefined;
   let rawContext: Record<string, unknown> | undefined;
@@ -128,6 +130,8 @@ if (command === 'dev') {
       proxy = restArgs[++i];
     } else if (arg === '--issue' && restArgs[i + 1]) {
       issueKey = restArgs[++i];
+    } else if (arg === '--project' && restArgs[i + 1]) {
+      projectKey = restArgs[++i];
     } else if (arg === '--content' && restArgs[i + 1]) {
       contentId = restArgs[++i];
     } else if (arg === '--space' && restArgs[i + 1]) {
@@ -145,9 +149,9 @@ if (command === 'dev') {
   }
 
   // Build render context from CLI flags (if any provided)
-  const hasContextFlags = issueKey || contentId || spaceKey || rawContext;
+  const hasContextFlags = issueKey || projectKey || contentId || spaceKey || rawContext;
   const renderContext = hasContextFlags
-    ? { issueKey, contentId, spaceKey, context: rawContext }
+    ? { issueKey, projectKey, contentId, spaceKey, context: rawContext }
     : undefined;
 
   const { devCommand } = await import('./dev-command.js');

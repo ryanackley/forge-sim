@@ -45,6 +45,8 @@ export interface RenderContextOptions {
   context?: Record<string, unknown>;
   /** Jira issue key — fetches issue data to build context */
   issueKey?: string;
+  /** Jira project key — fetches project data to build context */
+  projectKey?: string;
   /** Confluence content ID — fetches content data to build context */
   contentId?: string;
   /** Confluence space key — fetches space data to build context */
@@ -67,6 +69,18 @@ const CONFLUENCE_CONTENT_MODULES = new Set([
 
 const JIRA_PROJECT_MODULES = new Set([
   'jira:projectPage',
+  'jira:projectSettingsPage',
+]);
+
+const CONFLUENCE_SPACE_MODULES = new Set([
+  'confluence:spaceSettings',
+  'confluence:spaceSidebar',
+  'confluence:spacePage',
+]);
+
+const CONFLUENCE_GLOBAL_MODULES = new Set([
+  'confluence:globalSettings',
+  'confluence:homepageFeed',
 ]);
 
 const CUSTOM_FIELD_TYPES = new Set([
@@ -135,6 +149,41 @@ export async function buildForgeContext(
   if (options.contentId) {
     base.extension = await hydrateConfluenceContentContext(sim, moduleType, options.contentId, options.spaceKey);
     return base;
+  }
+
+  if (options.projectKey) {
+    base.extension = await hydrateJiraProjectContext(sim, moduleType, options.projectKey);
+    return base;
+  }
+
+  // 2b. Auto-detect context from module type when no explicit options given
+  if (!options.context && !options.extension) {
+    // Jira project modules get default project context
+    if (JIRA_PROJECT_MODULES.has(moduleType)) {
+      base.extension = {
+        type: moduleType,
+        project: { key: 'SIM', id: '10001', type: 'software' },
+        projectKey: 'SIM',
+        projectId: '10001',
+      };
+      return base;
+    }
+
+    // Confluence space modules get default space context
+    if (CONFLUENCE_SPACE_MODULES.has(moduleType)) {
+      base.extension = {
+        type: moduleType,
+        space: { key: options.spaceKey ?? 'SIM', id: '65536' },
+        spaceKey: options.spaceKey ?? 'SIM',
+      };
+      return base;
+    }
+
+    // Confluence global modules just need type
+    if (CONFLUENCE_GLOBAL_MODULES.has(moduleType)) {
+      base.extension = { type: moduleType };
+      return base;
+    }
   }
 
   // 3. Raw context → spread into extension
@@ -272,6 +321,41 @@ async function hydrateConfluenceContentContext(
       extension.spaceKey = spaceKey;
       extension.space = { key: spaceKey };
     }
+  }
+
+  return extension;
+}
+
+async function hydrateJiraProjectContext(
+  sim: ForgeSimulator,
+  moduleType: string,
+  projectKey: string,
+): Promise<Record<string, any>> {
+  const extension: Record<string, any> = { type: moduleType };
+
+  try {
+    const response = await sim.productApi.request(
+      'jira',
+      `/rest/api/3/project/${encodeURIComponent(projectKey)}`,
+      { method: 'GET' },
+    );
+
+    if (response.ok) {
+      const project = JSON.parse(await response.text());
+      extension.project = {
+        id: project.id,
+        key: project.key ?? projectKey,
+        type: project.projectTypeKey,
+      };
+      extension.projectKey = extension.project.key;
+      extension.projectId = extension.project.id;
+    } else {
+      extension.project = { key: projectKey };
+      extension.projectKey = projectKey;
+    }
+  } catch {
+    extension.project = { key: projectKey };
+    extension.projectKey = projectKey;
   }
 
   return extension;

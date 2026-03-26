@@ -156,6 +156,76 @@ describe('buildForgeContext', () => {
       expect(ctx.extension.issue).toBeUndefined();
     });
   });
+
+  describe('projectKey hydration (no real API)', () => {
+    it('uses projectKey as-is when no API available', async () => {
+      const ctx = await buildForgeContext(sim, 'settings', 'jira:projectSettingsPage', {
+        projectKey: 'MYPROJ',
+      });
+      expect(ctx.extension.projectKey).toBe('MYPROJ');
+      expect(ctx.extension.project.key).toBe('MYPROJ');
+      expect(ctx.extension.type).toBe('jira:projectSettingsPage');
+    });
+  });
+
+  describe('projectKey hydration (with mock API)', () => {
+    it('hydrates full project context from mock product API', async () => {
+      sim.productApi.mockRoutes('jira', {
+        '/rest/api/3/project/PROJ': {
+          id: '10000',
+          key: 'PROJ',
+          projectTypeKey: 'software',
+        },
+      });
+
+      const ctx = await buildForgeContext(sim, 'settings', 'jira:projectSettingsPage', {
+        projectKey: 'PROJ',
+      });
+
+      expect(ctx.extension.project.key).toBe('PROJ');
+      expect(ctx.extension.project.id).toBe('10000');
+      expect(ctx.extension.project.type).toBe('software');
+      expect(ctx.extension.projectKey).toBe('PROJ');
+      expect(ctx.extension.projectId).toBe('10000');
+    });
+  });
+
+  describe('module type default contexts', () => {
+    it('jira:projectPage gets default project context', async () => {
+      const ctx = await buildForgeContext(sim, 'proj-page', 'jira:projectPage');
+      expect(ctx.extension.project.key).toBe('SIM');
+      expect(ctx.extension.projectKey).toBe('SIM');
+      expect(ctx.extension.projectId).toBe('10001');
+    });
+
+    it('jira:projectSettingsPage gets default project context', async () => {
+      const ctx = await buildForgeContext(sim, 'settings', 'jira:projectSettingsPage');
+      expect(ctx.extension.project.key).toBe('SIM');
+      expect(ctx.extension.projectKey).toBe('SIM');
+    });
+
+    it('confluence:spaceSettings gets default space context', async () => {
+      const ctx = await buildForgeContext(sim, 'space-settings', 'confluence:spaceSettings');
+      expect(ctx.extension.space.key).toBe('SIM');
+      expect(ctx.extension.spaceKey).toBe('SIM');
+    });
+
+    it('confluence:spaceSidebar gets default space context', async () => {
+      const ctx = await buildForgeContext(sim, 'sidebar', 'confluence:spaceSidebar');
+      expect(ctx.extension.space.key).toBe('SIM');
+      expect(ctx.extension.spaceKey).toBe('SIM');
+    });
+
+    it('confluence:globalSettings gets type-only context', async () => {
+      const ctx = await buildForgeContext(sim, 'global', 'confluence:globalSettings');
+      expect(ctx.extension.type).toBe('confluence:globalSettings');
+    });
+
+    it('confluence:homepageFeed gets type-only context', async () => {
+      const ctx = await buildForgeContext(sim, 'feed', 'confluence:homepageFeed');
+      expect(ctx.extension.type).toBe('confluence:homepageFeed');
+    });
+  });
 });
 
 describe('Context flows through bridge', () => {
