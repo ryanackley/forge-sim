@@ -115,6 +115,14 @@ export function createApiHandler(sim: ForgeSimulator, manifestOrNull?: ParsedMan
           triggers: manifest.triggers.map(t => ({ key: t.key, functionKey: t.functionKey, events: t.events })),
           scheduledTriggers: manifest.scheduledTriggers.map(s => ({ key: s.key, functionKey: s.functionKey, interval: s.interval })),
           resources: [...manifest.resources.entries()].map(([key, r]) => ({ key, path: r.path })),
+          actions: manifest.actions.map(a => ({
+            key: a.key,
+            name: a.name,
+            description: a.description,
+            functionKey: a.functionKey,
+            actionVerb: a.actionVerb,
+            inputs: a.inputs,
+          })),
         });
       }
 

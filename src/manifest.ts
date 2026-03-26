@@ -31,6 +31,19 @@ export interface ParsedManifest {
   warnings: ManifestWarning[];
   /** Command palette entries that reference existing module pages (not rendered separately) */
   commandPageTargets: Array<{ key: string; title: string; targetPage: string; shortcut?: string }>;
+  /** Rovo action definitions (for tools UI invocation) */
+  actions: ManifestAction[];
+}
+
+export interface ManifestAction {
+  key: string;
+  name: string;
+  description: string;
+  functionKey: string;
+  actionVerb?: string;
+  inputs: Record<string, { title: string; type: string; required: boolean; description?: string }>;
+  /** If the action has a config UI resource */
+  configResourceKey?: string;
 }
 
 export interface ManifestResource {
@@ -294,6 +307,9 @@ export function parseManifestContent(content: string): ParsedManifest {
   // Track command modules that reference existing pages (for dedup)
   const commandPageTargets: Array<{ key: string; title: string; targetPage: string; shortcut?: string }> = [];
 
+  // Rovo actions
+  const actions: ManifestAction[] = [];
+
   for (const [moduleType, moduleDefs] of Object.entries(modules)) {
     if (nonUIModuleTypes.has(moduleType)) continue;
     if (!Array.isArray(moduleDefs)) continue;
@@ -331,6 +347,64 @@ export function parseManifestContent(content: string): ParsedManifest {
           if (!functions.has(fnKey)) {
             functions.set(fnKey, { key: fnKey, handler: fnKey });
           }
+        }
+      }
+      continue;
+    }
+
+    // ── Rovo actions ─────────────────────────────────────────────────
+    if (moduleType === 'action') {
+      for (const mod of moduleDefs as any[]) {
+        if (!mod.key || !mod.function) continue;
+        const name = mod.name || mod.key;
+        const description = mod.description || '';
+        const functionKey = mod.function;
+
+        // Parse inputs schema
+        const inputs: Record<string, { title: string; type: string; required: boolean; description?: string }> = {};
+        if (mod.inputs && typeof mod.inputs === 'object') {
+          for (const [inputName, inputDef] of Object.entries(mod.inputs as Record<string, any>)) {
+            inputs[inputName] = {
+              title: inputDef.title || inputName,
+              type: inputDef.type || 'string',
+              required: inputDef.required === true || inputDef.required === 'true',
+              description: inputDef.description,
+            };
+          }
+        }
+
+        // Register the action function
+        if (!functions.has(functionKey)) {
+          functions.set(functionKey, { key: functionKey, handler: functionKey, type: 'action' });
+        }
+
+        // Track as an action
+        actions.push({
+          key: mod.key,
+          name,
+          description,
+          functionKey,
+          actionVerb: mod.actionVerb,
+          inputs,
+          configResourceKey: mod.config?.resource,
+        });
+
+        // If it has a config UI resource, add as UI module
+        if (mod.config?.resource) {
+          uiModules.push({
+            type: moduleType,
+            key: mod.key,
+            title: `${name} (Config)`,
+            resolverFunctionKey: mod.resolver?.function,
+            endpointKey: mod.resolver?.endpoint,
+            resourceKey: mod.config.resource,
+            icon: mod.icon,
+          });
+        }
+
+        // Register resolver if present
+        if (mod.resolver?.function && !functions.has(mod.resolver.function)) {
+          functions.set(mod.resolver.function, { key: mod.resolver.function, handler: mod.resolver.function });
         }
       }
       continue;
@@ -626,5 +700,6 @@ export function parseManifestContent(content: string): ParsedManifest {
     authProviders,
     warnings,
     commandPageTargets,
+    actions,
   };
 }

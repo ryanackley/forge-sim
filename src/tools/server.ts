@@ -385,6 +385,13 @@ function generateFallbackHTML(prefix: string): string {
         <h3>⏰ Scheduled Triggers</h3>
         <div id="scheduledList"></div>
       </div>
+      <div class="events-section" id="actionsSection" style="display:none">
+        <h3>🤖 Rovo Actions</h3>
+        <select id="actionSelect" onchange="updateActionInputs()"></select>
+        <div id="actionInputs"></div>
+        <button class="btn btn-primary" onclick="invokeAction()">Invoke Action</button>
+        <div class="result-box" id="actionResult" style="display:none"></div>
+      </div>
       <div class="events-section">
         <h3>📨 Push to Queue</h3>
         <select id="queueSelect"></select>
@@ -588,6 +595,20 @@ async function refreshEvents() {
   qsel.innerHTML = (data.consumers || []).map(c =>
     '<option value="' + c.queue + '">' + c.queue + ' → ' + c.functionKey + '</option>'
   ).join('') || '<option>No queues defined</option>';
+
+  // Actions
+  window.__actions = data.actions || [];
+  var actionsSection = document.getElementById('actionsSection');
+  if (window.__actions.length > 0) {
+    actionsSection.style.display = '';
+    var asel = document.getElementById('actionSelect');
+    asel.innerHTML = window.__actions.map(function(a, i) {
+      return '<option value="' + i + '">' + a.name + ' [' + (a.actionVerb || '?') + '] — ' + escapeHtml(a.description.substring(0, 80)) + '</option>';
+    }).join('');
+    updateActionInputs();
+  } else {
+    actionsSection.style.display = 'none';
+  }
 }
 
 async function fireTrigger() {
@@ -628,6 +649,63 @@ async function pushQueue() {
   const el = document.getElementById('queueResult');
   el.style.display = 'block';
   el.textContent = JSON.stringify(result, null, 2);
+}
+
+// ── Actions ────────────────────────────────────────────────────────
+
+function updateActionInputs() {
+  var idx = parseInt(document.getElementById('actionSelect').value, 10);
+  var action = window.__actions[idx];
+  if (!action) return;
+  var container = document.getElementById('actionInputs');
+  var inputs = action.inputs || {};
+  var keys = Object.keys(inputs);
+  if (keys.length === 0) {
+    container.innerHTML = '<div style="color:var(--subtext);font-size:12px;padding:8px 0">No inputs defined</div>';
+    return;
+  }
+  container.innerHTML = keys.map(function(name) {
+    var inp = inputs[name];
+    var req = inp.required ? ' <span style="color:var(--red)">*</span>' : '';
+    var desc = inp.description ? '<div style="color:var(--subtext);font-size:11px">' + escapeHtml(inp.description) + '</div>' : '';
+    return '<div style="margin:8px 0">' +
+      '<label style="font-size:12px;color:var(--text)">' + escapeHtml(inp.title || name) + req + ' <span style="color:var(--purple)">(' + inp.type + ')</span></label>' +
+      desc +
+      '<input type="text" data-action-input="' + name + '" data-input-type="' + inp.type + '" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:6px 10px;color:var(--text);font-size:13px;margin-top:4px;outline:none" />' +
+      '</div>';
+  }).join('');
+}
+
+async function invokeAction() {
+  var idx = parseInt(document.getElementById('actionSelect').value, 10);
+  var action = window.__actions[idx];
+  if (!action) return;
+  // Collect inputs
+  var payload = {};
+  document.querySelectorAll('[data-action-input]').forEach(function(el) {
+    var name = el.getAttribute('data-action-input');
+    var type = el.getAttribute('data-input-type');
+    var val = el.value;
+    if (type === 'integer') payload[name] = parseInt(val, 10) || 0;
+    else if (type === 'number') payload[name] = parseFloat(val) || 0;
+    else if (type === 'boolean') payload[name] = val === 'true';
+    else payload[name] = val;
+  });
+  try {
+    var res = await fetch(API + '/api/invoke', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ functionKey: action.functionKey, payload: payload }),
+    });
+    var result = await res.json();
+    var el = document.getElementById('actionResult');
+    el.style.display = 'block';
+    el.textContent = JSON.stringify(result, null, 2);
+  } catch(e) {
+    var el = document.getElementById('actionResult');
+    el.style.display = 'block';
+    el.textContent = 'Error: ' + e.message;
+  }
 }
 
 // ── Helpers ────────────────────────────────────────────────────────
