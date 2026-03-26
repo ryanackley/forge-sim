@@ -33,6 +33,7 @@ export const CRITICAL_TS_ERROR_CODES = new Set([
   'TS2322', // Type is not assignable (catches wrong prop types etc.)
   'TS2345', // Argument of type X is not assignable to parameter of type Y
   'TS2339', // Property does not exist on type
+  'TS2614', // Module has no default export
   'TS1005', // Expected token (syntax error)
   'TS1003', // Identifier expected (syntax error)
   'TS1128', // Declaration or statement expected (syntax error)
