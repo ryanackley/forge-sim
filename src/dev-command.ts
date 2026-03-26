@@ -592,9 +592,20 @@ export function generateCustomFieldPageHtml(
   <div class="cf-container">
     ${warningBanner}
     ${hasView ? `<iframe id="cf-view" class="cf-frame" src="/module/${baseKey}--view/"></iframe>` : ''}
-    ${hasEdit ? `<iframe id="cf-edit" class="cf-frame" src="/module/${baseKey}--edit/" style="${hasView ? 'display:none' : ''}"></iframe>` : ''}
+    ${hasEdit ? `<iframe id="cf-edit" class="cf-frame" data-src="/module/${baseKey}--edit/" ${hasView ? 'src="about:blank" style="display:none"' : `src="/module/${baseKey}--edit/"`}></iframe>` : ''}
   </div>
   <script>
+    // Defer edit iframe loading until view finishes — prevents Vite's
+    // dep optimizer from racing when two iframes load simultaneously
+    var viewFrame = document.getElementById('cf-view');
+    var editFrame = document.getElementById('cf-edit');
+    if (viewFrame && editFrame && editFrame.src === 'about:blank') {
+      viewFrame.addEventListener('load', function() {
+        var realSrc = editFrame.getAttribute('data-src');
+        if (realSrc) editFrame.src = realSrc;
+      });
+    }
+
     var currentTab = '${hasView ? 'view' : 'edit'}';
 
     function switchTab(mode) {
@@ -1064,7 +1075,19 @@ async function buildViteConfig(opts: {
       'process.env': JSON.stringify({}),
     },
     optimizeDeps: {
-      include: ['react', 'react-dom', 'react/jsx-runtime'],
+      include: [
+        'react', 'react-dom', 'react-dom/client', 'react/jsx-runtime',
+        '@forge/react', '@forge/bridge', '@forge/resolver',
+        '@atlaskit/button', '@atlaskit/button/new',
+        '@atlaskit/textfield', '@atlaskit/form',
+        '@atlaskit/heading', '@atlaskit/primitives',
+        '@atlaskit/badge', '@atlaskit/lozenge',
+        '@atlaskit/tokens', '@atlaskit/theme',
+        '@atlaskit/select', '@atlaskit/toggle',
+        '@atlaskit/dynamic-table', '@atlaskit/inline-edit',
+        '@atlaskit/modal-dialog',
+        '@emotion/react',
+      ],
     },
   };
 }

@@ -47,7 +47,7 @@ const SYNTHETIC_TSCONFIG = {
     noEmit: true,
     strict: false,
     skipLibCheck: true,
-    moduleResolution: 'node',
+    moduleResolution: 'node16',
     target: 'es2022',
     module: 'es2022',
     jsx: 'react-jsx',
