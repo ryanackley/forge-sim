@@ -29,6 +29,8 @@ export interface ParsedManifest {
   authProviders: Map<string, ManifestAuthProvider>;
   /** Validation warnings/errors found during parsing */
   warnings: ManifestWarning[];
+  /** Command palette entries that reference existing module pages (not rendered separately) */
+  commandPageTargets: Array<{ key: string; title: string; targetPage: string; shortcut?: string }>;
 }
 
 export interface ManifestResource {
@@ -287,9 +289,50 @@ export function parseManifestContent(content: string): ParsedManifest {
   // Module types with nested resource patterns (view.resource / edit.resource)
   const CUSTOM_FIELD_TYPES = new Set(['jira:customField', 'jira:customFieldType']);
 
+  // Track command modules that reference existing pages (for dedup)
+  const commandPageTargets: Array<{ key: string; title: string; targetPage: string; shortcut?: string }> = [];
+
   for (const [moduleType, moduleDefs] of Object.entries(modules)) {
     if (nonUIModuleTypes.has(moduleType)) continue;
     if (!Array.isArray(moduleDefs)) continue;
+
+    // ── Command palette modules ──────────────────────────────────────
+    if (moduleType === 'jira:command') {
+      for (const mod of moduleDefs as any[]) {
+        if (!mod.key || !mod.target) continue;
+        const title = typeof mod.title === 'string' ? mod.title : mod.title?.i18n || mod.key;
+
+        if (mod.target.resource) {
+          // Dedicated resource → treat as a UI module
+          uiModules.push({
+            type: moduleType,
+            key: mod.key,
+            title,
+            resolverFunctionKey: mod.resolver?.function,
+            endpointKey: mod.resolver?.endpoint,
+            resourceKey: mod.target.resource,
+            icon: mod.icon,
+          });
+        } else if (mod.target.page) {
+          // References an existing module's page → log, don't add to picker
+          commandPageTargets.push({
+            key: mod.key,
+            title,
+            targetPage: mod.target.page,
+            shortcut: mod.shortcut,
+          });
+        }
+
+        // Register resolver function if present
+        if (mod.resolver?.function) {
+          const fnKey = mod.resolver.function;
+          if (!functions.has(fnKey)) {
+            functions.set(fnKey, { key: fnKey, handler: fnKey });
+          }
+        }
+      }
+      continue;
+    }
 
     // ── Custom field modules: extract view/edit as separate sub-modules ──
     if (CUSTOM_FIELD_TYPES.has(moduleType)) {
@@ -502,6 +545,12 @@ export function parseManifestContent(content: string): ParsedManifest {
     }
   }
 
+  // Log command palette entries that reference existing pages
+  for (const cmd of commandPageTargets) {
+    const shortcutInfo = cmd.shortcut ? ` (shortcut: ${cmd.shortcut})` : '';
+    console.log(`  ℹ️  Command "${cmd.key}" → opens module "${cmd.targetPage}"${shortcutInfo}`);
+  }
+
   return {
     raw,
     functions,
@@ -516,5 +565,6 @@ export function parseManifestContent(content: string): ParsedManifest {
     endpoints,
     authProviders,
     warnings,
+    commandPageTargets,
   };
 }

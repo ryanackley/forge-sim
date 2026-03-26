@@ -30,32 +30,19 @@ Implemented! `jira:customField` and `jira:customFieldType` modules are now fully
 
 ---
 
-## 4. Partial Context Modules — ⚠️ → ✅
+## ~~4. Partial Context Modules (4a-4d) — ⚠️ → ✅~~ ✅ DONE (2026-03-26)
 
-**Current state:** ~20 modules that parse and render correctly but have generic/empty extension context instead of product-specific context.
+Implemented! Module-type-specific default contexts:
+- `jira:projectSettingsPage` + `jira:projectPage` → default project context (key: SIM, id: 10001)
+- `confluence:spaceSettings`, `confluence:spaceSidebar`, `confluence:spacePage` → default space context (key: SIM, id: 65536)
+- `confluence:globalSettings`, `confluence:homepageFeed` → type-only context
+- New `--project <key>` CLI flag with Jira project API hydration
+- 10 new context tests
 
-**Plan:** Group by context type and batch the fixes.
-
-### 4a. Jira Project Context
-**Modules:** `jira:projectSettingsPage`  
-**Fix:** Add to `JIRA_PROJECT_MODULES` set in `context.ts`. Already have project hydration logic — just need the module type in the set.  
-**Effort:** 15 minutes
-
-### 4b. Jira Agile Context (Preview modules)
+### 4b. Jira Agile Context (Preview modules) — Deferred
 **Modules:** `jira:backlogAction`, `jira:boardAction`, `jira:sprintAction`, `jira:issueNavigatorAction`  
-**Fix:** These need board/sprint/backlog IDs in context. Add CLI flags (`--board`, `--sprint`) and a new hydration path that hits `/rest/agile/1.0/board/<id>` etc. Keep it simple — accept the ID, stuff it in extension, optionally hydrate the name.  
-**Effort:** ~2 hours  
-**Note:** These are all Preview modules. Low urgency unless someone's actively building for them.
-
-### 4c. Confluence Settings Context
-**Modules:** `confluence:spaceSettings`, `confluence:globalSettings`  
-**Fix:** `spaceSettings` needs `space: { key, id }` in context. Add to a `CONFLUENCE_SPACE_MODULES` set and reuse the `--space` flag for hydration. `globalSettings` just needs `{ type }` which it already gets.  
-**Effort:** 30 minutes
-
-### 4d. Confluence Secondary Pages
-**Modules:** `confluence:spaceSidebar`, `confluence:homepageFeed`, `confluence:pageBanner`, `confluence:customContent`  
-**Fix:** These are mostly `{ type }` context with maybe space info. Add to the appropriate context sets. `customContent` is more complex (defines a content type) but rendering-wise it's just a UI module.  
-**Effort:** 1 hour
+**Note:** All Preview modules. Low urgency. Need `--board`, `--sprint` flags + agile REST API hydration.  
+**Effort:** ~2 hours when needed
 
 ### 4e. Bitbucket Context
 **Modules:** All 9 Bitbucket UI modules  
