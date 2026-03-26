@@ -42,6 +42,8 @@ export interface ManifestFunction {
   key: string;
   handler: string; // e.g. "index.handler" or "resolvers.handler"
   timeoutSeconds?: number;
+  /** Function type: 'workflow' for post-functions/validators, 'resolver' for resolvers, etc. */
+  type?: string;
 }
 
 export interface ManifestConsumer {
@@ -80,7 +82,7 @@ export interface ManifestUIModule {
   experience?: string[];
   // ── Custom Field Properties ──
   /** For jira:customField / jira:customFieldType sub-modules */
-  viewMode?: 'view' | 'edit';
+  viewMode?: 'view' | 'edit' | 'create';
   /** The data type of the custom field (number, string, user, etc.) */
   fieldType?: string;
   /** The key of the value function (computes field value from issue data) */
@@ -329,6 +331,64 @@ export function parseManifestContent(content: string): ParsedManifest {
           if (!functions.has(fnKey)) {
             functions.set(fnKey, { key: fnKey, handler: fnKey });
           }
+        }
+      }
+      continue;
+    }
+
+    // ── Workflow modules: create/edit/view config UIs + function invocation ──
+    const WORKFLOW_TYPES = new Set(['jira:workflowCondition', 'jira:workflowValidator', 'jira:workflowPostFunction']);
+    if (WORKFLOW_TYPES.has(moduleType)) {
+      for (const mod of moduleDefs as any[]) {
+        if (!mod.key) continue;
+        const baseName = typeof mod.name === 'string' ? mod.name : mod.name?.i18n || mod.key;
+        const resolverFunctionKey = mod.resolver?.function;
+        const endpointKey = mod.resolver?.endpoint;
+
+        // Extract create/edit/view resources as sub-modules
+        const viewModes = [
+          { mode: 'create', resource: mod.create?.resource },
+          { mode: 'edit', resource: mod.edit?.resource },
+          { mode: 'view', resource: mod.view?.resource },
+        ] as const;
+
+        let hasAnyResource = false;
+        for (const { mode, resource } of viewModes) {
+          if (!resource) continue;
+          hasAnyResource = true;
+          uiModules.push({
+            type: moduleType,
+            key: `${mod.key}--${mode}`,
+            title: `${baseName} (${mode.charAt(0).toUpperCase() + mode.slice(1)})`,
+            resolverFunctionKey,
+            endpointKey,
+            resourceKey: resource,
+            viewMode: mode,
+          });
+        }
+
+        // If no resources at all, skip UI — it's function/expression only
+        // Still register the function for invocation
+
+        // Register the direct function (workflowPostFunction has top-level `function`)
+        if (mod.function) {
+          const fnKey = mod.function;
+          if (!functions.has(fnKey)) {
+            functions.set(fnKey, { key: fnKey, handler: fnKey, type: 'workflow' });
+          }
+        }
+
+        // Register resolver function if present
+        if (resolverFunctionKey && !functions.has(resolverFunctionKey)) {
+          functions.set(resolverFunctionKey, { key: resolverFunctionKey, handler: resolverFunctionKey });
+        }
+
+        // Store expression and errorMessage metadata on the module for invocation context
+        if (!hasAnyResource) {
+          // No UI resources — but we still want this function to be invocable
+          // Log it so devs know it's registered
+          const exprInfo = mod.expression ? ` (expression: ${mod.expression.substring(0, 50)}...)` : '';
+          console.log(`  ℹ️  Workflow ${moduleType.split(':')[1]} "${mod.key}" — no config UI, function-only${exprInfo}`);
         }
       }
       continue;

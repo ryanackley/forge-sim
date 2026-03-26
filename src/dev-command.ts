@@ -658,6 +658,109 @@ export function generateCustomFieldPageHtml(
 }
 
 /**
+ * Generate a combined workflow module page with Create/Edit/View tabs.
+ * Similar to custom field combined page but with three config views.
+ */
+export function generateWorkflowPageHtml(
+  baseKey: string,
+  title: string,
+  moduleType: string,
+  hasCreate: boolean,
+  hasEdit: boolean,
+  hasView: boolean,
+  wsPort: number,
+): string {
+  const typeLabel = moduleType.split(':')[1]?.replace(/^workflow/, '') || 'Module';
+  const tabs = [
+    hasCreate ? { mode: 'create', label: 'Create' } : null,
+    hasEdit ? { mode: 'edit', label: 'Edit' } : null,
+    hasView ? { mode: 'view', label: 'View' } : null,
+  ].filter(Boolean) as Array<{ mode: string; label: string }>;
+
+  const defaultTab = tabs[0]?.mode || 'create';
+  const tabButtons = tabs.map((t, i) =>
+    `<button class="cf-tab${i === 0 ? ' active' : ''}" data-mode="${t.mode}" onclick="switchTab('${t.mode}')">${t.label}</button>`
+  ).join('\n      ');
+
+  // First tab's iframe loads immediately, rest are deferred
+  const iframes = tabs.map((t, i) => {
+    if (i === 0) {
+      return `<iframe id="wf-${t.mode}" class="cf-frame" src="/module/${baseKey}--${t.mode}/"></iframe>`;
+    }
+    return `<iframe id="wf-${t.mode}" class="cf-frame" data-src="/module/${baseKey}--${t.mode}/" src="about:blank" style="display:none"></iframe>`;
+  }).join('\n    ');
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>${baseKey} — Workflow ${typeLabel} — forge-sim</title>
+  <style>
+    body { margin:0; background:#f4f5f7; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
+    .cf-header { padding:16px 24px; background:#fff; border-bottom:1px solid #DFE1E6; }
+    .cf-header a { color:#0052CC; text-decoration:none; font-size:13px; }
+    .cf-title { font-size:20px; font-weight:600; color:#172B4D; margin-top:8px; }
+    .cf-badge { background:#FF5630; color:#fff; padding:2px 8px; border-radius:3px; font-size:12px; margin-left:8px; vertical-align:middle; }
+    .cf-subtitle { font-size:14px; color:#6B778C; margin-top:4px; }
+    .cf-tabs { display:flex; gap:0; margin-top:12px; border-bottom:2px solid #DFE1E6; }
+    .cf-tab { padding:8px 16px; cursor:pointer; border:none; background:none; font-size:14px; color:#6B778C; border-bottom:2px solid transparent; margin-bottom:-2px; }
+    .cf-tab:hover { color:#172B4D; }
+    .cf-tab.active { color:#0052CC; border-bottom-color:#0052CC; font-weight:600; }
+    .cf-container { padding:24px; }
+    .cf-frame { width:100%; border:1px solid #DFE1E6; border-radius:8px; min-height:200px; background:#fff; }
+  </style>
+</head>
+<body>
+  <div class="cf-header">
+    <a href="/">← Back to modules</a>
+    <div>
+      <span class="cf-title">${baseKey}</span>
+      <span class="cf-badge">Workflow ${typeLabel}</span>
+    </div>
+    <div class="cf-subtitle">${title}</div>
+    <div class="cf-tabs">
+      ${tabButtons}
+    </div>
+  </div>
+  <div class="cf-container">
+    ${iframes}
+  </div>
+  <script>
+    var currentTab = '${defaultTab}';
+    var tabs = ${JSON.stringify(tabs.map(t => t.mode))};
+
+    // Deferred loading: load next iframe after current finishes
+    var firstFrame = document.getElementById('wf-' + tabs[0]);
+    if (firstFrame) {
+      firstFrame.addEventListener('load', function() {
+        tabs.forEach(function(mode, i) {
+          if (i === 0) return;
+          var frame = document.getElementById('wf-' + mode);
+          if (frame && frame.src === 'about:blank') {
+            var realSrc = frame.getAttribute('data-src');
+            if (realSrc) frame.src = realSrc;
+          }
+        });
+      });
+    }
+
+    function switchTab(mode) {
+      currentTab = mode;
+      document.querySelectorAll('.cf-tab').forEach(function(t) {
+        t.classList.toggle('active', t.getAttribute('data-mode') === mode);
+      });
+      tabs.forEach(function(m) {
+        var frame = document.getElementById('wf-' + m);
+        if (frame) frame.style.display = m === mode ? '' : 'none';
+      });
+    }
+  </script>
+</body>
+</html>`;
+}
+
+/**
  * Inline script that reads ?bg=key1,key2 from the URL and injects
  * hidden iframes for each background script module.
  * Also acts as the postMessage broker for cross-module Forge events —
@@ -707,8 +810,11 @@ export function generateModulePickerHtml(modules: DetectedModule[]): string {
 
   // Group custom field view/edit sub-modules together
   const CUSTOM_FIELD_TYPES = new Set(['jira:customField', 'jira:customFieldType']);
+  const WORKFLOW_TYPES = new Set(['jira:workflowCondition', 'jira:workflowValidator', 'jira:workflowPostFunction']);
+  const GROUPED_TYPES = new Set([...CUSTOM_FIELD_TYPES, ...WORKFLOW_TYPES]);
   const customFieldModules = uiModules.filter((m) => CUSTOM_FIELD_TYPES.has(m.module.type));
-  const regularModules = uiModules.filter((m) => !CUSTOM_FIELD_TYPES.has(m.module.type));
+  const workflowModules = uiModules.filter((m) => WORKFLOW_TYPES.has(m.module.type));
+  const regularModules = uiModules.filter((m) => !GROUPED_TYPES.has(m.module.type));
 
   // Group custom fields by base key (strip --view/--edit suffix)
   const cfGroups = new Map<string, { view?: DetectedModule; edit?: DetectedModule; type: string; title: string; fieldType?: string }>();
@@ -722,6 +828,20 @@ export function generateModulePickerHtml(modules: DetectedModule[]): string {
     const group = cfGroups.get(baseKey)!;
     if (m.module.viewMode === 'view') group.view = m;
     else if (m.module.viewMode === 'edit') group.edit = m;
+  }
+
+  // Group workflow modules by base key (strip --create/--edit/--view suffix)
+  const wfGroups = new Map<string, { create?: DetectedModule; edit?: DetectedModule; view?: DetectedModule; type: string; title: string }>();
+  for (const m of workflowModules) {
+    const baseKey = m.module.key.replace(/--(?:create|edit|view)$/, '');
+    if (!wfGroups.has(baseKey)) {
+      const baseTitle = (m.module.title || baseKey).replace(/ \((?:Create|Edit|View)\)$/, '');
+      wfGroups.set(baseKey, { type: m.module.type, title: baseTitle });
+    }
+    const group = wfGroups.get(baseKey)!;
+    if (m.module.viewMode === 'create') group.create = m;
+    else if (m.module.viewMode === 'edit') group.edit = m;
+    else if (m.module.viewMode === 'view') group.view = m;
   }
 
   const regularRows = regularModules.map((m) => {
@@ -777,7 +897,27 @@ export function generateModulePickerHtml(modules: DetectedModule[]): string {
       </a>`;
   }).join('');
 
-  const rows = regularRows + cfRows;
+  // Workflow rows — link to combined create/edit/view page
+  const wfRows = [...wfGroups.entries()].map(([baseKey, group]) => {
+    const typeName = group.type.split(':')[1]!; // workflowCondition → Condition, etc.
+    const typeLabel = typeName.replace(/^workflow/, '');
+    const badge = `<span style="background:#FF5630;color:#fff;padding:2px 8px;border-radius:3px;font-size:12px">Workflow ${typeLabel}</span>`;
+    const modes = [group.create ? 'Create' : '', group.edit ? 'Edit' : '', group.view ? 'View' : ''].filter(Boolean).join(' / ');
+
+    return `
+      <a href="/module/${baseKey}/" style="display:block;padding:16px 20px;border:1px solid #DFE1E6;border-radius:8px;margin-bottom:12px;text-decoration:none;color:inherit;transition:box-shadow 0.15s">
+        <div style="display:flex;align-items:center;gap:12px">
+          <div style="flex:1">
+            <div style="font-size:16px;font-weight:600;color:#172B4D">${baseKey}</div>
+            <div style="font-size:13px;color:#6B778C;margin-top:4px">${group.type} — ${group.title}</div>
+            <div style="font-size:12px;color:#97A0AF;margin-top:4px">Config UI: ${modes}</div>
+          </div>
+          ${badge}
+        </div>
+      </a>`;
+  }).join('');
+
+  const rows = regularRows + cfRows + wfRows;
 
   // Show background scripts in a separate section if they exist but aren't linked to any UI module
   const orphanBg = bgModules.filter((bg) => {
@@ -794,7 +934,7 @@ export function generateModulePickerHtml(modules: DetectedModule[]): string {
       </div>`
     : '';
 
-  const uiCount = regularModules.length + cfGroups.size;
+  const uiCount = regularModules.length + cfGroups.size + wfGroups.size;
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -868,6 +1008,22 @@ export function installModuleRouting(
     else if (m.module.viewMode === 'edit') group.edit = m;
   }
 
+  // Build workflow groups for combined page routing
+  const WORKFLOW_TYPES = new Set(['jira:workflowCondition', 'jira:workflowValidator', 'jira:workflowPostFunction']);
+  const wfGroups = new Map<string, { create?: DetectedModule; edit?: DetectedModule; view?: DetectedModule; type: string; title: string }>();
+  for (const m of modules) {
+    if (!WORKFLOW_TYPES.has(m.module.type) || !m.module.viewMode) continue;
+    const baseKey = m.module.key.replace(/--(?:create|edit|view)$/, '');
+    if (!wfGroups.has(baseKey)) {
+      const baseTitle = (m.module.title || baseKey).replace(/ \((?:Create|Edit|View)\)$/, '');
+      wfGroups.set(baseKey, { type: m.module.type, title: baseTitle });
+    }
+    const group = wfGroups.get(baseKey)!;
+    if (m.module.viewMode === 'create') group.create = m;
+    else if (m.module.viewMode === 'edit') group.edit = m;
+    else if (m.module.viewMode === 'view') group.view = m;
+  }
+
   const middleware = (req: any, res: any, next: any) => {
     const url = new URL(req.url ?? '/', 'http://localhost');
 
@@ -900,6 +1056,22 @@ export function installModuleRouting(
           cfGroup.fieldType || '',
           wsPort || 5174,
           cfWarnings,
+        ));
+        return;
+      }
+
+      // Check if this is a workflow base key (combined create/edit/view page)
+      const wfGroup = wfGroups.get(key);
+      if (wfGroup && (rest === '/' || rest === '/index.html')) {
+        res.writeHead(200, { 'Content-Type': 'text/html', 'Cache-Control': 'no-cache' });
+        res.end(generateWorkflowPageHtml(
+          key,
+          wfGroup.title,
+          wfGroup.type,
+          !!wfGroup.create,
+          !!wfGroup.edit,
+          !!wfGroup.view,
+          wsPort || 5174,
         ));
         return;
       }
