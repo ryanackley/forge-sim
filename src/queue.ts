@@ -201,6 +201,7 @@ export class SimulatedQueue {
     job.stats.inProgress++;
     this.eventLog.push({ queueKey: job.queueKey, event, jobId: job.jobId });
 
+    const consumerStartMs = Date.now();
     try {
       await consumer(
         { body: event.body, jobId: job.jobId },
@@ -214,6 +215,16 @@ export class SimulatedQueue {
       job.stats.failed++;
     } finally {
       job.stats.inProgress--;
+      // Check consumer invocation time (55s default, up to 900s)
+      const elapsedMs = Date.now() - consumerStartMs;
+      const elapsedSeconds = elapsedMs / 1000;
+      const limitSeconds = 55; // Could be extended via timeoutSeconds on the function
+      if (elapsedSeconds > limitSeconds) {
+        console.error(
+          `[forge-sim] ⏱️ TIMEOUT: Consumer for queue "${job.queueKey}" took ${elapsedSeconds.toFixed(1)}s — ` +
+          `exceeds Forge async event limit of ${limitSeconds}s. In production, this invocation would be killed.`
+        );
+      }
     }
   }
 

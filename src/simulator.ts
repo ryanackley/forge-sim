@@ -20,6 +20,20 @@ import { ExternalAuthStore } from './external-auth-store.js';
 import { FITProvider } from './fit-provider.js';
 import { RemoteProxy } from './remote-proxy.js';
 import type { SimulationConfig, ResolverContext, ProductApiHandler, ProductApiRequest, ProductApiResponse } from './types.js';
+import type { ManifestAction } from './manifest.js';
+
+// ── Forge Invocation Time Limits (seconds) ──────────────────────────────
+// Per https://developer.atlassian.com/platform/forge/limits-invocation/
+const INVOCATION_LIMITS: Record<string, number> = {
+  resolver: 25,        // UI module resolvers (user-led)
+  trigger: 55,         // Event triggers
+  scheduledTrigger: 55, // Default; can be up to 900s with timeoutSeconds
+  consumer: 55,        // Async event consumers; default, up to 900s
+  webTrigger: 55,      // Web trigger handlers
+  action: 25,          // Rovo actions (user-led, same as resolvers)
+  workflow: 25,        // Workflow post-functions (treated as user-led)
+  remote: 5,           // Remote events (Forge Remote)
+};
 
 export class ForgeSimulator {
   readonly kvs: UnifiedKVS;
@@ -346,6 +360,11 @@ export class ForgeSimulator {
     // Validate module → resolver access if module context is available
     this.validateResolverAccess(functionKey, moduleKey);
 
+    // Determine function type for timeout limits
+    const fnMeta = this.manifest?.functions.get(functionKey);
+    const fnType = fnMeta?.type || 'resolver';
+
+    const startMs = Date.now();
     try {
       const { result, console: captured } = await withCapture(() =>
         this.resolver.invoke(functionKey, payload)
@@ -354,12 +373,14 @@ export class ForgeSimulator {
       for (const line of captured) {
         this.log(`console.${line.level}`, line.message);
       }
+      this.checkInvocationTime(functionKey, startMs, fnType, fnMeta?.timeoutSeconds);
       this.log('invoke', `Resolver "${functionKey}" returned`, result);
       return result;
     } catch (err) {
       if ((err as any).capturedConsole) {
         this.consoleLogs.push(...(err as any).capturedConsole);
       }
+      this.checkInvocationTime(functionKey, startMs, fnType, fnMeta?.timeoutSeconds);
       this.log('error', `Resolver "${functionKey}" failed: ${err}`);
       throw err;
     }
@@ -478,6 +499,7 @@ export class ForgeSimulator {
         continue;
       }
 
+      const triggerStartMs = Date.now();
       try {
         const { result, console: captured } = await withCapture(() =>
           handler(event, context)
@@ -486,11 +508,13 @@ export class ForgeSimulator {
         for (const line of captured) {
           this.log(`console.${line.level}`, line.message);
         }
+        this.checkInvocationTime(`trigger:${trigger.key}`, triggerStartMs, 'trigger');
         results.push(result);
       } catch (err) {
         if ((err as any).capturedConsole) {
           this.consoleLogs.push(...(err as any).capturedConsole);
         }
+        this.checkInvocationTime(`trigger:${trigger.key}`, triggerStartMs, 'trigger');
         this.log('error', `Trigger "${trigger.key}" failed: ${err}`);
         results.push({ error: String(err) });
       }
@@ -526,6 +550,10 @@ export class ForgeSimulator {
 
     this.log('scheduledTrigger', `Firing scheduled trigger: ${triggerKey} (${st.functionKey})`);
 
+    // Scheduled triggers can have custom timeoutSeconds (up to 900s)
+    const fnMeta = this.manifest.functions.get(st.functionKey);
+    const customTimeout = fnMeta?.timeoutSeconds;
+
     // Build the request object per Forge docs
     const request = {
       context: {
@@ -538,6 +566,7 @@ export class ForgeSimulator {
     // Build context (principal is undefined for scheduled triggers — no user involved)
     const context = this.buildContext({ principal: undefined });
 
+    const schedStartMs = Date.now();
     try {
       const { result, console: captured } = await withCapture(() =>
         handler(request, context)
@@ -546,6 +575,7 @@ export class ForgeSimulator {
       for (const line of captured) {
         this.log(`console.${line.level}`, line.message);
       }
+      this.checkInvocationTime(`scheduledTrigger:${triggerKey}`, schedStartMs, 'scheduledTrigger', customTimeout);
 
       // Validate response format per Forge docs
       if (result === undefined || result === null || typeof result !== 'object' || !('statusCode' in result)) {
@@ -613,6 +643,77 @@ export class ForgeSimulator {
   clearLogs(): void {
     this.logs.length = 0;
     this.consoleLogs.length = 0;
+  }
+
+  // ── Invocation Timing ──────────────────────────────────────────────────
+
+  /**
+   * Check if an invocation exceeded its Forge time limit and log a warning.
+   * Returns the elapsed time in ms.
+   */
+  private checkInvocationTime(
+    label: string,
+    startMs: number,
+    type: string,
+    customTimeoutSeconds?: number,
+  ): number {
+    const elapsedMs = Date.now() - startMs;
+    const limitSeconds = customTimeoutSeconds ?? INVOCATION_LIMITS[type] ?? 25;
+    const elapsedSeconds = elapsedMs / 1000;
+
+    if (elapsedSeconds > limitSeconds) {
+      this.log('error',
+        `⏱️ TIMEOUT: "${label}" took ${elapsedSeconds.toFixed(1)}s — exceeds Forge ${type} limit of ${limitSeconds}s. ` +
+        `In production, this invocation would be killed by the Forge runtime.`
+      );
+    } else if (elapsedSeconds > limitSeconds * 0.8) {
+      this.log('warn',
+        `⏱️ SLOW: "${label}" took ${elapsedSeconds.toFixed(1)}s — approaching Forge ${type} limit of ${limitSeconds}s (80% threshold).`
+      );
+    }
+
+    return elapsedMs;
+  }
+
+  /**
+   * Validate Rovo action inputs against the action's schema.
+   * Returns an array of validation errors (empty = valid).
+   */
+  validateActionInputs(actionKey: string, payload: Record<string, any>): string[] {
+    if (!this.manifest) return [];
+    const action = this.manifest.actions.find(a => a.key === actionKey);
+    if (!action) return [];
+
+    const errors: string[] = [];
+    for (const [name, schema] of Object.entries(action.inputs)) {
+      const value = payload[name];
+
+      // Check required
+      if (schema.required && (value === undefined || value === null || value === '')) {
+        errors.push(`Missing required input: "${name}" (${schema.title})`);
+        continue;
+      }
+
+      if (value === undefined || value === null) continue;
+
+      // Check type
+      switch (schema.type) {
+        case 'string':
+          if (typeof value !== 'string') errors.push(`Input "${name}" should be string, got ${typeof value}`);
+          break;
+        case 'integer':
+          if (typeof value !== 'number' || !Number.isInteger(value)) errors.push(`Input "${name}" should be integer, got ${typeof value === 'number' ? value : typeof value}`);
+          break;
+        case 'number':
+          if (typeof value !== 'number') errors.push(`Input "${name}" should be number, got ${typeof value}`);
+          break;
+        case 'boolean':
+          if (typeof value !== 'boolean') errors.push(`Input "${name}" should be boolean, got ${typeof value}`);
+          break;
+      }
+    }
+
+    return errors;
   }
 
   // ── Full Reset ──────────────────────────────────────────────────────────

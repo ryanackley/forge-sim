@@ -695,7 +695,7 @@ async function invokeAction() {
     var res = await fetch(API + '/api/invoke', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ functionKey: action.functionKey, payload: payload }),
+      body: JSON.stringify({ functionKey: action.functionKey, payload: payload, actionKey: action.key }),
     });
     var result = await res.json();
     var el = document.getElementById('actionResult');

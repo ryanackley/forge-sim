@@ -139,9 +139,21 @@ server.tool(
   {
     functionKey: z.string().describe('The resolver function key to invoke'),
     payload: z.record(z.string(), z.any()).optional().describe('Payload to pass to the resolver'),
+    actionKey: z.string().optional().describe('If invoking a Rovo action, the action key — enables input validation against the action schema'),
   },
-  async ({ functionKey, payload }) => {
+  async ({ functionKey, payload, actionKey }) => {
     try {
+      // Validate action inputs if specified
+      if (actionKey) {
+        const validationErrors = sim.validateActionInputs(actionKey, payload ?? {});
+        if (validationErrors.length > 0) {
+          return {
+            content: [{ type: 'text' as const, text: JSON.stringify({ error: 'Input validation failed', validationErrors }, null, 2) }],
+            isError: true,
+          };
+        }
+      }
+
       const logsBefore = sim.getLogs().length;
       const consoleBefore = sim.getConsoleLogs().length;
 

@@ -230,8 +230,17 @@ export function createApiHandler(sim: ForgeSimulator, manifestOrNull?: ParsedMan
       // ── Invoke ─────────────────────────────────────────────────────
       if (path === '/api/invoke' && method === 'POST') {
         const body = await readBody(req);
-        const { functionKey, payload } = body;
+        const { functionKey, payload, actionKey } = body;
         if (!functionKey) return json(res, { error: 'Missing functionKey' }, 400);
+
+        // Validate action inputs if this is a Rovo action invocation
+        if (actionKey) {
+          const validationErrors = sim.validateActionInputs(actionKey, payload ?? {});
+          if (validationErrors.length > 0) {
+            return json(res, { error: 'Input validation failed', validationErrors }, 400);
+          }
+        }
+
         try {
           const result = await sim.invoke(functionKey, payload ?? {});
           return json(res, { success: true, result });
