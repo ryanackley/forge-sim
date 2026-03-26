@@ -21,7 +21,6 @@
 import { resolve, join, relative, dirname } from 'node:path';
 import { existsSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import * as childProcess from 'node:child_process';
 import { ForgeSimulator } from './simulator.js';
 import { deploy } from './deployer.js';
 import { createDevServer } from './dev-server.js';
@@ -32,69 +31,6 @@ import { createWebTriggerHandler } from './web-trigger.js';
 import { startTypeCheckWatch, type TypeCheckWatcher } from './type-checker.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-
-/**
- * Open a URL in the browser, reusing an existing tab if possible.
- * On macOS, uses AppleScript to find a tab matching localhost:<port> and reload it.
- * Falls back to opening a new tab on other platforms or if no match found.
- */
-function openOrReuseTab(url: string): void {
-  const { exec: execCmd } = childProcess;
-  if (process.platform === 'darwin') {
-    // AppleScript: try Chrome, Brave, Arc, Safari — find a tab matching our URL's origin, reload + focus it
-    const origin = new URL(url).origin;
-    const script = `
-      -- Try each browser in order
-      set browsers to {"Google Chrome", "Brave Browser", "Arc", "Google Chrome Canary"}
-      repeat with b in browsers
-        if application (b as string) is running then
-          tell application (b as string)
-            repeat with w in windows
-              set tabIndex to 0
-              repeat with t in tabs of w
-                set tabIndex to tabIndex + 1
-                if URL of t starts with "${origin}" then
-                  set active tab index of w to tabIndex
-                  set index of w to 1
-                  tell t to reload
-                  activate
-                  return "reused"
-                end if
-              end repeat
-            end repeat
-          end tell
-        end if
-      end repeat
-      -- Safari fallback (different API)
-      if application "Safari" is running then
-        tell application "Safari"
-          repeat with w in windows
-            repeat with t in tabs of w
-              if URL of t starts with "${origin}" then
-                set current tab of w to t
-                set index of w to 1
-                tell t to do JavaScript "location.reload()"
-                activate
-                return "reused"
-              end if
-            end repeat
-          end repeat
-        end tell
-      end if
-      return "none"
-    `;
-    execCmd(`osascript -e '${script.replace(/'/g, "'\"'\"'")}'`, (err: any, stdout: string) => {
-      if (err || stdout.trim() === 'none') {
-        // No existing tab found — open new one
-        execCmd(`open "${url}"`);
-      }
-    });
-  } else if (process.platform === 'win32') {
-    execCmd(`start "${url}"`);
-  } else {
-    execCmd(`xdg-open "${url}" 2>/dev/null || true`);
-  }
-}
 
 export interface DevCommandOptions {
   appDir: string;
@@ -273,9 +209,7 @@ export function generateBridgeInlineScript(wsPort: number, defaultModuleKey?: st
           S.pendingRequests[id].reject(new Error('WebSocket disconnected'));
           delete S.pendingRequests[id];
         });
-        // Server restarted — reload the page to get fresh state
-        // (prevents stale tabs from interfering with new server)
-        setTimeout(function() { location.reload(); }, 1500);
+        setTimeout(function() { ensureConnection(); }, 2000);
       };
       S.ws.onerror = function() { S.wsReady = false; reject(new Error('WebSocket connection failed')); };
     });
@@ -1421,7 +1355,13 @@ export async function devCommand(options: DevCommandOptions) {
     console.log('');
 
     if (open) {
-      openOrReuseTab(localUrl);
+      const { exec: execCmd } = await import('node:child_process');
+      const openCommand = process.platform === 'darwin'
+        ? `open "${localUrl}"`
+        : process.platform === 'win32'
+          ? `start "${localUrl}"`
+          : `xdg-open "${localUrl}" 2>/dev/null || true`;
+      execCmd(openCommand);
     }
 
     // Graceful shutdown
@@ -1615,7 +1555,14 @@ export async function devCommand(options: DevCommandOptions) {
 
     // Open browser if requested
     if (open) {
-      openOrReuseTab(localUrl);
+      const { exec: execCmd } = await import('node:child_process');
+      // Best-effort browser open — works on macOS, Linux, Windows
+      const openCommand = process.platform === 'darwin'
+        ? `open "${localUrl}"`
+        : process.platform === 'win32'
+          ? `start "${localUrl}"`
+          : `xdg-open "${localUrl}" 2>/dev/null || true`;
+      execCmd(openCommand);
     }
 
     // Graceful shutdown
