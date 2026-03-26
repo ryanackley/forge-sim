@@ -37,7 +37,7 @@ export interface DevServerOptions {
 
 export interface DevServer {
   /** Broadcast a ForgeDoc update to all connected renderers */
-  broadcast(doc: ForgeDoc): void;
+  broadcast(doc: ForgeDoc, moduleKey?: string): void;
   /** Send an event to all connected renderers */
   sendEvent(event: ServerEvent): void;
   /** Number of connected renderer clients */
@@ -115,7 +115,13 @@ export function createDevServer(options: DevServerOptions = {}): DevServer {
 
   const wss = new WebSocketServer({ port });
   const clients = new Set<WebSocket>();
+  /** Track which module key each client is viewing */
+  const clientModuleKeys = new Map<WebSocket, string>();
   const fnRegistry = new FunctionRegistry();
+  /** Last ForgeDoc per module key (so new clients get the right one) */
+  const lastDocs = new Map<string, ForgeDoc>();
+  const lastRawDocs = new Map<string, ForgeDoc>();
+  // Legacy single-doc for backward compat (MCP, single-module)
   let lastDoc: ForgeDoc | null = null;
   let lastRawDoc: ForgeDoc | null = null;
   let watcher: ReturnType<typeof watch> | null = null;
@@ -129,14 +135,10 @@ export function createDevServer(options: DevServerOptions = {}): DevServer {
     clients.add(ws);
     console.log(`[dev-server] Renderer connected (${clients.size} client${clients.size > 1 ? 's' : ''})`);
 
-    // Send the last known ForgeDoc immediately so the renderer catches up
-    if (lastDoc) {
-      ws.send(JSON.stringify({
-        type: 'forgeDoc',
-        doc: lastDoc,
-        timestamp: Date.now(),
-      } satisfies ServerEvent));
-    }
+    // Note: we DON'T send lastDoc on connect anymore.
+    // The client will identify its module via getContext RPC,
+    // and we send the module-specific ForgeDoc after that.
+    // This prevents cross-tab interference when multiple modules are open.
 
     // Handle incoming messages from renderer
     ws.on('message', (raw) => {
@@ -150,12 +152,14 @@ export function createDevServer(options: DevServerOptions = {}): DevServer {
 
     ws.on('close', () => {
       clients.delete(ws);
+      clientModuleKeys.delete(ws);
       console.log(`[dev-server] Renderer disconnected (${clients.size} client${clients.size > 1 ? 's' : ''})`);
     });
 
     ws.on('error', (err) => {
       console.error('[dev-server] WebSocket error:', err.message);
       clients.delete(ws);
+      clientModuleKeys.delete(ws);
     });
   });
 
@@ -259,9 +263,12 @@ export function createDevServer(options: DevServerOptions = {}): DevServer {
           const submittedValue = params?.payload;
           fieldValues.set(baseKey, submittedValue);
           console.log(`[dev-server] Custom field "${baseKey}" updated:`, submittedValue);
-          // Broadcast to all clients so the parent page can switch tabs
+          // Broadcast to clients viewing this custom field (view or edit sub-modules, or the parent page)
           for (const client of clients) {
-            if (client.readyState === WebSocket.OPEN) {
+            if (client.readyState !== WebSocket.OPEN) continue;
+            const clientKey = clientModuleKeys.get(client);
+            // Send to clients viewing this field's view/edit or unidentified clients (parent pages)
+            if (!clientKey || clientKey.startsWith(baseKey)) {
               client.send(JSON.stringify({
                 type: 'fieldValueUpdate',
                 fieldKey: baseKey,
@@ -371,9 +378,27 @@ export function createDevServer(options: DevServerOptions = {}): DevServer {
       const { requestId, method, params } = event;
       console.log(`[dev-server] RPC: ${method}`);
 
+      // Track which module this client is viewing
+      const isNewClient = !clientModuleKeys.has(ws);
+      if (params?.moduleKey) {
+        clientModuleKeys.set(ws, params.moduleKey);
+      }
+
       try {
         const result = await handleRpc(method, params);
         ws.send(JSON.stringify({ requestId, result }));
+
+        // After first RPC identifies the client's module, send its ForgeDoc
+        if (isNewClient && params?.moduleKey) {
+          const moduleDoc = lastDocs.get(params.moduleKey) ?? lastDoc;
+          if (moduleDoc) {
+            ws.send(JSON.stringify({
+              type: 'forgeDoc',
+              doc: moduleDoc,
+              timestamp: Date.now(),
+            }));
+          }
+        }
       } catch (err: any) {
         console.error(`[dev-server] RPC error (${method}):`, err.message);
         ws.send(JSON.stringify({ requestId, error: err.message }));
@@ -436,20 +461,39 @@ export function createDevServer(options: DevServerOptions = {}): DevServer {
     }
   }
 
-  function broadcast(doc: ForgeDoc) {
+  /**
+   * Broadcast a new ForgeDoc. If moduleKey is known, only send to clients
+   * viewing that module. Otherwise broadcast to all (backward compat).
+   */
+  function broadcast(doc: ForgeDoc, moduleKey?: string) {
     // Register all function props from the live doc BEFORE stripping
     lastRawDoc = doc;
     fnRegistry.register(doc);
 
     // Strip function props for serialization
     lastDoc = stripFunctions(doc);
-    sendEvent({
+    if (moduleKey) {
+      lastDocs.set(moduleKey, lastDoc);
+      lastRawDocs.set(moduleKey, doc);
+    }
+
+    const msg = JSON.stringify({
       type: 'forgeDoc',
       doc: lastDoc,
       timestamp: Date.now(),
     });
 
-    console.log(`[dev-server] Broadcast ForgeDoc (${fnRegistry.size} handlers registered)`);
+    // Scoped send: only to clients viewing this module (or all if no key)
+    for (const client of clients) {
+      if (client.readyState !== WebSocket.OPEN) continue;
+      if (moduleKey) {
+        const clientKey = clientModuleKeys.get(client);
+        if (clientKey && clientKey !== moduleKey) continue;
+      }
+      client.send(msg);
+    }
+
+    console.log(`[dev-server] Broadcast ForgeDoc${moduleKey ? ` [${moduleKey}]` : ''} (${fnRegistry.size} handlers registered)`);
   }
 
   // ── File watcher ────────────────────────────────────────────────────
