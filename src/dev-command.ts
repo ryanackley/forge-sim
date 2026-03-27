@@ -1247,19 +1247,7 @@ async function buildViteConfig(opts: {
       'process.env': JSON.stringify({}),
     },
     optimizeDeps: {
-      include: [
-        'react', 'react-dom', 'react-dom/client', 'react/jsx-runtime',
-        '@forge/react', '@forge/bridge', '@forge/resolver',
-        '@atlaskit/button', '@atlaskit/button/new',
-        '@atlaskit/textfield', '@atlaskit/form',
-        '@atlaskit/heading', '@atlaskit/primitives',
-        '@atlaskit/badge', '@atlaskit/lozenge',
-        '@atlaskit/tokens', '@atlaskit/theme',
-        '@atlaskit/select', '@atlaskit/toggle',
-        '@atlaskit/dynamic-table', '@atlaskit/inline-edit',
-        '@atlaskit/modal-dialog',
-        '@emotion/react',
-      ],
+      include: ['react', 'react-dom', 'react-dom/client', 'react/jsx-runtime'],
     },
   };
 }
