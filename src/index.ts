@@ -44,6 +44,19 @@ export type {
   JiraFilter,
   JiraIssueTypeDefinition,
   JiraProperty,
+  // App lifecycle types
+  AppLifecycleTriggerPayloadByEvent,
+  AppInstalledEvent,
+  AppUpgradedEvent,
+  ForgeAppInfo,
+  ForgeEnvironmentInfo,
+  ForgePermissions,
+  // Jira Software types
+  JiraSoftwareTriggerPayloadByEvent,
+  JiraSwTriggerBase,
+  JiraSwBoard,
+  JiraSwBoardConfiguration,
+  JiraSwSprint,
 } from './trigger-event-types.js';
 
 // UI rendering (SimulatorUI is the primary API — access via sim.ui.*)

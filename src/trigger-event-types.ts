@@ -905,6 +905,203 @@ export type JiraTriggerPayloadByEvent =
   & { 'avi:jira:timetracking:provider:changed': JiraTimeTrackingProviderChangedEvent }
   & { 'avi:jira:changed:configuration': JiraConfigurationChangedEvent };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// App Lifecycle event types (avi:forge:*)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Forge app metadata embedded in lifecycle event payloads.
+ * Docs: https://developer.atlassian.com/platform/forge/events-reference/life-cycle/
+ */
+export interface ForgeAppInfo {
+  id: string;
+  version: string;
+  name?: string;
+  ownerAccountId?: string;
+}
+
+export interface ForgeEnvironmentInfo {
+  id: string;
+}
+
+/**
+ * External permissions granted to an app, as reported in the upgraded event.
+ * Mirrors the `external` block in the manifest permissions.
+ */
+export interface ForgePermissions {
+  scopes?: string[];
+  external?: {
+    fetch?: {
+      client?: string[];
+      backend?: string[];
+    };
+    images?: string[];
+    [key: string]: unknown;
+  };
+}
+
+/**
+ * Payload for `avi:forge:installed:app`.
+ *
+ * NOTE: Unlike Jira/Confluence events, lifecycle event payloads do NOT include
+ * an `eventType` field. The event name is only available via the function signature.
+ */
+export interface AppInstalledEvent {
+  id: string; // installation ID
+  installerAccountId?: string;
+  app: ForgeAppInfo;
+  environment?: ForgeEnvironmentInfo;
+}
+
+/**
+ * Payload for `avi:forge:upgraded:app`.
+ *
+ * NOTE: Only sent for major version upgrades; minor/patch upgrades do not trigger this event.
+ * Like the installed event, no `eventType` field is present in the payload.
+ */
+export interface AppUpgradedEvent {
+  id: string; // installation ID
+  upgraderAccountId?: string;
+  app: ForgeAppInfo;
+  environment?: ForgeEnvironmentInfo;
+  permissions?: ForgePermissions;
+}
+
+export type AppLifecycleTriggerPayloadByEvent =
+  & { 'avi:forge:installed:app': AppInstalledEvent }
+  & { 'avi:forge:upgraded:app': AppUpgradedEvent };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Jira Software event types (avi:jira-software:*)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Common base for Jira Software event payloads.
+ * Docs: https://developer.atlassian.com/platform/forge/events-reference/jira-software/
+ *
+ * NOTE: A separate JSM (Jira Service Management) events page was listed in the task
+ * as https://developer.atlassian.com/platform/forge/events-reference/jira-service-management/
+ * but that URL returns 404. The Jira Software events page covers boards and sprints,
+ * which are the documented product-specific events closest to the requested JSM scope.
+ */
+export interface JiraSwTriggerBase<TEvent extends string> {
+  eventType: TEvent;
+  atlassianId?: string;
+}
+
+export interface JiraSwBoard {
+  id: string; // docs show integer examples but schema says string
+  name: string;
+  type: 'simple' | 'scrum' | 'kanban';
+}
+
+export interface JiraSwBoardLocation {
+  type: 'project' | 'user';
+  id: string;
+  key?: string;
+  name?: string;
+}
+
+export interface JiraSwBoardFilter {
+  id: string;
+}
+
+export interface JiraSwBoardSubquery {
+  query: string;
+}
+
+export interface JiraSwBoardStatus {
+  id: string;
+}
+
+export interface JiraSwBoardColumn {
+  name: string;
+  statuses: JiraSwBoardStatus[];
+  min?: number;
+  max?: number;
+}
+
+export interface JiraSwBoardColumnConfig {
+  constraintType: 'none' | 'issueCount' | 'issueCountExclSubs';
+  columns: JiraSwBoardColumn[];
+}
+
+export interface JiraSwBoardEstimationField {
+  fieldId: string;
+  displayName: string;
+}
+
+export interface JiraSwBoardEstimation {
+  type: string;
+  field: JiraSwBoardEstimationField;
+}
+
+export interface JiraSwBoardRanking {
+  rankCustomFieldId?: number;
+}
+
+export interface JiraSwBoardConfiguration {
+  id: number; // board id
+  name: string;
+  type: 'simple' | 'scrum' | 'kanban';
+  location?: JiraSwBoardLocation;
+  filter: JiraSwBoardFilter;
+  subQuery?: JiraSwBoardSubquery;
+  columnConfig: JiraSwBoardColumnConfig;
+  estimation?: JiraSwBoardEstimation;
+  ranking: JiraSwBoardRanking;
+}
+
+export interface JiraSwSprint {
+  id: string;
+  originBoardId?: string;
+  name: string; // limited to 30 characters
+  goal?: string; // limited to 10000 characters
+  state: string;
+  createDate?: string;
+  startDate?: string;
+  endDate?: string;
+  completeDate?: string;
+}
+
+export type JiraSwBoardEvent<TEvent extends string> =
+  JiraSwTriggerBase<TEvent> & {
+    board: JiraSwBoard;
+  };
+
+export type JiraSwBoardConfigurationEvent<TEvent extends string = 'avi:jira-software:configuration-changed:board'> =
+  JiraSwTriggerBase<TEvent> & {
+    configuration: JiraSwBoardConfiguration;
+  };
+
+export type JiraSwSprintEvent<TEvent extends string> =
+  JiraSwTriggerBase<TEvent> & {
+    sprint: JiraSwSprint;
+    /** Present only on `avi:jira-software:updated:sprint`. Contains the sprint values from before the change. */
+    oldValue?: Partial<JiraSwSprint>;
+  };
+
+export type JiraSwBoardSharedEvents =
+  | 'avi:jira-software:created:board'
+  | 'avi:jira-software:updated:board'
+  | 'avi:jira-software:deleted:board';
+
+export type JiraSwSprintSharedEvents =
+  | 'avi:jira-software:created:sprint'
+  | 'avi:jira-software:started:sprint'
+  | 'avi:jira-software:updated:sprint'
+  | 'avi:jira-software:closed:sprint'
+  | 'avi:jira-software:deleted:sprint';
+
+export type JiraSoftwareTriggerPayloadByEvent =
+  & { [K in JiraSwBoardSharedEvents]: JiraSwBoardEvent<K> }
+  & { 'avi:jira-software:configuration-changed:board': JiraSwBoardConfigurationEvent }
+  & { [K in JiraSwSprintSharedEvents]: JiraSwSprintEvent<K> };
+
 // Re-export as the combined union
-export type TriggerPayloadByEvent = ConfluenceTriggerPayloadByEvent & JiraTriggerPayloadByEvent;
+export type TriggerPayloadByEvent =
+  ConfluenceTriggerPayloadByEvent
+  & JiraTriggerPayloadByEvent
+  & AppLifecycleTriggerPayloadByEvent
+  & JiraSoftwareTriggerPayloadByEvent;
 export type KnownTriggerEvent = keyof TriggerPayloadByEvent;

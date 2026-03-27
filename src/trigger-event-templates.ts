@@ -12,7 +12,7 @@
  */
 
 export interface TriggerEventTemplate {
-  product: 'confluence' | 'jira';
+  product: 'confluence' | 'jira' | 'app-lifecycle' | 'jira-software';
   family:
     | 'content'
     | 'task'
@@ -37,7 +37,12 @@ export interface TriggerEventTemplate {
     | 'project'
     | 'component'
     | 'filter'
-    | 'configuration';
+    | 'configuration'
+    // App lifecycle families
+    | 'lifecycle'
+    // Jira Software families
+    | 'board'
+    | 'sprint';
   event: string;
   samplePayload: Record<string, unknown>;
   notes?: string[];
@@ -1402,9 +1407,229 @@ const JIRA_TRIGGER_EVENT_TEMPLATES: TriggerEventTemplate[] = [
   },
 ];
 
+// ─────────────────────────────────────────────────────────────────────────────
+// App Lifecycle sample payload templates (avi:forge:*)
+// ─────────────────────────────────────────────────────────────────────────────
+
+const APP_LIFECYCLE_APP = {
+  id: '406d303d-0393-4ec4-ad7c-1435be94583a',
+  version: '9.0.0',
+  name: 'My App Name',
+  ownerAccountId: '3bc8aa0c52dc1b310a791d34',
+};
+
+const APP_LIFECYCLE_ENVIRONMENT = {
+  id: '23863033-1de4-4ebf-b30d-c906264a1e92',
+};
+
+const APP_LIFECYCLE_INSTALLATION_ID = 'fff8e466-31f4-4c73-a337-c3309dd930dc';
+const APP_LIFECYCLE_INSTALLER_ACCOUNT_ID = '4ad9aa0c52dc1b420a791d12';
+
+const APP_LIFECYCLE_NOTES = [
+  'Unlike Jira/Confluence events, app lifecycle event payloads do NOT include an `eventType` field.',
+  'The event name is only available as the first argument to your handler function, not in the payload.',
+];
+
+const APP_LIFECYCLE_TRIGGER_EVENT_TEMPLATES: TriggerEventTemplate[] = [
+  {
+    product: 'app-lifecycle',
+    family: 'lifecycle',
+    event: 'avi:forge:installed:app',
+    samplePayload: {
+      id: APP_LIFECYCLE_INSTALLATION_ID,
+      installerAccountId: APP_LIFECYCLE_INSTALLER_ACCOUNT_ID,
+      app: clone(APP_LIFECYCLE_APP),
+      environment: clone(APP_LIFECYCLE_ENVIRONMENT),
+    },
+    notes: [
+      ...APP_LIFECYCLE_NOTES,
+      '`installerAccountId` is optional — may be absent for system-triggered installs.',
+      'During installation, API calls using .asApp() may fail with 401/403 until the app account is fully initialised. Use retry handling.',
+    ],
+  },
+  {
+    product: 'app-lifecycle',
+    family: 'lifecycle',
+    event: 'avi:forge:upgraded:app',
+    samplePayload: {
+      id: APP_LIFECYCLE_INSTALLATION_ID,
+      upgraderAccountId: APP_LIFECYCLE_INSTALLER_ACCOUNT_ID,
+      app: clone(APP_LIFECYCLE_APP),
+      environment: clone(APP_LIFECYCLE_ENVIRONMENT),
+      permissions: {
+        scopes: ['read:jira-work', 'write:jira-work'],
+        external: {
+          fetch: {
+            backend: ['https://api.example.com'],
+          },
+        },
+      },
+    },
+    notes: [
+      ...APP_LIFECYCLE_NOTES,
+      'Only sent for MAJOR version upgrades. Minor and patch upgrades do not trigger this event.',
+      '`upgraderAccountId` is optional.',
+      '`permissions` describes the scopes and external egress the new version has been granted.',
+    ],
+  },
+];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Jira Software sample payload templates (avi:jira-software:*)
+// ─────────────────────────────────────────────────────────────────────────────
+// NOTE: The task referenced https://developer.atlassian.com/platform/forge/events-reference/jira-service-management/
+// which returns 404. The Jira Software events page at events-reference/jira-software/ is the
+// documented product-specific events page covering boards and sprints. These are implemented
+// here under product 'jira-software'. There are no separately documented JSM (Jira Service
+// Management) trigger events in the Forge events reference as of March 2026.
+
+const JIRA_SW_TIMESTAMP = '1716300000000';
+const JIRA_SW_ACCOUNT_ID = '5c37e3bdb393bf4ce95658d5';
+
+const JIRA_SW_BOARD_NOTES = [
+  'Board id is typed as string in the interface but docs show integer examples (e.g. 11). Coerce as needed.',
+  'Cascading events for deleted boards are NOT emitted.',
+];
+
+const JIRA_SW_SPRINT_NOTES = [
+  '`oldValue` is only present on the `avi:jira-software:updated:sprint` event and contains only the changed fields.',
+  'Sprint `name` is limited to 30 characters; `goal` is limited to 10000 characters.',
+  '`startDate`, `endDate`, and `completeDate` may be absent on future sprints that have not been started.',
+];
+
+const JIRA_SOFTWARE_TRIGGER_EVENT_TEMPLATES: TriggerEventTemplate[] = [
+  // ── Board created / updated / deleted ──────────────────────────────────────
+  ...[
+    'avi:jira-software:created:board',
+    'avi:jira-software:updated:board',
+    'avi:jira-software:deleted:board',
+  ].map((event) => ({
+    product: 'jira-software' as const,
+    family: 'board' as const,
+    event,
+    samplePayload: {
+      eventType: event,
+      board: {
+        id: '11',
+        name: 'Some SCRUM board',
+        type: 'scrum',
+      },
+      atlassianId: JIRA_SW_ACCOUNT_ID,
+    },
+    notes: JIRA_SW_BOARD_NOTES,
+  })),
+
+  // ── Board configuration changed ────────────────────────────────────────────
+  {
+    product: 'jira-software',
+    family: 'board',
+    event: 'avi:jira-software:configuration-changed:board',
+    samplePayload: {
+      eventType: 'avi:jira-software:configuration-changed:board',
+      configuration: {
+        id: 11,
+        name: 'CMPSCRUM board',
+        type: 'scrum',
+        location: {
+          type: 'project',
+          key: 'CMPSCRUM',
+          id: '10005',
+          name: 'cmpscrum',
+        },
+        filter: {
+          id: '10007',
+        },
+        columnConfig: {
+          columns: [
+            { name: 'To Do', statuses: [{ id: '10006' }] },
+            { name: 'In Progress', statuses: [{ id: '3' }] },
+            { name: 'Done', statuses: [{ id: '10007' }] },
+          ],
+          constraintType: 'none',
+        },
+        estimation: {
+          type: 'field',
+          field: {
+            fieldId: 'customfield_10214',
+            displayName: 'Story Points',
+          },
+        },
+        ranking: {
+          rankCustomFieldId: 10019,
+        },
+      },
+      atlassianId: '655363:f4dec1e8-6b1a-48aa-a9bf-e03d10b4abba',
+    },
+    notes: [
+      'The `configuration.id` is the board id (integer), not a separate configuration ID.',
+      '`estimation` and `location` are optional; they may be absent for simpler board types.',
+      '`subQuery` is also optional and not shown in this sample.',
+    ],
+  },
+
+  // ── Sprint events ──────────────────────────────────────────────────────────
+  ...[
+    'avi:jira-software:created:sprint',
+    'avi:jira-software:started:sprint',
+    'avi:jira-software:closed:sprint',
+    'avi:jira-software:deleted:sprint',
+  ].map((event) => ({
+    product: 'jira-software' as const,
+    family: 'sprint' as const,
+    event,
+    samplePayload: {
+      eventType: event,
+      sprint: {
+        id: '6',
+        originBoardId: '12',
+        name: 'EX1 Sprint 1',
+        goal: 'Ship the login feature',
+        state: event === 'avi:jira-software:created:sprint' ? 'future' :
+               event === 'avi:jira-software:started:sprint' ? 'active' :
+               event === 'avi:jira-software:closed:sprint' ? 'closed' : 'future',
+        createDate: '2024-09-24T10:59:20.334+0200',
+        startDate: '2024-10-05T00:00:00.000+0200',
+        endDate: '2024-10-12T00:00:00.000+0200',
+      },
+      atlassianId: JIRA_SW_ACCOUNT_ID,
+    },
+    notes: JIRA_SW_SPRINT_NOTES,
+  })),
+  {
+    product: 'jira-software',
+    family: 'sprint',
+    event: 'avi:jira-software:updated:sprint',
+    samplePayload: {
+      eventType: 'avi:jira-software:updated:sprint',
+      sprint: {
+        id: '6',
+        originBoardId: '12',
+        name: 'EX1 Sprint 1',
+        goal: 'The new goal',
+        state: 'future',
+        createDate: '2024-09-24T10:59:20.334+0200',
+        startDate: '2024-10-05T00:00:00.000+0200',
+        endDate: '2024-10-12T00:00:00.000+0200',
+      },
+      oldValue: {
+        goal: 'The goal',
+        startDate: '2024-10-03T00:00:00.000+0200',
+        endDate: '2024-10-05T00:00:00.000+0200',
+      },
+      atlassianId: JIRA_SW_ACCOUNT_ID,
+    },
+    notes: [
+      ...JIRA_SW_SPRINT_NOTES,
+      '`oldValue` is only present on this event and contains only the fields that changed, not the full sprint object.',
+    ],
+  },
+];
+
 const ALL_TRIGGER_EVENT_TEMPLATES: TriggerEventTemplate[] = [
   ...CONFLUENCE_TRIGGER_EVENT_TEMPLATES,
   ...JIRA_TRIGGER_EVENT_TEMPLATES,
+  ...APP_LIFECYCLE_TRIGGER_EVENT_TEMPLATES,
+  ...JIRA_SOFTWARE_TRIGGER_EVENT_TEMPLATES,
 ];
 
 const CONFLUENCE_TRIGGER_EVENT_TEMPLATE_MAP = new Map(
