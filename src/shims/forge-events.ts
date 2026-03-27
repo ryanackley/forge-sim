@@ -133,12 +133,55 @@ class QueueResponse {
   constructor(public requestId: string, public statusCode: number) {}
 }
 
-// App events (lifecycle hooks)
+// ── App Events (custom app event pub/sub) ──────────────────────────────
+
+interface AppEvent {
+  key: string;
+}
+
+interface AppEventPublishFailure {
+  event: AppEvent;
+  errorMessage: string;
+}
+
+type AppEventPublishResult =
+  | { type: 'success'; failedEvents: AppEventPublishFailure[] }
+  | { type: 'error'; errorType: string; errorMessage: string };
+
 const appEvents = {
-  onInstalled: (_handler: Function) => {},
-  onUninstalled: (_handler: Function) => {},
-  onEnabled: (_handler: Function) => {},
-  onDisabled: (_handler: Function) => {},
+  /**
+   * Publish custom app events. In forge-sim, this fires matching triggers
+   * in the same app by expanding the key to `avi:forge:<appId>:<key>`.
+   *
+   * If no appId is set in the manifest, falls back to `avi:forge:unknown:<key>`.
+   */
+  async publish(events: AppEvent | AppEvent[]): Promise<AppEventPublishResult> {
+    const sim = getSimulator();
+    const manifest = sim.getManifest();
+    const appId = manifest?.raw.app?.id ?? 'unknown';
+
+    const eventsArray = Array.isArray(events) ? events : [events];
+    const failedEvents: AppEventPublishFailure[] = [];
+
+    for (const evt of eventsArray) {
+      if (!evt.key || typeof evt.key !== 'string') {
+        failedEvents.push({ event: evt, errorMessage: 'Missing or invalid event key' });
+        continue;
+      }
+
+      const fullEventName = `avi:forge:${appId}:${evt.key}`;
+      try {
+        await sim.fireTrigger(fullEventName, {});
+      } catch (err) {
+        failedEvents.push({
+          event: evt,
+          errorMessage: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+
+    return { type: 'success', failedEvents };
+  },
 };
 
 export {
@@ -158,4 +201,10 @@ export {
   JobProgress,
   QueueResponse,
   appEvents,
+};
+
+export type {
+  AppEvent,
+  AppEventPublishResult,
+  AppEventPublishFailure,
 };
