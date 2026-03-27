@@ -12,7 +12,7 @@
  */
 
 export interface TriggerEventTemplate {
-  product: 'confluence';
+  product: 'confluence' | 'jira';
   family:
     | 'content'
     | 'task'
@@ -24,7 +24,20 @@ export interface TriggerEventTemplate {
     | 'user'
     | 'group'
     | 'relation'
-    | 'search';
+    | 'search'
+    // Jira-specific families
+    | 'issue'
+    | 'issueLink'
+    | 'worklog'
+    | 'issueType'
+    | 'customField'
+    | 'customFieldContext'
+    | 'workflow'
+    | 'version'
+    | 'project'
+    | 'component'
+    | 'filter'
+    | 'configuration';
   event: string;
   samplePayload: Record<string, unknown>;
   notes?: string[];
@@ -673,18 +686,743 @@ const CONFLUENCE_TRIGGER_EVENT_TEMPLATES: TriggerEventTemplate[] = [
   },
 ];
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Jira sample payload helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+const JIRA_SAMPLE_TIMESTAMP = '1716300000000'; // epoch ms as string (2024-05-21T14:00:00Z)
+const JIRA_SAMPLE_ACCOUNT_ID = 'abc123def456ghi789jk0lmn';
+const JIRA_SAMPLE_ACCOUNT_ID_2 = 'zyx987wvu654tsr321qpo';
+
+const JIRA_SAMPLE_AVATAR_URLS = {
+  '16x16': 'https://secure.gravatar.com/avatar/sample?d=mm&s=16',
+  '24x24': 'https://secure.gravatar.com/avatar/sample?d=mm&s=24',
+  '32x32': 'https://secure.gravatar.com/avatar/sample?d=mm&s=32',
+  '48x48': 'https://secure.gravatar.com/avatar/sample?d=mm&s=48',
+};
+
+const JIRA_SAMPLE_USER = {
+  accountId: JIRA_SAMPLE_ACCOUNT_ID,
+  accountType: 'atlassian',
+  displayName: 'Alice Smith',
+  emailAddress: 'alice@example.com',
+  avatarUrls: clone(JIRA_SAMPLE_AVATAR_URLS),
+  active: true,
+  timeZone: 'America/New_York',
+};
+
+const JIRA_SAMPLE_USER_DETAILS = {
+  ...JIRA_SAMPLE_USER,
+  locale: 'en_US',
+  groups: {
+    size: 1,
+    items: [{ name: 'jira-software-users', self: 'https://api.atlassian.com/ex/jira/abcdef/rest/api/3/group?groupId=grp1' }],
+  },
+  applicationRoles: {
+    size: 1,
+    items: [{ key: 'jira-software', name: 'Jira Software' }],
+  },
+};
+
+const JIRA_SAMPLE_STATUS = {
+  id: '10001',
+  name: 'In Progress',
+  description: 'Work is actively underway.',
+  iconUrl: 'https://example.atlassian.net/images/icons/statuses/inprogress.png',
+  statusCategory: {
+    id: 4,
+    key: 'indeterminate',
+    name: 'In Progress',
+    colorName: 'yellow',
+  },
+};
+
+const JIRA_SAMPLE_STATUS_TODO = {
+  id: '10000',
+  name: 'To Do',
+  description: 'Work has not started.',
+  iconUrl: 'https://example.atlassian.net/images/icons/statuses/todo.png',
+  statusCategory: {
+    id: 2,
+    key: 'new',
+    name: 'To Do',
+    colorName: 'blue-gray',
+  },
+};
+
+const JIRA_SAMPLE_ISSUETYPE = {
+  id: '10001',
+  name: 'Story',
+  description: 'A user story.',
+  iconUrl: 'https://example.atlassian.net/images/icons/issuetypes/story.png',
+  subtask: false,
+  hierarchyLevel: 0,
+};
+
+const JIRA_SAMPLE_PROJECT = {
+  id: '10000',
+  key: 'DEMO',
+  name: 'Demo Project',
+  projectTypeKey: 'software',
+  simplified: false,
+  lead: clone(JIRA_SAMPLE_USER),
+  avatarUrls: clone(JIRA_SAMPLE_AVATAR_URLS),
+  self: 'https://example.atlassian.net/rest/api/3/project/10000',
+};
+
+function makeJiraIssue(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    id: '100001',
+    key: 'DEMO-42',
+    self: 'https://example.atlassian.net/rest/api/3/issue/100001',
+    fields: {
+      summary: 'Implement login screen',
+      status: clone(JIRA_SAMPLE_STATUS),
+      assignee: clone(JIRA_SAMPLE_USER),
+      reporter: clone(JIRA_SAMPLE_USER),
+      priority: { id: '3', name: 'Medium', iconUrl: 'https://example.atlassian.net/images/icons/priorities/medium.png' },
+      issuetype: clone(JIRA_SAMPLE_ISSUETYPE),
+      project: clone(JIRA_SAMPLE_PROJECT),
+      created: '2024-05-20T10:00:00.000+0000',
+      updated: '2024-05-21T14:00:00.000+0000',
+      labels: ['backend', 'auth'],
+      ...((overrides.fields ?? {}) as Record<string, unknown>),
+    },
+    ...overrides,
+  };
+}
+
+function makeJiraComment(): Record<string, unknown> {
+  return {
+    id: '200001',
+    author: clone(JIRA_SAMPLE_USER),
+    updateAuthor: clone(JIRA_SAMPLE_USER),
+    body: 'This looks good. Will review by EOD.',
+    created: '2024-05-21T12:00:00.000+0000',
+    updated: '2024-05-21T12:05:00.000+0000',
+    jsdPublic: true,
+  };
+}
+
+function makeJiraChangelog(items: Array<Record<string, unknown>> = []): Record<string, unknown> {
+  return {
+    id: '300001',
+    items: items.length > 0 ? items : [
+      {
+        field: 'status',
+        fieldtype: 'jira',
+        fieldId: 'status',
+        from: '10000',
+        fromString: 'To Do',
+        to: '10001',
+        toString: 'In Progress',
+      },
+    ],
+  };
+}
+
+function makeJiraVersion(id = '50001', name = '1.0.0'): Record<string, unknown> {
+  return {
+    id,
+    name,
+    description: 'Initial release',
+    projectId: 10000,
+    released: false,
+    archived: false,
+    releaseDate: '2024-06-30',
+    startDate: '2024-05-01',
+    userReleaseDate: '30/Jun/24',
+    overdue: false,
+    self: `https://example.atlassian.net/rest/api/3/version/${id}`,
+  };
+}
+
+function makeJiraBasePayload(
+  eventType: string,
+  extra: Record<string, unknown>,
+  options?: { includeAtlassianId?: boolean },
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {
+    eventType,
+    timestamp: JIRA_SAMPLE_TIMESTAMP,
+  };
+  if (options?.includeAtlassianId !== false) {
+    payload.atlassianId = JIRA_SAMPLE_ACCOUNT_ID;
+  }
+  return { ...payload, ...extra };
+}
+
+const JIRA_ISSUE_NOTES = [
+  'Jira event payloads use `timestamp` (epoch ms as string) rather than `eventCreatedDate`.',
+  '`atlassianId` is optional on most issue events; only `avi:jira:viewed:issue` documents it as required.',
+  '`issue.fields` contains all standard and custom field values. Only a representative subset is shown in the sample.',
+];
+
+const JIRA_WORKLOG_NOTES = [
+  'For deleted worklogs, cascading events are not emitted.',
+  '`worklog.comment` may be an Atlassian Document Format (ADF) object or a plain string depending on API version.',
+];
+
+const JIRA_VERSION_NOTES = [
+  '`mergedVersion`, `newAffectsVersion`, `newFixVersion`, and `customFieldReplacements` are only present on the `deleted` event.',
+  'The `merged` event may also include `mergedVersion`.',
+];
+
+const JIRA_FILTER_NOTES = [
+  'Docs do not show a detailed type reference for Filter; fields are based on the Jira REST API v3 filter schema.',
+];
+
+const JIRA_CUSTOM_FIELD_CONTEXT_CONFIG_NOTE = [
+  'Only one event exists for this type: `avi:jira:updated:field:context:configuration`.',
+  '`configuration` is a stringified JSON blob whose internal shape depends on the custom field type.',
+];
+
+const JIRA_EXPRESSION_FAILED_NOTES = [
+  'Either `conditionId` or `validatorId` is present (not both), indicating which workflow extension failed.',
+];
+
+const JIRA_POST_FUNCTION_NOTES = [
+  'This is a post-function invocation payload, not a subscribe-style trigger event.',
+  'It is triggered by workflow transitions with a configured Forge post function.',
+  'The `context` field is only available for function handlers; endpoint handlers receive context via the authorization header.',
+];
+
+const JIRA_USER_NOTES = [
+  'User created/updated events return `UserDetails` (with groups/roles); user deleted returns a simpler `User` object.',
+];
+
+const JIRA_TRIGGER_EVENT_TEMPLATES: TriggerEventTemplate[] = [
+  // ── Issue events ────────────────────────────────────────────────────────────
+  {
+    product: 'jira',
+    family: 'issue',
+    event: 'avi:jira:created:issue',
+    samplePayload: makeJiraBasePayload('avi:jira:created:issue', {
+      issue: makeJiraIssue(),
+      associatedUsers: { users: [clone(JIRA_SAMPLE_USER)] },
+    }),
+    notes: JIRA_ISSUE_NOTES,
+  },
+  {
+    product: 'jira',
+    family: 'issue',
+    event: 'avi:jira:updated:issue',
+    samplePayload: makeJiraBasePayload('avi:jira:updated:issue', {
+      issue: makeJiraIssue(),
+      changelog: makeJiraChangelog(),
+      jiraEventTypeName: 'issue_generic',
+      associatedUsers: { users: [clone(JIRA_SAMPLE_USER)] },
+      associatedStatuses: {
+        statuses: [clone(JIRA_SAMPLE_STATUS_TODO), clone(JIRA_SAMPLE_STATUS)],
+      },
+    }),
+    notes: [
+      ...JIRA_ISSUE_NOTES,
+      '`jiraEventTypeName` is a sub-type hint (e.g. issue_resolved, issue_moved, issue_generic). Only present on created/updated events.',
+      '`associatedStatuses` is only present when the status field changes.',
+    ],
+  },
+  {
+    product: 'jira',
+    family: 'issue',
+    event: 'avi:jira:deleted:issue',
+    samplePayload: makeJiraBasePayload('avi:jira:deleted:issue', {
+      issue: makeJiraIssue(),
+      associatedUsers: { users: [clone(JIRA_SAMPLE_USER)] },
+    }),
+    notes: [...JIRA_ISSUE_NOTES, 'Cascading events (sub-tasks, linked issues) are NOT emitted when an issue is deleted.'],
+  },
+  {
+    product: 'jira',
+    family: 'issue',
+    event: 'avi:jira:assigned:issue',
+    samplePayload: makeJiraBasePayload('avi:jira:assigned:issue', {
+      issue: makeJiraIssue(),
+      changelog: makeJiraChangelog([
+        {
+          field: 'assignee',
+          fieldtype: 'jira',
+          fieldId: 'assignee',
+          from: null,
+          fromString: null,
+          to: JIRA_SAMPLE_ACCOUNT_ID,
+          toString: 'Alice Smith',
+        },
+      ]),
+      associatedUsers: { users: [clone(JIRA_SAMPLE_USER)] },
+    }),
+    notes: [
+      ...JIRA_ISSUE_NOTES,
+      'An avi:jira:updated:issue event is also sent alongside this event.',
+      '`changelog.items[].from` and `.to` are account IDs (or null for unassigned).',
+    ],
+  },
+  {
+    product: 'jira',
+    family: 'issue',
+    event: 'avi:jira:viewed:issue',
+    samplePayload: {
+      eventType: 'avi:jira:viewed:issue',
+      timestamp: JIRA_SAMPLE_TIMESTAMP,
+      issue: makeJiraIssue(),
+      atlassianId: JIRA_SAMPLE_ACCOUNT_ID,
+      user: clone(JIRA_SAMPLE_USER),
+    },
+    notes: [
+      ...JIRA_ISSUE_NOTES,
+      '`atlassianId` is documented as required (not optional) for viewed events.',
+      '`user` object is also present on viewed events, unlike most other issue events.',
+    ],
+  },
+  {
+    product: 'jira',
+    family: 'issue',
+    event: 'avi:jira:mentioned:issue',
+    samplePayload: makeJiraBasePayload('avi:jira:mentioned:issue', {
+      issue: makeJiraIssue(),
+      mentionedAccountIds: [JIRA_SAMPLE_ACCOUNT_ID_2],
+    }),
+    notes: [
+      ...JIRA_ISSUE_NOTES,
+      'Sent when the issue description is updated and users are @mentioned. Self-mentions do not trigger this event.',
+    ],
+  },
+
+  // ── Issue link events ────────────────────────────────────────────────────────
+  ...[
+    'avi:jira:created:issuelink',
+    'avi:jira:deleted:issuelink',
+  ].map((event) => ({
+    product: 'jira' as const,
+    family: 'issueLink' as const,
+    event,
+    samplePayload: {
+      eventType: event,
+      timestamp: JIRA_SAMPLE_TIMESTAMP,
+      id: '60001',
+      sourceIssueId: '100001',
+      destinationIssueId: '100002',
+      sourceProjectId: '10000',
+      destinationProjectId: '10000',
+      issueLinkType: {
+        id: '10000',
+        name: 'Blocks',
+        inward: 'is blocked by',
+        outward: 'blocks',
+        self: 'https://example.atlassian.net/rest/api/3/issueLinkType/10000',
+      },
+    },
+    notes: ['Only intra-instance issue links trigger events. Cross-instance links are not supported.'],
+  })),
+
+  // ── Worklog events ────────────────────────────────────────────────────────
+  ...[
+    'avi:jira:created:worklog',
+    'avi:jira:updated:worklog',
+    'avi:jira:deleted:worklog',
+  ].map((event) => ({
+    product: 'jira' as const,
+    family: 'worklog' as const,
+    event,
+    samplePayload: {
+      eventType: event,
+      timestamp: JIRA_SAMPLE_TIMESTAMP,
+      worklog: {
+        id: '70001',
+        issueId: '100001',
+        author: clone(JIRA_SAMPLE_USER),
+        updateAuthor: clone(JIRA_SAMPLE_USER),
+        comment: 'Fixed the login bug.',
+        timeSpent: '2h',
+        timeSpentSeconds: 7200,
+        started: '2024-05-21T09:00:00.000+0000',
+        created: '2024-05-21T09:00:00.000+0000',
+        updated: '2024-05-21T09:05:00.000+0000',
+        self: 'https://example.atlassian.net/rest/api/3/issue/100001/worklog/70001',
+      },
+    },
+    notes: JIRA_WORKLOG_NOTES,
+  })),
+
+  // ── Issue type events ────────────────────────────────────────────────────────
+  ...[
+    'avi:jira:created:issuetype',
+    'avi:jira:updated:issuetype',
+    'avi:jira:deleted:issuetype',
+  ].map((event) => ({
+    product: 'jira' as const,
+    family: 'issueType' as const,
+    event,
+    samplePayload: makeJiraBasePayload(event, {
+      issueType: {
+        id: '10005',
+        name: 'Epic',
+        description: 'A large user story that needs to be broken down.',
+        iconUrl: 'https://example.atlassian.net/images/icons/issuetypes/epic.png',
+        subtask: false,
+        hierarchyLevel: 1,
+      },
+    }),
+    notes: [
+      'Requires manage:jira-configuration scope (classic) or read:issue-type:jira (granular).',
+      'All three issue type events share the same payload format.',
+    ],
+  })),
+
+  // ── Comment events ────────────────────────────────────────────────────────
+  {
+    product: 'jira',
+    family: 'comment',
+    event: 'avi:jira:commented:issue',
+    samplePayload: makeJiraBasePayload('avi:jira:commented:issue', {
+      issue: makeJiraIssue(),
+      comment: makeJiraComment(),
+      associatedUsers: { users: [clone(JIRA_SAMPLE_USER)] },
+    }),
+    notes: ['Sent for both comment creation and editing.'],
+  },
+  {
+    product: 'jira',
+    family: 'comment',
+    event: 'avi:jira:mentioned:comment',
+    samplePayload: makeJiraBasePayload('avi:jira:mentioned:comment', {
+      issue: makeJiraIssue(),
+      comment: makeJiraComment(),
+      mentionedAccountIds: [JIRA_SAMPLE_ACCOUNT_ID_2],
+    }),
+    notes: ['Sent when users are @mentioned in a new or edited comment. All mentions are batched into one event.'],
+  },
+  {
+    product: 'jira',
+    family: 'comment',
+    event: 'avi:jira:deleted:comment',
+    samplePayload: makeJiraBasePayload('avi:jira:deleted:comment', {
+      issue: makeJiraIssue(),
+      comment: makeJiraComment(),
+    }),
+    notes: ['Cascading comment deletions (e.g. from issue deletion) do NOT emit this event.'],
+  },
+
+  // ── Custom field events ────────────────────────────────────────────────────────
+  ...[
+    'avi:jira:created:field',
+    'avi:jira:updated:field',
+    'avi:jira:trashed:field',
+    'avi:jira:restored:field',
+    'avi:jira:deleted:field',
+  ].map((event) => ({
+    product: 'jira' as const,
+    family: 'customField' as const,
+    event,
+    samplePayload: {
+      eventType: event,
+      timestamp: JIRA_SAMPLE_TIMESTAMP,
+      id: 'customfield_10100',
+      key: 'com.example.forge-app__my-custom-field',
+      type: 'com.atlassian.jira.plugin.system.customfieldtypes:textfield',
+      typeName: 'Text Field (single line)',
+      name: 'Customer Ticket ID',
+      description: 'The related ticket ID in the customer support system.',
+    },
+    notes: [
+      'Requires manage:jira-configuration scope.',
+      'All five custom field events share the same payload format.',
+      'Docs do not specify a type reference; fields are based on the documented payload table.',
+    ],
+  })),
+
+  // ── Custom field context events ────────────────────────────────────────────────
+  ...[
+    'avi:jira:created:field:context',
+    'avi:jira:updated:field:context',
+    'avi:jira:deleted:field:context',
+  ].map((event) => ({
+    product: 'jira' as const,
+    family: 'customFieldContext' as const,
+    event,
+    samplePayload: {
+      eventType: event,
+      timestamp: JIRA_SAMPLE_TIMESTAMP,
+      id: '10200',
+      fieldId: 'customfield_10100',
+      fieldKey: 'com.example.forge-app__my-custom-field',
+      name: 'Default Context',
+      description: 'Applied to all projects and issue types.',
+      projectIds: [],
+      issueTypeIds: [],
+    },
+    notes: [
+      'Requires manage:jira-configuration scope.',
+      'Empty `projectIds` means global context; empty `issueTypeIds` means all issue types.',
+    ],
+  })),
+
+  // ── Custom field context configuration event ──────────────────────────────────
+  {
+    product: 'jira',
+    family: 'customFieldContext',
+    event: 'avi:jira:updated:field:context:configuration',
+    samplePayload: {
+      eventType: 'avi:jira:updated:field:context:configuration',
+      timestamp: JIRA_SAMPLE_TIMESTAMP,
+      customFieldId: 'customfield_10100',
+      customFieldKey: 'com.example.forge-app__my-custom-field',
+      configurationId: 10300,
+      fieldContextId: 10200,
+      configuration: '{"defaultValue":"N/A","isRequired":true}',
+    },
+    notes: JIRA_CUSTOM_FIELD_CONTEXT_CONFIG_NOTE,
+  },
+
+  // ── Workflow: expression failed ────────────────────────────────────────────────
+  {
+    product: 'jira',
+    family: 'workflow',
+    event: 'avi:jira:failed:expression',
+    samplePayload: {
+      eventType: 'avi:jira:failed:expression',
+      timestamp: JIRA_SAMPLE_TIMESTAMP,
+      extensionId: 'ari:cloud:ecosystem::extension/app-key/env-id/static/my-condition',
+      workflowId: 'workflow-uuid-1234',
+      workflowName: 'Software Development Workflow',
+      conditionId: 'condition-uuid-5678',
+      expression: 'issue.status.name == "Done"',
+      errorMessages: ['Cannot read property "name" of undefined'],
+      context: {
+        issue: { id: '100001', key: 'DEMO-42' },
+        project: { id: '10000', key: 'DEMO' },
+      },
+    },
+    notes: JIRA_EXPRESSION_FAILED_NOTES,
+  },
+
+  // ── Version events ────────────────────────────────────────────────────────
+  ...[
+    'avi:jira:created:version',
+    'avi:jira:updated:version',
+    'avi:jira:released:version',
+    'avi:jira:unreleased:version',
+    'avi:jira:archived:version',
+    'avi:jira:unarchived:version',
+    'avi:jira:moved:version',
+  ].map((event) => ({
+    product: 'jira' as const,
+    family: 'version' as const,
+    event,
+    samplePayload: makeJiraBasePayload(event, {
+      version: makeJiraVersion(),
+    }),
+    notes: JIRA_VERSION_NOTES,
+  })),
+  {
+    product: 'jira',
+    family: 'version',
+    event: 'avi:jira:merged:version',
+    samplePayload: makeJiraBasePayload('avi:jira:merged:version', {
+      version: makeJiraVersion('50001', '1.0.0'),
+      mergedVersion: makeJiraVersion('50002', '1.1.0'),
+    }),
+    notes: JIRA_VERSION_NOTES,
+  },
+  {
+    product: 'jira',
+    family: 'version',
+    event: 'avi:jira:deleted:version',
+    samplePayload: makeJiraBasePayload('avi:jira:deleted:version', {
+      version: makeJiraVersion('50001', '1.0.0'),
+      newAffectsVersion: makeJiraVersion('50003', '2.0.0'),
+      newFixVersion: makeJiraVersion('50003', '2.0.0'),
+      customFieldReplacements: [],
+    }),
+    notes: [
+      ...JIRA_VERSION_NOTES,
+      '`newAffectsVersion` and `newFixVersion` are only present if a replacement version was specified.',
+    ],
+  },
+
+  // ── Project events ────────────────────────────────────────────────────────
+  ...[
+    'avi:jira:created:project',
+    'avi:jira:updated:project',
+    'avi:jira:softdeleted:project',
+    'avi:jira:deleted:project',
+    'avi:jira:archived:project',
+    'avi:jira:unarchived:project',
+    'avi:jira:restored:project',
+  ].map((event) => ({
+    product: 'jira' as const,
+    family: 'project' as const,
+    event,
+    samplePayload: {
+      eventType: event,
+      timestamp: JIRA_SAMPLE_TIMESTAMP,
+      project: clone(JIRA_SAMPLE_PROJECT),
+    },
+    notes: ['All project events share the same payload format. Docs do not include `atlassianId` for project events.'],
+  })),
+
+  // ── Attachment events ────────────────────────────────────────────────────────
+  ...[
+    'avi:jira:created:attachment',
+    'avi:jira:deleted:attachment',
+  ].map((event) => ({
+    product: 'jira' as const,
+    family: 'attachment' as const,
+    event,
+    samplePayload: {
+      eventType: event,
+      timestamp: JIRA_SAMPLE_TIMESTAMP,
+      attachment: {
+        id: '80001',
+        author: clone(JIRA_SAMPLE_USER),
+        filename: 'screenshot.png',
+        created: '2024-05-21T11:00:00.000+0000',
+        size: 45678,
+        mimeType: 'image/png',
+        content: 'https://example.atlassian.net/secure/attachment/80001/screenshot.png',
+        self: 'https://example.atlassian.net/rest/api/3/attachment/80001',
+      },
+    },
+    notes: ['Cascading attachment deletions are not emitted. Docs do not include `atlassianId` for attachment events.'],
+  })),
+
+  // ── Component events ────────────────────────────────────────────────────────
+  ...[
+    'avi:jira:created:component',
+    'avi:jira:updated:component',
+    'avi:jira:deleted:component',
+  ].map((event) => ({
+    product: 'jira' as const,
+    family: 'component' as const,
+    event,
+    samplePayload: makeJiraBasePayload(event, {
+      component: {
+        id: '90001',
+        name: 'Authentication',
+        description: 'Login and session management.',
+        lead: clone(JIRA_SAMPLE_USER),
+        leadAccountId: JIRA_SAMPLE_ACCOUNT_ID,
+        assigneeType: 'PROJECT_DEFAULT',
+        realAssigneeType: 'PROJECT_DEFAULT',
+        isAssigneeTypeValid: true,
+        project: 'DEMO',
+        projectId: 10000,
+        self: 'https://example.atlassian.net/rest/api/3/component/90001',
+      },
+    }),
+    notes: ['Cascading deletions on component delete are not emitted.'],
+  })),
+
+  // ── User events ────────────────────────────────────────────────────────────
+  ...[
+    'avi:jira:created:user',
+    'avi:jira:updated:user',
+  ].map((event) => ({
+    product: 'jira' as const,
+    family: 'user' as const,
+    event,
+    samplePayload: {
+      eventType: event,
+      timestamp: JIRA_SAMPLE_TIMESTAMP,
+      user: clone(JIRA_SAMPLE_USER_DETAILS),
+    },
+    notes: JIRA_USER_NOTES,
+  })),
+  {
+    product: 'jira',
+    family: 'user',
+    event: 'avi:jira:deleted:user',
+    samplePayload: {
+      eventType: 'avi:jira:deleted:user',
+      timestamp: JIRA_SAMPLE_TIMESTAMP,
+      user: clone(JIRA_SAMPLE_USER),
+    },
+    notes: JIRA_USER_NOTES,
+  },
+
+  // ── Filter events ────────────────────────────────────────────────────────
+  ...[
+    'avi:jira:created:filter',
+    'avi:jira:updated:filter',
+    'avi:jira:deleted:filter',
+  ].map((event) => ({
+    product: 'jira' as const,
+    family: 'filter' as const,
+    event,
+    samplePayload: makeJiraBasePayload(event, {
+      filter: {
+        id: '12345',
+        name: 'My open issues',
+        description: 'All open issues assigned to me.',
+        owner: clone(JIRA_SAMPLE_USER),
+        jql: 'assignee = currentUser() AND statusCategory != Done',
+        viewUrl: 'https://example.atlassian.net/issues/?filter=12345',
+        sharePermissions: [],
+        editPermissions: [],
+        self: 'https://example.atlassian.net/rest/api/3/filter/12345',
+      },
+    }),
+    notes: JIRA_FILTER_NOTES,
+  })),
+
+  // ── Time tracking provider event ──────────────────────────────────────────
+  {
+    product: 'jira',
+    family: 'configuration',
+    event: 'avi:jira:timetracking:provider:changed',
+    samplePayload: {
+      eventType: 'avi:jira:timetracking:provider:changed',
+      timestamp: JIRA_SAMPLE_TIMESTAMP,
+      property: {
+        key: 'jira.timetracking.selected',
+        value: 'JIRA',
+      },
+    },
+    notes: [
+      'Only one event type exists for time tracking changes.',
+      '`property.value` is the key of the selected provider (e.g. "JIRA" for the built-in tracker).',
+    ],
+  },
+
+  // ── Configuration event ──────────────────────────────────────────────────
+  {
+    product: 'jira',
+    family: 'configuration',
+    event: 'avi:jira:changed:configuration',
+    samplePayload: makeJiraBasePayload('avi:jira:changed:configuration', {
+      property: {
+        key: 'jira.option.watching',
+        value: 'true',
+      },
+    }),
+    notes: [
+      'Valid `property.key` values: jira.option.allowsubtasks, jira.option.allowunassigned, jira.option.voting, jira.option.watching, jira.option.issuelinking.',
+      '`property.value` is a string "true" or "false" despite representing a boolean.',
+    ],
+  },
+];
+
+const ALL_TRIGGER_EVENT_TEMPLATES: TriggerEventTemplate[] = [
+  ...CONFLUENCE_TRIGGER_EVENT_TEMPLATES,
+  ...JIRA_TRIGGER_EVENT_TEMPLATES,
+];
+
 const CONFLUENCE_TRIGGER_EVENT_TEMPLATE_MAP = new Map(
   CONFLUENCE_TRIGGER_EVENT_TEMPLATES.map((template) => [template.event, template]),
 );
 
+const ALL_TRIGGER_EVENT_TEMPLATE_MAP = new Map(
+  ALL_TRIGGER_EVENT_TEMPLATES.map((template) => [template.event, template]),
+);
+
 export function getTriggerEventTemplate(eventName: string): TriggerEventTemplate | undefined {
-  const template = CONFLUENCE_TRIGGER_EVENT_TEMPLATE_MAP.get(eventName);
+  const template = ALL_TRIGGER_EVENT_TEMPLATE_MAP.get(eventName);
   return template ? clone(template) : undefined;
 }
 
 export function getTriggerEventTemplates(eventNames?: Iterable<string>): TriggerEventTemplate[] {
   if (!eventNames) {
-    return clone(CONFLUENCE_TRIGGER_EVENT_TEMPLATES);
+    return clone(ALL_TRIGGER_EVENT_TEMPLATES);
   }
 
   const seen = new Set<string>();

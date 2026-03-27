@@ -27,6 +27,23 @@ export type {
   ConfluenceTemplate,
   ConfluenceGroup,
   ConfluenceRelationEntityWrapper,
+  JiraTriggerPayloadByEvent,
+  JiraTriggerBase,
+  JiraIssue,
+  JiraIssueFields,
+  JiraUser,
+  JiraUserDetails,
+  JiraProject,
+  JiraComment,
+  JiraChangelog,
+  JiraChangelogItem,
+  JiraWorklog,
+  JiraVersion,
+  JiraAttachment,
+  JiraComponent,
+  JiraFilter,
+  JiraIssueTypeDefinition,
+  JiraProperty,
 } from './trigger-event-types.js';
 
 // UI rendering (SimulatorUI is the primary API — access via sim.ui.*)

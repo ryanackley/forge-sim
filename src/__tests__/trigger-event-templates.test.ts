@@ -54,6 +54,7 @@ describe('trigger event templates', () => {
     expect(templates.map((template) => template.event)).toEqual([
       'avi:confluence:created:page',
       'avi:confluence:performed:search',
+      'avi:jira:created:issue',
     ]);
   });
 });

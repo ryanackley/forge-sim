@@ -355,5 +355,556 @@ export type ConfluenceTriggerPayloadByEvent =
   & { [K in ConfluenceRelationSharedEvents]: ConfluenceRelationEvent<K> }
   & { [K in ConfluenceSearchSharedEvents]: ConfluenceSearchEvent<K> };
 
-export type TriggerPayloadByEvent = ConfluenceTriggerPayloadByEvent;
+// ─────────────────────────────────────────────────────────────────────────────
+// Jira event types
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Common base for all Jira event payloads.
+ * Note: unlike Confluence, Jira uses `timestamp` (epoch ms as string) rather
+ * than `eventCreatedDate`, and `webhookTrace` is an optional correlation field.
+ * `atlassianId` is NOT always present; individual event types declare it where documented.
+ */
+export interface JiraTriggerBase<TEvent extends string> {
+  eventType: TEvent;
+  timestamp: string; // epoch milliseconds
+  webhookTrace?: string;
+}
+
+export interface JiraAvatarUrls {
+  '16x16'?: string;
+  '24x24'?: string;
+  '32x32'?: string;
+  '48x48'?: string;
+}
+
+export interface JiraUser {
+  accountId: string;
+  accountType?: string;
+  displayName?: string;
+  emailAddress?: string;
+  avatarUrls?: JiraAvatarUrls;
+  active?: boolean;
+  timeZone?: string;
+}
+
+/** Richer user object returned for user created/updated events (includes groups, roles). */
+export interface JiraUserDetails extends JiraUser {
+  locale?: string;
+  groups?: { size: number; items: Array<{ name: string; self?: string }> };
+  applicationRoles?: { size: number; items: Array<{ key: string; name: string }> };
+}
+
+export interface JiraIssueStatus {
+  id: string;
+  name: string;
+  description?: string;
+  iconUrl?: string;
+  statusCategory?: {
+    id: number;
+    key: string;
+    name: string;
+    colorName?: string;
+  };
+}
+
+export interface JiraIssuePriority {
+  id: string;
+  name: string;
+  iconUrl?: string;
+}
+
+/** Issue type as embedded within an issue's fields. */
+export interface JiraIssueTypeRef {
+  id: string;
+  name: string;
+  description?: string;
+  iconUrl?: string;
+  subtask?: boolean;
+  hierarchyLevel?: number;
+}
+
+/** Full issue type definition as used in issue type lifecycle events. */
+export interface JiraIssueTypeDefinition extends JiraIssueTypeRef {
+  scope?: { type: string; project?: { id: string } };
+}
+
+export interface JiraProjectCategory {
+  id: string;
+  name: string;
+  description?: string;
+}
+
+export interface JiraProject {
+  id: string;
+  key: string;
+  name: string;
+  projectTypeKey?: string;
+  description?: string;
+  simplified?: boolean;
+  lead?: JiraUser;
+  avatarUrls?: JiraAvatarUrls;
+  projectCategory?: JiraProjectCategory;
+  isPrivate?: boolean;
+  self?: string;
+}
+
+export interface JiraIssueFields {
+  summary?: string;
+  status?: JiraIssueStatus;
+  assignee?: JiraUser | null;
+  reporter?: JiraUser | null;
+  priority?: JiraIssuePriority;
+  issuetype?: JiraIssueTypeRef;
+  project?: JiraProject;
+  created?: string;
+  updated?: string;
+  description?: unknown; // Atlassian Document Format or plain string
+  labels?: string[];
+  comment?: { comments: JiraComment[]; total: number; maxResults?: number };
+  [key: string]: unknown;
+}
+
+export interface JiraIssue {
+  id: string;
+  key: string;
+  self?: string;
+  fields: JiraIssueFields;
+}
+
+export interface JiraChangelogItem {
+  field: string;
+  fieldtype?: string;
+  fieldId?: string;
+  from?: string | null;
+  fromString?: string | null;
+  to?: string | null;
+  toString?: string | null;
+}
+
+export interface JiraChangelog {
+  id?: string;
+  items: JiraChangelogItem[];
+}
+
+export interface JiraAssociatedUsers {
+  users: JiraUser[];
+}
+
+export interface JiraAssociatedStatuses {
+  statuses: JiraIssueStatus[];
+}
+
+export interface JiraClonedFrom {
+  id: string;
+  key: string;
+}
+
+export interface JiraIssueLinkType {
+  id: string;
+  name: string;
+  inward?: string;
+  outward?: string;
+  self?: string;
+}
+
+export interface JiraWorklog {
+  id: string;
+  issueId: string;
+  author?: JiraUser;
+  updateAuthor?: JiraUser;
+  comment?: unknown;
+  timeSpent?: string;
+  timeSpentSeconds?: number;
+  started?: string;
+  created?: string;
+  updated?: string;
+  self?: string;
+}
+
+export interface JiraCommentVisibility {
+  type: 'role' | 'group';
+  value: string;
+}
+
+export interface JiraComment {
+  id: string;
+  author?: JiraUser;
+  updateAuthor?: JiraUser;
+  body?: unknown; // ADF or string
+  renderedBody?: string;
+  created?: string;
+  updated?: string;
+  visibility?: JiraCommentVisibility;
+  jsdPublic?: boolean;
+}
+
+export interface JiraVersion {
+  id: string;
+  name: string;
+  description?: string;
+  projectId: number;
+  released?: boolean;
+  archived?: boolean;
+  releaseDate?: string;
+  startDate?: string;
+  userReleaseDate?: string;
+  overdue?: boolean;
+  self?: string;
+}
+
+export interface JiraCustomFieldReplacement {
+  customFieldId: string;
+  moveTo: JiraVersion;
+}
+
+export interface JiraAttachment {
+  id: string;
+  author?: JiraUser;
+  filename: string;
+  created?: string;
+  size?: number;
+  mimeType?: string;
+  content?: string;
+  thumbnail?: string;
+  self?: string;
+}
+
+export interface JiraComponent {
+  id: string;
+  name: string;
+  description?: string;
+  lead?: JiraUser;
+  leadAccountId?: string;
+  assigneeType?: string;
+  assignee?: JiraUser;
+  realAssigneeType?: string;
+  realAssignee?: JiraUser;
+  isAssigneeTypeValid?: boolean;
+  project?: string;
+  projectId?: number;
+  self?: string;
+}
+
+export interface JiraFilter {
+  id: string;
+  name: string;
+  description?: string;
+  owner?: JiraUser;
+  jql?: string;
+  viewUrl?: string;
+  sharePermissions?: unknown[];
+  editPermissions?: unknown[];
+  self?: string;
+}
+
+export interface JiraProperty {
+  key: string;
+  value: string | boolean;
+}
+
+export interface JiraExpressionContext {
+  issue?: { id: string; key?: string };
+  project?: { id: string; key?: string };
+  [key: string]: unknown;
+}
+
+// ── Jira event payload types ──────────────────────────────────────────────────
+
+export type JiraIssueCreatedEvent<TEvent extends string = 'avi:jira:created:issue'> =
+  JiraTriggerBase<TEvent> & {
+    issue: JiraIssue;
+    atlassianId?: string;
+    associatedUsers?: JiraAssociatedUsers;
+    clonedFrom?: JiraClonedFrom;
+    jiraEventTypeName?: string;
+  };
+
+export type JiraIssueUpdatedEvent<TEvent extends string = 'avi:jira:updated:issue'> =
+  JiraTriggerBase<TEvent> & {
+    issue: JiraIssue;
+    atlassianId?: string;
+    changelog: JiraChangelog;
+    jiraEventTypeName?: string;
+    associatedUsers?: JiraAssociatedUsers;
+    associatedStatuses?: JiraAssociatedStatuses;
+  };
+
+export type JiraIssueDeletedEvent<TEvent extends string = 'avi:jira:deleted:issue'> =
+  JiraTriggerBase<TEvent> & {
+    issue: JiraIssue;
+    atlassianId?: string;
+    associatedUsers?: JiraAssociatedUsers;
+  };
+
+export type JiraIssueAssignedEvent<TEvent extends string = 'avi:jira:assigned:issue'> =
+  JiraTriggerBase<TEvent> & {
+    issue: JiraIssue;
+    atlassianId?: string;
+    changelog: JiraChangelog;
+    associatedUsers?: JiraAssociatedUsers;
+  };
+
+export type JiraIssueViewedEvent<TEvent extends string = 'avi:jira:viewed:issue'> =
+  JiraTriggerBase<TEvent> & {
+    issue: JiraIssue;
+    atlassianId: string;
+    user: JiraUser;
+  };
+
+export type JiraIssueMentionedEvent<TEvent extends string = 'avi:jira:mentioned:issue'> =
+  JiraTriggerBase<TEvent> & {
+    issue: JiraIssue;
+    atlassianId?: string;
+    mentionedAccountIds: string[];
+  };
+
+export type JiraIssueLinkEvent<TEvent extends string> =
+  JiraTriggerBase<TEvent> & {
+    id: string;
+    sourceIssueId: string;
+    destinationIssueId: string;
+    sourceProjectId: string;
+    destinationProjectId: string;
+    issueLinkType: JiraIssueLinkType;
+  };
+
+export type JiraWorklogEvent<TEvent extends string> =
+  JiraTriggerBase<TEvent> & {
+    worklog: JiraWorklog;
+  };
+
+export type JiraIssueTypeEvent<TEvent extends string> =
+  JiraTriggerBase<TEvent> & {
+    issueType: JiraIssueTypeDefinition;
+    atlassianId?: string;
+  };
+
+export type JiraCommentedIssueEvent<TEvent extends string = 'avi:jira:commented:issue'> =
+  JiraTriggerBase<TEvent> & {
+    issue: JiraIssue;
+    atlassianId?: string;
+    associatedUsers?: JiraAssociatedUsers;
+    comment: JiraComment;
+  };
+
+export type JiraMentionedInCommentEvent<TEvent extends string = 'avi:jira:mentioned:comment'> =
+  JiraTriggerBase<TEvent> & {
+    issue: JiraIssue;
+    atlassianId?: string;
+    mentionedAccountIds: string[];
+    comment: JiraComment;
+  };
+
+export type JiraDeletedCommentEvent<TEvent extends string = 'avi:jira:deleted:comment'> =
+  JiraTriggerBase<TEvent> & {
+    issue: JiraIssue;
+    atlassianId?: string;
+    comment: JiraComment;
+  };
+
+export type JiraCustomFieldEvent<TEvent extends string> =
+  JiraTriggerBase<TEvent> & {
+    id: string;
+    key: string;
+    type: string;
+    typeName: string;
+    name: string;
+    description: string;
+  };
+
+export type JiraCustomFieldContextEvent<TEvent extends string> =
+  JiraTriggerBase<TEvent> & {
+    id: string;
+    fieldId: string;
+    fieldKey: string;
+    name: string;
+    description: string;
+    projectIds: number[];
+    issueTypeIds: string[];
+  };
+
+export type JiraCustomFieldContextConfigEvent<TEvent extends string = 'avi:jira:updated:field:context:configuration'> =
+  JiraTriggerBase<TEvent> & {
+    customFieldId: string;
+    customFieldKey: string;
+    configurationId: number;
+    fieldContextId: number;
+    configuration: string; // stringified JSON
+  };
+
+export type JiraExpressionFailedEvent<TEvent extends string = 'avi:jira:failed:expression'> =
+  JiraTriggerBase<TEvent> & {
+    extensionId: string;
+    workflowId: string;
+    workflowName: string;
+    conditionId?: string;
+    validatorId?: string;
+    expression: string;
+    errorMessages: string[];
+    context: JiraExpressionContext;
+  };
+
+export type JiraVersionEvent<TEvent extends string> =
+  JiraTriggerBase<TEvent> & {
+    version: JiraVersion;
+    atlassianId?: string;
+  };
+
+export type JiraVersionMergedEvent<TEvent extends string = 'avi:jira:merged:version'> =
+  JiraVersionEvent<TEvent> & {
+    mergedVersion?: JiraVersion;
+  };
+
+export type JiraVersionDeletedEvent<TEvent extends string = 'avi:jira:deleted:version'> =
+  JiraVersionEvent<TEvent> & {
+    mergedVersion?: JiraVersion;
+    newAffectsVersion?: JiraVersion;
+    newFixVersion?: JiraVersion;
+    customFieldReplacements: JiraCustomFieldReplacement[];
+  };
+
+export type JiraProjectEvent<TEvent extends string> =
+  JiraTriggerBase<TEvent> & {
+    project: JiraProject;
+  };
+
+export type JiraAttachmentEvent<TEvent extends string> =
+  JiraTriggerBase<TEvent> & {
+    attachment: JiraAttachment;
+  };
+
+export type JiraComponentEvent<TEvent extends string> =
+  JiraTriggerBase<TEvent> & {
+    component: JiraComponent;
+    atlassianId?: string;
+  };
+
+export type JiraUserCreatedUpdatedEvent<TEvent extends string> =
+  JiraTriggerBase<TEvent> & {
+    user: JiraUserDetails;
+  };
+
+export type JiraUserDeletedEvent<TEvent extends string = 'avi:jira:deleted:user'> =
+  JiraTriggerBase<TEvent> & {
+    user: JiraUser;
+  };
+
+export type JiraFilterEvent<TEvent extends string> =
+  JiraTriggerBase<TEvent> & {
+    filter: JiraFilter;
+    atlassianId?: string;
+  };
+
+export type JiraTimeTrackingProviderChangedEvent<TEvent extends string = 'avi:jira:timetracking:provider:changed'> =
+  JiraTriggerBase<TEvent> & {
+    property: JiraProperty;
+  };
+
+export type JiraConfigurationChangedEvent<TEvent extends string = 'avi:jira:changed:configuration'> =
+  JiraTriggerBase<TEvent> & {
+    property: JiraProperty;
+    atlassianId?: string;
+  };
+
+// ── Event name union types ────────────────────────────────────────────────────
+
+export type JiraIssueSharedEvents =
+  | 'avi:jira:created:issue'
+  | 'avi:jira:deleted:issue'
+  | 'avi:jira:assigned:issue'
+  | 'avi:jira:viewed:issue'
+  | 'avi:jira:mentioned:issue';
+
+export type JiraIssueLinkSharedEvents =
+  | 'avi:jira:created:issuelink'
+  | 'avi:jira:deleted:issuelink';
+
+export type JiraWorklogSharedEvents =
+  | 'avi:jira:created:worklog'
+  | 'avi:jira:updated:worklog'
+  | 'avi:jira:deleted:worklog';
+
+export type JiraIssueTypeSharedEvents =
+  | 'avi:jira:created:issuetype'
+  | 'avi:jira:updated:issuetype'
+  | 'avi:jira:deleted:issuetype';
+
+export type JiraCustomFieldSharedEvents =
+  | 'avi:jira:created:field'
+  | 'avi:jira:updated:field'
+  | 'avi:jira:trashed:field'
+  | 'avi:jira:restored:field'
+  | 'avi:jira:deleted:field';
+
+export type JiraCustomFieldContextSharedEvents =
+  | 'avi:jira:created:field:context'
+  | 'avi:jira:updated:field:context'
+  | 'avi:jira:deleted:field:context';
+
+export type JiraVersionSharedEvents =
+  | 'avi:jira:created:version'
+  | 'avi:jira:updated:version'
+  | 'avi:jira:released:version'
+  | 'avi:jira:unreleased:version'
+  | 'avi:jira:archived:version'
+  | 'avi:jira:unarchived:version'
+  | 'avi:jira:moved:version';
+
+export type JiraProjectSharedEvents =
+  | 'avi:jira:created:project'
+  | 'avi:jira:updated:project'
+  | 'avi:jira:softdeleted:project'
+  | 'avi:jira:deleted:project'
+  | 'avi:jira:archived:project'
+  | 'avi:jira:unarchived:project'
+  | 'avi:jira:restored:project';
+
+export type JiraAttachmentSharedEvents =
+  | 'avi:jira:created:attachment'
+  | 'avi:jira:deleted:attachment';
+
+export type JiraComponentSharedEvents =
+  | 'avi:jira:created:component'
+  | 'avi:jira:updated:component'
+  | 'avi:jira:deleted:component';
+
+export type JiraUserCreatedUpdatedSharedEvents =
+  | 'avi:jira:created:user'
+  | 'avi:jira:updated:user';
+
+export type JiraFilterSharedEvents =
+  | 'avi:jira:created:filter'
+  | 'avi:jira:updated:filter'
+  | 'avi:jira:deleted:filter';
+
+// ── Payload map ───────────────────────────────────────────────────────────────
+
+export type JiraTriggerPayloadByEvent =
+  & { [K in JiraIssueSharedEvents]: JiraIssueCreatedEvent<K> }
+  & { 'avi:jira:updated:issue': JiraIssueUpdatedEvent }
+  & { 'avi:jira:commented:issue': JiraCommentedIssueEvent }
+  & { 'avi:jira:mentioned:comment': JiraMentionedInCommentEvent }
+  & { 'avi:jira:deleted:comment': JiraDeletedCommentEvent }
+  & { [K in JiraIssueLinkSharedEvents]: JiraIssueLinkEvent<K> }
+  & { [K in JiraWorklogSharedEvents]: JiraWorklogEvent<K> }
+  & { [K in JiraIssueTypeSharedEvents]: JiraIssueTypeEvent<K> }
+  & { [K in JiraCustomFieldSharedEvents]: JiraCustomFieldEvent<K> }
+  & { [K in JiraCustomFieldContextSharedEvents]: JiraCustomFieldContextEvent<K> }
+  & { 'avi:jira:updated:field:context:configuration': JiraCustomFieldContextConfigEvent }
+  & { 'avi:jira:failed:expression': JiraExpressionFailedEvent }
+  & { [K in JiraVersionSharedEvents]: JiraVersionEvent<K> }
+  & { 'avi:jira:merged:version': JiraVersionMergedEvent }
+  & { 'avi:jira:deleted:version': JiraVersionDeletedEvent }
+  & { [K in JiraProjectSharedEvents]: JiraProjectEvent<K> }
+  & { [K in JiraAttachmentSharedEvents]: JiraAttachmentEvent<K> }
+  & { [K in JiraComponentSharedEvents]: JiraComponentEvent<K> }
+  & { [K in JiraUserCreatedUpdatedSharedEvents]: JiraUserCreatedUpdatedEvent<K> }
+  & { 'avi:jira:deleted:user': JiraUserDeletedEvent }
+  & { [K in JiraFilterSharedEvents]: JiraFilterEvent<K> }
+  & { 'avi:jira:timetracking:provider:changed': JiraTimeTrackingProviderChangedEvent }
+  & { 'avi:jira:changed:configuration': JiraConfigurationChangedEvent };
+
+// Re-export as the combined union
+export type TriggerPayloadByEvent = ConfluenceTriggerPayloadByEvent & JiraTriggerPayloadByEvent;
 export type KnownTriggerEvent = keyof TriggerPayloadByEvent;
