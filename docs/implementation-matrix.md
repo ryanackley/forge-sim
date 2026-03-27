@@ -2,8 +2,8 @@
 
 Complete mapping of every Forge API, hook, component, and platform feature against forge-sim's implementation status.
 
-**Last updated:** 2026-03-20  
-**forge-sim test count:** 766 core tests (42 files) + 112 renderer tests (2 files) + 18 e2e tests (2 files) + 17 visual regression tests (1 file) = **913 total**
+**Last updated:** 2026-03-27  
+**forge-sim test count:** 1025 core tests (57 files) + 112 renderer tests (2 files) = **1137 total across 59 test files**
 
 ### Legend
 
@@ -157,7 +157,6 @@ Forge SQL — relational data with real MySQL.
 | DDL (CREATE TABLE, ALTER, INDEX) | ✅ | `forge-sql-e2e.test.ts` | Real MySQL 8.4 via mysql-memory-server |
 | JOINs, aggregation, subqueries | ✅ | `okr-tracker-e2e.test.ts` | AVG, COUNT, SUM, CASE WHEN, etc. |
 | Foreign keys, constraints | ✅ | `persistence.test.ts` | |
-| `sql`` tagged template` | ❌ | — | Some apps use tagged template syntax instead of prepare/execute |
 | Connection pooling / limits | ❌ | — | No simulation of Forge's connection limits |
 
 ---
@@ -184,7 +183,7 @@ Async events and queue processing.
 | `PartialSuccessError` | ✅ | | |
 | `InternalServerError` | ✅ | | |
 | `JobDoesNotExistError` | ✅ | | |
-| `appEvents.publish(events)` | ❌ | — | Publishes custom app events (requires Atlassian backend) |
+| `appEvents.publish(events)` | ✅ | `shims.test.ts` | Publishes custom app events — fires matching triggers in same app with platform-generated payload shape |
 
 ---
 
@@ -526,9 +525,16 @@ Module types recognized by forge-sim manifest parser.
 |-------------|--------|-------|
 | `function` | ✅ | Loaded and invocable |
 | `consumer` | ✅ | Wired to queues |
-| `trigger` | ✅ | Event triggers registered |
+| `trigger` | ✅ | Event triggers registered. 141 event templates with typed payloads. |
 | `scheduledTrigger` | ✅ | Fireable on demand + on startup in dev mode |
-| `webtrigger` | ⚠️ | Parsed but no HTTP endpoint served |
+| `webtrigger` | ✅ | HTTP endpoints at `/__trigger/<key>`, full request/response mapping |
+| `action` | ✅ | Rovo actions — manifest parsing, input schema validation, invocation via MCP |
+| `jira:workflowValidator` | ⚠️ | Config UI renders (create/edit/view resources), function invocable. No workflow transition simulation. |
+| `jira:workflowCondition` | ⚠️ | Config UI renders, function invocable. No workflow transition simulation. |
+| `jira:workflowPostFunction` | ⚠️ | Config UI renders, function invocable. No workflow transition simulation. |
+| `jira:customField` | ✅ | View/edit sub-module extraction, grouped module picker, mock fieldValue in context |
+| `jira:customFieldType` | ✅ | Same as customField. Schema validation not enforced locally. |
+| `jira:command` | ⚠️ | Parsed, page targets, resource-based commands. No command palette simulation. |
 
 ### Not Parsed
 
@@ -541,12 +547,7 @@ Module types recognized by forge-sim manifest parser.
 | `jira:backlogItemAction` | ❌ | |
 | `jira:boardIssueAction` | ❌ | |
 | `jira:sprintAction` | ❌ | |
-| `jira:customField` | ❌ | Custom field types |
-| `jira:customFieldType` | ❌ | |
 | `jira:uiModificationsOverride` | ❌ | UI modifications |
-| `jira:workflowValidator` | ❌ | Workflow extensions |
-| `jira:workflowCondition` | ❌ | |
-| `jira:workflowPostFunction` | ❌ | |
 | `confluence:homepageFeed` | ❌ | |
 | `confluence:spaceSidebarItem` | ❌ | |
 | `bitbucket:pipelineStep` | ❌ | Bitbucket modules |
@@ -554,8 +555,7 @@ Module types recognized by forge-sim manifest parser.
 | `bitbucket:repoPage` | ❌ | |
 | `compass:component` | ❌ | Compass modules |
 | `compass:adminPage` | ❌ | |
-| `rovo:agent` | ❌ | Rovo AI agent definition |
-| `rovo:action` | ❌ | |
+| `rovo:agent` | ❌ | Rovo AI agent definition (config-only + AI — needs LLM integration) |
 | `app:adminPage` | ❌ | Cross-product admin |
 
 ---
@@ -581,14 +581,16 @@ Features beyond individual APIs.
 | Dev server (HMR + WebSocket) | ✅ | — | `forge-sim dev` |
 | Dev server proxy mode | ✅ | `proxy-server.test.ts` | `forge-sim dev --proxy <url>` — reverse-proxy with bridge injection, WS passthrough |
 | Stateful daemon (CLI) | ✅ | — | Auto-start, idle timeout, PID management |
-| MCP server (stdio) | ✅ | `mcp-server.test.ts` | 20 tools, 4 resources |
+| MCP server (stdio) | ✅ | `mcp-server.test.ts` | 21 tools, 4 resources |
 | MCP server (HTTP) | ✅ | — | StreamableHTTP transport |
 | Egress filtering | ❌ | — | No enforcement of `permissions.external` |
 | Content Security Policy | ❌ | — | No CSP enforcement |
 | App installation lifecycle | 🔇 | — | Manifest lifecycle triggers (install/uninstall/enable/disable) — not simulated |
 | Scoped permissions enforcement | ❌ | — | No checking of `permissions.scopes` |
 | Rate limiting simulation | ❌ | — | No simulation of Forge rate limits |
-| Memory/timeout limits | ❌ | — | No simulation of 128MB/25s limits |
+| Invocation time limits | ✅ | — | Per-function-type timeout warnings matching real Forge limits (25s resolver, 55s trigger, etc.) |
+| Trigger event templates | ✅ | — | 141 centralized templates (76 Confluence + 54 Jira + 9 Jira Software + 2 App Lifecycle) with typed payloads via `TriggerPayloadByEvent` |
+| Memory limits | ❌ | — | No simulation of 128MB heap limit |
 | Forge Remotes | ✅ | `remotes.test.ts` | Full: manifest parsing, endpoint resolution, mock routing, real HTTP with FIT JWT auth, JWKS endpoint. See [remotes.md](./remotes.md) |
 | Forge Environments | ⚠️ | — | Always returns "DEVELOPMENT" |
 
@@ -600,8 +602,8 @@ Features beyond individual APIs.
 |----------|-------------|-------------|-----------------|-------|
 | @forge/api | 26 | 5 | 4 | 35 |
 | @forge/kvs | 18 | 0 | 0 | 18 |
-| @forge/sql | 6 | 0 | 2 | 8 |
-| @forge/events | 12 | 0 | 1 | 13 |
+| @forge/sql | 6 | 0 | 1 | 7 |
+| @forge/events | 13 | 0 | 0 | 13 |
 | @forge/resolver | 3 | 0 | 0 | 3 |
 | @forge/react hooks | 11 | 0 | 2 | 13 |
 | @forge/react components (UIKit) | 70 | 0 | 0 | 70 |
@@ -610,8 +612,8 @@ Features beyond individual APIs.
 | @forge/jira-bridge | 1 | 7 | 0 | 8 |
 | @forge/confluence-bridge | 0 | 5 | 0 | 5 |
 | @forge/dashboards-bridge | 0 | 5 | 0 | 5 |
-| Manifest modules | 16 | 1 | 18 | 35 |
-| Platform features | 16 | 2 | 5 | 23 |
-| **Total** | **230** | **27** | **42** | **299** |
+| Manifest modules | 23 | 4 | 13 | 40 |
+| Platform features | 19 | 2 | 5 | 26 |
+| **Total** | **241** | **30** | **35** | **306** |
 
-**Coverage: 77% implemented, 9% stubbed no-op, 14% missing**
+**Coverage: 79% implemented, 10% stubbed/partial, 11% missing**

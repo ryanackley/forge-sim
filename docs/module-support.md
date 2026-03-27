@@ -2,7 +2,7 @@
 
 Every Forge module type catalogued with forge-sim's implementation level.
 
-**Last updated:** 2026-03-23
+**Last updated:** 2026-03-27
 
 ## Legend
 
@@ -68,7 +68,7 @@ These all follow the **UI + Resolver** or **UI + Custom UI** pattern. They have 
 | `jira:backlogAction` | ⚠️ Partial | Generic | Parsed as UI module. No backlog-specific context. (Preview) |
 | `jira:boardAction` | ⚠️ Partial | Generic | Parsed as UI module. No board-specific context. (Preview) |
 | `jira:sprintAction` | ⚠️ Partial | Generic | Parsed as UI module. No sprint-specific context. (Preview) |
-| `jira:command` | ⚠️ Partial | Generic | Command palette item. Parsed as UI module if it has `resource:`. No command palette simulation. (Preview) |
+| `jira:command` | ⚠️ Partial | Generic | Command palette item. Parsed with page targets and resource-based commands. No command palette simulation. (Preview) |
 
 ### Background Scripts
 
@@ -99,9 +99,9 @@ These all follow the **UI + Resolver** or **UI + Custom UI** pattern. They have 
 
 | Module Key | Level | Notes |
 |------------|-------|-------|
-| `jira:workflowValidator` | ❌ None | **Host-driven function.** Called during workflow transitions. May also have `resource:` for config UI. `@forge/jira-bridge` `workflowRules.onConfigure()` is stubbed (🔇). |
-| `jira:workflowCondition` | ❌ None | Same pattern. (Preview) |
-| `jira:workflowPostFunction` | ❌ None | Same pattern. (Preview) |
+| `jira:workflowValidator` | ⚠️ Partial | Manifest parsed, config UI renders (create/edit/view resources), function invocable. No workflow transition simulation — the function runs but there's no simulated transition context. |
+| `jira:workflowCondition` | ⚠️ Partial | Same as workflowValidator. (Preview) |
+| `jira:workflowPostFunction` | ⚠️ Partial | Same as workflowValidator. (Preview) |
 
 ### UI Modifications
 
@@ -202,7 +202,7 @@ All JSM modules follow standard UI patterns but target the customer portal, whic
 | Module Key | Level | Notes |
 |------------|-------|-------|
 | `rovo:agent` | ❌ None | **Config-only + AI.** Defines an AI agent with prompt, conversation starters, and action references. No function, no resource (except for icons). Would need an LLM integration to simulate. Entirely different paradigm. |
-| `action` | ❌ None | **Typed function.** Called by Rovo agents. Has input/output schema in manifest + `function:` handler. Could theoretically be invoked like a regular function, but we don't parse the `action` module type. |
+| `action` | ✅ Full | **Typed function.** Manifest parsed, input schema validated, function invocable via MCP `invoke` with `actionKey`. Input/output schema enforced. |
 
 ---
 
@@ -227,17 +227,14 @@ All JSM modules follow standard UI patterns but target the customer portal, whic
 
 | Level | Count | Modules |
 |-------|-------|---------|
-| ✅ Full | 28 | `function`, `consumer`, `trigger`, `scheduledTrigger`, `webtrigger`, `endpoint`, `jira:issuePanel`, `jira:issueActivity`, `jira:issueContext`, `jira:issueGlance`, `jira:issueAction`, `jira:globalPage`, `jira:projectPage`, `jira:adminPage`, `jira:dashboardGadget`, `jira:issueViewBackgroundScript`, `jira:dashboardBackgroundScript`, `jira:globalBackgroundScript`, `jira:customField`, `jira:customFieldType`, `confluence:globalPage`, `confluence:spacePage`, `confluence:contentAction`, `confluence:contentBylineItem`, `confluence:contextMenu`, `confluence:backgroundScript`, `macro`, `jira:fullPage` |
-| ⚠️ Partial | 29 | all Bitbucket UI, all JSM portal, all Compass UI, Jira preview modules, Confluence secondary pages |
+| ✅ Full | 29 | `function`, `consumer`, `trigger`, `scheduledTrigger`, `webtrigger`, `endpoint`, `action`, `jira:issuePanel`, `jira:issueActivity`, `jira:issueContext`, `jira:issueGlance`, `jira:issueAction`, `jira:globalPage`, `jira:projectPage`, `jira:adminPage`, `jira:dashboardGadget`, `jira:issueViewBackgroundScript`, `jira:dashboardBackgroundScript`, `jira:globalBackgroundScript`, `jira:customField`, `jira:customFieldType`, `confluence:globalPage`, `confluence:spacePage`, `confluence:contentAction`, `confluence:contentBylineItem`, `confluence:contextMenu`, `confluence:backgroundScript`, `macro` |
+| ⚠️ Partial | 32 | all Bitbucket UI, all JSM portal, all Compass UI, Jira preview modules, Confluence secondary pages, `jira:workflowValidator`, `jira:workflowCondition`, `jira:workflowPostFunction` |
 | 🔇 Stub | 1 | `jira:uiModifications` |
-| ❌ None | 15 | `jira:jqlFunction`, `jira:entityProperty`, `jira:globalPermission`, `jira:projectPermission`, `jira:timeTrackingProvider`, `jira:workflowValidator`, `jira:workflowCondition`, `jira:workflowPostFunction`, `bitbucket:mergeCheck`, `bitbucket:dynamicPipelinesProvider`, `compass:dataProvider`, `rovo:agent`, `action`, `automation:*`, `teamwork:*` |
+| ❌ None | 11 | `jira:jqlFunction`, `jira:entityProperty`, `jira:globalPermission`, `jira:projectPermission`, `jira:timeTrackingProvider`, `bitbucket:mergeCheck`, `bitbucket:dynamicPipelinesProvider`, `compass:dataProvider`, `rovo:agent`, `automation:*`, `teamwork:*` |
 
 ## Key Gaps (Ordered by Impact)
 
-1. ~~**Web triggers** — Parsed but no HTTP endpoint. Half-day fix. High value.~~ ✅ **Done!** HTTP endpoints at `/__trigger/<key>`, full request/response mapping, dynamic `getUrl()`.
-2. ~~**Custom fields**~~ ✅ Done — View/edit sub-module extraction, grouped module picker with toggle, mock fieldValue in context, value function registration. Formatter expressions (Jira Expressions) not evaluated.
-3. ~~**Background scripts**~~ ✅ Done — Filtered from picker, loaded via hidden iframe with checkbox, cross-module events via postMessage relay.
-4. **JQL functions** — Resolver exists but no invocation path outside UI context. Niche but some apps depend on it.
-5. **Bitbucket/Compass/JSM context** — UI renders but extension context is generic. Low priority unless someone's actually building for those products.
-6. **Rovo** — Completely different paradigm (AI agents). Not worth simulating until Atlassian's Rovo story stabilizes.
-7. **Workflow/Permission/Merge Check** — Host-driven functions with no simulation trigger. Very niche.
+1. **JQL functions** — Resolver exists but no invocation path outside UI context. Niche but some apps depend on it.
+2. **Bitbucket/Compass/JSM context** — UI renders but extension context is generic. Low priority unless someone's actually building for those products.
+3. **Rovo agents** — `rovo:agent` is config-only + AI. Needs LLM integration. Rovo `action` modules are fully supported.
+4. **Permission/Merge Check** — Host-driven functions with no simulation trigger. Very niche.

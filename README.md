@@ -172,7 +172,7 @@ forge-sim logs
 
 ### MCP Server
 
-For AI agents that support [Model Context Protocol](https://modelcontextprotocol.io/), forge-sim exposes 20 tools and 4 resources:
+For AI agents that support [Model Context Protocol](https://modelcontextprotocol.io/), forge-sim exposes 21 tools and 4 resources:
 
 ```bash
 # Native MCP over stdio
@@ -182,7 +182,7 @@ forge-sim-mcp
 forge-sim serve  # starts on random port, writes to ~/.forge-sim/daemon.port
 ```
 
-The full tool list: `deploy`, `invoke`, `fire_trigger`, `fire_scheduled_trigger`, `ui_state`, `ui_interact`, `kvs_get`, `kvs_set`, `kvs_list`, `queue_push`, `queue_state`, `logs`, `sql_execute`, `sql_migrate`, `sql_schema`, `entity_get`, `entity_set`, `entity_delete`, `entity_query`, `entity_list`, `reset`.
+The full tool list: `deploy`, `invoke`, `fire_trigger`, `fire_scheduled_trigger`, `ui_state`, `ui_interact`, `kvs_get`, `kvs_set`, `kvs_list`, `queue_push`, `queue_state`, `logs`, `sql_execute`, `sql_migrate`, `sql_schema`, `entity_get`, `entity_set`, `entity_delete`, `entity_query`, `entity_list`, `reset`. 141 trigger event templates with typed payloads are built-in for Confluence, Jira, Jira Software, and App Lifecycle events.
 
 ### As an AI Skill
 
@@ -285,7 +285,9 @@ Because mocking individual imports doesn't test your app. It tests your assumpti
 | Forge Remotes | Full — FIT JWT auth, JWKS endpoint, mock routing |
 | Custom UI | Full — built-in Vite or `--proxy` your own dev server |
 | UIKit 2 (`@forge/react`) | Full — 73/73 components, live preview |
-| Event & Scheduled Triggers | Full — with contract validation |
+| Event & Scheduled Triggers | Full — 141 event templates with typed payloads, contract validation |
+| Rovo Actions | Full — manifest parsing, input schema validation, MCP invocation |
+| Workflow Modules | Partial — config UI, function invocation (no transition simulation) |
 | Manifest parsing + auto-deploy | Full |
 | Persistent state (KVS + SQL) | Full — save on exit, restore on start |
 
@@ -329,7 +331,7 @@ See [docs/](./docs/) for the full reference:
 ```bash
 npm install
 npm run build      # TypeScript compile
-npm test           # 679 tests across 39 test files (core) + 112 renderer + 18 e2e
+npm test           # 1025 core tests (57 files) + 112 renderer tests (2 files) = 1137 total
 ```
 
 ## License

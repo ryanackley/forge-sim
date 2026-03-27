@@ -19,6 +19,7 @@ forge-sim dev [appDir]
 | `--issue <key>` | — | Set Jira issue context (e.g., `PROJ-42`) — hydrates via real API if connected |
 | `--content <id>` | — | Set Confluence content context (e.g., `12345`) |
 | `--space <key>` | — | Set Confluence space context (e.g., `SPACEKEY`) |
+| `--project <key>` | — | Set Jira project context (e.g., `PROJ`) — hydrates via real API if connected |
 | `--context <json>` | — | Set raw context JSON (merged into `extension`) |
 
 **What starts:**

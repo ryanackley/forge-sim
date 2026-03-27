@@ -42,7 +42,7 @@ For MCP clients that support stdio servers, add to your `.mcp.json`:
 
 > **Note:** The stdio transport is stateless — each connection starts fresh. For persistent state, use the daemon CLI commands instead.
 
-## Tools (20)
+## Tools (21)
 
 | Tool | Description |
 |------|-------------|
