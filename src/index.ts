@@ -13,6 +13,21 @@ export { SimulatedProductApi, route } from './product-api.js';
 export { parseManifest, parseManifestContent } from './manifest.js';
 export { deploy } from './deployer.js';
 export { setSimulator, getSimulator } from './shims/globals.js';
+export type {
+  TriggerPayloadByEvent,
+  KnownTriggerEvent,
+  ConfluenceTriggerPayloadByEvent,
+  ConfluenceTriggerBase,
+  ConfluenceContent,
+  ConfluenceContentReference,
+  ConfluenceSpace,
+  ConfluenceUser,
+  ConfluenceTask,
+  ConfluenceLabel,
+  ConfluenceTemplate,
+  ConfluenceGroup,
+  ConfluenceRelationEntityWrapper,
+} from './trigger-event-types.js';
 
 // UI rendering (SimulatorUI is the primary API — access via sim.ui.*)
 export { SimulatorUI } from './ui/index.js';

@@ -20,6 +20,7 @@ import { ExternalAuthStore } from './external-auth-store.js';
 import { FITProvider } from './fit-provider.js';
 import { RemoteProxy } from './remote-proxy.js';
 import type { SimulationConfig, ResolverContext, ProductApiHandler, ProductApiRequest, ProductApiResponse } from './types.js';
+import type { TriggerPayloadByEvent } from './trigger-event-types.js';
 import type { ManifestAction } from './manifest.js';
 
 // ── Forge Invocation Time Limits (seconds) ──────────────────────────────
@@ -470,7 +471,13 @@ export class ForgeSimulator {
    * Per Forge docs, trigger handlers receive TWO arguments: (event, context)
    * - event: event-specific payload ({ issue: {...} }, { sprint: {...} }, etc.)
    * - context: standard context object
+   *
+   * Overload behavior:
+   * - known documented trigger names get strong payload typing
+   * - arbitrary strings still work for forward-compat and experimentation
    */
+  async fireTrigger<K extends keyof TriggerPayloadByEvent>(eventName: K, data: TriggerPayloadByEvent[K]): Promise<any[]>;
+  async fireTrigger(eventName: string, data?: Record<string, unknown>): Promise<any[]>;
   async fireTrigger(eventName: string, data: Record<string, unknown> = {}): Promise<any[]> {
     if (!this.manifest) {
       throw new Error('No manifest loaded. Call loadManifest() first.');
