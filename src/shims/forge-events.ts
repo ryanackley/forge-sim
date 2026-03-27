@@ -159,6 +159,7 @@ const appEvents = {
     const sim = getSimulator();
     const manifest = sim.getManifest();
     const appId = manifest?.raw.app?.id ?? 'unknown';
+    const cloudId = 'sim-cloud-001';
 
     const eventsArray = Array.isArray(events) ? events : [events];
     const failedEvents: AppEventPublishFailure[] = [];
@@ -170,8 +171,20 @@ const appEvents = {
       }
 
       const fullEventName = `avi:forge:${appId}:${evt.key}`;
+
+      // Build the platform-generated event payload that the trigger handler receives.
+      // Per Forge docs, the handler gets this shape — publishing apps can't add custom payload.
+      const eventPayload: Record<string, unknown> = {
+        workspaceId: `ari:cloud:jira::site/${cloudId}`,
+        eventType: fullEventName,
+        name: evt.key,
+        environmentId: 'sim-environment-001',
+        environmentType: 'DEVELOPMENT',
+        environmentKey: 'default',
+      };
+
       try {
-        await sim.fireTrigger(fullEventName, {});
+        await sim.fireTrigger(fullEventName, eventPayload);
       } catch (err) {
         failedEvents.push({
           event: evt,

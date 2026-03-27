@@ -49,6 +49,14 @@ modules:
     expect(result.failedEvents).toHaveLength(0);
     expect(receivedEvent).toBeDefined();
     expect(receivedEvent.event).toBe('avi:forge:ari:cloud:ecosystem::app/my-test-app:issue-processed');
+
+    // Verify the platform-generated payload shape (no custom payload allowed)
+    expect(receivedEvent.workspaceId).toMatch(/^ari:cloud:jira::site\//);
+    expect(receivedEvent.eventType).toBe('avi:forge:ari:cloud:ecosystem::app/my-test-app:issue-processed');
+    expect(receivedEvent.name).toBe('issue-processed');
+    expect(receivedEvent.environmentId).toBeDefined();
+    expect(receivedEvent.environmentType).toBe('DEVELOPMENT');
+    expect(receivedEvent.environmentKey).toBe('default');
   });
 
   it('handles multiple events in a single publish call', async () => {
