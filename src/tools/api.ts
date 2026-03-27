@@ -11,6 +11,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { ForgeSimulator } from '../simulator.js';
 import type { ParsedManifest } from '../manifest.js';
+import { getTriggerEventTemplateMap } from '../trigger-event-templates.js';
 
 type ApiHandler = (req: IncomingMessage, res: ServerResponse, url: URL) => Promise<void>;
 
@@ -42,6 +43,9 @@ export function createApiHandler(sim: ForgeSimulator, manifestOrNull?: ParsedMan
     const path = url.pathname;
     const method = req.method ?? 'GET';
     const manifest = manifestOrNull ?? sim.getManifest();
+    const triggerEventTemplates = manifest
+      ? getTriggerEventTemplateMap(manifest.triggers.flatMap((trigger) => trigger.events))
+      : {};
 
     try {
       // ── Health (daemon mode) ────────────────────────────────────────
@@ -78,6 +82,7 @@ export function createApiHandler(sim: ForgeSimulator, manifestOrNull?: ParsedMan
               events: t.events,
               function: t.functionKey,
             })),
+            triggerEventTemplates: getTriggerEventTemplateMap(result.manifest.triggers.flatMap((trigger) => trigger.events)),
             consumers: result.manifest.consumers.map((c) => ({
               key: c.key,
               queue: c.queue,
@@ -113,6 +118,7 @@ export function createApiHandler(sim: ForgeSimulator, manifestOrNull?: ParsedMan
           uiModules: manifest.uiModules.map(m => ({ key: m.key, type: m.type, title: m.title, resolverFunctionKey: m.resolverFunctionKey, resourceKey: m.resourceKey })),
           consumers: manifest.consumers.map(c => ({ key: c.key, queue: c.queue, functionKey: c.functionKey })),
           triggers: manifest.triggers.map(t => ({ key: t.key, functionKey: t.functionKey, events: t.events })),
+          triggerEventTemplates,
           scheduledTriggers: manifest.scheduledTriggers.map(s => ({ key: s.key, functionKey: s.functionKey, interval: s.interval })),
           resources: [...manifest.resources.entries()].map(([key, r]) => ({ key, path: r.path })),
           actions: manifest.actions.map(a => ({

@@ -376,9 +376,13 @@ function generateFallbackHTML(prefix: string): string {
     <div class="events-layout">
       <div class="events-section">
         <h3>🎯 Fire Trigger</h3>
-        <select id="triggerSelect"></select>
+        <select id="triggerSelect" onchange="applyTriggerTemplate(true)"></select>
         <textarea class="payload" id="triggerPayload">{\n  \n}</textarea>
-        <button class="btn btn-primary" onclick="fireTrigger()">Fire Trigger</button>
+        <div id="triggerTemplateNotes" style="margin:8px 0 12px;color:var(--subtext);font-size:12px"></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn" onclick="applyTriggerTemplate(true)">Load Sample</button>
+          <button class="btn btn-primary" onclick="fireTrigger()">Fire Trigger</button>
+        </div>
         <div class="result-box" id="triggerResult" style="display:none"></div>
       </div>
       <div class="events-section">
@@ -411,6 +415,7 @@ let paused = false;
 let logs = [];
 let kvsData = [];
 let enabledLevels = new Set(['info','invoke','trigger','warn','error','console.log','console.warn','console.error','scheduledTrigger']);
+window.__triggerEventTemplates = {};
 
 // ── WebSocket ──────────────────────────────────────────────────────
 
@@ -579,10 +584,25 @@ async function refreshEvents() {
   const data = await res.json();
 
   // Triggers
+  window.__triggerEventTemplates = data.triggerEventTemplates || {};
   const sel = document.getElementById('triggerSelect');
-  sel.innerHTML = (data.triggers || []).map(t =>
-    '<option value="' + t.events.join(',') + '">' + t.key + ' (' + t.events.join(', ') + ')</option>'
-  ).join('') || '<option>No triggers defined</option>';
+  const previousEvent = sel.value;
+  const eventToTriggers = new Map();
+  (data.triggers || []).forEach(t => {
+    (t.events || []).forEach(event => {
+      const keys = eventToTriggers.get(event) || [];
+      keys.push(t.key);
+      eventToTriggers.set(event, keys);
+    });
+  });
+  const triggerOptions = Array.from(eventToTriggers.entries()).map(([event, triggerKeys]) => {
+    return '<option value="' + event + '">' + escapeHtml(event) + ' — ' + escapeHtml(triggerKeys.join(', ')) + '</option>';
+  });
+  sel.innerHTML = triggerOptions.join('') || '<option value="">No triggers defined</option>';
+  if (previousEvent && eventToTriggers.has(previousEvent)) {
+    sel.value = previousEvent;
+  }
+  applyTriggerTemplate(false);
 
   // Scheduled
   const sched = document.getElementById('scheduledList');
@@ -611,6 +631,33 @@ async function refreshEvents() {
   }
 }
 
+function applyTriggerTemplate(force) {
+  const sel = document.getElementById('triggerSelect');
+  const payloadEl = document.getElementById('triggerPayload');
+  const notesEl = document.getElementById('triggerTemplateNotes');
+  const event = sel.value;
+  const template = (window.__triggerEventTemplates || {})[event];
+
+  if (!template) {
+    notesEl.textContent = event ? 'No sample template available for this event yet.' : 'No triggers defined.';
+    if (force && !event) {
+      payloadEl.value = '{\n  \n}';
+      delete payloadEl.dataset.templateEvent;
+    }
+    return;
+  }
+
+  if (force || !payloadEl.value.trim() || payloadEl.dataset.templateEvent !== event) {
+    payloadEl.value = JSON.stringify(template.samplePayload, null, 2);
+    payloadEl.dataset.templateEvent = event;
+  }
+
+  const notes = Array.isArray(template.notes) && template.notes.length > 0
+    ? '<br>' + template.notes.map(note => '• ' + escapeHtml(note)).join('<br>')
+    : '';
+  notesEl.innerHTML = '<strong>' + escapeHtml(template.family) + '</strong>' + notes;
+}
+
 async function fireTrigger() {
   const event = document.getElementById('triggerSelect').value;
   let payload;
@@ -618,7 +665,7 @@ async function fireTrigger() {
   const res = await fetch(API + '/api/trigger', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ event: event.split(',')[0], data: payload }),
+    body: JSON.stringify({ event, data: payload }),
   });
   const result = await res.json();
   const el = document.getElementById('triggerResult');
