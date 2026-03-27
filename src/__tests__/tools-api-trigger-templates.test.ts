@@ -63,6 +63,6 @@ modules:
     expect(body.triggers).toHaveLength(2);
     expect(body.triggerEventTemplates['avi:confluence:created:page']).toBeDefined();
     expect(body.triggerEventTemplates['avi:confluence:created:page'].samplePayload.eventType).toBe('avi:confluence:created:page');
-    expect(body.triggerEventTemplates['avi:jira:created:issue']).toBeUndefined();
+    expect(body.triggerEventTemplates['avi:jira:created:issue']).toBeDefined();
   });
 });
