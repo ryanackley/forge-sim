@@ -118,14 +118,17 @@ class Queue {
   async push(events: any | any[]) {
     // Pass events through as-is — concurrency config is on the events themselves
     const sim = getSimulator();
-    const instance = sim.createQueue({ key: this.key });
-    return instance.push(events);
+    return sim.queue.push(this.key, events);
   }
 
   getJob(jobId: string) {
     const sim = getSimulator();
-    const instance = sim.createQueue({ key: this.key });
-    return instance.getJob(jobId);
+    const job = sim.queue.getJob(jobId);
+    if (!job) throw new JobDoesNotExistError();
+    return {
+      getStats: async () => ({ ...job.stats }),
+      cancel: async () => sim.queue.cancelJob(jobId),
+    };
   }
 }
 

@@ -59,12 +59,6 @@ describe('Retro Board E2E', () => {
     idCounter = 0;
     sim = new ForgeSimulator();
 
-    // ── Queues ──────────────────────────────────────────────────────────
-
-    const voteQueue = sim.createQueue({ key: 'voteQueue' });
-    const itemQueue = sim.createQueue({ key: 'itemQueue' });
-    const summaryQueue = sim.createQueue({ key: 'summaryQueue' });
-
     // ── Consumers (mirrors consumers.ts) ────────────────────────────────
 
     sim.registerConsumer('itemQueue', async (event) => {
@@ -151,13 +145,13 @@ describe('Retro Board E2E', () => {
       });
       const sprintId = req.payload.sprintId || 'current';
 
-      await itemQueue.push({ body: { sprintId, item } });
+      await sim.queue.push('itemQueue', { body: { sprintId, item } });
       return { success: true, item };
     });
 
     sim.resolver.define('submitVote', async (req) => {
       const sprintId = req.payload.sprintId || 'current';
-      await voteQueue.push({
+      await sim.queue.push('voteQueue', {
         body: { sprintId, itemId: req.payload.itemId, voterId: req.payload.voterId || 'anonymous' },
       });
       return { success: true };
@@ -168,7 +162,7 @@ describe('Retro Board E2E', () => {
       const board = await getBoardFromStorage(sim, sprintId);
       board.closed = true;
       await sim.kvs.set(`retro:${sprintId}`, board);
-      await summaryQueue.push({ body: { sprintId } });
+      await sim.queue.push('summaryQueue', { body: { sprintId } });
       return { success: true };
     });
 
@@ -176,7 +170,7 @@ describe('Retro Board E2E', () => {
 
     sim.resolver.define('onSprintCompleteFn', async (event: any, _context?: any) => {
       const sprintId = event?.sprint?.id?.toString() || 'current';
-      await summaryQueue.push({ body: { sprintId } });
+      await sim.queue.push('summaryQueue', { body: { sprintId } });
       return { triggered: true, sprintId };
     });
 

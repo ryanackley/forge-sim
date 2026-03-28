@@ -13,7 +13,6 @@ import { installBridge, connectSimulator, getLatestForgeDoc, waitForRender, rese
 installBridge();
 
 import { ForgeSimulator } from '../simulator.js';
-import { setSimulator } from '../shims/globals.js';
 import { findByType, findFirstByType, getTextContent, simulateEvent, prettyPrint } from '../ui/doc-utils.js';
 
 describe('UI ↔ Simulator Integration', () => {
@@ -26,7 +25,6 @@ describe('UI ↔ Simulator Integration', () => {
 
     // Fresh simulator
     sim = new ForgeSimulator();
-    setSimulator(sim);
     connectSimulator(sim);
 
     // Mock Jira API

@@ -59,8 +59,7 @@ describe('ForgeSimulator', () => {
       });
 
       sim.resolver.define('submitWork', async (req) => {
-        const q = sim.createQueue({ key: 'work-queue' });
-        await q.push({ body: { id: req.payload.id, task: 'process' } });
+        await sim.queue.push('work-queue', { body: { id: req.payload.id, task: 'process' } });
         return { queued: true };
       });
 

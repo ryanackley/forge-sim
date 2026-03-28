@@ -14,8 +14,7 @@ describe('SimulatedQueue', () => {
       processed.push(event.body);
     });
 
-    const q = queue.createQueue({ key: 'my-queue' });
-    const { jobId } = await q.push({ body: { msg: 'hello' } });
+    const { jobId } = await queue.push('my-queue', { body: { msg: 'hello' } });
 
     expect(jobId).toBeDefined();
     expect(processed).toEqual([{ msg: 'hello' }]);
@@ -27,8 +26,7 @@ describe('SimulatedQueue', () => {
       processed.push(event.body);
     });
 
-    const q = queue.createQueue({ key: 'bulk-queue' });
-    await q.push([
+    await queue.push('bulk-queue', [
       { body: { n: 1 } },
       { body: { n: 2 } },
       { body: { n: 3 } },
@@ -42,16 +40,16 @@ describe('SimulatedQueue', () => {
       if (event.body.fail) throw new Error('boom');
     });
 
-    const q = queue.createQueue({ key: 'stats-queue' });
-    const { jobId } = await q.push([
+    const { jobId } = await queue.push('stats-queue', [
       { body: { fail: false } },
       { body: { fail: true } },
       { body: { fail: false } },
     ]);
 
-    const stats = await q.getJob(jobId).getStats();
-    expect(stats.success).toBe(2);
-    expect(stats.failed).toBe(1);
+    const job = queue.getJob(jobId);
+    expect(job).toBeDefined();
+    expect(job!.stats.success).toBe(2);
+    expect(job!.stats.failed).toBe(1);
   });
 
   it('rejects more than 50 events', async () => {
@@ -60,8 +58,7 @@ describe('SimulatedQueue', () => {
   });
 
   it('events queue without consumer (no processing)', async () => {
-    const q = queue.createQueue({ key: 'no-consumer' });
-    const { jobId } = await q.push({ body: { msg: 'waiting' } });
+    const { jobId } = await queue.push('no-consumer', { body: { msg: 'waiting' } });
     expect(jobId).toBeDefined();
     // No error, just queued
   });

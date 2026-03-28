@@ -14,7 +14,6 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { ForgeSimulator } from '../simulator.js';
 import { deploy } from '../deployer.js';
-import { setSimulator } from '../shims/globals.js';
 import { saveState, loadState, getSQLDumpPath } from '../persistence.js';
 
 const OKR_TRACKER_DIR = join(import.meta.dirname, 'fixtures', 'okr-tracker');
@@ -37,7 +36,6 @@ describe('Persistence Roundtrip: OKR Tracker', () => {
   it('Phase 1: deploy, create data, save state', async () => {
     stateDir = await mkdtemp(join(tmpdir(), 'forge-sim-okr-persist-'));
     sim1 = new ForgeSimulator();
-    setSimulator(sim1);
 
     // Mock Jira API
     sim1.mockProductRoutes('jira', {
@@ -107,7 +105,6 @@ describe('Persistence Roundtrip: OKR Tracker', () => {
   it('Phase 2: fresh simulator, restore state, verify data', async () => {
     // Create fresh simulator
     sim2 = new ForgeSimulator();
-    setSimulator(sim2);
 
     // Mock Jira API again
     sim2.mockProductRoutes('jira', {

@@ -433,13 +433,6 @@ export class ForgeSimulator {
   // ── Queue shortcuts ─────────────────────────────────────────────────────
 
   /**
-   * Create a Queue instance (mirrors @forge/events Queue constructor).
-   */
-  createQueue(options: { key: string }) {
-    return this.queue.createQueue(options);
-  }
-
-  /**
    * Register a consumer handler for a queue.
    */
   registerConsumer(queueKey: string, handler: (event: any, context: any) => Promise<any>): void {

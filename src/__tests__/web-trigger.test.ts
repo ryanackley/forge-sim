@@ -14,7 +14,7 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { createServer, type Server, type IncomingMessage, type ServerResponse } from 'node:http';
-import { ForgeSimulator, setSimulator, parseManifestContent } from '../index.js';
+import { ForgeSimulator, parseManifestContent } from '../index.js';
 import { createWebTriggerHandler, getWebTriggerUrl } from '../web-trigger.js';
 
 // ── Test helpers ────────────────────────────────────────────────────────
@@ -81,7 +81,6 @@ describe('Web trigger HTTP handler', () => {
 
   beforeEach(async () => {
     sim = new ForgeSimulator();
-    setSimulator(sim);
   });
 
   afterEach(() => {

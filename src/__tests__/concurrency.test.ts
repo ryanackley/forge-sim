@@ -25,8 +25,7 @@ describe('Concurrent Queue Processing', () => {
       });
 
       // Push 10 events
-      const queue = sim.createQueue({ key: 'work' });
-      await queue.push(
+      await sim.queue.push('work',
         Array.from({ length: 10 }, (_, i) => ({ body: { i } }))
       );
 
@@ -52,8 +51,7 @@ describe('Concurrent Queue Processing', () => {
       });
 
       // Push 10 events — they'll all run concurrently
-      const queue = sim.createQueue({ key: 'work' });
-      await queue.push(
+      await sim.queue.push('work',
         Array.from({ length: 10 }, (_, i) => ({ body: { i } }))
       );
 
@@ -79,8 +77,7 @@ describe('Concurrent Queue Processing', () => {
           .execute();
       });
 
-      const queue = sim.createQueue({ key: 'work' });
-      await queue.push(
+      await sim.queue.push('work',
         Array.from({ length: 10 }, (_, i) => ({ body: { i } }))
       );
 
@@ -108,8 +105,7 @@ describe('Concurrent Queue Processing', () => {
       });
 
       // Push events with concurrency limit of 2
-      const queue = sim.createQueue({ key: 'work' });
-      await queue.push(
+      await sim.queue.push('work',
         Array.from({ length: 6 }, (_, i) => ({
           body: { i },
           concurrency: { key: 'my-limiter', limit: 2 },
@@ -142,17 +138,14 @@ describe('Concurrent Queue Processing', () => {
       sim.registerConsumer('queue-b', handler);
 
       // Push to two different queues but same concurrency key
-      const queueA = sim.createQueue({ key: 'queue-a' });
-      const queueB = sim.createQueue({ key: 'queue-b' });
-
       await Promise.all([
-        queueA.push(
+        sim.queue.push('queue-a',
           Array.from({ length: 3 }, (_, i) => ({
             body: { queue: 'a', i },
             concurrency: { key: 'shared-limiter', limit: 1 },
           }))
         ),
-        queueB.push(
+        sim.queue.push('queue-b',
           Array.from({ length: 3 }, (_, i) => ({
             body: { queue: 'b', i },
             concurrency: { key: 'shared-limiter', limit: 1 },
@@ -180,8 +173,7 @@ describe('Concurrent Queue Processing', () => {
         currentConcurrent--;
       });
 
-      const queue = sim.createQueue({ key: 'work' });
-      await queue.push(
+      await sim.queue.push('work',
         Array.from({ length: 5 }, (_, i) => ({ body: { i } }))
       );
 

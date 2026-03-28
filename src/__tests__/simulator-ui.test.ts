@@ -11,14 +11,12 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { ForgeSimulator } from '../simulator.js';
-import { setSimulator } from '../shims/globals.js';
 
 describe('SimulatorUI', () => {
   let sim: ForgeSimulator;
 
   beforeEach(() => {
     sim = new ForgeSimulator();
-    setSimulator(sim);
   });
 
   afterEach(() => {

@@ -6,7 +6,7 @@
  * tracking, Jira-linked recalculation, snapshots, and triggers.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { ForgeSimulator, setSimulator } from '../simulator.js';
+import { ForgeSimulator } from '../simulator.js';
 import {
   CREATE_OBJECTIVES_TABLE,
   CREATE_KEY_RESULTS_TABLE,
@@ -17,7 +17,7 @@ import type {
   KrJiraConfig,
 } from './fixtures/okr-tracker/src/types/index.js';
 
-// Real @forge/sql and @forge/kvs — dynamically imported after setSimulator()
+// Real @forge/sql and @forge/kvs — dynamically imported after simulator init
 let sql: any;
 let kvs: any;
 
@@ -26,7 +26,6 @@ describe('OKR Tracker E2E', () => {
 
   beforeAll(async () => {
     sim = new ForgeSimulator();
-    setSimulator(sim);
     await sim.sql.start();
 
     // Import real shim-routed packages
@@ -48,10 +47,6 @@ describe('OKR Tracker E2E', () => {
       color_thresholds: { on_track: 70, at_risk: 40 },
     };
     await sim.kvs.set('config:display', displayConfig);
-
-    // ── Queues ────────────────────────────────────────────────────────
-    const recalcQueue = sim.createQueue({ key: 'recalcQueue' });
-    const snapshotQueue = sim.createQueue({ key: 'snapshotQueue' });
 
     // ── Import app logic ──────────────────────────────────────────────
     const objectives = await import('./fixtures/okr-tracker/src/resolvers/objectives.js');
@@ -420,8 +415,7 @@ app:
       });
 
       // Push recalc event directly
-      const recalcQueue = sim.createQueue({ key: 'recalcQueue' });
-      await recalcQueue.push({
+      await sim.queue.push('recalcQueue', {
         body: { key_result_id: krId, objective_id: objId },
       });
 
@@ -470,8 +464,7 @@ app:
     });
 
     it('snapshot consumer creates progress_update entries for active KRs', async () => {
-      const snapshotQueue = sim.createQueue({ key: 'snapshotQueue' });
-      await snapshotQueue.push({
+      await sim.queue.push('snapshotQueue', {
         body: { cycle: 'Q3-2026', triggered_by: 'manual' },
       });
 

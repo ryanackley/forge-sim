@@ -77,7 +77,7 @@ const dump = sim.kvs.dump();
 ### Forge SQL
 
 ```typescript
-// Start MySQL (lazy — starts on first use)
+// Optionally pre-start MySQL (otherwise starts automatically on first query)
 await sim.sql.start();
 
 // Query
@@ -90,9 +90,8 @@ const fetchFn = sim.sql.createFetchFunction();
 ### Queues
 
 ```typescript
-// Create and push to a queue
-const queue = sim.createQueue({ key: 'my-queue' });
-const result = await queue.push({ body: { action: 'process' } });
+// Push to a queue
+const result = await sim.queue.push('my-queue', { body: { action: 'process' } });
 
 // Inspect queue state
 const eventLog = sim.queue.getEventLog();

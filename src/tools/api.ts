@@ -217,8 +217,7 @@ export function createApiHandler(sim: ForgeSimulator, manifestOrNull?: ParsedMan
         const body = await readBody(req);
         const { queue: queueKey, body: eventBody } = body;
         if (!queueKey) return json(res, { error: 'Missing queue key' }, 400);
-        const q = sim.createQueue({ key: queueKey });
-        const result = await q.push({ body: eventBody ?? {} });
+        const result = await sim.queue.push(queueKey, { body: eventBody ?? {} });
         return json(res, result);
       }
 

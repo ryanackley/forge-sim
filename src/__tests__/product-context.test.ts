@@ -7,7 +7,7 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { ForgeSimulator, setSimulator, buildForgeContext, buildDefaultContext } from '../index.js';
+import { ForgeSimulator, buildForgeContext, buildDefaultContext } from '../index.js';
 
 describe('buildDefaultContext', () => {
   it('returns base context with module key and type', () => {
@@ -43,7 +43,6 @@ describe('buildForgeContext', () => {
 
   beforeEach(() => {
     sim = new ForgeSimulator();
-    setSimulator(sim);
   });
 
   it('builds context with raw context object', async () => {
@@ -233,7 +232,6 @@ describe('Context flows through bridge', () => {
 
   beforeEach(async () => {
     sim = new ForgeSimulator();
-    setSimulator(sim);
     // Deploy a simple test app so we can render
     await sim.deploy(new URL('../__tests__/fixtures/simple-panel', import.meta.url).pathname);
   });
@@ -295,7 +293,6 @@ describe('Context + Resolver integration', () => {
 
   beforeEach(() => {
     sim = new ForgeSimulator();
-    setSimulator(sim);
   });
 
   it('extension fields are passed to resolver context', async () => {

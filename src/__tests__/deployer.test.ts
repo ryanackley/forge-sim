@@ -64,8 +64,7 @@ describe('Deployer', () => {
     await deploy(sim, TEST_APP_DIR);
 
     // Verify the consumer was registered by pushing directly to the queue
-    const queue = sim.createQueue({ key: 'analytics-queue' });
-    await queue.push({ body: { event: 'issue-viewed', issueKey: 'Q-1', timestamp: 1234567890 } });
+    await sim.queue.push('analytics-queue', { body: { event: 'issue-viewed', issueKey: 'Q-1', timestamp: 1234567890 } });
 
     // The queue consumer should have stored analytics
     const allStorage = sim.kvs.dump();

@@ -13,7 +13,7 @@
 
 import { describe, it, expect, beforeAll, beforeEach, afterEach, afterAll, vi } from 'vitest';
 import { resolve } from 'node:path';
-import { ForgeSimulator, setSimulator } from '../simulator.js';
+import { ForgeSimulator } from '../simulator.js';
 import { createDevServer } from '../dev-server.js';
 import type { DevServer } from '../dev-server.js';
 import { WebSocket } from 'ws';
@@ -96,7 +96,6 @@ describe('Dev Server RPC invoke routing', () => {
 
   beforeAll(async () => {
     sim = new ForgeSimulator();
-    setSimulator(sim);
 
     // Deploy a fixture app so resolver infrastructure is wired up
     await sim.deploy(FIXTURE_DIR);

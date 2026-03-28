@@ -268,8 +268,7 @@ app:
         receivedArgs = args;
       });
 
-      const queue = sim.createQueue({ key: 'testQueue' });
-      await queue.push({ body: { action: 'test' } });
+      await sim.queue.push('testQueue', { body: { action: 'test' } });
 
       // Verify two separate arguments
       expect(receivedArgs!).toHaveLength(2);
