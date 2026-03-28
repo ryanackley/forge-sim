@@ -5,12 +5,16 @@
  * and each shim module reads from it to provide the simulated APIs.
  */
 
-import { ForgeSimulator } from '../simulator.js';
+import type { ForgeSimulator } from '../simulator.js';
 
 const SIM_KEY = Symbol.for('forge-sim.instance');
 
 /**
- * Set the active simulator instance (call before loading app code).
+ * Set the active simulator instance.
+ *
+ * @deprecated Since v0.x — the ForgeSimulator constructor now calls this automatically.
+ * You no longer need to call setSimulator() manually. It remains available for
+ * backward compatibility and advanced use cases (e.g., swapping simulator instances).
  *
  * Also installs global.__forge_fetch__ so that the real @forge/api CJS package
  * (used internally by @forge/sql and others) routes through our simulator.

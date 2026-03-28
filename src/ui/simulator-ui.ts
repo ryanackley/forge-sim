@@ -40,6 +40,8 @@ import {
   prettyPrint,
 } from './doc-utils.js';
 import type { ForgeSimulator } from '../simulator.js';
+// setSimulator is auto-called in the ForgeSimulator constructor.
+// We keep this import for the defensive re-wire in ensureBridge().
 import { setSimulator } from '../shims/globals.js';
 import { pathToFileURL } from 'node:url';
 

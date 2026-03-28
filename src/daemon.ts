@@ -18,7 +18,6 @@ import { resolve, dirname } from 'node:path';
 import { mkdirSync, writeFileSync, unlinkSync, existsSync, readFileSync, appendFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { ForgeSimulator } from './simulator.js';
-import { setSimulator } from './shims/globals.js';
 import { createApiHandler } from './tools/api.js';
 
 // ── Config ──────────────────────────────────────────────────────────────
@@ -32,7 +31,6 @@ const IDLE_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
 // ── Simulator ───────────────────────────────────────────────────────────
 
 const sim = new ForgeSimulator();
-setSimulator(sim);
 
 // ── Idle Timeout ────────────────────────────────────────────────────────
 

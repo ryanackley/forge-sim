@@ -40,14 +40,12 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import { z } from 'zod';
 import { createServer } from 'node:http';
 import { ForgeSimulator } from './simulator.js';
-import { setSimulator } from './shims/globals.js';
 import { typeCheck } from './type-checker.js';
 // UI access is now through sim.ui.* — no direct bridge/doc-utils imports
 
 // ── Simulator Instance ──────────────────────────────────────────────────
 
 const sim = new ForgeSimulator();
-setSimulator(sim);
 
 // ── MCP Server Setup ────────────────────────────────────────────────────
 

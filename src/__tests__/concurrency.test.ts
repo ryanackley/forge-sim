@@ -10,13 +10,11 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import { ForgeSimulator } from '../simulator.js';
-import { setSimulator } from '../shims/globals.js';
 
 describe('Concurrent Queue Processing', () => {
   describe('sequential mode (default)', () => {
     it('should process events one at a time — no races possible', async () => {
       const sim = new ForgeSimulator();
-      setSimulator(sim);
 
       await sim.kvs.set('counter', 0);
 
@@ -43,7 +41,6 @@ describe('Concurrent Queue Processing', () => {
         queueMode: 'concurrent',
         storageLatency: true, // yield to event loop between get/set
       });
-      setSimulator(sim);
 
       await sim.kvs.set('counter', 0);
 
@@ -74,7 +71,6 @@ describe('Concurrent Queue Processing', () => {
         queueMode: 'concurrent',
         storageLatency: true,
       });
-      setSimulator(sim);
 
       // Each consumer writes a unique key via transaction — no conflicts
       sim.registerConsumer('work', async (event) => {
@@ -99,7 +95,6 @@ describe('Concurrent Queue Processing', () => {
         queueMode: 'concurrent',
         storageLatency: true,
       });
-      setSimulator(sim);
 
       let maxConcurrent = 0;
       let currentConcurrent = 0;
@@ -132,7 +127,6 @@ describe('Concurrent Queue Processing', () => {
         queueMode: 'concurrent',
         storageLatency: true,
       });
-      setSimulator(sim);
 
       let maxConcurrent = 0;
       let currentConcurrent = 0;
@@ -175,7 +169,6 @@ describe('Concurrent Queue Processing', () => {
       const sim = new ForgeSimulator({
         queueMode: 'concurrent',
       });
-      setSimulator(sim);
 
       let maxConcurrent = 0;
       let currentConcurrent = 0;

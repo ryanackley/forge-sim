@@ -1345,8 +1345,7 @@ export async function devCommand(options: DevCommandOptions) {
 
   // Set the global simulator instance so that @forge/* shims
   // (loaded via our module hooks) can register handlers directly
-  const { setSimulator } = await import('./shims/globals.js');
-  setSimulator(sim);
+  // setSimulator is now auto-called in the ForgeSimulator constructor
 
   // Deploy functions (resolvers, triggers, etc.) — these run on the server side
   // For browser mode, we skip loading UI resources (they'll run in the browser)

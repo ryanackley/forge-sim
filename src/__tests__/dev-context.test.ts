@@ -8,7 +8,7 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { ForgeSimulator, setSimulator, buildForgeContext, buildDefaultContext } from '../index.js';
+import { ForgeSimulator, buildForgeContext, buildDefaultContext } from '../index.js';
 import type { RenderContextOptions } from '../context.js';
 
 describe('Dev command context flags', () => {
@@ -16,7 +16,7 @@ describe('Dev command context flags', () => {
 
   beforeEach(() => {
     sim = new ForgeSimulator();
-    setSimulator(sim);
+
   });
 
   describe('--issue flag', () => {

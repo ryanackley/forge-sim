@@ -5,6 +5,7 @@
  * into a unified simulated Forge environment.
  */
 
+import { setSimulator } from './shims/globals.js';
 import { UnifiedKVS } from './kvs.js';
 import { SimulatedQueue } from './queue.js';
 import { SimulatedResolver } from './resolver.js';
@@ -120,6 +121,9 @@ export class ForgeSimulator {
         if (handler) this.productApi.mock(product, handler);
       }
     }
+
+    // Auto-wire as the active global simulator
+    setSimulator(this);
   }
 
   // ── Manifest Loading ────────────────────────────────────────────────────
@@ -769,7 +773,8 @@ export { SimulatedQueue } from './queue.js';
 export { SimulatedResolver } from './resolver.js';
 export { SimulatedProductApi, route } from './product-api.js';
 export { parseManifest, parseManifestContent } from './manifest.js';
-export { setSimulator, getSimulator } from './shims/globals.js';
+export { setSimulator };
+export { getSimulator } from './shims/globals.js';
 export type { ParsedManifest } from './manifest.js';
 export type { ConsoleLine } from './console-capture.js';
 export { SimulatedForgeSQL } from './forge-sql.js';

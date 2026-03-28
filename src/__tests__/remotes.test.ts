@@ -14,7 +14,7 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import { ForgeSimulator } from '../simulator.js';
-import { setSimulator } from '../shims/globals.js';
+
 import { parseManifestContent } from '../manifest.js';
 import * as forgeApi from '../shims/forge-api.js';
 import * as forgeBridge from '../shims/forge-bridge.js';
@@ -251,7 +251,6 @@ describe('mock remote routes', () => {
 
   beforeEach(async () => {
     sim = new ForgeSimulator();
-    setSimulator(sim);
     await sim.loadManifest(FULL_MANIFEST);
     await sim.fit.initInMemory();
   });
@@ -315,7 +314,6 @@ describe('invokeRemote from @forge/api', () => {
 
   beforeEach(async () => {
     sim = new ForgeSimulator();
-    setSimulator(sim);
     await sim.loadManifest(FULL_MANIFEST);
     await sim.fit.initInMemory();
   });
@@ -357,7 +355,6 @@ describe('invokeRemote from @forge/bridge', () => {
 
   beforeEach(async () => {
     sim = new ForgeSimulator();
-    setSimulator(sim);
     await sim.loadManifest(FULL_MANIFEST);
     await sim.fit.initInMemory();
     // Set active module so bridge shim can resolve endpoint
@@ -402,7 +399,6 @@ describe('requestRemote from @forge/bridge', () => {
 
   beforeEach(async () => {
     sim = new ForgeSimulator();
-    setSimulator(sim);
     await sim.loadManifest(FULL_MANIFEST);
     await sim.fit.initInMemory();
   });
@@ -432,7 +428,6 @@ describe('RemoteProxy', () => {
 
   beforeEach(async () => {
     sim = new ForgeSimulator();
-    setSimulator(sim);
     await sim.loadManifest(FULL_MANIFEST);
     await sim.fit.initInMemory();
   });
@@ -467,7 +462,6 @@ describe('simulator remotes integration', () => {
 
   it('reset clears manifest from remotes', async () => {
     const sim = new ForgeSimulator();
-    setSimulator(sim);
     await sim.loadManifest(FULL_MANIFEST);
     await sim.fit.initInMemory();
 

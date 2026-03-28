@@ -11,7 +11,6 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import { ForgeSimulator } from '../simulator.js';
-import { setSimulator } from '../shims/globals.js';
 import * as forgeApi from '../shims/forge-api.js';
 import { ExternalAuthStore } from '../external-auth-store.js';
 import type { ManifestAuthProvider, ManifestRemote } from '../types.js';
@@ -307,7 +306,6 @@ describe('ExternalAuthStore', () => {
 describe('manifest provider parsing', () => {
   it('parses providers and remotes from manifest YAML', async () => {
     const sim = new ForgeSimulator();
-    setSimulator(sim);
     const manifest = await sim.loadManifest(MANIFEST_YAML);
 
     expect(manifest.remotes.size).toBe(5);
@@ -322,7 +320,6 @@ describe('manifest provider parsing', () => {
 
   it('populates simulator externalAuth from manifest', async () => {
     const sim = new ForgeSimulator();
-    setSimulator(sim);
     await sim.loadManifest(MANIFEST_YAML);
 
     expect(sim.externalAuth.listProviders()).toHaveLength(2);
@@ -337,7 +334,6 @@ describe('withProvider() shim', () => {
 
   beforeEach(async () => {
     sim = new ForgeSimulator();
-    setSimulator(sim);
     await sim.loadManifest(MANIFEST_YAML);
   });
 

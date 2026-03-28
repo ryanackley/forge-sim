@@ -5,7 +5,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { resolve } from 'node:path';
 import { ForgeSimulator } from '../simulator.js';
-import { setSimulator } from '../shims/globals.js';
 import { deploy } from '../deployer.js';
 import { getLatestForgeDoc, waitForRender, resetBridge } from '../ui/bridge.js';
 import { getTextContent, prettyPrint } from '../ui/doc-utils.js';
@@ -19,7 +18,6 @@ describe('Deployer', () => {
     resetBridge();
     vi.resetModules();
     sim = new ForgeSimulator();
-    setSimulator(sim);
   });
 
   it('should load manifest and import all handler functions', async () => {
