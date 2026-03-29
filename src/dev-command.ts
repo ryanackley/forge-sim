@@ -1401,10 +1401,30 @@ export async function devCommand(options: DevCommandOptions) {
           saveCredentials(store).catch(() => {});
         },
       });
+
+      // Load third-party OAuth tokens for this account (from `forge-sim auth --provider`)
+      const thirdPartyTokens = store.thirdParty[account.id];
+      if (thirdPartyTokens) {
+        for (const [providerKey, token] of Object.entries(thirdPartyTokens)) {
+          sim.externalAuth.setToken(providerKey, token);
+          console.log(`  🔑 Loaded 3p token: ${providerKey}`);
+        }
+      }
     } else {
       console.log(`  📡 No Atlassian accounts — using mock APIs`);
       console.log(`     Run 'forge-sim auth' to connect to a real site`);
     }
+
+    // Load third-party provider secrets (client secrets from providers.json)
+    try {
+      const { loadProviderSecrets } = await import('./external-auth-store.js');
+      const secrets = await loadProviderSecrets(appDir);
+      sim.externalAuth.loadSecrets(secrets);
+      const secretCount = Object.keys(secrets).length;
+      if (secretCount > 0) {
+        console.log(`  🔐 Loaded ${secretCount} provider secret${secretCount > 1 ? 's' : ''}`);
+      }
+    } catch {}
   } catch (err: any) {
     console.log(`  📡 Using mock APIs (auth load failed: ${err.message})`);
   }
