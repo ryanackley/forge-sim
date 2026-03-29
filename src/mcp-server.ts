@@ -47,6 +47,9 @@ import { typeCheck } from './type-checker.js';
 
 const sim = createSimulator();
 
+// Pre-load any available credentials from env vars / .forge-sim at startup
+sim.connectFromEnv().catch(() => {});
+
 // ── MCP Server Setup ────────────────────────────────────────────────────
 
 const server = new McpServer({
@@ -101,6 +104,12 @@ server.tool(
       // Include type errors if any were found
       if (typeErrors.length > 0) {
         summary.typeErrors = typeErrors;
+      }
+
+      // Connect auth credentials (env vars + .forge-sim) now that manifest providers are loaded
+      const authResult = await sim.connectFromEnv(appDir).catch(() => ({ atlassian: { connected: false }, providers: [] }));
+      if (authResult.atlassian.connected || authResult.providers.length > 0) {
+        summary.auth = authResult;
       }
 
       const hasDeployErrors = result.errors.length > 0;
@@ -852,6 +861,66 @@ server.tool(
     } else {
       output.entities = allEntities;
       output.count = Object.values(allEntities).reduce((sum, arr) => sum + arr.length, 0);
+    }
+
+    return {
+      content: [{ type: 'text' as const, text: JSON.stringify(output, null, 2) }],
+    };
+  }
+);
+
+server.tool(
+  'forge.auth_status',
+  'Show what authentication is available: Atlassian account info, third-party provider tokens, and external auth providers from the manifest.',
+  async () => {
+    const output: Record<string, any> = {};
+
+    // Atlassian account
+    const account = sim.productApi.connectedAccount;
+    if (account) {
+      output.atlassian = {
+        connected: true,
+        site: account.site,
+        name: account.name,
+        email: account.email,
+        authType: account.authType,
+        accountId: account.accountId,
+      };
+    } else {
+      output.atlassian = { connected: false };
+    }
+
+    // External auth providers from manifest
+    const providers = sim.externalAuth.listProviders();
+    output.providers = providers.map((p) => {
+      const token = sim.externalAuth.getToken(p.key);
+      return {
+        key: p.key,
+        name: p.name,
+        type: p.type,
+        hasToken: !!token,
+        hasSecret: sim.externalAuth.hasSecret(p.key),
+      };
+    });
+
+    // Provider tokens not in manifest (set via env vars)
+    const manifestProviderKeys = new Set(providers.map((p) => p.key));
+    const envPrefix = 'FORGE_SIM_PROVIDER_';
+    const envSuffix = '_TOKEN';
+    for (const envKey of Object.keys(process.env)) {
+      if (envKey.startsWith(envPrefix) && envKey.endsWith(envSuffix)) {
+        const rawKey = envKey.slice(envPrefix.length, -envSuffix.length);
+        const providerKey = rawKey.toLowerCase().replace(/_/g, '-');
+        if (!manifestProviderKeys.has(providerKey)) {
+          output.providers.push({
+            key: providerKey,
+            name: providerKey,
+            type: 'env',
+            hasToken: true,
+            hasSecret: false,
+          });
+        }
+      }
     }
 
     return {

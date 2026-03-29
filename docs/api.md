@@ -127,6 +127,45 @@ await sim.connectRealApis({
 });
 ```
 
+### Auth / Environment Connection
+
+```typescript
+// Auto-load credentials from env vars and/or .forge-sim config files
+const result = await sim.connectFromEnv('./my-forge-app');
+// result.atlassian = { connected: true, site: 'mysite.atlassian.net', authType: 'pat' }
+// result.providers = ['google', 'github']
+```
+
+**Environment variables** (take priority over .forge-sim files):
+
+| Variable | Description |
+|----------|-------------|
+| `FORGE_SIM_SITE` | Atlassian site (e.g. `mysite.atlassian.net`) |
+| `FORGE_SIM_EMAIL` | Account email |
+| `FORGE_SIM_PAT` | Personal Access Token |
+| `FORGE_SIM_CLOUD_ID` | Cloud ID (optional, defaults to `env-cloud-id`) |
+| `FORGE_SIM_ACCOUNT_ID` | Account ID (optional, defaults to `env-user`) |
+| `FORGE_SIM_PROVIDER_<KEY>_TOKEN` | Third-party provider token. KEY is the manifest provider key uppercased with hyphens replaced by underscores (e.g. `google-apis` → `FORGE_SIM_PROVIDER_GOOGLE_APIS_TOKEN`) |
+
+**Fallback**: When env vars aren't set, `connectFromEnv(appDir)` reads from `<appDir>/.forge-sim/credentials.json` and `~/.forge-sim/credentials.json` (same files used by `forge-sim auth`).
+
+**CI/CD example**:
+
+```yaml
+env:
+  FORGE_SIM_SITE: ${{ secrets.ATLASSIAN_SITE }}
+  FORGE_SIM_EMAIL: ${{ secrets.ATLASSIAN_EMAIL }}
+  FORGE_SIM_PAT: ${{ secrets.ATLASSIAN_PAT }}
+  FORGE_SIM_PROVIDER_GOOGLE_APIS_TOKEN: ${{ secrets.GOOGLE_TOKEN }}
+```
+
+```typescript
+const sim = createSimulator();
+await sim.deploy('./my-forge-app');
+await sim.connectFromEnv('./my-forge-app');
+// Now resolvers can call real Atlassian APIs and withProvider() has tokens
+```
+
 ### UI
 
 ```typescript

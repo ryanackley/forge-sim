@@ -42,11 +42,11 @@ For MCP clients that support stdio servers, add to your `.mcp.json`:
 
 > **Note:** The stdio transport is stateless — each connection starts fresh. For persistent state, use the daemon CLI commands instead.
 
-## Tools (21)
+## Tools (22)
 
 | Tool | Description |
 |------|-------------|
-| `forge.deploy` | Deploy a Forge app from a directory |
+| `forge.deploy` | Deploy a Forge app from a directory (auto-loads auth credentials) |
 | `forge.invoke` | Call a resolver function with payload |
 | `forge.fire_trigger` | Simulate product event triggers |
 | `forge.fire_scheduled_trigger` | Fire a scheduled trigger by key |
@@ -66,6 +66,7 @@ For MCP clients that support stdio servers, add to your `.mcp.json`:
 | `forge.entity_delete` | Delete a Custom Entity |
 | `forge.entity_query` | Query entities with indexes, filters, sort, pagination |
 | `forge.entity_list` | List all entities and schemas |
+| `forge.auth_status` | Show Atlassian account info, 3p provider tokens, and auth status |
 | `forge.reset` | Clear all state |
 
 ## Resources (4)

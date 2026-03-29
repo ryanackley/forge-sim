@@ -720,6 +720,166 @@ export class ForgeSimulator {
     return errors;
   }
 
+  // ── Auth / Environment Connection ───────────────────────────────────────
+
+  /**
+   * Load auth credentials from environment variables and/or .forge-sim config files.
+   *
+   * ENV vars take priority over .forge-sim files.
+   *
+   * **Atlassian credentials (ENV):**
+   *   FORGE_SIM_SITE, FORGE_SIM_EMAIL, FORGE_SIM_PAT — builds a PAT account
+   *   FORGE_SIM_CLOUD_ID, FORGE_SIM_ACCOUNT_ID — optional overrides
+   *
+   * **Atlassian credentials (.forge-sim fallback):**
+   *   Loads from loadCredentials(appDir) → getDefaultAccount()
+   *
+   * **Third-party provider tokens (ENV):**
+   *   FORGE_SIM_PROVIDER_<KEY>_TOKEN — KEY is provider key uppercased, hyphens→underscores
+   *
+   * **Third-party tokens (.forge-sim fallback):**
+   *   Loads from credential store thirdParty tokens for the default account
+   *
+   * **Provider secrets (.forge-sim only):**
+   *   Always tries loadProviderSecrets(appDir)
+   */
+  async connectFromEnv(appDir?: string): Promise<ConnectFromEnvResult> {
+    const resolvedAppDir = appDir ?? this.appDir ?? undefined;
+    const result: ConnectFromEnvResult = { atlassian: { connected: false }, providers: [] };
+
+    // Track which provider keys got tokens from env vars (so we skip them in fallback)
+    const envProviderKeys = new Set<string>();
+
+    // ── 1. Atlassian credentials ──────────────────────────────────────────
+
+    const envSite = process.env.FORGE_SIM_SITE;
+    const envEmail = process.env.FORGE_SIM_EMAIL;
+    const envPat = process.env.FORGE_SIM_PAT;
+
+    if (envSite && envEmail && envPat) {
+      // Build PAT account from env vars
+      const account: import('./auth/credentials.js').AtlassianAccount = {
+        id: 'env-pat',
+        name: envEmail.split('@')[0],
+        email: envEmail,
+        site: envSite,
+        cloudId: process.env.FORGE_SIM_CLOUD_ID ?? 'env-cloud-id',
+        accountId: process.env.FORGE_SIM_ACCOUNT_ID ?? 'env-user',
+        authType: 'pat',
+        accessToken: envPat,
+        refreshToken: '',
+        expiresAt: 0,
+        scopes: [],
+        default: true,
+      };
+
+      this.productApi.connectRealApis(account);
+      result.atlassian = { connected: true, site: envSite, authType: 'pat' };
+      this.log('info', `Connected to Atlassian via PAT (env): ${envSite}`);
+    } else if (resolvedAppDir) {
+      // .forge-sim fallback
+      try {
+        const { loadCredentials, getDefaultAccount, saveCredentials, upsertAccount } = await import('./auth/credentials.js');
+        const store = await loadCredentials(resolvedAppDir);
+        const account = getDefaultAccount(store);
+
+        if (account) {
+          // Set up OAuth config for token refresh
+          if (account.authType === 'oauth') {
+            try {
+              const { getOAuthAppConfig } = await import('./auth/config.js');
+              const { setOAuthConfig } = await import('./auth/oauth.js');
+              const oauthAppConfig = await getOAuthAppConfig();
+              if (oauthAppConfig) setOAuthConfig(oauthAppConfig);
+            } catch {}
+          }
+
+          this.productApi.connectRealApis(account, {
+            onTokenRefresh: (refreshedAccount) => {
+              upsertAccount(store, refreshedAccount);
+              saveCredentials(store).catch(() => {});
+            },
+          });
+
+          result.atlassian = { connected: true, site: account.site, authType: account.authType };
+          this.log('info', `Connected to Atlassian via ${account.authType} (.forge-sim): ${account.site}`);
+
+          // Load third-party OAuth tokens for this account from credential store
+          const thirdPartyTokens = store.thirdParty[account.id];
+          if (thirdPartyTokens) {
+            for (const [providerKey, token] of Object.entries(thirdPartyTokens)) {
+              // Only set if not already set by env var
+              if (!envProviderKeys.has(providerKey)) {
+                this.externalAuth.setToken(providerKey, token);
+                result.providers.push(providerKey);
+                this.log('info', `Loaded 3p token (.forge-sim): ${providerKey}`);
+              }
+            }
+          }
+        }
+      } catch {}
+    }
+
+    // ── 2. Third-party provider tokens (ENV) ─────────────────────────────
+
+    const providerEnvPrefix = 'FORGE_SIM_PROVIDER_';
+    const providerEnvSuffix = '_TOKEN';
+    for (const [envKey, envValue] of Object.entries(process.env)) {
+      if (envKey.startsWith(providerEnvPrefix) && envKey.endsWith(providerEnvSuffix) && envValue) {
+        // Extract provider key: FORGE_SIM_PROVIDER_GOOGLE_APIS_TOKEN → GOOGLE_APIS → google-apis
+        const rawKey = envKey.slice(providerEnvPrefix.length, -providerEnvSuffix.length);
+        const providerKey = rawKey.toLowerCase().replace(/_/g, '-');
+        this.externalAuth.setToken(providerKey, { provider: providerKey, accessToken: envValue });
+        envProviderKeys.add(providerKey);
+        if (!result.providers.includes(providerKey)) {
+          result.providers.push(providerKey);
+        }
+        this.log('info', `Loaded 3p token (env): ${providerKey}`);
+      }
+    }
+
+    // ── 3. Third-party tokens (.forge-sim fallback for non-env providers) ─
+
+    // If we connected via env PAT (no credential store account), try loading 3p tokens from store too
+    if (envSite && envEmail && envPat && resolvedAppDir) {
+      try {
+        const { loadCredentials, getDefaultAccount } = await import('./auth/credentials.js');
+        const store = await loadCredentials(resolvedAppDir);
+        const account = getDefaultAccount(store);
+        if (account) {
+          const thirdPartyTokens = store.thirdParty[account.id];
+          if (thirdPartyTokens) {
+            for (const [providerKey, token] of Object.entries(thirdPartyTokens)) {
+              if (!envProviderKeys.has(providerKey)) {
+                this.externalAuth.setToken(providerKey, token);
+                if (!result.providers.includes(providerKey)) {
+                  result.providers.push(providerKey);
+                }
+                this.log('info', `Loaded 3p token (.forge-sim): ${providerKey}`);
+              }
+            }
+          }
+        }
+      } catch {}
+    }
+
+    // ── 4. Provider secrets (.forge-sim only) ─────────────────────────────
+
+    if (resolvedAppDir) {
+      try {
+        const { loadProviderSecrets } = await import('./external-auth-store.js');
+        const secrets = await loadProviderSecrets(resolvedAppDir);
+        this.externalAuth.loadSecrets(secrets);
+        const secretCount = Object.keys(secrets).length;
+        if (secretCount > 0) {
+          this.log('info', `Loaded ${secretCount} provider secret${secretCount > 1 ? 's' : ''}`);
+        }
+      } catch {}
+    }
+
+    return result;
+  }
+
   // ── Full Reset ──────────────────────────────────────────────────────────
 
   reset(): void {
@@ -756,6 +916,16 @@ export interface LogEntry {
   level: string;
   message: string;
   data?: any;
+}
+
+export interface ConnectFromEnvResult {
+  atlassian: {
+    connected: boolean;
+    site?: string;
+    authType?: string;
+  };
+  /** Provider keys that had tokens loaded (from env or .forge-sim). */
+  providers: string[];
 }
 
 /**
