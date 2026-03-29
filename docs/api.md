@@ -130,11 +130,16 @@ await sim.connectRealApis({
 ### Auth / Environment Connection
 
 ```typescript
+// Deploy first — loadAuthFromEnv() requires a deployed app
+await sim.deploy('./my-forge-app');
+
 // Auto-load credentials from env vars and/or .forge-sim config files
-const result = await sim.connectFromEnv('./my-forge-app');
+const result = await sim.loadAuthFromEnv();
 // result.atlassian = { connected: true, site: 'mysite.atlassian.net', authType: 'pat' }
 // result.providers = ['google', 'github']
 ```
+
+**Must be called after `deploy()`** — uses the deployed app directory for `.forge-sim/` lookups and manifest provider definitions.
 
 **Environment variables** (take priority over .forge-sim files):
 
@@ -147,7 +152,7 @@ const result = await sim.connectFromEnv('./my-forge-app');
 | `FORGE_SIM_ACCOUNT_ID` | Account ID (optional, defaults to `env-user`) |
 | `FORGE_SIM_PROVIDER_<KEY>_TOKEN` | Third-party provider token. KEY is the manifest provider key uppercased with hyphens replaced by underscores (e.g. `google-apis` → `FORGE_SIM_PROVIDER_GOOGLE_APIS_TOKEN`) |
 
-**Fallback**: When env vars aren't set, `connectFromEnv(appDir)` reads from `<appDir>/.forge-sim/credentials.json` and `~/.forge-sim/credentials.json` (same files used by `forge-sim auth`).
+**Fallback**: When env vars aren't set, `loadAuthFromEnv()` reads from `<appDir>/.forge-sim/credentials.json` and `~/.forge-sim/credentials.json` (same files used by `forge-sim auth`).
 
 **CI/CD example**:
 
@@ -162,7 +167,7 @@ env:
 ```typescript
 const sim = createSimulator();
 await sim.deploy('./my-forge-app');
-await sim.connectFromEnv('./my-forge-app');
+await sim.loadAuthFromEnv();
 // Now resolvers can call real Atlassian APIs and withProvider() has tokens
 ```
 

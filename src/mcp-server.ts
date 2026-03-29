@@ -47,8 +47,7 @@ import { typeCheck } from './type-checker.js';
 
 const sim = createSimulator();
 
-// Pre-load any available credentials from env vars / .forge-sim at startup
-sim.connectFromEnv().catch(() => {});
+
 
 // ── MCP Server Setup ────────────────────────────────────────────────────
 
@@ -107,7 +106,7 @@ server.tool(
       }
 
       // Connect auth credentials (env vars + .forge-sim) now that manifest providers are loaded
-      const authResult = await sim.connectFromEnv(appDir).catch(() => ({ atlassian: { connected: false }, providers: [] }));
+      const authResult = await sim.loadAuthFromEnv().catch(() => ({ atlassian: { connected: false }, providers: [] }));
       if (authResult.atlassian.connected || authResult.providers.length > 0) {
         summary.auth = authResult;
       }

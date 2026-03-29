@@ -724,6 +724,7 @@ export class ForgeSimulator {
 
   /**
    * Load auth credentials from environment variables and/or .forge-sim config files.
+   * **Must be called after deploy()** — uses the deployed app directory for .forge-sim lookups.
    *
    * ENV vars take priority over .forge-sim files.
    *
@@ -743,9 +744,12 @@ export class ForgeSimulator {
    * **Provider secrets (.forge-sim only):**
    *   Always tries loadProviderSecrets(appDir)
    */
-  async connectFromEnv(appDir?: string): Promise<ConnectFromEnvResult> {
-    const resolvedAppDir = appDir ?? this.appDir ?? undefined;
-    const result: ConnectFromEnvResult = { atlassian: { connected: false }, providers: [] };
+  async loadAuthFromEnv(): Promise<LoadAuthResult> {
+    if (!this.appDir) {
+      throw new Error('loadAuthFromEnv() requires deploy() to be called first');
+    }
+    const appDir = this.appDir;
+    const result: LoadAuthResult = { atlassian: { connected: false }, providers: [] };
 
     // Track which provider keys got tokens from env vars (so we skip them in fallback)
     const envProviderKeys = new Set<string>();
@@ -776,11 +780,11 @@ export class ForgeSimulator {
       this.productApi.connectRealApis(account);
       result.atlassian = { connected: true, site: envSite, authType: 'pat' };
       this.log('info', `Connected to Atlassian via PAT (env): ${envSite}`);
-    } else if (resolvedAppDir) {
+    } else {
       // .forge-sim fallback
       try {
         const { loadCredentials, getDefaultAccount, saveCredentials, upsertAccount } = await import('./auth/credentials.js');
-        const store = await loadCredentials(resolvedAppDir);
+        const store = await loadCredentials(appDir);
         const account = getDefaultAccount(store);
 
         if (account) {
@@ -841,10 +845,10 @@ export class ForgeSimulator {
     // ── 3. Third-party tokens (.forge-sim fallback for non-env providers) ─
 
     // If we connected via env PAT (no credential store account), try loading 3p tokens from store too
-    if (envSite && envEmail && envPat && resolvedAppDir) {
+    if (envSite && envEmail && envPat) {
       try {
         const { loadCredentials, getDefaultAccount } = await import('./auth/credentials.js');
-        const store = await loadCredentials(resolvedAppDir);
+        const store = await loadCredentials(appDir);
         const account = getDefaultAccount(store);
         if (account) {
           const thirdPartyTokens = store.thirdParty[account.id];
@@ -865,17 +869,15 @@ export class ForgeSimulator {
 
     // ── 4. Provider secrets (.forge-sim only) ─────────────────────────────
 
-    if (resolvedAppDir) {
-      try {
-        const { loadProviderSecrets } = await import('./external-auth-store.js');
-        const secrets = await loadProviderSecrets(resolvedAppDir);
-        this.externalAuth.loadSecrets(secrets);
-        const secretCount = Object.keys(secrets).length;
-        if (secretCount > 0) {
-          this.log('info', `Loaded ${secretCount} provider secret${secretCount > 1 ? 's' : ''}`);
-        }
-      } catch {}
-    }
+    try {
+      const { loadProviderSecrets } = await import('./external-auth-store.js');
+      const secrets = await loadProviderSecrets(appDir);
+      this.externalAuth.loadSecrets(secrets);
+      const secretCount = Object.keys(secrets).length;
+      if (secretCount > 0) {
+        this.log('info', `Loaded ${secretCount} provider secret${secretCount > 1 ? 's' : ''}`);
+      }
+    } catch {}
 
     return result;
   }
@@ -918,7 +920,7 @@ export interface LogEntry {
   data?: any;
 }
 
-export interface ConnectFromEnvResult {
+export interface LoadAuthResult {
   atlassian: {
     connected: boolean;
     site?: string;
