@@ -9,12 +9,12 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { ForgeSimulator } from '../simulator.js';
+import { createSimulator } from '../simulator.js';
 
 describe('Concurrent Queue Processing', () => {
   describe('sequential mode (default)', () => {
     it('should process events one at a time — no races possible', async () => {
-      const sim = new ForgeSimulator();
+      const sim = createSimulator();
 
       await sim.kvs.set('counter', 0);
 
@@ -36,7 +36,7 @@ describe('Concurrent Queue Processing', () => {
 
   describe('concurrent mode', () => {
     it('should expose race conditions in naive get→set patterns', async () => {
-      const sim = new ForgeSimulator({
+      const sim = createSimulator({
         queueMode: 'concurrent',
         storageLatency: true, // yield to event loop between get/set
       });
@@ -65,7 +65,7 @@ describe('Concurrent Queue Processing', () => {
     });
 
     it('should safely batch writes with transact() builder', async () => {
-      const sim = new ForgeSimulator({
+      const sim = createSimulator({
         queueMode: 'concurrent',
         storageLatency: true,
       });
@@ -88,7 +88,7 @@ describe('Concurrent Queue Processing', () => {
     });
 
     it('should respect concurrency key limits', async () => {
-      const sim = new ForgeSimulator({
+      const sim = createSimulator({
         queueMode: 'concurrent',
         storageLatency: true,
       });
@@ -119,7 +119,7 @@ describe('Concurrent Queue Processing', () => {
     });
 
     it('concurrency keys should work across different queues', async () => {
-      const sim = new ForgeSimulator({
+      const sim = createSimulator({
         queueMode: 'concurrent',
         storageLatency: true,
       });
@@ -159,7 +159,7 @@ describe('Concurrent Queue Processing', () => {
     });
 
     it('unbounded concurrency when no concurrency key set', async () => {
-      const sim = new ForgeSimulator({
+      const sim = createSimulator({
         queueMode: 'concurrent',
       });
 

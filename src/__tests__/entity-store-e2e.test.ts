@@ -4,7 +4,7 @@
 
 import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
 import { createRequire } from 'node:module';
-import { ForgeSimulator } from '../simulator.js';
+import { createSimulator, ForgeSimulator } from '../simulator.js';
 
 // Use createRequire to bypass vitest's alias for @forge/kvs
 // so we get the REAL package (which uses global.__forge_fetch__)
@@ -19,7 +19,7 @@ describe('Entity Store E2E (@forge/kvs → EntityStore)', () => {
   let sim: ForgeSimulator;
 
   beforeAll(async () => {
-    sim = new ForgeSimulator();
+    sim = createSimulator();
 
     // Register schemas
     sim.entityStore.registerEntitySchema('Task', {

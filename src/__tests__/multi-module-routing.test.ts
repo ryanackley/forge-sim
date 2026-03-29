@@ -20,7 +20,7 @@ import {
 } from '../dev-command.js';
 import { parseManifestContent, type ParsedManifest, type ManifestUIModule } from '../manifest.js';
 import { buildForgeContext, buildDefaultContext } from '../context.js';
-import { ForgeSimulator } from '../simulator.js';
+import { createSimulator, ForgeSimulator } from '../simulator.js';
 
 // ── Fixtures ──────────────────────────────────────────────────────────────
 
@@ -221,7 +221,7 @@ describe('Multi-Module Routing', () => {
     let sim: ForgeSimulator;
 
     beforeEach(() => {
-      sim = new ForgeSimulator();
+      sim = createSimulator();
     });
 
     it('should build context with issueKey', async () => {

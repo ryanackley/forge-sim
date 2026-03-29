@@ -16,7 +16,7 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { ForgeSimulator } from '../simulator.js';
+import { createSimulator, ForgeSimulator } from '../simulator.js';
 
 // ── Test Manifests ──────────────────────────────────────────────────────
 
@@ -155,7 +155,7 @@ describe('Module route registration', () => {
   let sim: ForgeSimulator;
 
   beforeEach(() => {
-    sim = new ForgeSimulator();
+    sim = createSimulator();
   });
 
   it('registers module routes from manifest with resolver', async () => {
@@ -213,7 +213,7 @@ describe('Resolver boundary enforcement', () => {
   let sim: ForgeSimulator;
 
   beforeEach(async () => {
-    sim = new ForgeSimulator();
+    sim = createSimulator();
     await sim.loadManifest(MULTI_RESOLVER_MANIFEST);
 
     // Simulate what the deployer does: define functions and register ownership
@@ -268,7 +268,7 @@ describe('Endpoint boundary enforcement', () => {
   let sim: ForgeSimulator;
 
   beforeEach(async () => {
-    sim = new ForgeSimulator();
+    sim = createSimulator();
   });
 
   it('resolves endpoint for module with endpoint config', async () => {

@@ -5,9 +5,9 @@ Use forge-sim directly in your code for tests, scripts, or custom tooling.
 ## Basic Usage
 
 ```typescript
-import { ForgeSimulator } from 'forge-sim';
+import { createSimulator } from 'forge-sim';
 
-const sim = new ForgeSimulator();  // Auto-wires global shim state
+const sim = createSimulator();  // Auto-wires global shim state
 
 // Deploy your app
 const result = await sim.deploy('./my-forge-app');
@@ -26,7 +26,7 @@ const logs = sim.getLogs();
 node --import forge-sim/dist/loader/register.js your-script.js
 ```
 
-## ForgeSimulator API
+## API Reference
 
 ### Deploy & Reset
 

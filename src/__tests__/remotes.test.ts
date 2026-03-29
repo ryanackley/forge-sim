@@ -13,7 +13,7 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { ForgeSimulator } from '../simulator.js';
+import { createSimulator, ForgeSimulator } from '../simulator.js';
 
 import { parseManifestContent } from '../manifest.js';
 import * as forgeApi from '../shims/forge-api.js';
@@ -250,7 +250,7 @@ describe('mock remote routes', () => {
   let sim: ForgeSimulator;
 
   beforeEach(async () => {
-    sim = new ForgeSimulator();
+    sim = createSimulator();
     await sim.loadManifest(FULL_MANIFEST);
     await sim.fit.initInMemory();
   });
@@ -313,7 +313,7 @@ describe('invokeRemote from @forge/api', () => {
   let sim: ForgeSimulator;
 
   beforeEach(async () => {
-    sim = new ForgeSimulator();
+    sim = createSimulator();
     await sim.loadManifest(FULL_MANIFEST);
     await sim.fit.initInMemory();
   });
@@ -354,7 +354,7 @@ describe('invokeRemote from @forge/bridge', () => {
   let sim: ForgeSimulator;
 
   beforeEach(async () => {
-    sim = new ForgeSimulator();
+    sim = createSimulator();
     await sim.loadManifest(FULL_MANIFEST);
     await sim.fit.initInMemory();
     // Set active module so bridge shim can resolve endpoint
@@ -398,7 +398,7 @@ describe('requestRemote from @forge/bridge', () => {
   let sim: ForgeSimulator;
 
   beforeEach(async () => {
-    sim = new ForgeSimulator();
+    sim = createSimulator();
     await sim.loadManifest(FULL_MANIFEST);
     await sim.fit.initInMemory();
   });
@@ -427,7 +427,7 @@ describe('RemoteProxy', () => {
   let sim: ForgeSimulator;
 
   beforeEach(async () => {
-    sim = new ForgeSimulator();
+    sim = createSimulator();
     await sim.loadManifest(FULL_MANIFEST);
     await sim.fit.initInMemory();
   });
@@ -455,13 +455,13 @@ describe('RemoteProxy', () => {
 
 describe('simulator remotes integration', () => {
   it('remotes and fit are available on simulator', () => {
-    const sim = new ForgeSimulator();
+    const sim = createSimulator();
     expect(sim.remotes).toBeDefined();
     expect(sim.fit).toBeDefined();
   });
 
   it('reset clears manifest from remotes', async () => {
-    const sim = new ForgeSimulator();
+    const sim = createSimulator();
     await sim.loadManifest(FULL_MANIFEST);
     await sim.fit.initInMemory();
 

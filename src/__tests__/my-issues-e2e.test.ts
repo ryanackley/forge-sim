@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { ForgeSimulator } from '../simulator.js';
+import { createSimulator, ForgeSimulator } from '../simulator.js';
 
 const FIXTURE_DIR = new URL('./fixtures/my-issues', import.meta.url).pathname;
 
@@ -12,7 +12,7 @@ describe('my-issues e2e', () => {
   let sim: ForgeSimulator;
 
   beforeAll(async () => {
-    sim = new ForgeSimulator();
+    sim = createSimulator();
 
     // Mock Jira API responses
     sim.mockProductRoutes('jira', {

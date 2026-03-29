@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { ForgeSimulator } from '../simulator.js';
+import { createSimulator, ForgeSimulator } from '../simulator.js';
 
 // These will be dynamically imported since they need the global hooks set up first
 let sql: any;
@@ -15,7 +15,7 @@ describe('Forge SQL E2E (@forge/sql → MySQL)', () => {
   let sim: ForgeSimulator;
 
   beforeAll(async () => {
-    sim = new ForgeSimulator();
+    sim = createSimulator();
     await sim.sql.start();
 
     // Import the real @forge/sql — it uses require('@forge/api') internally

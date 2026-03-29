@@ -12,7 +12,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { installBridge, connectSimulator, getLatestForgeDoc, waitForRender, resetBridge } from '../ui/bridge.js';
 installBridge();
 
-import { ForgeSimulator } from '../simulator.js';
+import { createSimulator, ForgeSimulator } from '../simulator.js';
 import { findByType, findFirstByType, getTextContent, simulateEvent, prettyPrint } from '../ui/doc-utils.js';
 
 describe('UI ↔ Simulator Integration', () => {
@@ -24,7 +24,7 @@ describe('UI ↔ Simulator Integration', () => {
     vi.resetModules();
 
     // Fresh simulator
-    sim = new ForgeSimulator();
+    sim = createSimulator();
     connectSimulator(sim);
 
     // Mock Jira API

@@ -6,7 +6,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtemp, rm, readFile, access } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { ForgeSimulator } from '../simulator.js';
+import { createSimulator, ForgeSimulator } from '../simulator.js';
 import { saveState, loadState, hasPersistedState, getSQLDumpPath } from '../persistence.js';
 
 describe('Persistence', () => {
@@ -14,7 +14,7 @@ describe('Persistence', () => {
   let stateDir: string;
 
   beforeEach(async () => {
-    sim = new ForgeSimulator();
+    sim = createSimulator();
     stateDir = await mkdtemp(join(tmpdir(), 'forge-sim-persist-'));
   });
 
@@ -42,7 +42,7 @@ describe('Persistence', () => {
       expect(saved.key3).toEqual([1, 2, 3]);
 
       // Create fresh simulator and restore
-      const sim2 = new ForgeSimulator();
+      const sim2 = createSimulator();
       await loadState(sim2, stateDir);
 
       expect(await sim2.kvs.get('key1')).toBe('value1');
@@ -67,7 +67,7 @@ describe('Persistence', () => {
       await sim.kvs.set('overwrite', 'old');
 
       // Save a different sim's state
-      const sim2 = new ForgeSimulator();
+      const sim2 = createSimulator();
       await sim2.kvs.set('overwrite', 'new');
       await sim2.kvs.set('added', 'fresh');
       await saveState(sim2, stateDir);
@@ -106,7 +106,7 @@ describe('Persistence', () => {
       expect(dump).toContain('users');
 
       // Create fresh simulator — set initSQLFilePath BEFORE start (like dev-command does)
-      const sim2 = new ForgeSimulator();
+      const sim2 = createSimulator();
       const sqlDumpPath = await getSQLDumpPath(stateDir);
       expect(sqlDumpPath).toBeDefined();
       sim2.sql.setInitSQLFilePath(sqlDumpPath!);
@@ -148,7 +148,7 @@ describe('Persistence', () => {
       expect(dump).toContain('USE forge_app');
 
       // Restore into fresh sim — should not fail on FK ordering
-      const sim2 = new ForgeSimulator();
+      const sim2 = createSimulator();
       const sqlDumpPath = await getSQLDumpPath(stateDir);
       sim2.sql.setInitSQLFilePath(sqlDumpPath!);
       await sim2.sql.start();
@@ -189,7 +189,7 @@ describe('Persistence', () => {
       expect(saved.entities).toHaveLength(3);
 
       // Create fresh simulator and restore
-      const sim2 = new ForgeSimulator();
+      const sim2 = createSimulator();
       await loadState(sim2, stateDir);
 
       // Verify entities are restored
@@ -214,7 +214,7 @@ describe('Persistence', () => {
 
       await saveState(sim, stateDir);
 
-      const sim2 = new ForgeSimulator();
+      const sim2 = createSimulator();
       await loadState(sim2, stateDir);
 
       const resp = await sim2.entityStore.handleRequest('/api/v1/get', {
@@ -231,7 +231,7 @@ describe('Persistence', () => {
 
       await saveState(sim, stateDir);
 
-      const sim2 = new ForgeSimulator();
+      const sim2 = createSimulator();
       await loadState(sim2, stateDir);
 
       const resp = await sim2.entityStore.handleRequest('/api/v1/secret/get', {

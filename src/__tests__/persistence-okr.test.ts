@@ -12,7 +12,7 @@ import { describe, it, expect, afterAll } from 'vitest';
 import { mkdtemp, rm, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { ForgeSimulator } from '../simulator.js';
+import { createSimulator, ForgeSimulator } from '../simulator.js';
 import { deploy } from '../deployer.js';
 import { saveState, loadState, getSQLDumpPath } from '../persistence.js';
 
@@ -35,7 +35,7 @@ describe('Persistence Roundtrip: OKR Tracker', () => {
 
   it('Phase 1: deploy, create data, save state', async () => {
     stateDir = await mkdtemp(join(tmpdir(), 'forge-sim-okr-persist-'));
-    sim1 = new ForgeSimulator();
+    sim1 = createSimulator();
 
     // Mock Jira API
     sim1.mockProductRoutes('jira', {
@@ -104,7 +104,7 @@ describe('Persistence Roundtrip: OKR Tracker', () => {
 
   it('Phase 2: fresh simulator, restore state, verify data', async () => {
     // Create fresh simulator
-    sim2 = new ForgeSimulator();
+    sim2 = createSimulator();
 
     // Mock Jira API again
     sim2.mockProductRoutes('jira', {

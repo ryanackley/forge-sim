@@ -3,13 +3,13 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import { ForgeSimulator } from '../simulator.js';
+import { createSimulator, ForgeSimulator } from '../simulator.js';
 
 describe('SimulatedEntityStore', () => {
   let sim: ForgeSimulator;
 
   beforeAll(() => {
-    sim = new ForgeSimulator();
+    sim = createSimulator();
 
     // Register entity schemas (normally comes from manifest)
     sim.entityStore.registerEntitySchema('Employee', {

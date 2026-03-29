@@ -1,11 +1,11 @@
 import { afterAll, describe, expect, it } from 'vitest';
 import { createServer } from 'node:http';
-import { ForgeSimulator } from '../simulator.js';
+import { createSimulator } from '../simulator.js';
 import { createApiHandler } from '../tools/api.js';
 import { parseManifestContent } from '../manifest.js';
 
 async function startApiServer(manifestYaml: string): Promise<{ server: ReturnType<typeof createServer>; url: string }> {
-  const sim = new ForgeSimulator();
+  const sim = createSimulator();
   const manifest = parseManifestContent(manifestYaml);
   const handler = createApiHandler(sim, manifest);
 

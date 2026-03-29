@@ -150,9 +150,9 @@ const data = await response.json();
 For testing and development, mock remote responses using the same system as product API mocks:
 
 ```typescript
-import { ForgeSimulator } from 'forge-sim';
+import { createSimulator } from 'forge-sim';
 
-const sim = new ForgeSimulator();
+const sim = createSimulator();
 await sim.deploy('./my-app');
 
 // Mock remote routes (remote key = mock key)

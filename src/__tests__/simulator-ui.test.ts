@@ -2,7 +2,7 @@
  * Tests for SimulatorUI — the first-class UI API on ForgeSimulator.
  *
  * Demonstrates the clean unit test story:
- *   const sim = new ForgeSimulator();
+ *   const sim = createSimulator();
  *   await sim.deploy('./my-app');
  *   await sim.invoke('getPanel', { issueKey: 'PROJ-1' });
  *   const doc = sim.ui.getForgeDoc();
@@ -10,13 +10,13 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { ForgeSimulator } from '../simulator.js';
+import { createSimulator, ForgeSimulator } from '../simulator.js';
 
 describe('SimulatorUI', () => {
   let sim: ForgeSimulator;
 
   beforeEach(() => {
-    sim = new ForgeSimulator();
+    sim = createSimulator();
   });
 
   afterEach(() => {

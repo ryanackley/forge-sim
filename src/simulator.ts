@@ -758,6 +758,17 @@ export interface LogEntry {
   data?: any;
 }
 
+/**
+ * Create (or replace) the global simulator singleton.
+ * This is the preferred way to initialize forge-sim.
+ *
+ * @param config - Optional simulation configuration
+ * @returns The new ForgeSimulator instance (also accessible via getSimulator())
+ */
+export function createSimulator(config?: SimulationConfig): ForgeSimulator {
+  return new ForgeSimulator(config);
+}
+
 // Re-export everything for convenience
 export { UnifiedKVS, WhereConditions, KVSQueryBuilder } from './kvs.js';
 /** @deprecated Use UnifiedKVS instead */

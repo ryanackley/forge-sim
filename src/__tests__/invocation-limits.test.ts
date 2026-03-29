@@ -2,13 +2,13 @@
  * Tests for invocation time limit checking and Rovo action input validation.
  */
 import { describe, it, expect, beforeEach } from 'vitest';
-import { ForgeSimulator } from '../index.js';
+import { createSimulator, ForgeSimulator } from '../index.js';
 
 describe('validateActionInputs', () => {
   let sim: ForgeSimulator;
 
   beforeEach(async () => {
-    sim = new ForgeSimulator();
+    sim = createSimulator();
     // Load a manifest with an action
     await sim.loadManifest(`
 app:
@@ -117,7 +117,7 @@ describe('invocation timing', () => {
   let sim: ForgeSimulator;
 
   beforeEach(async () => {
-    sim = new ForgeSimulator();
+    sim = createSimulator();
   });
 
   it('does not warn for fast invocations', async () => {

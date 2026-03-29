@@ -21,7 +21,7 @@
 import { resolve, join, relative, dirname } from 'node:path';
 import { existsSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { ForgeSimulator } from './simulator.js';
+import { createSimulator, ForgeSimulator } from './simulator.js';
 import { deploy } from './deployer.js';
 import { createDevServer } from './dev-server.js';
 import { parseManifest, type ParsedManifest, type ManifestUIModule, BACKGROUND_SCRIPT_TYPES, getCompatibleBackgroundScripts } from './manifest.js';
@@ -1326,7 +1326,7 @@ export async function devCommand(options: DevCommandOptions) {
 
   // 4. Create simulator and deploy resolvers
   console.log(`  ⚙️  Starting simulator...`);
-  const sim = new ForgeSimulator();
+  const sim = createSimulator();
 
   // 4a. Configure SQL restore BEFORE deploy — deploy can trigger scheduled
   // triggers (migrations) which lazily start SQL. The init file must be set

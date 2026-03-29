@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { ForgeSimulator } from '../simulator.js';
+import { createSimulator, ForgeSimulator } from '../simulator.js';
 
 // Import the shim directly to test appEvents.publish()
 import { appEvents } from '../shims/forge-events.js';
@@ -15,7 +15,7 @@ describe('appEvents.publish()', () => {
   let sim: ForgeSimulator;
 
   beforeEach(() => {
-    sim = new ForgeSimulator();
+    sim = createSimulator();
   });
 
   it('fires a matching trigger when key matches manifest event', async () => {

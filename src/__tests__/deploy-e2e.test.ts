@@ -14,7 +14,7 @@
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { resolve } from 'node:path';
-import { ForgeSimulator } from '../simulator.js';
+import { createSimulator, ForgeSimulator } from '../simulator.js';
 import { resetBridge } from '../ui/bridge.js';
 
 const RETRO_BOARD_DIR = resolve(import.meta.dirname, 'fixtures/retro-board');
@@ -28,7 +28,7 @@ describe('Deploy E2E: Retro Board', () => {
   let sim: ForgeSimulator;
 
   beforeAll(async () => {
-    sim = new ForgeSimulator();
+    sim = createSimulator();
 
     const result = await sim.deploy(RETRO_BOARD_DIR);
 
@@ -136,7 +136,7 @@ describe('Deploy E2E: OKR Tracker', () => {
   let sim: ForgeSimulator;
 
   beforeAll(async () => {
-    sim = new ForgeSimulator();
+    sim = createSimulator();
 
     // Start MySQL before deploy — deployer fires scheduled trigger (migration)
     await sim.sql.start();

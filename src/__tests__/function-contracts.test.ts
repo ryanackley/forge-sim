@@ -9,13 +9,13 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { ForgeSimulator } from '../simulator.js';
+import { createSimulator, ForgeSimulator } from '../simulator.js';
 
 describe('Function Invocation Contracts', () => {
   let sim: ForgeSimulator;
 
   beforeEach(() => {
-    sim = new ForgeSimulator();
+    sim = createSimulator();
   });
 
   // ── Function Registry ──────────────────────────────────────────────

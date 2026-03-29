@@ -3,13 +3,13 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { ForgeSimulator } from '../simulator.js';
+import { createSimulator, ForgeSimulator } from '../simulator.js';
 
 describe('SimulatedForgeSQL', () => {
   let sim: ForgeSimulator;
 
   beforeAll(async () => {
-    sim = new ForgeSimulator();
+    sim = createSimulator();
     // Eagerly start the MySQL server so we don't pay startup cost in each test
     await sim.sql.start();
   }, 60_000); // MySQL init can take a while

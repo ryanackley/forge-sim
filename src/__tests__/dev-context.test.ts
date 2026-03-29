@@ -8,14 +8,14 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { ForgeSimulator, buildForgeContext, buildDefaultContext } from '../index.js';
+import { createSimulator, ForgeSimulator, buildForgeContext, buildDefaultContext } from '../index.js';
 import type { RenderContextOptions } from '../context.js';
 
 describe('Dev command context flags', () => {
   let sim: ForgeSimulator;
 
   beforeEach(() => {
-    sim = new ForgeSimulator();
+    sim = createSimulator();
 
   });
 

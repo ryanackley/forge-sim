@@ -13,7 +13,7 @@
 
 import { describe, it, expect, beforeAll, beforeEach, afterEach, afterAll, vi } from 'vitest';
 import { resolve } from 'node:path';
-import { ForgeSimulator } from '../simulator.js';
+import { createSimulator, ForgeSimulator } from '../simulator.js';
 import { createDevServer } from '../dev-server.js';
 import type { DevServer } from '../dev-server.js';
 import { WebSocket } from 'ws';
@@ -95,7 +95,7 @@ describe('Dev Server RPC invoke routing', () => {
   const TEST_PORT = 15174; // Use a non-standard port to avoid conflicts
 
   beforeAll(async () => {
-    sim = new ForgeSimulator();
+    sim = createSimulator();
 
     // Deploy a fixture app so resolver infrastructure is wired up
     await sim.deploy(FIXTURE_DIR);

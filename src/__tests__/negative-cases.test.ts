@@ -7,12 +7,12 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { ForgeSimulator } from '../simulator.js';
+import { createSimulator } from '../simulator.js';
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 
 function createSim() {
-  return new ForgeSimulator();
+  return createSimulator();
 }
 
 // Minimal manifest YAML for testing

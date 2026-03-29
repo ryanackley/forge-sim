@@ -2,7 +2,7 @@
  * forge-sim — Simulated Forge runtime for AI-driven development and testing.
  */
 
-export { ForgeSimulator } from './simulator.js';
+export { ForgeSimulator, createSimulator } from './simulator.js';
 export { UnifiedKVS, WhereConditions, KVSQueryBuilder, EntityAPI, EntityQueryBuilder, TransactionBuilder } from './kvs.js';
 export type { EntitySchema, IndexDefinition, EntityStoreDump, StoredEntry } from './kvs.js';
 /** @deprecated Use UnifiedKVS instead */

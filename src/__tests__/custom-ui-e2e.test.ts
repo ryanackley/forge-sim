@@ -16,7 +16,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { resolve } from 'node:path';
 import { existsSync } from 'node:fs';
-import { ForgeSimulator } from '../simulator.js';
+import { createSimulator, ForgeSimulator } from '../simulator.js';
 
 const CUSTOM_UI_DIR = resolve(import.meta.dirname, 'fixtures/custom-ui-test');
 
@@ -24,7 +24,7 @@ describe('Custom UI E2E', () => {
   let sim: ForgeSimulator;
 
   beforeAll(async () => {
-    sim = new ForgeSimulator();
+    sim = createSimulator();
     // setSimulator auto-called by constructor
 
     const result = await sim.deploy(CUSTOM_UI_DIR);

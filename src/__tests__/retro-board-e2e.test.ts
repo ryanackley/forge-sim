@@ -5,7 +5,7 @@
  * retro-board Forge app logic (KVS storage, queues, consumers, triggers).
  */
 import { describe, it, expect, beforeEach } from 'vitest';
-import { ForgeSimulator } from '../simulator.js';
+import { createSimulator, ForgeSimulator } from '../simulator.js';
 
 // ── Types (mirrored from fixture) ───────────────────────────────────────────
 
@@ -57,7 +57,7 @@ describe('Retro Board E2E', () => {
 
   beforeEach(() => {
     idCounter = 0;
-    sim = new ForgeSimulator();
+    sim = createSimulator();
 
     // ── Consumers (mirrors consumers.ts) ────────────────────────────────
 

@@ -4,7 +4,7 @@
  * and shared storage (KVS).
  */
 import { describe, it, expect, beforeEach } from 'vitest';
-import { ForgeSimulator } from '../simulator.js';
+import { createSimulator, ForgeSimulator } from '../simulator.js';
 
 const FIXTURE_DIR = new URL('./fixtures/dual-panel', import.meta.url).pathname;
 
@@ -12,7 +12,7 @@ describe('Dual Panel App', () => {
   let sim: ForgeSimulator;
 
   beforeEach(async () => {
-    sim = new ForgeSimulator();
+    sim = createSimulator();
     await sim.deploy(FIXTURE_DIR);
   });
 

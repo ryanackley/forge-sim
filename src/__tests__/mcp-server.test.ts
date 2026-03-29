@@ -15,7 +15,7 @@ import { resolve } from 'node:path';
 // But first let's just test the core flow via the simulator directly,
 // then do a full MCP roundtrip.
 
-import { ForgeSimulator } from '../simulator.js';
+import { createSimulator, ForgeSimulator } from '../simulator.js';
 import { installBridge, getLatestForgeDoc, resetBridge } from '../ui/bridge.js';
 
 const TEST_APP_DIR = resolve(__dirname, '..', '..', 'test-app');
@@ -46,7 +46,7 @@ describe('MCP Server Integration', () => {
     let sim: ForgeSimulator;
 
     beforeAll(async () => {
-      sim = new ForgeSimulator();
+      sim = createSimulator();
       
       // Mock product API for the test app
       sim.mockProductRoutes('jira', {
@@ -119,7 +119,7 @@ describe('MCP Server Integration', () => {
     let sim: ForgeSimulator;
 
     beforeAll(async () => {
-      sim = new ForgeSimulator();
+      sim = createSimulator();
       await sim.sql.start();
     }, 60_000);
 

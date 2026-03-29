@@ -7,13 +7,13 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { ForgeSimulator } from '../index.js';
+import { createSimulator, ForgeSimulator } from '../index.js';
 
 describe('PropertyStore', () => {
   let sim: ForgeSimulator;
 
   beforeEach(() => {
-    sim = new ForgeSimulator();
+    sim = createSimulator();
   });
 
   describe('Jira Issue Properties', () => {
@@ -83,7 +83,7 @@ describe('Property Store via Product API', () => {
   let sim: ForgeSimulator;
 
   beforeEach(() => {
-    sim = new ForgeSimulator();
+    sim = createSimulator();
   });
 
   describe('Jira Issue Property REST API', () => {

@@ -208,9 +208,9 @@ No API keys. No cloud credentials. No risk of the AI accidentally deploying to p
 **Real integration tests without the real integration point.** Test your resolvers, queues, triggers, KVS, and SQL against an actual simulated runtime — not mocked function calls.
 
 ```typescript
-import { ForgeSimulator } from 'forge-sim';
+import { createSimulator } from 'forge-sim';
 
-const sim = new ForgeSimulator();
+const sim = createSimulator();
 
 // Deploy your app — manifest.yml drives everything
 const result = await sim.deploy('./my-forge-app');

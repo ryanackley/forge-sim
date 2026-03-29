@@ -6,7 +6,7 @@
  * tracking, Jira-linked recalculation, snapshots, and triggers.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { ForgeSimulator } from '../simulator.js';
+import { createSimulator, ForgeSimulator } from '../simulator.js';
 import {
   CREATE_OBJECTIVES_TABLE,
   CREATE_KEY_RESULTS_TABLE,
@@ -25,7 +25,7 @@ describe('OKR Tracker E2E', () => {
   let sim: ForgeSimulator;
 
   beforeAll(async () => {
-    sim = new ForgeSimulator();
+    sim = createSimulator();
     await sim.sql.start();
 
     // Import real shim-routed packages

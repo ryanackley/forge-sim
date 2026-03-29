@@ -5,7 +5,7 @@
  * on the simulator instance. No more importing bridge functions separately.
  *
  * Usage:
- *   const sim = new ForgeSimulator();
+ *   const sim = createSimulator();
  *   await sim.deploy('./my-app');
  *   await sim.ui.render('issue-panel', {
  *     context: { issueKey: 'PROJ-1', projectKey: 'PROJ' }

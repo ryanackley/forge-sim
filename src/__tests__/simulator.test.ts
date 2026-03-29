@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { ForgeSimulator } from '../simulator.js';
+import { createSimulator, ForgeSimulator } from '../simulator.js';
 
 describe('ForgeSimulator', () => {
   let sim: ForgeSimulator;
 
   beforeEach(() => {
-    sim = new ForgeSimulator();
+    sim = createSimulator();
   });
 
   describe('resolver integration', () => {
@@ -113,7 +113,7 @@ permissions:
 
   describe('initial config', () => {
     it('seeds storage from config', async () => {
-      const sim2 = new ForgeSimulator({
+      const sim2 = createSimulator({
         initialStorage: {
           'config:theme': 'dark',
           'user:1': { name: 'Ryan' },

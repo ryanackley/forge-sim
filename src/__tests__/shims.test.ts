@@ -7,7 +7,7 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { ForgeSimulator } from '../simulator.js';
+import { createSimulator, ForgeSimulator } from '../simulator.js';
 import { setSimulator, getSimulator } from '../shims/globals.js';
 // Note: setSimulator is now auto-called by the ForgeSimulator constructor.
 
@@ -21,7 +21,7 @@ describe('Forge Shims', () => {
   let sim: ForgeSimulator;
 
   beforeEach(() => {
-    sim = new ForgeSimulator();
+    sim = createSimulator();
     // setSimulator is auto-called by the constructor
   });
 
@@ -30,7 +30,7 @@ describe('Forge Shims', () => {
   });
 
   it('should still support manual setSimulator() for backward compat', () => {
-    const sim2 = new ForgeSimulator();
+    const sim2 = createSimulator();
     // sim2 is now the active one (auto-wired)
     expect(getSimulator()).toBe(sim2);
     // Manually set back to sim
