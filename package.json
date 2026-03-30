@@ -14,7 +14,8 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed",
-    "test:e2e:debug": "playwright test --debug"
+    "test:e2e:debug": "playwright test --debug",
+    "docs": "typedoc"
   },
   "dependencies": {
     "@forge/react": "^11.0.0",
@@ -44,6 +45,8 @@
     "@vitest/coverage-v8": "^3.2.4",
     "dotenv": "^17.3.1",
     "jsdom": "^28.1.0",
+    "typedoc": "^0.28.18",
+    "typedoc-plugin-markdown": "^4.11.0",
     "vitest": "^3.0.0"
   }
 }
