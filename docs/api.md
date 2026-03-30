@@ -1,232 +1,540 @@
-# Programmatic API
+# API Reference
 
-Use forge-sim directly in your code for tests, scripts, or custom tooling.
-
-## Basic Usage
+The public API surface of forge-sim. Everything here is exported from `'forge-sim'`.
 
 ```typescript
 import { createSimulator } from 'forge-sim';
-
-const sim = createSimulator();  // Auto-wires global shim state
-
-// Deploy your app
-const result = await sim.deploy('./my-forge-app');
-
-// Invoke resolvers
-const data = await sim.invoke('getIssue', { issueKey: 'PROJ-1' });
-
-// Inspect state
-const value = await sim.kvs.get('my-key');
-const logs = sim.getLogs();
+const sim = createSimulator();
 ```
 
-**Run with loader hooks** to intercept `@forge/*` imports:
+Run with loader hooks to intercept `@forge/*` imports:
 
 ```bash
 node --import forge-sim/dist/loader/register.js your-script.js
 ```
 
-## API Reference
+---
 
-### Deploy & Reset
+## Table of Contents
 
-```typescript
-// Deploy from app directory (reads manifest.yml, loads handlers)
-const result = await sim.deploy('./my-forge-app');
-// result.manifest, result.loadedFunctions, result.errors
+- [createSimulator](#createsimulator)
+- [ForgeSimulator](#forgesimulator) — the main orchestrator
+  - [Deploy & Lifecycle](#deploy--lifecycle)
+  - [Resolvers & Invocation](#resolvers--invocation)
+  - [Triggers](#triggers)
+  - [Product API Mocking](#product-api-mocking)
+  - [Auth](#auth)
+  - [Logs](#logs)
+- [sim.kvs — Key-Value Storage](#simkvs--key-value-storage)
+  - [Basic CRUD](#basic-crud)
+  - [Queries](#queries)
+  - [Transactions](#transactions)
+  - [Entity Store](#entity-store)
+  - [Secrets](#secrets)
+  - [Dump & Restore](#dump--restore)
+- [sim.sql — Forge SQL](#simsql--forge-sql)
+- [sim.queue — Async Events](#simqueue--async-events)
+- [sim.resolver — Resolver Registry](#simresolver--resolver-registry)
+- [sim.productApi — Product API](#simproductapi--product-api)
+- [sim.externalAuth — Third-Party Auth](#simexternalauth--third-party-auth)
+- [sim.ui — UI Rendering](#simui--ui-rendering)
+  - [Rendering](#rendering)
+  - [Querying the ForgeDoc Tree](#querying-the-forgedoc-tree)
+  - [Interaction](#interaction)
+  - [Events](#events)
+- [Types](#types)
 
-// Reset all state
-sim.reset();
-```
+---
 
-### Resolvers
-
-```typescript
-// Invoke a resolver by function key
-const result = await sim.invoke('getIssue', { issueKey: 'PROJ-1' });
-
-// List registered resolvers
-const defs = sim.resolver.getDefinitions();
-```
-
-### Key-Value Storage
-
-```typescript
-// Basic CRUD
-await sim.kvs.set('key', { any: 'value' });
-const val = await sim.kvs.get('key');
-await sim.kvs.delete('key');
-
-// Query with filters
-const result = await sim.kvs.query()
-  .where('key', { beginsWith: 'board:' })
-  .limit(10)
-  .getMany();
-
-// Transactions (atomic multi-key writes)
-await sim.kvs.transact()
-  .set('key1', value1)
-  .set('key2', value2)
-  .delete('key3')
-  .execute();
-
-// Dump all KVS data
-const dump = sim.kvs.dump();
-```
-
-### Forge SQL
+## `createSimulator`
 
 ```typescript
-// Optionally pre-start MySQL (otherwise starts automatically on first query)
-await sim.sql.start();
-
-// Query
-const rows = await sim.sql.query('SELECT * FROM users WHERE active = ?', [true]);
-
-// The SQL shim provides a fetch-compatible interface
-const fetchFn = sim.sql.createFetchFunction();
+function createSimulator(config?: SimulationConfig): ForgeSimulator
 ```
 
-### Queues
+Creates and returns a new simulator instance. Auto-wires as the global singleton (so `@forge/*` shims resolve to it).
 
 ```typescript
-// Push to a queue
-const result = await sim.queue.push('my-queue', { body: { action: 'process' } });
-
-// Inspect queue state
-const eventLog = sim.queue.getEventLog();
-const job = sim.queue.getJob(result.jobId);
+interface SimulationConfig {
+  context?: Partial<ResolverContext>;          // Mock context values
+  initialStorage?: Record<string, any>;        // Pre-seed KVS data
+  productApis?: {                              // Product API mock handlers
+    jira?: ProductApiHandler;
+    confluence?: ProductApiHandler;
+    bitbucket?: ProductApiHandler;
+  };
+  queueMode?: 'sequential' | 'concurrent';    // Default: 'sequential'
+  storageLatency?: boolean | number;           // false=instant, true=yield, number=random ms
+  forgeSQL?: {
+    mysqlVersion?: string;                     // Default: '8.4.x'
+    dbName?: string;                           // Default: 'forge_app'
+    logLevel?: 'LOG' | 'WARN' | 'ERROR';      // Default: 'ERROR'
+  };
+}
 ```
+
+---
+
+## ForgeSimulator
+
+The main orchestrator. All subsystems are accessible as properties:
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `sim.kvs` | `UnifiedKVS` | Key-value storage + entity store |
+| `sim.sql` | `SimulatedForgeSQL` | Forge SQL (real MySQL backend) |
+| `sim.queue` | `SimulatedQueue` | Async event queues |
+| `sim.resolver` | `SimulatedResolver` | Resolver function registry |
+| `sim.productApi` | `SimulatedProductApi` | Product API mock/proxy |
+| `sim.externalAuth` | `ExternalAuthStore` | Third-party OAuth providers |
+| `sim.ui` | `SimulatorUI` | UIKit rendering + ForgeDoc |
+| `sim.i18n` | `I18nStore` | Internationalization |
+| `sim.functions` | `FunctionRegistry` | All registered functions with types |
+| `sim.properties` | `PropertyStore` | App/entity property storage |
+| `sim.remotes` | `RemoteProxy` | Forge Remote invocation |
+| `sim.fit` | `FITProvider` | Forge Invocation Token (JWT) |
+
+### Deploy & Lifecycle
+
+```typescript
+sim.deploy(appDir: string): Promise<DeployResult>
+```
+Deploy a Forge app. Reads `manifest.yml`, imports handlers, wires resolvers/consumers/triggers.
+
+```typescript
+sim.reset(): void
+```
+Reset all state (KVS, queues, resolvers, UI, logs). Does not stop SQL server.
+
+```typescript
+sim.stop(): Promise<void>
+```
+Stop all background services (MySQL server). Call when done.
+
+```typescript
+sim.getManifest(): ParsedManifest | null
+```
+Get the currently deployed manifest.
+
+### Resolvers & Invocation
+
+```typescript
+sim.invoke(functionKey: string, payload?: any, moduleKey?: string): Promise<any>
+```
+Invoke a resolver function. Wraps payload in `{ payload, context }` per the Forge bridge contract.
+
+```typescript
+sim.registerFunction(key: string, handler: Function, type: ForgeFunctionType): void
+```
+Register a non-resolver function (trigger, consumer, webTrigger, etc.).
+
+```typescript
+sim.registerConsumer(queueKey: string, handler: (event, context) => any): void
+```
+Register a consumer handler for a queue key.
 
 ### Triggers
 
 ```typescript
-// Fire a product event trigger
-const results = await sim.fireTrigger('avi:jira:created:issue', {
-  issue: { key: 'PROJ-1' },
-});
-
-// Fire a scheduled trigger
-const result = await sim.fireScheduledTrigger('run-migrations');
+sim.fireTrigger(event: string, data: object): Promise<any[]>
 ```
+Fire a product event trigger. Typed overloads exist for all 141 known events.
+
+```typescript
+sim.fireScheduledTrigger(triggerKey: string): Promise<{ statusCode: number }>
+```
+Fire a scheduled trigger. Handler receives `{ context: { cloudId, moduleKey }, contextToken }`.
 
 ### Product API Mocking
 
 ```typescript
-// Mock specific routes
-sim.mockProductRoutes('jira', {
-  '/rest/api/3/issue/PROJ-1': { key: 'PROJ-1', summary: 'My Issue' },
-  'POST /rest/api/3/issue': { id: '10001', key: 'PROJ-2' },
-});
-
-// Connect to real APIs (mocked routes still take priority)
-await sim.connectRealApis({
-  site: 'mysite.atlassian.net',
-  email: 'user@example.com',
-  apiToken: 'ATATT3x...',
-});
+sim.mockProductApi(product: string, handler: ProductApiHandler): void
 ```
-
-### Auth / Environment Connection
+Register a mock handler function for a product.
 
 ```typescript
-// Deploy first — loadAuthFromEnv() requires a deployed app
-await sim.deploy('./my-forge-app');
+sim.mockProductRoutes(product: string, routes: Record<string, any>): void
+```
+Register route-based mocks. Keys are `"METHOD /path"` (method defaults to GET).
 
-// Auto-load credentials from env vars and/or .forge-sim config files
-const result = await sim.loadAuthFromEnv();
-// result.atlassian = { connected: true, site: 'mysite.atlassian.net', authType: 'pat' }
-// result.providers = ['google', 'github']
+```typescript
+sim.mockGraphQL(mocks: Record<string, any>): void
+```
+Mock GraphQL responses by operation name.
+
+```typescript
+// Example
+sim.mockProductRoutes('jira', {
+  '/rest/api/3/issue/PROJ-1': { key: 'PROJ-1', summary: 'Fix the thing' },
+  'POST /rest/api/3/issue': (path, opts) => ({ id: '10001', key: 'PROJ-2' }),
+});
 ```
 
-**Must be called after `deploy()`** — uses the deployed app directory for `.forge-sim/` lookups and manifest provider definitions.
+### Auth
 
-**Environment variables** (take priority over .forge-sim files):
+```typescript
+sim.loadAuthFromEnv(): Promise<LoadAuthResult>
+```
+Load credentials from env vars and/or `.forge-sim/` files. **Must be called after `deploy()`.**
+
+```typescript
+interface LoadAuthResult {
+  atlassian: { connected: boolean; site?: string; authType?: string };
+  providers: string[];   // Provider keys with tokens loaded
+}
+```
+
+**Environment variables** (take priority over `.forge-sim/` files):
 
 | Variable | Description |
 |----------|-------------|
 | `FORGE_SIM_SITE` | Atlassian site (e.g. `mysite.atlassian.net`) |
 | `FORGE_SIM_EMAIL` | Account email |
 | `FORGE_SIM_PAT` | Personal Access Token |
-| `FORGE_SIM_CLOUD_ID` | Cloud ID (optional, defaults to `env-cloud-id`) |
-| `FORGE_SIM_ACCOUNT_ID` | Account ID (optional, defaults to `env-user`) |
-| `FORGE_SIM_PROVIDER_<KEY>_TOKEN` | Third-party provider token. KEY is the manifest provider key uppercased with hyphens replaced by underscores (e.g. `google-apis` → `FORGE_SIM_PROVIDER_GOOGLE_APIS_TOKEN`) |
-
-**Fallback**: When env vars aren't set, `loadAuthFromEnv()` reads from `<appDir>/.forge-sim/credentials.json` and `~/.forge-sim/credentials.json` (same files used by `forge-sim auth`).
-
-**CI/CD example**:
-
-```yaml
-env:
-  FORGE_SIM_SITE: ${{ secrets.ATLASSIAN_SITE }}
-  FORGE_SIM_EMAIL: ${{ secrets.ATLASSIAN_EMAIL }}
-  FORGE_SIM_PAT: ${{ secrets.ATLASSIAN_PAT }}
-  FORGE_SIM_PROVIDER_GOOGLE_APIS_TOKEN: ${{ secrets.GOOGLE_TOKEN }}
-```
-
-```typescript
-const sim = createSimulator();
-await sim.deploy('./my-forge-app');
-await sim.loadAuthFromEnv();
-// Now resolvers can call real Atlassian APIs and withProvider() has tokens
-```
-
-### UI
-
-```typescript
-// Render a UI module with context
-const doc = await sim.ui.render('issue-panel', {
-  context: { issueKey: 'PROJ-42' },
-});
-
-// Wait for async content (resolvers, useEffect, etc.)
-const rendered = await sim.ui.waitForContent('issue-panel', 'PROJ-42');
-
-// Get current ForgeDoc tree
-const currentDoc = sim.ui.getForgeDoc();        // default module
-const specific = sim.ui.getForgeDoc('my-panel'); // specific module
-
-// Pretty-print the UI
-console.log(sim.ui.prettyPrint(rendered));
-
-// Get all text content as a flat string (great for assertions)
-const text = sim.ui.getTextContent(rendered);
-expect(text).toContain('PROJ-42');
-
-// Find components in the tree
-const buttons = sim.ui.findByType(doc, 'Button');
-const saveBtn = sim.ui.findByTypeAndText(doc, 'Button', 'Save');
-const primary = sim.ui.findByProps(doc, { appearance: 'primary' });
-
-// Interact with a component (fires real React event handlers)
-sim.ui.interact(saveBtn, 'onClick');
-sim.ui.interact(selectNode, 'onChange', 'option-a');
-
-// High-level: find + interact + get updated doc in one call
-const { result, updatedDoc } = await sim.ui.interactWith('Button', {
-  matchText: 'Load Comments',
-});
-
-// Render multiple modules independently (isolated ForgeDoc trees)
-await sim.ui.render('issue-summary', { context: { issueKey: 'PROJ-1' } });
-await sim.ui.render('admin-settings');
-const modules = sim.ui.getRenderedModules(); // ['issue-summary', 'admin-settings']
-
-// Refresh a module (re-renders with same context)
-await sim.ui.refresh('issue-summary');
-```
+| `FORGE_SIM_CLOUD_ID` | Cloud ID (optional) |
+| `FORGE_SIM_ACCOUNT_ID` | Account ID (optional) |
+| `FORGE_SIM_PROVIDER_<KEY>_TOKEN` | Third-party provider token (e.g. `FORGE_SIM_PROVIDER_GOOGLE_APIS_TOKEN`) |
 
 ### Logs
 
 ```typescript
-const logs = sim.getLogs();          // Simulator logs
-const console = sim.getConsoleLogs(); // Captured console.* from app code
-sim.clearLogs();
+sim.getLogs(): LogEntry[]                    // Simulator logs (deploy, invoke, warnings)
+sim.getConsoleLogs(): ConsoleLine[]          // Captured console.* from app code
+sim.clearLogs(): void
+sim.onLog(listener: (entry) => void): () => void   // Real-time log listener, returns unsubscribe
+```
+
+---
+
+## `sim.kvs` — Key-Value Storage
+
+Unified storage implementing `@forge/kvs`, `@forge/api` storage, and Custom Entity Store.
+
+### Basic CRUD
+
+```typescript
+sim.kvs.get(key: string): Promise<any>
+sim.kvs.set(key: string, value: any): Promise<void>
+sim.kvs.delete(key: string): Promise<void>
+```
+
+### Queries
+
+```typescript
+const result = await sim.kvs.query()
+  .where('key', { beginsWith: 'board:' })
+  .limit(10)
+  .cursor(lastCursor)
+  .getMany();
+
+// result: { results: Array<{ key, value }>, nextCursor?: string }
+```
+
+### Transactions
+
+```typescript
+await sim.kvs.transact()
+  .set('key1', value1)
+  .set('key2', value2)
+  .delete('key3')
+  .execute();
+```
+
+### Entity Store
+
+```typescript
+const api = sim.kvs.entity('Employee');
+
+api.defineSchema(schema: EntitySchema): void
+await api.set(key: string, value: any): Promise<void>
+await api.get(key: string): Promise<any>
+await api.delete(key: string): Promise<void>
+
+// Indexed queries
+const result = await api.query()
+  .index('by-department')
+  .where({ department: 'Engineering' })
+  .sort('asc')
+  .limit(25)
+  .getMany();
+```
+
+### Secrets
+
+```typescript
+sim.kvs.getSecret(key: string): Promise<string | undefined>
+sim.kvs.setSecret(key: string, value: string): Promise<void>
+sim.kvs.deleteSecret(key: string): Promise<void>
+```
+
+### Dump & Restore
+
+```typescript
+sim.kvs.dump(): Record<string, any>               // Plain KVS as raw values
+sim.kvs.dumpAll(): EntityStoreDump                 // Full state (KVS + entities + secrets)
+sim.kvs.restore(data: Record<string, any>): void   // Restore plain KVS
+sim.kvs.restoreAll(dump: EntityStoreDump): void     // Restore full state
+sim.kvs.clear(): void                              // Clear runtime data (preserves schemas)
+sim.kvs.clearAll(): void                           // Full clear including schemas
+```
+
+---
+
+## `sim.sql` — Forge SQL
+
+Real MySQL 8.4 backend via an ephemeral in-memory server. Starts lazily on first query.
+
+```typescript
+sim.sql.start(): Promise<void>               // Eager start (optional)
+sim.sql.stop(): Promise<void>                // Stop MySQL server
+sim.sql.isRunning: boolean                   // Check if server is running
+sim.sql.port: number | null                  // MySQL port (for external tools)
+
+sim.sql.query<T>(sql: string, params?: any[]): Promise<T[]>
+sim.sql.executeMultiStatement(sql: string): Promise<void>    // For dumps/migrations
+
+sim.sql.createFetchFunction(): FetchFunction  // Returns the __fetchProduct shim
+sim.sql.getConnectionConfig(): { host, port, user, database }
+
+sim.sql.setInitSQLFilePath(path: string): void  // Run SQL file on first start
+```
+
+```typescript
+// Example
+await sim.sql.query('INSERT INTO users (name, active) VALUES (?, ?)', ['Alice', true]);
+const rows = await sim.sql.query('SELECT * FROM users WHERE active = ?', [true]);
+```
+
+---
+
+## `sim.queue` — Async Events
+
+Simulates `@forge/events` queue push → consumer handler flow.
+
+```typescript
+sim.queue.push(queueKey: string, events: QueueEvent | QueueEvent[]): Promise<QueuePushResult>
+sim.queue.registerConsumer(queueKey: string, handler: Function): void
+sim.queue.getEventLog(): Array<{ queueKey, event }>
+sim.queue.getJob(jobId: string): QueueJobStats
+sim.queue.getStats(): Record<string, QueueJobStats>
+sim.queue.setMode(mode: 'sequential' | 'concurrent'): void
+sim.queue.clear(): void
+```
+
+```typescript
+interface QueueEvent {
+  body: any;
+  concurrencyKey?: string;   // Events with same key run sequentially
+}
+```
+
+---
+
+## `sim.resolver` — Resolver Registry
+
+Mirrors `@forge/resolver`. Usually populated by `deploy()`, but can be used directly.
+
+```typescript
+sim.resolver.define(functionKey: string, handler: Function): void
+sim.resolver.invoke(functionKey: string, payload?: any): Promise<any>
+sim.resolver.getDefinitions(): string[]
+sim.resolver.getHandler(functionKey: string): Function | undefined
+sim.resolver.setContext(overrides: Partial<ResolverContext>): void
+sim.resolver.clear(): void
+```
+
+---
+
+## `sim.productApi` — Product API
+
+Mock and/or proxy for `requestJira()`, `requestConfluence()`, `requestBitbucket()`.
+
+```typescript
+sim.productApi.mock(product: string, handler: ProductApiHandler): void
+sim.productApi.mockRoutes(product: string, routes: Record<string, any>): void
+sim.productApi.mockGraphQL(mocks: Record<string, any>): void
+sim.productApi.request(product: string, path: string, opts?: ProductApiRequest): Promise<ProductApiResponse>
+sim.productApi.requestGraph(query: string, variables?: object): Promise<ProductApiResponse>
+
+sim.productApi.connectRealApis(account: AtlassianAccount, options?): void
+sim.productApi.disconnectRealApis(): void
+sim.productApi.isRealMode: boolean
+sim.productApi.connectedAccount: AtlassianAccount | null
+sim.productApi.clear(): void
+```
+
+Mock routes take priority over real APIs. Use `route()` helper for dynamic handlers:
+
+```typescript
+import { route } from 'forge-sim';
+
+sim.productApi.mock('jira', route.json({
+  '/rest/api/3/issue/:key': (params) => ({ key: params.key, summary: 'Test' }),
+}));
+```
+
+---
+
+## `sim.externalAuth` — Third-Party Auth
+
+Manages OAuth providers defined in `manifest.yml` (`providers.auth.*`).
+
+```typescript
+// Token management
+sim.externalAuth.setToken(providerKey: string, token: ThirdPartyToken): void
+sim.externalAuth.getToken(providerKey: string): ThirdPartyToken | undefined
+sim.externalAuth.hasCredentials(providerKey: string, scopes?: string[]): boolean
+sim.externalAuth.revokeToken(providerKey: string): void
+
+// Provider info
+sim.externalAuth.getProvider(key: string): ManifestAuthProvider | undefined
+sim.externalAuth.listProviders(): ManifestAuthProvider[]
+
+// OAuth flow (interactive — opens browser)
+sim.externalAuth.interactiveOAuthFlow(providerKey: string, port?: number): Promise<ThirdPartyToken | null>
+
+// Secrets
+sim.externalAuth.setSecret(providerKey: string, clientSecret: string): void
+sim.externalAuth.hasSecret(providerKey: string): boolean
+
+// Hook for testing (intercept browser open)
+sim.externalAuth.onAuthUrl: ((url: string) => void) | null
+```
+
+In mock mode, `asUser().withProvider('google').fetch('/me')` routes through `sim.productApi.mockRoutes('google-apis', ...)`. No tokens needed.
+
+---
+
+## `sim.ui` — UI Rendering
+
+Renders UIKit 2 modules to ForgeDoc trees. Works both in-process (tests) and in-browser (dev server).
+
+### Rendering
+
+```typescript
+sim.ui.render(moduleKey: string, options?: RenderContextOptions): Promise<ForgeDoc | null>
+sim.ui.refresh(moduleKey?: string): Promise<ForgeDoc | null>
+sim.ui.getForgeDoc(moduleKey?: string): ForgeDoc | null
+sim.ui.getRenderedModules(): string[]
+sim.ui.waitForContent(moduleKey: string, text: string, timeoutMs?: number): Promise<ForgeDoc>
+sim.ui.getContext(moduleKey?: string): ForgeContext | null
+```
+
+```typescript
+interface RenderContextOptions {
+  context?: Partial<ForgeContext>;  // Override context values
+}
+
+interface ForgeDoc {
+  type: string;                    // Component type (e.g. 'Button', 'Text', 'Fragment')
+  props: Record<string, any>;      // Component props
+  children: ForgeDoc[];            // Child nodes
+  key: string;                     // React key
+}
+```
+
+### Querying the ForgeDoc Tree
+
+```typescript
+sim.ui.findByType(doc: ForgeDoc, type: string): ForgeDoc[]
+sim.ui.findFirstByType(doc: ForgeDoc, type: string): ForgeDoc | null
+sim.ui.findByTypeAndText(doc: ForgeDoc, type: string, text?: string, nth?: number): ForgeDoc
+sim.ui.findByProps(doc: ForgeDoc, props: Record<string, any>): ForgeDoc[]
+sim.ui.getTextContent(doc: ForgeDoc): string
+sim.ui.listComponentTypes(doc: ForgeDoc): string[]
+sim.ui.prettyPrint(doc: ForgeDoc): string
+```
+
+### Interaction
+
+```typescript
+sim.ui.interact(node: ForgeDoc, eventName: string, ...args: any[]): any
+sim.ui.interactWith(type: string, options?: {
+  matchText?: string;
+  nthMatch?: number;
+  event?: string;       // Default: 'onClick'
+  args?: any[];
+}): Promise<{ result: any; updatedDoc: ForgeDoc }>
+```
+
+```typescript
+// Example: full integration test
+await sim.ui.render('issue-panel', { context: { issueKey: 'PROJ-42' } });
+const doc = await sim.ui.waitForContent('issue-panel', 'PROJ-42');
+expect(sim.ui.getTextContent(doc)).toContain('PROJ-42');
+
+const btn = sim.ui.findByTypeAndText(doc, 'Button', 'Load Comments');
+sim.ui.interact(btn, 'onClick');
+```
+
+### Events
+
+```typescript
+sim.ui.waitForRender(): Promise<ForgeDoc>
+sim.ui.onRender(listener: (doc: ForgeDoc) => void): () => void          // Any module
+sim.ui.onModuleRender(moduleKey: string, listener: (doc) => void): () => void
+sim.ui.getBridgeCalls(): BridgeCall[]
+
+sim.ui.reset(): void       // Clear UI state, keep simulator connection
+sim.ui.resetAll(): void    // Full reset including simulator disconnection
+```
+
+---
+
+## Types
+
+Key types exported from `'forge-sim'`:
+
+```typescript
+// Core
+export { ForgeSimulator, createSimulator } from 'forge-sim';
+export type { SimulationConfig, LoadAuthResult } from 'forge-sim';
+
+// Storage
+export { UnifiedKVS, KVSQueryBuilder, EntityAPI, EntityQueryBuilder, TransactionBuilder } from 'forge-sim';
+export type { EntitySchema, IndexDefinition, EntityStoreDump, StoredEntry } from 'forge-sim';
+
+// Queue
+export { SimulatedQueue } from 'forge-sim';
+export type { QueueEvent, QueuePushResult, QueueJobStats } from 'forge-sim';
+
+// Resolver
+export { SimulatedResolver } from 'forge-sim';
+export type { ResolverContext, ResolverRequest } from 'forge-sim';
+
+// Product API
+export { SimulatedProductApi, route } from 'forge-sim';
+export type { ProductApiHandler, ProductApiRequest, ProductApiResponse } from 'forge-sim';
+
+// External Auth
+export { ExternalAuthStore } from 'forge-sim';
+
+// UI
+export { SimulatorUI } from 'forge-sim';
+export type { ForgeDoc, BridgeCall, ForgeContext, RenderContextOptions } from 'forge-sim';
+
+// Manifest
+export { parseManifest, parseManifestContent } from 'forge-sim';
+export type { ForgeManifest, ParsedManifest, ManifestModule, ManifestTrigger } from 'forge-sim';
+
+// Trigger Events (typed payloads for fireTrigger)
+export type { TriggerPayloadByEvent, KnownTriggerEvent } from 'forge-sim';
+
+// Dev Server
+export { createDevServer } from 'forge-sim';
+export type { DevServer, DevServerOptions } from 'forge-sim';
+
+// Web Triggers
+export { createWebTriggerHandler, getWebTriggerUrl } from 'forge-sim';
+export type { WebTriggerConfig } from 'forge-sim';
+
+// I18n
+export { I18nStore } from 'forge-sim';
 ```
 
 ## Function Contracts
 
-forge-sim enforces the correct calling convention for each Forge function type:
+forge-sim enforces the correct calling convention per Forge function type:
 
 | Type | Signature | Return Contract |
 |------|-----------|-----------------|
@@ -234,4 +542,14 @@ forge-sim enforces the correct calling convention for each Forge function type:
 | **Event Trigger** | `(event, context) => result` | Any |
 | **Scheduled Trigger** | `({ context }) => { statusCode }` | Must return `{ statusCode }` or 424 |
 | **Consumer** (async events) | `(event, context) => result` | `InvocationError` = retry |
-| **Web Trigger** | `(request, context) => { statusCode, body?, headers? }` | HTTP-like response |
+| **Web Trigger** | `(request) => { statusCode, body?, headers? }` | HTTP-like response |
+
+### Invocation Time Limits
+
+Warnings fire when a function exceeds its Forge time limit:
+
+| Type | Limit |
+|------|-------|
+| Resolver / Action / Workflow | 25s |
+| Trigger / Consumer / WebTrigger | 55s |
+| Scheduled Trigger (with `timeoutSeconds`) | Up to 900s |
