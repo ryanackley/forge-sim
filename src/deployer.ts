@@ -129,7 +129,26 @@ export async function deploy(sim: ForgeSimulator, appDir: string): Promise<Deplo
   const loadedResources: string[] = [];
   const errors: Array<{ functionKey: string; error: string }> = [];
 
-  // 2. Load each function module
+  // 2. Register @forge/* loader hooks (redirects @forge/api etc. to our shims).
+  //    Called lazily so users don't need --import. Hooks apply to all subsequent
+  //    dynamic imports, which is exactly how we load app handler modules below.
+  //    Safe to call multiple times — Node deduplicates registered hooks.
+  //    Always target dist/loader/hooks.js because hooks run in a Node worker
+  //    thread where tsx/TypeScript isn't available.
+  try {
+    const { register } = await import('node:module');
+    const { fileURLToPath: toPath } = await import('node:url');
+    const { resolve: pathResolve, dirname: pathDirname } = await import('node:path');
+    const thisFile = toPath(import.meta.url);
+    // From src/deployer.ts → ../../dist/loader/, from dist/deployer.js → ../dist/loader/
+    const pkgRoot = pathResolve(pathDirname(thisFile), thisFile.endsWith('.ts') ? '..' : '..');
+    const hooksDir = pathToFileURL(pathResolve(pkgRoot, 'dist', 'loader') + '/').href;
+    register('./hooks.js', hooksDir);
+  } catch {
+    // Fallback: loader hooks already registered via --import, or Node version doesn't support register()
+  }
+
+  // 3. Load each function module
   const handlerExports = new Map<string, any>();
 
   for (const [fnKey, fnDef] of manifest.functions) {

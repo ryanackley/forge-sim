@@ -9,7 +9,7 @@ import { createSimulator } from 'forge-sim';
 
 const sim = createSimulator();  // Auto-wires global shim state
 
-// Deploy your app
+// Deploy your app — automatically registers @forge/* loader hooks
 const result = await sim.deploy('./my-forge-app');
 
 // Invoke resolvers
@@ -20,11 +20,13 @@ const value = await sim.kvs.get('my-key');
 const logs = sim.getLogs();
 ```
 
-**Run with loader hooks** to intercept `@forge/*` imports:
-
-```bash
-node --import forge-sim/dist/loader/register.js your-script.js
-```
+> **Note:** `deploy()` automatically registers Node.js loader hooks so that `@forge/api`, `@forge/kvs`, `@forge/resolver`, etc. in your app code resolve to forge-sim's shims. No `--import` flag needed.
+>
+> **Edge case:** If your *test file itself* imports `@forge/*` packages at the top level (e.g. `import { storage } from '@forge/api'`), those imports run before `deploy()`. In that case, add the `--import` flag:
+> ```bash
+> node --import forge-sim/dist/loader/register.js your-test.js
+> ```
+> This is rarely needed — test files should import from `'forge-sim'` (the `sim.*` API), not from `@forge/*` directly.
 
 ### Deploy & Reset
 

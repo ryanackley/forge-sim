@@ -294,11 +294,14 @@ Because mocking individual imports doesn't test your app. It tests your assumpti
 
 No browser, no GUI, no Atlassian credentials required. Runs in any Node.js environment:
 
-```bash
-node --import forge-sim/dist/loader/register.js node_modules/.bin/vitest run
+```typescript
+import { createSimulator } from 'forge-sim';
+
+const sim = createSimulator();
+await sim.deploy('./my-forge-app');  // Auto-registers @forge/* loader hooks
 ```
 
-The `--import` flag registers loader hooks that intercept `@forge/*` imports and redirect them to forge-sim's shims. Your app code doesn't know the difference.
+`deploy()` automatically registers Node.js loader hooks that intercept `@forge/*` imports and redirect them to forge-sim's shims. Your app code doesn't know the difference. No `--import` flag needed.
 
 ---
 
