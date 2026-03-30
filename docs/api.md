@@ -1,19 +1,162 @@
-# API Reference
+# Programmatic API
 
-The public API surface of forge-sim. Everything here is exported from `'forge-sim'`.
+Use forge-sim directly in your code for tests, scripts, or custom tooling.
+
+## Quick Start
 
 ```typescript
 import { createSimulator } from 'forge-sim';
-const sim = createSimulator();
+
+const sim = createSimulator();  // Auto-wires global shim state
+
+// Deploy your app
+const result = await sim.deploy('./my-forge-app');
+
+// Invoke resolvers
+const data = await sim.invoke('getIssue', { issueKey: 'PROJ-1' });
+
+// Inspect state
+const value = await sim.kvs.get('my-key');
+const logs = sim.getLogs();
 ```
 
-Run with loader hooks to intercept `@forge/*` imports:
+**Run with loader hooks** to intercept `@forge/*` imports:
 
 ```bash
 node --import forge-sim/dist/loader/register.js your-script.js
 ```
 
+### Deploy & Reset
+
+```typescript
+const result = await sim.deploy('./my-forge-app');
+// result.manifest, result.loadedFunctions, result.errors
+
+sim.reset();
+```
+
+### Resolvers
+
+```typescript
+const result = await sim.invoke('getIssue', { issueKey: 'PROJ-1' });
+const defs = sim.resolver.getDefinitions();
+```
+
+### Key-Value Storage
+
+```typescript
+await sim.kvs.set('key', { any: 'value' });
+const val = await sim.kvs.get('key');
+await sim.kvs.delete('key');
+
+const result = await sim.kvs.query()
+  .where('key', { beginsWith: 'board:' })
+  .limit(10)
+  .getMany();
+
+await sim.kvs.transact()
+  .set('key1', value1)
+  .set('key2', value2)
+  .delete('key3')
+  .execute();
+
+const dump = sim.kvs.dump();
+```
+
+### Forge SQL
+
+```typescript
+await sim.sql.start();   // Optional — starts lazily on first query
+const rows = await sim.sql.query('SELECT * FROM users WHERE active = ?', [true]);
+```
+
+### Queues
+
+```typescript
+const result = await sim.queue.push('my-queue', { body: { action: 'process' } });
+const eventLog = sim.queue.getEventLog();
+const job = sim.queue.getJob(result.jobId);
+```
+
+### Triggers
+
+```typescript
+const results = await sim.fireTrigger('avi:jira:created:issue', {
+  issue: { key: 'PROJ-1' },
+});
+const result = await sim.fireScheduledTrigger('run-migrations');
+```
+
+### Product API Mocking
+
+```typescript
+sim.mockProductRoutes('jira', {
+  '/rest/api/3/issue/PROJ-1': { key: 'PROJ-1', summary: 'My Issue' },
+  'POST /rest/api/3/issue': { id: '10001', key: 'PROJ-2' },
+});
+```
+
+### Auth / Environment Connection
+
+```typescript
+await sim.deploy('./my-forge-app');
+const result = await sim.loadAuthFromEnv();
+// result.atlassian = { connected: true, site: 'mysite.atlassian.net', authType: 'pat' }
+// result.providers = ['google', 'github']
+```
+
+**Environment variables** (take priority over `.forge-sim/` files):
+
+| Variable | Description |
+|----------|-------------|
+| `FORGE_SIM_SITE` | Atlassian site (e.g. `mysite.atlassian.net`) |
+| `FORGE_SIM_EMAIL` | Account email |
+| `FORGE_SIM_PAT` | Personal Access Token |
+| `FORGE_SIM_CLOUD_ID` | Cloud ID (optional) |
+| `FORGE_SIM_ACCOUNT_ID` | Account ID (optional) |
+| `FORGE_SIM_PROVIDER_<KEY>_TOKEN` | Third-party provider token (e.g. `FORGE_SIM_PROVIDER_GOOGLE_APIS_TOKEN`) |
+
+**CI/CD example**:
+
+```yaml
+env:
+  FORGE_SIM_SITE: ${{ secrets.ATLASSIAN_SITE }}
+  FORGE_SIM_EMAIL: ${{ secrets.ATLASSIAN_EMAIL }}
+  FORGE_SIM_PAT: ${{ secrets.ATLASSIAN_PAT }}
+  FORGE_SIM_PROVIDER_GOOGLE_APIS_TOKEN: ${{ secrets.GOOGLE_TOKEN }}
+```
+
+### UI
+
+```typescript
+const doc = await sim.ui.render('issue-panel', {
+  context: { issueKey: 'PROJ-42' },
+});
+const rendered = await sim.ui.waitForContent('issue-panel', 'PROJ-42');
+const text = sim.ui.getTextContent(rendered);
+
+const buttons = sim.ui.findByType(doc, 'Button');
+const saveBtn = sim.ui.findByTypeAndText(doc, 'Button', 'Save');
+sim.ui.interact(saveBtn, 'onClick');
+
+const { result, updatedDoc } = await sim.ui.interactWith('Button', {
+  matchText: 'Load Comments',
+});
+```
+
+### Logs
+
+```typescript
+const logs = sim.getLogs();
+const console = sim.getConsoleLogs();
+sim.clearLogs();
+```
+
 ---
+
+# Comprehensive API Reference
+
+Complete type signatures for every public method, grouped by subsystem.
 
 ## Table of Contents
 
@@ -21,10 +164,10 @@ node --import forge-sim/dist/loader/register.js your-script.js
 - [ForgeSimulator](#forgesimulator) — the main orchestrator
   - [Deploy & Lifecycle](#deploy--lifecycle)
   - [Resolvers & Invocation](#resolvers--invocation)
-  - [Triggers](#triggers)
-  - [Product API Mocking](#product-api-mocking)
-  - [Auth](#auth)
-  - [Logs](#logs)
+  - [Triggers](#triggers-1)
+  - [Product API Mocking](#product-api-mocking-1)
+  - [Auth](#auth-1)
+  - [Logs](#logs-1)
 - [sim.kvs — Key-Value Storage](#simkvs--key-value-storage)
   - [Basic CRUD](#basic-crud)
   - [Queries](#queries)
