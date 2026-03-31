@@ -407,18 +407,150 @@ it('handles empty search results', async () => {
 
 ### UIKit 2 Rendering
 
-If your app uses UIKit 2, `deploy()` loads resources and you can test the full render cycle:
+forge-sim includes a headless UIKit renderer. Your app's JSX runs through the same `@forge/react` reconciler that Forge uses, producing a **ForgeDoc** — a JSON tree representing the rendered UI. You can inspect it, query it, simulate interactions, and assert on it. No browser needed.
+
+#### Render and inspect
 
 ```ts
-it('renders the main page', async () => {
-  // Invoke the resolver that the UI calls
-  const data = await sim.invoke('getPageData');
-  expect(data.title).toBeDefined();
+it('renders the issue panel', async () => {
+  // Render a UI module from your manifest (by module key)
+  await sim.ui.render('issue-panel', {
+    context: { issueKey: 'PROJ-42' },
+  });
 
-  // For full component rendering tests, use forge-sim's
-  // renderer with @testing-library/react — see docs/renderer.md
+  // Wait for async data to load (e.g., useEffect → invoke → re-render)
+  const doc = await sim.ui.waitForContent('issue-panel', 'PROJ-42');
+
+  // Extract all text from the rendered tree
+  const text = sim.ui.getTextContent(doc);
+  expect(text).toContain('PROJ-42');
+  expect(text).toContain('Fix the bug');
 });
 ```
+
+#### Query the ForgeDoc tree
+
+The ForgeDoc is a simple tree of `{ type, props, children }` nodes. Use the built-in query helpers:
+
+```ts
+it('renders a button and a badge', async () => {
+  await sim.ui.render('my-panel');
+  const doc = sim.ui.getForgeDoc('my-panel')!;
+
+  // Find all components by type
+  const buttons = sim.ui.findByType(doc, 'Button');
+  expect(buttons).toHaveLength(2);
+
+  // Find a specific button by its text content
+  const saveBtn = sim.ui.findByTypeAndText(doc, 'Button', 'Save');
+  expect(saveBtn.props.appearance).toBe('primary');
+
+  // Find by type — works for any UIKit component
+  const badges = sim.ui.findByType(doc, 'Badge');
+  expect(badges[0].props.appearance).toBe('added');
+});
+```
+
+#### Simulate interactions
+
+Click buttons, change form values, and assert on the re-rendered UI:
+
+```ts
+it('toggles theme on button click', async () => {
+  await sim.ui.render('settings-page');
+  const doc = await sim.ui.waitForContent('settings-page', 'Theme: light');
+
+  // Find the toggle button and click it
+  const toggleBtn = sim.ui.findByTypeAndText(doc, 'Button', 'Toggle');
+  sim.ui.interact(toggleBtn, 'onClick');
+
+  // Wait for re-render after state change
+  const updated = await sim.ui.waitForContent('settings-page', 'Theme: dark');
+  expect(sim.ui.getTextContent(updated)).toContain('Theme: dark');
+});
+
+// Or use the shorthand: find + interact + get updated doc in one call
+it('shorthand: interactWith', async () => {
+  await sim.ui.render('settings-page');
+  await sim.ui.waitForContent('settings-page', 'Theme: light');
+
+  const { updatedDoc } = await sim.ui.interactWith('Button', {
+    matchText: 'Toggle',
+    event: 'onClick',
+  });
+
+  expect(sim.ui.getTextContent(updatedDoc!)).toContain('Theme: dark');
+});
+```
+
+#### Multiple modules, isolated trees
+
+Each module gets its own ForgeDoc tree. Render multiple modules and assert independently:
+
+```ts
+it('renders two panels without cross-contamination', async () => {
+  await sim.ui.render('issue-panel', { context: { issueKey: 'TEST-1' } });
+  await sim.ui.render('admin-panel');
+
+  await sim.ui.waitForContent('issue-panel', 'TEST-1');
+  await sim.ui.waitForContent('admin-panel', 'Admin');
+
+  const issueDoc = sim.ui.getForgeDoc('issue-panel')!;
+  const adminDoc = sim.ui.getForgeDoc('admin-panel')!;
+
+  // Content is isolated
+  expect(sim.ui.getTextContent(issueDoc)).not.toContain('Admin');
+  expect(sim.ui.getTextContent(adminDoc)).not.toContain('TEST-1');
+
+  // But they share KVS
+  await sim.kvs.set('shared-key', 'hello');
+  const val = await sim.kvs.get('shared-key');
+  expect(val).toBe('hello');
+});
+```
+
+#### Debug with prettyPrint
+
+When a test fails and you need to see the UI tree:
+
+```ts
+it('debug example', async () => {
+  await sim.ui.render('my-panel');
+  const doc = await sim.ui.waitForContent('my-panel', 'Ready');
+
+  // Prints a readable tree to console
+  console.log(sim.ui.prettyPrint(doc));
+  // <Root>
+  //   <Stack space="space.200">
+  //     <Text>
+  //       <String text="Ready" />
+  //     </Text>
+  //     <Button appearance="primary">
+  //       <String text="Save" />
+  //     </Button>
+  //   </Stack>
+  // </Root>
+});
+```
+
+#### sim.ui API summary
+
+| Method | Description |
+|--------|-------------|
+| `render(moduleKey, options?)` | Render a UIKit module. Options: `{ context: { issueKey?, contentId?, spaceKey? } }` |
+| `getForgeDoc(moduleKey?)` | Get the current ForgeDoc tree. Omit key for most recent render. |
+| `waitForRender()` | Wait for the next render from any module. |
+| `waitForContent(moduleKey, text)` | Wait until rendered text includes the given string. |
+| `findByType(doc, type)` | Find all nodes of a component type (e.g., `'Button'`, `'Text'`). |
+| `findByTypeAndText(doc, type, text?)` | Find a node by type and optional text content. |
+| `getTextContent(doc)` | Extract all text from a ForgeDoc subtree. |
+| `interact(node, event, ...args)` | Simulate an event (e.g., `'onClick'`) on a ForgeDoc node. |
+| `interactWith(type, options?)` | Find + interact + return updated doc in one call. |
+| `prettyPrint(doc)` | Pretty-print the tree for debugging. |
+| `refresh(moduleKey)` | Re-render a module with its last context. |
+| `getRenderedModules()` | List all module keys that have been rendered. |
+| `reset()` | Clear the most recent render. |
+| `resetAll()` | Clear all rendered modules. |
 
 ---
 
