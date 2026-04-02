@@ -25,6 +25,7 @@ forge-sim lets you write fast, deterministic tests for your Forge app — resolv
   - [Queue / Consumer Tests](#queue--consumer-tests)
   - [Product API Mocking](#product-api-mocking)
   - [UIKit 2 Rendering](#uikit-2-rendering)
+  - [View Events: submit, close, refresh](#view-events-submit-close-refresh)
 - [Tips](#tips)
 
 ---
@@ -551,6 +552,116 @@ it('debug example', async () => {
 | `getRenderedModules()` | List all module keys that have been rendered. |
 | `reset()` | Clear the most recent render. |
 | `resetAll()` | Clear all rendered modules. |
+| `onSubmit(listener)` | Listen for `view.submit()` calls. Callback: `(moduleKey, payload) => void`. |
+| `onClose(listener)` | Listen for `view.close()` calls. Callback: `(moduleKey, payload) => void`. |
+| `onRefresh(listener)` | Listen for `view.refresh()` calls. Callback: `(moduleKey, payload) => void`. |
+
+### View Events: submit, close, refresh
+
+In real Forge, `view.submit()`, `view.close()`, and `view.refresh()` (from `@forge/bridge`) are handled by the host product (Jira, Confluence). In forge-sim's headless mode, these emit events you can listen for in tests.
+
+This is particularly useful for **custom fields**, **workflow modules**, and any module with multiple views (edit → submit → view transition).
+
+#### Custom field subviews
+
+forge-sim's manifest parser splits custom fields into sub-module keys automatically:
+
+- `jira:customFieldType` key `priority-score` → `priority-score--view` and `priority-score--edit`
+
+Each sub-module renders independently with its own ForgeDoc:
+
+```ts
+it('renders view and edit sub-modules', async () => {
+  await sim.ui.render('priority-score--view', { issueKey: 'PROJ-1' });
+  const viewDoc = sim.ui.getForgeDoc('priority-score--view')!;
+  expect(sim.ui.getTextContent(viewDoc)).toContain('42');
+
+  await sim.ui.render('priority-score--edit', { issueKey: 'PROJ-1' });
+  const editDoc = sim.ui.getForgeDoc('priority-score--edit')!;
+  expect(sim.ui.getTextContent(editDoc)).toContain('Edit');
+
+  // Both coexist — isolated ForgeDoc trees, shared KVS/SQL
+  expect(sim.ui.getRenderedModules()).toEqual(
+    expect.arrayContaining(['priority-score--view', 'priority-score--edit'])
+  );
+});
+```
+
+#### Capturing view.submit()
+
+When your edit view calls `view.submit(payload)`, capture the payload with `onSubmit`:
+
+```ts
+it('edit view submits the new value', async () => {
+  let submitted: any;
+  sim.ui.onSubmit((moduleKey, payload) => {
+    submitted = payload;
+  });
+
+  await sim.ui.render('priority-score--edit');
+  const doc = sim.ui.getForgeDoc('priority-score--edit')!;
+
+  // Fill in the form and save
+  const saveBtn = sim.ui.findByTypeAndText(doc, 'Button', 'Save');
+  await sim.ui.interact(saveBtn, 'onClick');
+
+  expect(submitted).toEqual({ value: 99 });
+});
+```
+
+#### Full edit → view transition flow
+
+forge-sim doesn't auto-transition between views (that's the host product's job). Instead, you orchestrate it yourself — capture the submit, then re-render the view with the new value:
+
+```ts
+it('submit from edit updates the view', async () => {
+  let submittedPayload: any;
+  sim.ui.onSubmit((_key, payload) => {
+    submittedPayload = payload;
+  });
+
+  // 1. Render view — shows current value
+  await sim.ui.render('priority-score--view');
+  expect(sim.ui.getTextContent(sim.ui.getForgeDoc('priority-score--view')!))
+    .toContain('Current value: 42');
+
+  // 2. Render edit and submit
+  await sim.ui.render('priority-score--edit');
+  const editDoc = sim.ui.getForgeDoc('priority-score--edit')!;
+  await sim.ui.interact(
+    sim.ui.findByTypeAndText(editDoc, 'Button', 'Save'),
+    'onClick',
+  );
+
+  // 3. Capture the payload and re-render view with new context
+  expect(submittedPayload).toEqual({ value: 99 });
+  await sim.ui.render('priority-score--view', {
+    context: { fieldValue: submittedPayload.value },
+  });
+});
+```
+
+#### Close and refresh events
+
+Same pattern for `view.close()` and `view.refresh()`:
+
+```ts
+sim.ui.onClose((moduleKey, payload) => {
+  console.log(`${moduleKey} closed with`, payload);
+});
+
+sim.ui.onRefresh((moduleKey, payload) => {
+  console.log(`${moduleKey} refreshed with`, payload);
+});
+```
+
+Each listener returns an unbind function:
+
+```ts
+const unbind = sim.ui.onSubmit((key, payload) => { ... });
+// ... later
+unbind(); // stop listening
+```
 
 ---
 
