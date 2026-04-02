@@ -3,6 +3,14 @@
   "version": "0.1.0",
   "description": "Simulated Forge runtime for AI-driven development and testing",
   "type": "module",
+  "main": "./dist/simulator.js",
+  "types": "./dist/simulator.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/simulator.d.ts",
+      "import": "./dist/simulator.js"
+    }
+  },
   "bin": {
     "forge-sim": "./dist/cli.js",
     "forge-sim-mcp": "./dist/mcp-server.js",

@@ -43,6 +43,7 @@ import type { ForgeSimulator } from '../simulator.js';
 // setSimulator is auto-called in the ForgeSimulator constructor.
 // We keep this import for the defensive re-wire in ensureBridge().
 import { setSimulator } from '../shims/globals.js';
+import { onViewEvent, resetViewEvents, type ViewEventType } from '../shims/forge-bridge.js';
 import { pathToFileURL } from 'node:url';
 
 export class SimulatorUI {
@@ -65,6 +66,12 @@ export class SimulatorUI {
 
   /** Render listeners scoped per module */
   private moduleListeners = new Map<string, Array<(doc: ForgeDoc) => void>>();
+
+  /** View event listeners: submit/close/refresh */
+  private viewEventListeners = new Map<ViewEventType, Array<(moduleKey: string, payload: any) => void>>();
+
+  /** Unbind function for the global view event listener */
+  private viewEventUnbind: (() => void) | null = null;
 
   constructor(private sim: ForgeSimulator) {}
 
@@ -94,6 +101,17 @@ export class SimulatorUI {
           }
         }
       });
+      // Listen for view.submit()/close()/refresh() from app code
+      this.viewEventUnbind = onViewEvent((event, payload) => {
+        const moduleKey = this.activeModuleKey ?? '(unknown)';
+        const listeners = this.viewEventListeners.get(event);
+        if (listeners) {
+          for (const fn of listeners) {
+            try { fn(moduleKey, payload); } catch {}
+          }
+        }
+      });
+
       this.bridgeInstalled = true;
     }
     connectSimulator(this.sim);
@@ -223,6 +241,52 @@ export class SimulatorUI {
   /** Get all bridge calls made so far (for debugging/assertions). */
   getBridgeCalls(): BridgeCall[] {
     return getBridgeCalls();
+  }
+
+  // ── View Event Listeners ──────────────────────────────────────────────
+
+  /**
+   * Listen for view.submit() calls from app code.
+   * Callback receives the module key and the payload passed to submit().
+   *
+   *   sim.ui.onSubmit((moduleKey, payload) => {
+   *     expect(moduleKey).toBe('my-field--edit');
+   *     expect(payload).toEqual({ value: 42 });
+   *   });
+   */
+  onSubmit(listener: (moduleKey: string, payload: any) => void): () => void {
+    return this.addViewEventListener('submit', listener);
+  }
+
+  /**
+   * Listen for view.close() calls from app code.
+   */
+  onClose(listener: (moduleKey: string, payload: any) => void): () => void {
+    return this.addViewEventListener('close', listener);
+  }
+
+  /**
+   * Listen for view.refresh() calls from app code.
+   */
+  onRefresh(listener: (moduleKey: string, payload: any) => void): () => void {
+    return this.addViewEventListener('refresh', listener);
+  }
+
+  private addViewEventListener(
+    event: ViewEventType,
+    listener: (moduleKey: string, payload: any) => void,
+  ): () => void {
+    if (!this.viewEventListeners.has(event)) {
+      this.viewEventListeners.set(event, []);
+    }
+    this.viewEventListeners.get(event)!.push(listener);
+    return () => {
+      const arr = this.viewEventListeners.get(event);
+      if (arr) {
+        const idx = arr.indexOf(listener);
+        if (idx >= 0) arr.splice(idx, 1);
+      }
+    };
   }
 
   // ── Module Rendering ───────────────────────────────────────────────────
@@ -467,17 +531,24 @@ export class SimulatorUI {
     this.moduleDocs.clear();
     this.moduleRenderConfig.clear();
     this.moduleContexts.clear();
+    this.viewEventListeners.clear();
     this.activeModuleKey = null;
   }
 
   /** Full reset — disconnects simulator too. */
   resetAll(): void {
     resetAll();
+    resetViewEvents();
     this.moduleDocs.clear();
     this.moduleRenderConfig.clear();
     this.moduleContexts.clear();
     this.resolvedResources.clear();
     this.moduleListeners.clear();
+    this.viewEventListeners.clear();
+    if (this.viewEventUnbind) {
+      this.viewEventUnbind();
+      this.viewEventUnbind = null;
+    }
     this.activeModuleKey = null;
     this.bridgeInstalled = false;
   }

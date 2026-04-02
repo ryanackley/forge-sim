@@ -175,16 +175,53 @@ export function invoke(functionKey: string, payload?: any): Promise<any> {
 
 // ── view ────────────────────────────────────────────────────────────────
 
+/**
+ * View event system — allows tests to observe view.submit(), view.close(),
+ * and view.refresh() calls from app code.
+ *
+ * Events fire through globalThis.__forgeSimViewEvents so SimulatorUI can
+ * listen without a circular dependency.
+ */
+export type ViewEventType = 'submit' | 'close' | 'refresh';
+export type ViewEventListener = (event: ViewEventType, payload: any) => void;
+
+const viewEventStore = ((globalThis as any).__forgeSimViewEvents ??= {
+  listeners: [] as ViewEventListener[],
+}) as { listeners: ViewEventListener[] };
+
+function emitViewEvent(event: ViewEventType, payload: any): void {
+  for (const fn of viewEventStore.listeners) {
+    try { fn(event, payload); } catch {}
+  }
+}
+
+/**
+ * Register a listener for view events. Returns an unbind function.
+ * @internal — used by SimulatorUI to wire onSubmit/onClose/onRefresh.
+ */
+export function onViewEvent(listener: ViewEventListener): () => void {
+  viewEventStore.listeners.push(listener);
+  return () => {
+    const idx = viewEventStore.listeners.indexOf(listener);
+    if (idx >= 0) viewEventStore.listeners.splice(idx, 1);
+  };
+}
+
+/** Clear all view event listeners. @internal */
+export function resetViewEvents(): void {
+  viewEventStore.listeners.length = 0;
+}
+
 export const view = {
   getContext(): Promise<any> {
     return getBridge().callBridge('getContext');
   },
   submit(payload?: any): Promise<void> {
-    console.log('[forge-sim] view.submit()', payload);
+    emitViewEvent('submit', payload);
     return Promise.resolve();
   },
   close(payload?: any): Promise<void> {
-    console.log('[forge-sim] view.close()', payload);
+    emitViewEvent('close', payload);
     return Promise.resolve();
   },
   onClose(callback: () => void): void {
@@ -194,7 +231,7 @@ export const view = {
     return Promise.resolve();
   },
   refresh(payload?: any): Promise<void> {
-    console.log('[forge-sim] view.refresh()', payload);
+    emitViewEvent('refresh', payload);
     return Promise.resolve();
   },
   createHistory(): Promise<any> {

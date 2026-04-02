@@ -1,0 +1,29 @@
+modules:
+  jira:customFieldType:
+    - key: priority-score
+      name: Priority Score
+      type: number
+      value:
+        function: value-fn
+      view:
+        resource: view-resource
+      edit:
+        resource: edit-resource
+      resolver:
+        function: resolver
+
+  function:
+    - key: resolver
+      handler: src/resolver.handler
+    - key: value-fn
+      handler: src/value.handler
+
+resources:
+  - key: view-resource
+    path: src/view.tsx
+  - key: edit-resource
+    path: src/edit.tsx
+
+app:
+  id: ari:cloud:ecosystem::app/custom-field-test
+  name: Custom Field Test
