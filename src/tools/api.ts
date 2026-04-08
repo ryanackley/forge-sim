@@ -310,6 +310,24 @@ export function createApiHandler(sim: ForgeSimulator, manifestOrNull?: ParsedMan
         return json(res, { message: 'Use KVS panel — entity store shares the same backing storage' });
       }
 
+      // ── Mocks ────────────────────────────────────────────────────
+
+      if (path === '/api/mock/routes' && method === 'POST') {
+        const body = await readBody(req);
+        const { product, routes } = body;
+        if (!product || !routes) return json(res, { error: 'product and routes are required' }, 400);
+        sim.mockProductRoutes(product, routes);
+        return json(res, { success: true, product, routeCount: Object.keys(routes).length });
+      }
+
+      if (path === '/api/mock/graphql' && method === 'POST') {
+        const body = await readBody(req);
+        const { operations } = body;
+        if (!operations) return json(res, { error: 'operations is required' }, 400);
+        sim.mockGraphQL(operations);
+        return json(res, { success: true, operationCount: Object.keys(operations).length });
+      }
+
       // ── 404 ────────────────────────────────────────────────────────
       return json(res, { error: 'Not found', path }, 404);
 

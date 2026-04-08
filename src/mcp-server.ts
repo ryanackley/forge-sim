@@ -26,6 +26,8 @@
  *   forge:entity_query  — Query entities with indexes, filters, sort, pagination
  *   forge:entity_list   — List all entities and schemas
  *   forge:reset         — Reset all simulator state
+ *   forge:mock_routes   — Register mock HTTP responses for product APIs or remotes
+ *   forge:mock_graphql  — Register mock GraphQL responses by operation name
  *
  * Resources:
  *   forge://manifest    — Current deployed manifest
@@ -937,6 +939,79 @@ server.tool(
     return {
       content: [{ type: 'text' as const, text: '✅ Simulator reset. All state cleared.' }],
     };
+  }
+);
+
+// ── Mock Tools ──────────────────────────────────────────────────────────
+
+server.tool(
+  'forge.mock_routes',
+  `Register mock HTTP responses for product APIs (Jira, Confluence, Bitbucket) or remotes.
+Route keys are "METHOD /path" (e.g. "GET /rest/api/3/version/10001"). Method defaults to GET if omitted.
+Path matching is prefix-based, so "/rest/api/3/issue" matches "/rest/api/3/issue/TEST-1".
+Values are the JSON response body. Use this to set up test fixtures before firing triggers or invoking resolvers.
+
+Example:
+  product: "jira"
+  routes: {
+    "GET /rest/api/3/version/10001": { "id": "10001", "name": "1.0.0", "releaseDate": "2026-04-03" },
+    "GET /rest/api/3/project/10000": { "id": "10000", "key": "PROJ", "name": "My Project" },
+    "GET /rest/api/3/search": { "issues": [{ "key": "PROJ-1", "fields": { "summary": "Fix bug", "issuetype": { "name": "Bug" }, "status": { "name": "Done" }, "assignee": { "displayName": "Ryan" } } }] },
+    "POST /wiki/api/v2/pages": { "id": "12345", "title": "Release Notes" }
+  }`,
+  {
+    product: z.string().describe('Product name: "jira", "confluence", "bitbucket", or a remote key from manifest.yml'),
+    routes: z.record(z.string(), z.any()).describe('Route map: keys are "METHOD /path" patterns, values are JSON response bodies'),
+  },
+  async ({ product, routes }) => {
+    try {
+      sim.mockProductRoutes(product, routes);
+      const routeKeys = Object.keys(routes);
+      return {
+        content: [{
+          type: 'text' as const,
+          text: `✅ Registered ${routeKeys.length} mock route(s) for "${product}":\n${routeKeys.map(k => `  • ${k}`).join('\n')}`,
+        }],
+      };
+    } catch (err) {
+      return {
+        content: [{ type: 'text' as const, text: `❌ ${err instanceof Error ? err.message : String(err)}` }],
+        isError: true,
+      };
+    }
+  }
+);
+
+server.tool(
+  'forge.mock_graphql',
+  `Register mock responses for Atlassian GraphQL (gateway) operations, keyed by operation name.
+Values are the full response body (typically { data: { ... } }).
+Use '*' as a catch-all for anonymous or unmatched operations.
+
+Example:
+  operations: {
+    "GetIssue": { "data": { "issue": { "key": "TEST-1", "summary": "Fix login" } } },
+    "SearchUsers": { "data": { "users": [{ "accountId": "abc", "displayName": "Ryan" }] } }
+  }`,
+  {
+    operations: z.record(z.string(), z.any()).describe('Map of operation name → response body. Use "*" as a catch-all.'),
+  },
+  async ({ operations }) => {
+    try {
+      sim.mockGraphQL(operations);
+      const opNames = Object.keys(operations);
+      return {
+        content: [{
+          type: 'text' as const,
+          text: `✅ Registered ${opNames.length} GraphQL mock(s):\n${opNames.map(k => `  • ${k}`).join('\n')}`,
+        }],
+      };
+    } catch (err) {
+      return {
+        content: [{ type: 'text' as const, text: `❌ ${err instanceof Error ? err.message : String(err)}` }],
+        isError: true,
+      };
+    }
   }
 );
 

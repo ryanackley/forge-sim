@@ -14,6 +14,8 @@
  *   forge-sim status              Show daemon status
  *   forge-sim stop                Stop the daemon
  *   forge-sim reset               Reset all simulator state
+ *   forge-sim mock routes <p> <j> Mock product API routes
+ *   forge-sim mock graphql <j>    Mock GraphQL operations
  *   forge-sim serve               Start daemon in foreground (for debugging)
  *   forge-sim auth                Manage Atlassian accounts
  *   forge-sim --help              Show help
@@ -65,6 +67,8 @@ if (command === '--help' || command === '-h' || !command) {
     forge-sim status                 Show daemon status
     forge-sim stop                   Stop the daemon
     forge-sim reset                  Reset all simulator state
+    forge-sim mock routes <p> <json> Mock product API routes (jira/confluence/bitbucket/remote)
+    forge-sim mock graphql <json>    Mock GraphQL operations
     forge-sim serve [--port=N]       Start daemon in foreground
     forge-sim auth                   Add or manage Atlassian accounts (OAuth)
     forge-sim --version              Show version
@@ -557,6 +561,72 @@ else if (command === 'reset') {
     console.log(`✅ ${result.message}`);
   } catch (err: any) {
     console.error(`❌ ${err.message}`);
+    process.exit(1);
+  }
+}
+
+// ── Mock Routes ─────────────────────────────────────────────────────────
+
+else if (command === 'mock') {
+  const subCommand = args[1]; // 'routes' or 'graphql'
+  const { daemonRequest } = await import('./daemon-client.js');
+
+  if (subCommand === 'routes') {
+    // forge-sim mock routes <product> <routesJSON>
+    const product = args[2];
+    const routesJson = args[3];
+    if (!product || !routesJson) {
+      console.error('Usage: forge-sim mock routes <product> <routesJSON>');
+      console.error('  product: jira, confluence, bitbucket, or a remote key');
+      console.error('  routesJSON: JSON object mapping "METHOD /path" to response bodies');
+      console.error('');
+      console.error('Example:');
+      console.error(`  forge-sim mock routes jira '{"GET /rest/api/3/version/10001": {"id":"10001","name":"1.0.0"}}'`);
+      process.exit(1);
+    }
+    try {
+      const routes = JSON.parse(routesJson);
+      const result = await daemonRequest('/api/mock/routes', {
+        method: 'POST',
+        body: { product, routes },
+      });
+      console.log(`✅ Registered ${result.routeCount} mock route(s) for "${product}"`);
+      for (const key of Object.keys(routes)) {
+        console.log(`   • ${key}`);
+      }
+    } catch (err: any) {
+      console.error(`❌ ${err.message}`);
+      process.exit(1);
+    }
+  } else if (subCommand === 'graphql') {
+    // forge-sim mock graphql <operationsJSON>
+    const opsJson = args[2];
+    if (!opsJson) {
+      console.error('Usage: forge-sim mock graphql <operationsJSON>');
+      console.error('  operationsJSON: JSON object mapping operation names to response bodies');
+      console.error('');
+      console.error('Example:');
+      console.error(`  forge-sim mock graphql '{"GetIssue": {"data":{"issue":{"key":"TEST-1"}}}}'`);
+      process.exit(1);
+    }
+    try {
+      const operations = JSON.parse(opsJson);
+      const result = await daemonRequest('/api/mock/graphql', {
+        method: 'POST',
+        body: { operations },
+      });
+      console.log(`✅ Registered ${result.operationCount} GraphQL mock(s)`);
+      for (const key of Object.keys(operations)) {
+        console.log(`   • ${key}`);
+      }
+    } catch (err: any) {
+      console.error(`❌ ${err.message}`);
+      process.exit(1);
+    }
+  } else {
+    console.error('Usage: forge-sim mock <routes|graphql> ...');
+    console.error('  forge-sim mock routes <product> <routesJSON>');
+    console.error('  forge-sim mock graphql <operationsJSON>');
     process.exit(1);
   }
 }
