@@ -516,3 +516,79 @@ export function invokeService(serviceKey: string, options?: any): Promise<any> {
   console.warn(`[forge-sim] invokeService("${serviceKey}") — not implemented`);
   return Promise.resolve(null);
 }
+
+// ── Realtime (Preview) ──────────────────────────────────────────────────
+
+function getRealtimeBackend(): import('../realtime.js').SimulatedRealtime | null {
+  try {
+    const sim = (globalThis as any)[Symbol.for('forge-sim.instance')];
+    return sim?.realtime ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function getCurrentModuleKeyForBridge(): string | null {
+  try {
+    const sim = (globalThis as any)[Symbol.for('forge-sim.instance')];
+    return sim?.currentModuleKey ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export const realtime = {
+  async subscribe(
+    channel: string,
+    callback: (payload?: string | Record<string, unknown>) => any,
+    options?: { replaySeconds?: number; token?: string; contextOverrides?: string[] },
+  ): Promise<{ unsubscribe: () => void }> {
+    const rt = getRealtimeBackend();
+    if (!rt) {
+      console.warn('[forge-sim] realtime.subscribe — no simulator connected');
+      return { unsubscribe: () => {} };
+    }
+    const moduleKey = getCurrentModuleKeyForBridge();
+    return rt.subscribe(channel, callback as any, moduleKey, options);
+  },
+
+  async subscribeGlobal(
+    channel: string,
+    callback: (payload?: string | Record<string, unknown>) => any,
+    options?: { replaySeconds?: number; token?: string; contextOverrides?: string[] },
+  ): Promise<{ unsubscribe: () => void }> {
+    const rt = getRealtimeBackend();
+    if (!rt) {
+      console.warn('[forge-sim] realtime.subscribeGlobal — no simulator connected');
+      return { unsubscribe: () => {} };
+    }
+    return rt.subscribeGlobal(channel, callback as any, options);
+  },
+
+  async publish(
+    channel: string,
+    payload: string | Record<string, unknown>,
+    options?: { token?: string; contextOverrides?: string[] },
+  ): Promise<{ eventId: string | null; eventTimestamp: string | null; errors?: string[] }> {
+    const rt = getRealtimeBackend();
+    if (!rt) {
+      console.warn('[forge-sim] realtime.publish — no simulator connected');
+      return { eventId: null, eventTimestamp: null, errors: ['No simulator connected'] };
+    }
+    const moduleKey = getCurrentModuleKeyForBridge();
+    return rt.publishFromBridge(channel, payload, moduleKey, options);
+  },
+
+  async publishGlobal(
+    channel: string,
+    payload: string | Record<string, unknown>,
+    options?: { token?: string; contextOverrides?: string[] },
+  ): Promise<{ eventId: string | null; eventTimestamp: string | null; errors?: string[] }> {
+    const rt = getRealtimeBackend();
+    if (!rt) {
+      console.warn('[forge-sim] realtime.publishGlobal — no simulator connected');
+      return { eventId: null, eventTimestamp: null, errors: ['No simulator connected'] };
+    }
+    return rt.publishGlobalFromBridge(channel, payload, options);
+  },
+};

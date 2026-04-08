@@ -28,6 +28,10 @@
  *   forge:reset         — Reset all simulator state
  *   forge:mock_routes   — Register mock HTTP responses for product APIs or remotes
  *   forge:mock_graphql  — Register mock GraphQL responses by operation name
+ *   forge:llm_mock      — Register mock LLM responses for @forge/llm chat()
+ *   forge:llm_history   — Get @forge/llm call history (prompts + responses)
+ *   forge:realtime_publish — Publish an event to a realtime channel
+ *   forge:realtime_state   — Inspect realtime subscriptions and event log
  *
  * Resources:
  *   forge://manifest    — Current deployed manifest
@@ -1012,6 +1016,157 @@ Example:
         isError: true,
       };
     }
+  }
+);
+
+// ── LLM Tools ────────────────────────────────────────────────────────────
+
+server.tool(
+  'forge.llm_mock',
+  `Register a mock response for the next @forge/llm chat() call.
+Responses are consumed in FIFO order. Queue multiple to script multi-turn agent loops.
+If no mocks are queued and no ANTHROPIC_API_KEY is set, chat() will throw.
+
+Example:
+  content: "The answer is 42."
+  tool_calls: [{ id: "call_1", type: "function", index: 0, function: { name: "get_data", arguments: { query: "issues" } } }]
+  finish_reason: "tool_use"`,
+  {
+    content: z.union([z.string(), z.array(z.object({ type: z.literal('text'), text: z.string() }))]).describe('Response content — string or array of { type: "text", text: "..." }'),
+    tool_calls: z.array(z.object({
+      id: z.string(),
+      type: z.literal('function'),
+      index: z.number(),
+      function: z.object({
+        name: z.string(),
+        arguments: z.union([z.record(z.string(), z.any()), z.string()]),
+      }),
+    })).optional().describe('Tool calls the mock response should include (for agent loop testing)'),
+    finish_reason: z.string().optional().describe('Finish reason — auto-detected if omitted (end_turn for text, tool_use if tool_calls present)'),
+  },
+  async ({ content, tool_calls, finish_reason }) => {
+    try {
+      sim.llm.mockResponse({ content, tool_calls, finish_reason });
+      const desc = tool_calls?.length
+        ? `mock with ${tool_calls.length} tool call(s)`
+        : `mock text response (${typeof content === 'string' ? content.slice(0, 60) : 'array'}${typeof content === 'string' && content.length > 60 ? '...' : ''})`;
+      return {
+        content: [{ type: 'text' as const, text: `✅ Queued LLM ${desc}. Queue depth: ${sim.llm.getHistory().length + 1}` }],
+      };
+    } catch (err) {
+      return {
+        content: [{ type: 'text' as const, text: `❌ ${err instanceof Error ? err.message : String(err)}` }],
+        isError: true,
+      };
+    }
+  }
+);
+
+server.tool(
+  'forge.llm_history',
+  `Get @forge/llm call history — every chat() call with its prompt and response.
+Useful for verifying agent loop behavior, tool call sequences, and model interactions.`,
+  {},
+  async () => {
+    const history = sim.llm.getHistory();
+    if (history.length === 0) {
+      return {
+        content: [{ type: 'text' as const, text: 'No LLM calls recorded yet.' }],
+      };
+    }
+    const summary = history.map((entry, i) => {
+      const msgCount = entry.prompt.messages.length;
+      const toolCount = entry.prompt.tools?.length ?? 0;
+      const choice = entry.response.choices[0];
+      const finishReason = choice?.finish_reason ?? 'unknown';
+      const hasToolCalls = !!choice?.message?.tool_calls?.length;
+      return `#${i + 1}: ${entry.prompt.model} | ${msgCount} msgs${toolCount ? `, ${toolCount} tools` : ''} → ${finishReason}${hasToolCalls ? ` (${choice.message.tool_calls!.length} tool calls)` : ''}`;
+    });
+    return {
+      content: [{
+        type: 'text' as const,
+        text: `LLM call history (${history.length} call${history.length !== 1 ? 's' : ''}):\n${summary.join('\n')}\n\n` +
+          JSON.stringify(history, null, 2),
+      }],
+    };
+  }
+);
+
+// ── Realtime Tools ───────────────────────────────────────────────────────
+
+server.tool(
+  'forge.realtime_publish',
+  `Publish an event to a realtime channel, simulating what a resolver or bridge would do.
+Useful for testing frontend subscriptions from the MCP side.
+
+Example:
+  channel: "progress-updates"
+  payload: { "percent": 75, "status": "processing" }
+  global: true`,
+  {
+    channel: z.string().describe('Channel name to publish to'),
+    payload: z.union([z.string(), z.record(z.string(), z.any())]).describe('Event payload — string or JSON object'),
+    global: z.boolean().optional().describe('If true, publish to global channel (publishGlobal). Default: false (scoped).'),
+  },
+  async ({ channel, payload, global: isGlobal }) => {
+    try {
+      const result = isGlobal
+        ? await sim.realtime.publishGlobal(channel, payload)
+        : await sim.realtime.publish(channel, payload);
+      return {
+        content: [{
+          type: 'text' as const,
+          text: result.eventId
+            ? `✅ Published to "${channel}" (${isGlobal ? 'global' : 'scoped'}). eventId=${result.eventId}`
+            : `⚠️ Published to "${channel}" but no subscribers. Event logged but not delivered.`,
+        }],
+      };
+    } catch (err) {
+      return {
+        content: [{ type: 'text' as const, text: `❌ ${err instanceof Error ? err.message : String(err)}` }],
+        isError: true,
+      };
+    }
+  }
+);
+
+server.tool(
+  'forge.realtime_state',
+  `Inspect realtime state — active subscriptions and published event log.
+Shows which channels have subscribers and the history of published events.`,
+  {},
+  async () => {
+    const subs = sim.realtime.getSubscriptions();
+    const events = sim.realtime.getEventLog();
+    const lines: string[] = [];
+
+    lines.push(`Active subscriptions (${subs.length}):`);
+    if (subs.length === 0) {
+      lines.push('  (none)');
+    } else {
+      for (const s of subs) {
+        lines.push(`  • ${s.channelKey} — ${s.subscriberCount} subscriber(s)`);
+      }
+    }
+
+    lines.push('');
+    lines.push(`Event log (${events.length} event${events.length !== 1 ? 's' : ''}):`);
+    if (events.length === 0) {
+      lines.push('  (none)');
+    } else {
+      const recent = events.slice(-20); // Last 20
+      if (events.length > 20) lines.push(`  (showing last 20 of ${events.length})`);
+      for (const e of recent) {
+        const payloadPreview = typeof e.payload === 'string'
+          ? e.payload.slice(0, 80)
+          : JSON.stringify(e.payload).slice(0, 80);
+        lines.push(`  ${e.eventId} | ${e.global ? 'global' : 'scoped'} "${e.channel}" | ${payloadPreview}`);
+      }
+    }
+
+    return {
+      content: [{ type: 'text' as const, text: lines.join('\n') }],
+    };
   }
 );
 

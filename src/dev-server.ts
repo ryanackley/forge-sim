@@ -52,7 +52,8 @@ export type ServerEvent =
   | { type: 'reloading'; file: string; timestamp: number }
   | { type: 'error'; message: string; timestamp: number }
   | { type: 'ready'; timestamp: number }
-  | { type: 'eventResult'; requestId: string; success: boolean; error?: string; timestamp: number };
+  | { type: 'eventResult'; requestId: string; success: boolean; error?: string; timestamp: number }
+  | { type: 'realtime'; channel: string; channelKey: string; payload: string | Record<string, unknown>; global: boolean; eventId: string; timestamp: number };
 
 /** Events sent from renderer to server */
 export type ClientEvent =
@@ -128,6 +129,27 @@ export function createDevServer(options: DevServerOptions = {}): DevServer {
 
   // ── Custom field value store (persists across view/edit tab switches) ──
   const fieldValues = new Map<string, any>();
+
+  // ── Realtime event push (backend → browser over WS) ────────────────
+  if (simulator?.realtime) {
+    simulator.realtime.onPublish((event) => {
+      const msg = JSON.stringify({
+        type: 'realtime',
+        channel: event.channel,
+        channelKey: event.channelKey,
+        payload: event.payload,
+        global: event.global,
+        eventId: event.eventId,
+        timestamp: Date.now(),
+      } satisfies ServerEvent);
+
+      for (const client of clients) {
+        if (client.readyState === WebSocket.OPEN) {
+          client.send(msg);
+        }
+      }
+    });
+  }
 
   // ── WebSocket handling ──────────────────────────────────────────────
 
@@ -296,6 +318,15 @@ export function createDevServer(options: DevServerOptions = {}): DevServer {
       case 'eventEmit':
         console.log(`[dev-server] Event: ${params?.event}`, params?.payload);
         return;
+
+      case 'realtimePublish': {
+        const { channel, payload, global: isGlobal, moduleKey, options } = params;
+        if (isGlobal) {
+          return simulator.realtime.publishGlobalFromBridge(channel, payload, options);
+        } else {
+          return simulator.realtime.publishFromBridge(channel, payload, moduleKey ?? null, options);
+        }
+      }
 
       default:
         console.warn(`[dev-server] Unknown RPC method: ${method}`);

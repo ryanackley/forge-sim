@@ -20,6 +20,8 @@ import { I18nStore } from './i18n-store.js';
 import { ExternalAuthStore } from './external-auth-store.js';
 import { FITProvider } from './fit-provider.js';
 import { RemoteProxy } from './remote-proxy.js';
+import { SimulatedLLM } from './llm.js';
+import { SimulatedRealtime } from './realtime.js';
 import type { SimulationConfig, ResolverContext, ProductApiHandler, ProductApiRequest, ProductApiResponse } from './types.js';
 import type { TriggerPayloadByEvent } from './trigger-event-types.js';
 import type { ManifestAction } from './manifest.js';
@@ -49,6 +51,8 @@ export class ForgeSimulator {
   readonly externalAuth: ExternalAuthStore;
   readonly fit: FITProvider;
   readonly remotes: RemoteProxy;
+  readonly llm: SimulatedLLM;
+  readonly realtime: SimulatedRealtime;
 
   /** UI API — ForgeDoc access, tree traversal, interaction, bridge lifecycle. */
   readonly ui: SimulatorUI;
@@ -97,6 +101,8 @@ export class ForgeSimulator {
     this.fit = new FITProvider();
     this.remotes = new RemoteProxy(this.productApi, this.fit);
     this.remotes.onLog((level, message, detail) => this.log(level, message, detail));
+    this.llm = new SimulatedLLM((level, message, detail) => this.log(level, message, detail));
+    this.realtime = new SimulatedRealtime((level, message, detail) => this.log(level, message, detail));
     this.ui = new SimulatorUI(this);
 
     // Register property store as fallback routes for product APIs
@@ -895,8 +901,11 @@ export class ForgeSimulator {
     this.properties.clear();
     this.i18n.clear();
     this.remotes.setManifest(null);
+    this.llm.reset();
     this.moduleRouting.clear();
     this.resolverOwnership.clear();
+    this.llm.reset();
+    this.realtime.reset();
     this.manifest = null;
     this.logs.length = 0;
     this.consoleLogs.length = 0;

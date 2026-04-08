@@ -29,6 +29,8 @@ const SHIM_NAMES = [
   '@forge/jira-bridge',
   '@forge/confluence-bridge',
   '@forge/dashboards-bridge',
+  '@forge/llm',
+  '@forge/realtime',
 ];
 
 const FORGE_SHIMS: Record<string, string> = Object.fromEntries(

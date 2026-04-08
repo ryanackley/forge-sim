@@ -120,3 +120,7 @@ export type {
 export { I18nStore } from './i18n-store.js';
 export { ExternalAuthStore, loadProviderSecrets, saveProviderSecrets } from './external-auth-store.js';
 export type { I18nInfoConfig, TranslationResource, GetTranslationsResult } from './i18n-store.js';
+export { SimulatedLLM, LlmApiError } from './llm.js';
+export type { LlmPrompt, LlmResponse, LlmStreamResponse, LlmMessage, LlmChoice, LlmTool, LlmToolCall, ModelListResponse, ModelInfo, MockLlmResponse } from './llm.js';
+export { SimulatedRealtime } from './realtime.js';
+export type { RealtimePayload, PublishOptions, PublishResult, SubscriptionOptions, Subscription, RealtimeCallback, TokenResult, PublishListener } from './realtime.js';

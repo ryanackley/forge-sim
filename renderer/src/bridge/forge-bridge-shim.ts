@@ -44,6 +44,8 @@ if (!G.__forgeSim) {
     // Modal
     activeModal: null as ActiveModal | null,
     viewOnCloseCallback: null as ModalCloseCallback | null,
+    // Realtime
+    realtimeSubscribers: new Map<string, Set<(payload: any) => void>>(),
   };
 }
 
@@ -87,6 +89,19 @@ function ensureConnection(): Promise<void> {
         const msg = JSON.parse(event.data);
 
         // (forgeEvent relay moved to postMessage — see window message listener below)
+
+        // Realtime event push from backend
+        if (msg.type === 'realtime') {
+          const subs = S.realtimeSubscribers as Map<string, Set<(payload: any) => void>>;
+          const channelKey = msg.channelKey as string;
+          const callbacks = subs.get(channelKey);
+          if (callbacks) {
+            for (const cb of callbacks) {
+              try { cb(msg.payload); } catch (e) { console.error('[forge-bridge-shim] realtime callback error:', e); }
+            }
+          }
+          return;
+        }
 
         if (msg.requestId && S.pendingRequests.has(msg.requestId)) {
           const pending = S.pendingRequests.get(msg.requestId)!;
@@ -814,4 +829,82 @@ export const featureFlags = {
   evaluate: (_flag: string, _defaultValue?: any): Promise<any> => Promise.resolve(undefined),
   checkBooleanFlag: (_flag: string): Promise<boolean> => Promise.resolve(false),
   checkStringFlag: (_flag: string): Promise<string> => Promise.resolve(''),
+};
+
+// ── Realtime (Preview) ──────────────────────────────────────────────────
+
+export const realtime = {
+  async subscribe(
+    channel: string,
+    callback: (payload?: string | Record<string, unknown>) => any,
+    options?: { replaySeconds?: number; token?: string; contextOverrides?: string[] },
+  ): Promise<{ unsubscribe: () => void }> {
+    await ensureConnection();
+    const S = G.__forgeSim;
+    const moduleKey = getModuleKeyFromURL();
+    const channelKey = moduleKey ? `scoped:${moduleKey}:${channel}` : `global:${channel}`;
+
+    const subs = S.realtimeSubscribers as Map<string, Set<(payload: any) => void>>;
+    if (!subs.has(channelKey)) subs.set(channelKey, new Set());
+    subs.get(channelKey)!.add(callback);
+
+    console.log(`[forge-bridge-shim] realtime.subscribe("${channel}") → ${channelKey}`);
+
+    return {
+      unsubscribe: () => {
+        subs.get(channelKey)?.delete(callback);
+        console.log(`[forge-bridge-shim] realtime.unsubscribe("${channel}")`);
+      },
+    };
+  },
+
+  async subscribeGlobal(
+    channel: string,
+    callback: (payload?: string | Record<string, unknown>) => any,
+    options?: { replaySeconds?: number; token?: string; contextOverrides?: string[] },
+  ): Promise<{ unsubscribe: () => void }> {
+    await ensureConnection();
+    const S = G.__forgeSim;
+    const channelKey = `global:${channel}`;
+
+    const subs = S.realtimeSubscribers as Map<string, Set<(payload: any) => void>>;
+    if (!subs.has(channelKey)) subs.set(channelKey, new Set());
+    subs.get(channelKey)!.add(callback);
+
+    console.log(`[forge-bridge-shim] realtime.subscribeGlobal("${channel}") → ${channelKey}`);
+
+    return {
+      unsubscribe: () => {
+        subs.get(channelKey)?.delete(callback);
+        console.log(`[forge-bridge-shim] realtime.unsubscribeGlobal("${channel}")`);
+      },
+    };
+  },
+
+  async publish(
+    channel: string,
+    payload: string | Record<string, unknown>,
+    options?: { token?: string; contextOverrides?: string[] },
+  ): Promise<{ eventId: string | null; eventTimestamp: string | null; errors?: string[] }> {
+    return rpc('realtimePublish', {
+      channel,
+      payload,
+      global: false,
+      moduleKey: getModuleKeyFromURL(),
+      options,
+    });
+  },
+
+  async publishGlobal(
+    channel: string,
+    payload: string | Record<string, unknown>,
+    options?: { token?: string; contextOverrides?: string[] },
+  ): Promise<{ eventId: string | null; eventTimestamp: string | null; errors?: string[] }> {
+    return rpc('realtimePublish', {
+      channel,
+      payload,
+      global: true,
+      options,
+    });
+  },
 };
