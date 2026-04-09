@@ -147,9 +147,23 @@ export class SimulatedLLM {
   private mockResponses: MockLlmResponse[] = [];
   private callHistory: Array<{ prompt: LlmPrompt; response: LlmResponse }> = [];
   private logFn: (level: string, message: string, detail?: unknown) => void;
+  private configApiKey: string | null = null;
 
   constructor(logFn?: (level: string, message: string, detail?: unknown) => void) {
     this.logFn = logFn ?? (() => {});
+  }
+
+  /**
+   * Set the API key from config (loaded at deploy time).
+   * process.env.ANTHROPIC_API_KEY still takes precedence at call time.
+   */
+  setApiKey(key: string): void {
+    this.configApiKey = key;
+  }
+
+  /** Get the active API key (env wins over config). */
+  getApiKey(): string | null {
+    return process.env.ANTHROPIC_API_KEY ?? this.configApiKey;
   }
 
   // ── Public API ──────────────────────────────────────────────────────
@@ -170,11 +184,11 @@ export class SimulatedLLM {
     }
 
     // 2. Try real Anthropic API
-    const apiKey = process.env.ANTHROPIC_API_KEY;
+    const apiKey = this.getApiKey();
     if (!apiKey) {
       throw new LlmApiError(
-        'No ANTHROPIC_API_KEY set and no mock responses registered. ' +
-        'Set the env var for real API calls, or use sim.llm.mockResponse() for testing.',
+        'No Anthropic API key configured and no mock responses registered. ' +
+        'Run `forge-sim auth --llm` or set ANTHROPIC_API_KEY env var.',
         'NO_API_KEY'
       );
     }

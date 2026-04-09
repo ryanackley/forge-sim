@@ -885,6 +885,19 @@ export class ForgeSimulator {
       }
     } catch {}
 
+    // ── 5. LLM API key (Anthropic for @forge/llm) ──────────────────────
+
+    try {
+      const { getAnthropicApiKey } = await import('./auth/config.js');
+      const llmKey = await getAnthropicApiKey();
+      if (llmKey) {
+        this.llm.setApiKey(llmKey);
+        const source = process.env.ANTHROPIC_API_KEY ? 'env' : 'config';
+        result.llm = { configured: true, source };
+        this.log('info', `Loaded Anthropic API key (${source})`);
+      }
+    } catch {}
+
     return result;
   }
 
@@ -937,6 +950,11 @@ export interface LoadAuthResult {
   };
   /** Provider keys that had tokens loaded (from env or .forge-sim). */
   providers: string[];
+  /** LLM (Anthropic) API key status. */
+  llm?: {
+    configured: boolean;
+    source: 'env' | 'config';
+  };
 }
 
 /**

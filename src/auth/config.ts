@@ -1,8 +1,8 @@
 /**
- * forge-sim configuration — OAuth app settings and preferences.
+ * forge-sim configuration — service-level settings.
  *
  * Stored in ~/.forge-sim/config.json (separate from credentials).
- * Contains the dev's own OAuth app registration details.
+ * Contains the dev's own OAuth app registration and API keys.
  */
 
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
@@ -16,6 +16,7 @@ const CONFIG_FILE = join(CONFIG_DIR, 'config.json');
 
 export interface ForgeSimConfig {
   oauth?: OAuthAppConfig;
+  anthropicApiKey?: string;
 }
 
 /**
@@ -59,5 +60,36 @@ export async function getOAuthAppConfig(): Promise<OAuthAppConfig | null> {
 export async function saveOAuthAppConfig(oauth: OAuthAppConfig): Promise<void> {
   const config = await loadConfig();
   config.oauth = oauth;
+  await saveConfig(config);
+}
+
+// ── Anthropic API Key (@forge/llm) ──────────────────────────────────────
+
+/**
+ * Get Anthropic API key. Env var takes precedence over config file.
+ */
+export async function getAnthropicApiKey(): Promise<string | null> {
+  const envKey = process.env.ANTHROPIC_API_KEY;
+  if (envKey) return envKey;
+
+  const config = await loadConfig();
+  return config.anthropicApiKey ?? null;
+}
+
+/**
+ * Save Anthropic API key to config file.
+ */
+export async function saveAnthropicApiKey(key: string): Promise<void> {
+  const config = await loadConfig();
+  config.anthropicApiKey = key;
+  await saveConfig(config);
+}
+
+/**
+ * Remove Anthropic API key from config file.
+ */
+export async function clearAnthropicApiKey(): Promise<void> {
+  const config = await loadConfig();
+  delete config.anthropicApiKey;
   await saveConfig(config);
 }

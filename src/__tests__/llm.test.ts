@@ -52,7 +52,7 @@ describe('SimulatedLLM', () => {
       };
 
       await expect(llm.chat(prompt)).rejects.toThrow(LlmApiError);
-      await expect(llm.chat(prompt)).rejects.toThrow('No ANTHROPIC_API_KEY');
+      await expect(llm.chat(prompt)).rejects.toThrow('No Anthropic API key configured');
     });
 
     it('sets finish_reason to end_turn for text-only responses', async () => {

@@ -928,6 +928,13 @@ server.tool(
       }
     }
 
+    // LLM (Anthropic) API key status
+    const llmKey = sim.llm.getApiKey();
+    output.llm = {
+      configured: !!llmKey,
+      source: llmKey ? (process.env.ANTHROPIC_API_KEY ? 'env' : 'config') : null,
+    };
+
     return {
       content: [{ type: 'text' as const, text: JSON.stringify(output, null, 2) }],
     };

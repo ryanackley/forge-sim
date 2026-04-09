@@ -181,6 +181,7 @@ else if (command === 'auth') {
   let clearAll = false;
   let setup = false;
   let oauth = false;
+  let llm = false;
   let remove: string | undefined;
   let local: string | undefined;
 
@@ -191,12 +192,13 @@ else if (command === 'auth') {
     else if (arg === '--clear') clear = true;
     else if (arg === '--setup') setup = true;
     else if (arg === '--oauth') oauth = true;
+    else if (arg === '--llm') llm = true;
     else if (arg === '--remove' && restArgs[i + 1]) remove = restArgs[++i];
     else if (arg === '--local') local = resolve('.');
   }
 
   const { authCommand } = await import('./auth/auth-command.js');
-  await authCommand({ list, clear, clearAll, setup, oauth, remove, local });
+  await authCommand({ list, clear, clearAll, setup, oauth, llm, remove, local });
 }
 
 // ── Deploy ──────────────────────────────────────────────────────────────

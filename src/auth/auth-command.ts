@@ -16,7 +16,7 @@
 
 import { loadCredentials, saveCredentials, upsertAccount, removeAccount, clearCredentials, type AtlassianAccount } from './credentials.js';
 import { startOAuthFlow, setOAuthConfig, hasOAuthConfig } from './oauth.js';
-import { getOAuthAppConfig, saveOAuthAppConfig } from './config.js';
+import { getOAuthAppConfig, saveOAuthAppConfig, getAnthropicApiKey, saveAnthropicApiKey, clearAnthropicApiKey } from './config.js';
 import { createInterface } from 'node:readline';
 
 // ── Default Scopes (OAuth only) ─────────────────────────────────────────────
@@ -45,6 +45,8 @@ export interface AuthCommandOptions {
   providers?: boolean;
   /** External auth: set client secret */
   secret?: boolean;
+  /** LLM: configure Anthropic API key for @forge/llm */
+  llm?: boolean;
   /** App directory (for manifest + local credentials) */
   appDir?: string;
   /** Manifest path override */
@@ -68,6 +70,17 @@ export async function authCommand(options: AuthCommandOptions): Promise<void> {
     return;
   }
 
+  // ── LLM / Anthropic API key (--llm) ─────────────────────────────────
+  if (options.llm) {
+    if (options.clear) {
+      await clearAnthropicApiKey();
+      console.log('  ✅ Anthropic API key removed from config.');
+    } else {
+      await addAnthropicKey();
+    }
+    return;
+  }
+
   // Load OAuth app config if it exists
   const oauthAppConfig = await getOAuthAppConfig();
   if (oauthAppConfig) setOAuthConfig(oauthAppConfig);
@@ -75,19 +88,35 @@ export async function authCommand(options: AuthCommandOptions): Promise<void> {
   // ── List ──────────────────────────────────────────────────────────────
   if (options.list) {
     const store = await loadCredentials(options.local);
-    if (store.accounts.length === 0) {
-      console.log('  No accounts configured. Run `forge-sim auth` to add one.');
-      return;
-    }
     console.log('');
-    console.log('  Atlassian Accounts:');
-    console.log('  ───────────────────');
-    for (const a of store.accounts) {
-      const def = a.default ? ' (default)' : '';
-      const type = a.authType === 'oauth' ? '🔑 OAuth' : '🎫 PAT';
-      const expired = a.authType === 'oauth' && Date.now() >= a.expiresAt ? ' ⚠️  expired' : '';
-      console.log(`  ${a.id}: ${a.name} (${a.email}) @ ${a.site} [${type}]${def}${expired}`);
+
+    // Atlassian accounts
+    if (store.accounts.length === 0) {
+      console.log('  Atlassian Accounts: none');
+      console.log('  Run `forge-sim auth` to add one.');
+    } else {
+      console.log('  Atlassian Accounts:');
+      console.log('  ───────────────────');
+      for (const a of store.accounts) {
+        const def = a.default ? ' (default)' : '';
+        const type = a.authType === 'oauth' ? '🔑 OAuth' : '🎫 PAT';
+        const expired = a.authType === 'oauth' && Date.now() >= a.expiresAt ? ' ⚠️  expired' : '';
+        console.log(`  ${a.id}: ${a.name} (${a.email}) @ ${a.site} [${type}]${def}${expired}`);
+      }
     }
+
+    // LLM key status
+    console.log('');
+    const llmKey = await getAnthropicApiKey();
+    if (llmKey) {
+      const source = process.env.ANTHROPIC_API_KEY ? 'env' : 'config';
+      const masked = maskApiKey(llmKey);
+      console.log(`  Anthropic API (LLM): ✅ ${masked} [${source}]`);
+    } else {
+      console.log('  Anthropic API (LLM): not configured');
+      console.log('  Run `forge-sim auth --llm` to add one.');
+    }
+
     console.log('');
     return;
   }
@@ -314,7 +343,53 @@ async function setupOAuthApp(): Promise<void> {
   console.log('');
 }
 
+// ── Anthropic API Key ────────────────────────────────────────────────────────
+
+async function addAnthropicKey(): Promise<void> {
+  console.log('');
+  console.log('  🤖 Anthropic API Key (for @forge/llm)');
+  console.log('  ──────────────────────────────────────');
+  console.log('');
+  console.log('  Get your API key at: https://console.anthropic.com/settings/keys');
+  console.log('');
+
+  const apiKey = await prompt('  API Key: ');
+  if (!apiKey) { console.log('  Cancelled.'); return; }
+
+  console.log('');
+  console.log('  Verifying...');
+
+  try {
+    const response = await fetch('https://api.anthropic.com/v1/models', {
+      headers: {
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+      },
+    });
+
+    if (!response.ok) {
+      const body = await response.text();
+      console.error(`  ❌ Validation failed (${response.status}): ${body}`);
+      return;
+    }
+
+    await saveAnthropicApiKey(apiKey);
+
+    console.log('');
+    console.log(`  ✅ Anthropic API key saved (${maskApiKey(apiKey)})`);
+    console.log('     Stored in: ~/.forge-sim/config.json');
+    console.log('');
+  } catch (err: any) {
+    console.error(`  ❌ Connection failed: ${err.message}`);
+  }
+}
+
 // ── Utilities ───────────────────────────────────────────────────────────────
+
+function maskApiKey(key: string): string {
+  if (key.length <= 12) return '****';
+  return key.slice(0, 7) + '...' + key.slice(-4);
+}
 
 function prompt(question: string): Promise<string> {
   const rl = createInterface({ input: process.stdin, output: process.stdout });
