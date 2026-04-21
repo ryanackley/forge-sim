@@ -122,6 +122,7 @@ export async function load(
         loader: 'tsx',
         format: 'esm',
         sourcefile: filePath,
+        sourcemap: 'inline',
         target: 'node22',
       });
       return { source: result.code, format: 'module', shortCircuit: true };
@@ -131,34 +132,8 @@ export async function load(
     }
   }
 
-  if (cleanUrl.endsWith('.ts') && !cleanUrl.endsWith('.d.ts')) {
-    // Plain .ts — use Node's built-in type stripping (faster than esbuild)
-    const filePath = fileURLToPath(cleanUrl);
-    const { readFile } = await import('node:fs/promises');
-    const source = await readFile(filePath, 'utf-8');
-
-    try {
-      const { stripTypeScriptTypes } = await import('node:module') as any;
-      if (typeof stripTypeScriptTypes === 'function') {
-        const stripped = stripTypeScriptTypes(source, { mode: 'transform', sourceMap: false });
-        return { source: stripped, format: 'module', shortCircuit: true };
-      }
-    } catch {}
-
-    // Fallback to esbuild for older Node
-    try {
-      const esbuild = await import('esbuild');
-      const result = await esbuild.transform(source, {
-        loader: 'ts',
-        format: 'esm',
-        sourcefile: filePath,
-        target: 'node22',
-      });
-      return { source: result.code, format: 'module', shortCircuit: true };
-    } catch {}
-
-    return nextLoad(url, context);
-  }
+  // Plain .ts — let Node handle it natively (built-in type stripping since v22)
+  // No load hook needed; Node strips types and preserves source positions.
 
   return nextLoad(url, context);
 }
