@@ -222,7 +222,7 @@ export function generateBridgeInlineScript(wsPort: number, defaultModuleKey?: st
         var timeout = setTimeout(function() {
           delete S.pendingRequests[requestId];
           reject(new Error('RPC timeout: ' + method));
-        }, 30000);
+        }, 900000);
         S.pendingRequests[requestId] = {
           resolve: function(v) { clearTimeout(timeout); resolve(v); },
           reject: function(e) { clearTimeout(timeout); reject(e); }
@@ -941,6 +941,7 @@ export function generateModulePickerHtml(modules: DetectedModule[]): string {
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="google" content="notranslate" />
   <title>forge-sim — Module Picker</title>
   <style>
     body { margin:0; background:#F4F5F7; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Oxygen,Ubuntu,sans-serif; }
@@ -1029,7 +1030,7 @@ export function installModuleRouting(
 
     // Root → module picker (but only for exact '/' with no file extension)
     if (url.pathname === '/') {
-      res.writeHead(200, { 'Content-Type': 'text/html', 'Cache-Control': 'no-cache' });
+      res.writeHead(200, { 'Content-Type': 'text/html', 'Content-Language': 'en', 'Cache-Control': 'no-cache' });
       res.end(generateModulePickerHtml(modules));
       return;
     }
@@ -1043,7 +1044,7 @@ export function installModuleRouting(
       // Check if this is a custom field base key (combined view/edit page)
       const cfGroup = cfGroups.get(key);
       if (cfGroup && (rest === '/' || rest === '/index.html')) {
-        res.writeHead(200, { 'Content-Type': 'text/html', 'Cache-Control': 'no-cache' });
+        res.writeHead(200, { 'Content-Type': 'text/html', 'Content-Language': 'en', 'Cache-Control': 'no-cache' });
         // Filter manifest warnings relevant to this custom field
         const cfWarnings = (manifestWarnings || [])
           .filter((w) => w.message.includes(`"${key}"`))
@@ -1063,7 +1064,7 @@ export function installModuleRouting(
       // Check if this is a workflow base key (combined create/edit/view page)
       const wfGroup = wfGroups.get(key);
       if (wfGroup && (rest === '/' || rest === '/index.html')) {
-        res.writeHead(200, { 'Content-Type': 'text/html', 'Cache-Control': 'no-cache' });
+        res.writeHead(200, { 'Content-Type': 'text/html', 'Content-Language': 'en', 'Cache-Control': 'no-cache' });
         res.end(generateWorkflowPageHtml(
           key,
           wfGroup.title,
@@ -1203,7 +1204,7 @@ async function buildViteConfig(opts: {
             html = html.replace(/<head([^>]*)>/i, `<head$1>\n<script>${bridgeScript}</script>`);
             // Inject background script iframe loader before </body>
             html = html.replace(/<\/body>/i, `${BACKGROUND_SCRIPT_IFRAME_INJECTOR}\n</body>`);
-            _res.writeHead(200, { 'Content-Type': 'text/html' });
+            _res.writeHead(200, { 'Content-Type': 'text/html', 'Content-Language': 'en' });
             _res.end(html);
             return;
           }
@@ -1425,6 +1426,17 @@ export async function devCommand(options: DevCommandOptions) {
         console.log(`  🔐 Loaded ${secretCount} provider secret${secretCount > 1 ? 's' : ''}`);
       }
     } catch {}
+
+    // Load LLM API key (Anthropic for @forge/llm)
+    try {
+      const { getAnthropicApiKey } = await import('./auth/config.js');
+      const llmKey = await getAnthropicApiKey();
+      if (llmKey) {
+        sim.llm.setApiKey(llmKey);
+        const source = process.env.ANTHROPIC_API_KEY ? 'env' : 'config';
+        console.log(`  🤖 Loaded Anthropic API key (${source})`);
+      }
+    } catch {}
   } catch (err: any) {
     console.log(`  📡 Using mock APIs (auth load failed: ${err.message})`);
   }
@@ -1481,8 +1493,8 @@ export async function devCommand(options: DevCommandOptions) {
         return true;
       }
       // Serve tools UI fallback for non-API /__tools/ paths
-      res.writeHead(200, { 'Content-Type': 'text/html', 'Cache-Control': 'no-cache' });
-      res.end('<!DOCTYPE html><html><head><title>Forge Sim Tools</title></head><body><h1>Forge Sim Tools</h1><p>Tools UI in proxy mode</p></body></html>');
+      res.writeHead(200, { 'Content-Type': 'text/html', 'Content-Language': 'en', 'Cache-Control': 'no-cache' });
+      res.end('<!DOCTYPE html><html lang="en"><head><title>Forge Sim Tools</title></head><body><h1>Forge Sim Tools</h1><p>Tools UI in proxy mode</p></body></html>');
       return true;
     });
 
@@ -1566,11 +1578,18 @@ export async function devCommand(options: DevCommandOptions) {
       execCmd(openCommand);
     }
 
+    // Autosave state periodically — protects against hard kills (e.g. VS Code stop button
+    // sends SIGKILL which can't be trapped). Saves every 30s so at most 30s of state is lost.
+    const autosaveInterval = setInterval(async () => {
+      try { await saveState(sim, stateDir); } catch {}
+    }, 30_000);
+
     // Graceful shutdown
     let cleaningUp = false;
     const cleanup = async () => {
       if (cleaningUp) return;
       cleaningUp = true;
+      clearInterval(autosaveInterval);
       console.log('\n  🛑 Shutting down...');
       try { await saveState(sim, stateDir); } catch (err: any) { console.error(`  ⚠️  Failed to save state: ${err.message}`); }
       proxyTypeCheckWatcher?.close();
@@ -1767,11 +1786,18 @@ export async function devCommand(options: DevCommandOptions) {
       execCmd(openCommand);
     }
 
+    // Autosave state periodically — protects against hard kills (e.g. VS Code stop button
+    // sends SIGKILL which can't be trapped). Saves every 30s so at most 30s of state is lost.
+    const autosaveInterval = setInterval(async () => {
+      try { await saveState(sim, stateDir); } catch {}
+    }, 30_000);
+
     // Graceful shutdown
     let cleaningUp = false;
     const cleanup = async () => {
       if (cleaningUp) return; // prevent double-fire
       cleaningUp = true;
+      clearInterval(autosaveInterval);
       console.log('\n  🛑 Shutting down...');
 
       // Save state before teardown
@@ -1921,8 +1947,11 @@ async function deployResolversOnly(
       // so the simulator can invoke them by name (e.g., 'retrieveData').
       if (typeof handler === 'object' && handler !== null) {
         // Shim format: { retrieveData: fn, otherKey: fn, ... }
+        // The shim's define() already auto-registers on the global simulator,
+        // so we only need to register here for keys that aren't already present.
+        const existingHandlers = sim.resolver.getHandlerMap();
         for (const [defKey, defHandler] of Object.entries(handler)) {
-          if (typeof defHandler === 'function') {
+          if (typeof defHandler === 'function' && !existingHandlers.has(defKey)) {
             sim.resolver.define(defKey, defHandler as any);
           }
         }
