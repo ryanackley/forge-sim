@@ -145,7 +145,7 @@ async function rpc(method: string, params: any = {}): Promise<any> {
     const timeout = setTimeout(() => {
       S.pendingRequests.delete(requestId);
       reject(new Error(`RPC timeout: ${method}`));
-    }, 30000);
+    }, 900000);
 
     S.pendingRequests.set(requestId, {
       resolve: (v: any) => { clearTimeout(timeout); resolve(v); },
