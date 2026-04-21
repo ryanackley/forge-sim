@@ -94,7 +94,7 @@ export function attachToolsToVite(options: ToolsServerOptions): ToolsServer {
     }
 
     // Serve the tools UI
-    res.writeHead(200, { 'Content-Type': 'text/html', 'Cache-Control': 'no-cache' });
+    res.writeHead(200, { 'Content-Type': 'text/html', 'Content-Language': 'en', 'Cache-Control': 'no-cache' });
     res.end(generateFallbackHTML(PREFIX));
   };
 
@@ -290,6 +290,38 @@ function generateFallbackHTML(prefix: string): string {
   /* Buttons */
   .btn-sm { padding: 4px 8px; font-size: 12px; }
   .empty { color: var(--subtext); text-align: center; padding: 40px; font-size: 14px; }
+
+  /* KVS Detail Panel */
+  .kvs-layout { display: flex; flex: 1; overflow: hidden; }
+  .kvs-list { flex: 1; overflow: auto; min-width: 0; }
+  .kvs-detail { width: 45%; min-width: 320px; max-width: 600px; background: var(--surface); border-left: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; }
+  .kvs-detail.hidden { display: none; }
+  .kvs-detail-header { padding: 8px 12px; background: var(--surface2); border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; min-height: 36px; }
+  .kvs-detail-header .kvs-detail-key { flex: 1; font-family: var(--font); font-size: 12px; color: var(--blue); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .kvs-detail-body { flex: 1; overflow: auto; padding: 0; }
+  .btn-icon { background: none; border: 1px solid var(--border); border-radius: 4px; padding: 3px 7px; color: var(--subtext); font-size: 12px; cursor: pointer; white-space: nowrap; }
+  .btn-icon:hover { border-color: var(--blue); color: var(--text); }
+  .btn-icon.copied { border-color: var(--green); color: var(--green); }
+  tr.selected td { background: var(--surface2) !important; }
+  td.kvs-val { cursor: pointer; }
+  td.kvs-val:hover { color: var(--blue); }
+
+  /* JSON Tree */
+  .json-tree { font-family: var(--font); font-size: 12px; line-height: 20px; padding: 8px 12px; }
+  .json-tree .jt-row { display: flex; align-items: flex-start; padding: 1px 0; }
+  .json-tree .jt-row:hover { background: var(--surface2); border-radius: 3px; }
+  .json-tree .jt-toggle { width: 16px; min-width: 16px; text-align: center; color: var(--subtext); cursor: pointer; user-select: none; }
+  .json-tree .jt-toggle:hover { color: var(--text); }
+  .json-tree .jt-key { color: var(--blue); margin-right: 4px; }
+  .json-tree .jt-colon { color: var(--subtext); margin-right: 6px; }
+  .json-tree .jt-str { color: var(--green); }
+  .json-tree .jt-num { color: var(--yellow); }
+  .json-tree .jt-bool { color: var(--purple); }
+  .json-tree .jt-null { color: var(--subtext); font-style: italic; }
+  .json-tree .jt-bracket { color: var(--subtext); }
+  .json-tree .jt-preview { color: var(--subtext); font-style: italic; font-size: 11px; }
+  .json-tree .jt-children { padding-left: 20px; }
+  .json-tree .jt-children.collapsed { display: none; }
 </style>
 </head>
 <body>
@@ -331,11 +363,21 @@ function generateFallbackHTML(prefix: string): string {
       <input type="text" id="kvsSearch" placeholder="Search keys..." oninput="filterKVS()">
       <button class="btn btn-sm" onclick="refreshKVS()">↻ Refresh</button>
     </div>
-    <div class="kvs-table">
-      <table>
-        <thead><tr><th>Key</th><th>Value</th><th>Type</th></tr></thead>
-        <tbody id="kvsBody"></tbody>
-      </table>
+    <div class="kvs-layout">
+      <div class="kvs-list">
+        <table>
+          <thead><tr><th>Key</th><th>Value</th><th>Type</th></tr></thead>
+          <tbody id="kvsBody"></tbody>
+        </table>
+      </div>
+      <div class="kvs-detail hidden" id="kvsDetail">
+        <div class="kvs-detail-header">
+          <span class="kvs-detail-key" id="kvsDetailKey"></span>
+          <button class="btn-icon" onclick="copyKvsValue()" id="kvsCopyBtn" title="Copy JSON">📋 Copy</button>
+          <button class="btn-icon" onclick="closeKvsDetail()" title="Close">✕</button>
+        </div>
+        <div class="kvs-detail-body" id="kvsDetailBody"></div>
+      </div>
     </div>
   </div>
 
@@ -498,22 +540,117 @@ function togglePause() {
 
 // ── KVS ────────────────────────────────────────────────────────────
 
+let selectedKvsKey = null;
+
 async function refreshKVS() {
   const res = await fetch(API + '/api/kvs');
   kvsData = await res.json();
   filterKVS();
+  // Re-select if detail was open
+  if (selectedKvsKey) {
+    const entry = kvsData.find(e => e.key === selectedKvsKey);
+    if (entry) showKvsDetail(entry.key, entry.value);
+    else closeKvsDetail();
+  }
 }
 
 function filterKVS() {
   const search = document.getElementById('kvsSearch').value.toLowerCase();
   const filtered = kvsData.filter(e => e.key.toLowerCase().includes(search));
   const body = document.getElementById('kvsBody');
-  body.innerHTML = filtered.map(e => {
+  body.innerHTML = filtered.map((e, i) => {
     const val = JSON.stringify(e.value);
     const type = Array.isArray(e.value) ? 'array' : typeof e.value;
-    return '<tr><td class="key">' + escapeHtml(e.key) + '</td><td title="' + escapeHtml(val) + '">' + escapeHtml(val.substring(0, 200)) + '</td><td class="type">' + type + '</td></tr>';
+    const sel = e.key === selectedKvsKey ? ' selected' : '';
+    const preview = val.length > 120 ? escapeHtml(val.substring(0, 120)) + '…' : escapeHtml(val);
+    const safeKey = JSON.stringify(e.key).replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+    return '<tr class="kvs-row' + sel + '" data-idx="' + i + '" onclick="selectKvsRow(this, ' + safeKey + ')"><td class="key">' + escapeHtml(e.key) + '</td><td class="kvs-val">' + preview + '</td><td class="type">' + type + '</td></tr>';
   }).join('');
   if (filtered.length === 0) body.innerHTML = '<tr><td colspan="3" class="empty">No keys found</td></tr>';
+}
+
+function selectKvsRow(tr, key) {
+  const entry = kvsData.find(e => e.key === key);
+  if (!entry) return;
+  document.querySelectorAll('.kvs-row').forEach(r => r.classList.remove('selected'));
+  tr.classList.add('selected');
+  showKvsDetail(entry.key, entry.value);
+}
+
+function showKvsDetail(key, value) {
+  selectedKvsKey = key;
+  document.getElementById('kvsDetail').classList.remove('hidden');
+  document.getElementById('kvsDetailKey').textContent = key;
+  document.getElementById('kvsDetailBody').innerHTML = '<div class="json-tree">' + renderJsonTree(value, '', true) + '</div>';
+}
+
+function closeKvsDetail() {
+  selectedKvsKey = null;
+  document.getElementById('kvsDetail').classList.add('hidden');
+  document.querySelectorAll('.kvs-row').forEach(r => r.classList.remove('selected'));
+}
+
+function copyKvsValue() {
+  const entry = kvsData.find(e => e.key === selectedKvsKey);
+  if (!entry) return;
+  const text = JSON.stringify(entry.value, null, 2);
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.getElementById('kvsCopyBtn');
+    btn.classList.add('copied');
+    btn.textContent = '✓ Copied';
+    setTimeout(() => { btn.classList.remove('copied'); btn.textContent = '📋 Copy'; }, 1500);
+  });
+}
+
+function renderJsonTree(value, key, isRoot) {
+  if (value === null) return jsonLeaf(key, '<span class="jt-null">null</span>');
+  if (value === undefined) return jsonLeaf(key, '<span class="jt-null">undefined</span>');
+  if (typeof value === 'string') return jsonLeaf(key, '<span class="jt-str">' + escapeHtml(JSON.stringify(value)) + '</span>');
+  if (typeof value === 'number') return jsonLeaf(key, '<span class="jt-num">' + value + '</span>');
+  if (typeof value === 'boolean') return jsonLeaf(key, '<span class="jt-bool">' + value + '</span>');
+
+  const isArray = Array.isArray(value);
+  const entries = isArray ? value.map((v, i) => [i, v]) : Object.entries(value);
+  const open = isArray ? '[' : '{';
+  const close = isArray ? ']' : '}';
+  const count = entries.length;
+  const preview = isArray ? count + ' item' + (count !== 1 ? 's' : '') : count + ' key' + (count !== 1 ? 's' : '');
+  const collapsed = !isRoot && count > 3 ? ' collapsed' : '';
+  const arrow = !isRoot && count > 3 ? '▶' : '▼';
+  const id = 'jt_' + Math.random().toString(36).substr(2, 8);
+
+  let html = '<div class="jt-row">';
+  if (count > 0) html += '<span class="jt-toggle" onclick="toggleJsonNode(this, \\'' + id + '\\')">' + arrow + '</span>';
+  else html += '<span class="jt-toggle"></span>';
+  if (key !== '') html += '<span class="jt-key">' + escapeHtml(String(key)) + '</span><span class="jt-colon">:</span>';
+  html += '<span class="jt-bracket">' + open + '</span>';
+  if (count === 0) html += '<span class="jt-bracket">' + close + '</span>';
+  else html += ' <span class="jt-preview">' + preview + '</span>';
+  html += '</div>';
+
+  if (count > 0) {
+    html += '<div class="jt-children' + collapsed + '" id="' + id + '">';
+    for (const [k, v] of entries) {
+      html += renderJsonTree(v, k, false);
+    }
+    html += '<div class="jt-row"><span class="jt-toggle"></span><span class="jt-bracket">' + close + '</span></div>';
+    html += '</div>';
+  }
+  return html;
+}
+
+function jsonLeaf(key, valueHtml) {
+  let html = '<div class="jt-row"><span class="jt-toggle"></span>';
+  if (key !== '') html += '<span class="jt-key">' + escapeHtml(String(key)) + '</span><span class="jt-colon">:</span>';
+  html += valueHtml + '</div>';
+  return html;
+}
+
+function toggleJsonNode(toggle, id) {
+  const children = document.getElementById(id);
+  if (!children) return;
+  const collapsed = children.classList.toggle('collapsed');
+  toggle.textContent = collapsed ? '▶' : '▼';
 }
 
 // ── SQL ────────────────────────────────────────────────────────────
@@ -641,7 +778,7 @@ function applyTriggerTemplate(force) {
   if (!template) {
     notesEl.textContent = event ? 'No sample template available for this event yet.' : 'No triggers defined.';
     if (force && !event) {
-      payloadEl.value = '{\n  \n}';
+      payloadEl.value = '{\\n  \\n}';
       delete payloadEl.dataset.templateEvent;
     }
     return;
