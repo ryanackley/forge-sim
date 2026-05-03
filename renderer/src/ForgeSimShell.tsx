@@ -9,10 +9,11 @@
  *   - Listening for ForgeDoc from the bridge shim (useBrowserDoc)
  *   - Rendering ForgeDoc via ForgeDocRenderer
  *   - Dev-only width controls (gear menu) with module-type-aware defaults
+ *   - Dev-only color mode toggle (light / dark / auto)
  */
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import AppProvider from '@atlaskit/app-provider';
+import AppProvider, { useSetColorMode } from '@atlaskit/app-provider';
 import '@atlaskit/css-reset';
 import { ForgeDocRenderer } from './ForgeDocRenderer';
 import { onReconcile, view } from './bridge/forge-bridge-shim';
@@ -103,7 +104,53 @@ function defaultPresetForModuleType(moduleType: string | undefined): WidthPreset
 }
 
 // ---------------------------------------------------------------------------
-// Persistence
+// Color mode — light / dark / auto
+//
+// We store the user's preference ourselves and drive Atlaskit via
+// `useSetColorMode` (from @atlaskit/app-provider). Atlaskit handles all of:
+//   - Loading the right theme stylesheet (<style data-theme="dark">)
+//   - Setting <html data-color-mode="...">
+//   - Reacting to prefers-color-scheme for 'auto' mode
+// so our job is just persistence + wiring the toggle UI.
+// ---------------------------------------------------------------------------
+
+type ColorMode = 'light' | 'dark' | 'auto';
+type ResolvedColorMode = 'light' | 'dark';
+
+const COLOR_MODE_STORAGE_KEY = 'forge-sim:colorMode';
+
+function readStoredColorMode(): ColorMode {
+  if (typeof window === 'undefined') return 'light';
+  try {
+    const raw = window.localStorage.getItem(COLOR_MODE_STORAGE_KEY);
+    if (raw === 'light' || raw === 'dark' || raw === 'auto') return raw;
+  } catch {
+    /* ignore */
+  }
+  return 'light';
+}
+
+function writeStoredColorMode(mode: ColorMode) {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(COLOR_MODE_STORAGE_KEY, mode);
+  } catch {
+    /* ignore */
+  }
+}
+
+function prefersDark(): boolean {
+  if (typeof window === 'undefined' || !window.matchMedia) return false;
+  return window.matchMedia('(prefers-color-scheme: dark)').matches;
+}
+
+function resolveColorMode(mode: ColorMode): ResolvedColorMode {
+  if (mode === 'auto') return prefersDark() ? 'dark' : 'light';
+  return mode;
+}
+
+// ---------------------------------------------------------------------------
+// Persistence — width
 // ---------------------------------------------------------------------------
 
 interface WidthPref {
@@ -158,16 +205,30 @@ async function fetchModuleType(_moduleKey: string | undefined): Promise<string |
 }
 
 // ---------------------------------------------------------------------------
-// Width control UI
+// Gear popover UI — width + color mode
+//
+// Colors use Atlassian design tokens via CSS custom properties so the chrome
+// itself responds to the selected color mode (the same mechanism Atlaskit
+// components use under the hood).
 // ---------------------------------------------------------------------------
 
-interface WidthControlProps {
+interface GearPopoverProps {
   pref: WidthPref;
   moduleType: string | undefined;
-  onChange: (next: WidthPref) => void;
+  colorMode: ColorMode;
+  resolvedColorMode: ResolvedColorMode;
+  onWidthChange: (next: WidthPref) => void;
+  onColorModeChange: (next: ColorMode) => void;
 }
 
-function WidthControl({ pref, moduleType, onChange }: WidthControlProps) {
+function GearPopover({
+  pref,
+  moduleType,
+  colorMode,
+  resolvedColorMode,
+  onWidthChange,
+  onColorModeChange,
+}: GearPopoverProps) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -204,18 +265,92 @@ function WidthControl({ pref, moduleType, onChange }: WidthControlProps) {
             bottom: '36px',
             right: 0,
             width: '260px',
-            background: '#fff',
-            border: '1px solid #dfe1e6',
+            background: 'var(--ds-surface-overlay, #fff)',
+            border: '1px solid var(--ds-border, #dfe1e6)',
             borderRadius: '6px',
-            boxShadow: '0 4px 12px rgba(9,30,66,0.15)',
+            boxShadow: 'var(--ds-shadow-overlay, 0 4px 12px rgba(9,30,66,0.15))',
             padding: '8px',
+            color: 'var(--ds-text, #172b4d)',
           }}
         >
+          {/* ───────────── Color mode ───────────── */}
           <div
             style={{
               padding: '6px 8px 8px',
               fontSize: '11px',
-              color: '#6b778c',
+              color: 'var(--ds-text-subtle, #6b778c)',
+              textTransform: 'uppercase',
+              letterSpacing: '0.5px',
+              fontWeight: 600,
+            }}
+          >
+            Color mode
+          </div>
+          <div
+            style={{
+              display: 'flex',
+              gap: '4px',
+              padding: '0 4px 8px',
+            }}
+          >
+            {(['light', 'dark', 'auto'] as ColorMode[]).map((m) => {
+              const isActive = colorMode === m;
+              return (
+                <button
+                  key={m}
+                  onClick={() => onColorModeChange(m)}
+                  style={{
+                    flex: 1,
+                    padding: '6px 4px',
+                    background: isActive
+                      ? 'var(--ds-background-selected, #e9f2ff)'
+                      : 'var(--ds-background-neutral-subtle, transparent)',
+                    color: isActive
+                      ? 'var(--ds-text-selected, #0c66e4)'
+                      : 'var(--ds-text, #172b4d)',
+                    border: '1px solid',
+                    borderColor: isActive
+                      ? 'var(--ds-border-selected, #388bff)'
+                      : 'var(--ds-border, #dfe1e6)',
+                    borderRadius: '3px',
+                    cursor: 'pointer',
+                    fontFamily: 'inherit',
+                    fontSize: '12px',
+                    fontWeight: isActive ? 600 : 400,
+                    textTransform: 'capitalize',
+                  }}
+                >
+                  {m}
+                  {m === 'auto' && colorMode === 'auto' && (
+                    <span
+                      style={{
+                        marginLeft: '4px',
+                        fontSize: '10px',
+                        opacity: 0.7,
+                      }}
+                    >
+                      ({resolvedColorMode})
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          <div
+            style={{
+              height: '1px',
+              background: 'var(--ds-border, #f4f5f7)',
+              margin: '4px 0 8px',
+            }}
+          />
+
+          {/* ───────────── Preview width ───────────── */}
+          <div
+            style={{
+              padding: '6px 8px 8px',
+              fontSize: '11px',
+              color: 'var(--ds-text-subtle, #6b778c)',
               textTransform: 'uppercase',
               letterSpacing: '0.5px',
               fontWeight: 600,
@@ -232,7 +367,7 @@ function WidthControl({ pref, moduleType, onChange }: WidthControlProps) {
               <button
                 key={k}
                 onClick={() =>
-                  onChange({ preset: k, customPx: pref.customPx })
+                  onWidthChange({ preset: k, customPx: pref.customPx })
                 }
                 style={{
                   display: 'block',
@@ -240,23 +375,34 @@ function WidthControl({ pref, moduleType, onChange }: WidthControlProps) {
                   textAlign: 'left',
                   padding: '8px',
                   marginBottom: '2px',
-                  background: isActive ? '#e9f2ff' : 'transparent',
+                  background: isActive
+                    ? 'var(--ds-background-selected, #e9f2ff)'
+                    : 'transparent',
                   border: '1px solid',
-                  borderColor: isActive ? '#388bff' : 'transparent',
+                  borderColor: isActive
+                    ? 'var(--ds-border-selected, #388bff)'
+                    : 'transparent',
                   borderRadius: '4px',
                   cursor: 'pointer',
                   fontFamily: 'inherit',
                   fontSize: '12px',
                 }}
               >
-                <div style={{ fontWeight: 600, color: '#172b4d' }}>
+                <div
+                  style={{
+                    fontWeight: 600,
+                    color: isActive
+                      ? 'var(--ds-text-selected, #0c66e4)'
+                      : 'var(--ds-text, #172b4d)',
+                  }}
+                >
                   {preset.label}
                   {isSuggested && (
                     <span
                       style={{
                         marginLeft: '6px',
                         fontSize: '10px',
-                        color: '#00875a',
+                        color: 'var(--ds-text-success, #00875a)',
                         fontWeight: 600,
                       }}
                     >
@@ -264,7 +410,13 @@ function WidthControl({ pref, moduleType, onChange }: WidthControlProps) {
                     </span>
                   )}
                 </div>
-                <div style={{ color: '#6b778c', fontSize: '11px', marginTop: '2px' }}>
+                <div
+                  style={{
+                    color: 'var(--ds-text-subtle, #6b778c)',
+                    fontSize: '11px',
+                    marginTop: '2px',
+                  }}
+                >
                   {preset.description}
                 </div>
               </button>
@@ -274,7 +426,12 @@ function WidthControl({ pref, moduleType, onChange }: WidthControlProps) {
           {active === 'custom' && (
             <div style={{ padding: '4px 8px 8px' }}>
               <label
-                style={{ fontSize: '11px', color: '#6b778c', display: 'block', marginBottom: '4px' }}
+                style={{
+                  fontSize: '11px',
+                  color: 'var(--ds-text-subtle, #6b778c)',
+                  display: 'block',
+                  marginBottom: '4px',
+                }}
               >
                 Custom width (px)
               </label>
@@ -286,16 +443,18 @@ function WidthControl({ pref, moduleType, onChange }: WidthControlProps) {
                 onChange={(e) => {
                   const n = Number(e.target.value);
                   if (Number.isFinite(n)) {
-                    onChange({ preset: 'custom', customPx: n });
+                    onWidthChange({ preset: 'custom', customPx: n });
                   }
                 }}
                 style={{
                   width: '100%',
                   padding: '6px 8px',
-                  border: '1px solid #dfe1e6',
+                  border: '1px solid var(--ds-border, #dfe1e6)',
                   borderRadius: '3px',
                   fontSize: '12px',
                   fontFamily: 'inherit',
+                  background: 'var(--ds-background-input, #fff)',
+                  color: 'var(--ds-text, #172b4d)',
                 }}
               />
             </div>
@@ -306,12 +465,13 @@ function WidthControl({ pref, moduleType, onChange }: WidthControlProps) {
               style={{
                 padding: '8px',
                 marginTop: '4px',
-                borderTop: '1px solid #f4f5f7',
-                color: '#6b778c',
+                borderTop: '1px solid var(--ds-border, #f4f5f7)',
+                color: 'var(--ds-text-subtle, #6b778c)',
                 fontSize: '11px',
               }}
             >
-              Module: <code style={{ color: '#172b4d' }}>{moduleType}</code>
+              Module:{' '}
+              <code style={{ color: 'var(--ds-text, #172b4d)' }}>{moduleType}</code>
             </div>
           )}
         </div>
@@ -319,14 +479,14 @@ function WidthControl({ pref, moduleType, onChange }: WidthControlProps) {
 
       <button
         onClick={() => setOpen((v) => !v)}
-        aria-label="Preview settings"
-        title="Preview width"
+        aria-label="forge-sim settings"
+        title="forge-sim settings"
         style={{
           display: 'flex',
           alignItems: 'center',
           gap: '6px',
-          background: '#172b4d',
-          color: '#fff',
+          background: 'var(--ds-background-neutral-bold, #172b4d)',
+          color: 'var(--ds-text-inverse, #fff)',
           border: 'none',
           padding: '6px 10px',
           borderRadius: '4px',
@@ -347,20 +507,64 @@ function WidthControl({ pref, moduleType, onChange }: WidthControlProps) {
 // Shell
 // ---------------------------------------------------------------------------
 
+/**
+ * Outer shell — owns the AppProvider mount. AppProvider loads the initial
+ * theme based on the stored preference; all subsequent changes flow through
+ * `useSetColorMode` inside the inner shell.
+ */
 export function ForgeSimShell() {
+  // Read the stored pref ONCE at mount time, so AppProvider gets the right
+  // initial `defaultColorMode`. Further changes don't re-read — the inner
+  // shell's useSetColorMode drives Atlaskit after that.
+  const initialColorMode = useMemo<ColorMode>(() => readStoredColorMode(), []);
+
+  return (
+    <AppProvider defaultColorMode={initialColorMode}>
+      <ShellInner initialColorMode={initialColorMode} />
+    </AppProvider>
+  );
+}
+
+interface ShellInnerProps {
+  initialColorMode: ColorMode;
+}
+
+function ShellInner({ initialColorMode }: ShellInnerProps) {
   const [doc, setDoc] = useState<any>(null);
   const [renderCount, setRenderCount] = useState(0);
 
+  // Width prefs
   const moduleKey = useMemo(getModuleKeyFromURL, []);
   const [moduleType, setModuleType] = useState<string | undefined>(undefined);
   const [pref, setPref] = useState<WidthPref>(() => {
     const stored = readStoredPref(moduleKey);
     return stored ?? { preset: 'standard' };
   });
-  // Tracks whether the current `pref` was chosen explicitly or derived from
-  // the module type. If derived, we keep updating it as moduleType resolves
-  // and we don't persist it until the user explicitly interacts.
   const prefIsExplicit = useRef<boolean>(!!readStoredPref(moduleKey));
+
+  // Color mode — Atlaskit's setter loads the right theme stylesheet and sets
+  // <html data-color-mode>, including handling 'auto' via prefers-color-scheme.
+  const setAtlaskitColorMode = useSetColorMode();
+  const [colorMode, setColorMode] = useState<ColorMode>(initialColorMode);
+  // Derived resolved mode (for the 'Auto (light|dark)' badge in the popover)
+  const [resolvedColorMode, setResolvedColorMode] = useState<ResolvedColorMode>(() =>
+    resolveColorMode(initialColorMode),
+  );
+
+  // Keep resolvedColorMode in sync with the OS preference when in 'auto' mode
+  // (for the popover badge — Atlaskit already flips the theme itself).
+  useEffect(() => {
+    setResolvedColorMode(resolveColorMode(colorMode));
+    if (colorMode !== 'auto' || typeof window === 'undefined' || !window.matchMedia) return;
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    const onChange = () => setResolvedColorMode(mq.matches ? 'dark' : 'light');
+    if (mq.addEventListener) mq.addEventListener('change', onChange);
+    else mq.addListener(onChange);
+    return () => {
+      if (mq.removeEventListener) mq.removeEventListener('change', onChange);
+      else mq.removeListener(onChange);
+    };
+  }, [colorMode]);
 
   // Listen for ForgeDoc updates
   useEffect(() => {
@@ -396,6 +600,14 @@ export function ForgeSimShell() {
     writeStoredPref(moduleKey, next);
   };
 
+  const handleColorModeChange = (next: ColorMode) => {
+    setColorMode(next);
+    writeStoredColorMode(next);
+    // Drive Atlaskit — this loads the dark theme stylesheet on first flip
+    // and sets <html data-color-mode>.
+    setAtlaskitColorMode(next);
+  };
+
   // Compute effective width
   const effectiveMaxWidth = useMemo<string>(() => {
     const preset = WIDTH_PRESETS[pref.preset];
@@ -416,7 +628,8 @@ export function ForgeSimShell() {
           justifyContent: 'center',
           height: '100vh',
           fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-          color: '#6b778c',
+          color: 'var(--ds-text-subtle, #6b778c)',
+          background: 'var(--ds-surface, transparent)',
         }}
       >
         <div style={{ textAlign: 'center' }}>
@@ -431,30 +644,50 @@ export function ForgeSimShell() {
   }
 
   return (
-    <AppProvider defaultColorMode="light">
+    <>
+      {/* Page background — flips with color mode via token */}
       <div
-        data-forge-sim-content
+        data-forge-sim-page
         style={{
-          maxWidth: effectiveMaxWidth,
-          margin: '24px auto',
-          padding: '24px',
-          background: '#fff',
-          borderRadius: '8px',
-          boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-          minHeight: '200px',
-          transition: 'max-width 120ms ease',
+          minHeight: '100vh',
+          background: 'var(--ds-surface, #fafbfc)',
+          transition: 'background 120ms ease',
         }}
       >
-        <ForgeDocRenderer doc={doc} />
+        <div
+          data-forge-sim-content
+          style={{
+            maxWidth: effectiveMaxWidth,
+            margin: '24px auto',
+            padding: '24px',
+            background: 'var(--ds-surface-raised, #fff)',
+            color: 'var(--ds-text, #172b4d)',
+            borderRadius: '8px',
+            boxShadow: 'var(--ds-shadow-raised, 0 1px 3px rgba(0,0,0,0.1))',
+            minHeight: '200px',
+            transition: 'max-width 120ms ease, background 120ms ease',
+          }}
+        >
+          <ForgeDocRenderer doc={doc} />
+        </div>
       </div>
-      <WidthControl pref={pref} moduleType={moduleType} onChange={handlePrefChange} />
+
+      <GearPopover
+        pref={pref}
+        moduleType={moduleType}
+        colorMode={colorMode}
+        resolvedColorMode={resolvedColorMode}
+        onWidthChange={handlePrefChange}
+        onColorModeChange={handleColorModeChange}
+      />
+
       <div
         style={{
           position: 'fixed',
           bottom: '12px',
           left: '12px',
-          background: '#172b4d',
-          color: '#fff',
+          background: 'var(--ds-background-neutral-bold, #172b4d)',
+          color: 'var(--ds-text-inverse, #fff)',
           padding: '4px 10px',
           borderRadius: '4px',
           fontSize: '11px',
@@ -464,6 +697,6 @@ export function ForgeSimShell() {
       >
         🔥 renders: {renderCount}
       </div>
-    </AppProvider>
+    </>
   );
 }

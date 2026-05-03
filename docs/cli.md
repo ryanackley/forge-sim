@@ -78,6 +78,19 @@ If the upstream server is unreachable, forge-sim returns a styled 502 error page
 
 **Note:** In proxy mode, the `/__tools/` UI is minimal. The tools API endpoints still work for programmatic access.
 
+#### Theme (dark / light)
+
+Real Forge hosts your iframe with `?theme=dark` or `?theme=light` on the URL. forge-sim matches that contract — append the query string to pick a theme:
+
+```
+http://localhost:5173/?theme=dark
+http://localhost:5173/?theme=light
+```
+
+Your app's theme init should read `?theme=` from `window.location.search` — the same code works in both forge-sim and production. Omit the param to fall back to OS preference (`prefers-color-scheme`). Bookmark both if you toggle often.
+
+> Atlaskit gotcha: components require `setGlobalTheme({ colorMode, light, dark, spacing, typography, shape, motion })` at app boot, otherwise they render with unresolved tokens and can appear invisible.
+
 ---
 
 ## Daemon Commands
