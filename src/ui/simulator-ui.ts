@@ -400,17 +400,25 @@ export class SimulatorUI {
     }
 
     try {
+      // Set up a render listener BEFORE the import, so we don't miss the
+      // reconcile if it fires synchronously during evaluation.
+      const renderPromise = waitForRender();
+
       // Import the frontend module — this triggers ForgeReconciler.render()
       // which produces a ForgeDoc via the bridge.
       // Cache-bust so refresh gets a fresh execution.
       const fileUrl = pathToFileURL(resourcePath).href;
       await import(fileUrl + '?t=' + Date.now());
 
-      // Give the reconciler a tick to produce the ForgeDoc
-      // (ForgeReconciler.render() is synchronous in our shim, but
-      // React effects/state updates may need a microtask)
+      // If the reconcile hasn't landed yet, wait for it — with a timeout
+      // safety net in case React's reconciler bails out on a tree it
+      // considers unchanged (e.g. refresh of an identical UI), in which
+      // case `reconcile` may never fire and we'd otherwise hang.
       if (!this.moduleDocs.has(moduleKey)) {
-        await new Promise(resolve => setTimeout(resolve, 10));
+        await Promise.race([
+          renderPromise,
+          new Promise<void>(resolve => setTimeout(resolve, 100)),
+        ]);
       }
     } finally {
       // NOTE: We intentionally leave both activeModuleKey AND context set.
