@@ -2,9 +2,9 @@
  * Persistence layer for forge-sim.
  *
  * Saves simulator state on shutdown and restores on startup.
- * State is stored in the app's .forge-sim-state/ directory:
- *   - kvs.json — KVS key-value dump
- *   - sql.dump — MySQL dump (via mysqldump npm package — pure JS, no binary needed)
+ * State is stored in the app's .forge-sim/state/ directory:
+ *   - entities.json — KVS + Custom Entities + Secrets, with timestamps
+ *   - sql.dump      — MySQL dump (via mysqldump npm package — pure JS, no binary needed)
  *
  * SQL restore uses mysql-memory-server's initSQLFilePath option so state
  * is loaded during MySQL boot — before app migrations run. The dump file
@@ -12,15 +12,14 @@
  *
  * Usage:
  *   await saveState(sim, stateDir);   // on shutdown
- *   await loadState(sim, stateDir);   // on startup (KVS only — SQL via initSQLFilePath)
+ *   await loadState(sim, stateDir);   // on startup (KVS+entities; SQL via initSQLFilePath)
  */
 
-import { mkdir, readFile, access } from 'node:fs/promises';
+import { readFile, access } from 'node:fs/promises';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { ForgeSimulator } from './simulator.js';
 
-const KVS_FILE = 'kvs.json';
 const ENTITY_FILE = 'entities.json';
 const SQL_FILE = 'sql.dump';
 
@@ -33,26 +32,18 @@ export async function saveState(sim: ForgeSimulator, stateDir: string): Promise<
   // can get lost if process.exit() fires before the event loop drains
   mkdirSync(stateDir, { recursive: true });
 
-  // ── KVS ──────────────────────────────────────────────────────────────
-  const kvsDump = sim.kvs.dump();
-  const kvsEntryCount = Object.keys(kvsDump).length;
-  if (kvsEntryCount > 0) {
-    writeFileSync(join(stateDir, KVS_FILE), JSON.stringify(kvsDump, null, 2));
-    console.log(`  💾 Saved ${kvsEntryCount} KVS entries`);
-  }
+  // ── Persistent KVS state (plain KVS + Custom Entities + Secrets) ─────
+  const dump = sim.kvs.dumpAll();
+  const kvsCount = dump.kvs?.length ?? 0;
+  const entityCount = dump.entities?.length ?? 0;
+  const secretCount = dump.secrets?.length ?? 0;
+  const total = kvsCount + entityCount + secretCount;
 
-  // ── Entity Store (Custom Entities + entity-store KVS + secrets) ──────
-  const entityDump = sim.kvs.dumpAll();
-  const entityKvsCount = entityDump.kvs?.length ?? 0;
-  const entityCount = entityDump.entities?.length ?? 0;
-  const secretCount = entityDump.secrets?.length ?? 0;
-  const totalEntityItems = entityKvsCount + entityCount + secretCount;
-
-  if (totalEntityItems > 0) {
-    writeFileSync(join(stateDir, ENTITY_FILE), JSON.stringify(entityDump, null, 2));
+  if (total > 0) {
+    writeFileSync(join(stateDir, ENTITY_FILE), JSON.stringify(dump, null, 2));
     const parts: string[] = [];
+    if (kvsCount > 0) parts.push(`${kvsCount} KVS`);
     if (entityCount > 0) parts.push(`${entityCount} entities`);
-    if (entityKvsCount > 0) parts.push(`${entityKvsCount} entity-store KVS`);
     if (secretCount > 0) parts.push(`${secretCount} secrets`);
     console.log(`  💾 Saved ${parts.join(', ')}`);
   }
@@ -101,52 +92,35 @@ export async function saveState(sim: ForgeSimulator, stateDir: string): Promise<
 }
 
 /**
- * Restore simulator state from disk (KVS only).
+ * Restore simulator state from disk (KVS + entities + secrets).
  * SQL restore happens via initSQLFilePath — call getSQLDumpPath() and
  * pass it to sim.sql.setInitSQLFilePath() BEFORE sql.start().
  */
 export async function loadState(sim: ForgeSimulator, stateDir: string): Promise<boolean> {
   let restored = false;
 
-  // ── KVS ──────────────────────────────────────────────────────────────
-  const kvsPath = join(stateDir, KVS_FILE);
-  try {
-    await access(kvsPath);
-    const raw = await readFile(kvsPath, 'utf-8');
-    const data = JSON.parse(raw);
-    const keys = Object.keys(data);
-
-    if (keys.length > 0) {
-      sim.kvs.restore(data);
-      console.log(`  📂 Restored ${keys.length} KVS entries`);
-      restored = true;
-    }
-  } catch {
-    // No KVS state file — that's fine
-  }
-
-  // ── Entity Store ─────────────────────────────────────────────────────
+  // ── Persistent KVS state (entities.json) ─────────────────────────────
   const entityPath = join(stateDir, ENTITY_FILE);
   try {
     await access(entityPath);
     const raw = await readFile(entityPath, 'utf-8');
     const dump = JSON.parse(raw);
-    const entityKvsCount = dump.kvs?.length ?? 0;
+    const kvsCount = dump.kvs?.length ?? 0;
     const entityCount = dump.entities?.length ?? 0;
     const secretCount = dump.secrets?.length ?? 0;
-    const total = entityKvsCount + entityCount + secretCount;
+    const total = kvsCount + entityCount + secretCount;
 
     if (total > 0) {
       sim.kvs.restoreAll(dump);
       const parts: string[] = [];
+      if (kvsCount > 0) parts.push(`${kvsCount} KVS`);
       if (entityCount > 0) parts.push(`${entityCount} entities`);
-      if (entityKvsCount > 0) parts.push(`${entityKvsCount} entity-store KVS`);
       if (secretCount > 0) parts.push(`${secretCount} secrets`);
       console.log(`  📂 Restored ${parts.join(', ')}`);
       restored = true;
     }
   } catch {
-    // No entity state file — that's fine
+    // No entities.json — fresh install, nothing to restore.
   }
 
   // SQL restore is handled via initSQLFilePath — already configured
@@ -172,7 +146,7 @@ export async function getSQLDumpPath(stateDir: string): Promise<string | undefin
  * Check if persisted state exists.
  */
 export async function hasPersistedState(stateDir: string): Promise<boolean> {
-  for (const file of [KVS_FILE, ENTITY_FILE, SQL_FILE]) {
+  for (const file of [ENTITY_FILE, SQL_FILE]) {
     try {
       await access(join(stateDir, file));
       return true;

@@ -34,12 +34,16 @@ describe('Persistence', () => {
       // Save
       await saveState(sim, stateDir);
 
-      // Verify file exists
-      const raw = await readFile(join(stateDir, 'kvs.json'), 'utf-8');
+      // entities.json is the single source of truth — plain KVS lives in
+      // dump.kvs[] alongside entities and secrets.
+      const raw = await readFile(join(stateDir, 'entities.json'), 'utf-8');
       const saved = JSON.parse(raw);
-      expect(saved.key1).toBe('value1');
-      expect(saved.key2).toEqual({ nested: true, count: 42 });
-      expect(saved.key3).toEqual([1, 2, 3]);
+      const byKey = Object.fromEntries(
+        (saved.kvs ?? []).map((e: { key: string; value: unknown }) => [e.key, e.value]),
+      );
+      expect(byKey.key1).toBe('value1');
+      expect(byKey.key2).toEqual({ nested: true, count: 42 });
+      expect(byKey.key3).toEqual([1, 2, 3]);
 
       // Create fresh simulator and restore
       const sim2 = createSimulator();
@@ -53,8 +57,8 @@ describe('Persistence', () => {
     it('skips save when KVS is empty', async () => {
       await saveState(sim, stateDir);
 
-      // File should not exist
-      await expect(access(join(stateDir, 'kvs.json'))).rejects.toThrow();
+      // No data → no entities.json.
+      await expect(access(join(stateDir, 'entities.json'))).rejects.toThrow();
     });
 
     it('handles missing state dir gracefully', async () => {

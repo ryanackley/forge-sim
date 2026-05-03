@@ -91,9 +91,12 @@ describe('Persistence Roundtrip: OKR Tracker', () => {
     // Save state
     await saveState(sim1, stateDir);
 
-    // Verify files exist
-    const kvsJson = JSON.parse(await readFile(join(stateDir, 'kvs.json'), 'utf-8'));
-    expect(kvsJson['okr:config']).toEqual({ defaultCycle: 'Q1-2026', theme: 'dark' });
+    // Verify files exist — entities.json holds plain KVS in dump.kvs[]
+    const entitiesJson = JSON.parse(await readFile(join(stateDir, 'entities.json'), 'utf-8'));
+    const okrConfig = (entitiesJson.kvs ?? []).find(
+      (e: { key: string }) => e.key === 'okr:config',
+    );
+    expect(okrConfig?.value).toEqual({ defaultCycle: 'Q1-2026', theme: 'dark' });
 
     const sqlDump = await readFile(join(stateDir, 'sql.dump'), 'utf-8');
     expect(sqlDump).toContain('CREATE TABLE');
