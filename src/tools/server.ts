@@ -184,7 +184,15 @@ export function attachToolsToVite(options: ToolsServerOptions): ToolsServer {
 
 // ── Fallback UI ──────────────────────────────────────────────────────────
 
-function generateFallbackHTML(prefix: string): string {
+/**
+ * Generate the standalone Tools UI HTML.
+ *
+ * Used by both Vite-mode (attachToolsToVite) and proxy-mode (dev-command's
+ * --proxy path) so the UI is identical across run modes. The `prefix` is
+ * the path prefix the UI is served under (default `/__tools`); it gets baked
+ * into both the API base path and the WebSocket URL.
+ */
+export function generateFallbackHTML(prefix: string): string {
   return `<!DOCTYPE html>
 <html lang="en">
 <head>

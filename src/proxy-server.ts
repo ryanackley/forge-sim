@@ -14,6 +14,8 @@
 import { createServer, request as httpRequest, type IncomingMessage, type ServerResponse, type Server } from 'node:http';
 import { URL } from 'node:url';
 import { Socket } from 'node:net';
+import type { Duplex } from 'node:stream';
+import { Buffer as NodeBuffer } from 'node:buffer';
 import { generateBridgeInlineScript } from './dev-command.js';
 
 export interface ProxyServerOptions {
@@ -32,6 +34,12 @@ export type MiddlewareHandler = (
   searchParams: string,
 ) => boolean | void;
 
+export type UpgradeHandler = (
+  req: IncomingMessage,
+  socket: Duplex,
+  head: NodeBuffer,
+) => void;
+
 export interface ProxyServer {
   /** The underlying HTTP server */
   server: Server;
@@ -42,6 +50,10 @@ export interface ProxyServer {
   /** Register a middleware that intercepts requests matching a path prefix.
    *  Return true from handler to indicate the request was handled. */
   addMiddleware(prefix: string, handler: MiddlewareHandler): void;
+  /** Register a WebSocket upgrade handler that intercepts upgrades whose
+   *  pathname starts with the given prefix. If no handler matches, the
+   *  upgrade is piped to the upstream dev server (for HMR). */
+  addUpgradeHandler(prefix: string, handler: UpgradeHandler): void;
 }
 
 export function createProxyServer(options: ProxyServerOptions): ProxyServer {
@@ -51,6 +63,7 @@ export function createProxyServer(options: ProxyServerOptions): ProxyServer {
   const bridgeTag = `<script>${bridgeScript}</script>`;
 
   const middlewares: Array<{ prefix: string; handler: MiddlewareHandler }> = [];
+  const upgradeHandlers: Array<{ prefix: string; handler: UpgradeHandler }> = [];
 
   const server = createServer((req, res) => {
     const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`);
@@ -69,8 +82,18 @@ export function createProxyServer(options: ProxyServerOptions): ProxyServer {
     proxyRequest(req, res, upstreamUrl, bridgeTag);
   });
 
-  // WebSocket upgrade passthrough to upstream (for HMR)
+  // WebSocket upgrade handling. Locally-registered prefixes (e.g. /__tools/ws)
+  // are intercepted; everything else is piped to the upstream dev server so
+  // HMR keeps working.
   server.on('upgrade', (req, socket, head) => {
+    const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`);
+    for (const uh of upgradeHandlers) {
+      if (url.pathname.startsWith(uh.prefix)) {
+        uh.handler(req, socket, head);
+        return;
+      }
+    }
+
     const upstreamReq = httpRequest({
       hostname: upstreamUrl.hostname,
       port: upstreamUrl.port,
@@ -116,6 +139,9 @@ export function createProxyServer(options: ProxyServerOptions): ProxyServer {
     },
     addMiddleware(prefix: string, handler: MiddlewareHandler) {
       middlewares.push({ prefix, handler });
+    },
+    addUpgradeHandler(prefix: string, handler: UpgradeHandler) {
+      upgradeHandlers.push({ prefix, handler });
     },
   };
 }

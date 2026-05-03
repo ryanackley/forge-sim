@@ -1468,18 +1468,22 @@ export async function devCommand(options: DevCommandOptions) {
       defaultModuleKey: primaryModule.module.key,
     });
 
-    // Attach tools middleware and JWKS to the proxy server
-    const { attachToolsToVite } = await import('./tools/server.js');
-
     proxyServer.listen(port);
 
     const localUrl = `http://localhost:${port}`;
 
-    // Wire up tools API as middleware on the proxy
+    // Wire up tools API + UI + WebSocket on the proxy.
+    // We can't reuse attachToolsToVite() (it depends on Vite's connect server
+    // and httpServer), so we replicate its behavior on top of our proxy primitives.
     const { createApiHandler } = await import('./tools/api.js');
+    const { generateFallbackHTML } = await import('./tools/server.js');
+    const { WebSocketServer, WebSocket } = await import('ws');
+    const TOOLS_PREFIX = '/__tools';
     const apiHandler = createApiHandler(sim, manifest);
-    proxyServer.addMiddleware('/__tools', (req, res, pathname, searchParams) => {
-      const toolsPath = pathname.slice('/__tools'.length) || '/';
+    const toolsHtml = generateFallbackHTML(TOOLS_PREFIX);
+
+    proxyServer.addMiddleware(TOOLS_PREFIX, (req, res, pathname, searchParams) => {
+      const toolsPath = pathname.slice(TOOLS_PREFIX.length) || '/';
       res.setHeader('Access-Control-Allow-Origin', '*');
       res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
       res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -1492,11 +1496,58 @@ export async function devCommand(options: DevCommandOptions) {
         });
         return true;
       }
-      // Serve tools UI fallback for non-API /__tools/ paths
+      // Serve the real Tools UI for non-API /__tools/ paths
       res.writeHead(200, { 'Content-Type': 'text/html', 'Content-Language': 'en', 'Cache-Control': 'no-cache' });
-      res.end('<!DOCTYPE html><html lang="en"><head><title>Forge Sim Tools</title></head><body><h1>Forge Sim Tools</h1><p>Tools UI in proxy mode</p></body></html>');
+      res.end(toolsHtml);
       return true;
     });
+
+    // WebSocket for live log/state/type-error streaming.
+    // Without this the UI loads but Logs/TypeScript tabs stay blank — proxy mode
+    // used to omit the WS entirely so everything looked broken.
+    const toolsWss = new WebSocketServer({ noServer: true });
+    const toolsClients = new Set<InstanceType<typeof WebSocket>>();
+    let lastTypeErrors: { errors: any[]; critical: any[]; checking: boolean } | null = null;
+
+    proxyServer.addUpgradeHandler(`${TOOLS_PREFIX}/ws`, (req, socket, head) => {
+      toolsWss.handleUpgrade(req, socket, head, (ws) => {
+        toolsWss.emit('connection', ws, req);
+      });
+    });
+
+    toolsWss.on('connection', (ws) => {
+      toolsClients.add(ws);
+      ws.on('close', () => toolsClients.delete(ws));
+      ws.on('error', () => toolsClients.delete(ws));
+
+      ws.send(JSON.stringify({
+        type: 'init',
+        data: {
+          manifest: {
+            appName: manifest.raw.app?.name ?? 'Unknown',
+            functions: manifest.functions.size,
+            uiModules: manifest.uiModules.length,
+            consumers: manifest.consumers.length,
+            triggers: manifest.triggers.length,
+            scheduledTriggers: manifest.scheduledTriggers.length,
+          },
+          functionCount: sim.functions.keys().length,
+        },
+      }));
+
+      if (lastTypeErrors) {
+        ws.send(JSON.stringify({ type: 'typeErrors', data: lastTypeErrors }));
+      }
+    });
+
+    function broadcastToolsMessage(message: any): void {
+      const msg = JSON.stringify(message);
+      for (const client of toolsClients) {
+        if (client.readyState === WebSocket.OPEN) {
+          client.send(msg);
+        }
+      }
+    }
 
     // Serve JWKS endpoint
     proxyServer.addMiddleware('/__forge', (req, res, pathname) => {
@@ -1521,15 +1572,17 @@ export async function devCommand(options: DevCommandOptions) {
       (globalThis as any).__forgeSim_devPort__ = port;
     }
 
-    // Hook simulator logs (basic — no tools WS in proxy mode)
+    // Stream simulator logs to all connected Tools clients
     sim.onLog((entry: any) => {
-      // Logs captured in simulator, viewable via /__tools/api/logs
+      broadcastToolsMessage({ type: 'log', data: entry });
     });
 
-    // Start TypeScript type checker (console-only in proxy mode)
+    // Start TypeScript type checker — console output PLUS live broadcast to Tools UI
     const proxyTypeCheckWatcher = startTypeCheckWatch({
       appDir,
       onErrors: (errors, critical) => {
+        lastTypeErrors = { errors, critical, checking: false };
+        broadcastToolsMessage({ type: 'typeErrors', data: lastTypeErrors });
         if (critical.length > 0) {
           console.log(`\n  ❌ TypeScript: ${critical.length} critical error${critical.length !== 1 ? 's' : ''}:`);
           for (const e of critical.slice(0, 10)) {
@@ -1593,6 +1646,8 @@ export async function devCommand(options: DevCommandOptions) {
       console.log('\n  🛑 Shutting down...');
       try { await saveState(sim, stateDir); } catch (err: any) { console.error(`  ⚠️  Failed to save state: ${err.message}`); }
       proxyTypeCheckWatcher?.close();
+      for (const c of toolsClients) c.close();
+      toolsWss.close();
       devServer.close();
       proxyServer.close();
       process.exit(0);

@@ -195,6 +195,55 @@ describe('ProxyServer', () => {
     expect(body).toContain('localhost:19999');
   });
 
+  it('routes WebSocket upgrade for registered prefix to local handler (not upstream)', async () => {
+    // Regression: in proxy mode, /__tools/ws was being piped to upstream,
+    // which broke the Tools UI live log/state stream. Local upgrade handlers
+    // must claim the upgrade before the upstream pipe runs.
+    let upstreamUpgradeHit = false;
+    const { server: upstream, port: upPort } = await startUpstream((req, res) => {
+      res.writeHead(404);
+      res.end();
+    });
+    const upstreamWss = new WebSocketServer({ server: upstream });
+    upstreamWss.on('connection', () => { upstreamUpgradeHit = true; });
+    servers.push(upstream);
+    servers.push(upstreamWss);
+
+    const proxy = createProxyServer({ upstream: `http://localhost:${upPort}`, wsPort: 9999 });
+
+    // Register a local handler for /__tools/ws — it should win over the upstream pipe
+    const localWss = new WebSocketServer({ noServer: true });
+    let localUpgradeHit = false;
+    localWss.on('connection', (ws) => {
+      localUpgradeHit = true;
+      ws.send('local-hello');
+    });
+    proxy.addUpgradeHandler('/__tools/ws', (req, socket, head) => {
+      localWss.handleUpgrade(req, socket, head, (ws) => {
+        localWss.emit('connection', ws, req);
+      });
+    });
+
+    proxy.listen(0);
+    await waitForListen(proxy, 0);
+    servers.push(proxy);
+    servers.push(localWss);
+
+    const proxyPort = (proxy.server.address() as { port: number }).port;
+    const clientWs = new WebSocket(`ws://localhost:${proxyPort}/__tools/ws`);
+    servers.push({ close: () => clientWs.close() });
+
+    const reply = await new Promise<string>((resolve, reject) => {
+      const timeout = setTimeout(() => reject(new Error('WS timeout')), 5000);
+      clientWs.on('message', (data) => { clearTimeout(timeout); resolve(data.toString()); });
+      clientWs.on('error', (err) => { clearTimeout(timeout); reject(err); });
+    });
+
+    expect(reply).toBe('local-hello');
+    expect(localUpgradeHit).toBe(true);
+    expect(upstreamUpgradeHit).toBe(false);
+  });
+
   it('forwards WebSocket upgrade requests to upstream', async () => {
     // Start a WebSocket server as upstream
     const { server: upstream, port: upPort } = await startUpstream((req, res) => {
