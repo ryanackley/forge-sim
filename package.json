@@ -23,7 +23,9 @@
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:debug": "playwright test --debug",
-    "docs": "typedoc"
+    "docs": "typedoc",
+    "docs:stats": "node scripts/update-stats.mjs",
+    "docs:stats:check": "node scripts/update-stats.mjs --check"
   },
   "dependencies": {
     "@forge/react": "^11.0.0",
