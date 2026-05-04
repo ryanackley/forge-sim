@@ -1,24 +1,19 @@
-# forge-sim - Build and test Forge apps locally
+# forge-sim
 
-forge-sim has two major components. 
-
-* A simulated forge environment for local development and testing - no deploys, no tunnels, no waiting.
-* A unit testing library for forge apps including components to test UIKit. 
-
----
+This is a simulation of Atlassian's Forge remote development platform. This is for doing local Forge development in addition to being a testing library. 
 
 ## Local Development
 
-**Deploying to Forge for development sucks** Forge's edit → deploy → tunnel → wait → check cycle kills flow state. forge-sim replaces it with instant feedback.
+**Deploying to Forge for development sucks** Forge's edit → deploy → tunnel → wait → check cycle kills flow state. forge-sim replaces it with a local development loop.
 
 ```bash
 # In your Forge app directory
 npx forge-sim dev
 ```
 
-That's it. One command gives you:
+Features:
 
-- **Live UI preview** — Real Atlaskit components rendered in your browser, exactly how they'll look in Jira/Confluence
+- **Local UIKit dev support** — Based on Atlaskit, it's almost identical to how UIKit components will look in Jira/Confluence
 - **Hot reload** — Edit your code, see changes instantly
 - **Chrome DevTools** — Set breakpoints in your event handlers, inspect React state, use the console
 - **Real API access** — Connect your Atlassian account and `requestJira()` hits your actual site
@@ -39,7 +34,7 @@ That's it. One command gives you:
    ♻️  HMR enabled — edits refresh automatically
 ```
 
-### Connect to your Atlassian site (optional)
+### Connect to your Atlassian site 
 
 ```bash
 npx forge-sim auth
@@ -53,12 +48,14 @@ sim.mockProductRoutes('jira', {
 });
 ```
 
-### Proxy mode — use your own dev server (optional)
+### Proxy mode for Custom UI
 
-Already have a webpack, Vite, or Parcel dev server? Use `--proxy` instead of forge-sim's built-in Vite:
+Already optimized Custom UI pages referenced in your manifest should just work out of the box. 
+
+When you're in the middle of development you typically will have a webpack, Vite, or Parcel dev setup for your Custom UI page. For this situation Use `--proxy`:
 
 ```bash
-# Start your dev server as usual
+# Start your webpack, Vite, or Parcel dev server as usual
 cd my-custom-ui-app && npm start  # → http://localhost:3000
 
 # In another terminal, proxy it through forge-sim
@@ -72,7 +69,7 @@ forge-sim sits in front of your dev server and:
 - **Intercepts forge-sim routes** (`/__tools/*`, `/__forge/*`) before proxying
 - **Bakes in the module key** so endpoint resolution works automatically
 
-Your existing dev workflow stays exactly the same — forge-sim just adds the Forge runtime on top.
+Your existing dev workflow stays exactly the same — forge-sim just adds a local Forge runtime .
 
 ```
 🔥 forge-sim dev (proxy mode)
@@ -147,6 +144,74 @@ sim.mockProductRoutes('google-apis', {
 
 ---
 
+## 🧪 Integration Testing
+
+**Self contained Unit\Integration tests without relying on remote deployment.** 
+
+Test your resolvers, queues, triggers, KVS, and SQL against an actual simulated runtime — not mocked function calls.
+
+```typescript
+import { createSimulator } from 'forge-sim';
+
+const sim = createSimulator();
+
+// Deploy your app — manifest.yml drives everything
+const result = await sim.deploy('./my-forge-app');
+
+// Mock the product APIs
+sim.mockProductRoutes('jira', {
+  '/rest/api/3/issue/PROJ-1': { key: 'PROJ-1', summary: 'Fix the thing' },
+});
+
+// Test the full stack: resolver → KVS → queue → consumer
+const data = await sim.invoke('getIssue', { issueKey: 'PROJ-1' });
+expect(data.summary).toBe('Fix the thing');
+
+// Verify side effects
+const views = await sim.kvs.get('views:PROJ-1');
+expect(views).toBe(1);
+
+// Fire triggers
+await sim.fireTrigger('avi:jira:created:issue', { issue: { key: 'PROJ-2' } });
+
+// Run SQL queries
+const rows = await sim.sql.query('SELECT * FROM objectives WHERE status = ?', ['active']);
+expect(rows).toHaveLength(3);
+```
+
+### Test UIKit without a browser
+
+Render UIKit modules programmatically, interact with components, and assert on the ForgeDoc tree — no browser, no screenshots, no flaky selectors:
+
+```typescript
+// Render a Jira issue panel with context
+await sim.ui.render('issue-summary', {
+  context: { issueKey: 'PROJ-42' },
+});
+
+// Wait for async data to load
+const doc = await sim.ui.waitForContent('issue-summary', 'PROJ-42');
+
+// Assert on the rendered component tree
+const text = sim.ui.getTextContent(doc);
+expect(text).toContain('PROJ-42');
+expect(text).toContain('Views: 1');
+
+// Click a button — triggers real React state updates
+const { updatedDoc } = await sim.ui.interactWith('Button', { matchText: 'Load Comments' });
+
+// Verify the UI updated
+expect(sim.ui.getTextContent(updatedDoc)).toContain('3 comments');
+
+// Verify side effects (KVS writes, queue pushes, etc.)
+const views = await sim.kvs.get('views:PROJ-42');
+expect(views).toBe(1);
+```
+
+This allows a **full integration test of your UI** — resolvers fire, KVS updates, queues process, and the ForgeDoc tree reflects the result. No mocking, no browser automation.
+
+---
+
 ## 🤖 AI-Driven Development
 
 **Let your AI build Forge apps.** forge-sim gives AI agents a complete Forge runtime without credentials, cloud access, or deploy permissions. The agent writes code, deploys it locally, tests it, iterates — all through CLI commands.
@@ -208,69 +273,7 @@ No API keys. No cloud credentials. No risk of the AI accidentally deploying to p
 
 ---
 
-## 🧪 Integration Testing
 
-**Real integration tests without the real integration point.** Test your resolvers, queues, triggers, KVS, and SQL against an actual simulated runtime — not mocked function calls.
-
-```typescript
-import { createSimulator } from 'forge-sim';
-
-const sim = createSimulator();
-
-// Deploy your app — manifest.yml drives everything
-const result = await sim.deploy('./my-forge-app');
-
-// Mock the product APIs
-sim.mockProductRoutes('jira', {
-  '/rest/api/3/issue/PROJ-1': { key: 'PROJ-1', summary: 'Fix the thing' },
-});
-
-// Test the full stack: resolver → KVS → queue → consumer
-const data = await sim.invoke('getIssue', { issueKey: 'PROJ-1' });
-expect(data.summary).toBe('Fix the thing');
-
-// Verify side effects
-const views = await sim.kvs.get('views:PROJ-1');
-expect(views).toBe(1);
-
-// Fire triggers
-await sim.fireTrigger('avi:jira:created:issue', { issue: { key: 'PROJ-2' } });
-
-// Run SQL queries
-const rows = await sim.sql.query('SELECT * FROM objectives WHERE status = ?', ['active']);
-expect(rows).toHaveLength(3);
-```
-
-### Test your UI without a browser
-
-Render UIKit modules programmatically, interact with components, and assert on the ForgeDoc tree — no browser, no screenshots, no flaky selectors:
-
-```typescript
-// Render a Jira issue panel with context
-await sim.ui.render('issue-summary', {
-  context: { issueKey: 'PROJ-42' },
-});
-
-// Wait for async data to load
-const doc = await sim.ui.waitForContent('issue-summary', 'PROJ-42');
-
-// Assert on the rendered component tree
-const text = sim.ui.getTextContent(doc);
-expect(text).toContain('PROJ-42');
-expect(text).toContain('Views: 1');
-
-// Click a button — triggers real React state updates
-const { updatedDoc } = await sim.ui.interactWith('Button', { matchText: 'Load Comments' });
-
-// Verify the UI updated
-expect(sim.ui.getTextContent(updatedDoc)).toContain('3 comments');
-
-// Verify side effects (KVS writes, queue pushes, etc.)
-const views = await sim.kvs.get('views:PROJ-42');
-expect(views).toBe(1);
-```
-
-This is a **full integration test of your UI** — resolvers fire, KVS updates, queues process, and the ForgeDoc tree reflects the result. No mocking, no browser automation.
 
 ### Why not just mock `@forge/kvs`?
 
