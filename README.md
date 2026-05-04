@@ -172,7 +172,11 @@ forge-sim logs
 
 ### MCP Server
 
-For AI agents that support [Model Context Protocol](https://modelcontextprotocol.io/), forge-sim exposes 21 tools and 4 resources:
+For AI agents that support [Model Context Protocol](https://modelcontextprotocol.io/), forge-sim exposes a full toolkit:
+
+<!-- BEGIN:STATS_COMPACT -->
+1,207 tests · 28 MCP tools · 4 MCP resources
+<!-- END:STATS_COMPACT -->
 
 ```bash
 # Native MCP over stdio
@@ -182,7 +186,7 @@ forge-sim-mcp
 forge-sim serve  # starts on random port, writes to ~/.forge-sim/daemon.port
 ```
 
-The full tool list: `deploy`, `invoke`, `fire_trigger`, `fire_scheduled_trigger`, `ui_state`, `ui_interact`, `kvs_get`, `kvs_set`, `kvs_list`, `queue_push`, `queue_state`, `logs`, `sql_execute`, `sql_migrate`, `sql_schema`, `entity_get`, `entity_set`, `entity_delete`, `entity_query`, `entity_list`, `reset`. 141 trigger event templates with typed payloads are built-in for Confluence, Jira, Jira Software, and App Lifecycle events.
+The full tool list: `deploy`, `invoke`, `fire_trigger`, `fire_scheduled_trigger`, `ui_state`, `ui_interact`, `kvs_get`, `kvs_set`, `kvs_list`, `queue_push`, `queue_state`, `logs`, `sql_execute`, `sql_migrate`, `sql_schema`, `entity_get`, `entity_set`, `entity_delete`, `entity_query`, `entity_list`, `auth_status`, `mock_routes`, `mock_graphql`, `llm_mock`, `llm_history`, `realtime_publish`, `realtime_state`, `reset`. 141 trigger event templates with typed payloads are built-in for Confluence, Jira, Jira Software, and App Lifecycle events.
 
 ### As an AI Skill
 
@@ -283,8 +287,13 @@ Because mocking individual imports doesn't test your app. It tests your assumpti
 | Product APIs (Jira/Confluence/Bitbucket) | Mock + real API proxy |
 | Forge Remotes | Full — FIT JWT auth, JWKS endpoint, mock routing |
 | Custom UI | Full — built-in Vite or `--proxy` your own dev server |
-| UIKit 2 (`@forge/react`) | Full — 73/73 components, live preview |
+| UIKit 2 (`@forge/react`) | Full — 73/73 components, live preview, dark/light/auto color mode |
 | Event & Scheduled Triggers | Full — 141 event templates with typed payloads, contract validation |
+| Web Triggers | Full — `/__trigger/<key>` HTTP endpoints with CORS, dynamic `webTrigger.getUrl()` |
+| Background Scripts | Full — `issueView`, `dashboard`, `globalBackgroundScript` via postMessage |
+| Custom Fields | Full — `jira:customField`/`customFieldType` with view/edit/viewSubmit |
+| `@forge/llm` (Claude 4.6/4.7) | Full — `forge-sim auth --llm` for the Anthropic key |
+| `@forge/realtime` | Full — channel pub/sub, scoped + global publishes |
 | Rovo Actions | Full — manifest parsing, input schema validation, MCP invocation |
 | Workflow Modules | Partial — config UI, function invocation (no transition simulation) |
 | Manifest parsing + auto-deploy | Full |
@@ -307,6 +316,8 @@ await sim.deploy('./my-forge-app');  // Auto-registers @forge/* loader hooks
 
 ## Installation
 
+Requires **Node.js 22+** (uses native TypeScript type stripping for `.ts` loader hooks).
+
 ```bash
 # As a dev dependency (recommended)
 npm install --save-dev forge-sim
@@ -326,16 +337,30 @@ See [docs/](./docs/) for the full reference:
 - [MCP Server](./docs/mcp.md) — AI agent integration
 - [UIKit Renderer](./docs/renderer.md) — Architecture, browser mode, component coverage
 - [Implementation Matrix](./docs/implementation-matrix.md) — Full API coverage status
+- [Module Support](./docs/module-support.md) — Per-module-type support matrix
+- [Module Contexts](./docs/module-contexts.md) — Per-module `extension.*` shapes
+- [Testing Patterns](./docs/testing.md) — Vitest/Jest examples, fixtures, common patterns
 - [Dev Tools](./docs/tools.md) — Built-in KVS browser, SQL console, log viewer
 
 ## Development
 
 ```bash
 npm install
-npm run build      # TypeScript compile
-npm test           # 1025 core tests (57 files) + 112 renderer tests (2 files) = 1137 total
+npm run build               # TypeScript compile
+npm test                    # core test suite
+cd renderer && npx vitest run   # renderer tests
+npm run docs:stats          # sync auto-generated stats blocks in docs
+npm run docs:stats:check    # CI guard — fails if stats are stale
 ```
+
+<!-- BEGIN:STATS -->
+**1,207 tests** across **63** test files
+(1,095 core / 61 files
++ 112 renderer / 2 files)
+
+**28 MCP tools** + **4 resources**
+<!-- END:STATS -->
 
 ## License
 
-Private — not yet published.
+Pre-release. License will be assigned at first npm publish.

@@ -83,3 +83,9 @@ All endpoints are under `/__tools/api/`:
 | GET | `/api/health` | Health check |
 | GET | `/api/ui/state` | Current ForgeDoc UI tree |
 | POST | `/api/ui/render` | Render a UI module |
+| GET | `/api/ui/context` | Inspect the current Forge context |
+| GET | `/api/entities` | List Custom Entities and registered schemas |
+| POST | `/api/mock/routes` | Register mock HTTP responses for product APIs / remotes |
+| POST | `/api/mock/graphql` | Register mock GraphQL operation responses |
+
+> The Tools UI also accepts `?theme=dark|light|auto` on the URL — see [cli.md](./cli.md#theme-dark--light) for the convention shared with the renderer.

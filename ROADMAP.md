@@ -2,26 +2,26 @@
 
 > **If it works in forge-sim, it should work in Forge. If it wouldn't work in Forge, it shouldn't work in forge-sim.**
 
-## Architecture Overview
+## Architecture overview
 
 ```
 ┌──────────────────────────────────────────────┐
-│            Forge Sim Tools (/__tools/)         │
+│            Forge Sim Tools (/__tools/)        │
 │  ┌─────┬──────┬──────┬──────┬────────┐       │
 │  │ UI  │State │Events│ Auth │  Logs  │       │
 │  │Picker│     │      │      │        │       │
 │  └─────┴──────┴──────┴──────┴────────┘       │
 ├──────────────────────────────────────────────┤
-│  App Preview (:5173)      │  Proxy Mode       │
-│  Vite + Atlaskit render   │  --proxy <url>    │
-│  UIKit 2 / Custom UI      │  Any bundler      │
+│  App Preview (:5173)      │  Proxy Mode      │
+│  Vite + Atlaskit render   │  --proxy <url>   │
+│  UIKit 2 / Custom UI      │  Any bundler     │
 ├──────────────────────────────────────────────┤
-│         Bridge RPC (:5174 WebSocket)          │
+│         Bridge RPC (:5174 WebSocket)         │
 ├──────────────────────────────────────────────┤
-│              forge-sim core                    │
+│              forge-sim core                   │
 │  ┌─────┬─────┬─────┬──────┬────────┬──────┐ │
 │  │ KVS │ SQL │Queue│Remote│ProdAPI │ FIT  │ │
-│  │     │     │     │Proxy │mock/real│ JWT  │ │
+│  │     │     │     │Proxy │mock+real│ JWT  │ │
 │  └─────┴─────┴─────┴──────┴────────┴──────┘ │
 │  ┌──────────┬────────────┬─────────────────┐ │
 │  │ Entity   │ Module     │ Function        │ │
@@ -32,113 +32,95 @@
 └──────────────────────────────────────────────┘
 ```
 
----
+## Current focus
 
-## ✅ Completed
+### NPM publishing — first public release
 
-### Forge Sim Tools (MVP)
-- Browser-based dev tools at `/__tools/` — KVS browser, SQL runner, log streaming, event firing
-- Served as Vite middleware (same port as app preview) or proxy middleware
-- 15+ REST endpoints, WebSocket real-time log streaming
+Get forge-sim onto npm so it installs via `npx forge-sim dev`.
 
-### Persistent State
-- KVS + Entity Store saved as JSON, SQL via mysqldump
-- Auto-save on SIGINT, auto-restore on startup
-- `--clean` flag to start fresh
-- Directory: `.forge-sim/state/`
+- Decide license (MIT recommended for adoption)
+- Add `files` allowlist, `keywords`, `repository`, `homepage`, `bugs`, `author`, `engines.node` to `package.json`
+- Add `LICENSE` + `CHANGELOG.md`
+- Add `prepublishOnly` to prevent stale-dist publishes
+- Verify `npm pack` tarball contents
+- Tag and publish as `0.1.0-beta.1`
 
-### Credentials + Real API Calls
-- PAT (Basic auth) and OAuth 2.0 (3LO) support
-- `forge-sim auth` CLI for account management
-- Real API proxy: mock routes take priority, real API as fallback
-- Token refresh for OAuth accounts
-- Storage: `.forge-sim/credentials.json`
+**Status:** All engineering work done; this is packaging.
 
-### Universal Dev Server Proxy
-- `forge-sim dev --proxy http://localhost:3000` — works with any bundler
-- HTTP reverse proxy injects bridge shim into HTML responses
-- WebSocket passthrough for upstream HMR
-- Module key baked into bridge script for endpoint resolution
-- Single-endpoint auto-resolve when module context is unavailable
-- Zero config for the developer — no bundler plugins needed
-- **Full proposal:** [proposals/universal-dev-server-proxy.md](proposals/universal-dev-server-proxy.md)
+### Forge Realtime (deferred)
 
-### Forge Remotes
-- `invokeRemote` / `requestRemote` / `invokeService` — full bridge support
-- FIT (Forge Invocation Token) — local RSA key pairs, JWT signing, JWKS endpoint
-- Endpoint resolution from manifest (module → endpoint → remote → baseUrl)
-- Module routing with resolver boundary enforcement
-- Mock-first with real HTTP fallback
+Real-time pub/sub channels. The shim is shipped (`@forge/realtime` shim with channel pub/sub), but the production wire format is in Atlassian's preview. **Waiting for Atlassian GA** before chasing parity on the network layer.
 
-### UIKit 2 Renderer
-- 73/73 UIKit 2 components mapped to real Atlaskit
-- ForgeDoc → Atlaskit component rendering
-- Dual-mode: Browser (CDT debuggable) + Server (MCP/AI-driven)
+## Recently shipped
+
+For the full history, see `git log`. Highlights of the last few weeks:
+
+- **Dark / light / auto color mode** in the renderer (real-Forge `?theme=` contract)
+- **Tools UI parity in `--proxy` mode** — full WebSocket log streaming + type-error broadcasts
+- **`@forge/llm` shim** with Claude 4.6 / 4.7 + `forge-sim auth --llm`
+- **`@forge/realtime` shim** — channel pub/sub, scoped + global publishes
+- **Mock routes** via CLI / MCP / HTTP
+- **Trigger event templates** — 141 typed events across Confluence, Jira, Jira Software, App Lifecycle
+- **`appEvents.publish()`** — custom app event pub/sub
+- **Custom Fields** (`jira:customField` / `customFieldType`) with view/edit/viewSubmit
+- **Workflow modules** (validator / condition / postFunction)
+- **Rovo Actions** (`action` module) + Command Palette (`jira:command`)
+- **Web Triggers** — `/__trigger/<key>` HTTP endpoints with CORS
+- **Background scripts** — `issueView`, `dashboard`, `globalBackgroundScript` via postMessage
+- **Universal `--proxy` mode** — works with any bundler (forgebuilder uses this)
+- **Real API proxy** (PAT + OAuth, mock-first with real fallback)
+- **Forge Remotes** (FIT JWT + JWKS endpoint)
+- **Per-function-type invocation timeouts** (resolver 25s, trigger 55s, scheduled/consumer up to 900s)
+- **TypeScript type checking** integrated into dev workflow
+- **General hardening pass** — silent-failure audit, manifest edge cases, error handling, e2e dev server tests, renderer integration tests
+- **Universal Dev Server Proxy** ([proposal](proposals/universal-dev-server-proxy.md))
+
+## Completed (foundational)
+
+### Core simulator
+- KVS, SQL (real MySQL), Queues, Entity Store, Secrets — all persistent + MCP-introspectable
+- `.forge-sim/state/` directory: `entities.json` + `sql.dump`, auto-save / restore, `--clean` flag
+
+### UIKit 2 renderer
+- 73/73 components mapped to real Atlaskit
+- Dual-mode: browser (CDT-debuggable) + server (MCP/AI-driven)
 - Live preview via WebSocket dev server
-- Vite plugin for one-line setup
+- Dark / light / auto color mode
 
-### Custom UI Support
-- Auto-detects Custom UI apps from manifest
-- Serves resource directory via Vite or proxies external dev server
-- `@forge/bridge` shim injection (inline script or Vite alias)
+### Custom UI support
+- Auto-detects from manifest, serves resource directory via Vite OR proxies external dev server
+- `@forge/bridge` shim injection
 - `invoke()`, `view.getContext()`, `requestJira()` all routed through simulator
 
----
+### Tools UI (`/__tools/`)
+- KVS browser, SQL runner, log streaming, event firing, mock routes
+- Served by Vite middleware AND by proxy mode (full parity)
 
-## Current Priorities
+### Credentials + real API
+- PAT (Basic auth) + OAuth 2.0 (3LO) + LLM API key
+- `forge-sim auth` CLI
+- Real API proxy: mock routes priority, real API fallback
+- OAuth token refresh
+- External auth providers (`asUser().withProvider()`)
 
-### 1. General Hardening ⬅️ NOW
-Make forge-sim bulletproof. Testing, error handling, parity, performance, docs.
+## Test suite
 
-**Full plan:** [proposals/general-hardening.md](proposals/general-hardening.md)
+<!-- BEGIN:STATS -->
+**1,207 tests** across **63** test files
+(1,095 core / 61 files
++ 112 renderer / 2 files)
 
-Five areas, ~74 items:
-1. **Testing gaps** — renderer integration tests, e2e dev server tests, negative case testing (verify clear errors when the app would break in real Forge), manifest edge cases
-2. **Error handling & DX** — silent error audit, structured error messages, `--verbose` flag
-3. **Behavioral parity audit** — bridge commands, context object, response formats
-4. **Performance & reliability** — MySQL race, file watcher debounce, port conflicts, memory leaks
-5. **Documentation** — README overhaul, `--help`, examples, troubleshooting guide
+**28 MCP tools** + **4 resources**
+<!-- END:STATS -->
 
-### 2. Web Triggers
-HTTP endpoints for `webTrigger` modules.
+> The block above is auto-generated by `npm run docs:stats`. Run after adding tests or MCP tools.
 
-1. Parse webTrigger modules from manifest
-2. Register routes: `POST /x/{installationId}/{triggerKey}`
-3. Call `handler(request, context)` with standard Forge web trigger contract
-4. Return `{ statusCode, headers, body }` as HTTP response
+Coverage spans simulator core, remotes, module routing, bridge invoke routing, proxy server, modal bridge, multi-module routing, deployer, manifest parser + edge cases, KVS, SQL, queues, entity store, product API mock + real, custom fields, workflow modules, Rovo actions, web triggers, background scripts, persistence, dev server e2e, and visual snapshots.
 
-**Effort:** Half a day
+## Three dev modes
 
-### 3. NPM Publishing
-Make forge-sim installable via `npx forge-sim dev`.
-
-- Package name `forge-sim` is available on NPM
-- Add `files`, `exports`, `keywords`, `license`, `repository` to package.json
-- `--inspect` flag for Node debugger attachment
-- Generate `.vscode/launch.json` template
-
-**Effort:** Half a day
-
-### 4. Forge Realtime
-Real-time pub/sub channels (Forge Preview feature — wait for GA).
-
-**Phase 1:** In-memory pub/sub + `@forge/realtime` shim
-**Phase 2:** WebSocket transport for multi-window testing
-
-**Effort:** 2-4 days (defer until GA)
-
----
-
-## Test Suite
-- **670 tests**, 38 test files, all passing
-- Coverage: simulator core, remotes, module routing, bridge invoke routing, proxy server, modal bridge, multi-module routing, deployer, manifest parser, KVS, SQL, queues, entity store, product API
-
----
-
-## Three Modes
-
-| Scenario | Command | What Happens |
+| Scenario | Command | What happens |
 |----------|---------|--------------|
 | UIKit app | `forge-sim dev` | Vite renders Atlaskit components from ForgeDoc |
 | Custom UI (simple) | `forge-sim dev` | Vite serves resource directory, injects bridge |
-| Custom UI (own dev server) | `forge-sim dev --proxy <url>` | Proxies external server, injects bridge |
+| Custom UI (own dev server) | `forge-sim dev --proxy <url>` | Proxies external server, injects bridge, full Tools UI |

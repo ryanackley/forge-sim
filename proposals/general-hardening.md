@@ -1,12 +1,14 @@
 # General Hardening Plan
 
-**Status:** Active
-**Date:** 2026-03-17
+**Status:** ✅ COMPLETED — 2026-04-01
+**Date opened:** 2026-03-17
 **Author:** Nyx + Ryan
+
+> **Archived for reference.** Hardening landed in commit `77c0ef0` (2026-04-01) and the follow-on test additions through April. Renderer integration tests, e2e dev server tests, manifest edge case coverage, silent-failure audit, and structured error messages are all in main. Subsequent feature work has continued to add tests; current totals are tracked in [ROADMAP.md](../ROADMAP.md). Don't treat the unchecked items below as open work — many were superseded by later changes (e.g. `--verbose` was unnecessary once individual error paths got better messages). See `git log --oneline --grep=harden` for the actual commit trail.
 
 > **If it works in forge-sim, it should work in Forge. If it wouldn't work in Forge, it shouldn't work in forge-sim.**
 
-This document tracks the hardening work to make forge-sim production-quality.
+This document tracked the hardening work to make forge-sim production-quality.
 
 ---
 
