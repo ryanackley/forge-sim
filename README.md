@@ -1,14 +1,15 @@
-# forge-sim
+# forge-sim - Build and test Forge apps locally
 
-**Build Forge apps without the Forge.** Local runtime, AI integration, and CI testing — no deploys, no tunnels, no waiting.
+forge-sim has two major components. 
 
-forge-sim is a complete simulation of the Atlassian Forge platform that runs on your machine. Your app code runs unmodified — same `@forge/api`, `@forge/kvs`, `@forge/sql`, `@forge/resolver` imports, same manifest.yml — just without the 30-second deploy cycle.
+* A simulated forge environment for local development and testing - no deploys, no tunnels, no waiting.
+* A unit testing library for forge apps including components to test UIKit. 
 
 ---
 
-## 🔥 Local Development
+## Local Development
 
-**Stop deploying to test.** Forge's edit → deploy → tunnel → wait → check cycle kills flow state. forge-sim replaces it with instant feedback.
+**Deploying to Forge for development sucks** Forge's edit → deploy → tunnel → wait → check cycle kills flow state. forge-sim replaces it with instant feedback.
 
 ```bash
 # In your Forge app directory
