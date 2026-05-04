@@ -71,6 +71,7 @@ When you need actual surface details, go to the doc — don't guess from this fi
 
 | Topic | Doc |
 |---|---|
+| Architecture (interception strategies, runtime model) | `docs/architecture.md` |
 | Programmatic API (`sim.*`) | `docs/api.md` |
 | CLI (`forge-sim dev`, `auth`, `daemon`) | `docs/cli.md` |
 | MCP server (tools, resources, transport) | `docs/mcp.md` |

@@ -1,10 +1,10 @@
 # forge-sim
 
-This is a simulation of Atlassian's Forge remote development platform. This is for doing local Forge development in addition to being a testing library. 
+A local simulation of Atlassian's Forge platform. For development, and for tests.
 
 ## Local Development
 
-**Deploying to Forge for development sucks** Forge's edit → deploy → tunnel → wait → check cycle kills flow state. forge-sim replaces it with a local development loop.
+**Deploying to Forge for development sucks.** Edit → deploy → tunnel → wait → check. forge-sim replaces that with a local loop.
 
 ```bash
 # In your Forge app directory
@@ -13,12 +13,12 @@ npx forge-sim dev
 
 Features:
 
-- **Local UIKit dev support** — Based on Atlaskit, it's almost identical to how UIKit components will look in Jira/Confluence
-- **Hot reload** — Edit your code, see changes instantly
-- **Chrome DevTools** — Set breakpoints in your event handlers, inspect React state, use the console
-- **Real API access** — Connect your Atlassian account and `requestJira()` hits your actual site
+- **UIKit live preview** — real Atlaskit, near-identical to Jira/Confluence
+- **Hot reload** — edit, save, see it
+- **Chrome DevTools** — breakpoints, React state, the console
+- **Real API access** — connect your Atlassian account and `requestJira()` hits your real site
 - **Built-in dev tools** — KVS browser, SQL console, log viewer, event triggers at `localhost:5173/__tools/`
-- **Persistent state** — KVS and SQL data survive restarts. `--clean` to start fresh.
+- **Persistent state** — KVS and SQL survive restarts. `--clean` to start fresh.
 
 ```
 🔥 forge-sim dev server running!
@@ -40,19 +40,13 @@ Features:
 npx forge-sim auth
 ```
 
-Enter your site URL, email, and [API token](https://id.atlassian.com/manage-profile/security/api-tokens). Now `requestJira()`, `requestConfluence()`, and `requestBitbucket()` return real data. Mock specific endpoints while using real APIs for everything else:
-
-```typescript
-sim.mockProductRoutes('jira', {
-  'POST /rest/api/3/issue': { id: '10001', key: 'TEST-1' },
-});
-```
+Enter your site URL, email, and [API token](https://id.atlassian.com/manage-profile/security/api-tokens). `requestJira()`, `requestConfluence()`, and `requestBitbucket()` now hit your site for real.
 
 ### Proxy mode for Custom UI
 
-Already optimized Custom UI pages referenced in your manifest should just work out of the box. 
+Custom UI pages referenced in your manifest work out of the box.
 
-When you're in the middle of development you typically will have a webpack, Vite, or Parcel dev setup for your Custom UI page. For this situation Use `--proxy`:
+If your Custom UI has its own webpack/Vite/Parcel dev server, run forge-sim in front of it with `--proxy`:
 
 ```bash
 # Start your webpack, Vite, or Parcel dev server as usual
@@ -69,7 +63,7 @@ forge-sim sits in front of your dev server and:
 - **Intercepts forge-sim routes** (`/__tools/*`, `/__forge/*`) before proxying
 - **Bakes in the module key** so endpoint resolution works automatically
 
-Your existing dev workflow stays exactly the same — forge-sim just adds a local Forge runtime .
+Your dev workflow stays the same — forge-sim just wraps it with a local Forge runtime.
 
 ```
 🔥 forge-sim dev (proxy mode)
@@ -103,21 +97,10 @@ modules:
         path: /api/v1
 ```
 
-forge-sim signs every remote request with a **FIT (Forge Invocation Token)** — an RS256 JWT matching the [Forge Remote Invocation Contract](https://developer.atlassian.com/platform/forge/forge-remote-invocation-contract/). Your backend validates it against the local JWKS endpoint:
+Every remote request is signed with a **FIT** (Forge Invocation Token) — an RS256 JWT per the [Forge Remote Invocation Contract](https://developer.atlassian.com/platform/forge/forge-remote-invocation-contract/). Your backend validates it against the local JWKS endpoint:
 
 ```
 http://localhost:5173/__forge/jwks.json
-```
-
-For testing, mock remote responses without a real backend:
-
-```typescript
-sim.mockProductRoutes('my-backend', {
-  'GET /api/v1/tasks': [{ id: 1, name: 'Write docs' }],
-  'POST /api/v1/tasks': (path, opts) => ({
-    id: 2, name: JSON.parse(opts?.body).name,
-  }),
-});
 ```
 
 See [Remotes documentation](./docs/remotes.md) for the full guide — FIT claims, key persistence, backend validation, and error handling.
@@ -134,19 +117,11 @@ npx forge-sim auth --provider google
 npx forge-sim auth --providers
 ```
 
-In mock mode (the default), just register mock routes — no tokens needed:
-
-```typescript
-sim.mockProductRoutes('google-apis', {
-  'GET /userinfo/v2/me': { id: '12345', email: 'test@gmail.com' },
-});
-```
-
 ---
 
 ## 🧪 Integration Testing
 
-**Self contained Unit\Integration tests without relying on remote deployment.** 
+**Self-contained unit and integration tests — no remote deployment, no mocked imports.** 
 
 Test your resolvers, queues, triggers, KVS, and SQL against an actual simulated runtime — not mocked function calls.
 
@@ -208,7 +183,38 @@ const views = await sim.kvs.get('views:PROJ-42');
 expect(views).toBe(1);
 ```
 
-This allows a **full integration test of your UI** — resolvers fire, KVS updates, queues process, and the ForgeDoc tree reflects the result. No mocking, no browser automation.
+A **full integration test of your UI** — resolvers fire, KVS updates, queues process, and the ForgeDoc tree reflects the result. No mocks, no browser automation.
+
+### Mock external services
+
+Same API for product APIs, your own remotes, third-party OAuth providers, and GraphQL:
+
+```typescript
+// Product APIs (Jira, Confluence, Bitbucket)
+sim.mockProductRoutes('jira', {
+  'POST /rest/api/3/issue': { id: '10001', key: 'TEST-1' },
+});
+
+// Your Forge Remotes — by manifest key, no real backend needed
+sim.mockProductRoutes('my-backend', {
+  'GET /api/v1/tasks': [{ id: 1, name: 'Write docs' }],
+  'POST /api/v1/tasks': (path, opts) => ({
+    id: 2, name: JSON.parse(opts?.body).name,
+  }),
+});
+
+// Third-party OAuth providers (asUser().withProvider())
+sim.mockProductRoutes('google-apis', {
+  'GET /userinfo/v2/me': { id: '12345', email: 'test@gmail.com' },
+});
+
+// GraphQL operations
+sim.mockGraphQL({
+  GetCurrentUser: { data: { me: { accountId: 'abc-123' } } },
+});
+```
+
+Mocks take priority; unmocked routes fall through to a real API if one is connected via `forge-sim auth`.
 
 ---
 
@@ -234,7 +240,7 @@ forge-sim sql "SELECT * FROM objectives"
 forge-sim logs
 ```
 
-**Zero setup for the AI.** No server to start, no ports to configure. The first command auto-starts a background daemon. State persists across calls. The daemon auto-exits after 30 minutes of inactivity.
+**Zero setup for the AI.** First command auto-starts a background daemon. State persists across calls. Daemon auto-exits after 30 min idle.
 
 ### MCP Server
 
@@ -314,7 +320,7 @@ const sim = createSimulator();
 await sim.deploy('./my-forge-app');  // Auto-registers @forge/* loader hooks
 ```
 
-`deploy()` automatically registers Node.js loader hooks that intercept `@forge/*` imports and redirect them to forge-sim's shims. Your app code doesn't know the difference. No `--import` flag needed.
+`deploy()` registers Node.js loader hooks that redirect `@forge/*` imports to forge-sim's shims. Your app code doesn't know the difference.
 
 ---
 
@@ -334,6 +340,7 @@ npm install -g forge-sim
 
 See [docs/](./docs/) for the full reference:
 
+- [Architecture](./docs/architecture.md) — How forge-sim intercepts `@forge/*` imports and bridges
 - [CLI Reference](./docs/cli.md) — All commands and options
 - [Authentication](./docs/auth.md) — API tokens, OAuth, external auth providers, credential management
 - [Forge Remotes](./docs/remotes.md) — External backends, FIT JWT auth, JWKS endpoint, mock routing
