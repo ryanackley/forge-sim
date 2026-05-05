@@ -5,8 +5,8 @@ Complete mapping of every Forge API, hook, component, and platform feature again
 **Last updated:** 2026-05-03
 
 <!-- BEGIN:STATS -->
-**1,207 tests** across **63** test files
-(1,095 core / 61 files
+**1,228 tests** across **64** test files
+(1,116 core / 62 files
 + 112 renderer / 2 files)
 
 **28 MCP tools** + **4 resources**
@@ -224,7 +224,7 @@ UIKit components and hooks. The reconciler produces ForgeDoc.
 | Hook | Status | Tests | Notes |
 |------|--------|-------|-------|
 | `useProductContext()` | ✅ | — | Re-exported from real package |
-| `useConfig()` | ✅ | — | Re-exported from real package |
+| `useConfig()` | ✅ | `macro-config.test.ts` | Re-exported from real package; reads `extension.config` from context. Dev server injects stored config from macro `--config` viewSubmit payloads. |
 | `useTheme()` | ✅ | — | Re-exported from real package |
 | `usePermissions()` | ✅ | — | Re-exported from real package |
 | `useIssueProperty(key, init)` | ✅ | — | Re-exported from real package; routes through bridge shim → PropertyStore |
@@ -526,7 +526,7 @@ Module types recognized by forge-sim manifest parser.
 | `confluence:contentAction` | ✅ | Parsed and renderable |
 | `confluence:contentBylineItem` | ✅ | Parsed and renderable |
 | `confluence:contextMenu` | ✅ | Parsed and renderable |
-| `macro` | ✅ | Confluence macro |
+| `macro` | ✅ | Confluence macro — view + custom config sub-module (`config: { resource: '...' }`) with View/Config tabs, viewSubmit-driven config save, `useConfig()` reads `extension.config`. Inline config (`config: true`) emits a parity note (info-level warning). |
 
 ### Parsed but Not Rendered
 

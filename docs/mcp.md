@@ -45,7 +45,7 @@ For MCP clients that support stdio servers, add to your `.mcp.json`:
 ## Tools
 
 <!-- BEGIN:STATS_COMPACT -->
-1,207 tests · 28 MCP tools · 4 MCP resources
+1,228 tests · 28 MCP tools · 4 MCP resources
 <!-- END:STATS_COMPACT -->
 
 | Tool | Description |

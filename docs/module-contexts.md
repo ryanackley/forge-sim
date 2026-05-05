@@ -252,6 +252,47 @@ Renders inline in Confluence content.
 
 **Note:** Macro config comes from the `config` property defined in `manifest.yml`. Users set these values when inserting or editing the macro.
 
+#### Custom config (`config: { resource: '...' }`)
+
+When a macro declares a `config.resource`, forge-sim parses it as a separate sub-module
+and renders the macro page with **View / Config tabs**:
+
+```yaml
+modules:
+  macro:
+    - key: pet-info
+      title: Pet Info
+      resource: main
+      render: native
+      config:
+        resource: config-bundle
+        render: native
+```
+
+- The **View** tab renders `resource: main` exactly like a normal macro.
+- The **Config** tab renders `resource: config-bundle` — typically a `<Form>` with named
+  fields (`<Textfield name="age" />`, etc.).
+- Submitting the config form (`view.submit()` or pressing the Save button) stores the
+  payload as the macro's saved config, scoped to the macro's base key.
+- `useConfig()` from `@forge/react` reads `extension.config` from the context. After a
+  save, the View tab reloads so the hook returns the new values.
+
+The picker groups these as a single row under the macro's base key. URLs:
+
+- `/module/<key>/` — combined View + Config page
+- `/module/<key>--view/` — view iframe (used internally by the combined page)
+- `/module/<key>--config/` — config iframe (used internally by the combined page)
+
+#### Inline config (`config: true` or `config: {}`)
+
+When a macro uses simple/inline config — registered at runtime via
+`ForgeReconciler.addConfig(<Config />)` from the same bundle as the main view —
+forge-sim emits an info-level parity note. The macro view still renders, and
+`useConfig()` resolves to the stored config object (or `{}` if nothing has been
+saved), but the inline config form itself is not yet rendered as a separate page in
+this version. For an editable Config UI, use the custom-config form
+(`config: { resource: '...' }`) above.
+
 ---
 
 ### `confluence:spacePage`

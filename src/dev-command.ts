@@ -658,6 +658,138 @@ export function generateCustomFieldPageHtml(
 }
 
 /**
+ * Generate a combined macro page with View/Config tabs.
+ * View tab shows the rendered macro; Config tab shows the editable form.
+ * When the config iframe calls view.submit(), the dev server captures the
+ * payload, stores it as the macro's config, and broadcasts a macroConfigUpdate
+ * WS message that triggers the parent to switch back to the view tab and
+ * reload it (so useConfig() picks up the new values).
+ */
+export function generateMacroPageHtml(
+  baseKey: string,
+  title: string,
+  hasView: boolean,
+  hasConfig: boolean,
+  wsPort: number,
+  warnings?: string[],
+): string {
+  const warningBanner = warnings && warnings.length > 0
+    ? `<div style="background:#FFFAE6;border:1px solid #FF991F;border-radius:4px;padding:12px 16px;margin-bottom:16px">
+        <div style="font-weight:600;color:#172B4D;font-size:13px;margin-bottom:4px">⚠️ Parity Note</div>
+        ${warnings.map((w) => `<div style="font-size:13px;color:#505F79;margin-top:4px">${w}</div>`).join('')}
+      </div>`
+    : '';
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>${title} — forge-sim</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; }
+    body { background: #f4f5f7; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    .cf-header { background: #fff; border-bottom: 1px solid #DFE1E6; padding: 16px 24px; }
+    .cf-title { font-size: 18px; font-weight: 600; color: #172B4D; }
+    .cf-subtitle { font-size: 13px; color: #6B778C; margin-top: 4px; }
+    .cf-tabs { display: flex; gap: 0; margin-top: 12px; }
+    .cf-tab { padding: 8px 20px; font-size: 14px; font-weight: 600; border: 1px solid #DFE1E6; cursor: pointer; background: #FAFBFC; color: #505F79; transition: all 0.15s; }
+    .cf-tab:first-child { border-radius: 4px 0 0 4px; }
+    .cf-tab:last-child { border-radius: 0 4px 4px 0; }
+    .cf-tab.active { background: #0052CC; color: #fff; border-color: #0052CC; }
+    .cf-tab:hover:not(.active) { background: #EBECF0; }
+    .cf-frame { width: 100%; border: none; min-height: 200px; }
+    .cf-container { padding: 24px; }
+    .cf-badge { display: inline-block; background: #36B37E; color: #fff; padding: 2px 8px; border-radius: 3px; font-size: 12px; margin-left: 8px; }
+    .cf-back { font-size: 13px; color: #0052CC; text-decoration: none; margin-bottom: 12px; display: inline-block; }
+    .cf-back:hover { text-decoration: underline; }
+    .cf-save { margin-left: auto; padding: 6px 16px; font-size: 13px; font-weight: 600; background: #00875A; color: #fff; border: none; border-radius: 4px; cursor: pointer; transition: background 0.15s; }
+    .cf-save:hover { background: #006644; }
+  </style>
+</head>
+<body>
+  <div class="cf-header">
+    <a href="/" class="cf-back">← Back to modules</a>
+    <div>
+      <span class="cf-title">${baseKey}</span>
+      <span class="cf-badge">Macro</span>
+    </div>
+    <div class="cf-subtitle">${title}</div>
+    ${hasView && hasConfig ? `
+    <div class="cf-tabs">
+      <button class="cf-tab active" data-mode="view" onclick="switchTab('view')">View</button>
+      <button class="cf-tab" data-mode="config" onclick="switchTab('config')">Config</button>
+      <button id="cf-save-btn" class="cf-save" style="display:none" onclick="triggerSubmit()">💾 Save</button>
+    </div>` : ''}
+  </div>
+  <div class="cf-container">
+    ${warningBanner}
+    ${hasView ? `<iframe id="cf-view" class="cf-frame" src="/module/${baseKey}--view/"></iframe>` : ''}
+    ${hasConfig ? `<iframe id="cf-config" class="cf-frame" data-src="/module/${baseKey}--config/" ${hasView ? 'src="about:blank" style="display:none"' : `src="/module/${baseKey}--config/"`}></iframe>` : ''}
+  </div>
+  <script>
+    // Defer config iframe loading until view finishes — prevents Vite's
+    // dep optimizer from racing when two iframes load simultaneously
+    var viewFrame = document.getElementById('cf-view');
+    var configFrame = document.getElementById('cf-config');
+    if (viewFrame && configFrame && configFrame.src === 'about:blank') {
+      viewFrame.addEventListener('load', function() {
+        var realSrc = configFrame.getAttribute('data-src');
+        if (realSrc) configFrame.src = realSrc;
+      });
+    }
+
+    var currentTab = '${hasView ? 'view' : 'config'}';
+
+    function switchTab(mode) {
+      currentTab = mode;
+      var viewFrame = document.getElementById('cf-view');
+      var configFrame = document.getElementById('cf-config');
+      var tabs = document.querySelectorAll('.cf-tab');
+      tabs.forEach(function(t) {
+        t.classList.toggle('active', t.getAttribute('data-mode') === mode);
+      });
+      if (viewFrame) viewFrame.style.display = mode === 'view' ? '' : 'none';
+      if (configFrame) configFrame.style.display = mode === 'config' ? '' : 'none';
+      var saveBtn = document.getElementById('cf-save-btn');
+      if (saveBtn) saveBtn.style.display = mode === 'config' ? '' : 'none';
+    }
+
+    function triggerSubmit() {
+      var configFrame = document.getElementById('cf-config');
+      if (configFrame && configFrame.contentWindow) {
+        configFrame.contentWindow.postMessage({ type: 'forge-sim-trigger-submit' }, '*');
+      }
+    }
+
+    // Listen for macroConfigUpdate from dev server via WS
+    var ws = new WebSocket('ws://localhost:${wsPort}');
+    ws.onmessage = function(event) {
+      try {
+        var msg = JSON.parse(event.data);
+        if (msg.type === 'macroConfigUpdate' && msg.macroKey === '${baseKey}') {
+          // Switch to view tab and reload view iframe to pick up new config
+          switchTab('view');
+          var viewFrame = document.getElementById('cf-view');
+          if (viewFrame) viewFrame.src = viewFrame.src; // reload
+        }
+      } catch(e) {}
+    };
+
+    // Auto-resize iframes
+    window.addEventListener('message', function(e) {
+      if (e.data && e.data.type === 'resize') {
+        var frame = e.source === document.getElementById('cf-view')?.contentWindow
+          ? document.getElementById('cf-view')
+          : document.getElementById('cf-config');
+        if (frame && e.data.height) frame.style.height = e.data.height + 'px';
+      }
+    });
+  </script>
+</body>
+</html>`;
+}
+
+/**
  * Generate a combined workflow module page with Create/Edit/View tabs.
  * Similar to custom field combined page but with three config views.
  */
@@ -811,10 +943,20 @@ export function generateModulePickerHtml(modules: DetectedModule[]): string {
   // Group custom field view/edit sub-modules together
   const CUSTOM_FIELD_TYPES = new Set(['jira:customField', 'jira:customFieldType']);
   const WORKFLOW_TYPES = new Set(['jira:workflowCondition', 'jira:workflowValidator', 'jira:workflowPostFunction']);
-  const GROUPED_TYPES = new Set([...CUSTOM_FIELD_TYPES, ...WORKFLOW_TYPES]);
   const customFieldModules = uiModules.filter((m) => CUSTOM_FIELD_TYPES.has(m.module.type));
   const workflowModules = uiModules.filter((m) => WORKFLOW_TYPES.has(m.module.type));
-  const regularModules = uiModules.filter((m) => !GROUPED_TYPES.has(m.module.type));
+  // Macros only get grouped when they have view+config sub-modules (--view / --config suffix).
+  // Flat macros (no config, or inline config) stay in the regular module list.
+  const macroModulesWithConfig = uiModules.filter((m) =>
+    m.module.type === 'macro' &&
+    (m.module.viewMode === 'view' || m.module.viewMode === 'config'),
+  );
+  const groupedKeys = new Set<string>([
+    ...customFieldModules.map((m) => m.module.key),
+    ...workflowModules.map((m) => m.module.key),
+    ...macroModulesWithConfig.map((m) => m.module.key),
+  ]);
+  const regularModules = uiModules.filter((m) => !groupedKeys.has(m.module.key));
 
   // Group custom fields by base key (strip --view/--edit suffix)
   const cfGroups = new Map<string, { view?: DetectedModule; edit?: DetectedModule; type: string; title: string; fieldType?: string }>();
@@ -842,6 +984,19 @@ export function generateModulePickerHtml(modules: DetectedModule[]): string {
     if (m.module.viewMode === 'create') group.create = m;
     else if (m.module.viewMode === 'edit') group.edit = m;
     else if (m.module.viewMode === 'view') group.view = m;
+  }
+
+  // Group macro view/config sub-modules together by base key
+  const macroGroups = new Map<string, { view?: DetectedModule; config?: DetectedModule; title: string }>();
+  for (const m of macroModulesWithConfig) {
+    const baseKey = m.module.key.replace(/--(?:view|config)$/, '');
+    if (!macroGroups.has(baseKey)) {
+      const baseTitle = (m.module.title || baseKey).replace(/ \((?:View|Config)\)$/, '');
+      macroGroups.set(baseKey, { title: baseTitle });
+    }
+    const group = macroGroups.get(baseKey)!;
+    if (m.module.viewMode === 'view') group.view = m;
+    else if (m.module.viewMode === 'config') group.config = m;
   }
 
   const regularRows = regularModules.map((m) => {
@@ -917,7 +1072,27 @@ export function generateModulePickerHtml(modules: DetectedModule[]): string {
       </a>`;
   }).join('');
 
-  const rows = regularRows + cfRows + wfRows;
+  // Macro rows — link to combined view/config page
+  const macroRows = [...macroGroups.entries()].map(([baseKey, group]) => {
+    const macroBadge = `<span style="background:#36B37E;color:#fff;padding:2px 8px;border-radius:3px;font-size:12px">Macro</span>`;
+    const hasView = !!group.view;
+    const hasConfig = !!group.config;
+    const modes = [hasView ? 'view' : '', hasConfig ? 'config' : ''].filter(Boolean).join(' + ');
+
+    return `
+      <a href="/module/${baseKey}/" style="display:block;padding:16px 20px;border:1px solid #DFE1E6;border-radius:8px;margin-bottom:12px;text-decoration:none;color:inherit;transition:box-shadow 0.15s">
+        <div style="display:flex;align-items:center;gap:12px">
+          <div style="flex:1">
+            <div style="font-size:16px;font-weight:600;color:#172B4D">${baseKey}</div>
+            <div style="font-size:13px;color:#6B778C;margin-top:4px">macro — ${group.title}</div>
+            <div style="font-size:12px;color:#97A0AF;margin-top:4px">${modes}</div>
+          </div>
+          ${macroBadge}
+        </div>
+      </a>`;
+  }).join('');
+
+  const rows = regularRows + cfRows + wfRows + macroRows;
 
   // Show background scripts in a separate section if they exist but aren't linked to any UI module
   const orphanBg = bgModules.filter((bg) => {
@@ -934,7 +1109,7 @@ export function generateModulePickerHtml(modules: DetectedModule[]): string {
       </div>`
     : '';
 
-  const uiCount = regularModules.length + cfGroups.size + wfGroups.size;
+  const uiCount = regularModules.length + cfGroups.size + wfGroups.size + macroGroups.size;
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -1025,6 +1200,21 @@ export function installModuleRouting(
     else if (m.module.viewMode === 'view') group.view = m;
   }
 
+  // Build macro groups for combined view/config page routing
+  const macroGroups = new Map<string, { view?: DetectedModule; config?: DetectedModule; title: string }>();
+  for (const m of modules) {
+    if (m.module.type !== 'macro') continue;
+    if (m.module.viewMode !== 'view' && m.module.viewMode !== 'config') continue;
+    const baseKey = m.module.key.replace(/--(?:view|config)$/, '');
+    if (!macroGroups.has(baseKey)) {
+      const baseTitle = (m.module.title || baseKey).replace(/ \((?:View|Config)\)$/, '');
+      macroGroups.set(baseKey, { title: baseTitle });
+    }
+    const group = macroGroups.get(baseKey)!;
+    if (m.module.viewMode === 'view') group.view = m;
+    else if (m.module.viewMode === 'config') group.config = m;
+  }
+
   const middleware = (req: any, res: any, next: any) => {
     const url = new URL(req.url ?? '/', 'http://localhost');
 
@@ -1073,6 +1263,24 @@ export function installModuleRouting(
           !!wfGroup.edit,
           !!wfGroup.view,
           wsPort || 5174,
+        ));
+        return;
+      }
+
+      // Check if this is a macro base key (combined view/config page)
+      const macroGroup = macroGroups.get(key);
+      if (macroGroup && (rest === '/' || rest === '/index.html')) {
+        res.writeHead(200, { 'Content-Type': 'text/html', 'Content-Language': 'en', 'Cache-Control': 'no-cache' });
+        const macroWarnings = (manifestWarnings || [])
+          .filter((w) => w.message.includes(`"${key}"`))
+          .map((w) => w.message);
+        res.end(generateMacroPageHtml(
+          key,
+          macroGroup.title,
+          !!macroGroup.view,
+          !!macroGroup.config,
+          wsPort || 5174,
+          macroWarnings,
         ));
         return;
       }

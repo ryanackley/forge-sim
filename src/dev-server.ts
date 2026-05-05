@@ -130,6 +130,10 @@ export function createDevServer(options: DevServerOptions = {}): DevServer {
   // ── Custom field value store (persists across view/edit tab switches) ──
   const fieldValues = new Map<string, any>();
 
+  // ── Macro config store (persists across view/config tab switches) ─────
+  // Keyed by macro base key; value is the saved config object.
+  const macroConfigs = new Map<string, Record<string, any>>();
+
   // ── Realtime event push (backend → browser over WS) ────────────────
   if (simulator?.realtime) {
     simulator.realtime.onPublish((event) => {
@@ -266,6 +270,11 @@ export function createDevServer(options: DevServerOptions = {}): DevServer {
           if (cfBaseKey !== reqModuleKey && fieldValues.has(cfBaseKey)) {
             ctx.extension.fieldValue = fieldValues.get(cfBaseKey);
           }
+          // Inject stored config for macro modules (view sub-module or flat key)
+          const macroBaseKey = reqModuleKey.replace(/--(?:view|config)$/, '');
+          if (macroConfigs.has(macroBaseKey)) {
+            ctx.extension.config = macroConfigs.get(macroBaseKey);
+          }
           return ctx;
         }
 
@@ -295,6 +304,27 @@ export function createDevServer(options: DevServerOptions = {}): DevServer {
                 type: 'fieldValueUpdate',
                 fieldKey: baseKey,
                 value: submittedValue,
+              }));
+            }
+          }
+        }
+        // For macro config modules, store the submitted config object
+        if (submitModuleKey && submitModuleKey.endsWith('--config')) {
+          const baseKey = submitModuleKey.replace(/--config$/, '');
+          const submittedConfig = (params?.payload && typeof params.payload === 'object')
+            ? params.payload
+            : {};
+          macroConfigs.set(baseKey, submittedConfig);
+          console.log(`[dev-server] Macro "${baseKey}" config updated:`, submittedConfig);
+          // Broadcast to clients viewing this macro (view/config sub-modules or the parent page)
+          for (const client of clients) {
+            if (client.readyState !== WebSocket.OPEN) continue;
+            const clientKey = clientModuleKeys.get(client);
+            if (!clientKey || clientKey.startsWith(baseKey)) {
+              client.send(JSON.stringify({
+                type: 'macroConfigUpdate',
+                macroKey: baseKey,
+                config: submittedConfig,
               }));
             }
           }

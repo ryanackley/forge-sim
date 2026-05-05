@@ -128,7 +128,7 @@ These all follow the **UI + Resolver** or **UI + Custom UI** pattern. They have 
 | `confluence:contentAction` | ✅ Full | `content: { id }, space: { key, id }` | More actions menu on pages/blogs |
 | `confluence:contentBylineItem` | ✅ Full | `content: { id }, space: { key, id }` | Content byline metadata |
 | `confluence:contextMenu` | ✅ Full | `content: { id }, space: { key, id }` | Text selection context menu |
-| `macro` | ✅ Full | `content: { id }, space: { key }` | Confluence macro. Full support. |
+| `macro` | ✅ Full | `content: { id }, space: { key }, config: {} ` | Confluence macro. View + custom config UI. `config: { resource: '...' }` splits into View / Config tabs; `useConfig()` returns the saved object. Inline config (`config: true` or `config: {}` without a resource) is parsed and surfaced as a parity note — `useConfig()` still resolves but the inline `addConfig()` form is not yet rendered as a separate page. |
 | `confluence:spaceSettings` | ⚠️ Partial | Generic | Parsed as UI module. No space-settings-specific context. |
 | `confluence:globalSettings` | ⚠️ Partial | Generic | Parsed as UI module. No global-settings-specific context. |
 | `confluence:spaceSidebar` | ⚠️ Partial | Generic | Parsed as UI module if it has `resource:`. |

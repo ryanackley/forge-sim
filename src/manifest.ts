@@ -10,7 +10,7 @@ import { readFile } from 'fs/promises';
 import type { ForgeManifest, ManifestModule, ManifestRemote, ManifestEndpoint, ManifestAuthProvider } from './types.js';
 
 export interface ManifestWarning {
-  level: 'error' | 'warning';
+  level: 'error' | 'warning' | 'info';
   message: string;
 }
 
@@ -94,14 +94,17 @@ export interface ManifestUIModule {
   /** For jira:globalBackgroundScript — which experiences this script runs on */
   experience?: string[];
   // ── Custom Field Properties ──
-  /** For jira:customField / jira:customFieldType sub-modules */
-  viewMode?: 'view' | 'edit' | 'create';
+  /** For jira:customField / jira:customFieldType / macro sub-modules */
+  viewMode?: 'view' | 'edit' | 'create' | 'config';
   /** The data type of the custom field (number, string, user, etc.) */
   fieldType?: string;
   /** The key of the value function (computes field value from issue data) */
   valueFunctionKey?: string;
   /** Whether the field is read-only */
   readOnly?: boolean;
+  // ── Macro Properties ──
+  /** For macro modules: true if the manifest uses simple/inline config (config: true or config: {} without resource) */
+  inlineMacroConfig?: boolean;
 }
 
 /** Module types where `icon` is required per the Forge manifest schema */
@@ -540,6 +543,78 @@ export function parseManifestContent(content: string): ParsedManifest {
               `In Jira, this field will render the built-in edit control instead of your custom edit UI. ` +
               `Add edit.experience (e.g. ["issue-view", "issue-create", "issue-transition"]) to your manifest.`,
           });
+        }
+      }
+      continue;
+    }
+
+    // ── Macro modules: extract optional config sub-module ──
+    // Macros without config keep their flat module shape (key = mod.key).
+    // Macros with `config.resource` split into --view + --config sub-modules,
+    // mirroring the custom field view/edit pattern.
+    if (moduleType === 'macro') {
+      for (const mod of moduleDefs as any[]) {
+        if (!mod.key) continue;
+        const baseTitle = typeof mod.title === 'string'
+          ? mod.title
+          : (mod.title?.i18n || mod.key);
+        const resolverFunctionKey = mod.resolver?.function;
+        const endpointKey = mod.resolver?.endpoint;
+
+        const configField = mod.config;
+        const configResource = configField && typeof configField === 'object' ? configField.resource : undefined;
+        const hasInlineConfig = configField === true ||
+          (configField && typeof configField === 'object' && !configResource);
+
+        if (configResource && mod.resource) {
+          // Custom config: split into --view + --config sub-modules
+          uiModules.push({
+            type: moduleType,
+            key: `${mod.key}--view`,
+            title: `${baseTitle} (View)`,
+            resolverFunctionKey,
+            endpointKey,
+            resourceKey: mod.resource,
+            viewMode: 'view',
+            icon: mod.icon,
+          });
+          uiModules.push({
+            type: moduleType,
+            key: `${mod.key}--config`,
+            title: `${baseTitle} (Config)`,
+            resolverFunctionKey,
+            endpointKey,
+            resourceKey: configResource,
+            viewMode: 'config',
+            icon: (configField && typeof configField === 'object' ? configField.icon : undefined) || mod.icon,
+          });
+        } else if (mod.resource) {
+          // No config or inline config — keep the flat shape for backward compat
+          uiModules.push({
+            type: moduleType,
+            key: mod.key,
+            title: baseTitle,
+            resolverFunctionKey,
+            endpointKey,
+            resourceKey: mod.resource,
+            icon: mod.icon,
+            inlineMacroConfig: hasInlineConfig || undefined,
+          });
+        }
+
+        if (hasInlineConfig) {
+          warnings.push({
+            level: 'info',
+            message: `Macro "${mod.key}" uses inline config (config: ${configField === true ? 'true' : '{}'}). ` +
+              `forge-sim renders the macro view and useConfig() returns stored values, but the inline ` +
+              `ForgeReconciler.addConfig(<Config />) form is not yet rendered as a separate page. ` +
+              `Use config: { resource: '...' } for a separately-rendered config UI in forge-sim.`,
+          });
+        }
+
+        // Register resolver function if present
+        if (resolverFunctionKey && !functions.has(resolverFunctionKey)) {
+          functions.set(resolverFunctionKey, { key: resolverFunctionKey, handler: resolverFunctionKey });
         }
       }
       continue;

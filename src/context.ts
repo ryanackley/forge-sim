@@ -87,6 +87,10 @@ const CUSTOM_FIELD_TYPES = new Set([
   'jira:customField', 'jira:customFieldType',
 ]);
 
+const MACRO_TYPES = new Set([
+  'macro',
+]);
+
 /** Provide a sensible default field value based on the field's data type */
 function getDefaultFieldValue(fieldType?: string): any {
   switch (fieldType) {
@@ -213,6 +217,14 @@ export async function buildForgeContext(
   if (CUSTOM_FIELD_TYPES.has(moduleType)) {
     if (!base.extension.fieldValue) {
       base.extension.fieldValue = getDefaultFieldValue(base.extension.fieldType);
+    }
+  }
+
+  // 4b. Macro defaults — provide an empty config object so useConfig() resolves
+  // (real Forge returns the saved config; dev-server overrides this with stored values)
+  if (MACRO_TYPES.has(moduleType)) {
+    if (base.extension.config === undefined) {
+      base.extension.config = {};
     }
   }
 
@@ -378,6 +390,12 @@ export function buildDefaultContext(
     const fieldType = extraExtension?.fieldType || 'string';
     extension.fieldValue = getDefaultFieldValue(fieldType);
     extension.fieldType = fieldType;
+  }
+
+  // Enrich macro modules with an empty config so useConfig() resolves
+  // The dev-server overrides this with any stored config when serving getContext.
+  if (moduleType && MACRO_TYPES.has(moduleType)) {
+    extension.config = {};
   }
 
   if (extraExtension) {
