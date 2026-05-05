@@ -6,9 +6,17 @@ A local simulation of Atlassian's Forge platform. For development, and for tests
 
 **Deploying to Forge for development sucks.** Edit → deploy → tunnel → wait → check. forge-sim replaces that with a local loop.
 
+Deploy and run your app locally by using the `forge-sim dev` command
+
 ```bash
 # In your Forge app directory
+cd /path/to/forge/app
 npx forge-sim dev
+
+# or use npm install
+npm install -g forge-sim
+cd /path/to/forge/app
+forge-sim dev
 ```
 
 Features:
