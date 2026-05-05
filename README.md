@@ -2,8 +2,8 @@
 
 A local simulation of Atlassian's Forge platform. For development, and for tests.
 
-* **Fast local development loop.** Deploying to Forge to test every change is a subtle pain point that grows over time. Figuring out how to tunnel → Edit → deploy → wait → check. forge-sim replaces that with a local loop that supports hot reload (HMR) for both UIKit and CustomUI.
-* **Local shims for never-ending over-subscrbed EAPs** Right now this is @forge/llm. forge-sim has a local shim to use for development. There will likely be others in the future. 
+* **Fast local development loop.** Build and debug forge apps locally (i.e. no `forge deploy` or `forge tunnel`) . Deploying to Forge to test every change is a subtle pain point that grows over time. Figuring out how to tunnel → Edit → deploy → wait → check. Repeat.
+* **Local shims for never-ending over-subscrbed EAPs** Right now this is @forge/llm. forge-sim has a local shim to use for development that doesn't rely on EAP access. There will likely be others in the future. 
 * **CI/CD test support for UIKit and Forge APIs** See testing section below
 
 ## Local Development Loop
@@ -135,11 +135,11 @@ npx forge-sim auth --providers
 
 ---
 
-## 🧪 Integration Testing
+## CI\CD testing
 
-**Self-contained unit and integration tests — no remote deployment, no mocked imports.** 
+**Forge-sim test library — no dependencies on deployments or remote resources** 
 
-Test your resolvers, queues, triggers, KVS, and SQL against an actual simulated runtime — not mocked function calls.
+Test UIKit, resolvers, queues, triggers, KVS, and SQL against a headless simulated runtime.
 
 ```typescript
 import { createSimulator } from 'forge-sim';
