@@ -2,15 +2,19 @@
 
 A local simulation of Atlassian's Forge platform. For development, and for tests.
 
-## Local Development
+**Fast local development loop.** Deploying to Forge to test every change is a subtle pain point that grows over time. Figuring out how to tunnel → Edit → deploy → wait → check. forge-sim replaces that with a local loop that supports hot reload (HMR) for both UIKit and CustomUI.
 
-**Deploying to Forge for development sucks.** Edit → deploy → tunnel → wait → check. forge-sim replaces that with a local loop.
+**Local shims for never-ending over-subscrbed EAPs** Right now this is @forge/llm. forge-sim has a local shim to use for development. There will likely be others in the future. 
+
+**CI/CD test support for UIKit and Forge APIs** See testing section below
+
+## Local Development Loop
 
 Run your Forge app locally by using the `forge-sim dev` command
 
 ### Quick Start
 
-Navigate to your forge app directory and run forge-sim in dev mode. This will launch a browser tab that shows a navigable index of all of your UI modules. 
+Navigate to your forge app directory and run forge-sim in dev mode. This will launch a browser tab that shows a navigable index of all of your UI modules. Click on one to run outside of Atlassian products. 
 
 **Using npx**
 ```bash
