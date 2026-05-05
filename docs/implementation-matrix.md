@@ -5,9 +5,9 @@ Complete mapping of every Forge API, hook, component, and platform feature again
 **Last updated:** 2026-05-03
 
 <!-- BEGIN:STATS -->
-**1,228 tests** across **64** test files
-(1,116 core / 62 files
-+ 112 renderer / 2 files)
+**1,241 tests** across **67** test files
+(1,121 core / 63 files
++ 120 renderer / 4 files)
 
 **28 MCP tools** + **4 resources**
 <!-- END:STATS -->
@@ -224,7 +224,7 @@ UIKit components and hooks. The reconciler produces ForgeDoc.
 | Hook | Status | Tests | Notes |
 |------|--------|-------|-------|
 | `useProductContext()` | ✅ | — | Re-exported from real package |
-| `useConfig()` | ✅ | `macro-config.test.ts` | Re-exported from real package; reads `extension.config` from context. Dev server injects stored config from macro `--config` viewSubmit payloads. |
+| `useConfig()` | ✅ | `macro-config.test.ts`, `macro-inline-config.test.ts`, `macro-config-bridge.test.ts` | Re-exported from real package; reads `extension.config` from context. Dev server injects stored config from macro `--config` viewSubmit payloads (custom config) or `submitTree='macroConfig'`-tagged submits on flat inline-config macros. |
 | `useTheme()` | ✅ | — | Re-exported from real package |
 | `usePermissions()` | ✅ | — | Re-exported from real package |
 | `useIssueProperty(key, init)` | ✅ | — | Re-exported from real package; routes through bridge shim → PropertyStore |
@@ -526,7 +526,7 @@ Module types recognized by forge-sim manifest parser.
 | `confluence:contentAction` | ✅ | Parsed and renderable |
 | `confluence:contentBylineItem` | ✅ | Parsed and renderable |
 | `confluence:contextMenu` | ✅ | Parsed and renderable |
-| `macro` | ✅ | Confluence macro — view + custom config sub-module (`config: { resource: '...' }`) with View/Config tabs, viewSubmit-driven config save, `useConfig()` reads `extension.config`. Inline config (`config: true`) emits a parity note (info-level warning). |
+| `macro` | ✅ | Confluence macro — view + custom config sub-module (`config: { resource: '...' }`) with View/Config tabs in the parent shell, plus inline config (`config: true` / `config: {}` with `ForgeReconciler.addConfig`) rendered as in-iframe View/Config tabs from the reconciler's `MacroConfig` container. viewSubmit-driven config save (tagged with `submitTree`), `useConfig()` reads `extension.config`. |
 
 ### Parsed but Not Rendered
 

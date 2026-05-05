@@ -270,10 +270,15 @@ export function createDevServer(options: DevServerOptions = {}): DevServer {
           if (cfBaseKey !== reqModuleKey && fieldValues.has(cfBaseKey)) {
             ctx.extension.fieldValue = fieldValues.get(cfBaseKey);
           }
-          // Inject stored config for macro modules (view sub-module or flat key)
+          // Inject stored config for macro modules. Two key shapes:
+          //   - Custom config sub-modules:  "<base>--view" / "<base>--config"
+          //     → strip the suffix to find the base key
+          //   - Inline config:              flat "<key>" with stored config
           const macroBaseKey = reqModuleKey.replace(/--(?:view|config)$/, '');
           if (macroConfigs.has(macroBaseKey)) {
             ctx.extension.config = macroConfigs.get(macroBaseKey);
+          } else if (macroConfigs.has(reqModuleKey)) {
+            ctx.extension.config = macroConfigs.get(reqModuleKey);
           }
           return ctx;
         }
@@ -287,8 +292,12 @@ export function createDevServer(options: DevServerOptions = {}): DevServer {
 
       case 'viewSubmit': {
         console.log(`[dev-server] View action: ${method}`, params);
+        const submitModuleKey: string | undefined = params?.moduleKey ?? context?.moduleKey;
+        const submitTree: 'view' | 'macroConfig' = params?.submitTree === 'macroConfig'
+          ? 'macroConfig'
+          : 'view';
+
         // For custom field edit modules, store the submitted value
-        const submitModuleKey = params?.moduleKey ?? context?.moduleKey;
         if (submitModuleKey && submitModuleKey.endsWith('--edit')) {
           const baseKey = submitModuleKey.replace(/--edit$/, '');
           const submittedValue = params?.payload;
@@ -308,22 +317,37 @@ export function createDevServer(options: DevServerOptions = {}): DevServer {
             }
           }
         }
-        // For macro config modules, store the submitted config object
+
+        // Decide whether this is a macro config save:
+        //   1. Custom-config sub-module → key ends in --config
+        //   2. Inline config → flat key + bridge tagged it as 'macroConfig'
+        let macroBaseKey: string | undefined;
         if (submitModuleKey && submitModuleKey.endsWith('--config')) {
-          const baseKey = submitModuleKey.replace(/--config$/, '');
+          macroBaseKey = submitModuleKey.replace(/--config$/, '');
+        } else if (submitModuleKey && submitTree === 'macroConfig' && simulator) {
+          // Look up the manifest to confirm it's an inline-config macro
+          const manifest = simulator.getManifest?.();
+          const mod = manifest?.uiModules.find((m: any) => m.key === submitModuleKey);
+          if (mod && mod.type === 'macro' && mod.inlineMacroConfig === true) {
+            macroBaseKey = submitModuleKey;
+          }
+        }
+
+        if (macroBaseKey) {
           const submittedConfig = (params?.payload && typeof params.payload === 'object')
             ? params.payload
             : {};
-          macroConfigs.set(baseKey, submittedConfig);
-          console.log(`[dev-server] Macro "${baseKey}" config updated:`, submittedConfig);
-          // Broadcast to clients viewing this macro (view/config sub-modules or the parent page)
+          macroConfigs.set(macroBaseKey, submittedConfig);
+          console.log(`[dev-server] Macro "${macroBaseKey}" config updated:`, submittedConfig);
+          // Broadcast to clients viewing this macro (view/config sub-modules,
+          // the parent page, or the inline-config iframe itself)
           for (const client of clients) {
             if (client.readyState !== WebSocket.OPEN) continue;
             const clientKey = clientModuleKeys.get(client);
-            if (!clientKey || clientKey.startsWith(baseKey)) {
+            if (!clientKey || clientKey.startsWith(macroBaseKey)) {
               client.send(JSON.stringify({
                 type: 'macroConfigUpdate',
-                macroKey: baseKey,
+                macroKey: macroBaseKey,
                 config: submittedConfig,
               }));
             }

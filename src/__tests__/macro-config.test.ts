@@ -91,7 +91,7 @@ app:
     expect(config!.resolverFunctionKey).toBe('resolver');
   });
 
-  it('should warn (info) when config: true is used (inline addConfig)', () => {
+  it('should keep flat shape when config: true is used (inline addConfig)', () => {
     const manifest = parseManifestContent(`
 modules:
   macro:
@@ -112,11 +112,14 @@ app:
     expect(manifest.uiModules[0].key).toBe('simple');
     expect(manifest.uiModules[0].inlineMacroConfig).toBe(true);
 
+    // Inline config gets an info-level note describing how forge-sim renders it
     const info = manifest.warnings.find(
       (w) => w.message.includes('"simple"') && w.message.includes('inline config'),
     );
     expect(info).toBeDefined();
     expect(info!.level).toBe('info');
+    // Note should describe the View/Config tabs UX (no longer a "not yet supported" message)
+    expect(info!.message).toMatch(/View\/Config tabs/);
   });
 
   it('should warn (info) when config object is set without a resource', () => {

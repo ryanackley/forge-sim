@@ -287,11 +287,51 @@ The picker groups these as a single row under the macro's base key. URLs:
 
 When a macro uses simple/inline config — registered at runtime via
 `ForgeReconciler.addConfig(<Config />)` from the same bundle as the main view —
-forge-sim emits an info-level parity note. The macro view still renders, and
-`useConfig()` resolves to the stored config object (or `{}` if nothing has been
-saved), but the inline config form itself is not yet rendered as a separate page in
-this version. For an editable Config UI, use the custom-config form
-(`config: { resource: '...' }`) above.
+the Forge reconciler emits a **second** ForgeDoc tree (with `type: 'MacroConfig'`)
+alongside the main view tree. forge-sim captures both, and the renderer shell
+shows **in-iframe View / Config tabs** so you can switch between the two trees
+without reloading the bundle:
+
+```jsx
+// src/frontend/index.jsx
+import ForgeReconciler, { Label, Text, Textfield, useConfig } from '@forge/react';
+
+const Config = () => (
+  <>
+    <Label>Pet age</Label>
+    <Textfield name="age" />
+  </>
+);
+
+const App = () => {
+  const config = useConfig();
+  return <Text>{config?.age ?? 'Not configured'}</Text>;
+};
+
+ForgeReconciler.render(<App />);
+ForgeReconciler.addConfig(<Config />);
+```
+
+```yaml
+# manifest.yml
+modules:
+  macro:
+    - key: pet-info
+      title: Pet Info
+      resource: main
+      render: native
+      config: true   # or `config: {}` — inline form via addConfig()
+```
+
+- **View tab** shows the `App` tree.
+- **Config tab** shows the `Config` tree. Submitting it (`view.submit(payload)` or
+  the form's own submit handler) stores the payload and the View tab re-pulls so
+  `useConfig()` returns the new values.
+- The bridge tags inline-config submits with `submitTree: 'macroConfig'` so the
+  dev-server can route them to the inline macro config store (rather than treating
+  them as a generic viewSubmit).
+- The picker shows the macro as a flat row with an "inline macro config" hint;
+  no separate URLs for the trees — they live together at `/module/<key>/`.
 
 ---
 

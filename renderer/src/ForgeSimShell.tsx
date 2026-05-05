@@ -16,7 +16,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import AppProvider, { useSetColorMode } from '@atlaskit/app-provider';
 import '@atlaskit/css-reset';
 import { ForgeDocRenderer } from './ForgeDocRenderer';
-import { onReconcile, view } from './bridge/forge-bridge-shim';
+import { onReconcile, onMacroConfigReconcile, setActiveSubmitTree, view } from './bridge/forge-bridge-shim';
 
 // ---------------------------------------------------------------------------
 // Width presets — mirror the real widths Forge uses across product surfaces.
@@ -529,8 +529,77 @@ interface ShellInnerProps {
   initialColorMode: ColorMode;
 }
 
+// ---------------------------------------------------------------------------
+// Macro inline config tabs — only rendered when ForgeReconciler.addConfig()
+// has produced a config tree alongside the main view tree.
+// ---------------------------------------------------------------------------
+
+interface MacroInlineConfigTabsProps {
+  activeTab: 'view' | 'config';
+  onTabChange: (tab: 'view' | 'config') => void;
+}
+
+function MacroInlineConfigTabs({ activeTab, onTabChange }: MacroInlineConfigTabsProps) {
+  const tabStyle = (active: boolean): React.CSSProperties => ({
+    padding: '6px 16px',
+    fontSize: '13px',
+    fontWeight: 600,
+    border: '1px solid var(--ds-border, #dfe1e6)',
+    cursor: 'pointer',
+    background: active
+      ? 'var(--ds-background-selected, #0c66e4)'
+      : 'var(--ds-background-neutral-subtle, #fafbfc)',
+    color: active
+      ? 'var(--ds-text-inverse, #fff)'
+      : 'var(--ds-text-subtle, #6b778c)',
+    transition: 'all 0.12s ease',
+    fontFamily: 'inherit',
+  });
+
+  return (
+    <div
+      data-forge-sim-macro-tabs
+      style={{
+        display: 'flex',
+        gap: 0,
+        marginBottom: 16,
+        borderBottom: '1px solid var(--ds-border, #f4f5f7)',
+        paddingBottom: 12,
+      }}
+    >
+      <button
+        onClick={() => onTabChange('view')}
+        style={{ ...tabStyle(activeTab === 'view'), borderRadius: '4px 0 0 4px' }}
+      >
+        View
+      </button>
+      <button
+        onClick={() => onTabChange('config')}
+        style={{ ...tabStyle(activeTab === 'config'), borderRadius: '0 4px 4px 0', borderLeft: 'none' }}
+      >
+        Config
+      </button>
+      <span
+        style={{
+          marginLeft: 'auto',
+          fontSize: '11px',
+          color: 'var(--ds-text-subtle, #6b778c)',
+          alignSelf: 'center',
+          fontFamily: 'monospace',
+        }}
+      >
+        inline macro config
+      </span>
+    </div>
+  );
+}
+
 function ShellInner({ initialColorMode }: ShellInnerProps) {
   const [doc, setDoc] = useState<any>(null);
+  // Macro inline config: a separate ForgeDoc tree emitted by
+  // ForgeReconciler.addConfig(<Config />). Null until the app calls addConfig.
+  const [macroConfigDoc, setMacroConfigDoc] = useState<any>(null);
+  const [macroTab, setMacroTab] = useState<'view' | 'config'>('view');
   const [renderCount, setRenderCount] = useState(0);
 
   // Width prefs
@@ -566,7 +635,7 @@ function ShellInner({ initialColorMode }: ShellInnerProps) {
     };
   }, [colorMode]);
 
-  // Listen for ForgeDoc updates
+  // Listen for ForgeDoc updates — main view tree
   useEffect(() => {
     const unbind = onReconcile((forgeDoc: any) => {
       setDoc(forgeDoc);
@@ -574,6 +643,22 @@ function ShellInner({ initialColorMode }: ShellInnerProps) {
     });
     return unbind;
   }, []);
+
+  // Listen for ForgeDoc updates — macro inline config tree
+  useEffect(() => {
+    const unbind = onMacroConfigReconcile((forgeDoc: any) => {
+      setMacroConfigDoc(forgeDoc);
+      setRenderCount((n) => n + 1);
+    });
+    return unbind;
+  }, []);
+
+  // Tell the bridge which tree the next view.submit() is coming from.
+  // Setting this on every tab switch (and on mount when only view is present)
+  // ensures inline-config submits get routed to the macro config store.
+  useEffect(() => {
+    setActiveSubmitTree(macroTab === 'config' ? 'macroConfig' : 'view');
+  }, [macroTab]);
 
   // Resolve module type once on mount, then set default width if user hasn't
   // explicitly chosen one.
@@ -643,6 +728,13 @@ function ShellInner({ initialColorMode }: ShellInnerProps) {
     );
   }
 
+  // When a macro uses inline config (ForgeReconciler.addConfig), we get a
+  // second ForgeDoc tree. Show tabs so the user can switch between View and
+  // Config in the same iframe — matches how Confluence's macro editor toggles
+  // the macro view vs its config dialog.
+  const hasInlineMacroConfig = macroConfigDoc != null;
+  const activeDoc = hasInlineMacroConfig && macroTab === 'config' ? macroConfigDoc : doc;
+
   return (
     <>
       {/* Page background — flips with color mode via token */}
@@ -668,7 +760,13 @@ function ShellInner({ initialColorMode }: ShellInnerProps) {
             transition: 'max-width 120ms ease, background 120ms ease',
           }}
         >
-          <ForgeDocRenderer doc={doc} />
+          {hasInlineMacroConfig && (
+            <MacroInlineConfigTabs
+              activeTab={macroTab}
+              onTabChange={setMacroTab}
+            />
+          )}
+          <ForgeDocRenderer doc={activeDoc} />
         </div>
       </div>
 

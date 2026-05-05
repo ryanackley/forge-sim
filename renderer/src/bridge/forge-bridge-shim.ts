@@ -38,9 +38,16 @@ if (!G.__forgeSim) {
     wsUrl: 'ws://localhost:5174',
     pendingRequests: new Map<string, { resolve: (v: any) => void; reject: (e: any) => void }>(),
     requestCounter: 0,
-    // Reconcile
+    // Reconcile — main view tree (ForgeReconciler.render(<App />))
     reconcileListeners: [] as ReconcileListener[],
     lastForgeDoc: null as any,
+    // Reconcile — macro config tree (ForgeReconciler.addConfig(<Config />))
+    macroConfigReconcileListeners: [] as ReconcileListener[],
+    lastMacroConfigDoc: null as any,
+    /** True once a 'submit' bridge call originates from the macro config tree.
+     * Used by the dev-server to route the payload to the inline macro config
+     * store instead of treating it as a regular viewSubmit. */
+    activeSubmitTree: 'view' as 'view' | 'macroConfig',
     // Modal
     activeModal: null as ActiveModal | null,
     viewOnCloseCallback: null as ModalCloseCallback | null,
@@ -51,6 +58,7 @@ if (!G.__forgeSim) {
 
 // Local references for convenience
 const reconcileListeners: ReconcileListener[] = G.__forgeSim.reconcileListeners;
+const macroConfigReconcileListeners: ReconcileListener[] = G.__forgeSim.macroConfigReconcileListeners;
 
 export function onReconcile(listener: ReconcileListener): () => void {
   reconcileListeners.push(listener);
@@ -64,6 +72,29 @@ export function onReconcile(listener: ReconcileListener): () => void {
     const idx = reconcileListeners.indexOf(listener);
     if (idx >= 0) reconcileListeners.splice(idx, 1);
   };
+}
+
+/**
+ * Subscribe to ForgeDocs from the macro config tree (`ForgeReconciler.addConfig`).
+ * The reconciler emits these alongside the main view tree when an app uses inline
+ * macro configuration. Listeners only fire when a config tree exists.
+ */
+export function onMacroConfigReconcile(listener: ReconcileListener): () => void {
+  macroConfigReconcileListeners.push(listener);
+  if (G.__forgeSim.lastMacroConfigDoc) {
+    try { listener(G.__forgeSim.lastMacroConfigDoc); } catch {}
+  }
+  return () => {
+    const idx = macroConfigReconcileListeners.indexOf(listener);
+    if (idx >= 0) macroConfigReconcileListeners.splice(idx, 1);
+  };
+}
+
+/** Called by the shell whenever the user switches between View and Config tabs.
+ * The bridge uses this to tag the next view.submit() call so the dev-server
+ * can route the payload to the right place. */
+export function setActiveSubmitTree(tree: 'view' | 'macroConfig') {
+  G.__forgeSim.activeSubmitTree = tree;
 }
 
 function ensureConnection(): Promise<void> {
@@ -360,11 +391,22 @@ function openModalOverlay(data: any): Promise<any> {
 async function callBridge(cmd: string, data?: any): Promise<any> {
   switch (cmd) {
     case 'reconcile':
-      // ForgeDoc stays in the browser — notify local listeners
+      // ForgeDoc stays in the browser — notify local listeners.
+      // The reconciler emits two roots when a macro uses inline config:
+      //   - { type: 'Root' }        from ForgeReconciler.render(<App />)
+      //   - { type: 'MacroConfig' } from ForgeReconciler.addConfig(<Config />)
+      // We route them to separate listeners so the shell can render both.
       if (data?.forgeDoc) {
-        G.__forgeSim.lastForgeDoc = data.forgeDoc;
-        for (const listener of reconcileListeners) {
-          try { listener(data.forgeDoc); } catch {}
+        if (data.forgeDoc.type === 'MacroConfig') {
+          G.__forgeSim.lastMacroConfigDoc = data.forgeDoc;
+          for (const listener of macroConfigReconcileListeners) {
+            try { listener(data.forgeDoc); } catch {}
+          }
+        } else {
+          G.__forgeSim.lastForgeDoc = data.forgeDoc;
+          for (const listener of reconcileListeners) {
+            try { listener(data.forgeDoc); } catch {}
+          }
         }
       }
       return;
@@ -409,7 +451,13 @@ async function callBridge(cmd: string, data?: any): Promise<any> {
         window.parent.postMessage({ type: 'forge-sim-modal-submit', payload: data?.payload ?? data }, '*');
         return;
       }
-      return rpc('viewSubmit', { payload: data?.payload ?? data, moduleKey: getModuleKeyFromURL() });
+      return rpc('viewSubmit', {
+        payload: data?.payload ?? data,
+        moduleKey: getModuleKeyFromURL(),
+        // Tag the submit so the dev-server knows whether this came from the
+        // main view tree or the inline macro config tree.
+        submitTree: G.__forgeSim.activeSubmitTree,
+      });
 
     case 'close':
       if (isInModal()) {

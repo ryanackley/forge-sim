@@ -247,7 +247,7 @@ forge-sim logs
 For AI agents that support [Model Context Protocol](https://modelcontextprotocol.io/), forge-sim exposes a full toolkit:
 
 <!-- BEGIN:STATS_COMPACT -->
-1,228 tests · 28 MCP tools · 4 MCP resources
+1,241 tests · 28 MCP tools · 4 MCP resources
 <!-- END:STATS_COMPACT -->
 
 ```bash
@@ -302,7 +302,7 @@ Because mocking individual imports doesn't test your app. It tests your assumpti
 | Web Triggers | Full — `/__trigger/<key>` HTTP endpoints with CORS, dynamic `webTrigger.getUrl()` |
 | Background Scripts | Full — `issueView`, `dashboard`, `globalBackgroundScript` via postMessage |
 | Custom Fields | Full — `jira:customField`/`customFieldType` with view/edit/viewSubmit |
-| Confluence Macros | Full — view + custom config (`config: { resource: '...' }`) with View/Config tabs and `useConfig()` |
+| Confluence Macros | Full — view + custom config (`config: { resource: '...' }`) and inline config (`config: true` + `addConfig()`) with View/Config tabs and `useConfig()` |
 | `@forge/llm` (Claude 4.6/4.7) | Full — `forge-sim auth --llm` for the Anthropic key |
 | `@forge/realtime` | Full — channel pub/sub, scoped + global publishes |
 | Rovo Actions | Full — manifest parsing, input schema validation, MCP invocation |
@@ -366,9 +366,9 @@ npm run docs:stats:check    # CI guard — fails if stats are stale
 ```
 
 <!-- BEGIN:STATS -->
-**1,228 tests** across **64** test files
-(1,116 core / 62 files
-+ 112 renderer / 2 files)
+**1,241 tests** across **67** test files
+(1,121 core / 63 files
++ 120 renderer / 4 files)
 
 **28 MCP tools** + **4 resources**
 <!-- END:STATS -->

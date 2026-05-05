@@ -606,9 +606,9 @@ export function parseManifestContent(content: string): ParsedManifest {
           warnings.push({
             level: 'info',
             message: `Macro "${mod.key}" uses inline config (config: ${configField === true ? 'true' : '{}'}). ` +
-              `forge-sim renders the macro view and useConfig() returns stored values, but the inline ` +
-              `ForgeReconciler.addConfig(<Config />) form is not yet rendered as a separate page. ` +
-              `Use config: { resource: '...' } for a separately-rendered config UI in forge-sim.`,
+              `forge-sim captures the second ForgeDoc tree from ForgeReconciler.addConfig() and shows ` +
+              `View/Config tabs inside the iframe. Submitting the config form stores the payload and ` +
+              `re-renders the view so useConfig() returns the new values.`,
           });
         }
 
