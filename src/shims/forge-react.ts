@@ -42,8 +42,11 @@ export const Row = realModule.Row;
 export const Cell = realModule.Cell;
 export const SectionMessage = realModule.SectionMessage;
 export const Form = realModule.Form;
-export const TextField = realModule.TextField;
-export const Textfield = realModule.TextField; // Forge docs use lowercase 'f'
+// Real @forge/react only exports the lowercase-f spelling (`Textfield`).
+// We accept both casings — many devs import as `TextField` because the type
+// name is `TextFieldProps`. Both alias to the real string-typed component.
+export const Textfield = realModule.Textfield;
+export const TextField = realModule.Textfield;
 export const TextArea = realModule.TextArea;
 export const Select = realModule.Select;
 export const Checkbox = realModule.Checkbox;

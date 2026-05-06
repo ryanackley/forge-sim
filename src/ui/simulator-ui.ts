@@ -24,6 +24,7 @@ import {
   getBridgeCalls,
   resetBridge,
   onRender,
+  onMacroConfigRender,
   resetAll,
   setForgeContext,
   getForgeContext,
@@ -39,6 +40,14 @@ import {
   listComponentTypes,
   prettyPrint,
 } from './doc-utils.js';
+import {
+  extractInlineConfigFields,
+  validateInlineConfigTree,
+  defaultsFromFields,
+  type InlineConfigField,
+  type InlineConfigHandle,
+  type InlineConfigValidation,
+} from './inline-config.js';
 import type { ForgeSimulator } from '../simulator.js';
 // setSimulator is auto-called in the ForgeSimulator constructor.
 // We keep this import for the defensive re-wire in ensureBridge().
@@ -51,6 +60,20 @@ export class SimulatorUI {
 
   /** Per-module ForgeDoc storage: moduleKey → ForgeDoc */
   private moduleDocs = new Map<string, ForgeDoc>();
+
+  /**
+   * Per-module MacroConfig ForgeDoc storage (from ForgeReconciler.addConfig).
+   * Only populated for inline-config macros — the second tree emitted alongside
+   * the main view tree.
+   */
+  private macroConfigDocs = new Map<string, ForgeDoc>();
+
+  /**
+   * Per-macro saved config values: moduleKey → name/value map.
+   * Survives between renders so a view rendered after an inline config save
+   * sees the saved values via context.extension.config / useConfig().
+   */
+  private macroConfigs = new Map<string, Record<string, unknown>>();
 
   /** Which module is currently rendering (set before invoke, cleared after) */
   private activeModuleKey: string | null = null;
@@ -72,6 +95,9 @@ export class SimulatorUI {
 
   /** Unbind function for the global view event listener */
   private viewEventUnbind: (() => void) | null = null;
+
+  /** Unbind function for the MacroConfig render listener */
+  private macroConfigRenderUnbind: (() => void) | null = null;
 
   constructor(private sim: ForgeSimulator) {}
 
@@ -99,6 +125,14 @@ export class SimulatorUI {
               try { fn(doc); } catch {}
             }
           }
+        }
+      });
+      // Listen for MacroConfig renders (ForgeReconciler.addConfig).
+      // Tag to the same active module key — inline config lives on the
+      // flat macro module, not a sub-module.
+      this.macroConfigRenderUnbind = onMacroConfigRender((doc) => {
+        if (this.activeModuleKey) {
+          this.macroConfigDocs.set(this.activeModuleKey, doc);
         }
       });
       // Listen for view.submit()/close()/refresh() from app code
@@ -383,6 +417,21 @@ export class SimulatorUI {
     const forgeContext = await buildForgeContext(
       this.sim, moduleKey, uiModule.type, options ?? {},
     );
+
+    // Macro stateful config injection — if a previous renderInlineConfig().save()
+    // (or setMacroConfig) stored values for this macro, surface them as
+    // extension.config so useConfig() resolves them. Two key shapes:
+    //   - Custom config sub-modules:  "<base>--view" / "<base>--config"
+    //     → strip the suffix to find the saved key
+    //   - Inline config / flat macro:  "<key>"
+    if (uiModule.type === 'macro') {
+      const baseKey = moduleKey.replace(/--(?:view|config)$/, '');
+      const saved = this.macroConfigs.get(baseKey) ?? this.macroConfigs.get(moduleKey);
+      if (saved !== undefined) {
+        forgeContext.extension = { ...forgeContext.extension, config: saved };
+      }
+    }
+
     this.moduleContexts.set(moduleKey, forgeContext);
     setForgeContext(forgeContext);
 
@@ -430,6 +479,171 @@ export class SimulatorUI {
     }
 
     return this.getForgeDoc(moduleKey);
+  }
+
+  // ── Inline Macro Config ───────────────────────────────────────────────
+
+  /**
+   * Render a macro's inline config tree (`ForgeReconciler.addConfig(<Config />)`)
+   * and return a stateful handle that mirrors the platform's Save/Cancel chrome.
+   *
+   * Inline macro config is platform-managed in real Forge — the user does NOT
+   * write a Save button. The platform harvests named form fields when the user
+   * clicks its rendered Save, and stores them as a key/value map. This API
+   * mirrors that:
+   *
+   *   const cfg = await sim.ui.renderInlineConfig('cool-macro');
+   *   cfg.getFields();              // [{ name: 'age', type: 'TextField', ... }]
+   *   await cfg.save({ age: 5 });   // stores values, available to view
+   *
+   *   await sim.ui.render('cool-macro');
+   *   // The macro's view sees `useConfig()` → { age: 5 }
+   *
+   * The macro's main view tree (`ForgeReconciler.render(<App />)`) is also
+   * loaded as a side effect — `sim.ui.getForgeDoc(moduleKey)` returns it.
+   *
+   * @throws if the module is not a macro, or has no `addConfig()` tree
+   */
+  async renderInlineConfig(
+    moduleKey: string,
+    options?: RenderContextOptions,
+  ): Promise<InlineConfigHandle> {
+    const manifest = this.sim.getManifest();
+    if (!manifest) {
+      throw new Error('No manifest loaded. Deploy an app first.');
+    }
+    const uiModule = manifest.uiModules.find(m => m.key === moduleKey);
+    if (!uiModule) {
+      throw new Error(`No UI module with key "${moduleKey}".`);
+    }
+    if (uiModule.type !== 'macro') {
+      throw new Error(
+        `renderInlineConfig() requires a macro module. "${moduleKey}" is "${uiModule.type}".`
+      );
+    }
+    if ((uiModule as any).viewMode !== undefined) {
+      // This is a custom-config sub-module ('--view' or '--config'). Inline
+      // config is for the flat macro shape (config: true / config: {} without resource).
+      throw new Error(
+        `"${moduleKey}" is a custom-config sub-module. ` +
+        `Inline config requires the flat macro key. ` +
+        `For custom-config, render the sub-module directly: ` +
+        `sim.ui.render('${moduleKey.replace(/--(?:view|config)$/, '--config')}')`
+      );
+    }
+
+    // Clear any stale config doc from a prior render — we want this call to
+    // wait for a fresh emit, not return a cached one.
+    this.macroConfigDocs.delete(moduleKey);
+
+    // Render the macro module — this loads the bundle, which calls both
+    // ForgeReconciler.render() AND ForgeReconciler.addConfig() if defined.
+    await this.render(moduleKey, options);
+
+    // The MacroConfig render fires asynchronously (addConfig runs after render).
+    // Give it a moment to land if it hasn't yet.
+    if (!this.macroConfigDocs.has(moduleKey)) {
+      const { waitForMacroConfigRender } = await import('./bridge.js');
+      await Promise.race([
+        waitForMacroConfigRender(),
+        new Promise<void>(resolve => setTimeout(resolve, 100)),
+      ]);
+    }
+
+    const doc = this.macroConfigDocs.get(moduleKey);
+    if (!doc) {
+      const inline = (uiModule as any).inlineMacroConfig === true;
+      throw new Error(
+        `Macro "${moduleKey}" did not produce a MacroConfig tree. ` +
+        (inline
+          ? 'Manifest declares inline config (config: true) but the app did not call ForgeReconciler.addConfig(<Config />).'
+          : 'Manifest does not declare inline config — set `config: true` and call ForgeReconciler.addConfig(<Config />) in the bundle.')
+      );
+    }
+
+    return this.makeInlineConfigHandle(moduleKey, doc);
+  }
+
+  /**
+   * Get the current MacroConfig ForgeDoc for a macro (the inline config tree).
+   * Returns null if the macro hasn't been rendered or doesn't use addConfig().
+   */
+  getMacroConfigDoc(moduleKey: string): ForgeDoc | null {
+    return this.macroConfigDocs.get(moduleKey) ?? null;
+  }
+
+  /**
+   * Get the saved config values for a macro (whatever the most recent
+   * cfg.save() / setMacroConfig() persisted). Returns undefined if nothing
+   * has been saved yet.
+   */
+  getMacroConfig(moduleKey: string): Record<string, unknown> | undefined {
+    const baseKey = moduleKey.replace(/--(?:view|config)$/, '');
+    return this.macroConfigs.get(baseKey) ?? this.macroConfigs.get(moduleKey);
+  }
+
+  /**
+   * Fast-path bypass: directly seed the saved config for a macro without
+   * exercising the form. Useful for tests that only care about the view's
+   * behavior given a specific config.
+   *
+   *   sim.ui.setMacroConfig('cool-macro', { age: 5 });
+   *   await sim.ui.render('cool-macro');
+   *   // view sees useConfig() → { age: 5 }
+   */
+  setMacroConfig(moduleKey: string, values: Record<string, unknown>): void {
+    const baseKey = moduleKey.replace(/--(?:view|config)$/, '');
+    this.macroConfigs.set(baseKey, { ...values });
+  }
+
+  /**
+   * Validate a MacroConfig ForgeDoc against the allowed component subset.
+   * Returns the violations without throwing — callers decide what to do.
+   */
+  validateInlineConfigTree(doc: ForgeDoc | null): InlineConfigValidation {
+    return validateInlineConfigTree(doc);
+  }
+
+  private makeInlineConfigHandle(moduleKey: string, doc: ForgeDoc): InlineConfigHandle {
+    const ui = this;
+    const baseKey = moduleKey.replace(/--(?:view|config)$/, '');
+    return {
+      get doc() { return ui.macroConfigDocs.get(moduleKey) ?? doc; },
+      moduleKey,
+      getFields() {
+        return extractInlineConfigFields(ui.macroConfigDocs.get(moduleKey) ?? doc);
+      },
+      validate() {
+        return validateInlineConfigTree(ui.macroConfigDocs.get(moduleKey) ?? doc);
+      },
+      async save(values?: Record<string, unknown>) {
+        const fields = extractInlineConfigFields(ui.macroConfigDocs.get(moduleKey) ?? doc);
+        const fieldNames = new Set(fields.map(f => f.name));
+        // Start from declared defaults (mimics platform: clicking Save with
+        // no edits persists whatever the form currently shows).
+        const merged: Record<string, unknown> = defaultsFromFields(fields);
+        if (values) {
+          for (const [k, v] of Object.entries(values)) {
+            if (!fieldNames.has(k)) {
+              // Real Forge would drop unknown keys silently. Surface a warn so
+              // tests can tell when they're testing something the platform won't
+              // actually accept.
+              console.warn(
+                `[forge-sim] Macro "${moduleKey}": value for "${k}" has no matching ` +
+                `<X name="${k}" />. Real Forge ignores unknown keys.`
+              );
+              continue;
+            }
+            merged[k] = v;
+          }
+        }
+        ui.macroConfigs.set(baseKey, merged);
+      },
+      cancel() {
+        // No-op for headless: any stored config is preserved (same as the
+        // platform Cancel button — it only discards in-progress edits).
+      },
+    };
   }
 
   /**
@@ -537,6 +751,8 @@ export class SimulatorUI {
   reset(): void {
     resetBridge();
     this.moduleDocs.clear();
+    this.macroConfigDocs.clear();
+    this.macroConfigs.clear();
     this.moduleRenderConfig.clear();
     this.moduleContexts.clear();
     this.viewEventListeners.clear();
@@ -548,6 +764,8 @@ export class SimulatorUI {
     resetAll();
     resetViewEvents();
     this.moduleDocs.clear();
+    this.macroConfigDocs.clear();
+    this.macroConfigs.clear();
     this.moduleRenderConfig.clear();
     this.moduleContexts.clear();
     this.resolvedResources.clear();
@@ -556,6 +774,10 @@ export class SimulatorUI {
     if (this.viewEventUnbind) {
       this.viewEventUnbind();
       this.viewEventUnbind = null;
+    }
+    if (this.macroConfigRenderUnbind) {
+      this.macroConfigRenderUnbind();
+      this.macroConfigRenderUnbind = null;
     }
     this.activeModuleKey = null;
     this.bridgeInstalled = false;

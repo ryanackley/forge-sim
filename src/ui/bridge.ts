@@ -37,6 +37,12 @@ let simulator: ForgeSimulator | null = null;
 let latestForgeDoc: ForgeDoc | null = null;
 let renderResolvers: Array<(doc: ForgeDoc) => void> = [];
 let renderListeners: Array<(doc: ForgeDoc) => void> = [];
+// Macro inline config — second tree emitted by ForgeReconciler.addConfig().
+// Tracked separately from the main view tree so headless tests can render
+// both without confusion.
+let latestMacroConfigDoc: ForgeDoc | null = null;
+let macroConfigRenderResolvers: Array<(doc: ForgeDoc) => void> = [];
+let macroConfigRenderListeners: Array<(doc: ForgeDoc) => void> = [];
 const bridgeCalls: BridgeCall[] = [];
 let tornDown = false;
 let currentForgeContext: ForgeContext | null = null;
@@ -44,17 +50,35 @@ let currentForgeContext: ForgeContext | null = null;
 // ── Bridge command handlers ─────────────────────────────────────────────
 
 async function handleReconcile(data: any): Promise<void> {
-  if (data?.forgeDoc) {
-    latestForgeDoc = data.forgeDoc;
-    const resolvers = renderResolvers;
-    renderResolvers = [];
+  if (!data?.forgeDoc) return;
+
+  // The reconciler emits two roots when a macro uses inline config:
+  //   - { type: 'Root' }        from ForgeReconciler.render(<App />)
+  //   - { type: 'MacroConfig' } from ForgeReconciler.addConfig(<Config />)
+  // Route them to separate listener pools so headless tests can subscribe
+  // to each tree independently — same shape as the browser bridge shim.
+  if (data.forgeDoc.type === 'MacroConfig') {
+    latestMacroConfigDoc = data.forgeDoc;
+    const resolvers = macroConfigRenderResolvers;
+    macroConfigRenderResolvers = [];
     for (const resolve of resolvers) {
-      resolve(latestForgeDoc!);
+      resolve(latestMacroConfigDoc!);
     }
-    // Notify persistent listeners (e.g., dev server)
-    for (const listener of renderListeners) {
-      try { listener(latestForgeDoc!); } catch {}
+    for (const listener of macroConfigRenderListeners) {
+      try { listener(latestMacroConfigDoc!); } catch {}
     }
+    return;
+  }
+
+  latestForgeDoc = data.forgeDoc;
+  const resolvers = renderResolvers;
+  renderResolvers = [];
+  for (const resolve of resolvers) {
+    resolve(latestForgeDoc!);
+  }
+  // Notify persistent listeners (e.g., dev server)
+  for (const listener of renderListeners) {
+    try { listener(latestForgeDoc!); } catch {}
   }
 }
 
@@ -287,10 +311,25 @@ export function getLatestForgeDoc(): ForgeDoc | null {
   return latestForgeDoc;
 }
 
+/**
+ * Get the latest MacroConfig ForgeDoc produced by ForgeReconciler.addConfig().
+ * Returns null if the app didn't call addConfig (most apps don't).
+ */
+export function getLatestMacroConfigDoc(): ForgeDoc | null {
+  return latestMacroConfigDoc;
+}
+
 /** Wait for the next render (reconcile bridge call). */
 export function waitForRender(): Promise<ForgeDoc> {
   return new Promise((resolve) => {
     renderResolvers.push(resolve);
+  });
+}
+
+/** Wait for the next MacroConfig render (from ForgeReconciler.addConfig). */
+export function waitForMacroConfigRender(): Promise<ForgeDoc> {
+  return new Promise((resolve) => {
+    macroConfigRenderResolvers.push(resolve);
   });
 }
 
@@ -311,11 +350,24 @@ export function onRender(listener: (doc: ForgeDoc) => void): () => void {
   };
 }
 
+/**
+ * Register a persistent listener for MacroConfig ForgeDoc updates
+ * (ForgeReconciler.addConfig). Only fires when the app uses inline config.
+ */
+export function onMacroConfigRender(listener: (doc: ForgeDoc) => void): () => void {
+  macroConfigRenderListeners.push(listener);
+  return () => {
+    macroConfigRenderListeners = macroConfigRenderListeners.filter((l) => l !== listener);
+  };
+}
+
 /** Reset all UI state — marks bridge as torn down to swallow stale React effects. */
 export function resetBridge(): void {
   tornDown = true;
   latestForgeDoc = null;
+  latestMacroConfigDoc = null;
   renderResolvers = [];
+  macroConfigRenderResolvers = [];
   bridgeCalls.length = 0;
   currentForgeContext = null;
 }
@@ -324,5 +376,6 @@ export function resetBridge(): void {
 export function resetAll(): void {
   resetBridge();
   renderListeners = [];
+  macroConfigRenderListeners = [];
   simulator = null;
 }
