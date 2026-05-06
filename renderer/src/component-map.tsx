@@ -565,6 +565,10 @@ export const COMPONENT_MAP: Record<string, ComponentRenderer> = {
     <Textfield
       name={props.name}
       placeholder={props.placeholder}
+      // defaultValue makes the underlying <input> initialize with the
+      // declared value — required so inline macro config Save's FormData
+      // harvest actually picks it up.
+      defaultValue={props.defaultValue}
       value={props.value}
       isDisabled={props.isDisabled}
       onChange={props.onChange}
@@ -574,6 +578,7 @@ export const COMPONENT_MAP: Record<string, ComponentRenderer> = {
     <TextArea
       name={props.name}
       placeholder={props.placeholder}
+      defaultValue={props.defaultValue}
       value={props.value}
       isDisabled={props.isDisabled}
       onChange={props.onChange}
@@ -581,8 +586,18 @@ export const COMPONENT_MAP: Record<string, ComponentRenderer> = {
   ),
   Select: (props) => (
     <Select
+      // Pass declared name so the tree-walk fallback in inline-config Save
+      // can still find this field even though Atlaskit Select doesn't
+      // expose [name] on a real input element for FormData.
+      name={props.name}
       options={props.options ?? []}
       placeholder={props.placeholder}
+      defaultValue={
+        props.defaultValue !== undefined && Array.isArray(props.options)
+          ? (props.options as Array<{ value: unknown }>)
+              .find((o) => o.value === props.defaultValue) ?? props.defaultValue
+          : undefined
+      }
       value={props.value}
       onChange={props.onChange}
       isMulti={props.isMulti}
