@@ -9,6 +9,7 @@
  *   forge:deploy        — Deploy a Forge app from a directory
  *   forge:invoke        — Call a resolver function
  *   forge:fire_trigger  — Simulate a product event trigger
+ *   forge:ui_render     — Render a UI module by manifest key (loads bundle + builds context)
  *   forge:ui_state      — Get the current ForgeDoc UI tree
  *   forge:ui_interact   — Interact with UI components (click, submit, etc.)
  *   forge:kvs_get       — Get a value from KVS
@@ -247,13 +248,72 @@ server.tool(
 );
 
 server.tool(
+  'forge.ui_render',
+  'Render a UI module by its manifest key. Loads the module bundle, builds the Forge context (with optional issue/content/space hydration), runs ForgeReconciler.render, and returns the resulting ForgeDoc. Use this when a module has no resolver to invoke (macros, custom field views) or when you want to inspect a module under a specific context. For inline-config macros, also returns the MacroConfig tree if the bundle calls ForgeReconciler.addConfig.',
+  {
+    moduleKey: z.string().describe('UI module key from the manifest (e.g. "issue-panel", "pet-card"). For sub-module shapes use suffixes: "<key>--view", "<key>--edit", "<key>--config".'),
+    issueKey: z.string().optional().describe('Jira issue key to hydrate context (e.g. "PROJ-1") — also sets project from prefix.'),
+    projectKey: z.string().optional().describe('Jira project key to hydrate context (e.g. "PROJ").'),
+    contentId: z.string().optional().describe('Confluence content ID to hydrate context.'),
+    spaceKey: z.string().optional().describe('Confluence space key to hydrate context.'),
+    context: z.record(z.string(), z.any()).optional().describe('Raw context fields merged into extension (overrides defaults).'),
+    macroConfig: z.record(z.string(), z.any()).optional().describe('For macro modules: seed saved config so useConfig() resolves to these values on this render.'),
+  },
+  async ({ moduleKey, issueKey, projectKey, contentId, spaceKey, context, macroConfig }) => {
+    try {
+      // Seed inline macro config if provided — useConfig() will see it.
+      if (macroConfig) {
+        sim.ui.setMacroConfig(moduleKey, macroConfig);
+      }
+
+      const renderOpts: Record<string, unknown> = {};
+      if (issueKey) renderOpts.issueKey = issueKey;
+      if (projectKey) renderOpts.projectKey = projectKey;
+      if (contentId) renderOpts.contentId = contentId;
+      if (spaceKey) renderOpts.spaceKey = spaceKey;
+      if (context) renderOpts.context = context;
+
+      const doc = await sim.ui.render(moduleKey, renderOpts);
+      if (!doc) {
+        return {
+          content: [{ type: 'text' as const, text: `Module "${moduleKey}" rendered, but no ForgeDoc was produced. Check that the module bundle calls ForgeReconciler.render(<App />).` }],
+          isError: true,
+        };
+      }
+
+      const sections: string[] = [
+        `Rendered "${moduleKey}":`,
+        sim.ui.prettyPrint(doc),
+      ];
+
+      // For macro inline-config modules, surface the MacroConfig tree too —
+      // it's a separate ForgeDoc emitted by ForgeReconciler.addConfig() and
+      // wouldn't show up under the main view tree otherwise.
+      const configDoc = sim.ui.getMacroConfigDoc(moduleKey);
+      if (configDoc) {
+        sections.push('', 'MacroConfig tree (inline addConfig):', sim.ui.prettyPrint(configDoc));
+      }
+
+      return {
+        content: [{ type: 'text' as const, text: sections.join('\n') }],
+      };
+    } catch (err) {
+      return {
+        content: [{ type: 'text' as const, text: `❌ Render failed: ${err instanceof Error ? err.message : String(err)}` }],
+        isError: true,
+      };
+    }
+  }
+);
+
+server.tool(
   'forge.ui_state',
   'Get the current ForgeDoc UI tree. Shows what the Forge app UI looks like right now. Returns a pretty-printed component tree.',
   async () => {
     const doc = sim.ui.getForgeDoc();
     if (!doc) {
       return {
-        content: [{ type: 'text' as const, text: 'No UI rendered yet. Deploy an app with UI resources first, or invoke a resolver that triggers a render.' }],
+        content: [{ type: 'text' as const, text: 'No UI rendered yet. Call `forge.ui_render` with a module key to render a UI module, or invoke a resolver that triggers a render.' }],
       };
     }
 
@@ -277,7 +337,7 @@ server.tool(
     const doc = sim.ui.getForgeDoc();
     if (!doc) {
       return {
-        content: [{ type: 'text' as const, text: 'No UI rendered. Deploy an app with UI first.' }],
+        content: [{ type: 'text' as const, text: 'No UI rendered. Call `forge.ui_render` with a module key first.' }],
         isError: true,
       };
     }

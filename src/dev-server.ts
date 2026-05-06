@@ -23,6 +23,12 @@ import type { ForgeDoc } from './ui/bridge.js';
 export interface DevServerOptions {
   /** WebSocket port (default: 5174) */
   port?: number;
+  /**
+   * If true, fail when the requested port is in use instead of falling through
+   * to the next free port. Use when the user explicitly set --ws-port and we
+   * shouldn't silently change what they asked for. Default: false.
+   */
+  strictPort?: boolean;
   /** App source directory to watch for changes */
   watchDir?: string;
   /** Debounce interval for file changes in ms (default: 300) */
@@ -35,6 +41,74 @@ export interface DevServerOptions {
   context?: Record<string, any>;
 }
 
+/**
+ * Try to bind a WebSocketServer on the given port. Resolves with the live
+ * wss on success, or null on EADDRINUSE so the caller can try the next port.
+ *
+ * We can't pre-probe with a separate `net.createServer` because the probe's
+ * default interface (loopback) doesn't match what `ws` binds to (all
+ * interfaces) — a race-prone false-positive. Instead, bind ws directly and
+ * wait for either the 'listening' or 'error' event.
+ */
+function tryBindWebSocketServer(port: number): Promise<WebSocketServer | null> {
+  return new Promise((resolve, reject) => {
+    const wss = new WebSocketServer({ port });
+    let settled = false;
+    wss.once('listening', () => {
+      if (settled) return;
+      settled = true;
+      resolve(wss);
+    });
+    wss.once('error', (err: any) => {
+      if (settled) return;
+      settled = true;
+      // Make sure we don't leave a half-bound server hanging
+      try { wss.close(); } catch {}
+      if (err?.code === 'EADDRINUSE') {
+        resolve(null);
+      } else {
+        reject(err);
+      }
+    });
+  });
+}
+
+/**
+ * Bind a WebSocketServer with port-fallback. Tries the requested port first;
+ * on EADDRINUSE, scans up to 10 subsequent ports unless strictPort is set.
+ */
+async function bindWebSocketServer(
+  requestedPort: number,
+  strictPort: boolean,
+): Promise<{ wss: WebSocketServer; port: number }> {
+  const maxAttempts = strictPort ? 1 : 10;
+
+  for (let i = 0; i < maxAttempts; i++) {
+    const port = requestedPort + i;
+    const wss = await tryBindWebSocketServer(port);
+    if (!wss) continue;
+
+    if (i > 0) {
+      console.warn(
+        `[forge-sim] port ${requestedPort} in use, using ${port} instead.`,
+      );
+    }
+    return { wss, port };
+  }
+
+  if (strictPort) {
+    throw new Error(
+      `[forge-sim] WebSocket bridge port ${requestedPort} is already in use. ` +
+      `Another forge-sim instance (or the daemon) may be running. ` +
+      `Pass --ws-port <N> to choose a different port, or omit --ws-port to ` +
+      `let forge-sim auto-pick the next free one.`,
+    );
+  }
+  throw new Error(
+    `[forge-sim] Could not bind WebSocket bridge: ports ${requestedPort}–${requestedPort + 9} are all in use.`,
+  );
+}
+
 export interface DevServer {
   /** Broadcast a ForgeDoc update to all connected renderers */
   broadcast(doc: ForgeDoc, moduleKey?: string): void;
@@ -42,6 +116,9 @@ export interface DevServer {
   sendEvent(event: ServerEvent): void;
   /** Number of connected renderer clients */
   get clientCount(): number;
+  /** Port the WebSocket bridge is actually listening on (may differ from
+   *  the requested port if it was taken). */
+  readonly port: number;
   /** Shut down the server */
   close(): void;
 }
@@ -104,9 +181,10 @@ class FunctionRegistry {
 
 // ── Dev Server ──────────────────────────────────────────────────────────
 
-export function createDevServer(options: DevServerOptions = {}): DevServer {
+export async function createDevServer(options: DevServerOptions = {}): Promise<DevServer> {
   const {
-    port = 5174,
+    port: requestedPort = 5174,
+    strictPort = false,
     watchDir,
     debounceMs = 300,
     onFileChange,
@@ -114,7 +192,7 @@ export function createDevServer(options: DevServerOptions = {}): DevServer {
     context,
   } = options;
 
-  const wss = new WebSocketServer({ port });
+  const { wss, port: actualPort } = await bindWebSocketServer(requestedPort, strictPort);
   const clients = new Set<WebSocket>();
   /** Track which module key each client is viewing */
   const clientModuleKeys = new Map<WebSocket, string>();
@@ -190,7 +268,7 @@ export function createDevServer(options: DevServerOptions = {}): DevServer {
   });
 
   wss.on('listening', () => {
-    console.log(`[dev-server] WebSocket server listening on ws://localhost:${port}`);
+    console.log(`[dev-server] WebSocket server listening on ws://localhost:${actualPort}`);
   });
 
   // ── RPC handler (browser mode) ─────────────────────────────────────
@@ -633,6 +711,7 @@ export function createDevServer(options: DevServerOptions = {}): DevServer {
     broadcast,
     sendEvent,
     get clientCount() { return clients.size; },
+    port: actualPort,
     close,
   };
 }

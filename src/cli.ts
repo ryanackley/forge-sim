@@ -75,8 +75,8 @@ if (command === '--help' || command === '-h' || !command) {
     forge-sim --help                 Show this help
 
   Dev Options:
-    --port <port>              Vite dev server port (default: 5173)
-    --ws-port <port>           WebSocket bridge port (default: 5174)
+    --port <port>              Vite dev server port (default: 5173, auto-falls-through to next free)
+    --ws-port <port>           WebSocket bridge port (default: 5174, auto-falls-through; explicit value is strict)
     --no-open                  Don't open browser automatically
     --module <key>             Specific UI module key to render
     --clean                    Start fresh (wipe app state, keep credentials)
@@ -105,6 +105,7 @@ if (command === 'dev') {
   let appDir = '.';
   let port = 5173;
   let wsPort = 5174;
+  let wsPortExplicit = false;
   let open = true;
   let moduleKey: string | undefined;
   let clean = false;
@@ -122,6 +123,7 @@ if (command === 'dev') {
       port = parseInt(restArgs[++i], 10);
     } else if (arg === '--ws-port' && restArgs[i + 1]) {
       wsPort = parseInt(restArgs[++i], 10);
+      wsPortExplicit = true;
     } else if (arg === '--no-open') {
       open = false;
     } else if (arg === '--module' && restArgs[i + 1]) {
@@ -163,6 +165,7 @@ if (command === 'dev') {
     appDir: resolve(appDir),
     port,
     wsPort,
+    wsPortExplicit,
     open,
     moduleKey,
     clean,

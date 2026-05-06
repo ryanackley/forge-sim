@@ -36,6 +36,12 @@ export interface DevCommandOptions {
   appDir: string;
   port: number;
   wsPort: number;
+  /**
+   * True if the user explicitly passed --ws-port. We respect their choice
+   * (fail fast on EADDRINUSE) instead of silently auto-picking another.
+   * If omitted/false, we'll fall through to the next free port.
+   */
+  wsPortExplicit?: boolean;
   open: boolean;
   moduleKey?: string;
   /** Start fresh — don't restore persisted state */
@@ -1464,7 +1470,11 @@ async function buildViteConfig(opts: {
 // ── Main Dev Command ──────────────────────────────────────────────────────
 
 export async function devCommand(options: DevCommandOptions) {
-  const { appDir, port, wsPort, open, moduleKey, clean, strictMode, proxy, renderContext } = options;
+  const { appDir, port, open, moduleKey, clean, strictMode, proxy, renderContext } = options;
+  // wsPort may shift up if the requested one is in use — keep this as `let`
+  // and reassign once createDevServer returns the actual bound port.
+  let wsPort = options.wsPort;
+  const wsPortExplicit = options.wsPortExplicit ?? false;
   const stateDir = join(appDir, '.forge-sim', 'state');
 
   console.log('');
@@ -1660,12 +1670,19 @@ export async function devCommand(options: DevCommandOptions) {
     ? await buildForgeContext(sim, primaryModule.module.key, primaryModule.module.type, renderContext)
     : buildDefaultContext(primaryModule.module.key, primaryModule.module.type, sim.productApi.connectedAccount, cfExtra);
 
-  const devServer = createDevServer({
+  const devServer = await createDevServer({
     port: wsPort,
+    // strictPort = true when the user explicitly passed --ws-port: respect
+    // their choice and fail fast instead of silently picking another port.
+    strictPort: wsPortExplicit,
     watchDir: appDir,
     simulator: sim,
     context: moduleContext,
   });
+  // Reassign — the requested port may have been taken and the bridge is
+  // now listening on a higher one. Everything downstream (Vite WS_URL,
+  // browser bridge URL, generated entry templates) needs the real port.
+  wsPort = devServer.port;
 
   // ── Proxy mode: skip Vite, create reverse proxy instead ─────────────
   if (proxy) {
