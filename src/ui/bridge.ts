@@ -127,6 +127,19 @@ async function handleGetContext(): Promise<ForgeContext> {
   return buildDefaultContext('sim-module');
 }
 
+/**
+ * No-op subscriber for cross-module event subscriptions (e.g. useConfig()
+ * subscribes to `FORGE_CORE_MACRO_CONFIG_CHANGED` via @forge/bridge events.on).
+ *
+ * In headless mode we don't dispatch these events to subscribers — the test
+ * drives state synchronously via sim.ui.render(). Returning a stub unsubscribe
+ * keeps the calling code happy without leaking a "Unhandled bridge command"
+ * warning on every render.
+ */
+async function handleEventSubscribe(): Promise<{ unsubscribe: () => void }> {
+  return { unsubscribe: () => {} };
+}
+
 // ── createHistory (server-side bridge — headless/MCP mode) ──────────────
 //
 // In the normal dev server flow, both UIKit and Custom UI app code runs in
@@ -246,6 +259,10 @@ const HANDLERS: Record<string, (data: any) => Promise<any>> = {
   fetchProduct: handleFetchProduct,
   getContext: handleGetContext,
   createHistory: handleCreateHistory,
+  // Cross-module event subscriptions — no-op in headless mode.
+  // @forge/bridge's events.on dispatches via callBridge('on', ...).
+  on: handleEventSubscribe,
+  onPublic: handleEventSubscribe,
 };
 
 function callBridge(cmd: string, data?: any): any {

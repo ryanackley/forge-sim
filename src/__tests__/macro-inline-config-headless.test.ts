@@ -156,6 +156,31 @@ describe('inline macro config — headless', () => {
     expect(result.violations[0].kind).toBe('disallowed-component');
   });
 
+  it('validateInlineConfigTree() does NOT flag text-content children of <Label>', () => {
+    // Regression: the Forge docs canonical pattern is <Label>Pet age</Label>,
+    // which the reconciler emits with an inner { type: 'String' } text node.
+    // Walking blindly into that and checking against the allowed-component
+    // set falsely flagged String as disallowed. The validator now skips
+    // reconciler primitives.
+    const fakeTree = {
+      type: 'MacroConfig',
+      props: {},
+      key: 'r',
+      children: [
+        {
+          type: 'Label',
+          props: {},
+          key: 'l',
+          children: [{ type: 'String', props: { text: 'Pet age' }, key: 's', children: [] }],
+        },
+        { type: 'Textfield', props: { name: 'age' }, key: 't', children: [] },
+      ],
+    };
+    const result = validateInlineConfigTree(fakeTree);
+    expect(result.valid).toBe(true);
+    expect(result.violations).toHaveLength(0);
+  });
+
   it('validateInlineConfigTree() catches form fields missing a name prop', () => {
     const fakeTree = {
       type: 'MacroConfig',

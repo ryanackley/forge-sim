@@ -43,6 +43,17 @@ export const INLINE_CONFIG_ALLOWED_TYPES = new Set<string>([
 ]);
 
 /**
+ * Reconciler primitives that are NOT user-authored components — they're
+ * emitted internally to represent text content, fragment boundaries, etc.
+ * The validator skips these silently so canonical patterns like
+ * `<Label>Pet age</Label>` don't trip a false-positive disallowed-component
+ * violation on the inner String node.
+ */
+const RECONCILER_PRIMITIVE_TYPES = new Set<string>([
+  'String',  // text-content node, e.g. children of <Label>
+]);
+
+/**
  * Components that are FORM FIELDS — each contributes a (name → value) entry
  * to the saved config. Excludes layout-only types like Label.
  */
@@ -135,6 +146,12 @@ export function validateInlineConfigTree(doc: ForgeDoc | null | undefined): Inli
 }
 
 function walkValidate(node: ForgeDoc, violations: InlineConfigViolation[]): void {
+  // Reconciler primitives (e.g. text-content `String` nodes inside <Label>)
+  // are not user-authored components — skip them entirely. Without this,
+  // the canonical `<Label>Pet age</Label>` pattern from the Forge docs
+  // would falsely flag the inner "Pet age" text as a disallowed component.
+  if (RECONCILER_PRIMITIVE_TYPES.has(node.type)) return;
+
   if (!INLINE_CONFIG_ALLOWED_TYPES.has(node.type)) {
     violations.push({
       kind: 'disallowed-component',
