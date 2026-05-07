@@ -181,6 +181,53 @@ describe('inline macro config — headless', () => {
     expect(result.violations).toHaveLength(0);
   });
 
+  it('validateInlineConfigTree() suggests CheckboxGroup when <Checkbox> is used', () => {
+    // Real Forge inline config only supports CheckboxGroup, not the singular
+    // Checkbox. This is the most common Forge inline-config gotcha — devs
+    // (and LLM agents) reach for <Checkbox name="flag" /> assuming it works
+    // for boolean fields. The validator points them at the right component.
+    const fakeTree = {
+      type: 'MacroConfig',
+      props: {},
+      key: 'r',
+      children: [
+        { type: 'Checkbox', props: { name: 'isActive' }, key: '1', children: [] },
+      ],
+    };
+    const result = validateInlineConfigTree(fakeTree);
+    expect(result.valid).toBe(false);
+    expect(result.violations).toHaveLength(1);
+    expect(result.violations[0].kind).toBe('disallowed-component');
+    expect(result.violations[0].type).toBe('Checkbox');
+    expect(result.violations[0].message).toContain('Did you mean <CheckboxGroup>?');
+  });
+
+  it('validateInlineConfigTree() suggests RadioGroup when <Radio> is used', () => {
+    const fakeTree = {
+      type: 'MacroConfig',
+      props: {},
+      key: 'r',
+      children: [
+        { type: 'Radio', props: { name: 'pick', value: 'a' }, key: '1', children: [] },
+      ],
+    };
+    const result = validateInlineConfigTree(fakeTree);
+    expect(result.violations[0].message).toContain('Did you mean <RadioGroup>?');
+  });
+
+  it('validateInlineConfigTree() omits hint for genuinely unrelated components', () => {
+    const fakeTree = {
+      type: 'MacroConfig',
+      props: {},
+      key: 'r',
+      children: [
+        { type: 'Button', props: { text: 'no' }, key: '1', children: [] },
+      ],
+    };
+    const result = validateInlineConfigTree(fakeTree);
+    expect(result.violations[0].message).not.toContain('Did you mean');
+  });
+
   it('validateInlineConfigTree() catches form fields missing a name prop', () => {
     const fakeTree = {
       type: 'MacroConfig',

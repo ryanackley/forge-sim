@@ -54,6 +54,22 @@ const RECONCILER_PRIMITIVE_TYPES = new Set<string>([
 ]);
 
 /**
+ * Common "wrong but understandable" components devs reach for in inline
+ * config, mapped to the actually-supported alternative. Used to add a
+ * "Did you mean…?" hint to the disallowed-component violation message.
+ *
+ * The Checkbox/Radio confusion is by far the most common: a "boolean
+ * field" feels like a single Checkbox, but real Forge only supports the
+ * group variants for inline config. (See the supported list in the
+ * Forge docs at https://developer.atlassian.com/platform/forge/add-configuration-to-a-macro/.)
+ */
+const DISALLOWED_COMPONENT_HINTS: Record<string, string> = {
+  Checkbox: 'CheckboxGroup',
+  Radio: 'RadioGroup',
+  Toggle: 'CheckboxGroup',
+};
+
+/**
  * Components that are FORM FIELDS — each contributes a (name → value) entry
  * to the saved config. Excludes layout-only types like Label.
  */
@@ -153,13 +169,16 @@ function walkValidate(node: ForgeDoc, violations: InlineConfigViolation[]): void
   if (RECONCILER_PRIMITIVE_TYPES.has(node.type)) return;
 
   if (!INLINE_CONFIG_ALLOWED_TYPES.has(node.type)) {
+    const hint = DISALLOWED_COMPONENT_HINTS[node.type];
+    const hintSuffix = hint ? ` Did you mean <${hint}>?` : '';
     violations.push({
       kind: 'disallowed-component',
       type: node.type,
       message:
-        `<${node.type}> is not allowed inside ForgeReconciler.addConfig(). ` +
-        `Inline macro config supports only: Checkbox group, Date picker, Label, ` +
-        `Radio group, Select, Textfield, Text area, User picker.`,
+        `<${node.type}> is not allowed inside ForgeReconciler.addConfig().` +
+        hintSuffix +
+        ` Inline macro config supports only: CheckboxGroup, DatePicker, Label, ` +
+        `RadioGroup, Select, Textfield, TextArea, UserPicker.`,
     });
   } else if (INLINE_CONFIG_FORM_TYPES.has(node.type)) {
     const name = (node.props as any)?.name;
