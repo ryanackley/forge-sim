@@ -9,7 +9,16 @@
     ".": {
       "types": "./dist/simulator.d.ts",
       "import": "./dist/simulator.js"
-    }
+    },
+    "./shims/*": {
+      "types": "./dist/shims/*.d.ts",
+      "import": "./dist/shims/*.js"
+    },
+    "./shims/*.js": {
+      "types": "./dist/shims/*.d.ts",
+      "import": "./dist/shims/*.js"
+    },
+    "./package.json": "./package.json"
   },
   "bin": {
     "forge-sim": "./dist/cli.js",
@@ -18,6 +27,7 @@
   },
   "scripts": {
     "build": "tsc && chmod +x dist/cli.js dist/mcp-server.js dist/daemon.js",
+    "prepare": "npm run build",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
