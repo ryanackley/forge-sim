@@ -1,10 +1,9 @@
 # forge-sim
 
-A local simulation of Atlassian's Forge platform. For development, and for tests.
+A local simulation of Atlassian's Forge platform. For development, and for tests. It's basically LocalStack for Forge
 
-* **Fast local development loop.** Build and debug forge apps locally (i.e. no `forge deploy` or `forge tunnel`) . Deploying to Forge to test every change is a subtle pain point that grows over time. Figuring out how to tunnel → Edit → deploy → wait → check. Repeat.
-* **Local shims for never-ending over-subscrbed EAPs** Right now this is @forge/llm. forge-sim has a local shim to use for development that doesn't rely on EAP access. There will likely be others in the future. 
-* **CI/CD test support for UIKit and Forge APIs** See testing section below
+* **Fast local development loop.**  Deploying to Forge to test every change slows iteration and is a subtle pain point that grows over time. tunnel → Edit → deploy → wait → check. Repeat. 
+* **CI/CD test harness for UIKit and backend forge modules** See testing section below
 
 ## Local Development Loop
 
