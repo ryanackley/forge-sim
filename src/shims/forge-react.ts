@@ -42,11 +42,18 @@ export const Row = realModule.Row;
 export const Cell = realModule.Cell;
 export const SectionMessage = realModule.SectionMessage;
 export const Form = realModule.Form;
+export const Label = realModule.Label;
+export const ErrorMessage = realModule.ErrorMessage;
+export const HelperMessage = realModule.HelperMessage;
+export const ValidMessage = realModule.ValidMessage;
+export const RequiredAsterisk = realModule.RequiredAsterisk;
 // Real @forge/react only exports the lowercase-f spelling (`Textfield`).
-// We accept both casings — many devs import as `TextField` because the type
-// name is `TextFieldProps`. Both alias to the real string-typed component.
+// `TextField` (capital F) is the most common Forge import gotcha — devs
+// reach for it because it's the casing every other React library uses, and
+// `<TextField />` happens to be the ForgeDoc node type emitted at runtime.
+// Aliasing `TextField` to `Textfield` here would silently let bad imports
+// pass forge-sim tests and then explode on deploy. We deliberately don't.
 export const Textfield = realModule.Textfield;
-export const TextField = realModule.Textfield;
 export const TextArea = realModule.TextArea;
 export const Select = realModule.Select;
 export const Checkbox = realModule.Checkbox;
@@ -87,6 +94,7 @@ export const usePermissions = realModule.usePermissions;
 export const useIssueProperty = realModule.useIssueProperty;
 export const useContentProperty = realModule.useContentProperty;
 export const useSpaceProperty = realModule.useSpaceProperty;
+export const useObjectStore = realModule.useObjectStore;
 
 // Form hook — wraps react-hook-form, re-exported from real package
 export const useForm = realModule.useForm;

@@ -303,7 +303,7 @@ UIKit components and hooks. The reconciler produces ForgeDoc.
 | `TagGroup` | ✅ | — | |
 | `Text` | ✅ | `ui-integration.test.ts` | |
 | `TextArea` | ✅ | — | |
-| `Textfield` / `TextField` | ✅ | — | Both casings exported |
+| `Textfield` | ✅ | — | Lowercase-f only (matches real `@forge/react`). Note: devs frequently misimport as `TextField` because it's the conventional React casing. forge-sim deliberately does not alias `TextField` so the bug fails in tests instead of on deploy. |
 | `Tile` | ✅ | — | In renderer mapping |
 | `AtlassianTile` | ✅ | — | In renderer mapping |
 | `AtlassianIcon` | ✅ | — | In renderer mapping |
