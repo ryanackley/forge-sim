@@ -1,0 +1,21 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "forge-sim",
+  "description": "forge-sim plugin marketplace — local Forge runtime simulator with skills and MCP server for fast Forge app development without cloud round-trip.",
+  "owner": {
+    "name": "Ryan Ackley"
+  },
+  "plugins": [
+    {
+      "name": "forge-sim",
+      "description": "Local-first Forge app development workflow. Bundles the forge-local-dev skill (the iterate-and-test phase of Forge dev) with forge-sim's MCP server. Complements Atlassian's forge-skills plugin (forge-app-builder, forge-app-review, forge-debugger, forge-connector) — this plugin owns the develop-and-test loop in between scaffold and deploy.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Ryan Ackley"
+      },
+      "source": "./",
+      "category": "developer-tools",
+      "homepage": "https://github.com/ryanackley/forge-sim"
+    }
+  ]
+}
