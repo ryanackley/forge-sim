@@ -1,6 +1,6 @@
 ---
 name: forge-local-dev
-description: Iterate on Atlassian Forge apps locally using forge-sim — the Forge runtime simulator. Use when the user wants to test a Forge app without deploying to Atlassian cloud, run a macro/panel/resolver/trigger locally, drive a fast iterate loop with forge-sim's MCP tools (forge_deploy, forge_invoke, forge_ui_render, forge_ui_interact, forge_logs, forge_reset), inspect KVS/SQL/queue state, or build a Forge app from scratch with local-first testing in mind. Complements the Atlassian forge-skills plugin — forge-app-builder owns scaffolding (forge create), forge-app-review owns pre-deploy audit, and this skill owns the develop-and-test loop in between. Do not use for: deploying to real Atlassian cloud, debugging an already-deployed production app, or scaffolding a new app from scratch (defer to forge-app-builder for those).
+description: Iterate on Atlassian Forge apps locally using forge-sim — the Forge runtime simulator. Use when the user wants to test a Forge app without deploying to Atlassian cloud, run a macro/panel/resolver/trigger locally, drive a fast iterate loop, inspect KVS/SQL/queue state, write automated tests, or build a Forge app from scratch with local-first testing in mind. forge-sim has three modes — MCP for headless live iteration with an LLM, the HTTP daemon API for automated tests in vitest/jest, and full-stack `forge-sim dev` for Custom UI iframe work — each in its own process. Complements the Atlassian forge-skills plugin — forge-app-builder owns scaffolding (forge create), forge-app-review owns pre-deploy audit, and this skill owns the develop-and-test loop in between. Do not use for: deploying to real Atlassian cloud, debugging an already-deployed production app, or scaffolding a new app from scratch (defer to forge-app-builder for those).
 license: Apache-2.0
 labels:
   - forge
@@ -25,6 +25,7 @@ Use when the user is:
 - Asking to test a macro/panel/resolver/trigger locally
 - Debugging app logic and needs to invoke resolvers, fire triggers, render UI without round-tripping to Atlassian
 - Inspecting KVS, SQL, queue, or entity-store state during development
+- Writing automated tests (vitest/jest) for an app's resolvers, triggers, queues, or SQL persistence
 - Stress-testing an app under different contexts (issue keys, content IDs, spaces) before deploy
 
 **Do NOT use this skill for:**
@@ -37,24 +38,35 @@ Use when the user is:
 ## Lifecycle map — where this skill fits
 
 ```
-┌────────────┐    ┌──────────────────┐    ┌──────────────┐    ┌────────────┐
-│  Scaffold  │ →  │   Iterate (here) │ →  │   Review     │ →  │   Deploy   │
-│            │    │                  │    │              │    │            │
-│ forge      │    │   forge-sim      │    │ forge-app-   │    │ forge-app- │
-│ -app-      │    │   MCP tools      │    │ review       │    │ builder    │
-│ builder    │    │   (this skill)   │    │              │    │            │
-│            │    │                  │    │ security,    │    │ forge      │
-│ forge      │    │   forge_deploy,  │    │ cost,        │    │ deploy,    │
-│ create     │    │   forge_invoke,  │    │ perf,        │    │ install    │
-│ login      │    │   forge_ui_*,    │    │ triggers     │    │            │
-│            │    │   forge_logs     │    │              │    │            │
-└────────────┘    └──────────────────┘    └──────────────┘    └────────────┘
+┌────────────┐    ┌──────────────────────┐    ┌──────────────┐    ┌────────────┐
+│  Scaffold  │ →  │   Iterate (here)     │ →  │   Review     │ →  │   Deploy   │
+│            │    │                      │    │              │    │            │
+│ forge      │    │   forge-sim          │    │ forge-app-   │    │ forge-app- │
+│ -app-      │    │   (this skill)       │    │ review       │    │ builder    │
+│ builder    │    │                      │    │              │    │            │
+│            │    │  ┌──────┐  ┌──────┐  │    │ security,    │    │ forge      │
+│ forge      │    │  │ MCP  │  │ API  │  │    │ cost,        │    │ deploy,    │
+│ create     │    │  │      │  │      │  │    │ perf,        │    │ install    │
+│ login      │    │  │ live │  │ test │  │    │ triggers     │    │            │
+│            │    │  │ iter │  │ runs │  │    │              │    │            │
+│            │    │  └──────┘  └──────┘  │    │              │    │            │
+│            │    │                      │    │              │    │            │
+│            │    │  full-stack only     │    │              │    │            │
+│            │    │  for Custom UI       │    │              │    │            │
+└────────────┘    └──────────────────────┘    └──────────────┘    └────────────┘
                           ▲
                           │
                   ────────┴────────
                   iterate until happy
                   (no cloud round-trip)
 ```
+
+Iterate mode breakdown:
+- **MCP (chat with the user)** → headless live iteration, fastest feedback
+- **API (vitest/jest)** → automated tests, runs in CI, deterministic
+- **Full stack (`forge-sim dev`)** → only for Custom UI iframe work; rarely needed
+
+These are separate processes. State doesn't cross between them — pick the surface that matches the phase.
 
 ## Prerequisites
 
@@ -67,9 +79,29 @@ Use when the user is:
 
 If any required tool is missing, **stop and tell the user how to install it**. Don't fabricate forge-sim behavior from training data — too much has changed.
 
+## Three modes, three processes
+
+forge-sim has three driver surfaces. **They're separate Node processes — they do NOT share state.** Pick the right one for the job; don't try to use one mode's surface from another mode's process.
+
+| Mode | Process | Driven by | Use for |
+|---|---|---|---|
+| **MCP** (`mcp__forge-sim__*`) | Spawned by Claude Code | An LLM in chat (you, here) | **Headless live iteration.** Render, invoke, fire triggers, inspect logs while developing in conversation. The fastest feedback loop. |
+| **API** (HTTP daemon at `http://127.0.0.1:<port>/api/*`) | `forge-sim serve` (or auto-started by other CLI commands) | Test code, scripts, CI | **Automated tests.** Drive sim from a process the test owns — vitest/jest setup hits the daemon over HTTP. Same surface as MCP, but test-process-friendly. |
+| **Full stack** (`forge-sim dev`) | Vite + daemon + browser | A real browser | **Custom UI work only.** Use this when you need real Atlaskit DOM, real bridge messaging, real React effects in an iframe. **Rarely needed.** UIKit, resolvers, triggers, scheduled triggers, web triggers, queues, consumers, SQL, KVS, custom fields, workflows, Rovo actions — all driveable headless via MCP or API. |
+
+Critical rule: **state from one mode is invisible to the others.** The MCP server spawned by Claude Code has its own `ForgeSimulator` instance. The daemon you spawn for tests has another. The `forge-sim dev` process has a third. If you write KVS via MCP and then try to read it from a vitest test, you'll get nothing — you weren't talking to the same sim.
+
+### Mode-by-phase
+
+- **You're iterating with the user in chat right now**: MCP. Skip ahead to Step 3.
+- **You're writing automated tests for the user's app**: API. Skip ahead to Step 4. Do NOT call `mcp__forge-sim__*` tools from inside test files — they live in a process the test runner can't reach.
+- **You're building or debugging Custom UI iframes**: full stack mode. Run `forge-sim dev`, point Playwright at it. (Out of scope for this skill in most cases — only invoke when the user is explicitly working on Custom UI.)
+
+If you find yourself wanting to "run an MCP tool from a test," that's a category error. Switch to the HTTP API.
+
 ## Workflow
 
-Complete steps 1–5 in order. Stop after step 4 unless the user has explicitly asked you to ship.
+Complete steps 1–6 in order. Stop after step 5 unless the user has explicitly asked you to ship.
 
 ### Step 1: Make sure the app has a valid appId
 
@@ -121,9 +153,9 @@ If deploy fails, the logs will tell you why. Common issues:
 - **Missing module bundle** — check `resources` in manifest matches actual file paths
 - **Runtime mismatch warnings** — usually just a Node version notice, not blocking
 
-### Step 3: Iterate — drive the test loop
+### Step 3: Iterate headlessly via MCP
 
-Pick the right tool for the module type:
+This is the live-iteration loop you'll spend most of your time in while chatting with the user. Drive sim with `mcp__forge-sim__*` tools. Pick the right tool for the module type:
 
 #### UI modules (macros, issue panels, custom fields, global pages)
 
@@ -198,15 +230,119 @@ forge-sim ships sample payloads for 141 events (76 Confluence + 54 Jira + 9 Jira
 | Console output | `forge_logs({ level?, limit? })` |
 | Realtime channels | `forge_realtime_state()` |
 
-#### Reset between tests
+#### Reset between scenarios
 
 ```
 mcp__forge-sim__forge_reset()
 ```
 
-Clears all sim state. Useful between independent test scenarios. Followed by another `forge_deploy`.
+Clears all sim state (in-memory + drops SQL tables; MySQL server stays running). Useful between independent scenarios. Followed by another `forge_deploy`.
 
-### Step 4: STOP — do NOT run `forge deploy`
+### Step 4: Write automated tests against the API (not the MCP)
+
+When the user asks you to "write tests" / "make this testable" / "add vitest coverage", switch surfaces. Tests run in their own Node process; they can't reach the MCP server. Drive sim via the daemon's HTTP API instead.
+
+**Setup:** the daemon needs to be running before tests start. Two reasonable patterns:
+
+```bash
+# Option A — keep the daemon running between test runs (fast, recommended for local dev)
+forge-sim serve &        # one-time, runs in background
+npx vitest               # tests connect to existing daemon
+
+# Option B — spawn-on-demand from test setup
+# In a global setup file, call ensureDaemon() from forge-sim's daemon-client
+```
+
+The daemon writes its port to `~/.forge-sim/daemon.port` and PID to `~/.forge-sim/daemon.pid`. Health endpoint: `GET /api/health`.
+
+**Test surface:** every MCP tool has an HTTP equivalent at `POST /api/<tool>`. The shapes are nearly identical (a few field-name divergences exist — favor what the daemon accepts when in doubt). The pattern is:
+
+```ts
+// tests/sim-client.ts — thin client, write once per project
+import { readFileSync } from 'node:fs';
+import { homedir } from 'node:os';
+
+const port = parseInt(readFileSync(`${homedir()}/.forge-sim/daemon.port`, 'utf-8').trim(), 10);
+const BASE = `http://127.0.0.1:${port}`;
+
+export async function deploy(appDir: string) {
+  return fetch(`${BASE}/api/deploy`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ appDir, reset: true }),
+  }).then(r => r.json());
+}
+
+export async function reset() {
+  return fetch(`${BASE}/api/reset`, { method: 'POST' }).then(r => r.json());
+}
+
+export async function fireTrigger(event: string, data: any = {}) {
+  return fetch(`${BASE}/api/trigger`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ event, data }),
+  }).then(r => r.json());
+}
+
+export async function invoke(functionKey: string, payload: any = {}) {
+  return fetch(`${BASE}/api/invoke`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ functionKey, payload }),
+  }).then(r => r.json());
+}
+
+export async function logs(level = 'info') {
+  return fetch(`${BASE}/api/logs?level=${level}`).then(r => r.json());
+}
+
+export async function sql(query: string, params: any[] = []) {
+  return fetch(`${BASE}/api/sql/query`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query, params }),
+  }).then(r => r.json());
+}
+```
+
+```ts
+// tests/audit.test.ts — example
+import { describe, it, beforeAll, beforeEach, expect } from 'vitest';
+import { deploy, reset, fireTrigger, invoke, sql } from './sim-client';
+
+describe('audit log', () => {
+  beforeAll(async () => {
+    await deploy(process.cwd());  // path to the app dir
+  });
+
+  beforeEach(async () => {
+    await reset();
+    await deploy(process.cwd());  // reset clears manifest, so redeploy
+  });
+
+  it('records updated events into audit_entries', async () => {
+    await fireTrigger('avi:jira:updated:issue', {
+      issue: { key: 'TEST-1', fields: { summary: 'Test' } },
+    });
+    const rows = await sql(
+      'SELECT * FROM audit_entries WHERE issue_key = ? AND event_type = ?',
+      ['TEST-1', 'updated'],
+    );
+    expect(rows.rows).toHaveLength(1);
+  });
+});
+```
+
+**Vitest config notes:**
+- Use a single shared daemon — set `pool: 'forks'` with `singleFork: true` and `fileParallelism: false`. Otherwise parallel test files race for sim state.
+- Don't use vitest's `setupFiles` to start the daemon unless you're prepared to also stop it cleanly; manual `forge-sim serve &` is simpler.
+
+**Async UI rendering caveat:** `POST /api/ui/render` returns a synchronous snapshot. If the rendered tree calls `useEffect → invoke()`, you'll see "Loading..." in the first response. Poll `/api/ui/state` (or call `render` again) until the loading text disappears, with a sensible timeout. forge-sim doesn't currently auto-await pending bridge calls.
+
+**Don't reach for full-stack mode for tests.** Unless the test specifically validates Custom UI iframe behavior, headless API + vitest is faster, more deterministic, and doesn't need a browser.
+
+### Step 5: STOP — do NOT run `forge deploy`
 
 After the iterate phase passes, **the workflow gates here**. Do NOT chain into `forge deploy`. Tell the user:
 
@@ -219,7 +355,7 @@ If `forge-app-review` skill is not available, point the user at:
 
 Wait for explicit user confirmation before any cloud deploy.
 
-### Step 5: Real deploy (only after review)
+### Step 6: Real deploy (only after review)
 
 Hand control back to `forge-app-builder` skill for `forge deploy` + `forge install`. **This skill does not deploy to cloud, ever.**
 
