@@ -201,7 +201,7 @@ describe('Module route registration', () => {
 
   it('clears module routes on reset', async () => {
     await sim.loadManifest(MIXED_MANIFEST);
-    sim.reset();
+    await sim.reset();
     expect(sim.getModuleRoute('local-panel')).toBeUndefined();
     expect(sim.getModuleRoute('remote-panel')).toBeUndefined();
   });

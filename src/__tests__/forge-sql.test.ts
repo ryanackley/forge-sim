@@ -189,4 +189,59 @@ describe('SimulatedForgeSQL', () => {
     expect(data.rows).toHaveLength(1);
     expect(data.rows[0].name).toBe('001_create_users');
   });
+
+  describe('reset (regression: SQL state should clear on sim.reset())', () => {
+    it('drops all tables on sql.reset() but keeps the server running', async () => {
+      // Seed two tables, one with FK to the other (ensures we handle FKs)
+      await sim.sql.query('CREATE TABLE IF NOT EXISTS reset_parent (id INT PRIMARY KEY)');
+      await sim.sql.query(
+        'CREATE TABLE IF NOT EXISTS reset_child (id INT PRIMARY KEY, parent_id INT, FOREIGN KEY (parent_id) REFERENCES reset_parent(id))',
+      );
+      await sim.sql.query('INSERT INTO reset_parent (id) VALUES (1)');
+      await sim.sql.query('INSERT INTO reset_child (id, parent_id) VALUES (10, 1)');
+
+      // Sanity: tables exist and have rows
+      const before = await sim.sql.query<{ TABLE_NAME: string }>(
+        "SELECT TABLE_NAME FROM information_schema.tables WHERE TABLE_SCHEMA = 'forge_app' AND TABLE_NAME IN ('reset_parent', 'reset_child')",
+      );
+      expect(before).toHaveLength(2);
+
+      // Reset
+      await sim.sql.reset();
+
+      // Tables should be gone
+      const after = await sim.sql.query<{ TABLE_NAME: string }>(
+        "SELECT TABLE_NAME FROM information_schema.tables WHERE TABLE_SCHEMA = 'forge_app' AND TABLE_NAME IN ('reset_parent', 'reset_child')",
+      );
+      expect(after).toHaveLength(0);
+
+      // Server is still up
+      expect(sim.sql.isRunning).toBe(true);
+      expect(sim.sql.port).toBeGreaterThan(0);
+    });
+
+    it('sim.reset() also drops SQL tables', async () => {
+      // Top-level sim.reset should propagate to SQL.
+      await sim.sql.query('CREATE TABLE IF NOT EXISTS reset_top (id INT PRIMARY KEY)');
+      await sim.sql.query('INSERT INTO reset_top (id) VALUES (42)');
+
+      const before = await sim.sql.query<{ id: number }>('SELECT id FROM reset_top');
+      expect(before).toHaveLength(1);
+
+      await sim.reset();
+
+      // Table is gone — querying should error
+      await expect(sim.sql.query('SELECT id FROM reset_top')).rejects.toThrow();
+      expect(sim.sql.isRunning).toBe(true);
+    });
+
+    it('sql.reset() is a no-op when server has not been started', async () => {
+      // Use a fresh simulator that hasn't started SQL
+      const freshSim = createSimulator();
+      expect(freshSim.sql.isRunning).toBe(false);
+      // Should not throw
+      await expect(freshSim.sql.reset()).resolves.toBeUndefined();
+      expect(freshSim.sql.isRunning).toBe(false);
+    });
+  });
 });

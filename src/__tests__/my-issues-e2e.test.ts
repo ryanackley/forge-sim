@@ -92,8 +92,8 @@ describe('my-issues e2e', () => {
     await sim.deploy(FIXTURE_DIR);
   }, 30_000);
 
-  afterAll(() => {
-    sim.reset();
+  afterAll(async () => {
+    await sim.reset();
   });
 
   it('getMyself returns user info', async () => {

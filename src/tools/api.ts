@@ -65,7 +65,7 @@ export function createApiHandler(sim: ForgeSimulator, manifestOrNull?: ParsedMan
         if (!appDir) return json(res, { error: 'Missing appDir' }, 400);
 
         if (reset !== false) {
-          sim.reset();
+          await sim.reset();
           sim.ui.reset();
         }
 
@@ -103,9 +103,9 @@ export function createApiHandler(sim: ForgeSimulator, manifestOrNull?: ParsedMan
 
       // ── Reset ──────────────────────────────────────────────────────
       if (path === '/api/reset' && method === 'POST') {
-        sim.reset();
+        await sim.reset();
         sim.ui.reset();
-        return json(res, { success: true, message: 'Simulator reset. All state cleared.' });
+        return json(res, { success: true, message: 'Simulator reset. All state cleared (in-memory + SQL tables dropped).' });
       }
 
       // ── Manifest ───────────────────────────────────────────────────

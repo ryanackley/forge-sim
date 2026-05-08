@@ -19,8 +19,8 @@ describe('SimulatorUI', () => {
     sim = createSimulator();
   });
 
-  afterEach(() => {
-    sim.reset();
+  afterEach(async () => {
+    await sim.reset();
   });
 
   describe('bridge lifecycle', () => {

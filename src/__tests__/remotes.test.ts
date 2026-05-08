@@ -473,7 +473,7 @@ describe('simulator remotes integration', () => {
     const resp1 = await sim.remotes.invoke('my-backend', { path: '/test' });
     expect(resp1.ok).toBe(true);
 
-    sim.reset();
+    await sim.reset();
 
     // After reset, manifest is cleared, so remote is unknown
     const resp2 = await sim.remotes.invoke('my-backend', { path: '/test' });

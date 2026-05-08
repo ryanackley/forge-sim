@@ -903,7 +903,18 @@ export class ForgeSimulator {
 
   // ── Full Reset ──────────────────────────────────────────────────────────
 
-  reset(): void {
+  /**
+   * Clear all simulator state — KVS, queues, resolvers, manifest, logs,
+   * UI bridge, realtime, and SQL tables. The MySQL server itself stays
+   * running (restarting it would cost seconds per reset); only its tables
+   * are dropped, leaving an empty schema.
+   *
+   * Async because clearing SQL requires a query roundtrip. If SQL was
+   * never started, the SQL portion is a no-op.
+   *
+   * Call `stop()` (separately) to actually shut down the MySQL server.
+   */
+  async reset(): Promise<void> {
     // Tear down UI bridge first — swallows stale React effects that fire after reset
     this.ui.reset();
     this.kvs.clear();
@@ -917,13 +928,12 @@ export class ForgeSimulator {
     this.llm.reset();
     this.moduleRouting.clear();
     this.resolverOwnership.clear();
-    this.llm.reset();
     this.realtime.reset();
     this.manifest = null;
     this.logs.length = 0;
     this.consoleLogs.length = 0;
-    // Note: SQL server is NOT stopped on reset — it's expensive to restart.
-    // Call stop() explicitly when done.
+    // SQL: drop all tables but keep the server running.
+    await this.sql.reset();
   }
 
   /**

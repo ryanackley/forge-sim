@@ -74,7 +74,7 @@ server.tool(
   },
   async ({ appDir, reset }) => {
     if (reset !== false) {
-      sim.reset();
+      await sim.reset();
       sim.ui.reset();
     }
 
@@ -1003,12 +1003,12 @@ server.tool(
 
 server.tool(
   'forge.reset',
-  'Reset the simulator — clears all state (KVS, queues, resolvers, logs, UI). Like a fresh install.',
+  'Reset the simulator — clears KVS, queues, resolvers, logs, UI, realtime, manifest, AND drops all SQL tables (the MySQL server itself stays running for speed). Use sim.stop() to shut down the SQL server.',
   async () => {
-    sim.reset();
+    await sim.reset();
     sim.ui.reset();
     return {
-      content: [{ type: 'text' as const, text: '✅ Simulator reset. All state cleared.' }],
+      content: [{ type: 'text' as const, text: '✅ Simulator reset. All state cleared (in-memory + SQL tables dropped).' }],
     };
   }
 );
