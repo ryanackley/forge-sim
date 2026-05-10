@@ -13,9 +13,7 @@ labels:
 
 This skill drives the **iterate phase** of Forge app development using
 [forge-sim](https://github.com/ryanackley/forge-sim), a local Forge runtime
-simulator. forge-sim's whole pitch is parity: *if it works in forge-sim, it
-should work in Forge — and if it wouldn't work in Forge, it shouldn't work
-in forge-sim*. That's the contract; honor it.
+simulator. 
 
 ## When to use this skill
 
@@ -62,9 +60,9 @@ Use when the user is:
 ```
 
 Iterate mode breakdown:
-- **MCP (chat with the user)** → headless live iteration, fastest feedback
+- **MCP (chat with the user)** → headless live iteration. It can do full-stack if the UI is in UIKit 2. Otherwise, can handle backend iteration. fastest feedback
 - **In-process API (`createSimulator()` in vitest/jest)** → automated tests, runs in CI, deterministic, breakpoint-debuggable
-- **Full stack (`forge-sim dev`)** → only for Custom UI iframe work; rarely needed
+- **Full stack (`forge-sim dev`)** → Should only be used for Custom UI work; rarely needed
 
 These are separate processes. State doesn't cross between them — pick the surface that matches the phase.
 
@@ -77,29 +75,25 @@ These are separate processes. State doesn't cross between them — pick the surf
 | **Atlassian forge-skills plugin** | ⚠️ Recommended | Provides `forge-app-builder`, `forge-app-review`, `forge-debugger`, `forge-connector`. This skill delegates to those for non-iterate phases. Install: `/plugin marketplace add atlassian/forge-skills` then `/plugin install forge-skills@atlassian-forge-skills`. |
 | **ADS MCP server** (`https://mcp.atlassian.com/v1/ads/public/mcp`) | Optional | Atlaskit component / token / icon lookup. Useful for Custom UI work; not used by UIKit. |
 
-If any required tool is missing, **stop and tell the user how to install it**. Don't fabricate forge-sim behavior from training data — too much has changed.
+If any required tool is missing, **stop and tell the user how to install it**. Don't fabricate forge-sim or Forge behavior from training data — too much has changed.
 
 ## Three driver surfaces, three processes
 
-forge-sim has three driver surfaces. **They're separate Node processes — they do NOT share state.** Pick the right one for the job; don't try to use one surface from another's process.
+forge-sim has three driver surfaces.
 
 | Surface | Process | Driven by | Use for |
 |---|---|---|---|
-| **MCP** (`mcp__forge-sim__*`) | Spawned by Claude Code as a subprocess | An LLM in chat (you, here) | **Headless live iteration.** Render, invoke, fire triggers, inspect logs while developing in conversation. The fastest feedback loop. |
+| **MCP** (`mcp__forge-sim__*`) | **Headless live iteration.** Render, invoke, fire triggers, inspect logs while developing in conversation. The fastest feedback loop. |
 | **In-process** (`createSimulator()` from `'forge-sim'`) | Same Node process as the test runner | Test code, scripts, custom tooling | **Automated tests.** Direct method calls — `sim.invoke`, `sim.fireTrigger`, `sim.kvs.get`, `sim.ui.render`, etc. No HTTP, no daemon, breakpoint-debuggable. |
-| **Full stack** (`forge-sim dev`) | Vite + daemon + browser | A real browser | **Custom UI work only.** Use this when you need real Atlaskit DOM, real bridge messaging, real React effects in an iframe. **Rarely needed.** UIKit, resolvers, triggers, scheduled triggers, web triggers, queues, consumers, SQL, KVS, custom fields, workflows, Rovo actions — all driveable headless via MCP or in-process. |
+| **Full stack** (`forge-sim dev`) | Vite + daemon + browser | A real browser | **Custom UI work only.** Use this when you need real DOM, real bridge messaging, real React effects in an iframe. **Rarely needed.** UIKit 2, resolvers, triggers, scheduled triggers, web triggers, queues, consumers, SQL, KVS, custom fields, workflows, Rovo actions — all driveable headless via MCP or in-process. |
 
-> **Note on the daemon.** `forge-sim serve` runs a fourth process — a stateful HTTP daemon — that the **CLI** uses so commands like `forge-sim deploy ./app` and `forge-sim invoke foo` can share state across separate terminal invocations. It is **not** the test surface and **not** what the MCP tools talk to. Tests use the in-process API; the LLM uses MCP. Only mention the daemon if a user asks about CLI workflows.
-
-Critical rule: **state from one surface is invisible to the others.** The MCP server spawned by Claude Code has its own `ForgeSimulator` instance. A vitest run starts another via `createSimulator()`. The `forge-sim dev` process has a third. If you write KVS via MCP and then expect to read it from a vitest test, you'll get nothing — different sims.
+Critical rule: **state from one surface is invisible to the others.** 
 
 ### Surface-by-phase
 
 - **You're iterating with the user in chat right now**: MCP. Skip ahead to Step 3.
-- **You're writing automated tests for the user's app**: in-process API. Skip ahead to Step 4. Do NOT call `mcp__forge-sim__*` tools from inside test files — those tools live in a different Node process the test runner can't reach.
+- **You're writing automated tests for the user's app**: in-process API. Skip ahead to Step 4. 
 - **You're building or debugging Custom UI iframes**: full stack mode. Run `forge-sim dev`, point Playwright at it. (Out of scope for this skill in most cases — only invoke when the user is explicitly working on Custom UI.)
-
-If you find yourself wanting to "run an MCP tool from a test," that's a category error. Switch to `createSimulator()` in-process — it's the same simulator, just imported as a library instead of driven over JSON-RPC.
 
 ## Workflow
 
@@ -242,7 +236,7 @@ Clears all sim state (in-memory + drops SQL tables; MySQL server stays running).
 
 ### Step 4: Write automated tests with the in-process API
 
-When the user asks you to "write tests" / "make this testable" / "add vitest coverage", switch surfaces. Tests run in their own Node process — they can't reach the MCP server. The right answer is **not** to write a custom HTTP client against the daemon; forge-sim already exposes a fully-fleshed in-process API that runs the simulator inline with the test.
+When the user asks you to "write tests" / "make this testable" / "add vitest coverage", switch surfaces. Tests run in their own Node process — they can't reach the MCP server.
 
 **The full reference is [docs/testing.md](https://github.com/ryanackley/forge-sim/blob/main/docs/testing.md)** — read it before writing tests. It covers bundler config, every testing pattern (resolvers, SQL, KVS, triggers, queues, UI), product API mocking, and view-event capture (`onSubmit`/`onClose`/`onRefresh`). The summary below is the minimum needed to bootstrap a test file.
 
@@ -333,7 +327,7 @@ That's the whole pattern. Direct method calls. No HTTP, no port file, no client 
 #### Test-suite shape
 
 - **One simulator per `describe`** in `beforeAll` / `afterAll` — share the deploy cost across tests in the file.
-- **Reset between independent scenarios with `await sim.reset()`** — async since `0ec3289` (drops SQL tables FK-aware before the next deploy).
+- **Reset between independent scenarios with `await sim.reset()`** — async (drops SQL tables FK-aware before the next deploy).
 - **Don't use `sim.stop()` between tests** — that tears down the embedded MySQL server. Save it for `afterAll`.
 - **`sim.sql.start()` is opt-in.** Skip it if the app doesn't use `@forge/sql`; tests will be faster.
 - **Mock product APIs before `sim.deploy()`** if your app's scheduled triggers hit Jira/Confluence at startup (migrations often do).
@@ -348,13 +342,7 @@ const doc = await sim.ui.waitForContent('issue-panel', 'PROJ-42');
 expect(sim.ui.getTextContent(doc)).toContain('Fix the bug');
 ```
 
-#### What about the daemon / HTTP API?
-
-Skip them for tests. The daemon (`forge-sim serve`) is what the **CLI** talks to so commands like `forge-sim deploy ./app` and `forge-sim invoke foo` can share state across separate terminal invocations. It exposes HTTP `/api/*` endpoints, but those exist for the CLI's benefit. Driving sim from inside the test process via `createSimulator()` is faster, deterministic, breakpoint-debuggable, and doesn't need cross-process coordination.
-
-The HTTP daemon API is only the right call when the test process genuinely cannot host the sim — for example, a Playwright test driving a `forge-sim dev` server end-to-end. That's the exception, not the path. In every other case, import `createSimulator` and call methods on it.
-
-**Don't reach for full-stack mode for tests either.** Unless the test specifically validates Custom UI iframe behavior, the in-process API + vitest is faster, more deterministic, and doesn't need a browser.
+**Don't reach for `forge-sim dev` for tests.** Unless the test specifically validates Custom UI iframe behavior, the in-process API + vitest is faster, more deterministic, and doesn't need a browser.
 
 ### Step 5: STOP — do NOT run `forge deploy`
 
