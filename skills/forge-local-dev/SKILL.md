@@ -247,19 +247,17 @@ Vitest, Jest, and webpack bypass Node's loader hooks, so you have to alias `@for
 ```ts
 // vitest.config.ts
 import { defineConfig } from 'vitest/config';
-import { resolve } from 'node:path';
 
-const SHIMS = resolve(require.resolve('forge-sim'), '..', 'shims');
-
+// Aliases use forge-sim's "./shims/*" subpath exports — no path math needed.
 export default defineConfig({
   resolve: {
     alias: {
-      '@forge/resolver': resolve(SHIMS, 'forge-resolver.js'),
-      '@forge/api':      resolve(SHIMS, 'forge-api.js'),
-      '@forge/kvs':      resolve(SHIMS, 'forge-kvs.js'),
-      '@forge/events':   resolve(SHIMS, 'forge-events.js'),
-      '@forge/react':    resolve(SHIMS, 'forge-react.js'),
-      '@forge/bridge':   resolve(SHIMS, 'forge-bridge.js'),
+      '@forge/resolver': 'forge-sim/shims/forge-resolver',
+      '@forge/api':      'forge-sim/shims/forge-api',
+      '@forge/kvs':      'forge-sim/shims/forge-kvs',
+      '@forge/events':   'forge-sim/shims/forge-events',
+      '@forge/react':    'forge-sim/shims/forge-react',
+      '@forge/bridge':   'forge-sim/shims/forge-bridge',
       // add any other @forge/* the app actually imports
     },
   },

@@ -41,23 +41,21 @@ Forge apps import packages like `@forge/api`, `@forge/resolver`, `@forge/kvs`, e
 ```ts
 // vitest.config.ts
 import { defineConfig } from 'vitest/config';
-import { resolve } from 'node:path';
 
-// Point to forge-sim's compiled shims
-const SHIMS = resolve(require.resolve('forge-sim'), '..', 'shims');
-
+// Aliases use forge-sim's "./shims/*" subpath exports — no path math needed.
+// Works on every Node version that supports exports maps (>=14.13).
 export default defineConfig({
   resolve: {
     alias: {
-      '@forge/resolver':           resolve(SHIMS, 'forge-resolver.js'),
-      '@forge/api':                resolve(SHIMS, 'forge-api.js'),
-      '@forge/kvs':                resolve(SHIMS, 'forge-kvs.js'),
-      '@forge/events':             resolve(SHIMS, 'forge-events.js'),
-      '@forge/react':              resolve(SHIMS, 'forge-react.js'),
-      '@forge/bridge':             resolve(SHIMS, 'forge-bridge.js'),
-      '@forge/jira-bridge':        resolve(SHIMS, 'forge-jira-bridge.js'),
-      '@forge/confluence-bridge':  resolve(SHIMS, 'forge-confluence-bridge.js'),
-      '@forge/dashboards-bridge':  resolve(SHIMS, 'forge-dashboards-bridge.js'),
+      '@forge/resolver':           'forge-sim/shims/forge-resolver',
+      '@forge/api':                'forge-sim/shims/forge-api',
+      '@forge/kvs':                'forge-sim/shims/forge-kvs',
+      '@forge/events':             'forge-sim/shims/forge-events',
+      '@forge/react':              'forge-sim/shims/forge-react',
+      '@forge/bridge':             'forge-sim/shims/forge-bridge',
+      '@forge/jira-bridge':        'forge-sim/shims/forge-jira-bridge',
+      '@forge/confluence-bridge':  'forge-sim/shims/forge-confluence-bridge',
+      '@forge/dashboards-bridge':  'forge-sim/shims/forge-dashboards-bridge',
     },
   },
   test: {
@@ -73,28 +71,26 @@ export default defineConfig({
 
 ```js
 // jest.config.js (or webpack.config.js resolve.alias)
-const path = require('path');
-const SHIMS = path.resolve(require.resolve('forge-sim'), '..', 'shims');
-
+// Aliases use forge-sim's "./shims/*" subpath exports — no path math needed.
 module.exports = {
   // Jest
   moduleNameMapper: {
-    '^@forge/resolver$':          path.resolve(SHIMS, 'forge-resolver.js'),
-    '^@forge/api$':               path.resolve(SHIMS, 'forge-api.js'),
-    '^@forge/kvs$':               path.resolve(SHIMS, 'forge-kvs.js'),
-    '^@forge/events$':            path.resolve(SHIMS, 'forge-events.js'),
-    '^@forge/react$':             path.resolve(SHIMS, 'forge-react.js'),
-    '^@forge/bridge$':            path.resolve(SHIMS, 'forge-bridge.js'),
-    '^@forge/jira-bridge$':       path.resolve(SHIMS, 'forge-jira-bridge.js'),
-    '^@forge/confluence-bridge$': path.resolve(SHIMS, 'forge-confluence-bridge.js'),
-    '^@forge/dashboards-bridge$': path.resolve(SHIMS, 'forge-dashboards-bridge.js'),
+    '^@forge/resolver$':          'forge-sim/shims/forge-resolver',
+    '^@forge/api$':               'forge-sim/shims/forge-api',
+    '^@forge/kvs$':               'forge-sim/shims/forge-kvs',
+    '^@forge/events$':            'forge-sim/shims/forge-events',
+    '^@forge/react$':             'forge-sim/shims/forge-react',
+    '^@forge/bridge$':            'forge-sim/shims/forge-bridge',
+    '^@forge/jira-bridge$':       'forge-sim/shims/forge-jira-bridge',
+    '^@forge/confluence-bridge$': 'forge-sim/shims/forge-confluence-bridge',
+    '^@forge/dashboards-bridge$': 'forge-sim/shims/forge-dashboards-bridge',
   },
 
   // Webpack (resolve.alias section)
   // resolve: {
   //   alias: {
-  //     '@forge/resolver': path.resolve(SHIMS, 'forge-resolver.js'),
-  //     '@forge/api':      path.resolve(SHIMS, 'forge-api.js'),
+  //     '@forge/resolver': 'forge-sim/shims/forge-resolver',
+  //     '@forge/api':      'forge-sim/shims/forge-api',
   //     // ... same pattern
   //   },
   // },
