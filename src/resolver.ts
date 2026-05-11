@@ -8,6 +8,16 @@ import type { ResolverRequest, ResolverContext } from './types.js';
 
 export type ResolverHandler = (req: ResolverRequest) => any | Promise<any>;
 
+/**
+ * Provider for the default context that gets spread into every resolver
+ * invocation. Defaults to the bare `sim-*` placeholders for backward compat
+ * when the resolver is used standalone (no ForgeSimulator). When a resolver
+ * lives inside a ForgeSimulator, the simulator wires a provider that reads
+ * the connected Atlassian account (if any), so cold MCP invokes and
+ * UI-mediated invokes both see the same accountId. Fix for N3.
+ */
+export type ResolverContextProvider = () => ResolverContext;
+
 const DEFAULT_CONTEXT: ResolverContext = {
   accountId: 'sim-user-001',
   cloudId: 'sim-cloud-001',
@@ -16,9 +26,25 @@ const DEFAULT_CONTEXT: ResolverContext = {
   installContext: 'ari:cloud:jira::site/sim-site',
 };
 
+const defaultContextProvider: ResolverContextProvider = () => ({ ...DEFAULT_CONTEXT });
+
 export class SimulatedResolver {
   private definitions = new Map<string, ResolverHandler>();
   private contextOverrides: Partial<ResolverContext> = {};
+  private getDefaults: ResolverContextProvider;
+
+  constructor(getDefaults: ResolverContextProvider = defaultContextProvider) {
+    this.getDefaults = getDefaults;
+  }
+
+  /**
+   * Replace the context defaults provider. Called by ForgeSimulator after
+   * construction (or after a connected account changes) so resolvers see
+   * the same defaults as the UI render path.
+   */
+  setDefaultsProvider(provider: ResolverContextProvider): void {
+    this.getDefaults = provider;
+  }
 
   /**
    * Define a resolver function (mirrors Resolver.define()).
@@ -53,7 +79,7 @@ export class SimulatedResolver {
     }
 
     const context: ResolverContext = {
-      ...DEFAULT_CONTEXT,
+      ...this.getDefaults(),
       ...this.contextOverrides,
     };
 

@@ -91,7 +91,12 @@ export class ForgeSimulator {
   constructor(config?: SimulationConfig) {
     this.kvs = new UnifiedKVS();
     this.queue = new SimulatedQueue({ mode: config?.queueMode ?? 'sequential' });
-    this.resolver = new SimulatedResolver();
+    // Resolver gets a callback so cold MCP invokes see the same default
+    // context (notably accountId/cloudId/siteUrl) as the UI render path.
+    // Fix for N3 — without this, cold invokes used sim-user-001 even when
+    // a real Atlassian account was connected, while UI-mediated invokes
+    // used the real ARI. The asymmetry confused tests that mixed surfaces.
+    this.resolver = new SimulatedResolver(() => this.getDefaultContext());
     this.productApi = new SimulatedProductApi();
     this.sql = new SimulatedForgeSQL(config?.forgeSQL);
     this.functions = new FunctionRegistry();
@@ -456,13 +461,34 @@ export class ForgeSimulator {
   }
 
   /**
-   * Build the standard Forge context object.
+   * Build the default Forge context, consulting the connected Atlassian
+   * account (if any) for accountId/cloudId/siteUrl. Single source of truth
+   * shared by the resolver, trigger, and UI render paths so they don't
+   * disagree on who the current user is.
+   *
+   * Falls back to the sim-* placeholders when no real account is connected.
+   */
+  getDefaultContext(): ResolverContext {
+    const account = this.productApi.connectedAccount;
+    return {
+      accountId: account?.accountId ?? 'sim-user-001',
+      cloudId: account?.cloudId ?? 'sim-cloud-001',
+      siteUrl: account ? `https://${account.site}` : 'https://sim-site.atlassian.net',
+      moduleKey: 'sim-module',
+      installContext: account
+        ? `ari:cloud:jira::site/${account.cloudId}`
+        : 'ari:cloud:jira::site/sim-site',
+    };
+  }
+
+  /**
+   * Build a Forge context for trigger/consumer invocation. Layers any
+   * explicit overrides on top of the simulator's default context and the
+   * resolver's context overrides.
    */
   private buildContext(overrides?: Record<string, unknown>): Record<string, unknown> {
     return {
-      accountId: 'sim-user-001',
-      cloudId: 'sim-cloud-001',
-      installContext: 'ari:cloud:jira::site/sim-site',
+      ...this.getDefaultContext(),
       ...this.resolver.getContextOverrides(),
       ...overrides,
     };

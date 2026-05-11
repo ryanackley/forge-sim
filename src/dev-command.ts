@@ -2160,11 +2160,10 @@ function registerDispatchFunction(sim: ForgeSimulator, fnKey: string, dispatchFn
       return await originalInvoke(functionKey, payload);
     } catch (err: any) {
       if (err?.message?.includes('No resolver defined')) {
-        const context = {
-          accountId: 'sim-user-001',
-          cloudId: 'sim-cloud-001',
-          siteUrl: 'https://sim-site.atlassian.net',
-        };
+        // Use the simulator's canonical default context so daemon-routed
+        // invokes share the same accountId as cold MCP invokes and the UI
+        // render path. Fix for N3.
+        const context = sim.getDefaultContext();
         return dispatchFn(
           { call: { functionKey, payload: payload ?? {} }, context },
           {}
