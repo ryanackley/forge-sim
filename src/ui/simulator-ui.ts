@@ -230,9 +230,27 @@ export class SimulatorUI {
    *
    *   await sim.ui.render('issue-panel', { context: { issueKey: 'PROJ-1' } });
    *   const doc = await sim.ui.waitForContent('issue-panel', 'PROJ-1');
+   *
+   * If the module has never been rendered, this method auto-renders it once
+   * with default options before waiting. This is a convenience for the common
+   * "set state, then assert" pattern:
+   *
+   *   sim.ui.setMacroConfig('pet-card', { name: 'Rex' });
+   *   const doc = await sim.ui.waitForContent('pet-card', 'Rex');  // ← no manual render needed
+   *
+   * Once a module has been rendered (by you or by auto-render), waitForContent
+   * becomes pure observation — it will NOT re-render, so it's safe to use for
+   * waiting on async state changes (useEffect, in-flight invokes, etc.).
+   *
+   * If you need non-default render options (e.g. context overrides), call
+   * sim.ui.render() explicitly first.
    */
   async waitForContent(moduleKey: string, text: string, timeoutMs = 5000): Promise<ForgeDoc> {
-    const start = Date.now();
+    // Auto-render if this module has never been rendered. Idempotent: once
+    // a doc exists in moduleDocs, repeat calls skip this branch entirely.
+    if (!this.moduleDocs.has(moduleKey)) {
+      await this.render(moduleKey);
+    }
 
     // Check if already there
     const current = this.getForgeDoc(moduleKey);
@@ -261,12 +279,44 @@ export class SimulatorUI {
       setTimeout(() => {
         unbind();
         unbindGlobal();
-        const currentText = this.getForgeDoc(moduleKey)
-          ? getTextContent(this.getForgeDoc(moduleKey)!)
-          : '(no doc)';
+        const doc = this.getForgeDoc(moduleKey);
+        const currentText = doc ? getTextContent(doc) : '(no doc)';
+
+        // Build a helpful hint when we can detect a likely cause.
+        const hints: string[] = [];
+
+        // Hint 1: macro module with no saved config — likely missed setMacroConfig
+        try {
+          const manifest = this.sim.getManifest();
+          const uiModule = manifest?.uiModules.find(m => m.key === moduleKey);
+          if (uiModule?.type === 'macro') {
+            const baseKey = moduleKey.replace(/--(?:view|config)$/, '');
+            const savedConfig = this.macroConfigs.get(baseKey);
+            if (!savedConfig || Object.keys(savedConfig).length === 0) {
+              hints.push(
+                `Module "${moduleKey}" is a macro and no config has been seeded. ` +
+                `Did you forget sim.ui.setMacroConfig("${baseKey}", {...}) before render()? ` +
+                `useConfig() returns {} until setMacroConfig is called.`
+              );
+            }
+          }
+        } catch {
+          // Best-effort hint — never let hint logic itself fail the test.
+        }
+
+        // Hint 2: doc exists but text is missing — guide toward debug output
+        if (doc && !hints.length) {
+          hints.push(
+            `The module rendered, but its text content does not include "${text}". ` +
+            `Inspect the full tree with sim.ui.getForgeDoc("${moduleKey}") to see ` +
+            `what the app is actually emitting.`
+          );
+        }
+
+        const hintBlock = hints.length ? `\n\nHint: ${hints.join('\n      ')}` : '';
         reject(new Error(
-          `Timed out waiting for "${text}" in module "${moduleKey}" after ${timeoutMs}ms. ` +
-          `Current content: "${currentText}"`
+          `Timed out waiting for "${text}" in module "${moduleKey}" after ${timeoutMs}ms.\n` +
+          `Current content: "${currentText}"${hintBlock}`
         ));
       }, timeoutMs);
     });
