@@ -93,9 +93,47 @@ describe('@forge/react shim — dead UIKit 1 components must not return', () => 
   });
 });
 
-// Note: A lightweight auto-drift check (scan real @forge/react's
-// ui-kit-components.d.ts, assert the shim covers each value export) was
-// drafted alongside this fix. Running it surfaced 24 additional missing
-// components (charts, form parts, editors, AtlassianIcon, etc.) beyond
-// List/ListItem — bigger than this point fix. Tracked in the issue for
-// the structural shim-sync fix (Option B/C).
+describe('@forge/react shim — drift check vs real UIKit components', () => {
+  // Scan real @forge/react's ui-kit-components.d.ts for every value export
+  // and assert the shim re-exports each one. Catches the case where
+  // Atlassian adds a new component and we forget to update the shim's
+  // manual list.
+  //
+  // Limitations:
+  //   - Only scans ui-kit-components.d.ts. Components declared directly in
+  //     out/components/index.d.ts (User, Image, Link, UserGroup, Em/Strike/
+  //     Strong, Frame, InlineEdit, Popup, Comment, AdfRenderer, Global) and
+  //     hooks from out/index.d.ts (useProductContext, etc.) are not
+  //     checked here — they're stable enough that the broader drift risk
+  //     is concentrated in the ui-kit-components surface.
+  //
+  // The structural fix (replace manual re-export list with programmatic
+  // sync) is tracked separately. This test is the maintenance net until
+  // then — and the net is useful even after, since "shim is in sync" is
+  // exactly the invariant the structural fix needs to preserve.
+  const realDts = readFileSync(REAL_DTS_PATH, 'utf8');
+  const realComponents = [
+    ...realDts.matchAll(/^export\s+declare\s+const\s+(\w+)\s*:/gm),
+  ]
+    .map((m) => m[1])
+    .filter((n) => /^[A-Z]/.test(n));
+
+  it('parsed at least 20 value exports from ui-kit-components.d.ts', () => {
+    // Sanity check on the parser. If real @forge/react ever changes its
+    // .d.ts shape (e.g. switches from `export declare const` to something
+    // else), this fails before producing 60 misleading "shim missing X"
+    // failures.
+    expect(realComponents.length).toBeGreaterThan(20);
+  });
+
+  it.each(realComponents)(
+    'shim re-exports real UIKit component "%s"',
+    (name) => {
+      expect(
+        shimExports(name),
+        `Real @forge/react declares "${name}" as a UIKit component but ` +
+          `forge-sim's shim doesn't re-export it. Add it to src/shims/forge-react.ts.`,
+      ).toBe(true);
+    },
+  );
+});
