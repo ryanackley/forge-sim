@@ -805,6 +805,10 @@ export class SimulatorUI {
     this.macroConfigs.clear();
     this.moduleRenderConfig.clear();
     this.moduleContexts.clear();
+    // Clear the moduleKey→resourcePath cache. Without this, a reset+redeploy
+    // sequence that changes a resource path (e.g. renaming foo.jsx → foo.tsx
+    // in the manifest) keeps serving the stale path. Tracked as N1.
+    this.resolvedResources.clear();
     this.viewEventListeners.clear();
     this.activeModuleKey = null;
   }
