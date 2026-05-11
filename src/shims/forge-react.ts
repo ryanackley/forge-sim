@@ -36,10 +36,9 @@ export const Link = realModule.Link;
 export const Tag = realModule.Tag;
 export const TagGroup = realModule.TagGroup;
 export const Tooltip = realModule.Tooltip;
-export const Table = realModule.Table;
-export const Head = realModule.Head;
-export const Row = realModule.Row;
-export const Cell = realModule.Cell;
+// Note: Table/Head/Row/Cell are UIKit 1 components that were removed in real
+// @forge/react. Don't re-add them — devs should use DynamicTable instead. The
+// drift test in src/__tests__/forge-react-shim.test.ts blocks reintroduction.
 export const SectionMessage = realModule.SectionMessage;
 export const Form = realModule.Form;
 export const Label = realModule.Label;
@@ -75,12 +74,15 @@ export const ModalHeader = realModule.ModalHeader;
 export const ModalTitle = realModule.ModalTitle;
 export const ModalTransition = realModule.ModalTransition;
 export const DynamicTable = realModule.DynamicTable;
+export const List = realModule.List;
+export const ListItem = realModule.ListItem;
 export const EmptyState = realModule.EmptyState;
 export const ProgressBar = realModule.ProgressBar;
 export const Spinner = realModule.Spinner;
 export const Lozenge = realModule.Lozenge;
-export const InlineDialog = realModule.InlineDialog;
-export const Flag = realModule.Flag;
+// Note: InlineDialog and Flag are UIKit 1 components that were removed in
+// real @forge/react. Use Popup as the InlineDialog replacement. There's no
+// direct Flag replacement — use SectionMessage for prominent notifications.
 export const ButtonGroup = realModule.ButtonGroup;
 export const Icon = realModule.Icon;
 export const Inline = realModule.Inline;
