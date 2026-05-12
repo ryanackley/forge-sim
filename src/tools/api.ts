@@ -95,6 +95,7 @@ export function createApiHandler(sim: ForgeSimulator, manifestOrNull?: ParsedMan
               resolver: u.resolverFunctionKey,
             })),
             errors: result.errors,
+            warnings: result.warnings,
           });
         } catch (err) {
           return json(res, { error: err instanceof Error ? err.message : String(err) }, 500);

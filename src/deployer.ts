@@ -20,6 +20,14 @@ export interface DeployResult {
   loadedFunctions: string[];
   loadedResources: string[];
   errors: Array<{ functionKey: string; error: string }>;
+  /**
+   * Manifest validation warnings (and info-level notes). Mirrored from
+   * `manifest.warnings` so both the in-process API and the MCP path can
+   * surface them in the same place — previously they only reached
+   * in-process callers via `console.warn`, leaving MCP responses silent
+   * about the same issues.
+   */
+  warnings: ParsedManifest['warnings'];
 }
 
 /**
@@ -322,9 +330,23 @@ export async function deploy(sim: ForgeSimulator, appDir: string): Promise<Deplo
     }
   }
 
-  // 6. UI resources are NOT loaded during deploy.
-  // Use sim.ui.render(moduleKey) to load and render specific UI modules.
-  // This gives per-module ForgeDoc isolation and proper context scoping.
+  // 6. UI resources are NOT loaded during deploy — they're lazy-loaded by
+  //    sim.ui.render(moduleKey) for per-module ForgeDoc isolation and proper
+  //    context scoping. We DO record the resource keys at deploy time so the
+  //    deploy response accurately reflects what the simulator knows about,
+  //    and surface a clear error for any resource whose `path` doesn't resolve
+  //    to a real file on disk — that's a typo waiting to explode at render.
+  for (const resource of manifest.resources.values()) {
+    const resolved = await resolveResourceFile(absDir, resource.path);
+    if (resolved === null) {
+      errors.push({
+        functionKey: resource.key,
+        error: `Resource "${resource.key}" path "${resource.path}" does not resolve to a file (tried exact + ${FILE_EXTENSIONS.join('/')} extensions).`,
+      });
+      continue;
+    }
+    loadedResources.push(resource.key);
+  }
 
   // Initialize FIT provider if the manifest has remotes
   if (manifest.remotes.size > 0) {
@@ -335,5 +357,11 @@ export async function deploy(sim: ForgeSimulator, appDir: string): Promise<Deplo
   sim.loadManifestData(manifest);
   sim.setAppDir(absDir);
 
-  return { manifest, loadedFunctions, loadedResources, errors };
+  return {
+    manifest,
+    loadedFunctions,
+    loadedResources,
+    errors,
+    warnings: manifest.warnings,
+  };
 }

@@ -112,6 +112,14 @@ server.tool(
         summary.typeErrors = typeErrors;
       }
 
+      // Surface manifest validation warnings (missing app.runtime, unknown
+      // module types, inline-config notes, etc.). The in-process deployer
+      // already console.warn's these, but MCP callers don't see those logs
+      // — adding them to the response keeps parity between surfaces.
+      if (result.warnings.length > 0) {
+        summary.warnings = result.warnings;
+      }
+
       // Connect auth credentials (env vars + .forge-sim) now that manifest providers are loaded
       const authResult = await sim.loadAuthFromEnv().catch(() => ({ atlassian: { connected: false }, providers: [] }));
       if (authResult.atlassian.connected || authResult.providers.length > 0) {
