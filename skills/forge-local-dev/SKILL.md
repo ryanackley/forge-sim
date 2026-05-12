@@ -312,12 +312,14 @@ That's the whole pattern. Direct method calls. No HTTP, no port file, no client 
 | Fire a product event | `sim.fireTrigger(event, data)` (typed for 141 known events) |
 | Fire a scheduled trigger | `sim.fireScheduledTrigger(triggerKey)` |
 | Push to a queue (consumer fires synchronously) | `sim.queue.push(queueKey, events)` |
-| Render a UI module | `sim.ui.render(moduleKey, { context })` then `sim.ui.findByType/findByTypeAndText/interact/...` |
+| Render a UI module | `sim.ui.render(moduleKey, { context })` |
+| Inspect a ForgeDoc | `sim.ui.findByType(doc, type)` → `ForgeDoc[]` · `sim.ui.findByTypeAndText(doc, type, text?)` → `ForgeDoc` · `sim.ui.getTextContent(doc)` → `string` |
+| Fire an interaction | `sim.ui.interact(node, event, ...args)` (low-level, takes a node) · `sim.ui.interactWith(type, { matchText?, event? })` (find + click in one call, returns `{ result, updatedDoc }`) |
 | Wait for async UI content | `sim.ui.waitForContent(moduleKey, expectedText)` |
 | Capture `view.submit/close/refresh` | `sim.ui.onSubmit(cb)`, `sim.ui.onClose(cb)`, `sim.ui.onRefresh(cb)` |
 | Mock product API (Jira/Confluence/Bitbucket) | `sim.mockProductRoutes('jira', { 'GET /rest/api/3/...': ... })` |
 | Mock GraphQL | `sim.mockGraphQL({ OperationName: { data: ... } })` |
-| Read/write KVS | `sim.kvs.get/set/delete`, `sim.kvs.query()`, `sim.kvs.entity('Foo')` |
+| Read/write KVS | `sim.kvs.get(key)`, `sim.kvs.set(key, value)`, `sim.kvs.delete(key)`, `sim.kvs.query()`, `sim.kvs.entity('Foo')` |
 | Run SQL | `sim.sql.query(sql, params)` |
 | Inspect logs | `sim.getLogs()`, `sim.getConsoleLogs()` |
 | Reset state mid-suite | `await sim.reset()` (clears KVS/queues/UI/logs, drops SQL tables; MySQL stays up) |
@@ -338,6 +340,18 @@ That's the whole pattern. Direct method calls. No HTTP, no port file, no client 
 await sim.ui.render('issue-panel', { context: { issueKey: 'PROJ-42' } });
 const doc = await sim.ui.waitForContent('issue-panel', 'PROJ-42');
 expect(sim.ui.getTextContent(doc)).toContain('Fix the bug');
+
+// Interactions take the ForgeDoc as their first argument — not a chained call.
+// Two styles depending on how much control you need:
+
+// (1) High-level — find + interact + return updated doc in one call:
+const { updatedDoc } = await sim.ui.interactWith('Button', { matchText: 'Pin' });
+expect(sim.ui.getTextContent(updatedDoc!)).toContain('Pinned');
+
+// (2) Low-level — when you want to assert on the node before firing:
+const saveBtn = sim.ui.findByTypeAndText(doc, 'Button', 'Save');
+expect(saveBtn.props.appearance).toBe('primary');
+sim.ui.interact(saveBtn, 'onClick');
 ```
 
 **Don't reach for `forge-sim dev` for tests.** Unless the test specifically validates Custom UI iframe behavior, the in-process API + vitest is faster, more deterministic, and doesn't need a browser.
