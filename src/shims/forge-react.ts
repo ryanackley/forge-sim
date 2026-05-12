@@ -6,17 +6,23 @@
 // @ts-nocheck
 import React from 'react';
 import { createRequire } from 'node:module';
-import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
 
 // Some @forge/react internals expect React on globalThis
 (globalThis as any).React = React;
 
-// Resolve the real @forge/react from forge-sim's node_modules by absolute path
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const realPath = resolve(__dirname, '..', '..', 'node_modules', '@forge', 'react');
+// Resolve the real @forge/react via Node's standard module resolution.
+// This walks up node_modules dirs from the shim's own location — finding
+// forge-sim's nested copy if one exists, otherwise the hoisted copy at
+// the consumer app's root. Either way it matches what real Forge would
+// see at deploy time (parity with the user's installed version).
+//
+// A hardcoded relative path (`../../node_modules/@forge/react`) used to
+// live here. It assumed forge-sim always had a nested copy — which is
+// only true when developing forge-sim itself. Once forge-sim is installed
+// from npm, package managers usually hoist `@forge/react` to the consumer
+// root and the nested path doesn't exist.
 const require = createRequire(import.meta.url);
-const realModule = require(realPath);
+const realModule = require('@forge/react');
 
 // CJS: module.exports.default = ForgeReconciler (which has .render())
 const ForgeReconciler = realModule.default ?? realModule;
