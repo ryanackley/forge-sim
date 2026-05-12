@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
-import { resolve } from '../loader/hooks.js';
+import { resolve, load } from '../loader/hooks.js';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { resolve as pathResolve, join, sep } from 'node:path';
 import { mkdirSync, writeFileSync, rmSync } from 'node:fs';
@@ -184,6 +184,142 @@ describe('Loader Hooks — resolve()', () => {
       const result = await resolve('./backend', { parentURL }, succeedingNext);
       expect(result.url).toBe('passthrough://success');
       expect(succeedingNext).toHaveBeenCalled();
+    });
+  });
+});
+
+describe('Loader Hooks — load()', () => {
+  let tempDir: string;
+
+  // A nextLoad that should not be called for .tsx / .jsx — if it is, we'd know
+  // the load hook bailed out and Node would try to parse JSX raw (which fails).
+  const failingNextLoad = vi.fn(async () => {
+    throw new Error('nextLoad was called for a file the load hook should have handled');
+  });
+
+  const passthroughNextLoad = vi.fn(async () => ({
+    source: '',
+    format: 'module' as const,
+    shortCircuit: false,
+  }));
+
+  beforeAll(() => {
+    tempDir = join(tmpdir(), `loader-hooks-load-test-${Date.now()}`);
+    mkdirSync(tempDir, { recursive: true });
+
+    // .jsx — plain JSX, no TypeScript types
+    writeFileSync(
+      join(tempDir, 'component.jsx'),
+      `import React from 'react';\nexport default function Hello({ name }) {\n  return <div>Hello, {name}</div>;\n}\n`,
+    );
+
+    // .tsx — JSX + TS types
+    writeFileSync(
+      join(tempDir, 'component.tsx'),
+      `import React from 'react';\nexport default function Hello({ name }: { name: string }) {\n  return <div>Hello, {name}</div>;\n}\n`,
+    );
+
+    // .jsx with hooks (verifies React patterns actually compile)
+    writeFileSync(
+      join(tempDir, 'with-hooks.jsx'),
+      `import React, { useState } from 'react';\nexport default function Counter() {\n  const [n, setN] = useState(0);\n  return <button onClick={() => setN(n + 1)}>{n}</button>;\n}\n`,
+    );
+
+    // Plain .ts — should pass through to nextLoad (Node handles natively)
+    writeFileSync(
+      join(tempDir, 'handler.ts'),
+      `export const handler = (x: number): number => x + 1;\n`,
+    );
+
+    // Plain .js — should pass through to nextLoad
+    writeFileSync(
+      join(tempDir, 'utils.js'),
+      `export const add = (a, b) => a + b;\n`,
+    );
+  });
+
+  afterAll(() => {
+    rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  describe('.jsx files (N2 parity fix)', () => {
+    it('transpiles plain JSX so Node can execute it', async () => {
+      const url = pathToFileURL(join(tempDir, 'component.jsx')).href;
+      const result = await load(url, {}, failingNextLoad);
+
+      expect(result.shortCircuit).toBe(true);
+      expect(result.format).toBe('module');
+      // The transpiled output should no longer contain raw JSX angle brackets
+      // around a component name — it should be a React.createElement / jsx() call.
+      const source = String(result.source);
+      expect(source).not.toMatch(/return\s+<div>/);
+      // esbuild's default JSX transform produces React.createElement(...) calls
+      expect(source).toMatch(/React\.createElement|jsx|_jsx/);
+      // The original identifier should survive
+      expect(source).toContain('Hello');
+    });
+
+    it('transpiles .jsx files containing React hooks', async () => {
+      const url = pathToFileURL(join(tempDir, 'with-hooks.jsx')).href;
+      const result = await load(url, {}, failingNextLoad);
+
+      expect(result.shortCircuit).toBe(true);
+      const source = String(result.source);
+      expect(source).toContain('useState');
+      expect(source).not.toMatch(/<button/);
+    });
+
+    it('handles cache-busting query strings on .jsx URLs', async () => {
+      // Hot-reload paths append ?t=<timestamp> — the load hook must strip it
+      // before passing to fileURLToPath, otherwise the read fails.
+      const url = pathToFileURL(join(tempDir, 'component.jsx')).href + '?t=' + Date.now();
+      const result = await load(url, {}, failingNextLoad);
+
+      expect(result.shortCircuit).toBe(true);
+      expect(String(result.source)).toContain('Hello');
+    });
+  });
+
+  describe('.tsx files (regression — already worked, must keep working)', () => {
+    it('transpiles JSX + TS types together', async () => {
+      const url = pathToFileURL(join(tempDir, 'component.tsx')).href;
+      const result = await load(url, {}, failingNextLoad);
+
+      expect(result.shortCircuit).toBe(true);
+      const source = String(result.source);
+      // TS type annotation should be stripped
+      expect(source).not.toContain(': { name: string }');
+      // JSX should be transformed
+      expect(source).not.toMatch(/return\s+<div>/);
+      expect(source).toContain('Hello');
+    });
+  });
+
+  describe('passthrough cases', () => {
+    it('passes plain .ts files through to nextLoad (Node handles natively)', async () => {
+      const url = pathToFileURL(join(tempDir, 'handler.ts')).href;
+      const next = vi.fn(async () => ({ source: 'STUB', format: 'module' as const }));
+      const result = await load(url, {}, next);
+
+      expect(next).toHaveBeenCalledOnce();
+      expect(result.source).toBe('STUB');
+    });
+
+    it('passes plain .js files through to nextLoad', async () => {
+      const url = pathToFileURL(join(tempDir, 'utils.js')).href;
+      const next = vi.fn(async () => ({ source: 'STUB', format: 'module' as const }));
+      const result = await load(url, {}, next);
+
+      expect(next).toHaveBeenCalledOnce();
+      expect(result.source).toBe('STUB');
+    });
+
+    it('passes non-file:// URLs through to nextLoad', async () => {
+      const next = vi.fn(async () => ({ source: 'STUB', format: 'module' as const }));
+      const result = await load('node:fs', {}, next);
+
+      expect(next).toHaveBeenCalledOnce();
+      expect(result.source).toBe('STUB');
     });
   });
 });

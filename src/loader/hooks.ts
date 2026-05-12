@@ -188,41 +188,63 @@ async function tryResolveFile(specifier: string, parentURL?: string): Promise<st
 }
 
 /**
- * Load hook — transpile .ts and .tsx files so Node can execute them.
- * Uses Node's built-in stripTypeScriptTypes for .ts (fast, no deps)
- * and esbuild for .tsx (handles JSX transform).
+ * Load hook — transpile .ts, .tsx, and .jsx files so Node can execute them.
+ *
+ *   .ts  → Node's built-in stripTypeScriptTypes (fast, no deps)
+ *   .tsx → esbuild with loader: 'tsx' (strips types + JSX transform)
+ *   .jsx → esbuild with loader: 'jsx' (JSX transform only)
+ *
+ * Parity note: real Forge handles .jsx because their build pipeline (webpack /
+ * esbuild) does JSX transform natively. Listing .jsx in TRY_EXTENSIONS without
+ * a transpilation branch here means imports resolve to a .jsx file that Node
+ * then fails to parse.
  */
+async function transpileWithEsbuild(
+  url: string,
+  loader: 'tsx' | 'jsx',
+  context: { format?: string; conditions?: string[] },
+  nextLoad: Function
+): Promise<{ source: string | ArrayBuffer; format: string; shortCircuit?: boolean }> {
+  // Strip cache-busting query string before converting to filesystem path
+  const cleanUrl = url.split('?')[0];
+  const filePath = fileURLToPath(cleanUrl);
+  const { readFile } = await import('node:fs/promises');
+  const source = await readFile(filePath, 'utf-8');
+
+  try {
+    const esbuild = await import('esbuild');
+    const result = await esbuild.transform(source, {
+      loader,
+      format: 'esm',
+      sourcefile: filePath,
+      sourcemap: 'inline',
+      target: 'node22',
+    });
+    return { source: result.code, format: 'module', shortCircuit: true };
+  } catch {
+    // esbuild not available — fall through to Node (which will likely fail
+    // for .tsx/.jsx, but that's the same failure mode as before this hook).
+    return nextLoad(url, context);
+  }
+}
+
 export async function load(
   url: string,
   context: { format?: string; conditions?: string[] },
   nextLoad: Function
 ): Promise<{ source: string | ArrayBuffer; format: string; shortCircuit?: boolean }> {
-  // Only handle file:// URLs with .ts or .tsx extension
+  // Only handle file:// URLs
   if (!url.startsWith('file://')) return nextLoad(url, context);
 
   // Strip cache-busting query string for extension check
   const cleanUrl = url.split('?')[0];
 
   if (cleanUrl.endsWith('.tsx')) {
-    // TSX needs esbuild for JSX transform
-    const filePath = fileURLToPath(cleanUrl);
-    const { readFile } = await import('node:fs/promises');
-    const source = await readFile(filePath, 'utf-8');
+    return transpileWithEsbuild(url, 'tsx', context, nextLoad);
+  }
 
-    try {
-      const esbuild = await import('esbuild');
-      const result = await esbuild.transform(source, {
-        loader: 'tsx',
-        format: 'esm',
-        sourcefile: filePath,
-        sourcemap: 'inline',
-        target: 'node22',
-      });
-      return { source: result.code, format: 'module', shortCircuit: true };
-    } catch {
-      // esbuild not available — fall through to Node
-      return nextLoad(url, context);
-    }
+  if (cleanUrl.endsWith('.jsx')) {
+    return transpileWithEsbuild(url, 'jsx', context, nextLoad);
   }
 
   // Plain .ts — let Node handle it natively (built-in type stripping since v22)
