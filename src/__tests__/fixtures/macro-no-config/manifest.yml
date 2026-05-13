@@ -1,0 +1,16 @@
+modules:
+  macro:
+    - key: simple-macro
+      title: Simple Macro
+      resource: main
+      render: native
+
+resources:
+  - key: main
+    path: src/index.tsx
+
+app:
+  id: ari:cloud:ecosystem::app/macro-no-config-test
+  name: Macro No Config Test
+  runtime:
+    name: nodejs22.x

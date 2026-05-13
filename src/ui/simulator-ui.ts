@@ -30,6 +30,7 @@ import {
   getForgeContext,
   setActiveCaptureModule,
   replayCapturedRender,
+  moduleUsesConfig,
 } from './bridge.js';
 import { buildForgeContext, type ForgeContext, type RenderContextOptions } from '../context.js';
 import {
@@ -287,16 +288,20 @@ export class SimulatorUI {
         // Build a helpful hint when we can detect a likely cause.
         const hints: string[] = [];
 
-        // Hint 1: macro module with no saved config — likely missed setMacroConfig
+        // Hint 1: macro module with no saved config — likely missed setMacroConfig.
+        // Gated on (a) the bundle actually calling useConfig(), so we don't
+        // fire on macros that don't depend on inline config (N10), and
+        // (b) the doc rendering at all, since if useConfig was never called
+        // we can't make any claim about config dependence.
         try {
           const manifest = this.sim.getManifest();
           const uiModule = manifest?.uiModules.find(m => m.key === moduleKey);
-          if (uiModule?.type === 'macro') {
+          if (uiModule?.type === 'macro' && moduleUsesConfig(moduleKey)) {
             const baseKey = moduleKey.replace(/--(?:view|config)$/, '');
             const savedConfig = this.macroConfigs.get(baseKey);
             if (!savedConfig || Object.keys(savedConfig).length === 0) {
               hints.push(
-                `Module "${moduleKey}" is a macro and no config has been seeded. ` +
+                `Module "${moduleKey}" calls useConfig() but no config has been seeded. ` +
                 `Did you forget sim.ui.setMacroConfig("${baseKey}", {...}) before render()? ` +
                 `useConfig() returns {} until setMacroConfig is called.`
               );

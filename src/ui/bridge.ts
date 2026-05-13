@@ -64,6 +64,12 @@ const capturedRenderElements = new Map<string, unknown>();
 const capturedAddConfigElements = new Map<string, unknown>();
 let activeCaptureModuleKey: string | null = null;
 
+// N10: track which modules actually call useConfig(). Used to gate the
+// "did you forget setMacroConfig?" timeout hint — without this, the hint
+// fires on every macro timeout including macros that don't use config,
+// sending devs on red-herring debugging trips.
+const modulesThatUseConfig = new Set<string>();
+
 // ── Bridge command handlers ─────────────────────────────────────────────
 
 async function handleReconcile(data: any): Promise<void> {
@@ -471,6 +477,21 @@ export function clearCapturedElements(): void {
   capturedRenderElements.clear();
   capturedAddConfigElements.clear();
   activeCaptureModuleKey = null;
+  modulesThatUseConfig.clear();
+}
+
+// ── useConfig tracking (N10) ────────────────────────────────────────────
+
+/** Called by the @forge/react shim's useConfig wrapper. */
+export function markUseConfigUsed(): void {
+  if (activeCaptureModuleKey !== null) {
+    modulesThatUseConfig.add(activeCaptureModuleKey);
+  }
+}
+
+/** Has this module's bundle ever called useConfig() during a render? */
+export function moduleUsesConfig(moduleKey: string): boolean {
+  return modulesThatUseConfig.has(moduleKey);
 }
 
 /** Full reset — disconnects simulator too. */

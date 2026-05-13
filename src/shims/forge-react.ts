@@ -6,7 +6,7 @@
 // @ts-nocheck
 import React from 'react';
 import { createRequire } from 'node:module';
-import { captureRenderElement, captureAddConfigElement } from '../ui/bridge.js';
+import { captureRenderElement, captureAddConfigElement, markUseConfigUsed } from '../ui/bridge.js';
 
 // Some @forge/react internals expect React on globalThis
 (globalThis as any).React = React;
@@ -134,7 +134,14 @@ export const ButtonGroup = realModule.ButtonGroup;
 export const Icon = realModule.Icon;
 export const Inline = realModule.Inline;
 export const useProductContext = realModule.useProductContext;
-export const useConfig = realModule.useConfig;
+// Wrapped: tracks whether this module's bundle actually calls useConfig().
+// Drives N10 — the "Did you forget setMacroConfig?" timeout hint only fires
+// when the bundle actually depends on inline config, not on every macro.
+const realUseConfig = realModule.useConfig;
+export const useConfig = (...args: any[]) => {
+  markUseConfigUsed();
+  return realUseConfig(...args);
+};
 export const useTheme = realModule.useTheme;
 export const usePermissions = realModule.usePermissions;
 
