@@ -47,6 +47,23 @@ const bridgeCalls: BridgeCall[] = [];
 let tornDown = false;
 let currentForgeContext: ForgeContext | null = null;
 
+// ── Captured ForgeReconciler elements (N9: vitest bundle-cache replay) ──
+//
+// Vitest's vite-node module loader caches bundles by file path and IGNORES
+// query strings. Our cache-bust trick (`?t=${Date.now()}`) is a no-op there:
+// the second dynamic import returns the cached evaluated module, the bundle's
+// top-level `ForgeReconciler.render(<App />)` doesn't re-run, and no reconcile
+// pulse fires → moduleDocs[key] stays null forever.
+//
+// Workaround: the @forge/react shim wraps render/addConfig to capture the
+// React element on first evaluation. When simulator-ui detects "no doc after
+// import", it calls replayCapturedRender() to re-render the same element into
+// a fresh ForgeReconciler container — producing a brand-new reconcile pulse
+// equivalent to a real bundle re-evaluation.
+const capturedRenderElements = new Map<string, unknown>();
+const capturedAddConfigElements = new Map<string, unknown>();
+let activeCaptureModuleKey: string | null = null;
+
 // ── Bridge command handlers ─────────────────────────────────────────────
 
 async function handleReconcile(data: any): Promise<void> {
@@ -387,6 +404,73 @@ export function resetBridge(): void {
   macroConfigRenderResolvers = [];
   bridgeCalls.length = 0;
   currentForgeContext = null;
+}
+
+// ── Captured render element API (N9 workaround) ─────────────────────────
+
+/**
+ * Set the module key under which the next ForgeReconciler.render() /
+ * .addConfig() call should be captured. simulator-ui.render() sets this
+ * before the cache-busted dynamic import.
+ */
+export function setActiveCaptureModule(moduleKey: string | null): void {
+  activeCaptureModuleKey = moduleKey;
+}
+
+/** Called by the @forge/react shim wrapper on every ForgeReconciler.render(). */
+export function captureRenderElement(element: unknown): void {
+  if (activeCaptureModuleKey !== null) {
+    capturedRenderElements.set(activeCaptureModuleKey, element);
+  }
+}
+
+/** Called by the @forge/react shim wrapper on every ForgeReconciler.addConfig(). */
+export function captureAddConfigElement(element: unknown): void {
+  if (activeCaptureModuleKey !== null) {
+    capturedAddConfigElements.set(activeCaptureModuleKey, element);
+  }
+}
+
+/** Whether we have a captured render element for the given module. */
+export function hasCapturedRenderElement(moduleKey: string): boolean {
+  return capturedRenderElements.has(moduleKey);
+}
+
+/**
+ * Replay the captured render() and addConfig() elements for a module against
+ * a fresh ForgeReconciler container. Used when the bundle was cached by the
+ * test runner's module loader and the cache-busted re-import was a no-op.
+ *
+ * Returns true if a replay fired, false if nothing was captured for this key.
+ *
+ * The replay uses the SAME @forge/react instance the original bundle did
+ * (resolved via createRequire from this file's location), so the singleton
+ * react-reconciler inside is shared — exactly what the bundle would have
+ * triggered on a fresh evaluation.
+ */
+export async function replayCapturedRender(moduleKey: string): Promise<boolean> {
+  const renderElement = capturedRenderElements.get(moduleKey);
+  if (renderElement === undefined) return false;
+
+  const { createRequire } = await import('node:module');
+  const require = createRequire(import.meta.url);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const realModule: any = require('@forge/react');
+  const ForgeReconciler = realModule.default ?? realModule;
+
+  ForgeReconciler.render(renderElement);
+  const configElement = capturedAddConfigElements.get(moduleKey);
+  if (configElement !== undefined) {
+    ForgeReconciler.addConfig(configElement);
+  }
+  return true;
+}
+
+/** Test/debug only — wipe captured elements. */
+export function clearCapturedElements(): void {
+  capturedRenderElements.clear();
+  capturedAddConfigElements.clear();
+  activeCaptureModuleKey = null;
 }
 
 /** Full reset — disconnects simulator too. */

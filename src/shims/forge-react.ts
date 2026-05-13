@@ -6,6 +6,7 @@
 // @ts-nocheck
 import React from 'react';
 import { createRequire } from 'node:module';
+import { captureRenderElement, captureAddConfigElement } from '../ui/bridge.js';
 
 // Some @forge/react internals expect React on globalThis
 (globalThis as any).React = React;
@@ -25,7 +26,24 @@ const require = createRequire(import.meta.url);
 const realModule = require('@forge/react');
 
 // CJS: module.exports.default = ForgeReconciler (which has .render())
-const ForgeReconciler = realModule.default ?? realModule;
+//
+// We wrap render() and addConfig() so simulator-ui can capture the elements
+// the bundle calls them with. This unblocks the "vitest cached the bundle so
+// the second render() never re-evaluates the top-level ForgeReconciler.render
+// call" case (N9) — simulator-ui replays the captured element against a
+// fresh container when the dynamic import returns a cached module.
+const realForgeReconciler = realModule.default ?? realModule;
+const ForgeReconciler = {
+  ...realForgeReconciler,
+  render(element: any) {
+    captureRenderElement(element);
+    return realForgeReconciler.render(element);
+  },
+  addConfig(element: any) {
+    captureAddConfigElement(element);
+    return realForgeReconciler.addConfig(element);
+  },
+};
 export default ForgeReconciler;
 
 // Re-export all named components

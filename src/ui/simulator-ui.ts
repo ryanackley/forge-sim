@@ -28,6 +28,8 @@ import {
   resetAll,
   setForgeContext,
   getForgeContext,
+  setActiveCaptureModule,
+  replayCapturedRender,
 } from './bridge.js';
 import { buildForgeContext, type ForgeContext, type RenderContextOptions } from '../context.js';
 import {
@@ -461,6 +463,10 @@ export class SimulatorUI {
 
     this.ensureBridge();
     this.setActiveModule(moduleKey);
+    // Tell the shim's wrapped ForgeReconciler which module to attribute the
+    // captured render/addConfig elements to. This drives the replay path
+    // below when the bundle is cached by the test runner's module loader.
+    setActiveCaptureModule(moduleKey);
     this.moduleRenderConfig.set(moduleKey, options ?? {});
 
     // Build the full Forge context for this module
@@ -513,13 +519,28 @@ export class SimulatorUI {
       // safety net in case React's reconciler bails out on a tree it
       // considers unchanged (e.g. refresh of an identical UI), in which
       // case `reconcile` may never fire and we'd otherwise hang.
+      //
+      // Vitest workaround (N9): vitest's vite-node loader caches bundles
+      // by file path and ignores `?t=` query strings, so the cache-bust
+      // is a no-op. On 2nd+ renders the bundle's top-level
+      // ForgeReconciler.render(<App />) call doesn't re-run, no reconcile
+      // pulse fires, and we'd hang forever (or fail at the 100ms race
+      // and leave moduleDocs[key] null). The shim wraps render/addConfig
+      // and captures the React elements; we replay them here against a
+      // fresh container to produce a brand-new reconcile pulse equivalent
+      // to a real bundle re-evaluation.
       if (!this.moduleDocs.has(moduleKey)) {
+        const replayed = await replayCapturedRender(moduleKey);
         await Promise.race([
           renderPromise,
-          new Promise<void>(resolve => setTimeout(resolve, 100)),
+          new Promise<void>(resolve => setTimeout(resolve, replayed ? 200 : 100)),
         ]);
       }
     } finally {
+      // Stop attributing further render() captures to this module — protects
+      // against unrelated ForgeReconciler.render calls (background scripts,
+      // multi-module apps) from clobbering the captured element.
+      setActiveCaptureModule(null);
       // NOTE: We intentionally leave both activeModuleKey AND context set.
       // React effects (useEffect) fire async invoke() calls that trigger
       // re-renders AFTER this function returns. Those calls need:
