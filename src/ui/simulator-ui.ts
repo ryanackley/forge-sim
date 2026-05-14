@@ -269,6 +269,17 @@ export class SimulatorUI {
    *
    * If you need non-default render options (e.g. context overrides), call
    * sim.ui.render() explicitly first.
+   *
+   * **Text matching scope (convenience method, not exhaustive).** Uses
+   * `getTextContent`, which walks `<String>` child nodes plus a curated list
+   * of visible-text props (Tag.text, FormHeader.title, EmptyState.header,
+   * etc. — see `VISIBLE_TEXT_PROPS` in doc-utils.ts). For composite/nested
+   * data (Select option labels, Comment.author objects, DynamicTable cells)
+   * drop down to `sim.ui.findByType(doc, ...)` and assert on the props
+   * directly:
+   *
+   *   const select = sim.ui.findFirstByType(doc, 'Select')!;
+   *   expect(select.props.options.map(o => o.label)).toContain('Bug');
    */
   async waitForContent(moduleKey: string, text: string, timeoutMs = 5000): Promise<ForgeDoc> {
     // Auto-render if this module has never been rendered. Idempotent: once
@@ -334,11 +345,17 @@ export class SimulatorUI {
         }
 
         // Hint 2: doc exists but text is missing — guide toward debug output
+        // and the escape-hatch path for composite/nested-data text that the
+        // VISIBLE_TEXT_PROPS allowlist doesn't cover (Select.options[].label,
+        // Comment.author.text-as-object, DynamicTable cells, etc.)
         if (doc && !hints.length) {
           hints.push(
             `The module rendered, but its text content does not include "${text}". ` +
-            `Inspect the full tree with sim.ui.getForgeDoc("${moduleKey}") to see ` +
-            `what the app is actually emitting.`
+            `Inspect the tree with sim.ui.getForgeDoc("${moduleKey}") to see what's ` +
+            `there. waitForContent is a convenience method — it walks <String> nodes ` +
+            `and a curated set of visible-text props (Tag.text, FormHeader.title, etc.). ` +
+            `For composite props (Select.options[].label, Comment.author.text), use ` +
+            `sim.ui.findByType(doc, "Select") and assert on .props.options directly.`
           );
         }
 

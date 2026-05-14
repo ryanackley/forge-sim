@@ -117,7 +117,7 @@ describe('waitForContent — error messages', () => {
 
     await expect(
       sim.ui.waitForContent(MACRO_KEY, 'completely-unrelated-string', 200)
-    ).rejects.toThrow(/Inspect the full tree with sim\.ui\.getForgeDoc/);
+    ).rejects.toThrow(/Inspect the tree with sim\.ui\.getForgeDoc/);
   });
 
   it('reports timeout duration in the message', async () => {

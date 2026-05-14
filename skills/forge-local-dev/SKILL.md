@@ -354,6 +354,30 @@ expect(saveBtn.props.appearance).toBe('primary');
 sim.ui.interact(saveBtn, 'onClick');
 ```
 
+#### Text matching scope (convenience methods, not exhaustive)
+
+`waitForContent`, `getTextContent`, and `findByTypeAndText` are convenience methods over a curated text walker. They cover the common case — `<String>` child nodes plus a list of well-known visible-text props (`Tag.text`, `FormHeader.title`, `EmptyState.header`, etc., full list in `VISIBLE_TEXT_PROPS` in `src/ui/doc-utils.ts`).
+
+For composite or nested data (Select option labels, Comment author objects, DynamicTable cells), drop down to `findByType` + raw prop access:
+
+```ts
+// Find a Select option by its label
+const select = sim.ui.findFirstByType(doc, 'Select')!;
+expect(select.props.options.map(o => o.label)).toContain('Bug Report');
+
+// Assert on the currently-selected value
+expect(select.props.value).toBe('bug');
+
+// Comment passed as object form (per docs):
+const comment = sim.ui.findFirstByType(doc, 'Comment')!;
+expect(comment.props.author?.text ?? comment.props.author).toBe('Pat Lee');
+
+// Filter nodes by an exact prop value
+const removeBtn = sim.ui.findByProps(doc, { appearance: 'danger' })[0];
+```
+
+If `waitForContent` times out and you can see the text in `getForgeDoc(key)` output, the text is probably in a non-walked prop — drop to `findByType`.
+
 **Don't reach for `forge-sim dev` for tests.** Unless the test specifically validates Custom UI iframe behavior, the in-process API + vitest is faster, more deterministic, and doesn't need a browser.
 
 ### Step 5: STOP — do NOT run `forge deploy`

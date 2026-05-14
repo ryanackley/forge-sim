@@ -37,12 +37,118 @@ export function findByProps(doc: ForgeDoc, props: Record<string, any>): ForgeDoc
   return results;
 }
 
-/** Extract all text content from a subtree (from 'String' nodes). */
+/**
+ * Curated allowlist of visible-text props per ForgeDoc component type.
+ *
+ * Most UIKit components emit text as `<String>` child nodes (because their
+ * `children` prop accepts ReactNode and the reconciler wraps strings). For
+ * those, the existing `<String>` walker in `getTextContent` is enough.
+ *
+ * The components in this map are different — they accept text via NAMED PROPS
+ * (e.g. `<Tag text="Priority" />`, `<FormHeader title="..." description="..." />`).
+ * The reconciler does NOT wrap those into `<String>` children, so a pure
+ * tree-walker would silently miss them. This allowlist tells `getTextContent`
+ * which prop values to treat as visible text.
+ *
+ * Inclusion rule: a prop is here only if it produces text VISIBLE TO A SIGHTED
+ * USER on initial mount. Excluded categories:
+ *   - aria-* attributes and screen-reader-only labels (Spinner.label,
+ *     Icon.label, Toggle.label, Modal.label, ButtonGroup.label, etc.)
+ *   - placeholders (only visible when input is empty)
+ *   - hover-only content (Tooltip.content, HTML title attribute)
+ *   - alt text (Image.alt — fallback only)
+ *   - props containing data the renderer doesn't surface as text
+ *
+ * This is a CONVENIENCE LAYER, not an exhaustive renderer. For composite
+ * data — Select.options[].label, RadioGroup.options[].label, Comment.author.text
+ * (object form), DynamicTable cells, etc. — drop down to `findByType` and
+ * access props directly. Examples:
+ *
+ *   // Finding text in Select options:
+ *   const select = findFirstByType(doc, 'Select')!;
+ *   expect(select.props.options.map(o => o.label)).toContain('Bug Report');
+ *
+ *   // Asserting on the currently-selected Select value:
+ *   expect(select.props.value).toBe('bug');
+ *
+ *   // Comment author when passed as an object:
+ *   const comment = findFirstByType(doc, 'Comment')!;
+ *   expect(comment.props.author.text).toBe('Pat Lee');
+ *
+ * Audited against forge-mcp UI Kit docs and cross-checked against the
+ * forge-sim renderer's component-map (see VISIBLE_TEXT_PROPS_AUDIT.md).
+ */
+export const VISIBLE_TEXT_PROPS: Record<string, readonly string[]> = {
+  Tag: ['text'],
+  Badge: ['text'],
+  FormHeader: ['title', 'description'],
+  FormSection: ['title', 'description'],
+  EmptyState: ['header', 'description'],
+  SectionMessage: ['title'],
+  CodeBlock: ['text'],
+  Modal: ['title'],
+  DynamicTable: ['caption'],
+  Inline: ['separator'],
+  Checkbox: ['label'],
+  Radio: ['label'],
+  InlineEdit: ['label'],
+  UserPicker: ['label', 'description'],
+  FilePicker: ['label', 'description'],
+  FileCard: ['fileName', 'error'],
+  // Comment.author / Comment.time are documented as `{ text, onClick }` objects,
+  // but our renderer treats them as plain strings (renders {props.author}). Both
+  // shapes covered: string form via this list, object form via findByType.
+  Comment: ['edited', 'restrictedTo', 'savingText', 'type', 'author', 'time'],
+  User: ['name'],
+  Tile: ['label'],
+  AtlassianTile: ['label'],
+  // Charts — the renderer's ChartWrapper renders title/subtitle above each chart.
+  BarChart: ['title', 'subtitle'],
+  StackBarChart: ['title', 'subtitle'],
+  HorizontalBarChart: ['title', 'subtitle'],
+  HorizontalStackBarChart: ['title', 'subtitle'],
+  LineChart: ['title', 'subtitle'],
+  DonutChart: ['title', 'subtitle'],
+  PieChart: ['title', 'subtitle'],
+};
+
+/**
+ * Extract all visible text from a subtree.
+ *
+ * Walks the tree and collects:
+ *   1. `<String>` node `text` props (most UIKit text — Heading, Button, Text,
+ *      Label, etc. — flow through here because `children` is wrapped).
+ *   2. Visible-text props from the `VISIBLE_TEXT_PROPS` allowlist (for
+ *      components that take text via named props, like `Tag.text`).
+ *
+ * Returns text concatenated without separators — matches the natural
+ * adjacent-text-node behavior of the browser DOM and preserves any spacing
+ * the user baked into their `<String>` text. (Tests rely on this for
+ * patterns like `<Text>Theme: </Text><Text>{value}</Text>` collapsing to
+ * "Theme: light".) Adjacency false positives are theoretically possible
+ * (`title="Hello" description="World"` → "HelloWorld") but tests use
+ * substring matching, not exact equality, so they're not a real concern.
+ *
+ * **This is a convenience method.** It handles the common case of "find this
+ * substring on the page" but is not exhaustive — composite data (Select
+ * options, nested objects, DynamicTable cells) requires `findByType` + raw
+ * prop access. See `VISIBLE_TEXT_PROPS` for the curated component list and
+ * escape-hatch examples.
+ */
 export function getTextContent(doc: ForgeDoc): string {
   const texts: string[] = [];
   function walk(node: ForgeDoc) {
     if (node.type === 'String' && node.props.text != null) {
       texts.push(String(node.props.text));
+    }
+    const propNames = VISIBLE_TEXT_PROPS[node.type];
+    if (propNames) {
+      for (const propName of propNames) {
+        const value = node.props[propName];
+        if (typeof value === 'string' && value.length > 0) {
+          texts.push(value);
+        }
+      }
     }
     for (const child of node.children ?? []) walk(child);
   }
