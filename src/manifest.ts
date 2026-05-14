@@ -7,7 +7,15 @@
 
 import { parse as parseYaml } from 'yaml';
 import { readFile } from 'fs/promises';
-import type { ForgeManifest, ManifestModule, ManifestRemote, ManifestEndpoint, ManifestAuthProvider } from './types.js';
+import type {
+  ForgeManifest,
+  ManifestModule,
+  ManifestRemote,
+  ManifestEndpoint,
+  ManifestAuthProvider,
+  ManifestEntityDef,
+  ManifestEntityIndex,
+} from './types.js';
 
 export interface ManifestWarning {
   level: 'error' | 'warning' | 'info';
@@ -33,6 +41,12 @@ export interface ParsedManifest {
   commandPageTargets: Array<{ key: string; title: string; targetPage: string; shortcut?: string }>;
   /** Rovo action definitions (for tools UI invocation) */
   actions: ManifestAction[];
+  /**
+   * Custom Entity Store schemas parsed from app.storage.entities, keyed by
+   * entity name. Auto-registered with sim.kvs at deploy time so type
+   * validation and indexed queries match real Forge behavior.
+   */
+  entities: Map<string, ManifestEntityDef>;
 }
 
 export interface ManifestAction {
@@ -683,6 +697,155 @@ export function parseManifestContent(content: string): ParsedManifest {
     }
   }
 
+  // Parse app.storage.entities (Custom Entity Store schemas).
+  // These are auto-registered with sim.kvs at deploy time so entity.set
+  // validates attribute types and entity.query().index() uses partition/range
+  // filters — matching real Forge behavior. Without this, an app that works
+  // in forge-sim can fail in production (silent full-table scans, wrong types
+  // accepted, etc.).
+  const entities = new Map<string, ManifestEntityDef>();
+  const VALID_ENTITY_TYPES = new Set(['integer', 'float', 'string', 'boolean', 'any']);
+  const rawEntities = raw.app?.storage?.entities;
+  if (rawEntities !== undefined && !Array.isArray(rawEntities)) {
+    warnings.push({
+      level: 'error',
+      message: 'app.storage.entities must be an array.',
+    });
+  } else if (Array.isArray(rawEntities)) {
+    for (const [idx, rawEntity] of rawEntities.entries()) {
+      if (!rawEntity || typeof rawEntity !== 'object') {
+        warnings.push({
+          level: 'error',
+          message: `app.storage.entities[${idx}] must be an object with name/attributes/indexes.`,
+        });
+        continue;
+      }
+      const name = (rawEntity as ManifestEntityDef).name;
+      if (typeof name !== 'string' || !name) {
+        warnings.push({
+          level: 'error',
+          message: `app.storage.entities[${idx}] is missing a "name" string.`,
+        });
+        continue;
+      }
+      if (entities.has(name)) {
+        warnings.push({
+          level: 'error',
+          message: `app.storage.entities: duplicate entity name "${name}". ` +
+            'Each entity must have a unique name within the manifest.',
+        });
+        continue;
+      }
+
+      const rawAttrs = (rawEntity as any).attributes;
+      const attributes: Record<string, { type: string }> = {};
+      if (!rawAttrs || typeof rawAttrs !== 'object') {
+        warnings.push({
+          level: 'error',
+          message: `Entity "${name}" is missing the "attributes" map.`,
+        });
+        continue;
+      }
+      for (const [attrName, attrDef] of Object.entries(rawAttrs)) {
+        const t = (attrDef as { type?: string })?.type;
+        if (typeof t !== 'string' || !t) {
+          warnings.push({
+            level: 'error',
+            message: `Entity "${name}" attribute "${attrName}" is missing a "type" string.`,
+          });
+          continue;
+        }
+        if (!VALID_ENTITY_TYPES.has(t)) {
+          warnings.push({
+            level: 'warning',
+            message: `Entity "${name}" attribute "${attrName}" uses an unknown type "${t}". ` +
+              `Valid types: ${[...VALID_ENTITY_TYPES].join(', ')}. ` +
+              'forge-sim will accept any value for this attribute, but real Forge may reject it.',
+          });
+        }
+        attributes[attrName] = { type: t };
+      }
+
+      const rawIndexes = (rawEntity as any).indexes;
+      const indexes: ManifestEntityIndex[] = [];
+      if (rawIndexes !== undefined && !Array.isArray(rawIndexes)) {
+        warnings.push({
+          level: 'error',
+          message: `Entity "${name}" indexes must be an array (got ${typeof rawIndexes}).`,
+        });
+      } else if (Array.isArray(rawIndexes)) {
+        const seenIndexNames = new Set<string>();
+        for (const [iIdx, rawIndex] of rawIndexes.entries()) {
+          if (!rawIndex || typeof rawIndex !== 'object') {
+            warnings.push({
+              level: 'error',
+              message: `Entity "${name}" indexes[${iIdx}] must be an object.`,
+            });
+            continue;
+          }
+          const indexName = (rawIndex as ManifestEntityIndex).name;
+          if (typeof indexName !== 'string' || !indexName) {
+            warnings.push({
+              level: 'error',
+              message: `Entity "${name}" indexes[${iIdx}] is missing a "name" string.`,
+            });
+            continue;
+          }
+          if (seenIndexNames.has(indexName)) {
+            warnings.push({
+              level: 'error',
+              message: `Entity "${name}" has duplicate index name "${indexName}".`,
+            });
+            continue;
+          }
+          seenIndexNames.add(indexName);
+          const partition = (rawIndex as any).partition;
+          if (partition !== undefined && !Array.isArray(partition)) {
+            warnings.push({
+              level: 'error',
+              message: `Entity "${name}" index "${indexName}" partition must be an array of attribute names.`,
+            });
+            continue;
+          }
+          // Warn on partition attrs that don't exist in the attributes map
+          if (Array.isArray(partition)) {
+            for (const attrName of partition) {
+              if (typeof attrName === 'string' && !(attrName in attributes)) {
+                warnings.push({
+                  level: 'warning',
+                  message: `Entity "${name}" index "${indexName}" partitions on "${attrName}" ` +
+                    'but no such attribute is declared. Real Forge will reject this manifest.',
+                });
+              }
+            }
+          }
+          const range = (rawIndex as any).range;
+          if (range !== undefined && typeof range !== 'string') {
+            warnings.push({
+              level: 'error',
+              message: `Entity "${name}" index "${indexName}" range must be an attribute name (string).`,
+            });
+            continue;
+          }
+          if (typeof range === 'string' && !(range in attributes)) {
+            warnings.push({
+              level: 'warning',
+              message: `Entity "${name}" index "${indexName}" ranges on "${range}" ` +
+                'but no such attribute is declared. Real Forge will reject this manifest.',
+            });
+          }
+          indexes.push({
+            name: indexName,
+            partition: Array.isArray(partition) ? partition.filter((p): p is string => typeof p === 'string') : [],
+            range: typeof range === 'string' ? range : undefined,
+          });
+        }
+      }
+
+      entities.set(name, { name, attributes, indexes });
+    }
+  }
+
   // ── Manifest Validation ──────────────────────────────────────────────
   const VALID_RUNTIME_NAMES = ['nodejs24.x', 'nodejs22.x', 'nodejs20.x'];
 
@@ -776,5 +939,6 @@ export function parseManifestContent(content: string): ParsedManifest {
     warnings,
     commandPageTargets,
     actions,
+    entities,
   };
 }

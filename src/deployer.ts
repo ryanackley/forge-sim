@@ -133,6 +133,21 @@ export async function deploy(sim: ForgeSimulator, appDir: string): Promise<Deplo
     sim.ui.ensureBridge();
   }
 
+  // 1c. Register Custom Entity Store schemas from app.storage.entities.
+  // Without this, entity.set() silently accepts wrongly-typed values and
+  // entity.query().index() drops partition/range filters → apps that work
+  // in forge-sim fail in real Forge. This was P1 in the post-run-4 bug haul.
+  // Tests that manually call sim.kvs.registerEntitySchema() still work —
+  // they just no-op-overwrite with the same schema if the manifest also
+  // declared it, or register fresh if they're using a fixture without
+  // app.storage.entities.
+  for (const [entityName, entityDef] of manifest.entities) {
+    sim.kvs.registerEntitySchema(entityName, {
+      attributes: entityDef.attributes,
+      indexes: entityDef.indexes ?? [],
+    });
+  }
+
   const loadedFunctions: string[] = [];
   const loadedResources: string[] = [];
   const errors: Array<{ functionKey: string; error: string }> = [];

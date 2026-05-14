@@ -13,6 +13,9 @@ export interface ForgeManifest {
       architecture?: string; // arm64 | x86_64
       memoryMB?: number;     // 128-1024, default 512
     };
+    storage?: {
+      entities?: ManifestEntityDef[];
+    };
   };
   modules: Record<string, ManifestModule[]>;
   permissions?: {
@@ -23,6 +26,28 @@ export interface ForgeManifest {
   providers?: {
     auth?: ManifestAuthProvider[];
   };
+}
+
+/**
+ * Custom Entity Store schema (manifest-declared).
+ * Mirrors Forge's app.storage.entities[*] shape — see
+ * https://developer.atlassian.com/platform/forge/storage-reference/entities-manifest/
+ */
+export interface ManifestEntityDef {
+  name: string;
+  attributes: Record<string, ManifestEntityAttribute>;
+  indexes?: ManifestEntityIndex[];
+}
+
+export interface ManifestEntityAttribute {
+  /** Forge supports: integer | float | string | boolean | any */
+  type: string;
+}
+
+export interface ManifestEntityIndex {
+  name: string;
+  partition: string[];
+  range?: string;
 }
 
 export interface ManifestRemote {
