@@ -98,7 +98,14 @@ export const VISIBLE_TEXT_PROPS: Record<string, readonly string[]> = {
   // Comment.author / Comment.time are documented as `{ text, onClick }` objects,
   // but our renderer treats them as plain strings (renders {props.author}). Both
   // shapes covered: string form via this list, object form via findByType.
-  Comment: ['edited', 'restrictedTo', 'savingText', 'type', 'author', 'time'],
+  // Comment props per @atlaskit/forge-react-types CommentProps.codegen.d.ts:
+  //   - edited, restrictedTo, savingText, type → string
+  //   - author, time → { text: string, onClick? } (object) — string also accepted
+  //     by the renderer for ergonomic backward-compat
+  //   - actions, errorActions → Array<{ text: string, onClick? }>
+  // The walker's extractText() handles all three shapes (string, object-with-text,
+  // array-of-objects-with-text).
+  Comment: ['edited', 'restrictedTo', 'savingText', 'type', 'author', 'time', 'actions', 'errorActions'],
   User: ['name'],
   Tile: ['label'],
   AtlassianTile: ['label'],
@@ -135,6 +142,29 @@ export const VISIBLE_TEXT_PROPS: Record<string, readonly string[]> = {
  * prop access. See `VISIBLE_TEXT_PROPS` for the curated component list and
  * escape-hatch examples.
  */
+/**
+ * Extract visible text from a prop value, handling three shapes:
+ *   1. string                                → ["the value"]
+ *   2. { text: string, ... }                 → ["the value"]      ← Comment.author/time
+ *   3. Array<string | { text: string, ... }> → ["a", "b", ...]    ← Comment.actions
+ *
+ * Returns [] for any other shape (numbers, functions, undefined, objects
+ * without a `text` field, etc.).
+ */
+function extractText(value: unknown): string[] {
+  if (typeof value === 'string') {
+    return value.length > 0 ? [value] : [];
+  }
+  if (Array.isArray(value)) {
+    return value.flatMap(extractText);
+  }
+  if (typeof value === 'object' && value !== null) {
+    const obj = value as { text?: unknown };
+    if (typeof obj.text === 'string' && obj.text.length > 0) return [obj.text];
+  }
+  return [];
+}
+
 export function getTextContent(doc: ForgeDoc): string {
   const texts: string[] = [];
   function walk(node: ForgeDoc) {
@@ -144,10 +174,7 @@ export function getTextContent(doc: ForgeDoc): string {
     const propNames = VISIBLE_TEXT_PROPS[node.type];
     if (propNames) {
       for (const propName of propNames) {
-        const value = node.props[propName];
-        if (typeof value === 'string' && value.length > 0) {
-          texts.push(value);
-        }
+        texts.push(...extractText(node.props[propName]));
       }
     }
     for (const child of node.children ?? []) walk(child);

@@ -143,6 +143,36 @@ describe('VISIBLE_TEXT_PROPS — top-level allowlist', () => {
     expect(text).toContain('reply');
   });
 
+  it('Comment object-form props show up (author/time as { text, onClick })', () => {
+    // Per official @atlaskit/forge-react-types, author and time are objects
+    // with { text, onClick }. The walker handles both shapes.
+    const doc = node('Comment', {
+      author: { text: 'Pat Lee', onClick: () => {} },
+      time: { text: '5m ago', onClick: () => {} },
+    });
+    const text = getTextContent(doc);
+    expect(text).toContain('Pat Lee');
+    expect(text).toContain('5m ago');
+  });
+
+  it('Comment.actions and .errorActions array forms surface every action label', () => {
+    const doc = node('Comment', {
+      actions: [
+        { text: 'Reply', onClick: () => {} },
+        { text: 'Like', onClick: () => {} },
+      ],
+      errorActions: [
+        { text: 'Retry' },
+        { text: 'Dismiss' },
+      ],
+    });
+    const text = getTextContent(doc);
+    expect(text).toContain('Reply');
+    expect(text).toContain('Like');
+    expect(text).toContain('Retry');
+    expect(text).toContain('Dismiss');
+  });
+
   it('User.name shows up (renderer renders it as primaryText)', () => {
     const doc = node('User', { name: 'Pat Lee', accountId: 'abc' });
     expect(getTextContent(doc)).toContain('Pat Lee');
@@ -239,17 +269,18 @@ describe('VISIBLE_TEXT_PROPS — composite data (escape-hatch territory)', () =>
     expect(grp.props.options.map((o: any) => o.label)).toEqual(['Bug', 'Feature']);
   });
 
-  it('Comment.author as object — string form covered, object form is escape-hatch', () => {
-    // Object form (per docs) — NOT walked by getTextContent
+  it('Comment.author — both string and object form are walked (object covered)', () => {
+    // Both shapes covered by extractText — string ergonomic + the docs-canonical
+    // { text, onClick } object form per @atlaskit/forge-react-types.
     const objDoc = node('Comment', { author: { text: 'Pat Lee', onClick: () => {} } });
-    expect(getTextContent(objDoc)).not.toContain('Pat Lee');
-    // Escape hatch:
-    const comment = findFirstByType(objDoc, 'Comment')!;
-    expect(comment.props.author.text).toBe('Pat Lee');
-
-    // String form (renderer behavior) — IS walked
+    expect(getTextContent(objDoc)).toContain('Pat Lee');
     const strDoc = node('Comment', { author: 'Pat Lee' });
     expect(getTextContent(strDoc)).toContain('Pat Lee');
+
+    // Escape-hatch path still works for tests that need to assert on the
+    // onClick handler or other non-text fields:
+    const comment = findFirstByType(objDoc, 'Comment')!;
+    expect(typeof comment.props.author.onClick).toBe('function');
   });
 
   it('findByProps escape hatch finds nodes by exact prop value', () => {
@@ -302,23 +333,18 @@ describe('VISIBLE_TEXT_PROPS — parity with renderer', () => {
   // catching drift if the renderer drops a prop OR if we add a prop here
   // that the renderer doesn't actually surface.
   //
-  // Two known exceptions are explicitly allowed because they're parity-with-
-  // real-Forge cases where our renderer has a bug to file separately:
-  //   - Modal.title: real Forge generates default header chrome from title;
-  //     our renderer ignores it (renderer bug).
+  // One known exception is explicitly allowed because it's parity-with-
+  // real-Forge handled at a layer below our wrapper:
   //   - Inline.separator: handled natively by Atlaskit Primitive Inline;
-  //     our renderer just spreads props.
+  //     our renderer just spreads props (no explicit `props.separator`
+  //     reference in source).
 
   const RENDERER_SOURCE = readFileSync(
     join(__dirname, '../../renderer/src/component-map.tsx'),
     'utf-8'
   );
 
-  // Props known to be passed through to Atlaskit primitives without explicit
-  // {props.X} reference in our wrapper — Atlaskit's component handles the
-  // rendering. These are excluded from the regex check.
   const PARITY_EXCEPTIONS: Record<string, string[]> = {
-    Modal: ['title'],          // renderer bug: ignores props.title
     Inline: ['separator'],     // Atlaskit Primitive renders natively
   };
 
