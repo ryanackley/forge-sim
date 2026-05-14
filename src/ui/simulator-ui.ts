@@ -58,6 +58,28 @@ import { setSimulator } from '../shims/globals.js';
 import { onViewEvent, resetViewEvents, type ViewEventType } from '../shims/forge-bridge.js';
 import { pathToFileURL } from 'node:url';
 
+/**
+ * Heuristic: is this arg likely a user-supplied data object rather than a
+ * synthetic event? Used by `interact` to catch the P10 antipattern of calling
+ * `interact(form, 'onSubmit', { name: 'Pat' })` (passing data where the real
+ * Forge platform passes a SyntheticEvent).
+ *
+ * An event-like object has `preventDefault` (a function) — every SyntheticEvent
+ * does. A plain data object doesn't. We deliberately don't check for `target`
+ * because some test patterns synthesize partial events with target only.
+ */
+function isProbablyDataObject(arg: unknown): boolean {
+  if (typeof arg !== 'object' || arg === null) return false;
+  // Real synthetic events / our minimal stubs always have preventDefault.
+  if (typeof (arg as { preventDefault?: unknown }).preventDefault === 'function') {
+    return false;
+  }
+  // Has `target` (event-shaped) — treat as event, not data.
+  if ('target' in arg) return false;
+  // Otherwise, it's a plain object — almost certainly data.
+  return true;
+}
+
 export class SimulatorUI {
   private bridgeInstalled = false;
 
@@ -792,9 +814,155 @@ export class SimulatorUI {
   /**
    * Simulate an event on a ForgeDoc node.
    * Returns the handler's return value (may be a Promise for async handlers).
+   *
+   * For form fields with onChange, this auto-injects `target.type` and
+   * `target.name` if you pass an event-shaped first arg without them — that's
+   * what makes useForm + register() work in headless mode. See
+   * `simulateEvent` in doc-utils.ts for the gory details.
    */
   interact(node: ForgeDoc, eventName: string, ...args: any[]): any {
+    // P10 guard: catch the "passed data as the event" antipattern on Form.onSubmit.
+    // Real Forge Form.onSubmit receives a synthetic event from the platform —
+    // user data is provided by react-hook-form's handleSubmit wrapper. If a test
+    // passes a data object directly, RHF treats it as the event and the user's
+    // submit handler never runs (silent failure that's hard to debug).
+    if (
+      eventName === 'onSubmit' &&
+      node.type === 'Form' &&
+      args.length > 0 &&
+      isProbablyDataObject(args[0])
+    ) {
+      throw new Error(
+        `sim.ui.interact(form, 'onSubmit', data) — Form.onSubmit expects a synthetic event, not a data object.\n` +
+        `\n` +
+        `  • To submit with values:  await sim.ui.submitForm('${this.activeModuleKey ?? '<moduleKey>'}', { /* values */ })\n` +
+        `  • To submit current state: await sim.ui.submitForm('${this.activeModuleKey ?? '<moduleKey>'}')\n` +
+        `\n` +
+        `Both helpers also fire the right preventDefault/stopPropagation that handleSubmit needs.`
+      );
+    }
     return simulateEvent(node, eventName, ...args);
+  }
+
+  /**
+   * Find a form field by its `name` prop and fire onChange with the right
+   * synthetic event shape for the field's component type. The target.type/name
+   * injection in `simulateEvent` makes useForm + register() work as expected.
+   *
+   *   await sim.ui.fillField('macro', 'name', 'Pat');
+   *   await sim.ui.fillField('macro', 'age', 5);
+   *
+   * Searches Textfield, TextArea, Checkbox, Toggle, Select, RadioGroup,
+   * DatePicker, TimePicker, UserPicker, Range, CheckboxGroup. Throws if
+   * no field with that name is found.
+   */
+  fillField(moduleKey: string, name: string, value: unknown): void {
+    const doc = this.getForgeDoc(moduleKey);
+    if (!doc) {
+      throw new Error(
+        `No rendered ForgeDoc for module "${moduleKey}". ` +
+        `Call await sim.ui.render("${moduleKey}") first.`
+      );
+    }
+
+    // Walk the tree looking for a form field with matching name.
+    const FIELD_TYPES = new Set([
+      'Textfield', 'TextArea', 'Checkbox', 'CheckboxGroup', 'Radio', 'RadioGroup',
+      'Toggle', 'Select', 'DatePicker', 'TimePicker', 'UserPicker', 'Range',
+    ]);
+    let field: ForgeDoc | null = null;
+    function walk(node: ForgeDoc): void {
+      if (field) return;
+      if (FIELD_TYPES.has(node.type) && node.props.name === name) {
+        field = node;
+        return;
+      }
+      for (const child of node.children ?? []) walk(child);
+    }
+    walk(doc);
+
+    if (!field) {
+      const allNamedFields: string[] = [];
+      function collect(node: ForgeDoc): void {
+        if (FIELD_TYPES.has(node.type) && typeof node.props.name === 'string') {
+          allNamedFields.push(`${node.type}[name="${node.props.name}"]`);
+        }
+        for (const child of node.children ?? []) collect(child);
+      }
+      collect(doc);
+      throw new Error(
+        `No form field with name="${name}" in module "${moduleKey}". ` +
+        `Available fields: ${allNamedFields.join(', ') || '(none)'}`
+      );
+    }
+
+    // Build the synthetic event. simulateEvent will inject target.type/name
+    // if missing — but for Checkbox/Toggle we also need `checked` to mirror
+    // the native event shape. Best-effort: include both for booleans.
+    const fieldNode = field as ForgeDoc;
+    const isCheckable = fieldNode.type === 'Checkbox' || fieldNode.type === 'Toggle';
+    const target: Record<string, unknown> = { value, name };
+    if (isCheckable && typeof value === 'boolean') {
+      target.checked = value;
+    }
+    simulateEvent(fieldNode, 'onChange', { target });
+  }
+
+  /**
+   * Find a Form node and fire its onSubmit with a minimal synthetic event
+   * (preventDefault + stopPropagation), which is what react-hook-form's
+   * handleSubmit() wrapper needs to suppress the platform's default.
+   *
+   * If `values` is provided, fills each field via `fillField` first — then
+   * submits. Fields not in `values` keep their current state (defaults from
+   * useForm({defaultValues}) or whatever previous fillField calls set).
+   *
+   *   await sim.ui.submitForm('macro');                       // submit current state
+   *   await sim.ui.submitForm('macro', { name: 'Pat', age: 5 });  // fill + submit
+   *
+   * Returns whatever the form's onSubmit returns (often a Promise).
+   *
+   * If validation blocks the submit (required fields missing, etc.),
+   * react-hook-form's handleSubmit returns without calling the user's
+   * handler — same as production. Inspect the rendered tree afterward to
+   * see validation error messages.
+   */
+  async submitForm(moduleKey: string, values?: Record<string, unknown>): Promise<unknown> {
+    if (values) {
+      for (const [name, value] of Object.entries(values)) {
+        this.fillField(moduleKey, name, value);
+      }
+      // Let any state-update re-renders flush before we trigger submit.
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    }
+
+    const doc = this.getForgeDoc(moduleKey);
+    if (!doc) {
+      throw new Error(
+        `No rendered ForgeDoc for module "${moduleKey}". ` +
+        `Call await sim.ui.render("${moduleKey}") first.`
+      );
+    }
+
+    const form = findFirstByType(doc, 'Form');
+    if (!form) {
+      throw new Error(
+        `No <Form> in module "${moduleKey}". submitForm requires a Form node ` +
+        `(typically wired up via useForm + handleSubmit).`
+      );
+    }
+    if (typeof form.props.onSubmit !== 'function') {
+      throw new Error(
+        `<Form> in module "${moduleKey}" has no onSubmit handler.`
+      );
+    }
+
+    const event = {
+      preventDefault: () => {},
+      stopPropagation: () => {},
+    };
+    const result = form.props.onSubmit(event);
+    return result instanceof Promise ? await result : result;
   }
 
   /**
