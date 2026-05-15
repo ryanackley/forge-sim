@@ -536,39 +536,21 @@ server.tool(
 
 server.tool(
   'forge.logs',
-  'Get simulator logs including captured console.* output from Forge app code. Optionally filter by level.',
+  'Get simulator logs plus captured `console.*` output from Forge app code. ' +
+  'The response has a dedicated `console` array (resolver/trigger/scheduled-trigger ' +
+  'print output) and a `logs` array (simulator-level events plus the same console ' +
+  'lines mirrored under `level=console.<log|warn|error|info|debug>` so existing ' +
+  'level filters keep working).',
   {
-    level: z.string().optional().describe('Filter by log level (e.g. "error", "console.log", "invoke", "trigger")'),
-    limit: z.number().optional().describe('Max number of log entries (default: 100, from most recent)'),
+    level: z.string().optional().describe('Filter `logs` by exact level or level prefix (e.g. "error", "console.log", "invoke", "trigger"). Does NOT filter the `console` array — that is always your captured console.* output.'),
+    limit: z.number().optional().describe('Max entries to return for `logs` and `console` (default: 100, most recent)'),
     clear: z.boolean().optional().describe('Clear logs after reading'),
   },
   async ({ level, limit, clear }) => {
-    let logs = sim.getLogs();
-    const consoleLogs = sim.getConsoleLogs();
-
-    if (level) {
-      logs = logs.filter((l) => l.level === level || l.level.startsWith(level));
-    }
-
-    const maxEntries = limit ?? 100;
-    const recentLogs = logs.slice(-maxEntries);
-
-    const output = {
-      totalEntries: logs.length,
-      showing: recentLogs.length,
-      consoleLinesTotal: consoleLogs.length,
-      logs: recentLogs.map((l) => ({
-        time: new Date(l.timestamp).toISOString(),
-        level: l.level,
-        message: l.message,
-        ...(l.data !== undefined ? { data: l.data } : {}),
-      })),
-    };
-
+    const output = sim.buildLogsResponse({ level, limit });
     if (clear) {
       sim.clearLogs();
     }
-
     return {
       content: [{ type: 'text' as const, text: JSON.stringify(output, null, 2) }],
     };

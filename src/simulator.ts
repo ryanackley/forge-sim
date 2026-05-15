@@ -676,6 +676,58 @@ export class ForgeSimulator {
     return [...this.consoleLogs];
   }
 
+  /**
+   * Build the response payload for the MCP `forge.logs` tool (and any other
+   * caller that wants the same JSON shape). Extracted as a pure function so
+   * tests can lock down the contract without spinning up the MCP server.
+   *
+   * F4: the captured `console.*` lines used to be shown only as a count
+   * (`consoleLinesTotal: N`) while the actual lines hid in the main `logs`
+   * stream under the obscure `level=console.<kind>` prefix — agents had to
+   * guess that filter. Now they live in their own top-level `console` array
+   * so they're impossible to miss. The `logs` view still includes the
+   * `console.*` entries (mirrored via `this.log()` from each capture site)
+   * so existing filter-based discovery keeps working.
+   */
+  buildLogsResponse(options?: {
+    /** Filter `logs` entries by exact level match or level prefix. */
+    level?: string;
+    /** Maximum entries to return for both `logs` and `console`. Default 100. */
+    limit?: number;
+  }): {
+    totalEntries: number;
+    showing: number;
+    consoleLinesTotal: number;
+    console: Array<{ time: string; level: string; message: string }>;
+    logs: Array<{ time: string; level: string; message: string; data?: unknown }>;
+  } {
+    const { level, limit } = options ?? {};
+    let logs = this.getLogs();
+    if (level) {
+      logs = logs.filter((l) => l.level === level || l.level.startsWith(level));
+    }
+    const maxEntries = limit ?? 100;
+    const recentLogs = logs.slice(-maxEntries);
+    const recentConsole = this.consoleLogs.slice(-maxEntries);
+
+    return {
+      totalEntries: logs.length,
+      showing: recentLogs.length,
+      consoleLinesTotal: this.consoleLogs.length,
+      console: recentConsole.map((line) => ({
+        time: new Date(line.timestamp).toISOString(),
+        level: line.level,
+        message: line.message,
+      })),
+      logs: recentLogs.map((l) => ({
+        time: new Date(l.timestamp).toISOString(),
+        level: l.level,
+        message: l.message,
+        ...(l.data !== undefined ? { data: l.data } : {}),
+      })),
+    };
+  }
+
   clearLogs(): void {
     this.logs.length = 0;
     this.consoleLogs.length = 0;
