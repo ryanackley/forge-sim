@@ -80,6 +80,114 @@ function isProbablyDataObject(arg: unknown): boolean {
   return true;
 }
 
+/** Shape of an option an @forge/react Select accepts / fires onChange with. */
+type AKOption = { label: string; value: unknown };
+
+/**
+ * Collect the options available on a Select node. Real Forge `<Select>` accepts
+ * either an `options={[{label, value}]}` prop or `<Option label value/>` children.
+ * Either form should be reachable from `fillField`'s value lookup.
+ */
+function collectSelectOptions(selectNode: ForgeDoc): AKOption[] {
+  const out: AKOption[] = [];
+  const optionsProp = selectNode.props.options;
+  if (Array.isArray(optionsProp)) {
+    for (const opt of optionsProp) {
+      if (opt && typeof opt === 'object' && 'value' in opt) {
+        out.push({
+          label: typeof (opt as { label?: unknown }).label === 'string'
+            ? String((opt as { label: string }).label)
+            : String((opt as { value: unknown }).value),
+          value: (opt as { value: unknown }).value,
+        });
+      }
+    }
+  }
+  for (const child of selectNode.children ?? []) {
+    if (child.type === 'Option' && child.props && 'value' in child.props) {
+      out.push({
+        label: typeof child.props.label === 'string'
+          ? String(child.props.label)
+          : String(child.props.value),
+        value: child.props.value,
+      });
+    }
+  }
+  return out;
+}
+
+/**
+ * Resolve the caller's `fillField` value into the exact shape Select's
+ * onChange receives in real Forge: `AKOption` (single) or `AKOption[]` (multi).
+ *
+ * Caller can pass:
+ *   - a raw value (string, number, ...) — looked up in `options`
+ *   - a partial option `{value}` — label filled in from `options`
+ *   - a full option `{value, label}` — passed through (label kept as given)
+ *   - `null` (single) or `[]` (multi) — clears the selection
+ *
+ * For isMulti: caller passes an array of any of the above shapes; we resolve
+ * each. For single: caller passes one value.
+ *
+ * Throws with a clear "value not in options" error listing available values.
+ */
+function resolveSelectValue(
+  value: unknown,
+  options: AKOption[],
+  fieldName: string,
+  isMulti: boolean
+): AKOption | AKOption[] | null {
+  if (isMulti) {
+    if (value === null || value === undefined) return [];
+    if (!Array.isArray(value)) {
+      throw new Error(
+        `Select[name="${fieldName}"] is isMulti — fillField expects an array, got ${typeof value}.`
+      );
+    }
+    return value.map((v) => resolveSingleSelectValue(v, options, fieldName));
+  }
+  if (value === null || value === undefined) return null;
+  return resolveSingleSelectValue(value, options, fieldName);
+}
+
+function resolveSingleSelectValue(
+  value: unknown,
+  options: AKOption[],
+  fieldName: string
+): AKOption {
+  // If caller passed a fully-formed option object, use it verbatim — they
+  // know what they want. Lets devs test with custom labels or values that
+  // aren't in `options` (e.g. async-loaded options).
+  if (value && typeof value === 'object' && 'value' in value && 'label' in value) {
+    return {
+      label: String((value as { label: unknown }).label),
+      value: (value as { value: unknown }).value,
+    };
+  }
+  // Partial option {value} — fill in label from the lookup.
+  if (value && typeof value === 'object' && 'value' in value) {
+    const raw = (value as { value: unknown }).value;
+    const match = options.find((o) => o.value === raw);
+    if (match) return match;
+    throw selectOptionNotFound(raw, options, fieldName);
+  }
+  // Raw value — look up the matching option.
+  const match = options.find((o) => o.value === value);
+  if (match) return match;
+  throw selectOptionNotFound(value, options, fieldName);
+}
+
+function selectOptionNotFound(value: unknown, options: AKOption[], fieldName: string): Error {
+  const available = options.length === 0
+    ? '(no options declared on this Select)'
+    : options.map((o) => `${JSON.stringify(o.value)} (${o.label})`).join(', ');
+  return new Error(
+    `Select[name="${fieldName}"] has no option with value=${JSON.stringify(value)}. ` +
+    `Available: ${available}. ` +
+    `Pass a fully-formed { value, label } if you need an option not in the declared list.`
+  );
+}
+
 export class SimulatorUI {
   private bridgeInstalled = false;
 
@@ -863,11 +971,23 @@ export class SimulatorUI {
 
   /**
    * Find a form field by its `name` prop and fire onChange with the right
-   * synthetic event shape for the field's component type. The target.type/name
-   * injection in `simulateEvent` makes useForm + register() work as expected.
+   * shape for the field's component type.
    *
    *   await sim.ui.fillField('macro', 'name', 'Pat');
    *   await sim.ui.fillField('macro', 'age', 5);
+   *   await sim.ui.fillField('macro', 'role', 'admin');           // Select: raw value
+   *   await sim.ui.fillField('macro', 'role', { value: 'admin' }); // Select: partial option
+   *   await sim.ui.fillField('macro', 'tags', ['a', 'b']);         // Select isMulti
+   *
+   * Most fields receive a synthetic-event-shaped onChange (Textfield, TextArea,
+   * Checkbox, Toggle, etc.) — the target.type/name injection in `simulateEvent`
+   * makes useForm + register() work as expected.
+   *
+   * Select is a special case: real Forge <Select> is backed by react-select,
+   * which fires `onChange(option)` with `AKOption | AKOption[]` — NOT an event.
+   * For Select, fillField looks up the matching option from the Select's
+   * `options` prop (or `Option` children) and fires onChange with that option
+   * object, matching production behavior. (F2)
    *
    * Searches Textfield, TextArea, Checkbox, Toggle, Select, RadioGroup,
    * DatePicker, TimePicker, UserPicker, Range, CheckboxGroup. Throws if
@@ -913,10 +1033,23 @@ export class SimulatorUI {
       );
     }
 
+    const fieldNode = field as ForgeDoc;
+
+    // ── Select: option-object firing (F2) ────────────────────────────────
+    // Real Forge Select is react-select, which calls onChange(option) — NOT
+    // an event. Look up the option from `options` prop or `Option` children
+    // and fire that exact shape so RHF stores the same value sim and prod.
+    if (fieldNode.type === 'Select') {
+      const options = collectSelectOptions(fieldNode);
+      const isMulti = fieldNode.props.isMulti === true;
+      const selected = resolveSelectValue(value, options, name, isMulti);
+      simulateEvent(fieldNode, 'onChange', selected);
+      return;
+    }
+
     // Build the synthetic event. simulateEvent will inject target.type/name
     // if missing — but for Checkbox/Toggle we also need `checked` to mirror
     // the native event shape. Best-effort: include both for booleans.
-    const fieldNode = field as ForgeDoc;
     const isCheckable = fieldNode.type === 'Checkbox' || fieldNode.type === 'Toggle';
     const target: Record<string, unknown> = { value, name };
     if (isCheckable && typeof value === 'boolean') {

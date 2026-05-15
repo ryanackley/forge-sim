@@ -303,7 +303,12 @@ describe('simulateEvent target.type/name auto-injection', () => {
     expect(receivedArgs.target.checked).toBe(true);
   });
 
-  it('Select onChange gets target.type=select-one auto-injected', async () => {
+  it('Select onChange is NOT event-shape-injected — real Forge fires AKOption (F2)', async () => {
+    // Real Forge <Select> is backed by react-select, which fires onChange with
+    // the option object {label, value} — NOT a synthetic event. We must NOT
+    // inject target.type='select-one' here: doing so would let RHF extract
+    // target.value and store the raw string in sim, while production would
+    // store the full option object (silent parity bug — F2).
     let receivedArgs: any = null;
     const fakeNode = {
       type: 'Select',
@@ -312,7 +317,11 @@ describe('simulateEvent target.type/name auto-injection', () => {
       key: 'k',
     };
     sim.ui.interact(fakeNode as any, 'onChange', { target: { value: 'admin' } });
-    expect(receivedArgs.target.type).toBe('select-one');
+    // Pass-through: caller-provided event shape is forwarded verbatim with no
+    // target.type injection. (For real Select usage, prefer sim.ui.fillField,
+    // which fires the correct option-object shape.)
+    expect(receivedArgs).toEqual({ target: { value: 'admin' } });
+    expect(receivedArgs.target.type).toBeUndefined();
   });
 
   it('non-form-field component types do NOT get target.type injected', async () => {
@@ -325,5 +334,146 @@ describe('simulateEvent target.type/name auto-injection', () => {
     };
     sim.ui.interact(fakeNode as any, 'onChange', { target: { value: 'X' } });
     expect(receivedArgs.target.type).toBeUndefined();
+  });
+});
+
+/**
+ * F2 — fillField on <Select> must fire onChange with the AKOption shape that
+ * real Forge's react-select-backed Select emits, NOT an event. Previously,
+ * fillField synthesized {target: {value, name, type: 'select-one'}} which made
+ * RHF extract target.value and store the raw string. In production, RHF
+ * receives the option object and stores {label, value} — silent parity bug.
+ */
+describe('sim.ui.fillField — Select (F2)', () => {
+  let sim: ForgeSimulator;
+
+  beforeAll(async () => {
+    sim = createSimulator();
+    await sim.deploy(FIXTURE);
+  });
+
+  afterAll(async () => {
+    await sim.stop();
+  });
+
+  it('fillField with a raw value fires onChange({label, value}) matching real Forge', async () => {
+    await sim.ui.render('form-page');
+    sim.ui.fillField('form-page', 'name', 'Pat');
+    sim.ui.fillField('form-page', 'role', 'admin');
+    await sim.ui.submitForm('form-page');
+    await new Promise<void>((r) => setTimeout(r, 10));
+    const text = sim.ui.getTextContent(sim.ui.getForgeDoc('form-page')!);
+    // Parity: real Forge stores the option object (not the raw string).
+    expect(text).toContain('"role":{"label":"Admin","value":"admin"}');
+  });
+
+  it('fillField with a partial option {value} resolves the label from options', async () => {
+    await sim.ui.render('form-page');
+    sim.ui.fillField('form-page', 'name', 'Pat');
+    sim.ui.fillField('form-page', 'role', { value: 'admin' });
+    await sim.ui.submitForm('form-page');
+    await new Promise<void>((r) => setTimeout(r, 10));
+    const text = sim.ui.getTextContent(sim.ui.getForgeDoc('form-page')!);
+    // Label "Admin" is filled in from the declared options.
+    expect(text).toContain('"role":{"label":"Admin","value":"admin"}');
+  });
+
+  it('fillField with a full {value, label} forwards verbatim (custom labels supported)', async () => {
+    await sim.ui.render('form-page');
+    sim.ui.fillField('form-page', 'name', 'Pat');
+    sim.ui.fillField('form-page', 'role', { value: 'admin', label: 'Custom Admin' });
+    await sim.ui.submitForm('form-page');
+    await new Promise<void>((r) => setTimeout(r, 10));
+    const text = sim.ui.getTextContent(sim.ui.getForgeDoc('form-page')!);
+    // Caller's label survives — useful when options are async-loaded or
+    // customized at runtime.
+    expect(text).toContain('"role":{"label":"Custom Admin","value":"admin"}');
+  });
+
+  it('fillField with isMulti accepts an array of values', async () => {
+    await sim.ui.render('form-page');
+    sim.ui.fillField('form-page', 'name', 'Pat');
+    sim.ui.fillField('form-page', 'tags', ['red', 'green']);
+    await sim.ui.submitForm('form-page');
+    await new Promise<void>((r) => setTimeout(r, 10));
+    const text = sim.ui.getTextContent(sim.ui.getForgeDoc('form-page')!);
+    expect(text).toContain('"tags":[{"label":"Red","value":"red"},{"label":"Green","value":"green"}]');
+  });
+
+  it('fillField with isMulti accepts mixed raw values and option objects', async () => {
+    await sim.ui.render('form-page');
+    sim.ui.fillField('form-page', 'name', 'Pat');
+    sim.ui.fillField('form-page', 'tags', ['blue', { value: 'red', label: 'Red' }]);
+    await sim.ui.submitForm('form-page');
+    await new Promise<void>((r) => setTimeout(r, 10));
+    const text = sim.ui.getTextContent(sim.ui.getForgeDoc('form-page')!);
+    expect(text).toContain('"tags":[{"label":"Blue","value":"blue"},{"label":"Red","value":"red"}]');
+  });
+
+  it('fillField with isMulti accepts an empty array (clears the selection)', async () => {
+    await sim.ui.render('form-page');
+    sim.ui.fillField('form-page', 'name', 'Pat');
+    // First add some tags, then clear them — verifies the array round-trip.
+    sim.ui.fillField('form-page', 'tags', ['red']);
+    sim.ui.fillField('form-page', 'tags', []);
+    await sim.ui.submitForm('form-page');
+    await new Promise<void>((r) => setTimeout(r, 10));
+    const text = sim.ui.getTextContent(sim.ui.getForgeDoc('form-page')!);
+    expect(text).toContain('"tags":[]');
+  });
+
+  it('fillField with null on a single-select clears the selection (matches react-select)', async () => {
+    await sim.ui.render('form-page');
+    sim.ui.fillField('form-page', 'name', 'Pat');
+    sim.ui.fillField('form-page', 'role', 'admin');
+    sim.ui.fillField('form-page', 'role', null);
+    await sim.ui.submitForm('form-page');
+    await new Promise<void>((r) => setTimeout(r, 10));
+    const text = sim.ui.getTextContent(sim.ui.getForgeDoc('form-page')!);
+    // After clearing, RHF stores null (matches react-select clear).
+    expect(text).toContain('"role":null');
+  });
+
+  it('manual onChange (unwrap-and-store pattern) receives the option object', async () => {
+    await sim.ui.render('form-page');
+    sim.ui.fillField('form-page', 'name', 'Pat');
+    sim.ui.fillField('form-page', 'team', 'growth');
+    await new Promise<void>((r) => setTimeout(r, 10));
+    const text = sim.ui.getTextContent(sim.ui.getForgeDoc('form-page')!);
+    // The manual onChange in the fixture unwraps opt.value → setTeam(string).
+    // The Text node `team-watch: ${team}` reflects local state.
+    expect(text).toContain('team-watch: growth');
+  });
+
+  it('fillField throws when value is not in declared options', async () => {
+    await sim.ui.render('form-page');
+    expect(() => sim.ui.fillField('form-page', 'role', 'guest'))
+      .toThrow(/Select\[name="role"\] has no option with value="guest"/);
+  });
+
+  it('error lists available option values for quick diagnosis', async () => {
+    await sim.ui.render('form-page');
+    let captured: Error | null = null;
+    try { sim.ui.fillField('form-page', 'role', 'nope'); } catch (e) { captured = e as Error; }
+    expect(captured!.message).toContain('"member" (Member)');
+    expect(captured!.message).toContain('"admin" (Admin)');
+  });
+
+  it('fillField rejects a non-array value on an isMulti Select', async () => {
+    await sim.ui.render('form-page');
+    expect(() => sim.ui.fillField('form-page', 'tags', 'red'))
+      .toThrow(/Select\[name="tags"\] is isMulti — fillField expects an array/);
+  });
+
+  it('preserves defaultValue typing — unfilled Select keeps useForm defaultValue verbatim', async () => {
+    // Submit without filling role. Real Forge: defaultValue 'member' (string)
+    // is kept until the user picks an option, at which point it morphs to
+    // {label, value}. The existing "respects defaultValues" test asserts the
+    // string survives — we re-confirm here in F2 context.
+    await sim.ui.render('form-page');
+    await sim.ui.submitForm('form-page', { name: 'X' });
+    await new Promise<void>((r) => setTimeout(r, 10));
+    const text = sim.ui.getTextContent(sim.ui.getForgeDoc('form-page')!);
+    expect(text).toContain('"role":"member"'); // raw string, not yet option
   });
 });

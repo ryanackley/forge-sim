@@ -195,6 +195,18 @@ export function getTextContent(doc: ForgeDoc): string {
  * Headless tests have no react-dom, no SyntheticEvent system, and no real
  * <input> for RHF's ref to attach to. This synthesizes the minimal shape RHF
  * needs to find its way through.
+ *
+ * NOTE: Select is intentionally absent. Real Forge `<Select>` is backed by
+ * react-select, which fires `onChange(option)` with an `AKOption | AKOption[]`
+ * object — NOT a synthetic event. Auto-injecting `target.type='select-one'`
+ * here would create a parity violation: in sim, RHF would extract
+ * `target.value` and store the raw string; in real Forge, RHF receives the
+ * option object and stores the whole `{label, value}` (since react-select
+ * doesn't go through the event path). `fillField` handles Select via the
+ * option-object path explicitly so behavior matches production. (F2)
+ *
+ * UserPicker is also absent for similar reasons — its `onChange` shape is
+ * domain-specific (`UserPickerValue`), not a synthetic event.
  */
 const FIELD_NATIVE_TYPES: Record<string, string> = {
   Textfield: 'text',
@@ -204,10 +216,8 @@ const FIELD_NATIVE_TYPES: Record<string, string> = {
   Radio: 'radio',
   RadioGroup: 'radio',
   Toggle: 'checkbox',
-  Select: 'select-one',
   DatePicker: 'date',
   TimePicker: 'time',
-  UserPicker: 'select-one',
   Range: 'range',
 };
 
