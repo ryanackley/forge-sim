@@ -46,15 +46,75 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { z } from 'zod';
 import { createServer } from 'node:http';
+import { statSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { createSimulator } from './simulator.js';
 import { typeCheck } from './type-checker.js';
+import { isStale, buildStalenessWarning, STALENESS_GRACE_MS, shouldRunStalenessCheck } from './staleness.js';
 // UI access is now through sim.ui.* — no direct bridge/doc-utils imports
 
 // ── Simulator Instance ──────────────────────────────────────────────────
 
 const sim = createSimulator();
 
+// ── Stale-daemon self-check ─────────────────────────────────────────────
+//
+// The MCP server is a long-lived Node process — it loads dist/*.js ONCE at
+// startup. If `forge-sim` is rebuilt (or upgraded via `npm install`) while
+// the daemon is running, the daemon keeps the OLD compiled code in memory.
+// Tool calls then fail with errors that don't match the current source —
+// e.g. methods added in the new dist are "not a function" on the in-memory
+// simulator instance.
+//
+// This trap has bit at least three times this week (logged in the project's
+// memory). The fix: on every tool response, re-stat our own loaded
+// `dist/mcp-server.js`. If its mtime is now newer than what we recorded at
+// startup (plus a small grace period for filesystem clock skew), prepend a
+// loud warning to the response. The warning carries our PID so the operator
+// (or agent) can `kill` us — the MCP client respawns automatically with
+// fresh code on the next tool call.
+//
+// Belt + suspenders: also expose a `forge.sim_info` tool returning the
+// current state explicitly, so agents can sanity-check before debugging
+// other classes of bug.
 
+const MCP_SERVER_PATH = fileURLToPath(import.meta.url);
+const DAEMON_PID = process.pid;
+const DAEMON_START_TIME = Date.now();
+
+// Only enable the staleness check when we're running from a non-node_modules
+// location (i.e. from a forge-sim development checkout, not from an end-user's
+// `npm install`). End-users don't rebuild the package mid-session — surfacing
+// a "stale daemon" warning in their tool responses would be pure noise.
+// Overridable via FORGE_SIM_STALE_CHECK=on|off; see staleness.ts.
+const STALENESS_CHECK_ENABLED = shouldRunStalenessCheck(MCP_SERVER_PATH);
+
+let loadedMtimeMs: number | null = null;
+if (STALENESS_CHECK_ENABLED) {
+  try {
+    loadedMtimeMs = statSync(MCP_SERVER_PATH).mtimeMs;
+  } catch {
+    // Can't stat ourselves — disable the check rather than emit warnings
+    // we can't ground in fact.
+    loadedMtimeMs = null;
+  }
+}
+
+function currentMtime(): number | null {
+  try {
+    return statSync(MCP_SERVER_PATH).mtimeMs;
+  } catch {
+    return null;
+  }
+}
+
+function stalenessWarningText(): string | null {
+  if (loadedMtimeMs === null) return null;
+  const cur = currentMtime();
+  if (cur === null) return null;
+  if (!isStale(loadedMtimeMs, cur, STALENESS_GRACE_MS)) return null;
+  return buildStalenessWarning(DAEMON_PID, loadedMtimeMs, cur);
+}
 
 // ── MCP Server Setup ────────────────────────────────────────────────────
 
@@ -63,7 +123,64 @@ const server = new McpServer({
   version: '0.1.0',
 });
 
+// Wrap server.tool so every handler's response carries the staleness warning
+// when applicable. Done by monkey-patching once before any tool registrations.
+const originalServerTool = server.tool.bind(server) as any;
+(server as any).tool = (...args: any[]) => {
+  const handler = args[args.length - 1];
+  if (typeof handler !== 'function') return originalServerTool(...args);
+  const rest = args.slice(0, -1);
+  const wrappedHandler = async (...handlerArgs: any[]) => {
+    const result = await handler(...handlerArgs);
+    const warning = stalenessWarningText();
+    if (!warning) return result;
+    // MCP tool responses are `{ content: [{ type: 'text', text: '...' }, ...] }`.
+    // Prepend a synthetic text item so the warning is the first thing the
+    // agent sees, with the original content immediately after.
+    if (result && typeof result === 'object' && Array.isArray(result.content)) {
+      return {
+        ...result,
+        content: [
+          { type: 'text' as const, text: warning },
+          ...result.content,
+        ],
+      };
+    }
+    return result;
+  };
+  return originalServerTool(...rest, wrappedHandler);
+};
+
 // ── Tools ───────────────────────────────────────────────────────────────
+
+server.tool(
+  'forge.sim_info',
+  'Return daemon-process metadata: PID, start time, loaded mcp-server.js mtime, ' +
+  'and whether the daemon is stale (dist/ has been rebuilt since startup). ' +
+  'Use this to sanity-check before debugging confusing tool errors — most surprising ' +
+  'MCP failures are stale-daemon symptoms, not real bugs.',
+  {},
+  async () => {
+    const onDiskMtime = currentMtime();
+    const stale = onDiskMtime !== null && loadedMtimeMs !== null
+      && isStale(loadedMtimeMs, onDiskMtime, STALENESS_GRACE_MS);
+    const info = {
+      pid: DAEMON_PID,
+      daemonStartedAt: new Date(DAEMON_START_TIME).toISOString(),
+      mcpServerPath: MCP_SERVER_PATH,
+      stalenessCheck: STALENESS_CHECK_ENABLED
+        ? 'enabled (running from non-node_modules location — dev mode)'
+        : 'disabled (running from node_modules — published-install mode; set FORGE_SIM_STALE_CHECK=on to force enable)',
+      loadedMtime: loadedMtimeMs !== null ? new Date(loadedMtimeMs).toISOString() : null,
+      currentOnDiskMtime: onDiskMtime !== null ? new Date(onDiskMtime).toISOString() : null,
+      stale,
+      restartHint: stale ? `kill ${DAEMON_PID}  # MCP client respawns automatically` : null,
+    };
+    return {
+      content: [{ type: 'text' as const, text: JSON.stringify(info, null, 2) }],
+    };
+  }
+);
 
 server.tool(
   'forge.deploy',
