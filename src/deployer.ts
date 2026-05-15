@@ -208,8 +208,15 @@ export async function deploy(sim: ForgeSimulator, appDir: string): Promise<Deplo
   // 1. Parse manifest
   const manifest = await parseManifest(manifestPath);
 
-  // Surface manifest validation warnings
+  // Surface manifest validation warnings.
+  // Per-sim dedupe: redeploying the same app in a vitest suite would otherwise
+  // flood stderr with the same static warnings (Node version mismatch, missing
+  // icon, etc.) on every test. The result.warnings array still carries them
+  // for in-process / MCP callers — this only suppresses the stderr print after
+  // the first occurrence per simulator instance. (F7)
   for (const w of manifest.warnings) {
+    if (sim.hasPrintedManifestWarning(w.message)) continue;
+    sim.markManifestWarningPrinted(w.message);
     const prefix = w.level === 'error' ? '❌' : '⚠️';
     console.warn(`[forge-sim] ${prefix} ${w.message}`);
   }
@@ -264,12 +271,22 @@ export async function deploy(sim: ForgeSimulator, appDir: string): Promise<Deplo
 
   // 3. Load each function module
   const handlerExports = new Map<string, any>();
+  // Per-deploy bundle/import cache keyed by absolute source path. Many manifests
+  // route multiple function entries through the same source file (e.g. OKR's
+  // `index.handler`, `index.runMigration`, `index.recalcKeyResult` all live in
+  // `src/index.ts`). Without this cache, each function re-bundled and re-imported
+  // the same file under a unique URL, re-evaluating its top-level code N times
+  // and tripping the "resolver.define overwriting" warning on every redundant
+  // pass. We still want fresh evaluation across distinct `deploy()` calls
+  // (that's what cache-busts edits between iterations), so the cache lives in
+  // function scope and dies when this call returns. (F8 root cause)
+  const moduleCache = new Map<string, any>();
 
   for (const [fnKey, fnDef] of manifest.functions) {
     try {
       const { fileStem, exportName } = parseHandlerString(fnDef.handler);
       const filePath = await resolveHandlerFile(absDir, fileStem);
-      
+
       if (!filePath) {
         errors.push({
           functionKey: fnKey,
@@ -278,13 +295,15 @@ export async function deploy(sim: ForgeSimulator, appDir: string): Promise<Deplo
         continue;
       }
 
-      // Cache-bust via esbuild bundle → fresh file: URL per deploy (F3).
-      // The earlier `?t=N` trick only busted the entry-point — transitive
-      // imports stayed cached, so edits inside ./handlers/foo.js never ran
-      // on redeploy. Bundling the entry's whole relative-import graph into
-      // a fresh file per deploy fixes both at once.
-      const fileUrl = await bundleHandlerToFileUrl(filePath, absDir);
-      const mod = await import(fileUrl);
+      // Bundle+import the source file exactly once per deploy, reusing the
+      // same module for every manifest function that points at it. See the
+      // `moduleCache` comment above for the F8 backstory.
+      let mod = moduleCache.get(filePath);
+      if (!mod) {
+        const fileUrl = await bundleHandlerToFileUrl(filePath, absDir);
+        mod = await import(fileUrl);
+        moduleCache.set(filePath, mod);
+      }
 
       const handler = mod[exportName] ?? mod.default?.[exportName];
       if (!handler) {
@@ -333,15 +352,26 @@ export async function deploy(sim: ForgeSimulator, appDir: string): Promise<Deplo
     if (!exported) continue;
 
     if (typeof exported === 'object') {
-      // It's a definitions map from Resolver.getDefinitions()
+      // It's a definitions map from Resolver.getDefinitions(). The @forge/resolver
+      // shim already registered these with sim.resolver during bundle evaluation
+      // (each `resolver.define()` call inside user code routes through it). So
+      // this loop is a no-op for keys already present — registering them again
+      // would just trigger the "overwriting" footgun-warning meant for users
+      // who define the same key in two different files. (F8)
+      const already = new Set(sim.resolver.getDefinitions());
       for (const [defKey, defHandler] of Object.entries(exported)) {
-        if (typeof defHandler === 'function') {
+        if (typeof defHandler !== 'function') continue;
+        if (!already.has(defKey)) {
+          // User exported a plain `{ foo: fn }` map without using the Resolver
+          // shim — register the function ourselves so invoke() can reach it.
           sim.resolver.define(defKey, defHandler as any);
-          sim.registerResolverOwnership(defKey, uiModule.resolverFunctionKey);
         }
+        sim.registerResolverOwnership(defKey, uiModule.resolverFunctionKey);
       }
     } else if (typeof exported === 'function') {
-      sim.resolver.define(uiModule.resolverFunctionKey, exported);
+      if (!sim.resolver.getDefinitions().includes(uiModule.resolverFunctionKey)) {
+        sim.resolver.define(uiModule.resolverFunctionKey, exported);
+      }
       sim.registerResolverOwnership(uiModule.resolverFunctionKey, uiModule.resolverFunctionKey);
     }
   }

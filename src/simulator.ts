@@ -71,6 +71,23 @@ export class ForgeSimulator {
   private logListeners: Array<(entry: LogEntry) => void> = [];
 
   /**
+   * Per-instance set of manifest-warning messages we've already printed to
+   * stderr. Manifest parsing produces the same warnings on every deploy
+   * (Node version mismatch, missing icon, etc.) but those are static facts
+   * about the app — repeating them on every redeploy in a test suite just
+   * floods the output. We surface them in `result.warnings` either way; the
+   * stderr print is just for early-feedback discoverability.
+   */
+  private printedManifestWarnings = new Set<string>();
+  /** Public helper for deployer to query / update. */
+  hasPrintedManifestWarning(message: string): boolean {
+    return this.printedManifestWarnings.has(message);
+  }
+  markManifestWarningPrinted(message: string): void {
+    this.printedManifestWarnings.add(message);
+  }
+
+  /**
    * Module routing: maps moduleKey → { resolverFunctionKey?, endpointKey? }
    * Built by the deployer from manifest UI modules.
    */
