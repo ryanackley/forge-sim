@@ -8,11 +8,97 @@
  * This is the "deploy to sim" equivalent — one call, zero app modifications.
  */
 
-import { resolve, join } from 'node:path';
-import { access } from 'node:fs/promises';
+import { resolve, join, dirname } from 'node:path';
+import { access, mkdir, writeFile, readdir, unlink } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 import { parseManifest, type ParsedManifest, type ManifestFunction } from './manifest.js';
 import type { ForgeSimulator } from './simulator.js';
+
+/** Per-app cache dir for esbuild deploy bundles. Convention follows fit-keys/
+ *  and other forge-sim sidecar state. Bundles live here briefly between
+ *  deploys; we sweep stale ones at the start of every redeploy. */
+function deployBundleDir(appDir: string): string {
+  return join(appDir, '.forge-sim', 'bundles');
+}
+
+/** Best-effort sweep of older deploy bundles so the dir doesn't grow without
+ *  bound across many redeploys. Failures are swallowed (e.g. dir doesn't
+ *  exist yet, or files are still in-use somewhere on Windows). */
+async function sweepStaleBundles(dir: string): Promise<void> {
+  try {
+    const names = await readdir(dir);
+    await Promise.all(
+      names
+        .filter((n) => n.startsWith('deploy-') && n.endsWith('.mjs'))
+        .map((n) => unlink(join(dir, n)).catch(() => {}))
+    );
+  } catch {
+    // Dir doesn't exist yet — nothing to sweep.
+  }
+}
+
+/**
+ * Bundle a handler entry-point and all its relative-import dependencies into
+ * a single ESM source file, returning a `file://` URL ready for `import()`.
+ *
+ * Why: Node's ESM dynamic-import cache is keyed on the full specifier URL.
+ * Appending `?t=Date.now()` to the entry-point busts the entry's cache, but
+ * NOT its transitive imports — those resolve to plain URLs with no query and
+ * stay cached forever across redeploys. The agent's iterate loop sees old
+ * code after editing any transitive handler file (F3 from skill run #6).
+ *
+ * The fix: esbuild bundles the entry plus every relative-import descendant
+ * into one source. The bundle is written to `<appDir>/.forge-sim/bundles/`
+ * with a per-deploy random filename, so the resulting URL is a brand-new
+ * module specifier on every deploy. Bare-specifier imports (`@forge/*`,
+ * react, axios, …) stay external — they're resolved by Node's loader
+ * (which our hooks intercept for @forge/*) walking up from the bundle file
+ * to the app's `node_modules`. The @forge/* shim interception still fires.
+ *
+ * Works in both regular Node (MCP mode) and vitest (vite-node) because each
+ * deploy writes a new file with a new URL — neither cache has seen it before.
+ *
+ * Why not `data:` URLs (the initial attempt): Node can't resolve bare
+ * specifiers from a data: URL — no parent path means no node_modules walk.
+ * A file URL inside the app dir gives bare imports a natural resolution root.
+ *
+ * Sourcemap is inline so stack traces still point back at user source.
+ */
+async function bundleHandlerToFileUrl(entryPath: string, appDir: string): Promise<string> {
+  const esbuild = await import('esbuild');
+  const result = await esbuild.build({
+    entryPoints: [entryPath],
+    bundle: true,
+    format: 'esm',
+    target: 'node22',
+    platform: 'node',
+    write: false,
+    sourcemap: 'inline',
+    absWorkingDir: dirname(entryPath),
+    plugins: [
+      {
+        name: 'forge-sim-bare-externals',
+        setup(build) {
+          // Mark every non-relative, non-absolute specifier as external — they
+          // get resolved by Node's loader (which our hooks intercept for @forge/*).
+          // Keeps node_modules out of the bundle (faster + avoids bundling native
+          // addons) and preserves the @forge/* shim interception path.
+          build.onResolve({ filter: /^[^./]/ }, () => ({ external: true }));
+        },
+      },
+    ],
+  });
+  const code = result.outputFiles[0].text;
+
+  const cacheDir = deployBundleDir(appDir);
+  await mkdir(cacheDir, { recursive: true });
+  // Per-deploy random filename — what makes the resulting URL unique and
+  // therefore bypasses both Node's ESM cache and vite-node's path-based cache.
+  const fileName = `deploy-${Date.now()}-${Math.random().toString(36).slice(2)}.mjs`;
+  const outPath = join(cacheDir, fileName);
+  await writeFile(outPath, code, 'utf-8');
+  return pathToFileURL(outPath).href;
+}
 // Bridge is now managed by sim.ui — no direct bridge imports needed here
 
 export interface DeployResult {
@@ -152,6 +238,11 @@ export async function deploy(sim: ForgeSimulator, appDir: string): Promise<Deplo
   const loadedResources: string[] = [];
   const errors: Array<{ functionKey: string; error: string }> = [];
 
+  // Sweep old deploy bundles so this dir doesn't grow without bound. Bundles
+  // from previous deploys are no longer needed once their modules are cached
+  // by Node — we generate a fresh one per deploy anyway.
+  await sweepStaleBundles(deployBundleDir(absDir));
+
   // 2. Register @forge/* loader hooks (redirects @forge/api etc. to our shims).
   //    Called lazily so users don't need --import. Hooks apply to all subsequent
   //    dynamic imports, which is exactly how we load app handler modules below.
@@ -187,9 +278,13 @@ export async function deploy(sim: ForgeSimulator, appDir: string): Promise<Deplo
         continue;
       }
 
-      // Dynamic import (cache-bust so re-deploys get fresh modules)
-      const fileUrl = pathToFileURL(filePath).href;
-      const mod = await import(fileUrl + '?t=' + Date.now());
+      // Cache-bust via esbuild bundle → fresh file: URL per deploy (F3).
+      // The earlier `?t=N` trick only busted the entry-point — transitive
+      // imports stayed cached, so edits inside ./handlers/foo.js never ran
+      // on redeploy. Bundling the entry's whole relative-import graph into
+      // a fresh file per deploy fixes both at once.
+      const fileUrl = await bundleHandlerToFileUrl(filePath, absDir);
+      const mod = await import(fileUrl);
 
       const handler = mod[exportName] ?? mod.default?.[exportName];
       if (!handler) {
