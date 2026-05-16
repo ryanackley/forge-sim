@@ -264,9 +264,34 @@ Get the currently deployed manifest.
 ### Resolvers & Invocation
 
 ```typescript
-sim.invoke(functionKey: string, payload?: any, moduleKey?: string): Promise<any>
+sim.invoke(
+  functionKey: string,
+  payload?: any,
+  options?: { moduleKey?: string; context?: Partial<ResolverContext> }
+): Promise<any>
 ```
 Invoke a resolver function. Wraps payload in `{ payload, context }` per the Forge bridge contract.
+
+The third arg (optional) is an `InvokeOptions` object:
+- **`moduleKey`** — scope resolver lookup when multiple modules register the same function key.
+- **`context`** — per-call context override (one-shot). Merged onto the sim's base + sticky context for THIS invocation only; the sticky `setContext()` state is untouched. Shape matches Forge's `req.context` (`accountId`, `cloudId`, `extension`, `principal`, `license`, ...).
+
+```typescript
+// Vary the calling user per invocation without mutating sticky state
+await sim.invoke('castVote', { optionIndex: 0 }, { context: { accountId: 'alice' } });
+await sim.invoke('castVote', { optionIndex: 1 }, { context: { accountId: 'bob' } });
+
+// Scope to a specific module
+await sim.invoke('getData', payload, { moduleKey: 'panel-a' });
+
+// Combine both
+await sim.invoke('castVote', payload, {
+  moduleKey: 'pulse-macro',
+  context: { accountId: 'alice', extension: { contentId: '12345' } },
+});
+```
+
+Bad shapes throw a `TypeError` with a fix-it hint — e.g. passing `{ accountId: 'x' }` directly tells you to use `{ context: { accountId: 'x' } }` instead.
 
 ```typescript
 sim.registerFunction(key: string, handler: Function, type: ForgeFunctionType): void

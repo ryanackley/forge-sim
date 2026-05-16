@@ -278,8 +278,10 @@ server.tool(
     functionKey: z.string().describe('The resolver function key to invoke'),
     payload: z.record(z.string(), z.any()).optional().describe('Payload to pass to the resolver'),
     actionKey: z.string().optional().describe('If invoking a Rovo action, the action key — enables input validation against the action schema'),
+    moduleKey: z.string().optional().describe('Scope resolver lookup to a specific module — required when multiple modules register the same function key'),
+    context: z.record(z.string(), z.any()).optional().describe('Per-call context override (one-shot, does not mutate sticky setContext). Shape matches Forge req.context: accountId, cloudId, extension, principal, license, ...'),
   },
-  async ({ functionKey, payload, actionKey }) => {
+  async ({ functionKey, payload, actionKey, moduleKey, context }) => {
     try {
       // Validate action inputs if specified
       if (actionKey) {
@@ -295,7 +297,7 @@ server.tool(
       const logsBefore = sim.getLogs().length;
       const consoleBefore = sim.getConsoleLogs().length;
 
-      const result = await sim.invoke(functionKey, payload ?? {});
+      const result = await sim.invoke(functionKey, payload ?? {}, { moduleKey, context });
 
       const newLogs = sim.getLogs().slice(logsBefore);
       const newConsole = sim.getConsoleLogs().slice(consoleBefore);

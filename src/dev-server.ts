@@ -281,7 +281,7 @@ export async function createDevServer(options: DevServerOptions = {}): Promise<D
     switch (method) {
       case 'invoke': {
         const { functionKey, payload, moduleKey } = params;
-        return simulator.invoke(functionKey, payload, moduleKey);
+        return simulator.invoke(functionKey, payload, { moduleKey });
       }
 
       case 'invokeRemote': {

@@ -119,6 +119,29 @@ export interface ResolverContext {
   [key: string]: unknown;
 }
 
+/**
+ * Options for sim.invoke() — the third arg.
+ *
+ * - `moduleKey` scopes resolver lookup when multiple modules register the
+ *   same function key (mirrors how Forge routes invokes through a specific
+ *   UI module). Required only when there's ambiguity.
+ *
+ * - `context` overrides the request context for THIS invocation only.
+ *   Merged on top of the sim's base context (set via setContext()) and
+ *   does NOT mutate sticky state — the next call without an override
+ *   sees the unchanged base. Shape matches Forge's `req.context`, so any
+ *   field there is fair game: `accountId`, `cloudId`, `localId`,
+ *   `extension`, `principal`, `license`, `installContext`.
+ *
+ * Example:
+ *   await sim.invoke('castVote', payload, { context: { accountId: 'alice' } });
+ *   await sim.invoke('castVote', payload, { context: { accountId: 'bob' } });
+ */
+export interface InvokeOptions {
+  moduleKey?: string;
+  context?: Partial<ResolverContext>;
+}
+
 // ── Storage Types ───────────────────────────────────────────────────────────
 
 export interface StorageEntry {

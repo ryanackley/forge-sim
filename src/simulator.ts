@@ -22,7 +22,7 @@ import { FITProvider } from './fit-provider.js';
 import { RemoteProxy } from './remote-proxy.js';
 import { SimulatedLLM } from './llm.js';
 import { SimulatedRealtime } from './realtime.js';
-import type { SimulationConfig, ResolverContext, ProductApiHandler, ProductApiRequest, ProductApiResponse } from './types.js';
+import type { SimulationConfig, ResolverContext, InvokeOptions, ProductApiHandler, ProductApiRequest, ProductApiResponse } from './types.js';
 import type { TriggerPayloadByEvent } from './trigger-event-types.js';
 import type { ManifestAction } from './manifest.js';
 
@@ -382,12 +382,30 @@ export class ForgeSimulator {
 
   /**
    * Invoke a resolver function, simulating the @forge/bridge invoke() call.
-   * This uses the resolver's { payload, context } wrapping — the UI bridge pattern.
+   * Uses the resolver's { payload, context } wrapping — the UI bridge pattern.
    *
-   * If moduleKey is provided, validates that the function key is accessible
-   * from that module's resolver (behavioral parity with Forge).
+   * The optional third arg is an `InvokeOptions` object:
+   *   - `moduleKey` scopes resolver lookup for module-routed resolvers
+   *     (validates the function key is accessible from that module — Forge parity).
+   *   - `context` overrides request context for THIS invocation only.
+   *     Merged onto base context (sticky `setContext()` + defaults). Mutating
+   *     state happens only in setContext(); the override here is one-shot.
+   *
+   * Example:
+   *   await sim.invoke('castVote', payload, { context: { accountId: 'alice' } });
+   *   await sim.invoke('getDataA', payload, { moduleKey: 'panel-a' });
+   *   await sim.invoke('castVote', payload, {
+   *     moduleKey: 'pulse-macro',
+   *     context: { accountId: 'bob', extension: { contentId: '12345' } },
+   *   });
    */
-  async invoke(functionKey: string, payload?: any, moduleKey?: string): Promise<any> {
+  async invoke(
+    functionKey: string,
+    payload?: any,
+    options?: InvokeOptions
+  ): Promise<any> {
+    const { moduleKey, contextOverride } = parseInvokeOptions(options);
+
     this.log('invoke', `Invoking resolver: ${functionKey}${moduleKey ? ` (module: ${moduleKey})` : ''}`, payload);
 
     // Validate module → resolver access if module context is available
@@ -400,7 +418,7 @@ export class ForgeSimulator {
     const startMs = Date.now();
     try {
       const { result, console: captured } = await withCapture(() =>
-        this.resolver.invoke(functionKey, payload)
+        this.resolver.invoke(functionKey, payload, contextOverride)
       );
       this.consoleLogs.push(...captured);
       for (const line of captured) {
@@ -1063,6 +1081,73 @@ export interface LoadAuthResult {
 }
 
 /**
+ * Validate and unpack the InvokeOptions third arg of sim.invoke().
+ *
+ * Pre-release we reject anything that isn't a plain options object — common
+ * mistakes get a TypeError pointing at the intended shape rather than a
+ * confusing downstream "Unknown module '[object Object]'" failure.
+ *
+ * Accepts:
+ *   - undefined / null  (no options)
+ *   - { moduleKey?: string, context?: Partial<ResolverContext> }
+ *
+ * Rejects (with a fix-it hint):
+ *   - strings, numbers, booleans, arrays
+ *   - objects with unknown top-level keys (e.g. raw `{ accountId: 'x' }`)
+ */
+function parseInvokeOptions(
+  options: InvokeOptions | undefined
+): { moduleKey: string | undefined; contextOverride: Partial<ResolverContext> | undefined } {
+  if (options === undefined || options === null) {
+    return { moduleKey: undefined, contextOverride: undefined };
+  }
+
+  if (typeof options !== 'object' || Array.isArray(options)) {
+    throw new TypeError(
+      `sim.invoke() third arg must be an InvokeOptions object ` +
+      `({ moduleKey?, context? }) or omitted. Got: ${typeof options}` +
+      (typeof options === 'string'
+        ? `. To scope to a module, use { moduleKey: "${options}" }.`
+        : '')
+    );
+  }
+
+  const known = new Set(['moduleKey', 'context']);
+  const unknownKeys = Object.keys(options).filter((k) => !known.has(k));
+
+  if (unknownKeys.length > 0) {
+    // Detect the most common mistake: passing a bare context shape like
+    // { accountId: 'alice' } instead of { context: { accountId: 'alice' } }.
+    const looksLikeContext = unknownKeys.some((k) =>
+      ['accountId', 'cloudId', 'siteUrl', 'installContext', 'extension', 'principal', 'license', 'localId'].includes(k)
+    );
+    const hint = looksLikeContext
+      ? ` Did you mean { context: { ${unknownKeys.map((k) => `${k}: ...`).join(', ')} } }?`
+      : '';
+    throw new TypeError(
+      `sim.invoke() options object has unknown key(s): ${unknownKeys.map((k) => `"${k}"`).join(', ')}. ` +
+      `Valid keys: moduleKey, context.${hint}`
+    );
+  }
+
+  const { moduleKey, context } = options;
+
+  if (moduleKey !== undefined && typeof moduleKey !== 'string') {
+    throw new TypeError(
+      `sim.invoke() options.moduleKey must be a string, got: ${typeof moduleKey}`
+    );
+  }
+
+  if (context !== undefined && (typeof context !== 'object' || context === null || Array.isArray(context))) {
+    throw new TypeError(
+      `sim.invoke() options.context must be an object (Partial<ResolverContext>), got: ${typeof context}`
+    );
+  }
+
+  return { moduleKey, contextOverride: context };
+}
+
+/**
  * Create (or replace) the global simulator singleton.
  * This is the preferred way to initialize forge-sim.
  *
@@ -1094,3 +1179,4 @@ export { FunctionRegistry } from './function-registry.js';
 export type { ForgeFunctionType, RegisteredFunction } from './function-registry.js';
 export { FITProvider } from './fit-provider.js';
 export { RemoteProxy } from './remote-proxy.js';
+export type { ResolverContext, ResolverRequest, InvokeOptions } from './types.js';

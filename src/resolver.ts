@@ -68,8 +68,17 @@ export class SimulatedResolver {
 
   /**
    * Invoke a resolver function by key (mirrors bridge invoke call).
+   *
+   * `contextOverride` lets callers supply a one-shot partial context for
+   * THIS invocation only — does not mutate the sticky overrides set by
+   * setContext(). Merge precedence (highest wins): per-call > sticky >
+   * defaults.
    */
-  async invoke(functionKey: string, payload?: any): Promise<any> {
+  async invoke(
+    functionKey: string,
+    payload?: any,
+    contextOverride?: Partial<ResolverContext>
+  ): Promise<any> {
     const handler = this.definitions.get(functionKey);
     if (!handler) {
       const available = [...this.definitions.keys()];
@@ -81,6 +90,7 @@ export class SimulatedResolver {
     const context: ResolverContext = {
       ...this.getDefaults(),
       ...this.contextOverrides,
+      ...(contextOverride ?? {}),
     };
 
     const req: ResolverRequest = {

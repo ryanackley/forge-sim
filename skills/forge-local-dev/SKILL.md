@@ -308,7 +308,7 @@ That's the whole pattern. Direct method calls. No HTTP, no port file, no client 
 
 | Need | Method |
 |---|---|
-| Invoke a resolver | `sim.invoke(functionKey, payload)` |
+| Invoke a resolver | `sim.invoke(functionKey, payload, { moduleKey?, context? })` — third arg is optional. Use `context` for per-call overrides like `{ context: { accountId: 'alice' } }` (does NOT mutate sticky `setContext`). Use `moduleKey` to scope when multiple modules register the same key. |
 | Fire a product event | `sim.fireTrigger(event, data)` (typed for 141 known events) |
 | Fire a scheduled trigger | `sim.fireScheduledTrigger(triggerKey)` |
 | Push to a queue (consumer fires synchronously) | `sim.queue.push(queueKey, events)` |
