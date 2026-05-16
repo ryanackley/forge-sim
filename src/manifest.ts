@@ -819,15 +819,55 @@ export function parseManifestContent(content: string): ParsedManifest {
               }
             }
           }
-          const range = (rawIndex as any).range;
-          if (range !== undefined && typeof range !== 'string') {
+          // `range` accepts two YAML shapes:
+          //   range: <attr>          # scalar (canonical)
+          //   range: [<attr>]        # list-of-one (matches the official docs YAML example;
+          //                          #  Atlassian's docs sometimes show this even though
+          //                          #  the surrounding prose says "only one attribute")
+          // Real Forge accepts both. Anything else — non-string, empty array, multi-element
+          // array — is a hard error.
+          const rawRange = (rawIndex as any).range;
+          let range: string | undefined;
+          if (rawRange === undefined) {
+            range = undefined;
+          } else if (typeof rawRange === 'string') {
+            range = rawRange;
+          } else if (Array.isArray(rawRange)) {
+            if (rawRange.length === 0) {
+              warnings.push({
+                level: 'error',
+                message: `Entity "${name}" index "${indexName}" range is an empty array. ` +
+                  'Specify a single attribute as a string (range: <attr>) or a list-of-one.',
+              });
+              continue;
+            }
+            if (rawRange.length > 1) {
+              warnings.push({
+                level: 'error',
+                message: `Entity "${name}" index "${indexName}" range may only have one attribute, ` +
+                  `got ${rawRange.length}: ${JSON.stringify(rawRange)}. ` +
+                  'Real Forge rejects multi-attribute range keys.',
+              });
+              continue;
+            }
+            if (typeof rawRange[0] !== 'string') {
+              warnings.push({
+                level: 'error',
+                message: `Entity "${name}" index "${indexName}" range must be an attribute name (string), ` +
+                  `got ${typeof rawRange[0]}.`,
+              });
+              continue;
+            }
+            range = rawRange[0];
+          } else {
             warnings.push({
               level: 'error',
-              message: `Entity "${name}" index "${indexName}" range must be an attribute name (string).`,
+              message: `Entity "${name}" index "${indexName}" range must be an attribute name (string) ` +
+                `or a list-of-one. Got ${typeof rawRange}.`,
             });
             continue;
           }
-          if (typeof range === 'string' && !(range in attributes)) {
+          if (range !== undefined && !(range in attributes)) {
             warnings.push({
               level: 'warning',
               message: `Entity "${name}" index "${indexName}" ranges on "${range}" ` +
@@ -837,7 +877,7 @@ export function parseManifestContent(content: string): ParsedManifest {
           indexes.push({
             name: indexName,
             partition: Array.isArray(partition) ? partition.filter((p): p is string => typeof p === 'string') : [],
-            range: typeof range === 'string' ? range : undefined,
+            range,
           });
         }
       }
