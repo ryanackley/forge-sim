@@ -53,6 +53,16 @@ export interface RenderContextOptions {
   spaceKey?: string;
   /** Override the full extension object */
   extension?: Record<string, any>;
+  /**
+   * One-shot macro config injection. For `macro` modules only — surfaced
+   * to the component via `useConfig()` as if a previous
+   * `renderInlineConfig().save(values)` had set it. This is a per-render
+   * override; it doesn't persist into the simulator's saved macroConfigs
+   * map. The MCP `forge.ui_render` tool has accepted this field since it
+   * shipped — this in-process equivalent closes the API drift (F3 from
+   * run #8). For sticky values across renders, use `sim.ui.setMacroConfig`.
+   */
+  macroConfig?: Record<string, unknown>;
 }
 
 // ── Module type → extension field mapping ───────────────────────────────

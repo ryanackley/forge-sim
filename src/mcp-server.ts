@@ -386,17 +386,17 @@ server.tool(
   },
   async ({ moduleKey, issueKey, projectKey, contentId, spaceKey, context, macroConfig }) => {
     try {
-      // Seed inline macro config if provided — useConfig() will see it.
-      if (macroConfig) {
-        sim.ui.setMacroConfig(moduleKey, macroConfig);
-      }
-
       const renderOpts: Record<string, unknown> = {};
       if (issueKey) renderOpts.issueKey = issueKey;
       if (projectKey) renderOpts.projectKey = projectKey;
       if (contentId) renderOpts.contentId = contentId;
       if (spaceKey) renderOpts.spaceKey = spaceKey;
       if (context) renderOpts.context = context;
+      // Pass macroConfig through as a one-shot per-render override (matches
+      // both this tool's description "on this render" and the in-process
+      // `sim.ui.render(key, { macroConfig })` semantics). For sticky config
+      // across multiple renders, use `forge.kvs_set` or a dedicated setter.
+      if (macroConfig) renderOpts.macroConfig = macroConfig;
 
       const doc = await sim.ui.render(moduleKey, renderOpts);
       if (!doc) {

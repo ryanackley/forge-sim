@@ -619,24 +619,43 @@ export class SimulatorUI {
     // captured render/addConfig elements to. This drives the replay path
     // below when the bundle is cached by the test runner's module loader.
     setActiveCaptureModule(moduleKey);
-    this.moduleRenderConfig.set(moduleKey, options ?? {});
+    // Stash options so `refresh()` can replay them — but strip `macroConfig`,
+    // which is a one-shot per-render override and would defeat its own
+    // semantics if it persisted into refresh.
+    const { macroConfig: _oneShotMacroConfig, ...persistedOptions } = options ?? {};
+    this.moduleRenderConfig.set(moduleKey, persistedOptions);
+
+    // When the caller passes `macroConfig` as a per-render override, force a
+    // fresh render — the bundle's React tree was built against the previous
+    // forgeContext.config and won't re-read it without invalidation. Without
+    // this, vitest's path-based bundle cache turns the second render into a
+    // silent no-op and the new macroConfig appears to "not take" (F3 from
+    // skill run #8).
+    if (options?.macroConfig !== undefined) {
+      this.moduleDocs.delete(moduleKey);
+    }
 
     // Build the full Forge context for this module
     const forgeContext = await buildForgeContext(
       this.sim, moduleKey, uiModule.type, options ?? {},
     );
 
-    // Macro stateful config injection — if a previous renderInlineConfig().save()
-    // (or setMacroConfig) stored values for this macro, surface them as
-    // extension.config so useConfig() resolves them. Two key shapes:
+    // Macro config injection — three sources, in priority order:
+    //   1. `options.macroConfig` (this render only — one-shot override; F3 from run #8)
+    //   2. A previous `renderInlineConfig().save(values)` for the same key
+    //   3. A previous `sim.ui.setMacroConfig(key, values)` call
+    //
+    // Key shapes:
     //   - Custom config sub-modules:  "<base>--view" / "<base>--config"
     //     → strip the suffix to find the saved key
     //   - Inline config / flat macro:  "<key>"
     if (uiModule.type === 'macro') {
       const baseKey = moduleKey.replace(/--(?:view|config)$/, '');
+      const oneShot = options?.macroConfig;
       const saved = this.macroConfigs.get(baseKey) ?? this.macroConfigs.get(moduleKey);
-      if (saved !== undefined) {
-        forgeContext.extension = { ...forgeContext.extension, config: saved };
+      const effective = oneShot ?? saved;
+      if (effective !== undefined) {
+        forgeContext.extension = { ...forgeContext.extension, config: effective };
       }
     }
 
