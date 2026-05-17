@@ -50,7 +50,7 @@ import { statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { createSimulator } from './simulator.js';
 import { typeCheck } from './type-checker.js';
-import { isStale, buildStalenessWarning, STALENESS_GRACE_MS, shouldRunStalenessCheck } from './staleness.js';
+import { isStale, buildStalenessWarning, STALENESS_GRACE_MS, shouldRunStalenessCheck, shouldWarnNow } from './staleness.js';
 // UI access is now through sim.ui.* — no direct bridge/doc-utils imports
 
 // ── Simulator Instance ──────────────────────────────────────────────────
@@ -100,6 +100,16 @@ if (STALENESS_CHECK_ENABLED) {
   }
 }
 
+/**
+ * mtime of dist/mcp-server.js the last time we emitted a staleness warning
+ * (or null if we haven't warned yet this daemon lifetime). Used by the
+ * pure `shouldWarnNow()` decider in staleness.ts to suppress repeat
+ * warnings at the same on-disk mtime — the agent only needs to be told
+ * once per rebuild. Re-fires on a subsequent rebuild because that's a new
+ * event worth surfacing.
+ */
+let lastWarnedMtimeMs: number | null = null;
+
 function currentMtime(): number | null {
   try {
     return statSync(MCP_SERVER_PATH).mtimeMs;
@@ -112,7 +122,13 @@ function stalenessWarningText(): string | null {
   if (loadedMtimeMs === null) return null;
   const cur = currentMtime();
   if (cur === null) return null;
+  if (!shouldWarnNow(loadedMtimeMs, cur, lastWarnedMtimeMs, STALENESS_GRACE_MS)) return null;
+  // Record that we've warned about this exact mtime so the next call
+  // suppresses. Belt-and-suspenders: re-check isStale here so a future
+  // refactor of shouldWarnNow can't silently start emitting on
+  // not-actually-stale states.
   if (!isStale(loadedMtimeMs, cur, STALENESS_GRACE_MS)) return null;
+  lastWarnedMtimeMs = cur;
   return buildStalenessWarning(DAEMON_PID, loadedMtimeMs, cur);
 }
 

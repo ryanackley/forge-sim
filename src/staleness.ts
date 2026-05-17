@@ -79,6 +79,46 @@ export function isStale(
 }
 
 /**
+ * Decide whether to actually emit the staleness warning on THIS tool response.
+ *
+ * The naive "warn if stale" approach fires on every single response while
+ * dist is newer than the daemon's loaded mtime — which means after a single
+ * rebuild, every subsequent MCP call carries the warning until the operator
+ * restarts the daemon. Skill run #12 reported ~150 chars of noise per tool
+ * call (~6KB across 39 calls). The agent learns nothing new after the first
+ * one; the loud repeat is just pollution.
+ *
+ * This function dedupes: warn on first detection of a given on-disk mtime,
+ * then suppress at that same mtime. Re-fires if dist gets rebuilt again
+ * (currentMtimeMs advances), because that's a new event the agent should
+ * know about. The PID + restart instructions land once per rebuild — loud
+ * enough to act on, quiet enough to not drown out tool output.
+ *
+ * @param loadedMtimeMs      mtime of dist/mcp-server.js when the daemon
+ *                           imported it at startup.
+ * @param currentMtimeMs     current mtime of dist/mcp-server.js on disk.
+ * @param lastWarnedMtimeMs  the mtime we last emitted a warning about (or
+ *                           null if we haven't warned yet this session).
+ * @param graceMs            ignore mtime differences below this threshold.
+ *
+ * Returns true if the caller should emit the warning now AND update its
+ * lastWarnedMtimeMs to currentMtimeMs. Returns false to suppress.
+ */
+export function shouldWarnNow(
+  loadedMtimeMs: number | null,
+  currentMtimeMs: number | null,
+  lastWarnedMtimeMs: number | null,
+  graceMs: number = STALENESS_GRACE_MS,
+): boolean {
+  if (loadedMtimeMs === null || currentMtimeMs === null) return false;
+  if (!isStale(loadedMtimeMs, currentMtimeMs, graceMs)) return false;
+  // Already warned about this exact on-disk mtime — suppress until disk
+  // changes again (or the daemon restarts and re-enters with a fresh
+  // lastWarnedMtimeMs === null).
+  return lastWarnedMtimeMs !== currentMtimeMs;
+}
+
+/**
  * Build the warning string the daemon prepends to tool responses when stale.
  * Includes the PID so the operator can `kill <pid>` directly; the MCP client
  * respawns the daemon on the next tool call.

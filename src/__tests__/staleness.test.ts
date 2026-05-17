@@ -6,7 +6,7 @@
  * logic so the threshold and message format don't drift.
  */
 import { describe, it, expect } from 'vitest';
-import { isStale, buildStalenessWarning, STALENESS_GRACE_MS, shouldRunStalenessCheck } from '../staleness.js';
+import { isStale, buildStalenessWarning, STALENESS_GRACE_MS, shouldRunStalenessCheck, shouldWarnNow } from '../staleness.js';
 
 describe('isStale', () => {
   it('returns false when current mtime equals loaded mtime', () => {
@@ -164,5 +164,83 @@ describe('shouldRunStalenessCheck — dev vs published gating', () => {
       expect(shouldRunStalenessCheck(NODE_MODULES_PATH, { FORGE_SIM_STALE_CHECK: undefined })).toBe(false);
       expect(shouldRunStalenessCheck(DEV_PATH, { FORGE_SIM_STALE_CHECK: undefined })).toBe(true);
     });
+  });
+});
+
+describe('shouldWarnNow — dedup once per rebuild', () => {
+  // Three timeline markers used across these tests.
+  const LOADED = 1_000_000;                          // daemon started here
+  const REBUILT_ONCE = LOADED + 60_000;              // dist rebuilt later (stale)
+  const REBUILT_TWICE = REBUILT_ONCE + 60_000;       // dist rebuilt AGAIN (newly stale)
+
+  it('fires on first detection of a given on-disk mtime', () => {
+    // lastWarnedMtimeMs is null — haven't warned yet this session
+    expect(shouldWarnNow(LOADED, REBUILT_ONCE, null)).toBe(true);
+  });
+
+  it('suppresses on subsequent calls at the same on-disk mtime', () => {
+    // After the caller advanced lastWarnedMtimeMs to REBUILT_ONCE — no further warnings
+    expect(shouldWarnNow(LOADED, REBUILT_ONCE, REBUILT_ONCE)).toBe(false);
+  });
+
+  it('re-fires when dist gets rebuilt again (new on-disk mtime)', () => {
+    // Operator never restarted the daemon, but dist was rebuilt a second
+    // time — the agent should know.
+    expect(shouldWarnNow(LOADED, REBUILT_TWICE, REBUILT_ONCE)).toBe(true);
+  });
+
+  it('returns false when nothing is stale yet (loaded === current)', () => {
+    expect(shouldWarnNow(LOADED, LOADED, null)).toBe(false);
+  });
+
+  it('respects the grace period for transient same-second mtime noise', () => {
+    expect(shouldWarnNow(LOADED, LOADED + 100, null)).toBe(false);
+    expect(shouldWarnNow(LOADED, LOADED + STALENESS_GRACE_MS, null)).toBe(false);
+    expect(shouldWarnNow(LOADED, LOADED + STALENESS_GRACE_MS + 1, null)).toBe(true);
+  });
+
+  it('returns false when loadedMtimeMs is null (daemon couldn\'t stat itself)', () => {
+    expect(shouldWarnNow(null, REBUILT_ONCE, null)).toBe(false);
+  });
+
+  it('returns false when currentMtimeMs is null (stat failed)', () => {
+    expect(shouldWarnNow(LOADED, null, null)).toBe(false);
+  });
+
+  it('honors a custom grace period', () => {
+    expect(shouldWarnNow(LOADED, LOADED + 500, null, 1000)).toBe(false);
+    expect(shouldWarnNow(LOADED, LOADED + 2000, null, 1000)).toBe(true);
+  });
+
+  it('full lifecycle: first stale fires, second suppresses, rebuild re-fires', () => {
+    // Simulate how mcp-server.ts threads state across calls:
+    let lastWarnedMtimeMs: number | null = null;
+    const tick = (cur: number): boolean => {
+      const should = shouldWarnNow(LOADED, cur, lastWarnedMtimeMs);
+      if (should) lastWarnedMtimeMs = cur;
+      return should;
+    };
+
+    expect(tick(LOADED)).toBe(false);             // not yet stale
+    expect(tick(REBUILT_ONCE)).toBe(true);        // first stale detection → fire
+    expect(tick(REBUILT_ONCE)).toBe(false);       // same mtime → suppress
+    expect(tick(REBUILT_ONCE)).toBe(false);       // still same mtime → still suppress
+    expect(tick(REBUILT_TWICE)).toBe(true);       // dist rebuilt again → fire
+    expect(tick(REBUILT_TWICE)).toBe(false);      // same mtime → suppress
+  });
+
+  it('lastWarnedMtimeMs older than currentMtimeMs still triggers (rebuild after warn)', () => {
+    // The dedup compares for equality, NOT "lastWarned >= current". A
+    // rebuild that ALSO happens to land between the last warning and now
+    // (currentMtimeMs > lastWarnedMtimeMs) must fire.
+    expect(shouldWarnNow(LOADED, REBUILT_TWICE, REBUILT_ONCE)).toBe(true);
+  });
+
+  it('lastWarnedMtimeMs identical to the dedup decision is the only suppression case', () => {
+    // Cover the off-by-one boundary deliberately: any value not strictly
+    // equal to currentMtimeMs lets the warning through.
+    expect(shouldWarnNow(LOADED, REBUILT_ONCE, REBUILT_ONCE - 1)).toBe(true);
+    expect(shouldWarnNow(LOADED, REBUILT_ONCE, REBUILT_ONCE + 1)).toBe(true);
+    expect(shouldWarnNow(LOADED, REBUILT_ONCE, REBUILT_ONCE)).toBe(false);
   });
 });
