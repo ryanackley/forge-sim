@@ -31,6 +31,22 @@ const defaultContextProvider: ResolverContextProvider = () => ({ ...DEFAULT_CONT
 export class SimulatedResolver {
   private definitions = new Map<string, ResolverHandler>();
   private contextOverrides: Partial<ResolverContext> = {};
+  /**
+   * Per-render context overlay. Set by `sim.ui.render(...)` to expose the
+   * rendered module's view (accountId/cloudId/extension fields) to resolver
+   * invokes triggered DURING the render lifecycle (including React effects
+   * that fire after render() returns).
+   *
+   * Sits between sticky `contextOverrides` and per-call overrides in the
+   * merge order — render's view wins over the user's sticky baseline for
+   * the lifecycle of the rendered module, but a per-call invoke override
+   * still wins over render.
+   *
+   * Crucially this is SEPARATE from `contextOverrides`, so `sim.ui.render`
+   * never clobbers what the user set via `setContext()`. Cleared on
+   * `clear()` (which runs on `sim.reset()`).
+   */
+  private renderContextOverlay: Partial<ResolverContext> = {};
   private getDefaults: ResolverContextProvider;
 
   constructor(getDefaults: ResolverContextProvider = defaultContextProvider) {
@@ -67,12 +83,30 @@ export class SimulatedResolver {
   }
 
   /**
+   * Set the per-render context overlay. Called by `simulator-ui.render`
+   * with the active module's ForgeContext flattened into a resolver-shaped
+   * partial. Replaces (not merges) any previous overlay.
+   *
+   * Pass `null` or an empty object to clear the overlay.
+   */
+  setRenderContext(overlay: Partial<ResolverContext> | null): void {
+    this.renderContextOverlay = overlay ?? {};
+  }
+
+  /**
+   * Get the current per-render context overlay. Returns a copy.
+   */
+  getRenderContext(): Partial<ResolverContext> {
+    return { ...this.renderContextOverlay };
+  }
+
+  /**
    * Invoke a resolver function by key (mirrors bridge invoke call).
    *
    * `contextOverride` lets callers supply a one-shot partial context for
    * THIS invocation only — does not mutate the sticky overrides set by
-   * setContext(). Merge precedence (highest wins): per-call > sticky >
-   * defaults.
+   * setContext(). Merge precedence (highest wins):
+   *   per-call > renderOverlay > sticky > defaults.
    */
   async invoke(
     functionKey: string,
@@ -90,6 +124,7 @@ export class SimulatedResolver {
     const context: ResolverContext = {
       ...this.getDefaults(),
       ...this.contextOverrides,
+      ...this.renderContextOverlay,
       ...(contextOverride ?? {}),
     };
 
@@ -137,5 +172,6 @@ export class SimulatedResolver {
   clear(): void {
     this.definitions.clear();
     this.contextOverrides = {};
+    this.renderContextOverlay = {};
   }
 }

@@ -40,8 +40,64 @@ export interface ForgeContext {
   permissions?: { scopes?: string[] };
 }
 
+/**
+ * Canonical top-level ForgeContext fields. When `options.context` is passed
+ * to `buildForgeContext`, fields named in this set are promoted to the top
+ * level of the returned ForgeContext (e.g. `context.accountId` → `ctx.accountId`,
+ * NOT `ctx.extension.accountId`). Anything else in `options.context` ends up
+ * in `extension` (matching legacy behavior, used for things like `issueKey`,
+ * custom field state, etc.).
+ *
+ * `moduleKey` is excluded — it always comes from the render argument.
+ * `extension` is excluded — it has its own dedicated option.
+ */
+const CANONICAL_CONTEXT_FIELDS = new Set<string>([
+  'accountId',
+  'cloudId',
+  'siteUrl',
+  'environmentId',
+  'environmentType',
+  'localId',
+  'locale',
+  'timezone',
+  'license',
+  'theme',
+  'surfaceColor',
+  'userAccess',
+  'permissions',
+]);
+
+/**
+ * Split `options.context` into (canonical top-level overrides, extension overrides).
+ * Used in two places below: explicit `options.context` handling and the smart
+ * issueKey hydration branch.
+ */
+function partitionContextOverrides(
+  raw: Record<string, unknown> | undefined,
+): { canonical: Partial<ForgeContext>; extensionFields: Record<string, unknown> } {
+  const canonical: Partial<ForgeContext> = {};
+  const extensionFields: Record<string, unknown> = {};
+  if (!raw) return { canonical, extensionFields };
+  for (const [key, value] of Object.entries(raw)) {
+    if (CANONICAL_CONTEXT_FIELDS.has(key)) {
+      (canonical as Record<string, unknown>)[key] = value;
+    } else {
+      extensionFields[key] = value;
+    }
+  }
+  return { canonical, extensionFields };
+}
+
 export interface RenderContextOptions {
-  /** Raw context fields — merged into extension */
+  /**
+   * Raw context fields. Canonical ForgeContext fields (`accountId`, `cloudId`,
+   * `siteUrl`, `locale`, `timezone`, `environmentId`, `environmentType`,
+   * `localId`, `license`, `theme`, `surfaceColor`, `userAccess`, `permissions`)
+   * are promoted to the top level of the rendered context — they appear at
+   * `ctx.accountId`, NOT `ctx.extension.accountId`. Anything else is merged
+   * into `extension`. The same partial-context shape is used by
+   * `sim.invoke(fn, payload, { context })`; this is the parallel UI surface.
+   */
   context?: Record<string, unknown>;
   /** Jira issue key — fetches issue data to build context */
   issueKey?: string;
@@ -120,10 +176,22 @@ function getDefaultFieldValue(fieldType?: string): any {
 /**
  * Build a full ForgeContext for a given module.
  *
+ * Top-level canonical field precedence (lowest → highest):
+ *   defaults (from connected account) < sticky resolver context
+ *     < options.context's canonical fields (if provided)
+ *
+ * This mirrors `sim.invoke()`'s resolver-side merge order, so the rendered
+ * UI's `useProductContext()` and the resolver invokes it triggers see the
+ * same view of the world. Sticky context promotion means a user who did
+ * `sim.resolver.setContext({ accountId: 'alice' })` before render sees
+ * `useProductContext().accountId === 'alice'` without having to repeat
+ * themselves in the render options.
+ *
  * Resolution order for extension data:
  *   1. Explicit `extension` override (used as-is)
  *   2. Item key shortcuts (`issueKey`, `contentId`) — hydrated via product API
- *   3. Raw `context` object — spread into extension
+ *   3. Raw `context` object — non-canonical fields spread into extension,
+ *      canonical fields promoted to top level
  *   4. Defaults based on module type
  */
 export async function buildForgeContext(
@@ -133,6 +201,7 @@ export async function buildForgeContext(
   options: RenderContextOptions = {},
 ): Promise<ForgeContext> {
   const account = sim.productApi.connectedAccount;
+  const sticky = sim.resolver.getContextOverrides();
 
   // Base context — use real credentials if available
   const base: ForgeContext = {
@@ -147,6 +216,16 @@ export async function buildForgeContext(
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     extension: { type: moduleType },
   };
+
+  // Layer sticky resolver context's canonical fields onto the base. The
+  // options.context partitioning below will further override these if the
+  // caller named the same field explicitly.
+  const baseRecord = base as unknown as Record<string, unknown>;
+  for (const field of CANONICAL_CONTEXT_FIELDS) {
+    if (sticky[field] !== undefined) {
+      baseRecord[field] = sticky[field];
+    }
+  }
 
   // 1. Explicit extension override → use as-is
   if (options.extension) {
@@ -200,25 +279,30 @@ export async function buildForgeContext(
     }
   }
 
-  // 3. Raw context → spread into extension
+  // 3. Raw context → whitelist-promote canonical top-level fields, rest into extension
   if (options.context) {
-    // Smart mapping: if they pass issueKey in context, treat it like the shortcut
-    if (options.context.issueKey && JIRA_ISSUE_MODULES.has(moduleType)) {
+    const { canonical, extensionFields } = partitionContextOverrides(options.context);
+
+    // Smart mapping: if they pass issueKey in context, treat it like the shortcut.
+    // (issueKey lives in extensionFields after partitioning — it's not canonical.)
+    if (extensionFields.issueKey && JIRA_ISSUE_MODULES.has(moduleType)) {
       try {
-        base.extension = await hydrateJiraIssueContext(sim, moduleType, options.context.issueKey as string);
-        // Merge extra fields from original context, but don't overwrite hydrated values
-        for (const [key, value] of Object.entries(options.context)) {
+        base.extension = await hydrateJiraIssueContext(sim, moduleType, extensionFields.issueKey as string);
+        // Merge extra non-canonical fields from original context, but don't overwrite hydrated values
+        for (const [key, value] of Object.entries(extensionFields)) {
           if (!(key in base.extension)) {
             base.extension[key] = value;
           }
         }
+        Object.assign(base, canonical);
         return base;
       } catch {
         // Fall through to simple merge if API call fails
       }
     }
 
-    base.extension = { type: moduleType, ...options.context };
+    base.extension = { type: moduleType, ...extensionFields };
+    Object.assign(base, canonical);
     return base;
   }
 

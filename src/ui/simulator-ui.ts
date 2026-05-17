@@ -662,11 +662,21 @@ export class SimulatorUI {
     this.moduleContexts.set(moduleKey, forgeContext);
     setForgeContext(forgeContext);
 
-    // Also apply extension fields as resolver context overrides
-    // so resolver handlers get context.issueKey etc.
+    // Apply the render's view as a per-render resolver context overlay
+    // — sits between user-set sticky `setContext()` and per-call invoke
+    // overrides in the merge order. Resolvers invoked by the rendered UI
+    // (during render and from React effects spawned by it) see this view;
+    // resolvers invoked outside any render see only the user's sticky.
+    //
+    // Crucially this does NOT mutate sticky `contextOverrides`, so a user
+    // who set `setContext({ accountId: 'alice' })` before calling render
+    // still has 'alice' after the render. Parallel to
+    // `sim.invoke('fn', payload, { context })`, which is also one-shot
+    // non-mutating. Replaced (not merged) by the next render() call,
+    // cleared by `sim.reset()`.
     if (forgeContext.extension) {
       const { type: _type, ...extensionFields } = forgeContext.extension;
-      this.sim.resolver.setContext({
+      this.sim.resolver.setRenderContext({
         ...extensionFields,
         accountId: forgeContext.accountId,
         cloudId: forgeContext.cloudId,
@@ -1174,6 +1184,10 @@ export class SimulatorUI {
     this.resolvedResources.clear();
     this.viewEventListeners.clear();
     this.activeModuleKey = null;
+    // Clear the per-render resolver context overlay — UI is gone, so post-
+    // render effects (and any subsequent cold sim.invoke) should drop back
+    // to defaults+sticky.
+    this.sim.resolver.setRenderContext(null);
   }
 
   /** Full reset — disconnects simulator too. */
@@ -1198,5 +1212,7 @@ export class SimulatorUI {
     }
     this.activeModuleKey = null;
     this.bridgeInstalled = false;
+    // Per-render overlay clears with the UI (matches `reset()` above).
+    this.sim.resolver.setRenderContext(null);
   }
 }
