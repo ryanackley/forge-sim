@@ -304,7 +304,7 @@ describe('SimulatedEntityStore', () => {
 
       const res = await sim.entityStore.handleRequest('/api/v1/query', {
         method: 'POST',
-        body: JSON.stringify({ where: [{ property: 'key', beginsWith: 'user:' }] }),
+        body: JSON.stringify({ where: [{ property: 'key', condition: 'BEGINS_WITH', values: ['user:'] }] }),
       });
       const data = await res.json();
       expect(data.data).toHaveLength(2);

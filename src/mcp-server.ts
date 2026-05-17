@@ -537,7 +537,7 @@ server.tool(
   async ({ prefix, limit }) => {
     if (prefix) {
       const result = await sim.kvs.query()
-        .where('key', { beginsWith: prefix })
+        .where('key', { condition: 'BEGINS_WITH', values: [prefix] })
         .limit(limit ?? 50)
         .getMany();
       return {

@@ -152,7 +152,9 @@ export interface StorageEntry {
 export interface StorageQueryOptions {
   where?: {
     field: 'key';
-    condition: 'beginsWith';
+    /** Internal canonical form — the only condition allowed on simple
+     *  KVS queries is BEGINS_WITH (matches real @forge/kvs). */
+    condition: 'BEGINS_WITH';
     value: string;
   };
   limit?: number;
