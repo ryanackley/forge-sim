@@ -10,7 +10,8 @@ export type { EntitySchema, IndexDefinition, EntityStoreDump, StoredEntry } from
 export { UnifiedKVS as SimulatedKVS } from './kvs.js';
 export { SimulatedQueue, SimulatedQueueInstance } from './queue.js';
 export { SimulatedResolver } from './resolver.js';
-export { SimulatedProductApi, route } from './product-api.js';
+export { SimulatedProductApi, route, mockResponse, MOCK_RESPONSE_MARKER } from './product-api.js';
+export type { MockResponseTag } from './product-api.js';
 export { parseManifest, parseManifestContent } from './manifest.js';
 export { deploy } from './deployer.js';
 export { setSimulator, getSimulator } from './shims/globals.js';

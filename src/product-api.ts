@@ -25,6 +25,129 @@ function makeResponse(
   };
 }
 
+// ── Non-200 mock responses ──────────────────────────────────────────────
+//
+// `mockRoutes` has historically only supported 200 OK responses: the value
+// for a route became the body, and the status was hardcoded. That hid a
+// real class of test — "what does my app do when this PUT fails?" — and
+// quietly swallowed user attempts to specify status (e.g. `{ __status: 500 }`
+// passed straight through as a body). Skill run #13 surfaced this as the
+// main ergonomic gap.
+//
+// We follow MSW's spirit: keep a bare-body shortcut for the 200 case, but
+// provide an explicit `mockResponse(status, body?, headers?)` factory for
+// anything else. The factory returns a plain object with a marker property
+// so it survives JSON round-trip (which matters for the MCP path — agents
+// can construct the literal directly when they can't import the factory).
+//
+// Detection rule: a route value (or a function's return value) is a
+// MockResponseTag if it's an object with `__forgeSimMockResponse === true`.
+// Bare values are wrapped as 200 OK bodies.
+
+/** Marker property used to distinguish a `mockResponse(...)` from a plain
+ *  body object. Long and specific so it can't plausibly collide with real
+ *  product API payloads. */
+export const MOCK_RESPONSE_MARKER = '__forgeSimMockResponse' as const;
+
+/**
+ * Tagged plain object returned by `mockResponse(...)`. Plain object (not
+ * a class instance) so it survives JSON serialization across the MCP
+ * boundary — agents can construct the literal shape directly:
+ *
+ *   { __forgeSimMockResponse: true, status: 500, body: { error: '...' } }
+ *
+ * is equivalent to in-process:
+ *
+ *   mockResponse(500, { error: '...' })
+ */
+export interface MockResponseTag {
+  __forgeSimMockResponse: true;
+  status: number;
+  body?: unknown;
+  headers?: Record<string, string>;
+}
+
+/**
+ * Build an explicit response for `sim.mockRoutes(...)`. Use this for any
+ * route that needs a non-200 status, custom headers, or a deliberately-
+ * empty body.
+ *
+ * Examples:
+ *   mockResponse(500)                                 // 500 Internal Server Error, no body
+ *   mockResponse(404, { error: 'not found' })        // 404 with JSON body
+ *   mockResponse(429, { msg: '...' }, { 'Retry-After': '60' })
+ *   mockResponse(204)                                 // 204 No Content
+ *
+ * Lambda routes can also return one of these for per-request control:
+ *   sim.mockRoutes('jira', {
+ *     'PUT /rest/api/3/issue/:key': (path) =>
+ *       path.endsWith('FAIL') ? mockResponse(500, { error: 'oops' }) : { ok: true },
+ *   })
+ */
+export function mockResponse(
+  status: number,
+  body?: unknown,
+  headers?: Record<string, string>,
+): MockResponseTag {
+  return {
+    [MOCK_RESPONSE_MARKER]: true,
+    status,
+    body,
+    headers,
+  };
+}
+
+/** Type guard for the tagged response shape. Tolerates the value being null,
+ *  a primitive, or an object without the marker — only returns true for the
+ *  exact shape produced by `mockResponse(...)`. */
+function isMockResponseTag(value: unknown): value is MockResponseTag {
+  return (
+    typeof value === 'object'
+    && value !== null
+    && (value as Record<string, unknown>)[MOCK_RESPONSE_MARKER] === true
+    && typeof (value as MockResponseTag).status === 'number'
+  );
+}
+
+/**
+ * Unwrap a route value (or a lambda return) into the (status, body, headers)
+ * triple expected by `makeResponse`. Bare values become 200 OK bodies; the
+ * tagged factory shape carries through.
+ *
+ * Throws on a known footgun shape — `{ __status: <number> }` — because the
+ * agent in skill run #13 tried that and it was silently accepted as a body.
+ * Failing loudly here points the next person directly at `mockResponse`.
+ */
+function unwrapMockResponse(value: unknown): {
+  status: number;
+  body: unknown;
+  headers?: Record<string, string>;
+} {
+  if (isMockResponseTag(value)) {
+    return { status: value.status, body: value.body, headers: value.headers };
+  }
+  // Catch the most common misuse pattern: someone reached for `__status`
+  // (or `_status`) thinking it would set the response code. Silent
+  // pass-through is the dangerous behavior — call it out clearly.
+  if (
+    typeof value === 'object'
+    && value !== null
+    && !Array.isArray(value)
+    && (
+      typeof (value as Record<string, unknown>).__status === 'number'
+      || typeof (value as Record<string, unknown>)._status === 'number'
+    )
+  ) {
+    throw new Error(
+      'mockRoutes value looks like an attempt to set a status code with `__status`/`_status`, ' +
+      'but those keys are not recognized. Use the `mockResponse(status, body?, headers?)` factory ' +
+      'from `forge-sim` instead, or — if calling via MCP — pass the literal shape ' +
+      '`{ __forgeSimMockResponse: true, status: <n>, body?: <any>, headers?: {...} }`.'
+    );
+  }
+  return { status: 200, body: value };
+}
+
 /**
  * Default handler that returns a helpful error for unmocked API calls.
  */
@@ -250,8 +373,13 @@ export class SimulatedProductApi {
 
       for (const { method, pathPattern, response } of parsed) {
         if (requestMethod === method && (path === pathPattern || path.startsWith(pathPattern))) {
-          const body = typeof response === 'function' ? response(path, options) : response;
-          return makeResponse(200, body);
+          // Resolve the route value — function form OR static value.
+          const raw = typeof response === 'function' ? response(path, options) : response;
+          // Unwrap the (optional) mockResponse() shape into a status/body/headers
+          // triple. Bare values become 200 OK bodies. Throws on the `__status`
+          // footgun so the next agent finds the right helper fast.
+          const { status, body, headers } = unwrapMockResponse(raw);
+          return makeResponse(status, body, headers);
         }
       }
       return makeResponse(404, { error: `No mock route matched: ${requestMethod} ${path}` });

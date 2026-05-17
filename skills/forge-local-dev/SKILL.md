@@ -185,7 +185,11 @@ mcp__forge-sim__forge_ui_render({
 
 ```
 mcp__forge-sim__forge_invoke({
-  functionKey: 'getHealth',           # the handler name from the resolver
+  functionKey: 'getHealth',           # The name passed to resolver.define(...).
+                                      # NOT the manifest's function: key — if you
+                                      # pass that you'll get "No resolver defined
+                                      # for 'X'. Available: ..." telling you the
+                                      # right names.
   payload: { projectKey: 'PROJ' }
 })
 ```
@@ -197,6 +201,49 @@ mcp__forge-sim__forge_mock_routes({
   routes: { 'GET /rest/api/3/issue/PROJ-1': { key: 'PROJ-1', fields: { summary: 'Bug' } } }
 })
 ```
+
+**Non-200 responses** — bare values mean "200 OK with this body". For anything else
+(failure paths, rate-limiting, custom headers) use the tagged shape, which the
+`mockResponse(status, body?, headers?)` factory builds in the in-process API:
+
+```ts
+import { mockResponse } from 'forge-sim';
+
+sim.mockRoutes('jira', {
+  'GET /rest/api/3/issue/PROJ-1': { key: 'PROJ-1', fields: { ... } },        // bare → 200
+  'PUT /rest/api/3/issue/FAIL':  mockResponse(500, { error: 'rate limited' }),
+  'GET /rest/api/3/timeout':     mockResponse(504),
+  'POST /rest/api/3/throttled':  mockResponse(429, { msg }, { 'Retry-After': '60' }),
+});
+```
+
+Lambda routes can also return `mockResponse(...)` for per-request control:
+
+```ts
+sim.mockRoutes('jira', {
+  'PUT /rest/api/3/issue/:key': (path, opts) =>
+    path.endsWith('/FAIL')
+      ? mockResponse(500, { error: 'oops' })
+      : { ok: true },                  // bare → 200
+});
+```
+
+From MCP (where you can't import the factory), construct the literal directly:
+
+```
+mcp__forge-sim__forge_mock_routes({
+  product: 'jira',
+  routes: {
+    'PUT /rest/api/3/issue/FAIL': {
+      __forgeSimMockResponse: true, status: 500, body: { error: 'oops' }
+    }
+  }
+})
+```
+
+Do NOT reach for `{ __status: 500 }` / `{ _status: 500 }` — those will throw a
+clear error pointing at `mockResponse`. Real Jira/Confluence bodies routinely
+contain a `status` field, so an explicit marker is required to disambiguate.
 
 #### Triggers (events)
 
@@ -419,6 +466,14 @@ forge-sim is meaningfully strict — these will fail in BOTH forge-sim and real 
 - **Hand-rolled manifests with `app.id: sim-app`** — forge-sim accepts this for testing, but it's a placeholder. Real Forge requires a valid appId from `forge create`.
 
 If any of these slip through, fix the source — don't work around them.
+
+### Synchronous queue ordering (a deliberate strictness, not a bug)
+
+forge-sim's `sim.queue` processes events **synchronously** by default — a `push()` returns AFTER every consumer has run. Real Forge's queues are async. This asymmetry is on purpose: it surfaces fan-out ordering bugs that real Forge would race-cover and ship to production silently.
+
+Concretely: if you push N events and then in the same function do a read-modify-write on shared state, by the time your write lands the consumer has already updated it. Read-modify-write between the push and the next yield is a heisenbug in real Forge — forge-sim catches it immediately. If you see "my pre-push state was clobbered" in a test, look at fan-out ordering before blaming the simulator.
+
+To match real-Forge async timing for a specific test, pass `{ queueMode: 'concurrent' }` to `createSimulator()` — but only after fixing the underlying ordering assumption. The default is synchronous on purpose.
 
 ## What this skill does NOT cover
 

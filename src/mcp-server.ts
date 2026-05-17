@@ -1145,16 +1145,27 @@ server.tool(
   `Register mock HTTP responses for product APIs (Jira, Confluence, Bitbucket) or remotes.
 Route keys are "METHOD /path" (e.g. "GET /rest/api/3/version/10001"). Method defaults to GET if omitted.
 Path matching is prefix-based, so "/rest/api/3/issue" matches "/rest/api/3/issue/TEST-1".
-Values are the JSON response body. Use this to set up test fixtures before firing triggers or invoking resolvers.
+
+A route value is one of:
+  • A bare JSON object → returned as the response body with 200 OK (the common case).
+  • A tagged response object → controls status, body, and headers explicitly. Shape:
+    { "__forgeSimMockResponse": true, "status": <number>, "body"?: <any>, "headers"?: { ... } }
+    (Equivalent to \`mockResponse(status, body, headers)\` in the in-process API.)
 
 Example:
   product: "jira"
   routes: {
     "GET /rest/api/3/version/10001": { "id": "10001", "name": "1.0.0", "releaseDate": "2026-04-03" },
     "GET /rest/api/3/project/10000": { "id": "10000", "key": "PROJ", "name": "My Project" },
-    "GET /rest/api/3/search": { "issues": [{ "key": "PROJ-1", "fields": { "summary": "Fix bug", "issuetype": { "name": "Bug" }, "status": { "name": "Done" }, "assignee": { "displayName": "Ryan" } } }] },
-    "POST /wiki/api/v2/pages": { "id": "12345", "title": "Release Notes" }
-  }`,
+    "GET /rest/api/3/search": { "issues": [{ "key": "PROJ-1", "fields": { "summary": "Fix bug" } }] },
+    "PUT /rest/api/3/issue/FAIL-1": { "__forgeSimMockResponse": true, "status": 500, "body": { "error": "rate limited" } },
+    "GET /rest/api/3/timeout": { "__forgeSimMockResponse": true, "status": 504 }
+  }
+
+Do NOT use \`__status\` / \`_status\` as a shortcut — those will throw a clear error pointing at the
+tagged shape above. Real Jira/Confluence bodies frequently include a \`status\` field (e.g. issue
+status), so the marker is required to disambiguate "this is the response shape" from "this is just
+data that happens to have a status field".`,
   {
     product: z.string().describe('Product name: "jira", "confluence", "bitbucket", or a remote key from manifest.yml'),
     routes: z.record(z.string(), z.any()).describe('Route map: keys are "METHOD /path" patterns, values are JSON response bodies'),
