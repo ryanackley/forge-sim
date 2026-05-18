@@ -21,6 +21,34 @@ function deployBundleDir(appDir: string): string {
   return join(appDir, '.forge-sim', 'bundles');
 }
 
+/**
+ * Module-scoped dedupe set for manifest-warning stderr prints.
+ *
+ * Skill run #14 surfaced that the original per-simulator-instance dedupe was
+ * too narrow: vitest test files commonly call `createSimulator()` in a fresh
+ * `beforeEach`, so the per-instance Set reset every test → the same Node
+ * runtime-mismatch warning printed once per `it()`, multiplying noise by the
+ * test count.
+ *
+ * Module scope is the right granularity. Each worker process gets its own
+ * Set; within a worker, every sim instance shares the dedupe, so a unique
+ * warning message prints exactly once for the lifetime of the process — both
+ * in vitest workers AND in long-running dev servers. The `result.warnings`
+ * array still carries every warning on every deploy for programmatic callers
+ * (MCP responses, in-process inspection), which is the real contract.
+ */
+const printedManifestWarnings = new Set<string>();
+
+/**
+ * Test-only escape hatch for resetting the module-scope dedupe Set.
+ * Used by `warning-noise.test.ts` so each F7 case starts from a clean slate
+ * and can assert the dedupe behavior independently of test execution order.
+ * Underscore prefix signals "do not call from production code."
+ */
+export function _resetPrintedManifestWarnings(): void {
+  printedManifestWarnings.clear();
+}
+
 /** Best-effort sweep of older deploy bundles so the dir doesn't grow without
  *  bound across many redeploys. Failures are swallowed (e.g. dir doesn't
  *  exist yet, or files are still in-use somewhere on Windows). */
@@ -209,14 +237,15 @@ export async function deploy(sim: ForgeSimulator, appDir: string): Promise<Deplo
   const manifest = await parseManifest(manifestPath);
 
   // Surface manifest validation warnings.
-  // Per-sim dedupe: redeploying the same app in a vitest suite would otherwise
-  // flood stderr with the same static warnings (Node version mismatch, missing
-  // icon, etc.) on every test. The result.warnings array still carries them
-  // for in-process / MCP callers — this only suppresses the stderr print after
-  // the first occurrence per simulator instance. (F7)
+  // Module-scope dedupe: vitest test files commonly create a fresh sim in
+  // `beforeEach`, so dedupe must span the worker process to be useful — the
+  // alternative is the runtime-mismatch warning printing N times in an N-test
+  // file (skill run #14). The result.warnings array still carries every
+  // warning on every deploy for programmatic callers (MCP responses,
+  // in-process inspection). See `printedManifestWarnings` above. (F7)
   for (const w of manifest.warnings) {
-    if (sim.hasPrintedManifestWarning(w.message)) continue;
-    sim.markManifestWarningPrinted(w.message);
+    if (printedManifestWarnings.has(w.message)) continue;
+    printedManifestWarnings.add(w.message);
     const prefix = w.level === 'error' ? '❌' : '⚠️';
     console.warn(`[forge-sim] ${prefix} ${w.message}`);
   }

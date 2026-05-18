@@ -11,22 +11,33 @@
  *     them from the exported definitions map.
  *
  * The fixes:
- *   - Manifest warnings dedupe by message per ForgeSimulator instance.
+ *   - Manifest warnings dedupe by message at MODULE scope (per worker
+ *     process), so each unique warning prints exactly once even across
+ *     fresh `createSimulator()` calls in `beforeEach`. Skill run #14 found
+ *     that the original per-instance scope was too narrow — agents saw N
+ *     identical warnings in an N-test vitest file.
  *   - The deployer's UI-module loop now skips already-registered keys
  *     instead of re-registering and tripping the footgun warning.
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { join } from 'node:path';
 import { createSimulator, type ForgeSimulator } from '../simulator.js';
+import { _resetPrintedManifestWarnings } from '../deployer.js';
 
 const FIXTURE_F4 = join(import.meta.dirname, 'fixtures/resolver-console-f4');
 const FIXTURE_DEEP = join(import.meta.dirname, 'fixtures/resolver-cache-f3-deep');
 
-describe('F7 — manifest-warning print dedupe per simulator instance', () => {
+describe('F7 — manifest-warning print dedupe at module scope', () => {
   let sim: ForgeSimulator;
   let warnSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
+    // Module-scope dedupe means we need to reset between tests, otherwise
+    // earlier tests in this file would suppress prints in later tests and
+    // each test couldn't assert the dedupe behavior independently. The
+    // reset is test-only — production code keeps the module Set growing
+    // across the worker lifetime, which is the whole point.
+    _resetPrintedManifestWarnings();
     sim = createSimulator();
     warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
   });
@@ -84,10 +95,13 @@ describe('F7 — manifest-warning print dedupe per simulator instance', () => {
     expect(w2).toBeDefined();
   });
 
-  it('separate simulator instances each get their own dedupe set', async () => {
-    // Each createSimulator() should print its first warning — the dedupe is
-    // per-instance, not global. Otherwise a vitest file with 5 describes
-    // each making a fresh sim would still silence 4 of them.
+  it('separate simulator instances SHARE the dedupe set (module scope)', async () => {
+    // The original F7 fix scoped the dedupe per-simulator, which meant a
+    // vitest file with N tests each creating a fresh sim in `beforeEach`
+    // got the same warning printed N times — skill run #14 caught this.
+    // Module-scope dedupe is the right granularity: within a single worker
+    // process, every sim shares the Set, so the runtime-mismatch message
+    // prints exactly once across all sims for the lifetime of the process.
     await sim.deploy(FIXTURE_F4);
     const sim2 = createSimulator();
     try {
@@ -95,10 +109,28 @@ describe('F7 — manifest-warning print dedupe per simulator instance', () => {
       const runtimePrints = warnSpy.mock.calls.filter((args) =>
         typeof args[0] === 'string' && args[0].includes('Runtime mismatch')
       );
-      expect(runtimePrints).toHaveLength(2);
+      expect(runtimePrints).toHaveLength(1);
     } finally {
       await sim2.stop();
     }
+  });
+
+  it('_resetPrintedManifestWarnings() lets test code re-trigger the print', async () => {
+    // The test escape hatch must actually clear state. Without this, a
+    // bug in the helper (e.g. wrong Set reference) would silently break
+    // every test in this file by leaving the dedupe permanently full.
+    await sim.deploy(FIXTURE_F4);
+    let runtimePrints = warnSpy.mock.calls.filter((args) =>
+      typeof args[0] === 'string' && args[0].includes('Runtime mismatch')
+    );
+    expect(runtimePrints).toHaveLength(1);
+
+    _resetPrintedManifestWarnings();
+    await sim.deploy(FIXTURE_F4);
+    runtimePrints = warnSpy.mock.calls.filter((args) =>
+      typeof args[0] === 'string' && args[0].includes('Runtime mismatch')
+    );
+    expect(runtimePrints).toHaveLength(2);
   });
 });
 

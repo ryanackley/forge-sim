@@ -15,6 +15,20 @@ export type { MockResponseTag } from './product-api.js';
 export { parseManifest, parseManifestContent } from './manifest.js';
 export { deploy } from './deployer.js';
 export { setSimulator, getSimulator } from './shims/globals.js';
+// Trigger event sample-payload registry.
+// 141 canonical templates (Confluence + Jira + Jira Software + App Lifecycle).
+// Public because skill run #14 had an agent hand-roll an `updated:issue`
+// payload from memory — the templates existed internally and just weren't
+// re-exported. Use `getTriggerEventTemplate('avi:jira:updated:issue').sample`
+// to seed `sim.fireTrigger()` calls.
+export {
+  getTriggerEventTemplate,
+  getTriggerEventTemplates,
+  getTriggerEventTemplateMap,
+  getConfluenceLabelVariantSamples,
+} from './trigger-event-templates.js';
+export type { TriggerEventTemplate } from './trigger-event-templates.js';
+
 export type {
   TriggerPayloadByEvent,
   KnownTriggerEvent,
