@@ -24,6 +24,7 @@ forge-sim lets you write fast, deterministic tests for your Forge app — resolv
   - [Trigger Tests](#trigger-tests)
   - [Queue / Consumer Tests](#queue--consumer-tests)
   - [Product API Mocking](#product-api-mocking)
+  - [Mocking @forge/llm](#mocking-forgellm)
   - [UIKit 2 Rendering](#uikit-2-rendering)
   - [View Events: submit, close, refresh](#view-events-submit-close-refresh)
 - [Tips](#tips)
@@ -51,6 +52,7 @@ export default defineConfig({
       '@forge/api':                'forge-sim/shims/forge-api',
       '@forge/kvs':                'forge-sim/shims/forge-kvs',
       '@forge/events':             'forge-sim/shims/forge-events',
+      '@forge/llm':                'forge-sim/shims/forge-llm',
       '@forge/react':              'forge-sim/shims/forge-react',
       '@forge/bridge':             'forge-sim/shims/forge-bridge',
       '@forge/jira-bridge':        'forge-sim/shims/forge-jira-bridge',
@@ -79,6 +81,7 @@ module.exports = {
     '^@forge/api$':               'forge-sim/shims/forge-api',
     '^@forge/kvs$':               'forge-sim/shims/forge-kvs',
     '^@forge/events$':            'forge-sim/shims/forge-events',
+    '^@forge/llm$':               'forge-sim/shims/forge-llm',
     '^@forge/react$':             'forge-sim/shims/forge-react',
     '^@forge/bridge$':            'forge-sim/shims/forge-bridge',
     '^@forge/jira-bridge$':       'forge-sim/shims/forge-jira-bridge',
@@ -401,6 +404,97 @@ it('handles empty search results', async () => {
   expect(result.issues).toHaveLength(0);
 });
 ```
+
+### Mocking @forge/llm
+
+If your app calls `@forge/llm` to talk to Claude, mock the responses with `sim.llm.mockResponse()` so tests stay offline and burn zero tokens.
+
+```ts
+import { describe, it, expect, beforeEach } from 'vitest';
+import { createSimulator, type ForgeSimulator } from 'forge-sim';
+
+let sim: ForgeSimulator;
+
+beforeEach(async () => {
+  sim = createSimulator();
+  await sim.deploy(APP_DIR);
+});
+
+it('summarizes an issue', async () => {
+  // Queue an LLM response — consumed FIFO on the next chat() call
+  sim.llm.mockResponse({ content: 'A 2-sentence summary of the issue.' });
+
+  const result = await sim.invoke('summarizeIssue', { issueKey: 'PROJ-1' });
+  expect(result.summary).toBe('A 2-sentence summary of the issue.');
+});
+```
+
+#### Queueing multiple responses
+
+For multi-turn agent flows or repeated calls, queue several mocks at once:
+
+```ts
+sim.llm.mockResponses(
+  { content: 'First response' },
+  { content: 'Second response' },
+  { content: 'Third response' },
+);
+```
+
+Responses are consumed FIFO — `mockResponses(a, b, c)` is equivalent to three separate `mockResponse()` calls.
+
+#### Asserting on what your code asked the LLM
+
+`sim.llm.getHistory()` returns the full `{ prompt, response }` list of calls the simulator has handled. Use it to assert on prompt content, tool calls, model choice, or that no call happened at all:
+
+```ts
+it('does not call the LLM when the cache is warm', async () => {
+  // ... seed the cache ...
+  await sim.invoke('summarizeIssue', { issueKey: 'PROJ-1' });
+
+  expect(sim.llm.getHistory()).toHaveLength(0);
+});
+
+it('feeds the issue title into the prompt', async () => {
+  sim.llm.mockResponse({ content: 'ok' });
+  await sim.invoke('summarizeIssue', { issueKey: 'PROJ-1' });
+
+  const calls = sim.llm.getHistory();
+  expect(calls).toHaveLength(1);
+  expect(JSON.stringify(calls[0].prompt.messages)).toContain('Fix login bug');
+});
+```
+
+#### Tool calls
+
+If your app uses Claude's tool-use API, mock the tool call directly:
+
+```ts
+sim.llm.mockResponse({
+  content: 'I need to look that up.',
+  tool_calls: [
+    {
+      id: 'call_1',
+      type: 'function',
+      index: 0,
+      function: { name: 'searchIssues', arguments: { query: 'auth bugs' } },
+    },
+  ],
+  finish_reason: 'tool_use',
+});
+```
+
+#### Resetting between tests
+
+`sim.reset()` clears queued mocks and history along with everything else. For finer control:
+
+```ts
+sim.llm.reset();  // clears mocks + history, leaves the rest of the sim alone
+```
+
+#### Real API fallthrough
+
+If no mock is queued **and** `ANTHROPIC_API_KEY` is set (via env or `forge-sim auth --llm`), the simulator forwards the call to the real Anthropic API. In CI you almost always want this to be impossible — either always queue a mock before every chat(), or unset the env var. When both are absent, `chat()` throws `LlmApiError(NO_API_KEY)` instead of silently doing nothing.
 
 ### UIKit 2 Rendering
 
