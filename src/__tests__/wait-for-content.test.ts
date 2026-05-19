@@ -128,3 +128,82 @@ describe('waitForContent — error messages', () => {
     ).rejects.toThrow(/after 137ms/);
   });
 });
+
+describe('waitForContent — async-effect chain (the MCP ui_wait_for premise)', () => {
+  // The `forge.ui_wait_for` MCP tool exists because `forge.ui_render` only
+  // awaits the INITIAL reconcile. Modules that fetch data via
+  // useEffect -> invoke() show `<Text>Loading...</Text>` in the initial doc;
+  // the real content only appears after the resolver resolves and React
+  // re-renders. These tests pin the contract that waitForContent settles
+  // that chain — if this breaks, the MCP tool silently regresses.
+  const MY_ISSUES_FIXTURE = join(import.meta.dirname, 'fixtures/my-issues');
+  const MY_ISSUES_KEY = 'my-issues-panel';
+  let sim: ForgeSimulator;
+
+  beforeEach(async () => {
+    sim = new ForgeSimulator();
+
+    sim.mockProductRoutes('jira', {
+      'GET /rest/api/3/myself': {
+        accountId: 'acc-1',
+        displayName: 'Test User',
+        emailAddress: 'test@example.com',
+        avatarUrls: { '48x48': 'https://avatar.example.com/48.png' },
+        active: true,
+      },
+      'POST /rest/api/3/search/jql': {
+        total: 1,
+        issues: [
+          {
+            key: 'PROJ-42',
+            fields: {
+              summary: 'Settle the async chain',
+              status: { name: 'In Progress', statusCategory: { key: 'indeterminate' } },
+              priority: { name: 'High' },
+              issuetype: { name: 'Bug' },
+              project: { name: 'My Project', key: 'PROJ' },
+              updated: '2026-05-19T12:00:00.000Z',
+            },
+          },
+        ],
+      },
+    });
+
+    await sim.deploy(MY_ISSUES_FIXTURE);
+  });
+
+  afterEach(() => {
+    sim.ui.resetAll();
+  });
+
+  it('initial render shows the loading state — confirms the gap forge.ui_wait_for closes', async () => {
+    // First render — captures whatever ForgeReconciler emits on the FIRST
+    // reconcile. The useEffect kicks off invoke() calls but the render
+    // returns before they resolve.
+    const initialDoc = await sim.ui.render(MY_ISSUES_KEY);
+    expect(initialDoc).not.toBeNull();
+    expect(sim.ui.getTextContent(initialDoc!)).toContain('Loading your issues');
+  });
+
+  it('settles the useEffect -> invoke -> setState -> re-render chain', async () => {
+    // Render first so we observe the post-mount transition rather than the
+    // auto-render path (which already has a doc cached by the time it
+    // subscribes).
+    await sim.ui.render(MY_ISSUES_KEY);
+
+    // The resolver-driven content should arrive after the effect resolves.
+    const settled = await sim.ui.waitForContent(MY_ISSUES_KEY, 'PROJ-42');
+    const text = sim.ui.getTextContent(settled);
+    expect(text).toContain('PROJ-42');
+    expect(text).toContain('Test User');
+    // And the loading state is GONE — proves we observed a real re-render,
+    // not just a substring inside the loading tree.
+    expect(text).not.toContain('Loading your issues');
+  });
+
+  it('auto-render path also settles the async chain', async () => {
+    // No explicit render() — let waitForContent kick it off itself.
+    const settled = await sim.ui.waitForContent(MY_ISSUES_KEY, 'PROJ-42');
+    expect(sim.ui.getTextContent(settled)).toContain('PROJ-42');
+  });
+});

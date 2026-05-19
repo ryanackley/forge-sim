@@ -10,6 +10,7 @@
  *   forge:invoke        — Call a resolver function
  *   forge:fire_trigger  — Simulate a product event trigger
  *   forge:ui_render     — Render a UI module by manifest key (loads bundle + builds context)
+ *   forge:ui_wait_for   — Wait for text to appear in a module's rendered tree (handles async useEffect chains)
  *   forge:ui_state      — Get the current ForgeDoc UI tree
  *   forge:ui_interact   — Interact with UI components (click, submit, etc.)
  *   forge:kvs_get       — Get a value from KVS
@@ -392,7 +393,7 @@ server.tool(
 
 server.tool(
   'forge.ui_render',
-  'Render a UI module by its manifest key. Loads the module bundle, builds the Forge context (with optional issue/content/space hydration), runs ForgeReconciler.render, and returns the resulting ForgeDoc. Use this when a module has no resolver to invoke (macros, custom field views) or when you want to inspect a module under a specific context. For inline-config macros, also returns the MacroConfig tree if the bundle calls ForgeReconciler.addConfig.',
+  'Render a UI module by its manifest key. Loads the module bundle, builds the Forge context (with optional issue/content/space hydration), runs ForgeReconciler.render, and returns the resulting ForgeDoc. Use this when a module has no resolver to invoke (macros, custom field views) or when you want to inspect a module under a specific context. For inline-config macros, also returns the MacroConfig tree if the bundle calls ForgeReconciler.addConfig. NOTE: only the INITIAL reconcile is awaited — if the module uses `useEffect` + `invoke()` to fetch data after mount, the response will show the loading state (e.g. `<Text>Loading...</Text>`). Follow up with `forge.ui_wait_for` to settle the async chain before inspecting or interacting.',
   {
     moduleKey: z.string().describe('UI module key from the manifest (e.g. "issue-panel", "pet-card"). For sub-module shapes use suffixes: "<key>--view", "<key>--edit", "<key>--config".'),
     issueKey: z.string().optional().describe('Jira issue key to hydrate context (e.g. "PROJ-1") — also sets project from prefix.'),
@@ -443,6 +444,42 @@ server.tool(
     } catch (err) {
       return {
         content: [{ type: 'text' as const, text: `❌ Render failed: ${err instanceof Error ? err.message : String(err)}` }],
+        isError: true,
+      };
+    }
+  }
+);
+
+server.tool(
+  'forge.ui_wait_for',
+  'Wait for a text substring to appear in a UI module\'s rendered tree. Use this after `forge.ui_render` when the initial reconcile shows a loading state and the real content arrives via a `useEffect` -> `invoke()` chain (e.g. `<Text>Loading...</Text>` first, then `<Text>{data}</Text>` after the resolver resolves). Also use after `forge.ui_interact` when an interaction kicks off an async update (form submit -> reload, click -> fetch -> render). `forge.ui_render` only awaits the initial reconcile, so any state set by a post-mount effect will NOT be in its response — call this tool next to settle. Substring match only (no regex). On timeout, returns isError with the current pretty-printed tree so you can see what actually rendered.',
+  {
+    moduleKey: z.string().describe('UI module key — same value passed to `forge.ui_render`. Required: scopes the wait to one module so a global text match on an unrelated render does not resolve early.'),
+    text: z.string().describe('Substring to wait for in the rendered tree. Matched against <String> nodes and a curated set of visible-text props (Tag.text, FormHeader.title, EmptyState.header, etc.). For composite/nested data (Select option labels, table cells), use `forge.ui_state` and inspect the props directly instead.'),
+    timeoutMs: z.number().optional().describe('Max time to wait in ms. Default: 5000.'),
+  },
+  async ({ moduleKey, text, timeoutMs }) => {
+    try {
+      const doc = await sim.ui.waitForContent(moduleKey, text, timeoutMs);
+      return {
+        content: [{
+          type: 'text' as const,
+          text: `Found "${text}" in module "${moduleKey}":\n${sim.ui.prettyPrint(doc)}`,
+        }],
+      };
+    } catch (err) {
+      // sim.ui.waitForContent rejects with a rich Error on timeout: includes
+      // current text content and hints (e.g. "did you forget setMacroConfig?").
+      // Surface that to the agent and attach the current pretty-printed tree
+      // so they don't need a follow-up ui_state call.
+      const message = err instanceof Error ? err.message : String(err);
+      const current = sim.ui.getForgeDoc(moduleKey);
+      const tree = current ? sim.ui.prettyPrint(current) : '(no doc — module never rendered)';
+      return {
+        content: [{
+          type: 'text' as const,
+          text: `❌ ${message}\n\nCurrent tree for "${moduleKey}":\n${tree}`,
+        }],
         isError: true,
       };
     }
