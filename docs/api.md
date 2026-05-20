@@ -128,6 +128,20 @@ env:
   FORGE_SIM_PROVIDER_GOOGLE_APIS_TOKEN: ${{ secrets.GOOGLE_TOKEN }}
 ```
 
+### LLM (`@forge/llm`)
+
+```typescript
+// Mock-first: queue responses, then invoke
+sim.llm.mockResponses(
+  { content: 'First reply' },
+  { content: 'Second reply' },
+);
+const result = await sim.invoke('summarize-issues', { issueKey: 'PROJ-1' });
+
+// Assert on what the app sent
+const history = sim.llm.getHistory();  // [{ prompt, response }, ...]
+```
+
 ### UI
 
 ```typescript
@@ -182,6 +196,7 @@ Complete type signatures for every public method, grouped by subsystem.
 - [sim.resolver — Resolver Registry](#simresolver--resolver-registry)
 - [sim.productApi — Product API](#simproductapi--product-api)
 - [sim.externalAuth — Third-Party Auth](#simexternalauth--third-party-auth)
+- [sim.llm — Anthropic LLM](#simllm--anthropic-llm)
 - [sim.ui — UI Rendering](#simui--ui-rendering)
   - [Rendering](#rendering)
   - [Querying the ForgeDoc Tree](#querying-the-forgedoc-tree)
@@ -572,6 +587,68 @@ sim.externalAuth.onAuthUrl: ((url: string) => void) | null
 ```
 
 In mock mode, `asUser().withProvider('google').fetch('/me')` routes through `sim.productApi.mockRoutes('google-apis', ...)`. No tokens needed.
+
+---
+
+## `sim.llm` — Anthropic LLM
+
+Backend for the `@forge/llm` shim. Two modes:
+
+1. **Mock** — pre-registered responses returned FIFO. Good for tests.
+2. **Real proxy** — if `ANTHROPIC_API_KEY` is set (env or via `forge-sim auth --llm`), forwards to the Anthropic Messages API and translates between `@forge/llm`'s OpenAI-shaped dialect and Anthropic's native format.
+
+Mock responses take priority over the real proxy — if the queue has entries, they're consumed first.
+
+```typescript
+// Direct calls (matches the @forge/llm shim's chat() surface)
+sim.llm.chat(prompt: LlmPrompt): Promise<LlmResponse>
+sim.llm.stream(prompt: LlmPrompt): Promise<LlmStreamResponse>
+sim.llm.list(): Promise<ModelListResponse>
+
+// Mock management
+sim.llm.mockResponse(mock: MockLlmResponse): void          // queue one
+sim.llm.mockResponses(...mocks: MockLlmResponse[]): void   // queue many (FIFO)
+
+// Assertions & lifecycle
+sim.llm.getHistory(): Array<{ prompt: LlmPrompt; response: LlmResponse }>
+sim.llm.reset(): void                                      // clear queue + history
+
+// API key (real-proxy mode)
+sim.llm.setApiKey(key: string): void
+sim.llm.getApiKey(): string | null                          // env wins over config
+```
+
+### MockLlmResponse shape
+
+```typescript
+interface MockLlmResponse {
+  content: string | ContentPart[];        // assistant text
+  tool_calls?: LlmToolCall[];             // optional tool-use blocks
+  finish_reason?: string;                  // defaults to 'tool_use' if tool_calls, else 'end_turn'
+}
+```
+
+### Typical test pattern
+
+```typescript
+// Queue a multi-turn agent loop
+sim.llm.mockResponses(
+  { content: '', tool_calls: [{ id: 'c1', type: 'function', index: 0,
+    function: { name: 'get_data', arguments: { query: 'issues' } } }] },
+  { content: 'Here are your issues.' },
+);
+
+const result = await sim.invoke('summarize-issues', { /* ... */ });
+
+// Assert on what was sent
+const history = sim.llm.getHistory();
+expect(history).toHaveLength(2);
+expect(history[1].prompt.messages.at(-1)?.role).toBe('tool');
+```
+
+If neither mocks nor `ANTHROPIC_API_KEY` are present, `chat()` throws `LlmApiError` with code `NO_API_KEY`. See [testing.md § Mocking @forge/llm](./testing.md#mocking-forgellm) for the full pattern catalog.
+
+The MCP equivalents are `forge.llm_mock` and `forge.llm_history` — see [mcp.md](./mcp.md#tools).
 
 ---
 

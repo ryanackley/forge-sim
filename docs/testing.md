@@ -58,6 +58,7 @@ export default defineConfig({
       '@forge/jira-bridge':        'forge-sim/shims/forge-jira-bridge',
       '@forge/confluence-bridge':  'forge-sim/shims/forge-confluence-bridge',
       '@forge/dashboards-bridge':  'forge-sim/shims/forge-dashboards-bridge',
+      '@forge/realtime':           'forge-sim/shims/forge-realtime',
     },
   },
   test: {
@@ -87,6 +88,7 @@ module.exports = {
     '^@forge/jira-bridge$':       'forge-sim/shims/forge-jira-bridge',
     '^@forge/confluence-bridge$': 'forge-sim/shims/forge-confluence-bridge',
     '^@forge/dashboards-bridge$': 'forge-sim/shims/forge-dashboards-bridge',
+    '^@forge/realtime$':          'forge-sim/shims/forge-realtime',
   },
 
   // Webpack (resolve.alias section)
