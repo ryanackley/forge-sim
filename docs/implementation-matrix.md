@@ -573,27 +573,41 @@ Module types recognized by forge-sim manifest parser.
 | `jira:customFieldType` | ✅ | Same as customField. Schema validation not enforced locally. |
 | `jira:command` | ⚠️ | Parsed, page targets, resource-based commands. No command palette simulation. |
 
-### Not Parsed
+### Generic Parse (limited context)
+
+Any module type with a `resource:` key is parsed by the generic fallthrough at
+`manifest.ts:637-667` and rendered as a UI module. These get only the default
+`{ type }` extension context — no module-type-specific fields (e.g. sprint,
+board, portal request). See [module-support.md](./module-support.md) for the
+per-module breakdown.
 
 | Module Type | Status | Notes |
 |-------------|--------|-------|
-| `jira:serviceDeskPortalRequestDetail` | ❌ | JSM modules |
-| `jira:serviceDeskPortalRequestCreate` | ❌ | |
-| `jira:serviceDeskPortalRequestList` | ❌ | |
-| `jira:serviceDeskQueuePage` | ❌ | |
-| `jira:backlogItemAction` | ❌ | |
-| `jira:boardIssueAction` | ❌ | |
-| `jira:sprintAction` | ❌ | |
-| `jira:uiModificationsOverride` | ❌ | UI modifications |
-| `confluence:homepageFeed` | ❌ | |
-| `confluence:spaceSidebarItem` | ❌ | |
-| `bitbucket:pipelineStep` | ❌ | Bitbucket modules |
-| `bitbucket:repoPullRequestOverview` | ❌ | |
-| `bitbucket:repoPage` | ❌ | |
-| `compass:component` | ❌ | Compass modules |
-| `compass:adminPage` | ❌ | |
+| `jira:serviceDeskPortalRequestDetail` | ⚠️ | JSM portal module |
+| `jira:serviceDeskPortalRequestCreate` | ⚠️ | JSM portal module |
+| `jira:serviceDeskPortalRequestList` | ⚠️ | JSM portal module |
+| `jira:serviceDeskQueuePage` | ⚠️ | JSM module |
+| `jira:backlogItemAction` | ⚠️ | Jira Software action |
+| `jira:boardIssueAction` | ⚠️ | Jira Software action |
+| `jira:sprintAction` | ⚠️ | Jira Software action |
+| `jira:uiModificationsOverride` | ⚠️ | UI modifications variant |
+| `confluence:homepageFeed` | ⚠️ | Gets default global Confluence context |
+| `confluence:spaceSidebarItem` | ⚠️ | Confluence sidebar item |
+| `bitbucket:pipelineStep` | ⚠️ | Bitbucket module |
+| `bitbucket:repoPullRequestOverview` | ⚠️ | Bitbucket module |
+| `bitbucket:repoPage` | ⚠️ | Bitbucket module |
+| `compass:component` | ⚠️ | Compass module |
+| `compass:adminPage` | ⚠️ | Compass module |
+
+### Not Parsed
+
+Modules with no `resource:` and no resolver wiring — nothing for the simulator
+to load or render.
+
+| Module Type | Status | Notes |
+|-------------|--------|-------|
 | `rovo:agent` | ❌ | Rovo AI agent definition (config-only + AI — needs LLM integration) |
-| `app:adminPage` | ❌ | Cross-product admin |
+| `app:adminPage` | ❌ | Cross-product admin (config-only) |
 
 ---
 
@@ -646,12 +660,12 @@ Features beyond individual APIs.
 | @forge/react hooks | 11 | 0 | 2 | 13 |
 | @forge/react components (UIKit) | 70 | 0 | 0 | 70 |
 | @forge/react components (other) | 18 | 0 | 0 | 18 |
-| @forge/bridge | 33 | 2 | 10 | 45 |
+| @forge/bridge | 37 | 2 | 6 | 45 |
 | @forge/jira-bridge | 1 | 7 | 0 | 8 |
 | @forge/confluence-bridge | 0 | 5 | 0 | 5 |
 | @forge/dashboards-bridge | 0 | 5 | 0 | 5 |
-| Manifest modules | 23 | 4 | 13 | 40 |
+| Manifest modules | 23 | 19 | 2 | 44 |
 | Platform features | 19 | 2 | 5 | 26 |
-| **Total** | **247** | **31** | **35** | **313** |
+| **Total** | **251** | **46** | **20** | **317** |
 
-**Coverage: 79% implemented, 10% stubbed/partial, 11% missing**
+**Coverage: 79% implemented, 15% stubbed/partial, 6% missing**
