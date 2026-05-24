@@ -736,6 +736,29 @@ sim.ui.reset(): void       // Clear UI state, keep simulator connection
 sim.ui.resetAll(): void    // Full reset including simulator disconnection
 ```
 
+### Macro Config
+
+For Confluence `macro` modules with config (inline `config: true` or sub-module `config: { resource: '...' }`):
+
+```typescript
+// Inspect the MacroConfig ForgeDoc tree (inline addConfig() registrations)
+sim.ui.getMacroConfigDoc(moduleKey: string): ForgeDoc | null
+
+// Read the saved config values (what useConfig() returns)
+sim.ui.getMacroConfig(moduleKey: string): Record<string, unknown> | undefined
+
+// Seed config values before render — useConfig() resolves to these
+sim.ui.setMacroConfig(moduleKey: string, values: Record<string, unknown>): void
+```
+
+For per-render (non-sticky) config injection, pass `macroConfig` in `RenderContextOptions`:
+
+```typescript
+await sim.ui.render('pet-card', { macroConfig: { name: 'Rex', age: 5 } });
+```
+
+A bonus diagnostic: if you `render()` a macro module before calling `setMacroConfig` and `useConfig()` returns `{}`, forge-sim emits a hint suggesting `setMacroConfig` — surface this when triaging "why is my macro empty?" tests.
+
 ---
 
 ## Types

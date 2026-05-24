@@ -28,6 +28,7 @@ forge-sim lets you write fast, deterministic tests for your Forge app — resolv
   - [UIKit 2 Rendering](#uikit-2-rendering)
   - [View Events: submit, close, refresh](#view-events-submit-close-refresh)
 - [Tips](#tips)
+- [Common Gotchas](#common-gotchas)
 
 ---
 
@@ -787,3 +788,71 @@ expect(item).toBeUndefined();
 ```
 
 **`sim.stop()` cleans up everything.** It stops the MySQL process, clears state, and resets the global simulator reference. Always call it in `afterAll`.
+
+---
+
+## Common Gotchas
+
+The things that have eaten the most debugging time. Check here first when a test does something weird.
+
+### `useEffect` + `invoke()` returns the loading state
+
+`sim.ui.render()` only awaits the **initial** reconcile. If your component fetches data in a `useEffect` and re-renders when it lands, the rendered tree from `render()` is the pre-fetch state (`<Text>Loading…</Text>` or similar). Fix: chase it with `sim.ui.waitForContent(moduleKey, expectedText)` — that polls the tree until the substring shows up. Same applies to the MCP `forge.ui_render` tool; use `forge.ui_wait_for` to settle. See [renderer.md § Server-mode useEffect and async state](./renderer.md#server-mode-useeffect-and-async-state).
+
+### Don't wrap your Custom UI app in `React.StrictMode` with Atlaskit
+
+Atlaskit components (especially anything that uses portals or the design-token theme provider) break under `React.StrictMode`'s double-invoke — symptoms range from invisible components to portal duplication to "DOM looks empty but the warnings fire." Drop `<React.StrictMode>` from `main.tsx` / `index.tsx` in any Atlaskit-consuming app, including UIKit 2 modules in browser mode. forge-sim's dev server bridge ships with strict mode **off** for the same reason.
+
+### Atlaskit needs `setGlobalTheme()` at boot
+
+Atlaskit reads its colors from design tokens at runtime. Without `setGlobalTheme()`, components render but with unresolved tokens — often invisible. Custom UI test apps need this wired into the theme init:
+
+```ts
+import { setGlobalTheme } from '@atlaskit/tokens';
+
+setGlobalTheme({
+  colorMode: 'auto',
+  light: 'light',
+  dark: 'dark',
+  spacing: 'spacing',
+  typography: 'typography',
+  shape: 'shape',
+  motion: 'motion',
+});
+```
+
+### Mock product APIs **before** `deploy()` if scheduled triggers run on startup
+
+Scheduled triggers tagged `runOn: deployment` fire during `sim.deploy()`. If they call `requestJira()` and you haven't set up mocks yet, they hit the real API (or fail). Order matters:
+
+```ts
+sim = createSimulator();
+sim.mockProductRoutes('jira', { /* … */ });   // ← before deploy
+await sim.sql.start();
+await sim.deploy('./my-app');                  // safe now
+```
+
+### `sim.sql.start()` order with migrations
+
+If your app declares migrations (typically via a `runOn: deployment` scheduled trigger), `sim.sql.start()` must run **before** `sim.deploy()` — otherwise the migration trigger fires against a non-existent database and fails. Always:
+
+```ts
+await sim.sql.start();
+await sim.deploy('./my-app');
+```
+
+### `@forge/sql` has no shim — and that's intentional
+
+Unlike `@forge/api` / `@forge/kvs` / etc., there is no `forge-sim/shims/forge-sql` alias. The real `@forge/sql` package talks to the simulator through a runtime hook (`global.__forge_fetch__`) that `createSimulator()` installs automatically. If you add it to your `vitest.config.ts` alias map, you'll get module-resolution errors. Just leave it out.
+
+### `sim.reset()` wipes mocks too
+
+`sim.reset()` is total — KVS, SQL, queues, resolvers, logs, LLM mocks, the lot. If your tests share a sim across `it()` blocks via `beforeAll`/`afterAll`, calling `reset()` between tests can wipe the mock product routes you set up in `beforeAll`. Either re-mock in `beforeEach`, or use targeted resets like `sim.llm.reset()` / `sim.kvs.clear()` that leave the rest alone.
+
+### Function-prop equality across renders
+
+ForgeDoc serializes function props as `{ __fn__: '<id>' }` tokens — and **each render produces fresh IDs**. Don't snapshot a tree expecting `onClick` IDs to be stable, and don't compare two ForgeDocs structurally if either has handlers. See [renderer.md § Function serialization](./renderer.md#function-serialization-__id__).
+
+### `forge-sim` is rebuilt mid-session → the MCP daemon serves stale code
+
+This bites devs working on forge-sim itself, not app authors — but if you're hitting "method is not a function" errors from MCP calls right after rebuilding `dist/`, the long-lived daemon has the old code in memory. The simulator self-checks dist mtimes on every MCP response and warns when stale; restart the daemon (`ps aux | grep mcp-server`, kill the PID — the client respawns it). See [architecture.md § Known gotcha: stale daemon](./architecture.md#known-gotcha-stale-daemon-on-rebuild).

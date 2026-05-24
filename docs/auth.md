@@ -32,9 +32,22 @@ forge-sim auth --oauth
 **OAuth app setup:**
 1. Go to [developer.atlassian.com/console/myapps](https://developer.atlassian.com/console/myapps/)
 2. Create an OAuth 2.0 (3LO) app
-3. Set callback URL: `http://localhost:5173/__tools/oauth/callback`
+3. Set callback URL: `http://localhost:5173/__tools/oauth/callback` (default — `forge-sim dev` hardcodes port 5173 and the path)
 4. Add Jira and/or Confluence API permissions
 5. Copy Client ID and Secret into `forge-sim auth --setup`
+
+> **Note:** Atlassian Cloud doesn't support PKCE, so OAuth always goes through the standard 3LO confirmation flow.
+
+### PAT vs OAuth at a glance
+
+| | API Token (PAT) | OAuth 2.0 (3LO) |
+|---|---|---|
+| Setup time | ~30s | ~5min (app registration) |
+| Multi-user | One token per account, no per-app config | Yes, browser flow per user |
+| Auth header | `Basic <base64(email:token)>` against site URL | `Bearer <accessToken>` via `api.atlassian.com` proxy |
+| Expiry | Never (`expiresAt: 0`) | OAuth window (auto-refreshed; see below) |
+| Scopes | Whatever the user has — not tracked | Granted scopes recorded in the account record |
+| Best for | Solo dev / quick iteration | Multi-user testing, scope-restricted apps, CI with rotating identities |
 
 ## Managing Accounts
 
@@ -69,6 +82,27 @@ sim.mockProductRoutes('jira', {
   'POST /rest/api/3/issue': { id: '10001', key: 'TEST-1' },
 });
 ```
+
+## OAuth token refresh
+
+OAuth accounts get refreshed transparently. Before every real API call, `ensureValidToken()` checks the account's `expiresAt`. If the token is expired or within a 5-minute buffer of expiring, the refresh token is exchanged for a fresh access token and the in-memory account is updated. PATs skip this entirely — they never expire.
+
+### `onTokenRefresh` callback
+
+When you connect a real API account programmatically (in-process API, typical for tests or custom dev servers), pass an `onTokenRefresh` callback so you can persist the new tokens back to your credential store:
+
+```typescript
+sim.productApi.connectRealApis(account, {
+  onTokenRefresh: (updated) => {
+    // updated.accessToken, updated.refreshToken, updated.expiresAt are new
+    saveAccountToDisk(updated);
+  },
+});
+```
+
+The callback fires only when a refresh actually happens (OAuth accounts, expired/expiring token). If you skip it, the refreshed tokens still work for the rest of the process lifetime — they just don't survive a restart. The `forge-sim` CLI wires this through `credentials.ts` automatically; you only need to think about it when calling `connectRealApis()` yourself.
+
+If the refresh exchange itself fails (revoked grant, network error, expired refresh token), the API call throws — there's no silent retry. Re-authorize with `forge-sim auth --oauth` to get a new account.
 
 ## Credential Storage
 
