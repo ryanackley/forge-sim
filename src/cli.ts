@@ -187,6 +187,9 @@ else if (command === 'auth') {
   let llm = false;
   let remove: string | undefined;
   let local: string | undefined;
+  let provider: string | undefined;
+  let providers = false;
+  let secret = false;
 
   for (let i = 0; i < restArgs.length; i++) {
     const arg = restArgs[i];
@@ -198,10 +201,13 @@ else if (command === 'auth') {
     else if (arg === '--llm') llm = true;
     else if (arg === '--remove' && restArgs[i + 1]) remove = restArgs[++i];
     else if (arg === '--local') local = resolve('.');
+    else if (arg === '--provider' && restArgs[i + 1]) provider = restArgs[++i];
+    else if (arg === '--providers') providers = true;
+    else if (arg === '--secret') secret = true;
   }
 
   const { authCommand } = await import('./auth/auth-command.js');
-  await authCommand({ list, clear, clearAll, setup, oauth, llm, remove, local });
+  await authCommand({ list, clear, clearAll, setup, oauth, llm, remove, local, provider, providers, secret });
 }
 
 // ── Deploy ──────────────────────────────────────────────────────────────

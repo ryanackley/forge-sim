@@ -47,12 +47,14 @@ const defs = sim.resolver.getDefinitions();
 ### Key-Value Storage
 
 ```typescript
+import { WhereConditions } from 'forge-sim';
+
 await sim.kvs.set('key', { any: 'value' });
 const val = await sim.kvs.get('key');
 await sim.kvs.delete('key');
 
 const result = await sim.kvs.query()
-  .where('key', { beginsWith: 'board:' })
+  .where('key', WhereConditions.beginsWith('board:'))
   .limit(10)
   .getMany();
 
@@ -406,14 +408,22 @@ sim.kvs.delete(key: string): Promise<void>
 ### Queries
 
 ```typescript
+import { WhereConditions } from 'forge-sim';
+
 const result = await sim.kvs.query()
-  .where('key', { beginsWith: 'board:' })
+  .where('key', WhereConditions.beginsWith('board:'))
   .limit(10)
   .cursor(lastCursor)
   .getMany();
 
 // result: { results: Array<{ key, value }>, nextCursor?: string }
 ```
+
+`WhereConditions` mirrors the real `@forge/kvs` clause builder. Available
+helpers: `beginsWith(prefix)`, `between(min, max)`, `equalTo(value)`,
+`greaterThan(value)`, `greaterThanEqualTo(value)`, `lessThan(value)`,
+`lessThanEqualTo(value)`. Plain object literals are rejected at runtime —
+the simulator throws a clear error pointing you at the helper form.
 
 ### Transactions
 

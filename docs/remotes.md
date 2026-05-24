@@ -122,12 +122,13 @@ const tasks = await response.json();
 import { invokeRemote, requestRemote } from '@forge/bridge';
 
 // invokeRemote — uses the module's endpoint for resolution
-// Returns { success, payload } envelope
+// Returns a flat response object: { status, statusText, headers, body }
 const result = await invokeRemote({
   path: '/tasks',
   method: 'GET',
 });
-// result.payload.body = [{ id: 1, name: 'Write docs' }]
+// result.body = [{ id: 1, name: 'Write docs' }]
+// result.status, result.statusText, result.headers are also available
 
 // requestRemote — direct call to a specific remote
 // Returns a Response-like object
@@ -140,7 +141,7 @@ const data = await response.json();
 ```
 
 **Key difference:**
-- `invokeRemote` resolves through the module's endpoint (route prefix applied, returns envelope)
+- `invokeRemote` resolves through the module's endpoint (route prefix applied, returns a flat response object — the `{ success, payload }` envelope from the underlying transport is unwrapped automatically)
 - `requestRemote` calls a remote directly by key (no endpoint resolution, returns Response)
 
 ---

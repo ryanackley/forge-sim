@@ -21,6 +21,7 @@ forge-sim dev [appDir]
 | `--space <key>` | — | Set Confluence space context (e.g., `SPACEKEY`) |
 | `--project <key>` | — | Set Jira project context (e.g., `PROJ`) — hydrates via real API if connected |
 | `--context <json>` | — | Set raw context JSON (merged into `extension`) |
+| `--strict-mode` | off | Enable React.StrictMode (off by default — breaks Atlaskit portals) |
 
 **What starts:**
 - Dev server at `http://localhost:5173` (app preview — Vite for UIKit/Custom UI, reverse proxy with `--proxy`)

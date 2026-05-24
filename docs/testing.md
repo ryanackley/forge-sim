@@ -334,7 +334,7 @@ Fire trigger events and assert on side effects:
 
 ```ts
 it('handles issue created event', async () => {
-  const results = await sim.fireTrigger('avi:jira:issue:created', {
+  const results = await sim.fireTrigger('avi:jira:created:issue', {
     issue: {
       key: 'TEST-1',
       fields: { summary: 'Bug report', issuetype: { name: 'Bug' } },

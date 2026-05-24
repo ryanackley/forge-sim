@@ -208,7 +208,7 @@ For CI/CD or non-interactive environments:
 # API Token
 export FORGE_SIM_SITE=mysite.atlassian.net
 export FORGE_SIM_EMAIL=user@example.com
-export FORGE_SIM_API_TOKEN=ATATT3x...
+export FORGE_SIM_PAT=ATATT3x...
 
 # OAuth (alternative)
 export FORGE_SIM_OAUTH_CLIENT_ID=your-client-id

@@ -434,10 +434,10 @@ Frontend API for Custom UI apps (runs in iframe).
 
 | API | Status | Tests | Notes |
 |-----|--------|-------|-------|
-| `realtime.publish(channel, payload)` | ❌ | — | Not implemented |
-| `realtime.subscribe(channel, callback)` | ❌ | — | Not implemented |
-| `realtime.publishGlobal(channel, payload)` | ❌ | — | Not implemented |
-| `realtime.subscribeGlobal(channel, callback)` | ❌ | — | Not implemented |
+| `realtime.publish(channel, payload)` | ✅ | `realtime.test.ts` | Scoped channel pub/sub. MCP: `forge.realtime_publish` |
+| `realtime.subscribe(channel, callback)` | ✅ | `realtime.test.ts` | Returns unsubscribe handle |
+| `realtime.publishGlobal(channel, payload)` | ✅ | `realtime.test.ts` | Cross-experience global channel |
+| `realtime.subscribeGlobal(channel, callback)` | ✅ | `realtime.test.ts` | Returns unsubscribe handle |
 
 ### Object Store (file storage)
 
