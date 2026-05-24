@@ -562,7 +562,7 @@ Module types recognized by forge-sim manifest parser.
 |-------------|--------|-------|
 | `function` | ✅ | Loaded and invocable |
 | `consumer` | ✅ | Wired to queues |
-| `trigger` | ✅ | Event triggers registered. 141 event templates with typed payloads. |
+| `trigger` | ✅ | Event triggers registered. 143 event templates with typed payloads. |
 | `scheduledTrigger` | ✅ | Fireable on demand + on startup in dev mode |
 | `webtrigger` | ✅ | HTTP endpoints at `/__trigger/<key>`, full request/response mapping |
 | `action` | ✅ | Rovo actions — manifest parsing, input schema validation, invocation via MCP |
@@ -613,12 +613,12 @@ Features beyond individual APIs.
 | Persistent state (Entities) | ✅ | `persistence.test.ts` | |
 | Concurrent queue processing | ✅ | `concurrency.test.ts` | Concurrency keys, parallel execution |
 | Multi-module UI isolation | ✅ | `dual-panel.test.ts` | Separate ForgeDoc trees per module |
-| UIKit → Atlaskit rendering | ✅ | — | 73/73 component mappings in renderer |
+| UIKit → Atlaskit rendering | ✅ | — | Full UIKit 2 component mappings in renderer (see [renderer.md](./renderer.md)) |
 | Custom UI serving | ✅ | `custom-ui-e2e.test.ts` | Vite serves resource directory |
 | Dev server (HMR + WebSocket) | ✅ | — | `forge-sim dev` |
 | Dev server proxy mode | ✅ | `proxy-server.test.ts` | `forge-sim dev --proxy <url>` — reverse-proxy with bridge injection, WS passthrough |
 | Stateful daemon (CLI) | ✅ | — | Auto-start, idle timeout, PID management |
-| MCP server (stdio) | ✅ | `mcp-server.test.ts` | 21 tools, 4 resources |
+| MCP server (stdio) | ✅ | `mcp-server.test.ts` | 31 tools, 4 resources |
 | MCP server (HTTP) | ✅ | — | StreamableHTTP transport |
 | Egress filtering | ❌ | — | No enforcement of `permissions.external` |
 | Content Security Policy | ❌ | — | No CSP enforcement |
@@ -626,7 +626,7 @@ Features beyond individual APIs.
 | Scoped permissions enforcement | ❌ | — | No checking of `permissions.scopes` |
 | Rate limiting simulation | ❌ | — | No simulation of Forge rate limits |
 | Invocation time limits | ✅ | — | Per-function-type timeout warnings matching real Forge limits (25s resolver, 55s trigger, etc.) |
-| Trigger event templates | ✅ | — | 141 centralized templates (76 Confluence + 54 Jira + 9 Jira Software + 2 App Lifecycle) with typed payloads via `TriggerPayloadByEvent` |
+| Trigger event templates | ✅ | — | 143 centralized templates (76 Confluence + 56 Jira + 9 Jira Software + 2 App Lifecycle) with typed payloads via `TriggerPayloadByEvent` |
 | Memory limits | ❌ | — | No simulation of 128MB heap limit |
 | Forge Remotes | ✅ | `remotes.test.ts` | Full: manifest parsing, endpoint resolution, mock routing, real HTTP with FIT JWT auth, JWKS endpoint. See [remotes.md](./remotes.md) |
 | Forge Environments | ⚠️ | — | Always returns "DEVELOPMENT" |

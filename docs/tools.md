@@ -30,7 +30,7 @@ Interactive SQL console:
 
 ### Events
 Fire triggers and push queue events:
-- **Product triggers** — select from manifest-defined triggers, provide JSON payload. 141 built-in event templates auto-fill sample payloads for Confluence, Jira, Jira Software, and App Lifecycle events.
+- **Product triggers** — select from manifest-defined triggers, provide JSON payload. 143 built-in event templates auto-fill sample payloads for Confluence, Jira, Jira Software, and App Lifecycle events.
 - **Scheduled triggers** — one-click "Fire Now" for each scheduled trigger
 - **Queue push** — select a queue, provide event body
 

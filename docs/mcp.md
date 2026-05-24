@@ -51,9 +51,12 @@ For MCP clients that support stdio servers, add to your `.mcp.json`:
 | Tool | Description |
 |------|-------------|
 | `forge.deploy` | Deploy a Forge app from a directory (auto-loads auth credentials) |
+| `forge.sim_info` | Return daemon-process metadata (PID, start time, dist mtime, stale flag) — sanity-check before debugging confusing tool errors |
 | `forge.invoke` | Call a resolver function with payload |
 | `forge.fire_trigger` | Simulate product event triggers |
 | `forge.fire_scheduled_trigger` | Fire a scheduled trigger by key |
+| `forge.ui_render` | Render a UI module by manifest key — loads bundle, builds context, returns ForgeDoc (and MacroConfig tree for inline-config macros) |
+| `forge.ui_wait_for` | Wait for text to appear in a module's rendered tree — settles async `useEffect → invoke()` chains after `ui_render` or `ui_interact` |
 | `forge.ui_state` | Get the current ForgeDoc UI tree |
 | `forge.ui_interact` | Click buttons, submit forms, interact with UI |
 | `forge.kvs_get` | Get a KVS value by key |

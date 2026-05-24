@@ -54,17 +54,19 @@ The shim intercepts all `@forge/bridge` calls:
 - `getContext()` → returns simulated context (accountId, cloudId, siteUrl, etc.)
 - `view.submit()` / `view.close()` → logged
 
-## Component Coverage: 73/73 UIKit 2 Components
+## Component Coverage
 
 Every UIKit 2 component is mapped to its real Atlaskit equivalent:
 
 | Category | Components |
 |----------|-----------|
-| **Layout** | Box, Stack, Inline, Pressable, Text, Heading |
+| **Layout** | Box, Stack, Inline, Pressable, Text, Heading, Frame |
+| **Inline Text** | Em, Strong, Strike |
 | **Buttons** | Button, ButtonGroup, LinkButton, LoadingButton |
-| **Form** | Form, FormHeader, FormFooter, FormSection, TextField, TextArea, Select, Checkbox, CheckboxGroup, Radio, RadioGroup, Toggle, Range, DatePicker, TimePicker, Calendar |
+| **Form** | Form, FormHeader, FormFooter, FormSection, TextField, TextArea, Select, Checkbox, CheckboxGroup, Radio, RadioGroup, Toggle, Range, DatePicker, TimePicker, Calendar, InlineEdit |
 | **Form Helpers** | Label, ErrorMessage, HelperMessage, ValidMessage, RequiredAsterisk |
-| **Display** | Badge, Lozenge, Spinner, ProgressBar, ProgressTracker, SectionMessage, SectionMessageAction, EmptyState, Code, CodeBlock, Tooltip, Tag, TagGroup, Link, Image, Icon, Flag, InlineDialog |
+| **Display** | Badge, Lozenge, Spinner, ProgressBar, ProgressTracker, SectionMessage, SectionMessageAction, EmptyState, Code, CodeBlock, Tooltip, Tag, TagGroup, Link, Image, Icon, Flag, InlineDialog, Popup, Comment |
+| **User** | User, UserGroup |
 | **Table** | Table, Head, Row, Cell, DynamicTable |
 | **Tabs** | Tabs, Tab, TabList, TabPanel |
 | **Modal** | Modal, ModalHeader, ModalTitle, ModalBody, ModalFooter, ModalTransition |
@@ -73,6 +75,7 @@ Every UIKit 2 component is mapped to its real Atlaskit equivalent:
 | **File** | FileCard, FilePicker |
 | **Editors** | ChromelessEditor, CommentEditor (`@atlaskit/editor-core`), AdfRenderer (`@atlaskit/renderer`) |
 | **Charts** | BarChart, StackBarChart, HorizontalBarChart, HorizontalStackBarChart, LineChart, PieChart, DonutChart |
+| **Custom Field** | CustomFieldEdit |
 
 ## ForgeDoc
 

@@ -323,7 +323,7 @@ Register a consumer handler for a queue key.
 ```typescript
 sim.fireTrigger(event: string, data: object): Promise<any[]>
 ```
-Fire a product event trigger. Typed overloads exist for all 141 known events.
+Fire a product event trigger. Typed overloads exist for all 143 known events.
 
 ```typescript
 sim.fireScheduledTrigger(triggerKey: string): Promise<{ statusCode: number }>
