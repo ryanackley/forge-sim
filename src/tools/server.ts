@@ -18,6 +18,10 @@ import type { ViteDevServer } from 'vite';
 import type { ForgeSimulator } from '../simulator.js';
 import type { ParsedManifest } from '../manifest.js';
 import { createApiHandler } from './api.js';
+import {
+  getOAuthCallbackRegistry,
+  OAUTH_CALLBACK_PATH,
+} from '../auth/oauth-callback-registry.js';
 
 const __dirname = resolve(fileURLToPath(import.meta.url), '..');
 
@@ -43,6 +47,23 @@ export interface ToolsServer {
   readonly clientCount: number;
   /** Close the server */
   close(): void;
+}
+
+/**
+ * Shared OAuth callback handler — used by both Vite-mode (attachToolsToVite)
+ * and proxy-mode (dev-command's --proxy path) so behavior stays identical.
+ *
+ * Routes the incoming `state` to the in-process OAuthCallbackRegistry, which
+ * either runs the matching flow's `onCode` closure or returns a failure card.
+ */
+export async function handleOAuthCallback(url: URL, res: ServerResponse): Promise<void> {
+  const { status, html } = await getOAuthCallbackRegistry().handle({
+    state: url.searchParams.get('state') ?? '',
+    code: url.searchParams.get('code') ?? undefined,
+    error: url.searchParams.get('error') ?? undefined,
+  });
+  res.writeHead(status, { 'Content-Type': 'text/html' });
+  res.end(html);
 }
 
 /**
@@ -89,6 +110,17 @@ export function attachToolsToVite(options: ToolsServerOptions): ToolsServer {
       apiHandler(req, res, apiUrl).catch((err: any) => {
         res.writeHead(500, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: err.message }));
+      });
+      return;
+    }
+
+    // OAuth callback — single redirect URI for every provider, dispatched
+    // to the right in-flight flow by `state`. See
+    // src/auth/oauth-callback-registry.ts for the lookup.
+    if (toolsPath === OAUTH_CALLBACK_PATH.slice(PREFIX.length) && req.method === 'GET') {
+      handleOAuthCallback(url, res).catch((err: any) => {
+        res.writeHead(500, { 'Content-Type': 'text/plain' });
+        res.end(`OAuth callback handler crashed: ${err.message}`);
       });
       return;
     }

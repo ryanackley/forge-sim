@@ -1701,7 +1701,8 @@ export async function devCommand(options: DevCommandOptions) {
     // We can't reuse attachToolsToVite() (it depends on Vite's connect server
     // and httpServer), so we replicate its behavior on top of our proxy primitives.
     const { createApiHandler } = await import('./tools/api.js');
-    const { generateFallbackHTML } = await import('./tools/server.js');
+    const { generateFallbackHTML, handleOAuthCallback } = await import('./tools/server.js');
+    const { OAUTH_CALLBACK_PATH } = await import('./auth/oauth-callback-registry.js');
     const { WebSocketServer, WebSocket } = await import('ws');
     const TOOLS_PREFIX = '/__tools';
     const apiHandler = createApiHandler(sim, manifest);
@@ -1718,6 +1719,15 @@ export async function devCommand(options: DevCommandOptions) {
         apiHandler(req, res, apiUrl).catch((err: any) => {
           res.writeHead(500, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ error: err.message }));
+        });
+        return true;
+      }
+      // OAuth callback (single redirect URI for every external provider)
+      if (toolsPath === OAUTH_CALLBACK_PATH.slice(TOOLS_PREFIX.length) && req.method === 'GET') {
+        const cbUrl = new URL(pathname + (searchParams ? '?' + searchParams : ''), 'http://localhost');
+        handleOAuthCallback(cbUrl, res).catch((err: any) => {
+          res.writeHead(500, { 'Content-Type': 'text/plain' });
+          res.end(`OAuth callback handler crashed: ${err.message}`);
         });
         return true;
       }

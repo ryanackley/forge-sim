@@ -11,12 +11,12 @@
  *   forge-sim auth --providers --list       — show auth status for all providers
  */
 
-import { createServer, type Server } from 'node:http';
-import { randomBytes } from 'node:crypto';
 import { createInterface } from 'node:readline';
 import { ExternalAuthStore, loadProviderSecrets, saveProviderSecrets } from '../external-auth-store.js';
 import { parseManifest } from '../manifest.js';
-import { loadCredentials, saveCredentials, getDefaultAccount, setThirdPartyToken } from './credentials.js';
+import { loadCredentials, saveCredentials, getDefaultAccount, setThirdPartyToken, type ThirdPartyToken } from './credentials.js';
+import { getOAuthCallbackRegistry } from './oauth-callback-registry.js';
+import { ensureCallbackHost } from './standalone-callback-host.js';
 import type { ManifestAuthProvider } from '../types.js';
 
 export interface ExternalAuthCommandOptions {
@@ -145,30 +145,59 @@ async function authForProvider(
     if (reauth.toLowerCase() !== 'y') return;
   }
 
-  // Run the OAuth dance
-  const port = options.port ?? 19421;
-  const callbackPath = '/__forge-sim/oauth/callback';
-  const redirectUri = `http://localhost:${port}${callbackPath}`;
-  const state = randomBytes(16).toString('hex');
-
-  const authUrl = store.buildAuthorizationUrl(providerKey, redirectUri, state);
-  if (!authUrl) {
-    console.error(`  ❌ Could not build authorization URL. Check manifest remotes.`);
+  // Run the OAuth dance — single redirect URI shared with the dev server's
+  // /__tools/oauth/callback route. If dev is up, we reuse its listener; if
+  // not, ensureCallbackHost() spins up a minimal one for the duration of the
+  // flow. Either way, dispatch is via the in-process OAuthCallbackRegistry.
+  let host;
+  try {
+    host = await ensureCallbackHost();
+  } catch (err: any) {
+    console.error(`  ❌ ${err.message}`);
     return;
   }
 
-  console.log('');
-  console.log(`  Opening browser for ${provider.name} authorization...`);
-  console.log(`  If the browser doesn't open, visit:`);
-  console.log(`  ${authUrl}`);
-  console.log('');
-
   try {
-    const code = await waitForCallback(port, callbackPath, state, authUrl);
-    console.log('  Exchanging code for tokens...');
+    // Box the captured token so the closure assignment isn't lost to TS
+    // control-flow narrowing (TS otherwise infers the outer var as `null`).
+    const captured: { token: ThirdPartyToken | null } = { token: null };
+    const { state, redirectUri, promise } = getOAuthCallbackRegistry().register({
+      providerKey,
+      onCode: async (code) => {
+        console.log('  Exchanging code for tokens...');
+        captured.token = await store.exchangeCode(providerKey, code, redirectUri);
+        if (!captured.token) {
+          throw new Error('Token exchange returned no token.');
+        }
+      },
+    });
 
-    const token = await store.exchangeCode(providerKey, code, redirectUri);
+    const authUrl = store.buildAuthorizationUrl(providerKey, redirectUri, state);
+    if (!authUrl) {
+      getOAuthCallbackRegistry().cancelAll('Auth URL build failed');
+      console.error(`  ❌ Could not build authorization URL. Check manifest remotes.`);
+      return;
+    }
+
+    console.log('');
+    console.log(`  Opening browser for ${provider.name} authorization...`);
+    console.log(`  If the browser doesn't open, visit:`);
+    console.log(`  ${authUrl}`);
+    console.log(`  🔑 Waiting for callback on ${redirectUri}`);
+    console.log('');
+
+    openBrowser(authUrl);
+
+    try {
+      await promise;
+    } catch (err: any) {
+      console.error(`  ❌ OAuth failed: ${err.message}`);
+      return;
+    }
+
+    const token = captured.token;
     if (!token) {
+      // promise resolved but no token captured — shouldn't happen, but guard.
       console.error('  ❌ Token exchange failed.');
       return;
     }
@@ -187,82 +216,9 @@ async function authForProvider(
     if (acct) console.log(`     Account: ${acct.displayName} (${acct.id})`);
     if (token.scopes?.length) console.log(`     Scopes: ${token.scopes.join(', ')}`);
     console.log('');
-  } catch (err: any) {
-    console.error(`  ❌ OAuth failed: ${err.message}`);
+  } finally {
+    await host.shutdown();
   }
-}
-
-// ── Callback Server ─────────────────────────────────────────────────────────
-
-function waitForCallback(
-  port: number,
-  callbackPath: string,
-  expectedState: string,
-  authUrl: string,
-): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => {
-      server?.close();
-      reject(new Error('OAuth timeout — no callback received within 5 minutes'));
-    }, 5 * 60 * 1000);
-
-    const server: Server = createServer((req, res) => {
-      const url = new URL(req.url || '/', `http://localhost:${port}`);
-
-      if (url.pathname !== callbackPath) {
-        res.writeHead(404);
-        res.end('Not found');
-        return;
-      }
-
-      const code = url.searchParams.get('code');
-      const state = url.searchParams.get('state');
-      const error = url.searchParams.get('error');
-
-      if (error) {
-        res.writeHead(200, { 'Content-Type': 'text/html' });
-        res.end(callbackHtml('❌ Authorization failed', error));
-        clearTimeout(timeout);
-        server.close();
-        reject(new Error(`OAuth error: ${error}`));
-        return;
-      }
-
-      if (!code || state !== expectedState) {
-        res.writeHead(400, { 'Content-Type': 'text/html' });
-        res.end(callbackHtml('❌ Invalid callback', 'State mismatch or missing code.'));
-        return;
-      }
-
-      res.writeHead(200, { 'Content-Type': 'text/html' });
-      res.end(callbackHtml('✅ Authorized!', 'You can close this tab.'));
-      clearTimeout(timeout);
-      server.close();
-      resolve(code);
-    });
-
-    server.listen(port, '127.0.0.1', () => {
-      console.log(`  🔑 Waiting for callback on http://localhost:${port}${callbackPath}`);
-      openBrowser(authUrl);
-    });
-
-    server.on('error', (err: any) => {
-      clearTimeout(timeout);
-      if (err.code === 'EADDRINUSE') {
-        reject(new Error(`Port ${port} in use.`));
-      } else {
-        reject(err);
-      }
-    });
-  });
-}
-
-function callbackHtml(title: string, message: string): string {
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>forge-sim</title>
-<style>body{font-family:system-ui;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;background:#1a1a2e;color:#e0e0e0}
-.card{text-align:center;padding:2rem;border-radius:8px;background:#16213e;box-shadow:0 4px 12px rgba(0,0,0,.3)}
-h1{margin:0 0 .5rem}</style></head>
-<body><div class="card"><h1>${title}</h1><p>${message}</p></div></body></html>`;
 }
 
 function openBrowser(url: string): void {
