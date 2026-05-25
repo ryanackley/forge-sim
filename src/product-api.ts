@@ -159,13 +159,11 @@ function unmockedHandler(product: string): ProductApiHandler {
   };
 }
 
-// ── Product → base URL mapping ──────────────────────────────────────────
-
-const PRODUCT_BASE_URLS: Record<string, (cloudId: string) => string> = {
-  jira: (cloudId) => `https://api.atlassian.com/ex/jira/${cloudId}`,
-  confluence: (cloudId) => `https://api.atlassian.com/ex/confluence/${cloudId}`,
-  bitbucket: () => `https://api.bitbucket.org/2.0`,
-};
+// ── Products that get a real-API handler when connected ────────────────
+//
+// PAT-only auth hits the site URL directly (https://{site}/), not the
+// api.atlassian.com OAuth gateway, so we just need the product list.
+const REAL_API_PRODUCTS = ['jira', 'confluence', 'bitbucket'] as const;
 
 // ── GraphQL types ───────────────────────────────────────────────────────
 
@@ -189,7 +187,6 @@ export class SimulatedProductApi {
   private mockRouteHandlers = new Map<string, ProductApiHandler>();
   private graphqlMocks = new Map<string, GraphQLHandler | any>();
   private realApiAccount: AtlassianAccount | null = null;
-  private onTokenRefresh?: (account: AtlassianAccount) => void;
   private propertyStore: PropertyStore | null = null;
 
   constructor() {
@@ -208,20 +205,18 @@ export class SimulatedProductApi {
   }
 
   /**
-   * Connect to real Atlassian APIs using an OAuth account.
+   * Connect to real Atlassian APIs using a PAT account.
    * Mock routes still take priority — real API is the fallback.
+   *
+   * Atlassian OAuth was removed; only PAT is supported now. PATs don't
+   * expire so there's no token-refresh callback to wire.
    */
-  connectRealApis(
-    account: AtlassianAccount,
-    options?: { onTokenRefresh?: (account: AtlassianAccount) => void },
-  ): void {
+  connectRealApis(account: AtlassianAccount): void {
     this.realApiAccount = account;
-    this.onTokenRefresh = options?.onTokenRefresh;
 
     // Set up real API handlers for each product
-    for (const [product, baseUrlFn] of Object.entries(PRODUCT_BASE_URLS)) {
-      const realHandler = this.createRealHandler(product, baseUrlFn);
-      this.handlers.set(product, realHandler);
+    for (const product of REAL_API_PRODUCTS) {
+      this.handlers.set(product, this.createRealHandler(product));
     }
 
     console.log(`  📡 Connected to real APIs as ${account.name} @ ${account.site}`);
@@ -232,7 +227,6 @@ export class SimulatedProductApi {
    */
   disconnectRealApis(): void {
     this.realApiAccount = null;
-    this.onTokenRefresh = undefined;
     for (const product of ['jira', 'confluence', 'bitbucket']) {
       if (!this.mockRouteHandlers.has(product)) {
         this.handlers.set(product, unmockedHandler(product));
@@ -248,7 +242,7 @@ export class SimulatedProductApi {
     return this.realApiAccount;
   }
 
-  private createRealHandler(product: string, baseUrlFn: (cloudId: string) => string): ProductApiHandler {
+  private createRealHandler(product: string): ProductApiHandler {
     return async (path: string, options?: ProductApiRequest): Promise<ProductApiResponse> => {
       // Check mock routes first — they take priority over real API
       const mockHandler = this.mockRouteHandlers.get(product);
@@ -265,19 +259,12 @@ export class SimulatedProductApi {
         return makeResponse(501, { error: 'Not connected to real APIs' });
       }
 
-      // Token refresh if needed
-      await this.ensureValidToken();
-
-      // PAT uses site URL directly, OAuth uses api.atlassian.com proxy
-      const baseUrl = this.realApiAccount.authType === 'pat'
-        ? `https://${this.realApiAccount.site}`
-        : baseUrlFn(this.realApiAccount.cloudId);
+      // PAT hits the site URL directly with HTTP Basic auth (email:token).
+      const baseUrl = `https://${this.realApiAccount.site}`;
       const url = `${baseUrl}${path}`;
-
-      // PAT uses Basic auth (email:token), OAuth uses Bearer
-      const authHeader = this.realApiAccount.authType === 'pat'
-        ? `Basic ${Buffer.from(`${this.realApiAccount.email}:${this.realApiAccount.accessToken}`).toString('base64')}`
-        : `Bearer ${this.realApiAccount.accessToken}`;
+      const authHeader = `Basic ${Buffer.from(
+        `${this.realApiAccount.email}:${this.realApiAccount.accessToken}`,
+      ).toString('base64')}`;
 
       try {
         const response = await fetch(url, {
@@ -315,31 +302,6 @@ export class SimulatedProductApi {
         });
       }
     };
-  }
-
-  private async ensureValidToken(): Promise<void> {
-    if (!this.realApiAccount) return;
-
-    // PATs don't expire
-    if (this.realApiAccount.authType === 'pat') return;
-
-    const BUFFER_MS = 5 * 60 * 1000; // 5 minutes
-    if (Date.now() < this.realApiAccount.expiresAt - BUFFER_MS) return;
-
-    // Token expired or expiring soon — refresh it
-    try {
-      const { refreshAccessToken } = await import('./auth/oauth.js');
-      const refreshed = await refreshAccessToken(this.realApiAccount);
-      this.realApiAccount.accessToken = refreshed.accessToken;
-      this.realApiAccount.refreshToken = refreshed.refreshToken;
-      this.realApiAccount.expiresAt = refreshed.expiresAt;
-
-      // Notify caller so they can persist the new tokens
-      this.onTokenRefresh?.(this.realApiAccount);
-    } catch (err: any) {
-      console.error(`  ⚠️  Token refresh failed: ${err.message}`);
-      console.error(`     Run 'forge-sim auth' to re-authorize.`);
-    }
   }
 
   /**
@@ -475,16 +437,11 @@ export class SimulatedProductApi {
       });
     }
 
-    await this.ensureValidToken();
-
-    // OAuth uses api.atlassian.com/graphql
-    // PAT/API tokens use {site}/gateway/api/graphql (tenanted gateway)
-    const url = this.realApiAccount.authType === 'pat'
-      ? `https://${this.realApiAccount.site}/gateway/api/graphql`
-      : 'https://api.atlassian.com/graphql';
-    const authHeader = this.realApiAccount.authType === 'pat'
-      ? `Basic ${Buffer.from(`${this.realApiAccount.email}:${this.realApiAccount.accessToken}`).toString('base64')}`
-      : `Bearer ${this.realApiAccount.accessToken}`;
+    // PAT-only: tenanted gateway at {site}/gateway/api/graphql with Basic auth.
+    const url = `https://${this.realApiAccount.site}/gateway/api/graphql`;
+    const authHeader = `Basic ${Buffer.from(
+      `${this.realApiAccount.email}:${this.realApiAccount.accessToken}`,
+    ).toString('base64')}`;
 
     const requestBody: Record<string, any> = { query };
     if (variables) requestBody.variables = variables;
@@ -529,7 +486,6 @@ export class SimulatedProductApi {
     this.mockRouteHandlers.clear();
     this.graphqlMocks.clear();
     this.realApiAccount = null;
-    this.onTokenRefresh = undefined;
     for (const product of ['jira', 'confluence', 'bitbucket']) {
       this.handlers.set(product, unmockedHandler(product));
     }

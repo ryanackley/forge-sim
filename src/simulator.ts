@@ -885,30 +885,15 @@ export class ForgeSimulator {
     } else {
       // .forge-sim fallback
       try {
-        const { loadCredentials, getDefaultAccount, saveCredentials, upsertAccount } = await import('./auth/credentials.js');
+        const { loadCredentials, getDefaultAccount } = await import('./auth/credentials.js');
         const store = await loadCredentials(appDir);
         const account = getDefaultAccount(store);
 
         if (account) {
-          // Set up OAuth config for token refresh
-          if (account.authType === 'oauth') {
-            try {
-              const { getOAuthAppConfig } = await import('./auth/config.js');
-              const { setOAuthConfig } = await import('./auth/oauth.js');
-              const oauthAppConfig = await getOAuthAppConfig();
-              if (oauthAppConfig) setOAuthConfig(oauthAppConfig);
-            } catch {}
-          }
-
-          this.productApi.connectRealApis(account, {
-            onTokenRefresh: (refreshedAccount) => {
-              upsertAccount(store, refreshedAccount);
-              saveCredentials(store).catch(() => {});
-            },
-          });
+          this.productApi.connectRealApis(account);
 
           result.atlassian = { connected: true, site: account.site, authType: account.authType };
-          this.log('info', `Connected to Atlassian via ${account.authType} (.forge-sim): ${account.site}`);
+          this.log('info', `Connected to Atlassian via PAT (.forge-sim): ${account.site}`);
 
           // Load third-party OAuth tokens for this account from credential store
           const thirdPartyTokens = store.thirdParty[account.id];

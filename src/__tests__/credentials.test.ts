@@ -16,6 +16,7 @@ import {
   tokenNeedsRefresh,
   setThirdPartyToken,
   getThirdPartyToken,
+  dropOAuthAccounts,
 } from '../auth/credentials.js';
 
 function makeAccount(overrides: Partial<AtlassianAccount> = {}): AtlassianAccount {
@@ -26,11 +27,11 @@ function makeAccount(overrides: Partial<AtlassianAccount> = {}): AtlassianAccoun
     site: 'test.atlassian.net',
     cloudId: 'cloud-123',
     accountId: 'account-456',
-    authType: 'oauth',
-    accessToken: 'at-test',
-    refreshToken: 'rt-test',
-    expiresAt: Date.now() + 3600 * 1000,
-    scopes: ['read:jira-work'],
+    authType: 'pat',
+    accessToken: 'pat-test',
+    refreshToken: '',
+    expiresAt: 0,
+    scopes: [],
     default: true,
     ...overrides,
   };
@@ -129,24 +130,37 @@ describe('Credential Store', () => {
   });
 
   describe('tokenNeedsRefresh', () => {
-    it('returns false for valid token', () => {
-      const account = makeAccount({ expiresAt: Date.now() + 60 * 60 * 1000 });
+    it('always returns false now (PAT-only — PATs never expire)', () => {
+      const account = makeAccount();
       expect(tokenNeedsRefresh(account)).toBe(false);
     });
+  });
 
-    it('returns true for expired token', () => {
-      const account = makeAccount({ expiresAt: Date.now() - 1000 });
-      expect(tokenNeedsRefresh(account)).toBe(true);
+  describe('dropOAuthAccounts (OAuth removal migration)', () => {
+    it('removes accounts with legacy authType: "oauth" and their third-party tokens', () => {
+      const store = emptyStore();
+      const pat = makeAccount({ id: 'pat-1', authType: 'pat' });
+      // Cast — the type no longer permits 'oauth' but legacy JSON on disk might.
+      const oauth = makeAccount({ id: 'oauth-1' });
+      (oauth as any).authType = 'oauth';
+      store.accounts.push(pat, oauth);
+      store.thirdParty[oauth.id] = { github: { provider: 'github', accessToken: 'x' } };
+      store.thirdParty[pat.id] = { google: { provider: 'google', accessToken: 'y' } };
+
+      const dropped = dropOAuthAccounts(store);
+
+      expect(dropped).toEqual(['oauth-1']);
+      expect(store.accounts).toHaveLength(1);
+      expect(store.accounts[0].id).toBe('pat-1');
+      expect(store.thirdParty['oauth-1']).toBeUndefined();
+      expect(store.thirdParty['pat-1']).toBeDefined();
     });
 
-    it('returns true for token expiring within 5 minutes', () => {
-      const account = makeAccount({ expiresAt: Date.now() + 2 * 60 * 1000 });
-      expect(tokenNeedsRefresh(account)).toBe(true);
-    });
-
-    it('returns false for PAT (never expires)', () => {
-      const account = makeAccount({ authType: 'pat', expiresAt: 0 });
-      expect(tokenNeedsRefresh(account)).toBe(false);
+    it('returns an empty list when no OAuth accounts exist (idempotent)', () => {
+      const store = emptyStore();
+      upsertAccount(store, makeAccount());
+      expect(dropOAuthAccounts(store)).toEqual([]);
+      expect(store.accounts).toHaveLength(1);
     });
   });
 

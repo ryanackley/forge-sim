@@ -182,8 +182,6 @@ else if (command === 'auth') {
   let list = false;
   let clear = false;
   let clearAll = false;
-  let setup = false;
-  let oauth = false;
   let llm = false;
   let remove: string | undefined;
   let local: string | undefined;
@@ -196,18 +194,21 @@ else if (command === 'auth') {
     if (arg === '--list') list = true;
     else if (arg === '--clear-all') clearAll = true;
     else if (arg === '--clear') clear = true;
-    else if (arg === '--setup') setup = true;
-    else if (arg === '--oauth') oauth = true;
     else if (arg === '--llm') llm = true;
     else if (arg === '--remove' && restArgs[i + 1]) remove = restArgs[++i];
     else if (arg === '--local') local = resolve('.');
     else if (arg === '--provider' && restArgs[i + 1]) provider = restArgs[++i];
     else if (arg === '--providers') providers = true;
     else if (arg === '--secret') secret = true;
+    else if (arg === '--oauth' || arg === '--setup') {
+      console.error(`  ❌ \`forge-sim auth ${arg}\` was removed — Atlassian OAuth is no longer supported.`);
+      console.error(`     Use \`forge-sim auth\` to add an API token instead (30-second setup).`);
+      process.exit(1);
+    }
   }
 
   const { authCommand } = await import('./auth/auth-command.js');
-  await authCommand({ list, clear, clearAll, setup, oauth, llm, remove, local, provider, providers, secret });
+  await authCommand({ list, clear, clearAll, llm, remove, local, provider, providers, secret });
 }
 
 // ── Deploy ──────────────────────────────────────────────────────────────

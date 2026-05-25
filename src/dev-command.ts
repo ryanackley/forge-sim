@@ -1599,27 +1599,12 @@ export async function devCommand(options: DevCommandOptions) {
 
   // 4c. Connect to real Atlassian APIs if credentials exist
   try {
-    const { loadCredentials, getDefaultAccount, saveCredentials, upsertAccount } = await import('./auth/credentials.js');
+    const { loadCredentials, getDefaultAccount } = await import('./auth/credentials.js');
     const store = await loadCredentials(appDir);
     const account = getDefaultAccount(store);
 
     if (account) {
-      // Set up OAuth config for token refresh (only needed for OAuth accounts)
-      if (account.authType === 'oauth') {
-        try {
-          const { getOAuthAppConfig } = await import('./auth/config.js');
-          const { setOAuthConfig } = await import('./auth/oauth.js');
-          const oauthAppConfig = await getOAuthAppConfig();
-          if (oauthAppConfig) setOAuthConfig(oauthAppConfig);
-        } catch {}
-      }
-
-      sim.productApi.connectRealApis(account, {
-        onTokenRefresh: (refreshedAccount) => {
-          upsertAccount(store, refreshedAccount);
-          saveCredentials(store).catch(() => {});
-        },
-      });
+      sim.productApi.connectRealApis(account);
 
       // Load third-party OAuth tokens for this account (from `forge-sim auth --provider`)
       const thirdPartyTokens = store.thirdParty[account.id];
