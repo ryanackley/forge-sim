@@ -1705,7 +1705,15 @@ export async function devCommand(options: DevCommandOptions) {
     const { OAUTH_CALLBACK_PATH } = await import('./auth/oauth-callback-registry.js');
     const { WebSocketServer, WebSocket } = await import('ws');
     const TOOLS_PREFIX = '/__tools';
-    const apiHandler = createApiHandler(sim, manifest);
+    // Forward reference: broadcastToolsMessage is defined further down once
+    // the WebSocketServer is wired. We capture it by closure so the api
+    // handler can push provider-state changes to connected Tools UI tabs.
+    let proxyBroadcast: (message: any) => void = () => {};
+    const apiHandler = createApiHandler(sim, manifest, {
+      broadcastStateChange: (type, data) =>
+        proxyBroadcast({ type: 'stateChange', changeType: type, data }),
+      appDir,
+    });
     const toolsHtml = generateFallbackHTML(TOOLS_PREFIX);
 
     proxyServer.addMiddleware(TOOLS_PREFIX, (req, res, pathname, searchParams) => {
@@ -1783,6 +1791,9 @@ export async function devCommand(options: DevCommandOptions) {
         }
       }
     }
+    // Resolve the forward reference so the api handler's broadcastStateChange
+    // (set up earlier in this block) now reaches real WebSocket clients.
+    proxyBroadcast = broadcastToolsMessage;
 
     // Serve JWKS endpoint
     proxyServer.addMiddleware('/__forge', (req, res, pathname) => {
