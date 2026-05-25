@@ -34,6 +34,19 @@ Fire triggers and push queue events:
 - **Scheduled triggers** — one-click "Fire Now" for each scheduled trigger
 - **Queue push** — select a queue, provide event body
 
+### Providers
+Manage external OAuth provider credentials (Google, GitHub, Slack, …):
+- One row per `providers.auth` entry from your manifest
+- Status badge (✓ Connected / ✗ Disconnected) + connected-account display name
+- **Connect** opens a popup OAuth flow that bounces through the unified
+  callback URL (`/__tools/oauth/callback`) and auto-closes on success
+- **Disconnect** revokes the stored token (in-memory + on-disk)
+- Updates live via WebSocket — connecting in the popup auto-refreshes
+  the panel without a manual reload
+- The provider must have a client secret set first (via
+  `forge-sim auth --provider <key> --secret`); rows without a secret
+  show a warning and the Connect button is disabled
+
 ### TypeScript
 Real-time TypeScript type checking panel:
 - Integrated `tsc --watch` — shows type errors as you edit
@@ -53,7 +66,9 @@ Connect to `ws://localhost:5173/__tools/ws` for live updates.
 { type: 'log', data: { timestamp, level, message, data? } }
 
 // State change notifications
-{ type: 'stateChange', changeType: 'kvs' | 'deploy' | ..., data?: any }
+// changeType values include: 'kvs', 'deploy', 'providerConnected',
+// 'providerDisconnected', ...
+{ type: 'stateChange', changeType: string, data?: any }
 ```
 
 ## HTTP API
@@ -87,5 +102,9 @@ All endpoints are under `/__tools/api/`:
 | GET | `/api/entities` | List Custom Entities and registered schemas |
 | POST | `/api/mock/routes` | Register mock HTTP responses for product APIs / remotes |
 | POST | `/api/mock/graphql` | Register mock GraphQL operation responses |
+| GET | `/api/providers` | List external OAuth providers + connection status |
+| POST | `/api/providers/:key/start` | Begin OAuth flow; returns `{ authUrl, state, redirectUri }` |
+| DELETE | `/api/providers/:key` | Disconnect — revoke stored provider token |
+| GET | `/__tools/oauth/callback` | Unified OAuth callback URL (dispatched to pending flow by `state`) |
 
 > The Tools UI also accepts `?theme=dark|light|auto` on the URL — see [cli.md](./cli.md#theme-dark--light) for the convention shared with the renderer.

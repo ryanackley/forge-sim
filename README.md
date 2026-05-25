@@ -247,7 +247,7 @@ forge-sim logs
 For AI agents that support [Model Context Protocol](https://modelcontextprotocol.io/), forge-sim exposes a full toolkit:
 
 <!-- BEGIN:STATS_COMPACT -->
-1,791 tests · 31 MCP tools · 4 MCP resources
+1,819 tests · 31 MCP tools · 4 MCP resources
 <!-- END:STATS_COMPACT -->
 
 ```bash
@@ -366,8 +366,8 @@ npm run docs:stats:check    # CI guard — fails if stats are stale
 ```
 
 <!-- BEGIN:STATS -->
-**1,791 tests** across **96** test files
-(1,657 core / 92 files
+**1,819 tests** across **98** test files
+(1,685 core / 94 files
 + 134 renderer / 4 files)
 
 **31 MCP tools** + **4 resources**
