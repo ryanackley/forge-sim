@@ -1,9 +1,9 @@
 # forge-sim
 
-A local simulation of Atlassian's Forge platform. For development, and for tests. It's basically LocalStack for Forge
+A local simulation of Atlassian's Forge platform. For CI/CD tests and local development. It's like LocalStack for Forge
 
 * **Fast local development loop.**  Deploying to Forge to test every change slows iteration and is a subtle pain point that grows over time. tunnel → Edit → deploy → wait → check. Repeat. 
-* **CI/CD test harness for UIKit and backend forge modules** See testing section below
+* **CI/CD test API for UIKit 2 and backend forge modules** See testing section below
 
 ## Local Development Loop
 
@@ -26,13 +26,12 @@ cd /path/to/forge/app
 forge-sim dev
 ```
 
-Features:
+Dev mode features:
 
-- **UIKit live preview** — real Atlaskit, near-identical to Jira/Confluence
-- **Hot reload** — edit, save, see it
-- **Chrome DevTools** — breakpoints, React state, the console
+- **UIKit 2 live preview** — uses Atlaskit to render UIKit 2 components, the same thing UIKit 2 uses
+- **Modern Local Dev Loop** — Hot Module Reload (HMR) and Chrome Devtools just work.
 - **Real API access** — connect your Atlassian account and `requestJira()` hits your real site
-- **Built-in dev tools** — KVS browser, SQL console, log viewer, event triggers at `localhost:5173/__tools/`
+- **Forge specific dev tools** — KVS browser, SQL console, log viewer, event triggers at `localhost:5173/__tools/`
 - **Persistent state** — KVS and SQL survive restarts. `--clean` to start fresh.
 
 ```
@@ -71,14 +70,7 @@ cd my-custom-ui-app && npm start  # → http://localhost:3000
 npx forge-sim dev --proxy http://localhost:3000
 ```
 
-forge-sim sits in front of your dev server and:
-
-- **Injects the bridge shim** into HTML responses so `@forge/bridge` works
-- **Passes through WebSocket** upgrades for HMR (hot module reload)
-- **Intercepts forge-sim routes** (`/__tools/*`, `/__forge/*`) before proxying
-- **Bakes in the module key** so endpoint resolution works automatically
-
-Your dev workflow stays the same — forge-sim just wraps it with a local Forge runtime.
+forge-sim sits in front of your CustomUI dev server and hosts it in an IFrame with shimmed Forge APIs. HMR and Chrome devtools will just work. 
 
 ```
 🔥 forge-sim dev (proxy mode)
@@ -96,7 +88,7 @@ Your dev workflow stays the same — forge-sim just wraps it with a local Forge 
 
 ### Forge Remotes — call your own backend (optional)
 
-If your app calls external services via `invokeRemote()` or `requestRemote()`, forge-sim handles the full flow:
+If your app calls external services via `invokeRemote()` or `requestRemote()`, forge-sim can handle the full flow:
 
 ```yaml
 # manifest.yml
@@ -117,6 +109,8 @@ Every remote request is signed with a **FIT** (Forge Invocation Token) — an RS
 ```
 http://localhost:5173/__forge/jwks.json
 ```
+
+
 
 See [Remotes documentation](./docs/remotes.md) for the full guide — FIT claims, key persistence, backend validation, and error handling.
 
