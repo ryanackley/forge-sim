@@ -3,7 +3,7 @@
 A local simulation of Atlassian's Forge platform. For CI/CD tests and local development. It's like LocalStack for Forge
 
 * **Fast local development loop.**  Deploying to Forge to test every change slows iteration and is a subtle pain point that grows over time. tunnel → Edit → deploy → wait → check. Repeat. 
-* **CI/CD test API for UIKit 2 and backend forge modules** See testing section below
+* **CI/CD test API** Works for UIKit 2 and backend forge modules. See testing section below
 
 ## Local Development Loop
 
