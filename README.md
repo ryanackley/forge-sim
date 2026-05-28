@@ -5,6 +5,30 @@ A local simulation of Atlassian's Forge platform. For CI/CD tests and local deve
 * **Fast local development loop.**  Deploying to Forge to test every change slows iteration and is a subtle pain point that grows over time. tunnel → Edit → deploy → wait → check. Repeat. 
 * **CI/CD test API** Works for UIKit 2 and backend forge modules. See testing section below
 
+## What's simulated
+
+| Feature | Fidelity |
+|---------|----------|
+| KVS (`@forge/kvs`) | Full — get/set/delete/query/batch/transact/secrets |
+| Custom Entity Store | Full — CRUD, indexed queries, filters, sort, pagination, TTL |
+| Forge SQL (`@forge/sql`) | Full — in-memory MySQL 8.4, migrations, DDL, parameterized queries |
+| Resolvers (`@forge/resolver`) | Full |
+| Async Events/Queues (`@forge/events`) | Full — concurrent processing, concurrency keys |
+| Product APIs (Jira/Confluence/Bitbucket) | Mock + real API proxy |
+| Forge Remotes | Full — FIT JWT auth, JWKS endpoint, mock routing |
+| Custom UI | Full — built-in Vite or `--proxy` your own dev server |
+| UIKit 2 (`@forge/react`) | Full — 73/73 components, live preview, dark/light/auto color mode |
+| Event & Scheduled Triggers | Full — 141 event templates with typed payloads, contract validation |
+| Web Triggers | Full — `/__trigger/<key>` HTTP endpoints with CORS, dynamic `webTrigger.getUrl()` |
+| Background Scripts | Full — `issueView`, `dashboard`, `globalBackgroundScript` via postMessage |
+| Custom Fields | Full — `jira:customField`/`customFieldType` with view/edit/viewSubmit |
+| `@forge/llm` (Claude 4.6/4.7) | Full — `forge-sim auth --llm` for the Anthropic key |
+| `@forge/realtime` | Full — channel pub/sub, scoped + global publishes |
+| Rovo Actions | Full — manifest parsing, input schema validation, MCP invocation |
+| Workflow Modules | Partial — config UI, function invocation (no transition simulation) |
+| Manifest parsing + auto-deploy | Full |
+| Persistent state (KVS + SQL) | Full — save on exit, restore on start |
+
 ## Local Development Loop
 
 Run your Forge app locally by using the `forge-sim dev` command
@@ -28,10 +52,10 @@ forge-sim dev
 
 Dev mode features:
 
-- **UIKit 2 live preview** — uses Atlaskit to render UIKit 2 components, the same thing UIKit 2 uses
-- **Modern Local Dev Loop** — Hot Module Reload (HMR) and Chrome Devtools just work.
+- **UIKit 2 and Custom UI** — uses Atlaskit to render UIKit 2 components. Supports Hot Module Reload (HMR) and Chrome Devtools. 
+- **Simulates Forge services locally** — Functions, queues, consumers, SQL, KVS, etc.
 - **Real API access** — connect your Atlassian account and `requestJira()` hits your real site
-- **Forge specific dev tools** — KVS browser, SQL console, log viewer, event triggers at `localhost:5173/__tools/`
+- **Local Debugging tools** — KVS browser, SQL console, log viewer, event triggers at `localhost:5173/__tools/`
 - **Persistent state** — KVS and SQL survive restarts. `--clean` to start fresh.
 
 ```
@@ -58,9 +82,9 @@ Enter your site URL, email, and [API token](https://id.atlassian.com/manage-prof
 
 ### Proxy mode for Custom UI
 
-Custom UI pages referenced in your manifest work out of the box.
+Custom UI pages already bundled and referenced in your manifest work out of the box.
 
-If your Custom UI has its own webpack/Vite/Parcel dev server, run forge-sim in front of it with `--proxy`:
+Typically, while developing, you will run your Custom UI in development mode using webpack/Vite/Parcel dev server.If your Custom UI has its own dev server, run forge-sim in front of it with `--proxy`:
 
 ```bash
 # Start your webpack, Vite, or Parcel dev server as usual
@@ -163,9 +187,9 @@ const rows = await sim.sql.query('SELECT * FROM objectives WHERE status = ?', ['
 expect(rows).toHaveLength(3);
 ```
 
-### Test UIKit without a browser
+### Test UIKit 2 without a browser
 
-Render UIKit modules programmatically, interact with components, and assert on the ForgeDoc tree — no browser, no screenshots, no flaky selectors:
+When deployed to Forge, UIKit components are rendered as a json tree called ForgeDoc that is passed to the server to be rendered. forge-sim captures the ForgeDoc output from the actual `@forge/react` package and exposes it to your tests. You can render UIKit 2 modules programmatically, interact with components, and assert on the ForgeDoc tree — no browser, no screenshots, no flaky selectors:
 
 ```typescript
 // Render a Jira issue panel with context
@@ -290,48 +314,6 @@ No API keys. No cloud credentials. No risk of the AI accidentally deploying to p
 
 
 
-### Why not just mock `@forge/kvs`?
-
-Because mocking individual imports doesn't test your app. It tests your assumptions about the platform. forge-sim runs your **actual code** through an **actual runtime** — manifest parsing, function wiring, queue processing, transaction atomicity, SQL migrations — the works. When your tests pass here, they pass on Forge.
-
-### What's simulated
-
-| Feature | Fidelity |
-|---------|----------|
-| KVS (`@forge/kvs`) | Full — get/set/delete/query/batch/transact/secrets |
-| Custom Entity Store | Full — CRUD, indexed queries, filters, sort, pagination, TTL |
-| Forge SQL (`@forge/sql`) | Full — real MySQL 8.4, migrations, DDL, parameterized queries |
-| Resolvers (`@forge/resolver`) | Full |
-| Async Events/Queues (`@forge/events`) | Full — concurrent processing, concurrency keys |
-| Product APIs (Jira/Confluence/Bitbucket) | Mock + real API proxy |
-| Forge Remotes | Full — FIT JWT auth, JWKS endpoint, mock routing |
-| Custom UI | Full — built-in Vite or `--proxy` your own dev server |
-| UIKit 2 (`@forge/react`) | Full — 73/73 components, live preview, dark/light/auto color mode |
-| Event & Scheduled Triggers | Full — 141 event templates with typed payloads, contract validation |
-| Web Triggers | Full — `/__trigger/<key>` HTTP endpoints with CORS, dynamic `webTrigger.getUrl()` |
-| Background Scripts | Full — `issueView`, `dashboard`, `globalBackgroundScript` via postMessage |
-| Custom Fields | Full — `jira:customField`/`customFieldType` with view/edit/viewSubmit |
-| `@forge/llm` (Claude 4.6/4.7) | Full — `forge-sim auth --llm` for the Anthropic key |
-| `@forge/realtime` | Full — channel pub/sub, scoped + global publishes |
-| Rovo Actions | Full — manifest parsing, input schema validation, MCP invocation |
-| Workflow Modules | Partial — config UI, function invocation (no transition simulation) |
-| Manifest parsing + auto-deploy | Full |
-| Persistent state (KVS + SQL) | Full — save on exit, restore on start |
-
-### CI-friendly
-
-No browser, no GUI, no Atlassian credentials required. Runs in any Node.js environment:
-
-```typescript
-import { createSimulator } from 'forge-sim';
-
-const sim = createSimulator();
-await sim.deploy('./my-forge-app');  // Auto-registers @forge/* loader hooks
-```
-
-`deploy()` registers Node.js loader hooks that redirect `@forge/*` imports to forge-sim's shims. Your app code doesn't know the difference.
-
----
 
 ## Installation
 
