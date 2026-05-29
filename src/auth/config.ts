@@ -2,20 +2,18 @@
  * forge-sim configuration — service-level settings.
  *
  * Stored in ~/.forge-sim/config.json (separate from credentials).
- * Contains the dev's own OAuth app registration and API keys.
+ * Contains API keys for non-Atlassian services (e.g. Anthropic for @forge/llm).
  */
 
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
-import type { OAuthAppConfig } from './oauth.js';
 
 const CONFIG_DIR = join(homedir(), '.forge-sim');
 const CONFIG_FILE = join(CONFIG_DIR, 'config.json');
 
 export interface ForgeSimConfig {
-  oauth?: OAuthAppConfig;
   anthropicApiKey?: string;
 }
 
@@ -40,27 +38,18 @@ export async function saveConfig(config: ForgeSimConfig): Promise<void> {
 }
 
 /**
- * Get OAuth app config from config file or env vars.
+ * Migration — strip the legacy `oauth` field from ~/.forge-sim/config.json
+ * if present. Returns true if anything was removed. Anthropic key + any
+ * future fields are preserved.
  */
-export async function getOAuthAppConfig(): Promise<OAuthAppConfig | null> {
-  // Env vars take precedence
-  const envId = process.env.FORGE_SIM_OAUTH_CLIENT_ID;
-  const envSecret = process.env.FORGE_SIM_OAUTH_CLIENT_SECRET;
-  if (envId && envSecret) {
-    return { clientId: envId, clientSecret: envSecret };
+export async function dropOAuthAppConfig(): Promise<boolean> {
+  const config = await loadConfig();
+  if ('oauth' in config) {
+    delete (config as Record<string, unknown>).oauth;
+    await saveConfig(config);
+    return true;
   }
-
-  const config = await loadConfig();
-  return config.oauth ?? null;
-}
-
-/**
- * Save OAuth app config.
- */
-export async function saveOAuthAppConfig(oauth: OAuthAppConfig): Promise<void> {
-  const config = await loadConfig();
-  config.oauth = oauth;
-  await saveConfig(config);
+  return false;
 }
 
 // ── Anthropic API Key (@forge/llm) ──────────────────────────────────────

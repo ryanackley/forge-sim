@@ -39,7 +39,15 @@ export const CRITICAL_TS_ERROR_CODES = new Set([
   'TS1128', // Declaration or statement expected (syntax error)
 ]);
 
-/** Synthetic tsconfig content for JS-only projects */
+/** Synthetic tsconfig content for JS-only projects.
+ *
+ * The `module: 'esnext'` + `moduleResolution: 'bundler'` pairing matches how
+ * Forge apps are actually built (webpack / esbuild handle resolution) and is
+ * the only TS-valid combination that doesn't trigger TS5110 ("Option 'module'
+ * must be set to 'Node16' when option 'moduleResolution' is set to 'Node16'").
+ * `node16` would force the user to write file extensions on every import,
+ * which neither real Forge nor the test apps do.
+ */
 const SYNTHETIC_TSCONFIG = {
   compilerOptions: {
     allowJs: true,
@@ -47,9 +55,9 @@ const SYNTHETIC_TSCONFIG = {
     noEmit: true,
     strict: false,
     skipLibCheck: true,
-    moduleResolution: 'node16',
     target: 'es2022',
-    module: 'es2022',
+    module: 'esnext',
+    moduleResolution: 'bundler',
     jsx: 'react-jsx',
     baseUrl: '..',
   },

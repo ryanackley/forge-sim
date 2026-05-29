@@ -47,12 +47,14 @@ const defs = sim.resolver.getDefinitions();
 ### Key-Value Storage
 
 ```typescript
+import { WhereConditions } from 'forge-sim';
+
 await sim.kvs.set('key', { any: 'value' });
 const val = await sim.kvs.get('key');
 await sim.kvs.delete('key');
 
 const result = await sim.kvs.query()
-  .where('key', { beginsWith: 'board:' })
+  .where('key', WhereConditions.beginsWith('board:'))
   .limit(10)
   .getMany();
 
@@ -128,6 +130,20 @@ env:
   FORGE_SIM_PROVIDER_GOOGLE_APIS_TOKEN: ${{ secrets.GOOGLE_TOKEN }}
 ```
 
+### LLM (`@forge/llm`)
+
+```typescript
+// Mock-first: queue responses, then invoke
+sim.llm.mockResponses(
+  { content: 'First reply' },
+  { content: 'Second reply' },
+);
+const result = await sim.invoke('summarize-issues', { issueKey: 'PROJ-1' });
+
+// Assert on what the app sent
+const history = sim.llm.getHistory();  // [{ prompt, response }, ...]
+```
+
 ### UI
 
 ```typescript
@@ -182,6 +198,7 @@ Complete type signatures for every public method, grouped by subsystem.
 - [sim.resolver — Resolver Registry](#simresolver--resolver-registry)
 - [sim.productApi — Product API](#simproductapi--product-api)
 - [sim.externalAuth — Third-Party Auth](#simexternalauth--third-party-auth)
+- [sim.llm — Anthropic LLM](#simllm--anthropic-llm)
 - [sim.ui — UI Rendering](#simui--ui-rendering)
   - [Rendering](#rendering)
   - [Querying the ForgeDoc Tree](#querying-the-forgedoc-tree)
@@ -264,9 +281,34 @@ Get the currently deployed manifest.
 ### Resolvers & Invocation
 
 ```typescript
-sim.invoke(functionKey: string, payload?: any, moduleKey?: string): Promise<any>
+sim.invoke(
+  functionKey: string,
+  payload?: any,
+  options?: { moduleKey?: string; context?: Partial<ResolverContext> }
+): Promise<any>
 ```
 Invoke a resolver function. Wraps payload in `{ payload, context }` per the Forge bridge contract.
+
+The third arg (optional) is an `InvokeOptions` object:
+- **`moduleKey`** — scope resolver lookup when multiple modules register the same function key.
+- **`context`** — per-call context override (one-shot). Merged onto the sim's base + sticky context for THIS invocation only; the sticky `setContext()` state is untouched. Shape matches Forge's `req.context` (`accountId`, `cloudId`, `extension`, `principal`, `license`, ...).
+
+```typescript
+// Vary the calling user per invocation without mutating sticky state
+await sim.invoke('castVote', { optionIndex: 0 }, { context: { accountId: 'alice' } });
+await sim.invoke('castVote', { optionIndex: 1 }, { context: { accountId: 'bob' } });
+
+// Scope to a specific module
+await sim.invoke('getData', payload, { moduleKey: 'panel-a' });
+
+// Combine both
+await sim.invoke('castVote', payload, {
+  moduleKey: 'pulse-macro',
+  context: { accountId: 'alice', extension: { contentId: '12345' } },
+});
+```
+
+Bad shapes throw a `TypeError` with a fix-it hint — e.g. passing `{ accountId: 'x' }` directly tells you to use `{ context: { accountId: 'x' } }` instead.
 
 ```typescript
 sim.registerFunction(key: string, handler: Function, type: ForgeFunctionType): void
@@ -283,7 +325,7 @@ Register a consumer handler for a queue key.
 ```typescript
 sim.fireTrigger(event: string, data: object): Promise<any[]>
 ```
-Fire a product event trigger. Typed overloads exist for all 141 known events.
+Fire a product event trigger. Typed overloads exist for all 143 known events.
 
 ```typescript
 sim.fireScheduledTrigger(triggerKey: string): Promise<{ statusCode: number }>
@@ -366,14 +408,22 @@ sim.kvs.delete(key: string): Promise<void>
 ### Queries
 
 ```typescript
+import { WhereConditions } from 'forge-sim';
+
 const result = await sim.kvs.query()
-  .where('key', { beginsWith: 'board:' })
+  .where('key', WhereConditions.beginsWith('board:'))
   .limit(10)
   .cursor(lastCursor)
   .getMany();
 
 // result: { results: Array<{ key, value }>, nextCursor?: string }
 ```
+
+`WhereConditions` mirrors the real `@forge/kvs` clause builder. Available
+helpers: `beginsWith(prefix)`, `between(min, max)`, `equalTo(value)`,
+`greaterThan(value)`, `greaterThanEqualTo(value)`, `lessThan(value)`,
+`lessThanEqualTo(value)`. Plain object literals are rejected at runtime —
+the simulator throws a clear error pointing you at the helper form.
 
 ### Transactions
 
@@ -550,6 +600,68 @@ In mock mode, `asUser().withProvider('google').fetch('/me')` routes through `sim
 
 ---
 
+## `sim.llm` — Anthropic LLM
+
+Backend for the `@forge/llm` shim. Two modes:
+
+1. **Mock** — pre-registered responses returned FIFO. Good for tests.
+2. **Real proxy** — if `ANTHROPIC_API_KEY` is set (env or via `forge-sim auth --llm`), forwards to the Anthropic Messages API and translates between `@forge/llm`'s OpenAI-shaped dialect and Anthropic's native format.
+
+Mock responses take priority over the real proxy — if the queue has entries, they're consumed first.
+
+```typescript
+// Direct calls (matches the @forge/llm shim's chat() surface)
+sim.llm.chat(prompt: LlmPrompt): Promise<LlmResponse>
+sim.llm.stream(prompt: LlmPrompt): Promise<LlmStreamResponse>
+sim.llm.list(): Promise<ModelListResponse>
+
+// Mock management
+sim.llm.mockResponse(mock: MockLlmResponse): void          // queue one
+sim.llm.mockResponses(...mocks: MockLlmResponse[]): void   // queue many (FIFO)
+
+// Assertions & lifecycle
+sim.llm.getHistory(): Array<{ prompt: LlmPrompt; response: LlmResponse }>
+sim.llm.reset(): void                                      // clear queue + history
+
+// API key (real-proxy mode)
+sim.llm.setApiKey(key: string): void
+sim.llm.getApiKey(): string | null                          // env wins over config
+```
+
+### MockLlmResponse shape
+
+```typescript
+interface MockLlmResponse {
+  content: string | ContentPart[];        // assistant text
+  tool_calls?: LlmToolCall[];             // optional tool-use blocks
+  finish_reason?: string;                  // defaults to 'tool_use' if tool_calls, else 'end_turn'
+}
+```
+
+### Typical test pattern
+
+```typescript
+// Queue a multi-turn agent loop
+sim.llm.mockResponses(
+  { content: '', tool_calls: [{ id: 'c1', type: 'function', index: 0,
+    function: { name: 'get_data', arguments: { query: 'issues' } } }] },
+  { content: 'Here are your issues.' },
+);
+
+const result = await sim.invoke('summarize-issues', { /* ... */ });
+
+// Assert on what was sent
+const history = sim.llm.getHistory();
+expect(history).toHaveLength(2);
+expect(history[1].prompt.messages.at(-1)?.role).toBe('tool');
+```
+
+If neither mocks nor `ANTHROPIC_API_KEY` are present, `chat()` throws `LlmApiError` with code `NO_API_KEY`. See [testing.md § Mocking @forge/llm](./testing.md#mocking-forgellm) for the full pattern catalog.
+
+The MCP equivalents are `forge.llm_mock` and `forge.llm_history` — see [mcp.md](./mcp.md#tools).
+
+---
+
 ## `sim.ui` — UI Rendering
 
 Renders UIKit 2 modules to ForgeDoc trees. Works both in-process (tests) and in-browser (dev server).
@@ -623,6 +735,29 @@ sim.ui.getBridgeCalls(): BridgeCall[]
 sim.ui.reset(): void       // Clear UI state, keep simulator connection
 sim.ui.resetAll(): void    // Full reset including simulator disconnection
 ```
+
+### Macro Config
+
+For Confluence `macro` modules with config (inline `config: true` or sub-module `config: { resource: '...' }`):
+
+```typescript
+// Inspect the MacroConfig ForgeDoc tree (inline addConfig() registrations)
+sim.ui.getMacroConfigDoc(moduleKey: string): ForgeDoc | null
+
+// Read the saved config values (what useConfig() returns)
+sim.ui.getMacroConfig(moduleKey: string): Record<string, unknown> | undefined
+
+// Seed config values before render — useConfig() resolves to these
+sim.ui.setMacroConfig(moduleKey: string, values: Record<string, unknown>): void
+```
+
+For per-render (non-sticky) config injection, pass `macroConfig` in `RenderContextOptions`:
+
+```typescript
+await sim.ui.render('pet-card', { macroConfig: { name: 'Rex', age: 5 } });
+```
+
+A bonus diagnostic: if you `render()` a macro module before calling `setMacroConfig` and `useConfig()` returns `{}`, forge-sim emits a hint suggesting `setMacroConfig` — surface this when triaging "why is my macro empty?" tests.
 
 ---
 

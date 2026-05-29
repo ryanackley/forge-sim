@@ -565,6 +565,34 @@ describe('ForgeDocRenderer smoke tests', () => {
       );
       expect(screen.getByText('transition content')).toBeInTheDocument();
     });
+
+    it('Modal with title prop auto-renders ModalHeader/ModalTitle (parity with real Forge)', () => {
+      // Per @atlaskit/forge-react-types ModalProps.codegen: when `title` is
+      // supplied, the platform automatically renders ModalHeader+ModalTitle.
+      // Pre-fix our renderer ignored props.title — confirmed by F1 audit.
+      renderDoc(
+        makeDoc('Modal', { title: 'Confirm Delete' }, [
+          makeDoc('ModalBody', {}, [
+            makeDoc('String', { text: 'Are you sure?' }),
+          ]),
+        ]),
+      );
+      expect(screen.getByText('Confirm Delete')).toBeInTheDocument();
+      expect(screen.getByText('Are you sure?')).toBeInTheDocument();
+    });
+
+    it('Modal without title still renders children-only (no spurious header)', () => {
+      renderDoc(
+        makeDoc('Modal', {}, [
+          makeDoc('ModalBody', {}, [
+            makeDoc('String', { text: 'Body only' }),
+          ]),
+        ]),
+      );
+      expect(screen.getByText('Body only')).toBeInTheDocument();
+      // No "undefined" or "[object Object]" leakage
+      expect(screen.queryByText('undefined')).not.toBeInTheDocument();
+    });
   });
 
   // ── Status & Display ─────────────────────────────────────────────────
@@ -977,12 +1005,103 @@ describe('ForgeDocRenderer smoke tests', () => {
       expect(container.querySelector('main')).toBeInTheDocument();
     });
 
-    it('Comment renders author and time', () => {
+    it('Comment renders author and time (string-form, ergonomic backward-compat)', () => {
       renderDoc(
         makeDoc('Comment', { author: 'Alice', time: '2024-01-15' }),
       );
       expect(screen.getByText('Alice')).toBeInTheDocument();
       expect(screen.getByText('2024-01-15')).toBeInTheDocument();
+    });
+
+    it('Comment renders author and time as objects ({text, onClick}) — docs-canonical form', () => {
+      // Per @atlaskit/forge-react-types CommentProps.codegen: author/time are
+      // typed as { text: string, onClick? }. Pre-fix our renderer rendered
+      // [object Object] when devs followed the docs.
+      renderDoc(
+        makeDoc('Comment', {
+          author: { text: 'Bob', onClick: () => {} },
+          time: { text: '2024-02-20', onClick: () => {} },
+        }),
+      );
+      expect(screen.getByText('Bob')).toBeInTheDocument();
+      expect(screen.getByText('2024-02-20')).toBeInTheDocument();
+      // No [object Object] leakage
+      expect(screen.queryByText(/object Object/)).not.toBeInTheDocument();
+    });
+
+    it('Comment renders edited indicator next to time/author', () => {
+      renderDoc(
+        makeDoc('Comment', {
+          author: 'Alice',
+          time: '2024-01-15',
+          edited: '(edited)',
+        }),
+      );
+      expect(screen.getByText('(edited)')).toBeInTheDocument();
+    });
+
+    it('Comment renders type prop as a lozenge label', () => {
+      renderDoc(
+        makeDoc('Comment', { author: 'Alice', type: 'reply' }),
+      );
+      expect(screen.getByText('reply')).toBeInTheDocument();
+    });
+
+    it('Comment renders restrictedTo label', () => {
+      renderDoc(
+        makeDoc('Comment', { author: 'Alice', restrictedTo: 'admins-only' }),
+      );
+      expect(screen.getByText('admins-only')).toBeInTheDocument();
+    });
+
+    it('Comment renders actions array as clickable buttons', () => {
+      const onReply = vi.fn();
+      const onLike = vi.fn();
+      renderDoc(
+        makeDoc('Comment', {
+          author: 'Alice',
+          actions: [
+            { text: 'Reply', onClick: onReply },
+            { text: 'Like', onClick: onLike },
+          ],
+        }),
+      );
+      expect(screen.getByText('Reply')).toBeInTheDocument();
+      expect(screen.getByText('Like')).toBeInTheDocument();
+    });
+
+    it('Comment swaps to errorActions when isError=true', () => {
+      renderDoc(
+        makeDoc('Comment', {
+          author: 'Alice',
+          isError: true,
+          actions: [{ text: 'Reply', onClick: () => {} }],
+          errorActions: [{ text: 'Retry', onClick: () => {} }],
+        }),
+      );
+      expect(screen.getByText('Retry')).toBeInTheDocument();
+      expect(screen.queryByText('Reply')).not.toBeInTheDocument();
+    });
+
+    it('Comment shows savingText when isSaving=true', () => {
+      renderDoc(
+        makeDoc('Comment', {
+          author: 'Alice',
+          isSaving: true,
+          savingText: 'Saving comment…',
+        }),
+      );
+      expect(screen.getByText('Saving comment…')).toBeInTheDocument();
+    });
+
+    it('Comment hides savingText when isSaving=false', () => {
+      renderDoc(
+        makeDoc('Comment', {
+          author: 'Alice',
+          savingText: 'Should not show',
+        }),
+      );
+      expect(screen.queryByText('Should not show')).not.toBeInTheDocument();
     });
 
     it('AdfRenderer renders simple ADF document', () => {

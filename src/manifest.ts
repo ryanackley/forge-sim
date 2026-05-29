@@ -7,10 +7,18 @@
 
 import { parse as parseYaml } from 'yaml';
 import { readFile } from 'fs/promises';
-import type { ForgeManifest, ManifestModule, ManifestRemote, ManifestEndpoint, ManifestAuthProvider } from './types.js';
+import type {
+  ForgeManifest,
+  ManifestModule,
+  ManifestRemote,
+  ManifestEndpoint,
+  ManifestAuthProvider,
+  ManifestEntityDef,
+  ManifestEntityIndex,
+} from './types.js';
 
 export interface ManifestWarning {
-  level: 'error' | 'warning';
+  level: 'error' | 'warning' | 'info';
   message: string;
 }
 
@@ -33,6 +41,12 @@ export interface ParsedManifest {
   commandPageTargets: Array<{ key: string; title: string; targetPage: string; shortcut?: string }>;
   /** Rovo action definitions (for tools UI invocation) */
   actions: ManifestAction[];
+  /**
+   * Custom Entity Store schemas parsed from app.storage.entities, keyed by
+   * entity name. Auto-registered with sim.kvs at deploy time so type
+   * validation and indexed queries match real Forge behavior.
+   */
+  entities: Map<string, ManifestEntityDef>;
 }
 
 export interface ManifestAction {
@@ -94,14 +108,17 @@ export interface ManifestUIModule {
   /** For jira:globalBackgroundScript — which experiences this script runs on */
   experience?: string[];
   // ── Custom Field Properties ──
-  /** For jira:customField / jira:customFieldType sub-modules */
-  viewMode?: 'view' | 'edit' | 'create';
+  /** For jira:customField / jira:customFieldType / macro sub-modules */
+  viewMode?: 'view' | 'edit' | 'create' | 'config';
   /** The data type of the custom field (number, string, user, etc.) */
   fieldType?: string;
   /** The key of the value function (computes field value from issue data) */
   valueFunctionKey?: string;
   /** Whether the field is read-only */
   readOnly?: boolean;
+  // ── Macro Properties ──
+  /** For macro modules: true if the manifest uses simple/inline config (config: true or config: {} without resource) */
+  inlineMacroConfig?: boolean;
 }
 
 /** Module types where `icon` is required per the Forge manifest schema */
@@ -545,6 +562,78 @@ export function parseManifestContent(content: string): ParsedManifest {
       continue;
     }
 
+    // ── Macro modules: extract optional config sub-module ──
+    // Macros without config keep their flat module shape (key = mod.key).
+    // Macros with `config.resource` split into --view + --config sub-modules,
+    // mirroring the custom field view/edit pattern.
+    if (moduleType === 'macro') {
+      for (const mod of moduleDefs as any[]) {
+        if (!mod.key) continue;
+        const baseTitle = typeof mod.title === 'string'
+          ? mod.title
+          : (mod.title?.i18n || mod.key);
+        const resolverFunctionKey = mod.resolver?.function;
+        const endpointKey = mod.resolver?.endpoint;
+
+        const configField = mod.config;
+        const configResource = configField && typeof configField === 'object' ? configField.resource : undefined;
+        const hasInlineConfig = configField === true ||
+          (configField && typeof configField === 'object' && !configResource);
+
+        if (configResource && mod.resource) {
+          // Custom config: split into --view + --config sub-modules
+          uiModules.push({
+            type: moduleType,
+            key: `${mod.key}--view`,
+            title: `${baseTitle} (View)`,
+            resolverFunctionKey,
+            endpointKey,
+            resourceKey: mod.resource,
+            viewMode: 'view',
+            icon: mod.icon,
+          });
+          uiModules.push({
+            type: moduleType,
+            key: `${mod.key}--config`,
+            title: `${baseTitle} (Config)`,
+            resolverFunctionKey,
+            endpointKey,
+            resourceKey: configResource,
+            viewMode: 'config',
+            icon: (configField && typeof configField === 'object' ? configField.icon : undefined) || mod.icon,
+          });
+        } else if (mod.resource) {
+          // No config or inline config — keep the flat shape for backward compat
+          uiModules.push({
+            type: moduleType,
+            key: mod.key,
+            title: baseTitle,
+            resolverFunctionKey,
+            endpointKey,
+            resourceKey: mod.resource,
+            icon: mod.icon,
+            inlineMacroConfig: hasInlineConfig || undefined,
+          });
+        }
+
+        if (hasInlineConfig) {
+          warnings.push({
+            level: 'info',
+            message: `Macro "${mod.key}" uses inline config (config: ${configField === true ? 'true' : '{}'}). ` +
+              `forge-sim captures the second ForgeDoc tree from ForgeReconciler.addConfig() and shows ` +
+              `View/Config tabs inside the iframe. Submitting the config form stores the payload and ` +
+              `re-renders the view so useConfig() returns the new values.`,
+          });
+        }
+
+        // Register resolver function if present
+        if (resolverFunctionKey && !functions.has(resolverFunctionKey)) {
+          functions.set(resolverFunctionKey, { key: resolverFunctionKey, handler: resolverFunctionKey });
+        }
+      }
+      continue;
+    }
+
     for (const mod of moduleDefs as any[]) {
       // A UI module must have a resource key (Custom UI or UIKit entry)
       // or a render property — skip anything that doesn't look like UI
@@ -605,6 +694,195 @@ export function parseManifestContent(content: string): ParsedManifest {
   for (const provider of (Array.isArray(raw.providers?.auth) ? raw.providers.auth : []) as ManifestAuthProvider[]) {
     if (provider.key) {
       authProviders.set(provider.key, provider);
+    }
+  }
+
+  // Parse app.storage.entities (Custom Entity Store schemas).
+  // These are auto-registered with sim.kvs at deploy time so entity.set
+  // validates attribute types and entity.query().index() uses partition/range
+  // filters — matching real Forge behavior. Without this, an app that works
+  // in forge-sim can fail in production (silent full-table scans, wrong types
+  // accepted, etc.).
+  const entities = new Map<string, ManifestEntityDef>();
+  const VALID_ENTITY_TYPES = new Set(['integer', 'float', 'string', 'boolean', 'any']);
+  const rawEntities = raw.app?.storage?.entities;
+  if (rawEntities !== undefined && !Array.isArray(rawEntities)) {
+    warnings.push({
+      level: 'error',
+      message: 'app.storage.entities must be an array.',
+    });
+  } else if (Array.isArray(rawEntities)) {
+    for (const [idx, rawEntity] of rawEntities.entries()) {
+      if (!rawEntity || typeof rawEntity !== 'object') {
+        warnings.push({
+          level: 'error',
+          message: `app.storage.entities[${idx}] must be an object with name/attributes/indexes.`,
+        });
+        continue;
+      }
+      const name = (rawEntity as ManifestEntityDef).name;
+      if (typeof name !== 'string' || !name) {
+        warnings.push({
+          level: 'error',
+          message: `app.storage.entities[${idx}] is missing a "name" string.`,
+        });
+        continue;
+      }
+      if (entities.has(name)) {
+        warnings.push({
+          level: 'error',
+          message: `app.storage.entities: duplicate entity name "${name}". ` +
+            'Each entity must have a unique name within the manifest.',
+        });
+        continue;
+      }
+
+      const rawAttrs = (rawEntity as any).attributes;
+      const attributes: Record<string, { type: string }> = {};
+      if (!rawAttrs || typeof rawAttrs !== 'object') {
+        warnings.push({
+          level: 'error',
+          message: `Entity "${name}" is missing the "attributes" map.`,
+        });
+        continue;
+      }
+      for (const [attrName, attrDef] of Object.entries(rawAttrs)) {
+        const t = (attrDef as { type?: string })?.type;
+        if (typeof t !== 'string' || !t) {
+          warnings.push({
+            level: 'error',
+            message: `Entity "${name}" attribute "${attrName}" is missing a "type" string.`,
+          });
+          continue;
+        }
+        if (!VALID_ENTITY_TYPES.has(t)) {
+          warnings.push({
+            level: 'warning',
+            message: `Entity "${name}" attribute "${attrName}" uses an unknown type "${t}". ` +
+              `Valid types: ${[...VALID_ENTITY_TYPES].join(', ')}. ` +
+              'forge-sim will accept any value for this attribute, but real Forge may reject it.',
+          });
+        }
+        attributes[attrName] = { type: t };
+      }
+
+      const rawIndexes = (rawEntity as any).indexes;
+      const indexes: ManifestEntityIndex[] = [];
+      if (rawIndexes !== undefined && !Array.isArray(rawIndexes)) {
+        warnings.push({
+          level: 'error',
+          message: `Entity "${name}" indexes must be an array (got ${typeof rawIndexes}).`,
+        });
+      } else if (Array.isArray(rawIndexes)) {
+        const seenIndexNames = new Set<string>();
+        for (const [iIdx, rawIndex] of rawIndexes.entries()) {
+          if (!rawIndex || typeof rawIndex !== 'object') {
+            warnings.push({
+              level: 'error',
+              message: `Entity "${name}" indexes[${iIdx}] must be an object.`,
+            });
+            continue;
+          }
+          const indexName = (rawIndex as ManifestEntityIndex).name;
+          if (typeof indexName !== 'string' || !indexName) {
+            warnings.push({
+              level: 'error',
+              message: `Entity "${name}" indexes[${iIdx}] is missing a "name" string.`,
+            });
+            continue;
+          }
+          if (seenIndexNames.has(indexName)) {
+            warnings.push({
+              level: 'error',
+              message: `Entity "${name}" has duplicate index name "${indexName}".`,
+            });
+            continue;
+          }
+          seenIndexNames.add(indexName);
+          const partition = (rawIndex as any).partition;
+          if (partition !== undefined && !Array.isArray(partition)) {
+            warnings.push({
+              level: 'error',
+              message: `Entity "${name}" index "${indexName}" partition must be an array of attribute names.`,
+            });
+            continue;
+          }
+          // Warn on partition attrs that don't exist in the attributes map
+          if (Array.isArray(partition)) {
+            for (const attrName of partition) {
+              if (typeof attrName === 'string' && !(attrName in attributes)) {
+                warnings.push({
+                  level: 'warning',
+                  message: `Entity "${name}" index "${indexName}" partitions on "${attrName}" ` +
+                    'but no such attribute is declared. Real Forge will reject this manifest.',
+                });
+              }
+            }
+          }
+          // `range` accepts two YAML shapes:
+          //   range: <attr>          # scalar (canonical)
+          //   range: [<attr>]        # list-of-one (matches the official docs YAML example;
+          //                          #  Atlassian's docs sometimes show this even though
+          //                          #  the surrounding prose says "only one attribute")
+          // Real Forge accepts both. Anything else — non-string, empty array, multi-element
+          // array — is a hard error.
+          const rawRange = (rawIndex as any).range;
+          let range: string | undefined;
+          if (rawRange === undefined) {
+            range = undefined;
+          } else if (typeof rawRange === 'string') {
+            range = rawRange;
+          } else if (Array.isArray(rawRange)) {
+            if (rawRange.length === 0) {
+              warnings.push({
+                level: 'error',
+                message: `Entity "${name}" index "${indexName}" range is an empty array. ` +
+                  'Specify a single attribute as a string (range: <attr>) or a list-of-one.',
+              });
+              continue;
+            }
+            if (rawRange.length > 1) {
+              warnings.push({
+                level: 'error',
+                message: `Entity "${name}" index "${indexName}" range may only have one attribute, ` +
+                  `got ${rawRange.length}: ${JSON.stringify(rawRange)}. ` +
+                  'Real Forge rejects multi-attribute range keys.',
+              });
+              continue;
+            }
+            if (typeof rawRange[0] !== 'string') {
+              warnings.push({
+                level: 'error',
+                message: `Entity "${name}" index "${indexName}" range must be an attribute name (string), ` +
+                  `got ${typeof rawRange[0]}.`,
+              });
+              continue;
+            }
+            range = rawRange[0];
+          } else {
+            warnings.push({
+              level: 'error',
+              message: `Entity "${name}" index "${indexName}" range must be an attribute name (string) ` +
+                `or a list-of-one. Got ${typeof rawRange}.`,
+            });
+            continue;
+          }
+          if (range !== undefined && !(range in attributes)) {
+            warnings.push({
+              level: 'warning',
+              message: `Entity "${name}" index "${indexName}" ranges on "${range}" ` +
+                'but no such attribute is declared. Real Forge will reject this manifest.',
+            });
+          }
+          indexes.push({
+            name: indexName,
+            partition: Array.isArray(partition) ? partition.filter((p): p is string => typeof p === 'string') : [],
+            range,
+          });
+        }
+      }
+
+      entities.set(name, { name, attributes, indexes });
     }
   }
 
@@ -701,5 +979,6 @@ export function parseManifestContent(content: string): ParsedManifest {
     warnings,
     commandPageTargets,
     actions,
+    entities,
   };
 }

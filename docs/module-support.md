@@ -61,7 +61,7 @@ These all follow the **UI + Resolver** or **UI + Custom UI** pattern. They have 
 | `jira:globalPage` | ✅ Full | `{ type }` | Full-page module. `view.createHistory()` works for routing. |
 | `jira:projectPage` | ✅ Full | `project: { key, id }` | Project-scoped page |
 | `jira:adminPage` | ✅ Full | `{ type }` | Admin settings page |
-| `jira:projectSettingsPage` | ⚠️ Partial | Generic | Parsed as UI module. No project-settings-specific context. |
+| `jira:projectSettingsPage` | ✅ Full | `project: { key, id }` | Same project context as `jira:projectPage` (hydrated via `JIRA_PROJECT_MODULES` set in `context.ts`). No settings-specific subfields. |
 | `jira:personalSettingsPage` | ⚠️ Partial | Generic | Parsed as UI module. No user-settings-specific context. (Preview) |
 | `jira:dashboardGadget` | ✅ Full | `{ type }` | Dashboard widget |
 | `jira:issueNavigatorAction` | ⚠️ Partial | Generic | Parsed as UI module. No issue-navigator-specific context. (Preview) |
@@ -128,7 +128,7 @@ These all follow the **UI + Resolver** or **UI + Custom UI** pattern. They have 
 | `confluence:contentAction` | ✅ Full | `content: { id }, space: { key, id }` | More actions menu on pages/blogs |
 | `confluence:contentBylineItem` | ✅ Full | `content: { id }, space: { key, id }` | Content byline metadata |
 | `confluence:contextMenu` | ✅ Full | `content: { id }, space: { key, id }` | Text selection context menu |
-| `macro` | ✅ Full | `content: { id }, space: { key }` | Confluence macro. Full support. |
+| `macro` | ✅ Full | `content: { id }, space: { key }, config: {} ` | Confluence macro. **Custom config** (`config: { resource: '...' }`) splits the module into separately-routed view/config sub-modules with View / Config tabs in the parent shell. **Inline config** (`config: true` / `config: {}` + `ForgeReconciler.addConfig(<Config />)`) is captured from the second reconciler container and rendered as in-iframe View / Config tabs. Both flows store the submitted config keyed by the macro key; `useConfig()` reads `extension.config` via the real `@forge/react` package. |
 | `confluence:spaceSettings` | ⚠️ Partial | Generic | Parsed as UI module. No space-settings-specific context. |
 | `confluence:globalSettings` | ⚠️ Partial | Generic | Parsed as UI module. No global-settings-specific context. |
 | `confluence:spaceSidebar` | ⚠️ Partial | Generic | Parsed as UI module if it has `resource:`. |
@@ -227,8 +227,8 @@ All JSM modules follow standard UI patterns but target the customer portal, whic
 
 | Level | Count | Modules |
 |-------|-------|---------|
-| ✅ Full | 29 | `function`, `consumer`, `trigger`, `scheduledTrigger`, `webtrigger`, `endpoint`, `action`, `jira:issuePanel`, `jira:issueActivity`, `jira:issueContext`, `jira:issueGlance`, `jira:issueAction`, `jira:globalPage`, `jira:projectPage`, `jira:adminPage`, `jira:dashboardGadget`, `jira:issueViewBackgroundScript`, `jira:dashboardBackgroundScript`, `jira:globalBackgroundScript`, `jira:customField`, `jira:customFieldType`, `confluence:globalPage`, `confluence:spacePage`, `confluence:contentAction`, `confluence:contentBylineItem`, `confluence:contextMenu`, `confluence:backgroundScript`, `macro` |
-| ⚠️ Partial | 32 | all Bitbucket UI, all JSM portal, all Compass UI, Jira preview modules, Confluence secondary pages, `jira:workflowValidator`, `jira:workflowCondition`, `jira:workflowPostFunction` |
+| ✅ Full | 29 | `function`, `consumer`, `trigger`, `scheduledTrigger`, `webtrigger`, `endpoint`, `action`, `jira:issuePanel`, `jira:issueActivity`, `jira:issueContext`, `jira:issueGlance`, `jira:issueAction`, `jira:globalPage`, `jira:projectPage`, `jira:projectSettingsPage`, `jira:adminPage`, `jira:dashboardGadget`, `jira:issueViewBackgroundScript`, `jira:dashboardBackgroundScript`, `jira:globalBackgroundScript`, `jira:customField`, `jira:customFieldType`, `confluence:globalPage`, `confluence:spacePage`, `confluence:contentAction`, `confluence:contentBylineItem`, `confluence:contextMenu`, `confluence:backgroundScript`, `macro` |
+| ⚠️ Partial | 31 | all Bitbucket UI, all JSM portal, all Compass UI, Jira preview modules, Confluence secondary pages, `jira:workflowValidator`, `jira:workflowCondition`, `jira:workflowPostFunction` |
 | 🔇 Stub | 1 | `jira:uiModifications` |
 | ❌ None | 11 | `jira:jqlFunction`, `jira:entityProperty`, `jira:globalPermission`, `jira:projectPermission`, `jira:timeTrackingProvider`, `bitbucket:mergeCheck`, `bitbucket:dynamicPipelinesProvider`, `compass:dataProvider`, `rovo:agent`, `automation:*`, `teamwork:*` |
 

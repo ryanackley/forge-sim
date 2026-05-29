@@ -11,6 +11,20 @@ export { SimulatorUI } from './simulator-ui.js';
 // Types (always needed)
 export type { ForgeDoc, BridgeCall } from './bridge.js';
 
+// Inline macro config — types + helpers (also reachable via sim.ui.*)
+export type {
+  InlineConfigField,
+  InlineConfigHandle,
+  InlineConfigValidation,
+  InlineConfigViolation,
+} from './inline-config.js';
+export {
+  extractInlineConfigFields,
+  validateInlineConfigTree,
+  INLINE_CONFIG_ALLOWED_TYPES,
+  INLINE_CONFIG_FORM_TYPES,
+} from './inline-config.js';
+
 // ── Backward-compat exports (prefer sim.ui.* instead) ───────────────────
 
 /** @deprecated Use sim.ui.ensureBridge() instead */

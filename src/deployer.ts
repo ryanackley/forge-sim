@@ -8,11 +8,125 @@
  * This is the "deploy to sim" equivalent — one call, zero app modifications.
  */
 
-import { resolve, join } from 'node:path';
-import { access } from 'node:fs/promises';
+import { resolve, join, dirname } from 'node:path';
+import { access, mkdir, writeFile, readdir, unlink } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 import { parseManifest, type ParsedManifest, type ManifestFunction } from './manifest.js';
 import type { ForgeSimulator } from './simulator.js';
+
+/** Per-app cache dir for esbuild deploy bundles. Convention follows fit-keys/
+ *  and other forge-sim sidecar state. Bundles live here briefly between
+ *  deploys; we sweep stale ones at the start of every redeploy. */
+function deployBundleDir(appDir: string): string {
+  return join(appDir, '.forge-sim', 'bundles');
+}
+
+/**
+ * Module-scoped dedupe set for manifest-warning stderr prints.
+ *
+ * Skill run #14 surfaced that the original per-simulator-instance dedupe was
+ * too narrow: vitest test files commonly call `createSimulator()` in a fresh
+ * `beforeEach`, so the per-instance Set reset every test → the same Node
+ * runtime-mismatch warning printed once per `it()`, multiplying noise by the
+ * test count.
+ *
+ * Module scope is the right granularity. Each worker process gets its own
+ * Set; within a worker, every sim instance shares the dedupe, so a unique
+ * warning message prints exactly once for the lifetime of the process — both
+ * in vitest workers AND in long-running dev servers. The `result.warnings`
+ * array still carries every warning on every deploy for programmatic callers
+ * (MCP responses, in-process inspection), which is the real contract.
+ */
+const printedManifestWarnings = new Set<string>();
+
+/**
+ * Test-only escape hatch for resetting the module-scope dedupe Set.
+ * Used by `warning-noise.test.ts` so each F7 case starts from a clean slate
+ * and can assert the dedupe behavior independently of test execution order.
+ * Underscore prefix signals "do not call from production code."
+ */
+export function _resetPrintedManifestWarnings(): void {
+  printedManifestWarnings.clear();
+}
+
+/** Best-effort sweep of older deploy bundles so the dir doesn't grow without
+ *  bound across many redeploys. Failures are swallowed (e.g. dir doesn't
+ *  exist yet, or files are still in-use somewhere on Windows). */
+async function sweepStaleBundles(dir: string): Promise<void> {
+  try {
+    const names = await readdir(dir);
+    await Promise.all(
+      names
+        .filter((n) => n.startsWith('deploy-') && n.endsWith('.mjs'))
+        .map((n) => unlink(join(dir, n)).catch(() => {}))
+    );
+  } catch {
+    // Dir doesn't exist yet — nothing to sweep.
+  }
+}
+
+/**
+ * Bundle a handler entry-point and all its relative-import dependencies into
+ * a single ESM source file, returning a `file://` URL ready for `import()`.
+ *
+ * Why: Node's ESM dynamic-import cache is keyed on the full specifier URL.
+ * Appending `?t=Date.now()` to the entry-point busts the entry's cache, but
+ * NOT its transitive imports — those resolve to plain URLs with no query and
+ * stay cached forever across redeploys. The agent's iterate loop sees old
+ * code after editing any transitive handler file (F3 from skill run #6).
+ *
+ * The fix: esbuild bundles the entry plus every relative-import descendant
+ * into one source. The bundle is written to `<appDir>/.forge-sim/bundles/`
+ * with a per-deploy random filename, so the resulting URL is a brand-new
+ * module specifier on every deploy. Bare-specifier imports (`@forge/*`,
+ * react, axios, …) stay external — they're resolved by Node's loader
+ * (which our hooks intercept for @forge/*) walking up from the bundle file
+ * to the app's `node_modules`. The @forge/* shim interception still fires.
+ *
+ * Works in both regular Node (MCP mode) and vitest (vite-node) because each
+ * deploy writes a new file with a new URL — neither cache has seen it before.
+ *
+ * Why not `data:` URLs (the initial attempt): Node can't resolve bare
+ * specifiers from a data: URL — no parent path means no node_modules walk.
+ * A file URL inside the app dir gives bare imports a natural resolution root.
+ *
+ * Sourcemap is inline so stack traces still point back at user source.
+ */
+async function bundleHandlerToFileUrl(entryPath: string, appDir: string): Promise<string> {
+  const esbuild = await import('esbuild');
+  const result = await esbuild.build({
+    entryPoints: [entryPath],
+    bundle: true,
+    format: 'esm',
+    target: 'node22',
+    platform: 'node',
+    write: false,
+    sourcemap: 'inline',
+    absWorkingDir: dirname(entryPath),
+    plugins: [
+      {
+        name: 'forge-sim-bare-externals',
+        setup(build) {
+          // Mark every non-relative, non-absolute specifier as external — they
+          // get resolved by Node's loader (which our hooks intercept for @forge/*).
+          // Keeps node_modules out of the bundle (faster + avoids bundling native
+          // addons) and preserves the @forge/* shim interception path.
+          build.onResolve({ filter: /^[^./]/ }, () => ({ external: true }));
+        },
+      },
+    ],
+  });
+  const code = result.outputFiles[0].text;
+
+  const cacheDir = deployBundleDir(appDir);
+  await mkdir(cacheDir, { recursive: true });
+  // Per-deploy random filename — what makes the resulting URL unique and
+  // therefore bypasses both Node's ESM cache and vite-node's path-based cache.
+  const fileName = `deploy-${Date.now()}-${Math.random().toString(36).slice(2)}.mjs`;
+  const outPath = join(cacheDir, fileName);
+  await writeFile(outPath, code, 'utf-8');
+  return pathToFileURL(outPath).href;
+}
 // Bridge is now managed by sim.ui — no direct bridge imports needed here
 
 export interface DeployResult {
@@ -20,6 +134,14 @@ export interface DeployResult {
   loadedFunctions: string[];
   loadedResources: string[];
   errors: Array<{ functionKey: string; error: string }>;
+  /**
+   * Manifest validation warnings (and info-level notes). Mirrored from
+   * `manifest.warnings` so both the in-process API and the MCP path can
+   * surface them in the same place — previously they only reached
+   * in-process callers via `console.warn`, leaving MCP responses silent
+   * about the same issues.
+   */
+  warnings: ParsedManifest['warnings'];
 }
 
 /**
@@ -114,8 +236,16 @@ export async function deploy(sim: ForgeSimulator, appDir: string): Promise<Deplo
   // 1. Parse manifest
   const manifest = await parseManifest(manifestPath);
 
-  // Surface manifest validation warnings
+  // Surface manifest validation warnings.
+  // Module-scope dedupe: vitest test files commonly create a fresh sim in
+  // `beforeEach`, so dedupe must span the worker process to be useful — the
+  // alternative is the runtime-mismatch warning printing N times in an N-test
+  // file (skill run #14). The result.warnings array still carries every
+  // warning on every deploy for programmatic callers (MCP responses,
+  // in-process inspection). See `printedManifestWarnings` above. (F7)
   for (const w of manifest.warnings) {
+    if (printedManifestWarnings.has(w.message)) continue;
+    printedManifestWarnings.add(w.message);
     const prefix = w.level === 'error' ? '❌' : '⚠️';
     console.warn(`[forge-sim] ${prefix} ${w.message}`);
   }
@@ -125,9 +255,29 @@ export async function deploy(sim: ForgeSimulator, appDir: string): Promise<Deplo
     sim.ui.ensureBridge();
   }
 
+  // 1c. Register Custom Entity Store schemas from app.storage.entities.
+  // Without this, entity.set() silently accepts wrongly-typed values and
+  // entity.query().index() drops partition/range filters → apps that work
+  // in forge-sim fail in real Forge. This was P1 in the post-run-4 bug haul.
+  // Tests that manually call sim.kvs.registerEntitySchema() still work —
+  // they just no-op-overwrite with the same schema if the manifest also
+  // declared it, or register fresh if they're using a fixture without
+  // app.storage.entities.
+  for (const [entityName, entityDef] of manifest.entities) {
+    sim.kvs.registerEntitySchema(entityName, {
+      attributes: entityDef.attributes,
+      indexes: entityDef.indexes ?? [],
+    });
+  }
+
   const loadedFunctions: string[] = [];
   const loadedResources: string[] = [];
   const errors: Array<{ functionKey: string; error: string }> = [];
+
+  // Sweep old deploy bundles so this dir doesn't grow without bound. Bundles
+  // from previous deploys are no longer needed once their modules are cached
+  // by Node — we generate a fresh one per deploy anyway.
+  await sweepStaleBundles(deployBundleDir(absDir));
 
   // 2. Register @forge/* loader hooks (redirects @forge/api etc. to our shims).
   //    Called lazily so users don't need --import. Hooks apply to all subsequent
@@ -150,12 +300,22 @@ export async function deploy(sim: ForgeSimulator, appDir: string): Promise<Deplo
 
   // 3. Load each function module
   const handlerExports = new Map<string, any>();
+  // Per-deploy bundle/import cache keyed by absolute source path. Many manifests
+  // route multiple function entries through the same source file (e.g. OKR's
+  // `index.handler`, `index.runMigration`, `index.recalcKeyResult` all live in
+  // `src/index.ts`). Without this cache, each function re-bundled and re-imported
+  // the same file under a unique URL, re-evaluating its top-level code N times
+  // and tripping the "resolver.define overwriting" warning on every redundant
+  // pass. We still want fresh evaluation across distinct `deploy()` calls
+  // (that's what cache-busts edits between iterations), so the cache lives in
+  // function scope and dies when this call returns. (F8 root cause)
+  const moduleCache = new Map<string, any>();
 
   for (const [fnKey, fnDef] of manifest.functions) {
     try {
       const { fileStem, exportName } = parseHandlerString(fnDef.handler);
       const filePath = await resolveHandlerFile(absDir, fileStem);
-      
+
       if (!filePath) {
         errors.push({
           functionKey: fnKey,
@@ -164,9 +324,15 @@ export async function deploy(sim: ForgeSimulator, appDir: string): Promise<Deplo
         continue;
       }
 
-      // Dynamic import (cache-bust so re-deploys get fresh modules)
-      const fileUrl = pathToFileURL(filePath).href;
-      const mod = await import(fileUrl + '?t=' + Date.now());
+      // Bundle+import the source file exactly once per deploy, reusing the
+      // same module for every manifest function that points at it. See the
+      // `moduleCache` comment above for the F8 backstory.
+      let mod = moduleCache.get(filePath);
+      if (!mod) {
+        const fileUrl = await bundleHandlerToFileUrl(filePath, absDir);
+        mod = await import(fileUrl);
+        moduleCache.set(filePath, mod);
+      }
 
       const handler = mod[exportName] ?? mod.default?.[exportName];
       if (!handler) {
@@ -215,15 +381,26 @@ export async function deploy(sim: ForgeSimulator, appDir: string): Promise<Deplo
     if (!exported) continue;
 
     if (typeof exported === 'object') {
-      // It's a definitions map from Resolver.getDefinitions()
+      // It's a definitions map from Resolver.getDefinitions(). The @forge/resolver
+      // shim already registered these with sim.resolver during bundle evaluation
+      // (each `resolver.define()` call inside user code routes through it). So
+      // this loop is a no-op for keys already present — registering them again
+      // would just trigger the "overwriting" footgun-warning meant for users
+      // who define the same key in two different files. (F8)
+      const already = new Set(sim.resolver.getDefinitions());
       for (const [defKey, defHandler] of Object.entries(exported)) {
-        if (typeof defHandler === 'function') {
+        if (typeof defHandler !== 'function') continue;
+        if (!already.has(defKey)) {
+          // User exported a plain `{ foo: fn }` map without using the Resolver
+          // shim — register the function ourselves so invoke() can reach it.
           sim.resolver.define(defKey, defHandler as any);
-          sim.registerResolverOwnership(defKey, uiModule.resolverFunctionKey);
         }
+        sim.registerResolverOwnership(defKey, uiModule.resolverFunctionKey);
       }
     } else if (typeof exported === 'function') {
-      sim.resolver.define(uiModule.resolverFunctionKey, exported);
+      if (!sim.resolver.getDefinitions().includes(uiModule.resolverFunctionKey)) {
+        sim.resolver.define(uiModule.resolverFunctionKey, exported);
+      }
       sim.registerResolverOwnership(uiModule.resolverFunctionKey, uiModule.resolverFunctionKey);
     }
   }
@@ -322,9 +499,23 @@ export async function deploy(sim: ForgeSimulator, appDir: string): Promise<Deplo
     }
   }
 
-  // 6. UI resources are NOT loaded during deploy.
-  // Use sim.ui.render(moduleKey) to load and render specific UI modules.
-  // This gives per-module ForgeDoc isolation and proper context scoping.
+  // 6. UI resources are NOT loaded during deploy — they're lazy-loaded by
+  //    sim.ui.render(moduleKey) for per-module ForgeDoc isolation and proper
+  //    context scoping. We DO record the resource keys at deploy time so the
+  //    deploy response accurately reflects what the simulator knows about,
+  //    and surface a clear error for any resource whose `path` doesn't resolve
+  //    to a real file on disk — that's a typo waiting to explode at render.
+  for (const resource of manifest.resources.values()) {
+    const resolved = await resolveResourceFile(absDir, resource.path);
+    if (resolved === null) {
+      errors.push({
+        functionKey: resource.key,
+        error: `Resource "${resource.key}" path "${resource.path}" does not resolve to a file (tried exact + ${FILE_EXTENSIONS.join('/')} extensions).`,
+      });
+      continue;
+    }
+    loadedResources.push(resource.key);
+  }
 
   // Initialize FIT provider if the manifest has remotes
   if (manifest.remotes.size > 0) {
@@ -335,5 +526,11 @@ export async function deploy(sim: ForgeSimulator, appDir: string): Promise<Deplo
   sim.loadManifestData(manifest);
   sim.setAppDir(absDir);
 
-  return { manifest, loadedFunctions, loadedResources, errors };
+  return {
+    manifest,
+    loadedFunctions,
+    loadedResources,
+    errors,
+    warnings: manifest.warnings,
+  };
 }

@@ -7,7 +7,7 @@
  */
 
 import { getSimulator } from './globals.js';
-import { WhereConditions as KvsWhereConditions } from './forge-kvs.js';
+import { WhereConditions as KvsWhereConditions, FilterConditions as KvsFilterConditions } from './forge-kvs.js';
 
 // ── Route template tag ──────────────────────────────────────────────────
 
@@ -189,18 +189,15 @@ async function forgeFetch(url: string, options?: any) {
 }
 
 // ── Condition helpers (re-exported from @forge/api) ─────────────────────
+//
+// Both objects re-export the canonical clause helpers from the forge-kvs
+// shim. Keeping a single source of truth avoids the drift that bit
+// pre-2026-05-16: this file used to define its own broken FilterConditions
+// returning { condition: 'camelCase', value: ... } (singular value, wrong
+// shape).
 
 const WhereConditions = KvsWhereConditions;
-
-const FilterConditions = {
-  equal: (value: any) => ({ condition: 'equal', value }),
-  greaterThan: (value: any) => ({ condition: 'greaterThan', value }),
-  greaterThanEqualTo: (value: any) => ({ condition: 'greaterThanEqualTo', value }),
-  lessThan: (value: any) => ({ condition: 'lessThan', value }),
-  lessThanEqualTo: (value: any) => ({ condition: 'lessThanEqualTo', value }),
-  beginsWith: (value: string) => ({ condition: 'beginsWith', value }),
-  exists: () => ({ condition: 'exists' }),
-};
+const FilterConditions = KvsFilterConditions;
 
 const SortOrder = {
   ASC: 'ASC' as const,

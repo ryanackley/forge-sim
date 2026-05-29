@@ -12,8 +12,22 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { ForgeSimulator } from '../simulator.js';
 import type { ParsedManifest } from '../manifest.js';
 import { getTriggerEventTemplateMap } from '../trigger-event-templates.js';
+import { getOAuthCallbackRegistry } from '../auth/oauth-callback-registry.js';
+import {
+  loadCredentials,
+  saveCredentials,
+  getDefaultAccount,
+  setThirdPartyToken,
+} from '../auth/credentials.js';
 
 type ApiHandler = (req: IncomingMessage, res: ServerResponse, url: URL) => Promise<void>;
+
+export interface CreateApiHandlerOptions {
+  /** Push state-change events to connected browser tabs (Tools UI). */
+  broadcastStateChange?: (type: string, data?: any) => void;
+  /** App directory — required for persistent provider token storage. */
+  appDir?: string;
+}
 
 function json(res: ServerResponse, data: any, status = 200): void {
   res.writeHead(status, { 'Content-Type': 'application/json' });
@@ -38,7 +52,11 @@ async function readBody(req: IncomingMessage): Promise<any> {
  * @param sim - ForgeSimulator instance
  * @param manifestOrNull - If provided, used directly (dev mode). If null/undefined, resolved from sim.getManifest() per-request (daemon mode).
  */
-export function createApiHandler(sim: ForgeSimulator, manifestOrNull?: ParsedManifest | null): ApiHandler {
+export function createApiHandler(
+  sim: ForgeSimulator,
+  manifestOrNull?: ParsedManifest | null,
+  options: CreateApiHandlerOptions = {},
+): ApiHandler {
   return async (req, res, url) => {
     const path = url.pathname;
     const method = req.method ?? 'GET';
@@ -65,7 +83,7 @@ export function createApiHandler(sim: ForgeSimulator, manifestOrNull?: ParsedMan
         if (!appDir) return json(res, { error: 'Missing appDir' }, 400);
 
         if (reset !== false) {
-          sim.reset();
+          await sim.reset();
           sim.ui.reset();
         }
 
@@ -95,6 +113,7 @@ export function createApiHandler(sim: ForgeSimulator, manifestOrNull?: ParsedMan
               resolver: u.resolverFunctionKey,
             })),
             errors: result.errors,
+            warnings: result.warnings,
           });
         } catch (err) {
           return json(res, { error: err instanceof Error ? err.message : String(err) }, 500);
@@ -103,9 +122,9 @@ export function createApiHandler(sim: ForgeSimulator, manifestOrNull?: ParsedMan
 
       // ── Reset ──────────────────────────────────────────────────────
       if (path === '/api/reset' && method === 'POST') {
-        sim.reset();
+        await sim.reset();
         sim.ui.reset();
-        return json(res, { success: true, message: 'Simulator reset. All state cleared.' });
+        return json(res, { success: true, message: 'Simulator reset. All state cleared (in-memory + SQL tables dropped).' });
       }
 
       // ── Manifest ───────────────────────────────────────────────────
@@ -235,7 +254,7 @@ export function createApiHandler(sim: ForgeSimulator, manifestOrNull?: ParsedMan
       // ── Invoke ─────────────────────────────────────────────────────
       if (path === '/api/invoke' && method === 'POST') {
         const body = await readBody(req);
-        const { functionKey, payload, actionKey } = body;
+        const { functionKey, payload, actionKey, moduleKey, context } = body;
         if (!functionKey) return json(res, { error: 'Missing functionKey' }, 400);
 
         // Validate action inputs if this is a Rovo action invocation
@@ -247,7 +266,7 @@ export function createApiHandler(sim: ForgeSimulator, manifestOrNull?: ParsedMan
         }
 
         try {
-          const result = await sim.invoke(functionKey, payload ?? {});
+          const result = await sim.invoke(functionKey, payload ?? {}, { moduleKey, context });
           return json(res, { success: true, result });
         } catch (err: any) {
           return json(res, { error: err.message }, 500);
@@ -326,6 +345,102 @@ export function createApiHandler(sim: ForgeSimulator, manifestOrNull?: ParsedMan
         if (!operations) return json(res, { error: 'operations is required' }, 400);
         sim.mockGraphQL(operations);
         return json(res, { success: true, operationCount: Object.keys(operations).length });
+      }
+
+      // ── External Auth Providers ────────────────────────────────────
+      // List configured external auth providers + connection status.
+      if (path === '/api/providers' && method === 'GET') {
+        const providers = sim.externalAuth.listProviders().map((p) => {
+          const hasSecret = sim.externalAuth.hasSecret(p.key);
+          const connected = sim.externalAuth.hasCredentials(p.key);
+          const account = sim.externalAuth.getAccount(p.key);
+          return {
+            key: p.key,
+            name: p.name,
+            scopes: p.scopes ?? [],
+            hasSecret,
+            connected,
+            account: account ? { id: account.id, displayName: account.displayName } : undefined,
+          };
+        });
+        return json(res, providers);
+      }
+
+      // Start OAuth flow for a provider — registers a pending flow and
+      // returns { authUrl, state }. The browser popup opens authUrl,
+      // bounces through /__tools/oauth/callback, and the registry runs
+      // our onCode closure (exchange + persist + broadcast).
+      const startMatch = path.match(/^\/api\/providers\/([^/]+)\/start$/);
+      if (startMatch && method === 'POST') {
+        const providerKey = decodeURIComponent(startMatch[1]);
+        const provider = sim.externalAuth.getProvider(providerKey);
+        if (!provider) return json(res, { error: `Unknown provider "${providerKey}"` }, 404);
+        if (!sim.externalAuth.hasSecret(providerKey)) {
+          return json(res, {
+            error: `No client secret for "${providerKey}". Set it via \`forge-sim auth --provider ${providerKey} --secret\` and restart dev.`,
+          }, 400);
+        }
+
+        const { state, redirectUri, promise } = getOAuthCallbackRegistry().register({
+          providerKey,
+          onCode: async (code) => {
+            const token = await sim.externalAuth.exchangeCode(providerKey, code, redirectUri);
+            if (!token) {
+              throw new Error('Token exchange returned no token.');
+            }
+            // Persist to disk under the default account, if appDir is wired.
+            if (options.appDir) {
+              try {
+                const creds = await loadCredentials(options.appDir);
+                const account = getDefaultAccount(creds);
+                if (account) {
+                  setThirdPartyToken(creds, account.id, providerKey, token);
+                  await saveCredentials(creds, { local: options.appDir });
+                }
+              } catch (err: any) {
+                console.warn(`[forge-sim] Token persisted in memory but failed to save to disk: ${err.message}`);
+              }
+            }
+            // Push to connected Tools UI tabs so they re-render the panel.
+            options.broadcastStateChange?.('providerConnected', { providerKey });
+          },
+        });
+
+        // Don't await the promise here — the callback fires later. But we
+        // do want to surface unhandled rejections so they don't crash the
+        // process when the flow times out or the user aborts.
+        promise.catch(() => { /* logged in the registry's onCode */ });
+
+        const authUrl = sim.externalAuth.buildAuthorizationUrl(providerKey, redirectUri, state);
+        if (!authUrl) {
+          getOAuthCallbackRegistry().cancelAll('Auth URL build failed');
+          return json(res, { error: 'Could not build authorization URL. Check manifest remotes.' }, 500);
+        }
+        return json(res, { authUrl, state, redirectUri });
+      }
+
+      // Disconnect — clear the stored token (in-memory + on-disk).
+      const deleteMatch = path.match(/^\/api\/providers\/([^/]+)$/);
+      if (deleteMatch && method === 'DELETE') {
+        const providerKey = decodeURIComponent(deleteMatch[1]);
+        if (!sim.externalAuth.getProvider(providerKey)) {
+          return json(res, { error: `Unknown provider "${providerKey}"` }, 404);
+        }
+        sim.externalAuth.revokeToken(providerKey);
+        if (options.appDir) {
+          try {
+            const creds = await loadCredentials(options.appDir);
+            const account = getDefaultAccount(creds);
+            if (account && creds.thirdParty[account.id]) {
+              delete creds.thirdParty[account.id][providerKey];
+              await saveCredentials(creds, { local: options.appDir });
+            }
+          } catch (err: any) {
+            console.warn(`[forge-sim] Token cleared in memory but failed to update disk: ${err.message}`);
+          }
+        }
+        options.broadcastStateChange?.('providerDisconnected', { providerKey });
+        return json(res, { success: true });
       }
 
       // ── 404 ────────────────────────────────────────────────────────

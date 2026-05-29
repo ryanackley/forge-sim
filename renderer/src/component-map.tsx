@@ -565,6 +565,10 @@ export const COMPONENT_MAP: Record<string, ComponentRenderer> = {
     <Textfield
       name={props.name}
       placeholder={props.placeholder}
+      // defaultValue makes the underlying <input> initialize with the
+      // declared value — required so inline macro config Save's FormData
+      // harvest actually picks it up.
+      defaultValue={props.defaultValue}
       value={props.value}
       isDisabled={props.isDisabled}
       onChange={props.onChange}
@@ -574,6 +578,7 @@ export const COMPONENT_MAP: Record<string, ComponentRenderer> = {
     <TextArea
       name={props.name}
       placeholder={props.placeholder}
+      defaultValue={props.defaultValue}
       value={props.value}
       isDisabled={props.isDisabled}
       onChange={props.onChange}
@@ -581,8 +586,18 @@ export const COMPONENT_MAP: Record<string, ComponentRenderer> = {
   ),
   Select: (props) => (
     <Select
+      // Pass declared name so the tree-walk fallback in inline-config Save
+      // can still find this field even though Atlaskit Select doesn't
+      // expose [name] on a real input element for FormData.
+      name={props.name}
       options={props.options ?? []}
       placeholder={props.placeholder}
+      defaultValue={
+        props.defaultValue !== undefined && Array.isArray(props.options)
+          ? (props.options as Array<{ value: unknown }>)
+              .find((o) => o.value === props.defaultValue) ?? props.defaultValue
+          : undefined
+      }
       value={props.value}
       onChange={props.onChange}
       isMulti={props.isMulti}
@@ -840,8 +855,28 @@ export const COMPONENT_MAP: Record<string, ComponentRenderer> = {
   TabPanel: (_props, children) => <TabPanel>{children}</TabPanel>,
 
   // ── Modal ───────────────────────────────────────────────────────────
+  // Real Forge: when `title` is supplied, the platform automatically renders
+  // a ModalHeader containing a ModalTitle (per @atlaskit/forge-react-types
+  // ModalProps.codegen). Per Forge docs: "If supplied, we will render a
+  // ModalHeader with a ModalTitle for them." We mirror that here so headless
+  // tests + the dev server both surface the title text.
   Modal: (props, children) => (
-    <Modal onClose={props.onClose}>{children}</Modal>
+    <Modal
+      onClose={props.onClose}
+      width={props.width}
+      height={props.height}
+      shouldScrollInViewport={props.shouldScrollInViewport}
+      autoFocus={props.autoFocus}
+      label={props.label}
+      testId={props.testId}
+    >
+      {props.title && (
+        <ModalHeader>
+          <ModalTitle>{props.title}</ModalTitle>
+        </ModalHeader>
+      )}
+      {children}
+    </Modal>
   ),
   ModalHeader: (_props, children) => <ModalHeader>{children}</ModalHeader>,
   ModalTitle: (_props, children) => <ModalTitle>{children}</ModalTitle>,
@@ -1049,26 +1084,127 @@ export const COMPONENT_MAP: Record<string, ComponentRenderer> = {
     </PopupWrapper>
   ),
 
-  Comment: (props, children, _doc, renderChild) => (
-    <div style={{
-      border: '1px solid #DFE1E6', borderRadius: '3px', padding: '12px 16px', margin: '4px 0',
-      background: '#fff',
-    }}>
-      {props.author && (
-        <div style={{ fontWeight: 600, fontSize: '14px', marginBottom: '4px', color: '#172B4D' }}>
-          {props.author}
+  // Comment per @atlaskit/forge-react-types CommentProps.codegen:
+  //   - author?: string | { text: string, onClick? }
+  //   - time?:   string | { text: string, onClick? }
+  //   - edited?: string  (italic next to time/author per Atlaskit's Comment)
+  //   - actions?, errorActions?: Array<{ text: string, onClick? }>
+  //   - type?:   string  (renders as a Lozenge before the content)
+  //   - restrictedTo?: string  (label before the main content)
+  //   - savingText?: string + isSaving?: boolean (optimistic-saving indicator)
+  // Per docs author/time are documented as object form; our renderer also
+  // accepts plain string for ergonomic backward-compat.
+  Comment: (props, children, _doc, renderChild) => {
+    const extractText = (v: unknown): string | undefined => {
+      if (typeof v === 'string') return v;
+      if (v && typeof v === 'object' && typeof (v as { text?: unknown }).text === 'string') {
+        return (v as { text: string }).text;
+      }
+      return undefined;
+    };
+    const extractClick = (v: unknown): (() => void) | undefined => {
+      if (v && typeof v === 'object' && typeof (v as { onClick?: unknown }).onClick === 'function') {
+        return (v as { onClick: () => void }).onClick;
+      }
+      return undefined;
+    };
+
+    const authorText = extractText(props.author);
+    const authorOnClick = extractClick(props.author);
+    const timeText = extractText(props.time);
+    const timeOnClick = extractClick(props.time);
+    const editedText: string | undefined = typeof props.edited === 'string' ? props.edited : undefined;
+
+    const actions = Array.isArray(props.actions) ? props.actions : [];
+    const errorActions = Array.isArray(props.errorActions) ? props.errorActions : [];
+    const visibleActions = props.isError ? errorActions : actions;
+
+    return (
+      <div style={{
+        border: '1px solid #DFE1E6', borderRadius: '3px', padding: '12px 16px', margin: '4px 0',
+        background: '#fff',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+          {props.type && (
+            <span style={{
+              fontSize: '11px', fontWeight: 700, padding: '2px 6px', borderRadius: '3px',
+              background: '#EAE6FF', color: '#403294', textTransform: 'uppercase',
+            }}>
+              {props.type}
+            </span>
+          )}
+          {props.restrictedTo && (
+            <span style={{ fontSize: '12px', color: '#6B778C' }}>
+              {props.restrictedTo}
+            </span>
+          )}
+          {authorText && (
+            authorOnClick ? (
+              <button
+                onClick={authorOnClick}
+                style={{
+                  background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+                  fontWeight: 600, fontSize: '14px', color: '#0052CC',
+                }}
+              >
+                {authorText}
+              </button>
+            ) : (
+              <span style={{ fontWeight: 600, fontSize: '14px', color: '#172B4D' }}>
+                {authorText}
+              </span>
+            )
+          )}
+          {timeText && (
+            timeOnClick ? (
+              <button
+                onClick={timeOnClick}
+                style={{
+                  background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+                  fontSize: '12px', color: '#6B778C',
+                }}
+              >
+                {timeText}
+              </button>
+            ) : (
+              <span style={{ fontSize: '12px', color: '#6B778C' }}>
+                {timeText}
+              </span>
+            )
+          )}
+          {editedText && (
+            <span style={{ fontSize: '12px', color: '#6B778C', fontStyle: 'italic' }}>
+              {editedText}
+            </span>
+          )}
         </div>
-      )}
-      <div style={{ fontSize: '14px', color: '#172B4D' }}>
-        {children.map((child, i) => renderChild(child, i))}
+        <div style={{ fontSize: '14px', color: '#172B4D' }}>
+          {children.map((child, i) => renderChild(child, i))}
+        </div>
+        {props.isSaving && props.savingText && (
+          <div style={{ fontSize: '12px', color: '#6B778C', marginTop: '4px', fontStyle: 'italic' }}>
+            {props.savingText}
+          </div>
+        )}
+        {visibleActions.length > 0 && (
+          <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
+            {visibleActions.map((action: { text: string; onClick?: () => void }, i: number) => (
+              <button
+                key={i}
+                onClick={action.onClick}
+                style={{
+                  background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+                  fontSize: '13px', color: props.isError ? '#DE350B' : '#0052CC',
+                }}
+              >
+                {action.text}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
-      {props.time && (
-        <div style={{ fontSize: '12px', color: '#6B778C', marginTop: '4px' }}>
-          {props.time}
-        </div>
-      )}
-    </div>
-  ),
+    );
+  },
 
   AdfRenderer: (props) => {
     const doc = typeof props.document === 'string' ? JSON.parse(props.document) : props.document;

@@ -122,12 +122,13 @@ const tasks = await response.json();
 import { invokeRemote, requestRemote } from '@forge/bridge';
 
 // invokeRemote — uses the module's endpoint for resolution
-// Returns { success, payload } envelope
+// Returns a flat response object: { status, statusText, headers, body }
 const result = await invokeRemote({
   path: '/tasks',
   method: 'GET',
 });
-// result.payload.body = [{ id: 1, name: 'Write docs' }]
+// result.body = [{ id: 1, name: 'Write docs' }]
+// result.status, result.statusText, result.headers are also available
 
 // requestRemote — direct call to a specific remote
 // Returns a Response-like object
@@ -140,8 +141,30 @@ const data = await response.json();
 ```
 
 **Key difference:**
-- `invokeRemote` resolves through the module's endpoint (route prefix applied, returns envelope)
+- `invokeRemote` resolves through the module's endpoint (route prefix applied, returns a flat response object — the `{ success, payload }` envelope from the underlying transport is unwrapped automatically)
 - `requestRemote` calls a remote directly by key (no endpoint resolution, returns Response)
+
+### Endpoint resolution rules
+
+`invokeRemote()` figures out which endpoint to call in this order:
+
+1. **From module context** — when the call originates inside a UI module whose manifest has `resolver.endpoint: <key>`, that key is used automatically. No argument needed.
+2. **Single-endpoint auto-resolve** — when there's no module context (e.g. you're calling from an MCP-driven invoke or a test helper) and the manifest declares **exactly one** endpoint, forge-sim picks that endpoint and logs a notice. This is the parity rule: an unambiguous app should "just work" without ceremony.
+3. **Explicit failure** — when neither rule applies, the call throws with a message that lists every endpoint declared in the manifest:
+
+   ```
+   invokeRemote requires an endpoint key. The calling module must have
+   resolver.endpoint configured in the manifest.
+   Available endpoints: my-endpoint, analytics-endpoint
+   ```
+
+If you pass an endpoint key that isn't in the manifest, you get:
+
+```
+Unknown endpoint "typo-endpoint". Available endpoints: my-endpoint, analytics-endpoint
+```
+
+Endpoint keys are scoped to the app, not to a particular module — a module without `resolver.endpoint` in its own manifest entry still falls back to the single-endpoint auto-resolve rule when there's only one to choose.
 
 ---
 
@@ -232,6 +255,8 @@ Every remote request includes these headers (matching the [Forge Remote Invocati
 | `x-b3-spanid` | 64-bit hex span ID |
 | `x-forge-oauth-system` | System token placeholder (if `appSystemToken.enabled`) |
 | `x-forge-oauth-user` | User token placeholder (if `appUserToken.enabled`) |
+
+The system/user token headers map directly from the manifest's `auth` block. An endpoint-level `auth` overrides the remote-level setting, so you can declare `appSystemToken.enabled: true` on the remote and disable it for a specific endpoint, or vice-versa. The header values are placeholders in dev (forge-sim doesn't mint real OAuth tokens for the impersonated principal) but the **presence/absence** of the header matches production — useful for testing backends that branch on whether the header is set.
 
 ---
 

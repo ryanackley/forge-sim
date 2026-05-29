@@ -1,0 +1,16 @@
+app:
+  id: ari:cloud:ecosystem::app/useform-textfield-test
+  name: useForm Textfield Test
+  runtime:
+    name: nodejs22.x
+
+modules:
+  jira:globalPage:
+    - key: form-page
+      resource: main
+      render: native
+      title: Form Test
+
+resources:
+  - key: main
+    path: src/index.tsx

@@ -151,17 +151,45 @@ type AppEventPublishResult =
   | { type: 'success'; failedEvents: AppEventPublishFailure[] }
   | { type: 'error'; errorType: string; errorMessage: string };
 
+/**
+ * Extract the UUID portion from a full app ARI.
+ *
+ * Real Forge `app.id` in the manifest is the full ARI string:
+ *   ari:cloud:ecosystem::app/d9022ad7-c220-4836-b1d1-7f9f2c633d3a
+ *
+ * Custom app event AVIs require just the UUID portion. Returns the substring
+ * after the last `/`. If the input has no `/`, returns the whole string —
+ * tolerant of legacy/test fixtures that use a short id.
+ *
+ * @internal Exported for tests. Do not use from app code.
+ */
+export function extractAppIdUuid(appAri: string | undefined): string {
+  if (!appAri) return 'unknown';
+  const slash = appAri.lastIndexOf('/');
+  return slash >= 0 ? appAri.slice(slash + 1) : appAri;
+}
+
 const appEvents = {
   /**
    * Publish custom app events. In forge-sim, this fires matching triggers
-   * in the same app by expanding the key to `avi:forge:<appId>:<key>`.
+   * in the same app by expanding the key to the canonical AVI format:
    *
-   * If no appId is set in the manifest, falls back to `avi:forge:unknown:<key>`.
+   *   avi:cloud:ecosystem::event/<app-uuid>/<key>
+   *
+   * The `<app-uuid>` is extracted from `manifest.app.id` (which is the full
+   * ARI: `ari:cloud:ecosystem::app/<uuid>`).
+   *
+   * If `app.id` is missing, falls back to `avi:cloud:ecosystem::event/unknown/<key>`.
+   *
+   * Per Forge docs, publishing apps can't add custom payload — the trigger
+   * handler receives only the platform-generated event metadata.
+   *
+   * @see https://developer.atlassian.com/platform/forge/events-reference/app-events/
    */
   async publish(events: AppEvent | AppEvent[]): Promise<AppEventPublishResult> {
     const sim = getSimulator();
     const manifest = sim.getManifest();
-    const appId = manifest?.raw.app?.id ?? 'unknown';
+    const appUuid = extractAppIdUuid(manifest?.raw.app?.id);
     const cloudId = 'sim-cloud-001';
 
     const eventsArray = Array.isArray(events) ? events : [events];
@@ -173,10 +201,16 @@ const appEvents = {
         continue;
       }
 
-      const fullEventName = `avi:forge:${appId}:${evt.key}`;
+      // Canonical Forge AVI format for custom app events.
+      // NOTE: NOT `avi:forge:<...>` — that prefix is reserved for app lifecycle
+      // events (avi:forge:installed:app, avi:forge:upgraded:app, etc).
+      const fullEventName = `avi:cloud:ecosystem::event/${appUuid}/${evt.key}`;
 
-      // Build the platform-generated event payload that the trigger handler receives.
-      // Per Forge docs, the handler gets this shape — publishing apps can't add custom payload.
+      // Platform-generated payload shape that the trigger handler receives.
+      // Per Forge docs, publishing apps can't add custom payload.
+      // TODO: when forge-sim parses the `event` module from the manifest, set
+      // `name` to the event module's human-readable `name` field. For now we
+      // fall back to the key.
       const eventPayload: Record<string, unknown> = {
         workspaceId: `ari:cloud:jira::site/${cloudId}`,
         eventType: fullEventName,

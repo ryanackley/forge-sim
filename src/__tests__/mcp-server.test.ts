@@ -106,8 +106,8 @@ describe('MCP Server Integration', () => {
       expect(value).toEqual({ hello: 'world' });
     });
 
-    it('should reset all state', () => {
-      sim.reset();
+    it('should reset all state', async () => {
+      await sim.reset();
       expect(sim.kvs.size).toBe(0);
       expect(sim.getLogs()).toHaveLength(0);
       expect(sim.getConsoleLogs()).toHaveLength(0);

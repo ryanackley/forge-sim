@@ -1,0 +1,11 @@
+{
+  "name": "forge-sim",
+  "description": "Local-first Forge app development workflow. Includes the forge-local-dev skill for iterating on Forge apps without cloud round-trip via forge-sim's MCP server. Designed to chain with Atlassian's forge-skills plugin: forge-app-builder owns scaffolding, this plugin owns iterate-and-test, forge-app-review owns pre-deploy audit.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Ryan Ackley"
+  },
+  "license": "Apache-2.0",
+  "keywords": ["forge", "atlassian", "jira", "confluence", "testing", "simulator", "mcp", "skills"],
+  "skills": ["./skills/"]
+}

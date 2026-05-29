@@ -117,8 +117,8 @@ describe('SimulatedLLM', () => {
       ]);
     });
 
-    it('supports mockResponses_ for batch queuing', async () => {
-      llm.mockResponses_(
+    it('supports mockResponses for batch queuing', async () => {
+      llm.mockResponses(
         { content: 'A' },
         { content: 'B' },
         { content: 'C' },

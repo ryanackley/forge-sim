@@ -387,12 +387,20 @@ export class UnifiedKVS {
 
     if (body.where && body.where.length > 0) {
       for (const cond of body.where) {
-        if (cond.condition) {
+        // Simple KVS query supports BEGINS_WITH only — real @forge/kvs
+        // declares `where(property: 'key', condition: WhereClause)` where
+        // `WhereClause = BeginsWithClause`. Any other condition is a
+        // parity violation, so reject it instead of silently behaving
+        // differently from the cloud runtime.
+        if (cond.condition && cond.condition !== 'BEGINS_WITH') {
+          throw new Error(
+            `KVS query .where('key', ...) only supports WhereConditions.beginsWith. ` +
+            `Got: ${cond.condition}. For other comparisons use kvs.entity('Name').query() ` +
+            `against an index instead.`
+          );
+        }
+        if (cond.condition === 'BEGINS_WITH') {
           entries = entries.filter(e => matchCondition(e.key, cond));
-        } else if (cond.beginsWith !== undefined) {
-          entries = entries.filter(e => e.key.startsWith(cond.beginsWith));
-        } else if (cond.equalsTo !== undefined) {
-          entries = entries.filter(e => e.key === cond.equalsTo);
         }
       }
     }
@@ -823,13 +831,25 @@ export class KVSQueryBuilder {
 
   where(
     field: 'key',
-    condition: { beginsWith: string } | { equalsTo: string }
+    condition: { condition: string; values: any[] }
   ): this {
-    if ('beginsWith' in condition) {
-      this.conditions.push({ field, condition: 'beginsWith', value: condition.beginsWith });
-    } else {
-      this.conditions.push({ field, condition: 'equalsTo', value: condition.equalsTo });
+    // Real @forge/kvs declares `WhereClause = BeginsWithClause` for simple
+    // KVS queries — runtime-validate to match. Other comparisons belong on
+    // entity-store indexes (kvs.entity('Name').query()).
+    if (!condition || typeof condition !== 'object' || !('condition' in condition)) {
+      throw new Error(
+        `kvs.query().where('key', clause) requires a clause from WhereConditions ` +
+        `(e.g. WhereConditions.beginsWith('prefix')). Got: ${JSON.stringify(condition)}`
+      );
     }
+    if (condition.condition !== 'BEGINS_WITH') {
+      throw new Error(
+        `kvs.query().where('key', ...) only supports WhereConditions.beginsWith. ` +
+        `Got: ${condition.condition}. For other comparisons use ` +
+        `kvs.entity('Name').query() against an index instead.`
+      );
+    }
+    this.conditions.push({ field, condition: 'BEGINS_WITH', value: condition.values[0] });
     return this;
   }
 
@@ -852,11 +872,13 @@ export class KVSQueryBuilder {
     let keys = [...this.store.keys()];
 
     for (const cond of this.conditions) {
-      if (cond.condition === 'beginsWith') {
+      if (cond.condition === 'BEGINS_WITH') {
         keys = keys.filter((k) => k.startsWith(cond.value));
-      } else if (cond.condition === 'equalsTo') {
-        keys = keys.filter((k) => k === cond.value);
       }
+      // No other conditions are valid here — `where()` already rejected
+      // them. Defensive default: drop unknown conditions silently rather
+      // than throwing from getMany() (which would hide where the bad
+      // input came from).
     }
 
     keys.sort();
@@ -891,10 +913,22 @@ export class KVSQueryBuilder {
 }
 
 // ── Condition helpers (re-exported for @forge/kvs API compat) ─────────
+//
+// Canonical clause shape, matching real @forge/kvs:
+//   { condition: 'SCREAMING_SNAKE', values: [...] }
+//
+// Tests can also import these from 'forge-sim' directly; the shim at
+// src/shims/forge-kvs.ts exposes the identical helpers as `@forge/kvs`
+// for app code running through the loader.
 
 export const WhereConditions = {
-  beginsWith: (prefix: string) => ({ beginsWith: prefix }),
-  equalsTo: (value: string) => ({ equalsTo: value }),
+  beginsWith: (value: string | number) => ({ condition: 'BEGINS_WITH', values: [value] }),
+  between: <T extends string | number>(first: T, second: T) => ({ condition: 'BETWEEN', values: [first, second] }),
+  equalTo: (value: string | number | boolean) => ({ condition: 'EQUAL_TO', values: [value] }),
+  greaterThan: (value: string | number) => ({ condition: 'GREATER_THAN', values: [value] }),
+  greaterThanEqualTo: (value: string | number) => ({ condition: 'GREATER_THAN_EQUAL_TO', values: [value] }),
+  lessThan: (value: string | number) => ({ condition: 'LESS_THAN', values: [value] }),
+  lessThanEqualTo: (value: string | number) => ({ condition: 'LESS_THAN_EQUAL_TO', values: [value] }),
 };
 
 // ── Entity API (kvs.entity('Name')) ───────────────────────────────────

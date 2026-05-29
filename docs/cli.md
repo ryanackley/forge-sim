@@ -21,6 +21,7 @@ forge-sim dev [appDir]
 | `--space <key>` | — | Set Confluence space context (e.g., `SPACEKEY`) |
 | `--project <key>` | — | Set Jira project context (e.g., `PROJ`) — hydrates via real API if connected |
 | `--context <json>` | — | Set raw context JSON (merged into `extension`) |
+| `--strict-mode` | off | Enable React.StrictMode (off by default — breaks Atlaskit portals) |
 
 **What starts:**
 - Dev server at `http://localhost:5173` (app preview — Vite for UIKit/Custom UI, reverse proxy with `--proxy`)
@@ -229,15 +230,14 @@ forge-sim serve [--port=N]
 Manage Atlassian account credentials. See [Authentication](./auth.md) for details.
 
 ```bash
-# Atlassian accounts
-forge-sim auth              # Add account (interactive)
+# Atlassian accounts (PAT only — OAuth was removed)
+forge-sim auth              # Add account (interactive PAT flow)
 forge-sim auth --list       # List configured accounts
 forge-sim auth --remove ID  # Remove a specific account
-forge-sim auth --clear      # Remove all accounts (keeps OAuth config)
-forge-sim auth --clear-all  # Remove everything
-forge-sim auth --oauth      # Add account via OAuth browser flow
-forge-sim auth --setup      # Configure OAuth app (Client ID/Secret)
+forge-sim auth --clear      # Remove all accounts (service config preserved)
+forge-sim auth --clear-all  # Remove credentials AND service config
 forge-sim auth --local      # Store credentials per-app instead of global
+forge-sim auth --llm        # Configure Anthropic API key (for @forge/llm)
 
 # External auth providers (third-party OAuth)
 forge-sim auth --provider google          # OAuth dance for a specific provider

@@ -1,10 +1,8 @@
 # Authentication
 
-forge-sim can connect to real Atlassian APIs so `requestJira()`, `requestConfluence()`, and `requestBitbucket()` return live data from your site.
+forge-sim can connect to real Atlassian APIs so `requestJira()`, `requestConfluence()`, and `requestBitbucket()` return live data from your site. External providers (Google, GitHub, Slack, …) are also supported via OAuth.
 
-## API Token (recommended)
-
-The simplest way to connect. Takes about 30 seconds:
+## Atlassian (PAT only)
 
 ```bash
 forge-sim auth
@@ -15,47 +13,41 @@ You'll be prompted for:
 2. **Email** — your Atlassian account email
 3. **API token** — create one at [id.atlassian.com/manage-profile/security/api-tokens](https://id.atlassian.com/manage-profile/security/api-tokens)
 
-forge-sim validates your credentials by calling `/rest/api/3/myself` and automatically detects your Cloud ID.
+forge-sim validates by calling `/rest/api/3/myself` and detects your Cloud ID automatically. The token is stored in `~/.forge-sim/credentials.json` (mode `0600`).
 
-## OAuth 2.0 (multi-user testing)
+> **Atlassian OAuth was removed.** PAT setup is 30s; OAuth was a 5-minute developer-app registration dance whose only unique capability was scope-restricted tokens, which forge-sim doesn't enforce locally. Multi-user testing is solved by multiple PATs (one per user/account).
+>
+> If you have a legacy `authType: 'oauth'` account in `~/.forge-sim/credentials.json`, the next `forge-sim auth` run drops it with a warning. Re-add as a PAT.
 
-For testing with multiple user accounts or specific permission scopes:
+### Auth header
 
-```bash
-# First time: register your OAuth app
-forge-sim auth --setup
-
-# Then add accounts via browser-based OAuth
-forge-sim auth --oauth
+```
+Authorization: Basic base64(email:token)
 ```
 
-**OAuth app setup:**
-1. Go to [developer.atlassian.com/console/myapps](https://developer.atlassian.com/console/myapps/)
-2. Create an OAuth 2.0 (3LO) app
-3. Set callback URL: `http://localhost:5173/__tools/oauth/callback`
-4. Add Jira and/or Confluence API permissions
-5. Copy Client ID and Secret into `forge-sim auth --setup`
+PAT requests go straight to `https://{site}/...` — no `api.atlassian.com` gateway involved. GraphQL hits `{site}/gateway/api/graphql`.
 
-## Managing Accounts
+## Managing accounts
 
 ```bash
-forge-sim auth              # Add account or switch default
-forge-sim auth --list       # List all configured accounts
-forge-sim auth --remove ID  # Remove a specific account
-forge-sim auth --clear      # Remove all accounts (keeps OAuth app config)
-forge-sim auth --clear-all  # Remove everything (accounts + OAuth app config)
-forge-sim auth --local      # Store credentials per-app instead of global
+forge-sim auth                # Add account or switch default
+forge-sim auth --list         # List configured accounts + LLM key status
+forge-sim auth --remove ID    # Remove a specific account
+forge-sim auth --clear        # Remove all credentials (service config preserved)
+forge-sim auth --clear-all    # Remove credentials AND service config
+forge-sim auth --local        # Store credentials per-app instead of global
+forge-sim auth --llm          # Configure Anthropic API key (for @forge/llm)
 ```
 
-## How It Works
+## How it works
 
-When `forge-sim dev` starts, it checks for stored credentials and automatically connects:
+When `forge-sim dev` starts, it loads stored credentials and connects automatically:
 
 ```
 📡 Connected to real APIs as Ryan Ackley @ mysite.atlassian.net
 ```
 
-If no credentials exist, it falls back to mock APIs:
+If no credentials exist, mock APIs are used:
 
 ```
 📡 No Atlassian accounts — using mock APIs
@@ -70,43 +62,66 @@ sim.mockProductRoutes('jira', {
 });
 ```
 
-## Credential Storage
+## Credential storage
 
 | File | Contents |
 |------|----------|
-| `~/.forge-sim/config.json` | OAuth app config (Client ID/Secret) |
-| `~/.forge-sim/credentials.json` | User accounts and tokens |
-| `<app>/.forge-sim/credentials.json` | Per-app override (with `--local`) |
+| `~/.forge-sim/credentials.json` | Atlassian PAT accounts + third-party tokens (`0600`) |
+| `~/.forge-sim/config.json` | Service config (Anthropic API key, future settings) |
+| `<app>/.forge-sim/credentials.json` | Per-app override (`--local`) |
+| `<app>/.forge-sim/providers.json` | External provider client secrets (`0600`) |
 
-All credential files are created with `0600` permissions (owner read/write only).
+Add `.forge-sim/` to your `.gitignore`.
+
+## Environment variables
+
+For CI/CD or non-interactive environments:
+
+```bash
+export FORGE_SIM_SITE=mysite.atlassian.net
+export FORGE_SIM_EMAIL=user@example.com
+export FORGE_SIM_PAT=ATATT3x...
+```
+
+Per-provider third-party tokens:
+
+```bash
+export FORGE_SIM_PROVIDER_GOOGLE_APIS_TOKEN=ya29.your-test-token
+# Convention: FORGE_SIM_PROVIDER_<KEY_UPPERCASE_WITH_UNDERSCORES>_TOKEN
+```
+
+Anthropic key (for `@forge/llm`):
+
+```bash
+export ANTHROPIC_API_KEY=sk-ant-...
+```
+
+---
 
 ## External Auth (Third-Party OAuth)
 
-Forge apps can authenticate with external APIs (Google, GitHub, Slack, etc.) using OAuth 2.0 via `asUser().withProvider()`. forge-sim supports this through three modes:
+Forge apps can authenticate with external APIs (Google, GitHub, Slack, …) using OAuth 2.0 via `asUser().withProvider()` / `asApp().withProvider()`. forge-sim supports three modes.
 
-### Mock Mode (default)
+### 1. Mock mode (default)
 
-No tokens needed. Use mock routes to simulate external API responses:
+No tokens needed. Mock the route by its remote name:
 
 ```typescript
 sim.mockProductRoutes('google-apis', {
   'GET /userinfo/v2/me': { id: '12345', email: 'test@gmail.com' },
 });
 
-// In your app code:
+// In app code:
 const response = await api.asUser()
   .withProvider('google', 'google-apis')
   .fetch('/userinfo/v2/me');
 ```
 
-The remote name from your manifest (`google-apis`) is the mock route key. Same mock system as `requestJira()`.
+### 2. Token mode (manual)
 
-### Token Mode (manual)
-
-Set a token directly (e.g., from a provider's dev console) and forge-sim injects it as a Bearer header on real HTTP requests:
+Set a token directly — useful for dev tokens from a provider's console:
 
 ```typescript
-// Via the simulator
 sim.externalAuth.setToken('google', {
   provider: 'google',
   accessToken: 'ya29.your-test-token',
@@ -115,35 +130,54 @@ sim.externalAuth.setToken('google', {
 });
 ```
 
-Or set tokens via the CLI before running:
+Or via the CLI:
 
 ```bash
 forge-sim auth --provider google
 ```
 
-### Live OAuth Mode
+### 3. Live OAuth mode
 
-Run the full OAuth 3LO dance against the provider's real endpoints (read from your `manifest.yml`):
+Run the full 3LO dance against the provider's real endpoints (read from `manifest.yml`).
+
+**Via the Tools UI (recommended when `forge-sim dev` is running):**
+
+1. Open `http://localhost:5173/__tools/` and click the **Providers** tab
+2. Click **Connect** on a provider — a popup opens the provider's auth URL
+3. After the user grants access, the popup bounces through `/__tools/oauth/callback`, auto-closes, and the panel updates via WebSocket to show ✓ Connected
+4. The token is persisted to `~/.forge-sim/credentials.json` under the default Atlassian account
+
+**Via the CLI (when dev isn't running):**
 
 ```bash
-# Set up the client secret (one-time per provider)
+# Set the client secret once per provider (stored in <app>/.forge-sim/providers.json)
 forge-sim auth --provider google --secret
 
-# Authorize (opens browser, handles callback)
+# Authorize — spins up a minimal callback host on port 5173, opens the browser
 forge-sim auth --provider google
 
-# Authorize all providers in the manifest at once
+# Authorize all manifest providers
 forge-sim auth --providers
 
-# Check auth status for all providers
+# Check status
 forge-sim auth --providers --list
 ```
 
-This reads the `providers.auth` and `remotes` sections from your manifest to build the authorization URL, exchange tokens, and retrieve profiles — exactly like Forge does in production.
+If `forge-sim dev` is already running on 5173, the CLI exits with a clear error and points at the Tools UI Providers panel — both flows would otherwise race for the same port.
 
-### Manifest Configuration
+### Unified callback URL
 
-forge-sim reads provider config directly from your `manifest.yml`:
+Every external provider uses the same redirect URI:
+
+```
+http://localhost:5173/__tools/oauth/callback
+```
+
+Set this in each provider's developer console. The callback is dispatched to the right pending flow by the `state` parameter — multiple concurrent flows (e.g. two browser tabs, two providers) settle independently.
+
+### Manifest configuration
+
+forge-sim reads provider config directly from `manifest.yml`:
 
 ```yaml
 providers:
@@ -181,16 +215,16 @@ remotes:
     baseUrl: https://oauth2.googleapis.com
 ```
 
-### Provider Credential Storage
+### Provider credential storage
 
 | File | Contents |
 |------|----------|
 | `<app>/.forge-sim/providers.json` | Provider client secrets (per-project, `0600`) |
-| `<app>/.forge-sim/credentials.json` | Third-party tokens (in `thirdParty` field) |
+| `~/.forge-sim/credentials.json` | Third-party tokens (in the `thirdParty` field, keyed by account) |
 
-Provider secrets are always per-project because `clientId` comes from the manifest (which varies per app). Add `.forge-sim/` to your `.gitignore`.
+Provider secrets are per-project because `clientId` comes from the manifest, which varies per app.
 
-### Priority Order
+### Priority order
 
 When `withProvider().fetch()` is called:
 
@@ -200,17 +234,6 @@ When `withProvider().fetch()` is called:
 
 This means you can mock specific endpoints while using real tokens for everything else.
 
-## Environment Variables
+### Token refresh (external providers)
 
-For CI/CD or non-interactive environments:
-
-```bash
-# API Token
-export FORGE_SIM_SITE=mysite.atlassian.net
-export FORGE_SIM_EMAIL=user@example.com
-export FORGE_SIM_API_TOKEN=ATATT3x...
-
-# OAuth (alternative)
-export FORGE_SIM_OAUTH_CLIENT_ID=your-client-id
-export FORGE_SIM_OAUTH_CLIENT_SECRET=your-client-secret
-```
+External provider tokens with `expiresAt` and a `refreshToken` are refreshed automatically before each request via `ExternalAuthStore.ensureValidToken()`. The refresh action is read from the provider's manifest entry (`actions.refreshToken`). Tokens without expiry just keep working.

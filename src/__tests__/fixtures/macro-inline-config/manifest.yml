@@ -1,0 +1,17 @@
+modules:
+  macro:
+    - key: pet-card
+      title: Pet Card
+      resource: main
+      render: native
+      config: true
+
+resources:
+  - key: main
+    path: src/index.tsx
+
+app:
+  id: ari:cloud:ecosystem::app/macro-inline-config-test
+  name: Macro Inline Config Test
+  runtime:
+    name: nodejs22.x

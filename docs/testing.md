@@ -24,9 +24,11 @@ forge-sim lets you write fast, deterministic tests for your Forge app — resolv
   - [Trigger Tests](#trigger-tests)
   - [Queue / Consumer Tests](#queue--consumer-tests)
   - [Product API Mocking](#product-api-mocking)
+  - [Mocking @forge/llm](#mocking-forgellm)
   - [UIKit 2 Rendering](#uikit-2-rendering)
   - [View Events: submit, close, refresh](#view-events-submit-close-refresh)
 - [Tips](#tips)
+- [Common Gotchas](#common-gotchas)
 
 ---
 
@@ -41,23 +43,23 @@ Forge apps import packages like `@forge/api`, `@forge/resolver`, `@forge/kvs`, e
 ```ts
 // vitest.config.ts
 import { defineConfig } from 'vitest/config';
-import { resolve } from 'node:path';
 
-// Point to forge-sim's compiled shims
-const SHIMS = resolve(require.resolve('forge-sim'), '..', 'shims');
-
+// Aliases use forge-sim's "./shims/*" subpath exports — no path math needed.
+// Works on every Node version that supports exports maps (>=14.13).
 export default defineConfig({
   resolve: {
     alias: {
-      '@forge/resolver':           resolve(SHIMS, 'forge-resolver.js'),
-      '@forge/api':                resolve(SHIMS, 'forge-api.js'),
-      '@forge/kvs':                resolve(SHIMS, 'forge-kvs.js'),
-      '@forge/events':             resolve(SHIMS, 'forge-events.js'),
-      '@forge/react':              resolve(SHIMS, 'forge-react.js'),
-      '@forge/bridge':             resolve(SHIMS, 'forge-bridge.js'),
-      '@forge/jira-bridge':        resolve(SHIMS, 'forge-jira-bridge.js'),
-      '@forge/confluence-bridge':  resolve(SHIMS, 'forge-confluence-bridge.js'),
-      '@forge/dashboards-bridge':  resolve(SHIMS, 'forge-dashboards-bridge.js'),
+      '@forge/resolver':           'forge-sim/shims/forge-resolver',
+      '@forge/api':                'forge-sim/shims/forge-api',
+      '@forge/kvs':                'forge-sim/shims/forge-kvs',
+      '@forge/events':             'forge-sim/shims/forge-events',
+      '@forge/llm':                'forge-sim/shims/forge-llm',
+      '@forge/react':              'forge-sim/shims/forge-react',
+      '@forge/bridge':             'forge-sim/shims/forge-bridge',
+      '@forge/jira-bridge':        'forge-sim/shims/forge-jira-bridge',
+      '@forge/confluence-bridge':  'forge-sim/shims/forge-confluence-bridge',
+      '@forge/dashboards-bridge':  'forge-sim/shims/forge-dashboards-bridge',
+      '@forge/realtime':           'forge-sim/shims/forge-realtime',
     },
   },
   test: {
@@ -73,28 +75,28 @@ export default defineConfig({
 
 ```js
 // jest.config.js (or webpack.config.js resolve.alias)
-const path = require('path');
-const SHIMS = path.resolve(require.resolve('forge-sim'), '..', 'shims');
-
+// Aliases use forge-sim's "./shims/*" subpath exports — no path math needed.
 module.exports = {
   // Jest
   moduleNameMapper: {
-    '^@forge/resolver$':          path.resolve(SHIMS, 'forge-resolver.js'),
-    '^@forge/api$':               path.resolve(SHIMS, 'forge-api.js'),
-    '^@forge/kvs$':               path.resolve(SHIMS, 'forge-kvs.js'),
-    '^@forge/events$':            path.resolve(SHIMS, 'forge-events.js'),
-    '^@forge/react$':             path.resolve(SHIMS, 'forge-react.js'),
-    '^@forge/bridge$':            path.resolve(SHIMS, 'forge-bridge.js'),
-    '^@forge/jira-bridge$':       path.resolve(SHIMS, 'forge-jira-bridge.js'),
-    '^@forge/confluence-bridge$': path.resolve(SHIMS, 'forge-confluence-bridge.js'),
-    '^@forge/dashboards-bridge$': path.resolve(SHIMS, 'forge-dashboards-bridge.js'),
+    '^@forge/resolver$':          'forge-sim/shims/forge-resolver',
+    '^@forge/api$':               'forge-sim/shims/forge-api',
+    '^@forge/kvs$':               'forge-sim/shims/forge-kvs',
+    '^@forge/events$':            'forge-sim/shims/forge-events',
+    '^@forge/llm$':               'forge-sim/shims/forge-llm',
+    '^@forge/react$':             'forge-sim/shims/forge-react',
+    '^@forge/bridge$':            'forge-sim/shims/forge-bridge',
+    '^@forge/jira-bridge$':       'forge-sim/shims/forge-jira-bridge',
+    '^@forge/confluence-bridge$': 'forge-sim/shims/forge-confluence-bridge',
+    '^@forge/dashboards-bridge$': 'forge-sim/shims/forge-dashboards-bridge',
+    '^@forge/realtime$':          'forge-sim/shims/forge-realtime',
   },
 
   // Webpack (resolve.alias section)
   // resolve: {
   //   alias: {
-  //     '@forge/resolver': path.resolve(SHIMS, 'forge-resolver.js'),
-  //     '@forge/api':      path.resolve(SHIMS, 'forge-api.js'),
+  //     '@forge/resolver': 'forge-sim/shims/forge-resolver',
+  //     '@forge/api':      'forge-sim/shims/forge-api',
   //     // ... same pattern
   //   },
   // },
@@ -333,7 +335,7 @@ Fire trigger events and assert on side effects:
 
 ```ts
 it('handles issue created event', async () => {
-  const results = await sim.fireTrigger('avi:jira:issue:created', {
+  const results = await sim.fireTrigger('avi:jira:created:issue', {
     issue: {
       key: 'TEST-1',
       fields: { summary: 'Bug report', issuetype: { name: 'Bug' } },
@@ -405,6 +407,97 @@ it('handles empty search results', async () => {
   expect(result.issues).toHaveLength(0);
 });
 ```
+
+### Mocking @forge/llm
+
+If your app calls `@forge/llm` to talk to Claude, mock the responses with `sim.llm.mockResponse()` so tests stay offline and burn zero tokens.
+
+```ts
+import { describe, it, expect, beforeEach } from 'vitest';
+import { createSimulator, type ForgeSimulator } from 'forge-sim';
+
+let sim: ForgeSimulator;
+
+beforeEach(async () => {
+  sim = createSimulator();
+  await sim.deploy(APP_DIR);
+});
+
+it('summarizes an issue', async () => {
+  // Queue an LLM response — consumed FIFO on the next chat() call
+  sim.llm.mockResponse({ content: 'A 2-sentence summary of the issue.' });
+
+  const result = await sim.invoke('summarizeIssue', { issueKey: 'PROJ-1' });
+  expect(result.summary).toBe('A 2-sentence summary of the issue.');
+});
+```
+
+#### Queueing multiple responses
+
+For multi-turn agent flows or repeated calls, queue several mocks at once:
+
+```ts
+sim.llm.mockResponses(
+  { content: 'First response' },
+  { content: 'Second response' },
+  { content: 'Third response' },
+);
+```
+
+Responses are consumed FIFO — `mockResponses(a, b, c)` is equivalent to three separate `mockResponse()` calls.
+
+#### Asserting on what your code asked the LLM
+
+`sim.llm.getHistory()` returns the full `{ prompt, response }` list of calls the simulator has handled. Use it to assert on prompt content, tool calls, model choice, or that no call happened at all:
+
+```ts
+it('does not call the LLM when the cache is warm', async () => {
+  // ... seed the cache ...
+  await sim.invoke('summarizeIssue', { issueKey: 'PROJ-1' });
+
+  expect(sim.llm.getHistory()).toHaveLength(0);
+});
+
+it('feeds the issue title into the prompt', async () => {
+  sim.llm.mockResponse({ content: 'ok' });
+  await sim.invoke('summarizeIssue', { issueKey: 'PROJ-1' });
+
+  const calls = sim.llm.getHistory();
+  expect(calls).toHaveLength(1);
+  expect(JSON.stringify(calls[0].prompt.messages)).toContain('Fix login bug');
+});
+```
+
+#### Tool calls
+
+If your app uses Claude's tool-use API, mock the tool call directly:
+
+```ts
+sim.llm.mockResponse({
+  content: 'I need to look that up.',
+  tool_calls: [
+    {
+      id: 'call_1',
+      type: 'function',
+      index: 0,
+      function: { name: 'searchIssues', arguments: { query: 'auth bugs' } },
+    },
+  ],
+  finish_reason: 'tool_use',
+});
+```
+
+#### Resetting between tests
+
+`sim.reset()` clears queued mocks and history along with everything else. For finer control:
+
+```ts
+sim.llm.reset();  // clears mocks + history, leaves the rest of the sim alone
+```
+
+#### Real API fallthrough
+
+If no mock is queued **and** `ANTHROPIC_API_KEY` is set (via env or `forge-sim auth --llm`), the simulator forwards the call to the real Anthropic API. In CI you almost always want this to be impossible — either always queue a mock before every chat(), or unset the env var. When both are absent, `chat()` throws `LlmApiError(NO_API_KEY)` instead of silently doing nothing.
 
 ### UIKit 2 Rendering
 
@@ -695,3 +788,71 @@ expect(item).toBeUndefined();
 ```
 
 **`sim.stop()` cleans up everything.** It stops the MySQL process, clears state, and resets the global simulator reference. Always call it in `afterAll`.
+
+---
+
+## Common Gotchas
+
+The things that have eaten the most debugging time. Check here first when a test does something weird.
+
+### `useEffect` + `invoke()` returns the loading state
+
+`sim.ui.render()` only awaits the **initial** reconcile. If your component fetches data in a `useEffect` and re-renders when it lands, the rendered tree from `render()` is the pre-fetch state (`<Text>Loading…</Text>` or similar). Fix: chase it with `sim.ui.waitForContent(moduleKey, expectedText)` — that polls the tree until the substring shows up. Same applies to the MCP `forge.ui_render` tool; use `forge.ui_wait_for` to settle. See [renderer.md § Server-mode useEffect and async state](./renderer.md#server-mode-useeffect-and-async-state).
+
+### Don't wrap your Custom UI app in `React.StrictMode` with Atlaskit
+
+Atlaskit components (especially anything that uses portals or the design-token theme provider) break under `React.StrictMode`'s double-invoke — symptoms range from invisible components to portal duplication to "DOM looks empty but the warnings fire." Drop `<React.StrictMode>` from `main.tsx` / `index.tsx` in any Atlaskit-consuming app, including UIKit 2 modules in browser mode. forge-sim's dev server bridge ships with strict mode **off** for the same reason.
+
+### Atlaskit needs `setGlobalTheme()` at boot
+
+Atlaskit reads its colors from design tokens at runtime. Without `setGlobalTheme()`, components render but with unresolved tokens — often invisible. Custom UI test apps need this wired into the theme init:
+
+```ts
+import { setGlobalTheme } from '@atlaskit/tokens';
+
+setGlobalTheme({
+  colorMode: 'auto',
+  light: 'light',
+  dark: 'dark',
+  spacing: 'spacing',
+  typography: 'typography',
+  shape: 'shape',
+  motion: 'motion',
+});
+```
+
+### Mock product APIs **before** `deploy()` if scheduled triggers run on startup
+
+Scheduled triggers tagged `runOn: deployment` fire during `sim.deploy()`. If they call `requestJira()` and you haven't set up mocks yet, they hit the real API (or fail). Order matters:
+
+```ts
+sim = createSimulator();
+sim.mockProductRoutes('jira', { /* … */ });   // ← before deploy
+await sim.sql.start();
+await sim.deploy('./my-app');                  // safe now
+```
+
+### `sim.sql.start()` order with migrations
+
+If your app declares migrations (typically via a `runOn: deployment` scheduled trigger), `sim.sql.start()` must run **before** `sim.deploy()` — otherwise the migration trigger fires against a non-existent database and fails. Always:
+
+```ts
+await sim.sql.start();
+await sim.deploy('./my-app');
+```
+
+### `@forge/sql` has no shim — and that's intentional
+
+Unlike `@forge/api` / `@forge/kvs` / etc., there is no `forge-sim/shims/forge-sql` alias. The real `@forge/sql` package talks to the simulator through a runtime hook (`global.__forge_fetch__`) that `createSimulator()` installs automatically. If you add it to your `vitest.config.ts` alias map, you'll get module-resolution errors. Just leave it out.
+
+### `sim.reset()` wipes mocks too
+
+`sim.reset()` is total — KVS, SQL, queues, resolvers, logs, LLM mocks, the lot. If your tests share a sim across `it()` blocks via `beforeAll`/`afterAll`, calling `reset()` between tests can wipe the mock product routes you set up in `beforeAll`. Either re-mock in `beforeEach`, or use targeted resets like `sim.llm.reset()` / `sim.kvs.clear()` that leave the rest alone.
+
+### Function-prop equality across renders
+
+ForgeDoc serializes function props as `{ __fn__: '<id>' }` tokens — and **each render produces fresh IDs**. Don't snapshot a tree expecting `onClick` IDs to be stable, and don't compare two ForgeDocs structurally if either has handlers. See [renderer.md § Function serialization](./renderer.md#function-serialization-__id__).
+
+### `forge-sim` is rebuilt mid-session → the MCP daemon serves stale code
+
+This bites devs working on forge-sim itself, not app authors — but if you're hitting "method is not a function" errors from MCP calls right after rebuilding `dist/`, the long-lived daemon has the old code in memory. The simulator self-checks dist mtimes on every MCP response and warns when stale; restart the daemon (`ps aux | grep mcp-server`, kill the PID — the client respawns it). See [architecture.md § Known gotcha: stale daemon](./architecture.md#known-gotcha-stale-daemon-on-rebuild).

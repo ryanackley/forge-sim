@@ -1,0 +1,16 @@
+app:
+  id: ari:cloud:ecosystem::app/form-helpers-test
+  name: Form Helpers Test
+  runtime:
+    name: nodejs22.x
+
+modules:
+  jira:globalPage:
+    - key: form-page
+      resource: main
+      render: native
+      title: Form Helpers Test
+
+resources:
+  - key: main
+    path: src/index.tsx

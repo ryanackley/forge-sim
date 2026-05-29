@@ -205,6 +205,40 @@ export class SimulatedForgeSQL {
   }
 
   /**
+   * Drop every table in the app database, leaving an empty schema.
+   *
+   * Used by `simulator.reset()` to clear SQL state without paying the cost
+   * of stopping and restarting the MySQL server (which is expensive — the
+   * binary takes seconds to spin up). FK checks are disabled during the
+   * drop so tables with relationships can be removed in any order.
+   *
+   * No-op if the server hasn't been started. Safe to call repeatedly.
+   */
+  async reset(): Promise<void> {
+    if (!this.pool) return;
+    const dbName = this.options.dbName;
+    const [rows] = await this.pool.query<any[]>(
+      'SELECT table_name FROM information_schema.tables WHERE table_schema = ?',
+      [dbName],
+    );
+    if (!Array.isArray(rows) || rows.length === 0) return;
+
+    const conn = await this.pool.getConnection();
+    try {
+      await conn.query('SET FOREIGN_KEY_CHECKS = 0');
+      for (const row of rows) {
+        const tableName = (row as any).TABLE_NAME ?? (row as any).table_name;
+        if (typeof tableName !== 'string') continue;
+        // Backtick-quote the identifier to handle reserved words / unusual names.
+        await conn.query(`DROP TABLE IF EXISTS \`${tableName}\``);
+      }
+    } finally {
+      await conn.query('SET FOREIGN_KEY_CHECKS = 1').catch(() => {});
+      conn.release();
+    }
+  }
+
+  /**
    * Check if the server is running.
    */
   get isRunning(): boolean {

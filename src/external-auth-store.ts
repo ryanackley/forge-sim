@@ -13,10 +13,9 @@
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { createServer, type Server } from 'node:http';
-import { randomBytes } from 'node:crypto';
 import type { ManifestAuthProvider, ManifestRemote } from './types.js';
 import type { ExternalAuthAccount, ThirdPartyToken } from './auth/credentials.js';
+import { getOAuthCallbackRegistry } from './auth/oauth-callback-registry.js';
 
 // ── Provider Secrets Config ─────────────────────────────────────────────────
 
@@ -428,10 +427,14 @@ export class ExternalAuthStore {
    * Run an interactive OAuth flow: opens the browser, waits for callback,
    * exchanges code, stores token. Used by requestCredentials() at runtime.
    *
+   * Dispatched through the shared OAuthCallbackRegistry — the dev server's
+   * `/__tools/oauth/callback` route forwards incoming callbacks to the
+   * matching pending flow (keyed by `state`).
+   *
    * Returns the token on success, null if the provider lacks a secret or
    * the flow is cancelled/fails.
    */
-  async interactiveOAuthFlow(providerKey: string, port = 19421): Promise<ThirdPartyToken | null> {
+  async interactiveOAuthFlow(providerKey: string): Promise<ThirdPartyToken | null> {
     const provider = this.providers.get(providerKey);
     if (!provider) {
       console.warn(`[forge-sim] Unknown provider: ${providerKey}`);
@@ -446,94 +449,44 @@ export class ExternalAuthStore {
       return null;
     }
 
-    const callbackPath = '/__forge-sim/oauth/callback';
-    const redirectUri = `http://localhost:${port}${callbackPath}`;
-    const state = randomBytes(16).toString('hex');
+    let exchangedToken: ThirdPartyToken | null = null;
+
+    const { state, redirectUri, promise } = getOAuthCallbackRegistry().register({
+      providerKey,
+      onCode: async (code) => {
+        exchangedToken = await this.exchangeCode(providerKey, code, redirectUri);
+        if (!exchangedToken) {
+          throw new Error('Token exchange returned no token (check provider client secret).');
+        }
+      },
+    });
 
     const authUrl = this.buildAuthorizationUrl(providerKey, redirectUri, state);
     if (!authUrl) {
+      // Cancel the pending flow we just registered so it doesn't dangle.
+      getOAuthCallbackRegistry().cancelAll('Auth URL build failed');
       console.warn(`[forge-sim] Could not build auth URL for "${providerKey}".`);
       return null;
     }
 
     console.log(`[forge-sim] Opening browser for ${provider.name} authorization...`);
 
+    if (this.onAuthUrl) {
+      this.onAuthUrl(authUrl);
+    } else {
+      openBrowserUrl(authUrl);
+    }
+
     try {
-      const code = await this.waitForCallback(port, callbackPath, state, authUrl);
-      const token = await this.exchangeCode(providerKey, code, redirectUri);
-      if (token) {
+      await promise;
+      if (exchangedToken) {
         console.log(`[forge-sim] ✅ Authorized with ${provider.name}!`);
       }
-      return token;
+      return exchangedToken;
     } catch (err: any) {
       console.warn(`[forge-sim] OAuth flow failed for "${providerKey}": ${err.message}`);
       return null;
     }
-  }
-
-  private waitForCallback(
-    port: number,
-    callbackPath: string,
-    expectedState: string,
-    authUrl: string,
-  ): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        server?.close();
-        reject(new Error('OAuth timeout — no callback received within 5 minutes'));
-      }, 5 * 60 * 1000);
-
-      const server: Server = createServer((req, res) => {
-        const url = new URL(req.url || '/', `http://localhost:${port}`);
-        if (url.pathname !== callbackPath) {
-          res.writeHead(404);
-          res.end('Not found');
-          return;
-        }
-
-        const code = url.searchParams.get('code');
-        const state = url.searchParams.get('state');
-        const error = url.searchParams.get('error');
-
-        if (error) {
-          res.writeHead(200, { 'Content-Type': 'text/html' });
-          res.end(oauthCallbackHtml('❌ Authorization failed', error));
-          clearTimeout(timeout);
-          server.close();
-          reject(new Error(`OAuth error: ${error}`));
-          return;
-        }
-
-        if (!code || state !== expectedState) {
-          res.writeHead(400, { 'Content-Type': 'text/html' });
-          res.end(oauthCallbackHtml('❌ Invalid callback', 'State mismatch or missing code.'));
-          return;
-        }
-
-        res.writeHead(200, { 'Content-Type': 'text/html' });
-        res.end(oauthCallbackHtml('✅ Authorized!', 'You can close this tab.'));
-        clearTimeout(timeout);
-        server.close();
-        resolve(code);
-      });
-
-      server.listen(port, '127.0.0.1', () => {
-        if (this.onAuthUrl) {
-          this.onAuthUrl(authUrl);
-        } else {
-          openBrowserUrl(authUrl);
-        }
-      });
-
-      server.on('error', (err: any) => {
-        clearTimeout(timeout);
-        if (err.code === 'EADDRINUSE') {
-          reject(new Error(`Port ${port} in use.`));
-        } else {
-          reject(err);
-        }
-      });
-    });
   }
 
   // ── Reset ───────────────────────────────────────────────────────────
@@ -559,14 +512,6 @@ function resolveField(obj: Record<string, any>, path: string): any {
     current = current[part];
   }
   return current;
-}
-
-function oauthCallbackHtml(title: string, message: string): string {
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>forge-sim</title>
-<style>body{font-family:system-ui;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;background:#1a1a2e;color:#e0e0e0}
-.card{text-align:center;padding:2rem;border-radius:8px;background:#16213e;box-shadow:0 4px 12px rgba(0,0,0,.3)}
-h1{margin:0 0 .5rem}</style></head>
-<body><div class="card"><h1>${title}</h1><p>${message}</p></div></body></html>`;
 }
 
 function openBrowserUrl(url: string): void {

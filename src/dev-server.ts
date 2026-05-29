@@ -23,6 +23,12 @@ import type { ForgeDoc } from './ui/bridge.js';
 export interface DevServerOptions {
   /** WebSocket port (default: 5174) */
   port?: number;
+  /**
+   * If true, fail when the requested port is in use instead of falling through
+   * to the next free port. Use when the user explicitly set --ws-port and we
+   * shouldn't silently change what they asked for. Default: false.
+   */
+  strictPort?: boolean;
   /** App source directory to watch for changes */
   watchDir?: string;
   /** Debounce interval for file changes in ms (default: 300) */
@@ -35,6 +41,74 @@ export interface DevServerOptions {
   context?: Record<string, any>;
 }
 
+/**
+ * Try to bind a WebSocketServer on the given port. Resolves with the live
+ * wss on success, or null on EADDRINUSE so the caller can try the next port.
+ *
+ * We can't pre-probe with a separate `net.createServer` because the probe's
+ * default interface (loopback) doesn't match what `ws` binds to (all
+ * interfaces) — a race-prone false-positive. Instead, bind ws directly and
+ * wait for either the 'listening' or 'error' event.
+ */
+function tryBindWebSocketServer(port: number): Promise<WebSocketServer | null> {
+  return new Promise((resolve, reject) => {
+    const wss = new WebSocketServer({ port });
+    let settled = false;
+    wss.once('listening', () => {
+      if (settled) return;
+      settled = true;
+      resolve(wss);
+    });
+    wss.once('error', (err: any) => {
+      if (settled) return;
+      settled = true;
+      // Make sure we don't leave a half-bound server hanging
+      try { wss.close(); } catch {}
+      if (err?.code === 'EADDRINUSE') {
+        resolve(null);
+      } else {
+        reject(err);
+      }
+    });
+  });
+}
+
+/**
+ * Bind a WebSocketServer with port-fallback. Tries the requested port first;
+ * on EADDRINUSE, scans up to 10 subsequent ports unless strictPort is set.
+ */
+async function bindWebSocketServer(
+  requestedPort: number,
+  strictPort: boolean,
+): Promise<{ wss: WebSocketServer; port: number }> {
+  const maxAttempts = strictPort ? 1 : 10;
+
+  for (let i = 0; i < maxAttempts; i++) {
+    const port = requestedPort + i;
+    const wss = await tryBindWebSocketServer(port);
+    if (!wss) continue;
+
+    if (i > 0) {
+      console.warn(
+        `[forge-sim] port ${requestedPort} in use, using ${port} instead.`,
+      );
+    }
+    return { wss, port };
+  }
+
+  if (strictPort) {
+    throw new Error(
+      `[forge-sim] WebSocket bridge port ${requestedPort} is already in use. ` +
+      `Another forge-sim instance (or the daemon) may be running. ` +
+      `Pass --ws-port <N> to choose a different port, or omit --ws-port to ` +
+      `let forge-sim auto-pick the next free one.`,
+    );
+  }
+  throw new Error(
+    `[forge-sim] Could not bind WebSocket bridge: ports ${requestedPort}–${requestedPort + 9} are all in use.`,
+  );
+}
+
 export interface DevServer {
   /** Broadcast a ForgeDoc update to all connected renderers */
   broadcast(doc: ForgeDoc, moduleKey?: string): void;
@@ -42,6 +116,9 @@ export interface DevServer {
   sendEvent(event: ServerEvent): void;
   /** Number of connected renderer clients */
   get clientCount(): number;
+  /** Port the WebSocket bridge is actually listening on (may differ from
+   *  the requested port if it was taken). */
+  readonly port: number;
   /** Shut down the server */
   close(): void;
 }
@@ -104,9 +181,10 @@ class FunctionRegistry {
 
 // ── Dev Server ──────────────────────────────────────────────────────────
 
-export function createDevServer(options: DevServerOptions = {}): DevServer {
+export async function createDevServer(options: DevServerOptions = {}): Promise<DevServer> {
   const {
-    port = 5174,
+    port: requestedPort = 5174,
+    strictPort = false,
     watchDir,
     debounceMs = 300,
     onFileChange,
@@ -114,7 +192,7 @@ export function createDevServer(options: DevServerOptions = {}): DevServer {
     context,
   } = options;
 
-  const wss = new WebSocketServer({ port });
+  const { wss, port: actualPort } = await bindWebSocketServer(requestedPort, strictPort);
   const clients = new Set<WebSocket>();
   /** Track which module key each client is viewing */
   const clientModuleKeys = new Map<WebSocket, string>();
@@ -129,6 +207,10 @@ export function createDevServer(options: DevServerOptions = {}): DevServer {
 
   // ── Custom field value store (persists across view/edit tab switches) ──
   const fieldValues = new Map<string, any>();
+
+  // ── Macro config store (persists across view/config tab switches) ─────
+  // Keyed by macro base key; value is the saved config object.
+  const macroConfigs = new Map<string, Record<string, any>>();
 
   // ── Realtime event push (backend → browser over WS) ────────────────
   if (simulator?.realtime) {
@@ -186,7 +268,7 @@ export function createDevServer(options: DevServerOptions = {}): DevServer {
   });
 
   wss.on('listening', () => {
-    console.log(`[dev-server] WebSocket server listening on ws://localhost:${port}`);
+    console.log(`[dev-server] WebSocket server listening on ws://localhost:${actualPort}`);
   });
 
   // ── RPC handler (browser mode) ─────────────────────────────────────
@@ -199,7 +281,7 @@ export function createDevServer(options: DevServerOptions = {}): DevServer {
     switch (method) {
       case 'invoke': {
         const { functionKey, payload, moduleKey } = params;
-        return simulator.invoke(functionKey, payload, moduleKey);
+        return simulator.invoke(functionKey, payload, { moduleKey });
       }
 
       case 'invokeRemote': {
@@ -266,6 +348,16 @@ export function createDevServer(options: DevServerOptions = {}): DevServer {
           if (cfBaseKey !== reqModuleKey && fieldValues.has(cfBaseKey)) {
             ctx.extension.fieldValue = fieldValues.get(cfBaseKey);
           }
+          // Inject stored config for macro modules. Two key shapes:
+          //   - Custom config sub-modules:  "<base>--view" / "<base>--config"
+          //     → strip the suffix to find the base key
+          //   - Inline config:              flat "<key>" with stored config
+          const macroBaseKey = reqModuleKey.replace(/--(?:view|config)$/, '');
+          if (macroConfigs.has(macroBaseKey)) {
+            ctx.extension.config = macroConfigs.get(macroBaseKey);
+          } else if (macroConfigs.has(reqModuleKey)) {
+            ctx.extension.config = macroConfigs.get(reqModuleKey);
+          }
           return ctx;
         }
 
@@ -278,8 +370,12 @@ export function createDevServer(options: DevServerOptions = {}): DevServer {
 
       case 'viewSubmit': {
         console.log(`[dev-server] View action: ${method}`, params);
+        const submitModuleKey: string | undefined = params?.moduleKey ?? context?.moduleKey;
+        const submitTree: 'view' | 'macroConfig' = params?.submitTree === 'macroConfig'
+          ? 'macroConfig'
+          : 'view';
+
         // For custom field edit modules, store the submitted value
-        const submitModuleKey = params?.moduleKey ?? context?.moduleKey;
         if (submitModuleKey && submitModuleKey.endsWith('--edit')) {
           const baseKey = submitModuleKey.replace(/--edit$/, '');
           const submittedValue = params?.payload;
@@ -295,6 +391,42 @@ export function createDevServer(options: DevServerOptions = {}): DevServer {
                 type: 'fieldValueUpdate',
                 fieldKey: baseKey,
                 value: submittedValue,
+              }));
+            }
+          }
+        }
+
+        // Decide whether this is a macro config save:
+        //   1. Custom-config sub-module → key ends in --config
+        //   2. Inline config → flat key + bridge tagged it as 'macroConfig'
+        let macroBaseKey: string | undefined;
+        if (submitModuleKey && submitModuleKey.endsWith('--config')) {
+          macroBaseKey = submitModuleKey.replace(/--config$/, '');
+        } else if (submitModuleKey && submitTree === 'macroConfig' && simulator) {
+          // Look up the manifest to confirm it's an inline-config macro
+          const manifest = simulator.getManifest?.();
+          const mod = manifest?.uiModules.find((m: any) => m.key === submitModuleKey);
+          if (mod && mod.type === 'macro' && mod.inlineMacroConfig === true) {
+            macroBaseKey = submitModuleKey;
+          }
+        }
+
+        if (macroBaseKey) {
+          const submittedConfig = (params?.payload && typeof params.payload === 'object')
+            ? params.payload
+            : {};
+          macroConfigs.set(macroBaseKey, submittedConfig);
+          console.log(`[dev-server] Macro "${macroBaseKey}" config updated:`, submittedConfig);
+          // Broadcast to clients viewing this macro (view/config sub-modules,
+          // the parent page, or the inline-config iframe itself)
+          for (const client of clients) {
+            if (client.readyState !== WebSocket.OPEN) continue;
+            const clientKey = clientModuleKeys.get(client);
+            if (!clientKey || clientKey.startsWith(macroBaseKey)) {
+              client.send(JSON.stringify({
+                type: 'macroConfigUpdate',
+                macroKey: macroBaseKey,
+                config: submittedConfig,
               }));
             }
           }
@@ -579,6 +711,7 @@ export function createDevServer(options: DevServerOptions = {}): DevServer {
     broadcast,
     sendEvent,
     get clientCount() { return clients.size; },
+    port: actualPort,
     close,
   };
 }
