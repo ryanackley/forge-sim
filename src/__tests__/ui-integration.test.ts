@@ -54,7 +54,7 @@ describe('UI ↔ Simulator Integration', () => {
     const renderPromise = waitForRender();
     
     // Import the UI app (triggers ForgeReconciler.render())
-    await import('../../test-app/src/ui-app.js');
+    await import('./fixtures/test-app/src/ui-app.js');
     
     // First render shows "Loading..."
     let doc = await renderPromise;
@@ -91,7 +91,7 @@ describe('UI ↔ Simulator Integration', () => {
 
     // Load app and wait for data
     const renderPromise = waitForRender();
-    await import('../../test-app/src/ui-app.js');
+    await import('./fixtures/test-app/src/ui-app.js');
     await renderPromise;
     const firstDataRender = await waitForRender();
 

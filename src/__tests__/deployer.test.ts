@@ -9,7 +9,7 @@ import { deploy } from '../deployer.js';
 import { getLatestForgeDoc, waitForRender, resetBridge } from '../ui/bridge.js';
 import { getTextContent, prettyPrint } from '../ui/doc-utils.js';
 
-const TEST_APP_DIR = resolve(import.meta.dirname, '../../test-app');
+const TEST_APP_DIR = resolve(import.meta.dirname, 'fixtures/test-app');
 
 describe('Deployer', () => {
   let sim: ForgeSimulator;

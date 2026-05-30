@@ -162,9 +162,9 @@ Forge SQL — relational data with real MySQL.
 | `sql.prepare(query).bindParams(...).execute()` | ✅ | `forge-sql.test.ts`, `forge-sql-e2e.test.ts` | Parameterized queries |
 | `sql.prepare(query).execute()` | ✅ | `forge-sql.test.ts` | |
 | `sql._executeRaw(query)` | ✅ | `forge-sql.test.ts` | |
-| `migrationRunner.enqueue(migrations)` | ✅ | `forge-sql-e2e.test.ts`, `okr-tracker-e2e.test.ts` | Real `@forge/sql` migrationRunner works through shims |
+| `migrationRunner.enqueue(migrations)` | ✅ | `forge-sql-e2e.test.ts`, `deploy-e2e.test.ts` | Real `@forge/sql` migrationRunner works through shims |
 | DDL (CREATE TABLE, ALTER, INDEX) | ✅ | `forge-sql-e2e.test.ts` | Real MySQL 8.4 via mysql-memory-server |
-| JOINs, aggregation, subqueries | ✅ | `okr-tracker-e2e.test.ts` | AVG, COUNT, SUM, CASE WHEN, etc. |
+| JOINs, aggregation, subqueries | ✅ | `deploy-e2e.test.ts` | AVG, COUNT, SUM, CASE WHEN, etc. |
 | Foreign keys, constraints | ✅ | `persistence.test.ts` | |
 | Connection pooling / limits | ❌ | — | No simulation of Forge's connection limits |
 

@@ -2,8 +2,8 @@
  * Deploy-based E2E tests — deploy real fixture apps through the full pipeline
  * and invoke resolvers through the deployed wiring.
  *
- * Unlike the manually-wired retro-board-e2e and okr-tracker-e2e tests,
- * these tests use sim.deploy(appDir) which:
+ * Unlike the manually-wired retro-board-e2e test, these tests use
+ * sim.deploy(appDir) which:
  *   1. Reads manifest.yml
  *   2. Dynamically imports handler modules
  *   3. Wires resolvers, consumers, triggers via manifest
@@ -202,6 +202,35 @@ describe('Deploy E2E: OKR Tracker', () => {
     expect(found.status).toBe('active');
   });
 
+  it('listObjectives filters by status', async () => {
+    const cycle = 'Q1-2026-statusfilter';
+
+    // Create one objective and flip it to draft
+    const { id: draftId } = await sim.invoke('createObjective', {
+      title: 'Draft OKR',
+      cycle,
+    });
+    await sim.invoke('updateObjectiveStatus', { objectiveId: draftId, status: 'draft' });
+
+    // Create another that stays active
+    await sim.invoke('createObjective', { title: 'Active OKR', cycle });
+
+    const result = await sim.invoke('listObjectives', { cycle, status: 'draft' });
+    expect(result.objectives.length).toBeGreaterThanOrEqual(1);
+    expect(result.objectives.every((o: any) => o.status === 'draft')).toBe(true);
+    expect(result.objectives.find((o: any) => o.id === draftId)).toBeDefined();
+  });
+
+  it('listObjectives returns empty array for cycle with no objectives', async () => {
+    const result = await sim.invoke('listObjectives', { cycle: 'Q4-2099' });
+    expect(result.objectives).toHaveLength(0);
+  });
+
+  it('getObjective returns error for non-existent objective', async () => {
+    const result = await sim.invoke('getObjective', { objectiveId: 'nonexistent' });
+    expect(result.error).toBe('Objective not found');
+  });
+
   it('getObjective returns details with key results', async () => {
     // Create objective + KR
     const { id: objId } = await sim.invoke('createObjective', {
@@ -316,6 +345,13 @@ describe('Deploy E2E: OKR Tracker', () => {
     expect(Number(summary.total_key_results)).toBe(2);
   });
 
+  it('getCycleSummary returns zeros for empty cycle', async () => {
+    const result = await sim.invoke('getCycleSummary', { cycle: 'Q4-2099' });
+    const s = result.summary;
+    expect(Number(s.total_objectives)).toBe(0);
+    expect(Number(s.total_key_results)).toBe(0);
+  });
+
   it('updateObjectiveStatus changes status', async () => {
     const { id } = await sim.invoke('createObjective', {
       title: 'Status test',
@@ -353,6 +389,43 @@ describe('Deploy E2E: OKR Tracker', () => {
     // Jira config should be in KVS
     expect(result.jiraConfigs[krId]).toBeDefined();
     expect(result.jiraConfigs[krId].jql).toContain('done');
+
+    // Recalc consumer should have inserted a progress_update with the auto-recalc note
+    const history = await sim.invoke('getProgressHistory', { key_result_id: krId });
+    const autoEntries = history.updates.filter(
+      (u: any) => u.note === 'Auto-recalculated from Jira',
+    );
+    expect(autoEntries.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('snapshotQueue consumer writes progress_update entries for active KRs', async () => {
+    const cycle = 'Q3-2026-snapshot';
+
+    // Seed an active obj + manual KR with a known current_value
+    const { id: objId } = await sim.invoke('createObjective', {
+      title: 'Snapshot test',
+      cycle,
+    });
+    const { id: krId } = await sim.invoke('createKeyResult', {
+      objective_id: objId,
+      title: 'Snapshot KR',
+      target_value: 50,
+      unit: 'count',
+      measurement_type: 'manual',
+    });
+    await sim.invoke('recordProgress', { key_result_id: krId, value: 30 });
+
+    // Push directly to the queue (consumer was wired by deploy)
+    await sim.queue.push('snapshotQueue', {
+      body: { cycle, triggered_by: 'manual' },
+    });
+
+    const history = await sim.invoke('getProgressHistory', { key_result_id: krId });
+    const snapshots = history.updates.filter(
+      (u: any) => u.note === 'Snapshot: manual',
+    );
+    expect(snapshots.length).toBeGreaterThanOrEqual(1);
+    expect(Number(snapshots[0].value)).toBe(30);
   });
 
   it('fireTrigger dispatches sprint complete through deployed wiring', async () => {
@@ -369,6 +442,52 @@ describe('Deploy E2E: OKR Tracker', () => {
     expect(results).toHaveLength(1);
     expect(results[0].triggered).toBe(true);
     expect(results[0].cycle).toBe('Q1-2026');
+  });
+
+  it('sprint complete trigger queues recalc + snapshot side-effects', async () => {
+    const cycle = 'Q1-2026-sprint';
+
+    // Use a dedicated cycle so this test isn't affected by the broader Q1-2026 fixtures
+    await sim.kvs.set('config:display', {
+      default_cycle: cycle,
+      color_thresholds: { on_track: 70, at_risk: 40 },
+    });
+
+    // Seed an active obj with a jira-linked KR — trigger handler will recalc + snapshot it
+    const { id: objId } = await sim.invoke('createObjective', {
+      title: 'Sprint trigger target',
+      cycle,
+    });
+    const { id: jiraKrId } = await sim.invoke('createKeyResult', {
+      objective_id: objId,
+      title: 'Trigger KR',
+      target_value: 10,
+      unit: 'count',
+      measurement_type: 'jira-linked',
+      // 'done' JQL → mock returns total: 12
+      jira_config: { jql: 'project = TRIG AND status = done', metric: 'count' },
+    });
+
+    const results = await sim.fireTrigger('avi:jira:sprint:completed', {
+      sprint: { name: 'Sprint 5', id: 5 },
+    });
+
+    expect(results).toHaveLength(1);
+    expect(results[0].triggered).toBe(true);
+    expect(results[0].cycle).toBe(cycle);
+    expect(results[0].recalcCount).toBeGreaterThanOrEqual(1);
+
+    // Recalc consumer should have re-pulled from Jira (mock returns 12 for 'done' jql)
+    const obj = await sim.invoke('getObjective', { objectiveId: objId });
+    const kr = obj.keyResults.find((k: any) => k.id === jiraKrId);
+    expect(Number(kr.current_value)).toBe(12);
+
+    // Snapshot consumer should have recorded a 'Snapshot: sprint-complete' entry
+    const history = await sim.invoke('getProgressHistory', { key_result_id: jiraKrId });
+    const snapshots = history.updates.filter(
+      (u: any) => u.note === 'Snapshot: sprint-complete',
+    );
+    expect(snapshots.length).toBeGreaterThanOrEqual(1);
   });
 
   it('full deploy flow: create → track → summarize', async () => {
