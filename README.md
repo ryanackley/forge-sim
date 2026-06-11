@@ -15,25 +15,37 @@ A local simulation of Atlassian's Forge platform. For CI/CD tests and local deve
 | Resolvers (`@forge/resolver`) | Full |
 | Async Events/Queues (`@forge/events`) | Full — concurrent processing, concurrency keys |
 | Product APIs (Jira/Confluence/Bitbucket) | Mock + real API proxy |
-| Forge Remotes | Full — FIT JWT auth, JWKS endpoint, mock routing |
+| [Forge Remotes](./docs/remotes.md) | Full — FIT JWT auth, JWKS endpoint, mock routing |
 | Custom UI | Full — built-in Vite or `--proxy` your own dev server |
-| UIKit 2 (`@forge/react`) | Full — 73/73 components, live preview, dark/light/auto color mode |
-| Event & Scheduled Triggers | Full — 141 event templates with typed payloads, contract validation |
+| [UIKit 2 (`@forge/react`)](./docs/renderer.md) | Full — 73/73 components, live preview, dark/light/auto color mode |
+| [Event & Scheduled Triggers](./docs/module-support.md) | Full — 141 event templates with typed payloads, contract validation |
 | Web Triggers | Full — `/__trigger/<key>` HTTP endpoints with CORS, dynamic `webTrigger.getUrl()` |
 | Background Scripts | Full — `issueView`, `dashboard`, `globalBackgroundScript` via postMessage |
-| Custom Fields | Full — `jira:customField`/`customFieldType` with view/edit/viewSubmit |
+| [Custom Fields](./docs/module-support.md#custom-fields) | Full — `jira:customField`/`customFieldType` with view/edit/viewSubmit |
 | `@forge/llm` (Claude 4.6/4.7) | Full — `forge-sim auth --llm` for the Anthropic key |
 | `@forge/realtime` | Full — channel pub/sub, scoped + global publishes |
 | Rovo Actions | Full — manifest parsing, input schema validation, MCP invocation |
-| Workflow Modules | Partial — config UI, function invocation (no transition simulation) |
+| [Workflow Modules](./docs/module-support.md#workflow-modules) | Partial — config UI, function invocation (no transition simulation) |
 | Manifest parsing + auto-deploy | Full |
 | Persistent state (KVS + SQL) | Full — save on exit, restore on start |
 
-## Local Development Loop
+## Installation
+
+Requires **Node.js 22+** (uses native TypeScript type stripping for `.ts` loader hooks).
+
+```bash
+# As a dev dependency (recommended)
+npm install --save-dev forge-sim
+
+# Or install globally
+npm install -g forge-sim
+```
+
+## Local development loop
 
 Run your Forge app locally by using the `forge-sim dev` command
 
-### Quick Start
+### Quick start
 
 Navigate to your forge app directory and run forge-sim in dev mode. This will launch a browser tab that shows a navigable index of all of your UI modules. Click on one to run outside of Atlassian products. 
 
@@ -67,7 +79,7 @@ it uploads to user-attachments and inserts a bare URL on its own line, which
 GitHub renders as an inline player. (GIFs in the repo work too: docs/media/)
 -->
 
-### Connect to your Atlassian site 
+### Connect to your Atlassian site
 
 ```bash
 npx forge-sim auth
@@ -95,43 +107,13 @@ forge-sim sits in front of your Custom UI dev server and hosts it in an IFrame w
 
 <!-- TODO(demo): record proxy-mode demo and replace the line above (same embed steps as the dev-mode demo). -->
 
-### Forge Remotes — call your own backend (optional)
+### Forge Remotes (optional)
 
-If your app calls external services via `invokeRemote()` or `requestRemote()`, forge-sim can handle the full flow:
-
-```yaml
-# manifest.yml
-remotes:
-  - key: my-backend
-    baseUrl: https://api.example.com
-
-modules:
-  endpoint:
-    - key: my-endpoint
-      remote: my-backend
-      route:
-        path: /api/v1
-```
-
-Every remote request is signed with a **FIT** (Forge Invocation Token) — an RS256 JWT per the [Forge Remote Invocation Contract](https://developer.atlassian.com/platform/forge/forge-remote-invocation-contract/). Your backend validates it against the local JWKS endpoint:
-
-```
-http://localhost:5173/__forge/jwks.json
-```
-
-See [Remotes documentation](./docs/remotes.md) for the full guide — FIT claims, key persistence, backend validation, and error handling.
+If your app calls your own backend via `invokeRemote()` or `requestRemote()`, forge-sim signs each request with a real FIT JWT and serves a local JWKS endpoint your backend can validate against. See [Forge Remotes](./docs/remotes.md) for the full guide — FIT claims, key persistence, backend validation, and mock routing.
 
 ### External auth providers (optional)
 
-If your app uses `asUser().withProvider()` for third-party OAuth (Google, GitHub, etc.):
-
-```bash
-# Authenticate with providers defined in your manifest.yml
-npx forge-sim auth --provider google
-
-# Or authenticate all providers at once
-npx forge-sim auth --providers
-```
+If your app uses `asUser().withProvider()` for third-party OAuth (Google, GitHub, etc.), run `npx forge-sim auth --provider <name>` — or `--providers` for all providers in your manifest. See [Authentication](./docs/auth.md).
 
 ---
 
@@ -232,7 +214,7 @@ Mocks take priority; unmocked routes fall through to a real API if one is connec
 
 ---
 
-## AI-Driven Development
+## AI-driven development
 
 forge-sim gives AI agents a local Forge runtime with no Atlassian credentials and no deploy permissions, so an agent can write code, deploy it locally, test it, and iterate without any way of touching a real site. Everything is reachable through CLI commands:
 
@@ -256,7 +238,7 @@ forge-sim logs
 
 The first command auto-starts a background daemon; state persists across calls and the daemon exits after 30 minutes idle.
 
-### MCP Server
+### MCP server
 
 For AI agents that support [Model Context Protocol](https://modelcontextprotocol.io/), forge-sim exposes the same operations as MCP tools:
 
@@ -274,7 +256,7 @@ forge-sim serve  # starts on random port, writes to ~/.forge-sim/daemon.port
 
 The full tool list: `deploy`, `invoke`, `fire_trigger`, `fire_scheduled_trigger`, `ui_state`, `ui_interact`, `kvs_get`, `kvs_set`, `kvs_list`, `queue_push`, `queue_state`, `logs`, `sql_execute`, `sql_migrate`, `sql_schema`, `entity_get`, `entity_set`, `entity_delete`, `entity_query`, `entity_list`, `auth_status`, `mock_routes`, `mock_graphql`, `llm_mock`, `llm_history`, `realtime_publish`, `realtime_state`, `reset`. 141 trigger event templates with typed payloads are built-in for Confluence, Jira, Jira Software, and App Lifecycle events.
 
-### As an AI Skill
+### As an AI skill
 
 The CLI surface is small enough to paste into an agent prompt:
 
@@ -290,18 +272,6 @@ Reset everything:     forge-sim reset
 ```
 
 ---
-
-## Installation
-
-Requires **Node.js 22+** (uses native TypeScript type stripping for `.ts` loader hooks).
-
-```bash
-# As a dev dependency (recommended)
-npm install --save-dev forge-sim
-
-# Or install globally
-npm install -g forge-sim
-```
 
 ## Documentation
 
