@@ -58,19 +58,14 @@ Dev mode features:
 - **Local Debugging tools** — KVS browser, SQL console, log viewer, event triggers at `localhost:5173/__tools/`
 - **Persistent state** — KVS and SQL survive restarts. `--clean` to start fresh.
 
-```
-🔥 forge-sim dev server running!
+*🎬 Demo video placeholder — `forge-sim dev`: launch, module index, UIKit panel rendering live, edit a file and watch HMR refresh.*
 
-   UIKit 2 mode • jira:issuePanel:my-panel
-
-   ➜ Local:   http://localhost:5173/
-   ➜ Tools:   http://localhost:5173/__tools/
-   ➜ WS:      ws://localhost:5174
-
-   🎨 Rendering with real Atlaskit components
-   🔧 Source maps enabled — debug in Chrome DevTools
-   ♻️  HMR enabled — edits refresh automatically
-```
+<!--
+TODO(demo): record dev-mode demo and replace the line above.
+To embed on GitHub: edit this file on github.com and drag the .mp4/.mov in —
+it uploads to user-attachments and inserts a bare URL on its own line, which
+GitHub renders as an inline player. (GIFs in the repo work too: docs/media/)
+-->
 
 ### Connect to your Atlassian site 
 
@@ -96,19 +91,9 @@ npx forge-sim dev --proxy http://localhost:3000
 
 forge-sim sits in front of your Custom UI dev server and hosts it in an IFrame with shimmed Forge APIs. HMR and Chrome devtools will just work. 
 
-```
-🔥 forge-sim dev (proxy mode)
+*🎬 Demo video placeholder — proxy mode: Vite dev server running, `forge-sim dev --proxy`, Custom UI inside the simulated Forge frame with HMR.*
 
-   Proxied • jira:issuePanel:my-panel
-   Upstream:  http://localhost:3000
-
-   ➜ Local:   http://localhost:5173/
-   ➜ Tools:   http://localhost:5173/__tools/
-   ➜ JWKS:    http://localhost:5173/__forge/jwks.json
-   ➜ WS:      ws://localhost:5174
-
-   🔧 Proxying all requests to http://localhost:3000
-```
+<!-- TODO(demo): record proxy-mode demo and replace the line above (same embed steps as the dev-mode demo). -->
 
 ### Forge Remotes — call your own backend (optional)
 
