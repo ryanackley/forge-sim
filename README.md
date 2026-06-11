@@ -84,7 +84,7 @@ Enter your site URL, email, and [API token](https://id.atlassian.com/manage-prof
 
 Custom UI pages already bundled and referenced in your manifest work out of the box.
 
-Typically, while developing, you will run your Custom UI in development mode using webpack/Vite/Parcel dev server.If your Custom UI has its own dev server, run forge-sim in front of it with `--proxy`:
+Typically, while developing, you will run your Custom UI in development mode using a webpack/Vite/Parcel dev server. If your Custom UI has its own dev server, run forge-sim in front of it with `--proxy`:
 
 ```bash
 # Start your webpack, Vite, or Parcel dev server as usual
@@ -94,7 +94,7 @@ cd my-custom-ui-app && npm start  # → http://localhost:3000
 npx forge-sim dev --proxy http://localhost:3000
 ```
 
-forge-sim sits in front of your CustomUI dev server and hosts it in an IFrame with shimmed Forge APIs. HMR and Chrome devtools will just work. 
+forge-sim sits in front of your Custom UI dev server and hosts it in an IFrame with shimmed Forge APIs. HMR and Chrome devtools will just work. 
 
 ```
 🔥 forge-sim dev (proxy mode)
@@ -134,8 +134,6 @@ Every remote request is signed with a **FIT** (Forge Invocation Token) — an RS
 http://localhost:5173/__forge/jwks.json
 ```
 
-
-
 See [Remotes documentation](./docs/remotes.md) for the full guide — FIT claims, key persistence, backend validation, and error handling.
 
 ### External auth providers (optional)
@@ -152,11 +150,9 @@ npx forge-sim auth --providers
 
 ---
 
-## CI\CD testing
+## CI/CD testing
 
-**Forge-sim test library — no dependencies on deployments or remote resources** 
-
-Test UIKit, resolvers, queues, triggers, KVS, and SQL against a headless simulated runtime.
+The test API runs your app against a headless simulated runtime — no deployment, no Atlassian site, no browser. Test UIKit, resolvers, queues, triggers, KVS, and SQL.
 
 ```typescript
 import { createSimulator } from 'forge-sim';
@@ -216,7 +212,7 @@ const views = await sim.kvs.get('views:PROJ-42');
 expect(views).toBe(1);
 ```
 
-A **full integration test of your UI** — resolvers fire, KVS updates, queues process, and the ForgeDoc tree reflects the result. No mocks, no browser automation.
+The interaction above goes through your real resolvers — KVS writes and queue pushes actually happen, and the ForgeDoc tree reflects the result.
 
 ### Mock external services
 
@@ -251,33 +247,33 @@ Mocks take priority; unmocked routes fall through to a real API if one is connec
 
 ---
 
-## 🤖 AI-Driven Development
+## AI-Driven Development
 
-**Let your AI build Forge apps.** forge-sim gives AI agents a complete Forge runtime without credentials, cloud access, or deploy permissions. The agent writes code, deploys it locally, tests it, iterates — all through CLI commands.
+forge-sim gives AI agents a local Forge runtime with no Atlassian credentials and no deploy permissions, so an agent can write code, deploy it locally, test it, and iterate without any way of touching a real site. Everything is reachable through CLI commands:
 
 ```bash
-# AI deploys the app (daemon auto-starts)
+# Deploy the app (daemon auto-starts)
 forge-sim deploy ./my-forge-app
 
-# AI calls a resolver to test it
+# Call a resolver to test it
 forge-sim invoke getIssues '{"project": "PROJ"}'
 
-# AI checks what the UI looks like
+# Check what the UI looks like
 forge-sim ui
 
-# AI inspects the data layer
+# Inspect the data layer
 forge-sim kvs list
 forge-sim sql "SELECT * FROM objectives"
 
-# AI checks logs for errors
+# Check logs for errors
 forge-sim logs
 ```
 
-**Zero setup for the AI.** First command auto-starts a background daemon. State persists across calls. Daemon auto-exits after 30 min idle.
+The first command auto-starts a background daemon; state persists across calls and the daemon exits after 30 minutes idle.
 
 ### MCP Server
 
-For AI agents that support [Model Context Protocol](https://modelcontextprotocol.io/), forge-sim exposes a full toolkit:
+For AI agents that support [Model Context Protocol](https://modelcontextprotocol.io/), forge-sim exposes the same operations as MCP tools:
 
 <!-- BEGIN:STATS_COMPACT -->
 1,819 tests · 31 MCP tools · 4 MCP resources
@@ -295,7 +291,7 @@ The full tool list: `deploy`, `invoke`, `fire_trigger`, `fire_scheduled_trigger`
 
 ### As an AI Skill
 
-Point your AI agent at the CLI and it just works:
+The CLI surface is small enough to paste into an agent prompt:
 
 ```
 Deploy a Forge app:    forge-sim deploy <dir>
@@ -308,12 +304,7 @@ View logs:            forge-sim logs
 Reset everything:     forge-sim reset
 ```
 
-No API keys. No cloud credentials. No risk of the AI accidentally deploying to production. Just a sandbox.
-
 ---
-
-
-
 
 ## Installation
 

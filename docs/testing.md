@@ -1,6 +1,6 @@
 # Testing Forge Apps with forge-sim
 
-forge-sim lets you write fast, deterministic tests for your Forge app — resolvers, triggers, queues, KVS, SQL, product APIs, all of it. No cloud deploy, no Atlassian site required.
+forge-sim lets you write fast, deterministic tests for your Forge app — resolvers, triggers, queues, KVS, SQL, and product APIs — without a cloud deploy or an Atlassian site.
 
 ## Table of Contents
 
@@ -108,12 +108,12 @@ module.exports = {
 If you're running tests with plain Node (no Vitest, no Jest, no bundler), `sim.deploy()` automatically registers loader hooks via `module.register()`. No configuration needed:
 
 ```bash
-node my-test-script.js   # Just works — deploy() handles shim registration
+node my-test-script.js   # deploy() registers the shims automatically
 ```
 
 ### Why is this needed?
 
-forge-sim uses [Node.js module loader hooks](https://nodejs.org/api/module.html#customization-hooks) to intercept `@forge/*` imports and redirect them to simulator shims. This works perfectly in plain Node.
+forge-sim uses [Node.js module loader hooks](https://nodejs.org/api/module.html#customization-hooks) to intercept `@forge/*` imports and redirect them to simulator shims. This works in plain Node.
 
 However, **bundler-based test runners** (Vitest, Jest, webpack) use their own module resolution pipelines and bypass Node's loader hooks entirely. The alias/mapper config tells the bundler where to find the shim modules.
 
@@ -161,7 +161,7 @@ describe('My Forge App', () => {
 });
 ```
 
-That's it. `deploy()` reads your `manifest.yml`, imports your handlers, runs any scheduled triggers (like migrations), and wires everything up.
+`deploy()` reads your `manifest.yml`, imports your handlers, runs any scheduled triggers (like migrations), and wires everything up.
 
 ---
 
