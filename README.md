@@ -2,33 +2,9 @@
 
 There are three main components
 
-* **A local simulation of Atlassian's Forge platform**  Creates a fast local development loop. Makes iterating faster by removing the deploy to cloud step. Think of it as LocalStack for Forge. 
+* **Local development loop**  A local simulation of Atlassian's Forge platform for development. Makes iterating faster by removing the deploy to cloud step. Think of it as LocalStack for Forge. 
 * **CI/CD test API** Works for backend forge modules as well as UIKit 2. See testing section below. 
 * **MCP for AI-first development** A simulated Forge environment for AIs to iterate on Forge Apps without giving them access to your Cloud environment and teaching them to navigate Atlassian apps. 
-
-## What's simulated
-
-| Feature | Fidelity |
-|---------|----------|
-| KVS (`@forge/kvs`) | Full — get/set/delete/query/batch/transact/secrets |
-| Custom Entity Store | Full — CRUD, indexed queries, filters, sort, pagination, TTL |
-| Forge SQL (`@forge/sql`) | Full — in-memory MySQL 8.4, migrations, DDL, parameterized queries |
-| Resolvers (`@forge/resolver`) | Full |
-| Async Events/Queues (`@forge/events`) | Full — concurrent processing, concurrency keys |
-| Product APIs (Jira/Confluence/Bitbucket) | Mock + real API proxy |
-| [Forge Remotes](./docs/remotes.md) | Full — FIT JWT auth, JWKS endpoint, mock routing |
-| Custom UI | Full — built-in Vite or `--proxy` your own dev server |
-| [UIKit 2 (`@forge/react`)](./docs/renderer.md) | Full — 73/73 components, live preview, dark/light/auto color mode |
-| [Event & Scheduled Triggers](./docs/module-support.md) | Full — 141 event templates with typed payloads, contract validation |
-| Web Triggers | Full — `/__trigger/<key>` HTTP endpoints with CORS, dynamic `webTrigger.getUrl()` |
-| Background Scripts | Full — `issueView`, `dashboard`, `globalBackgroundScript` via postMessage |
-| [Custom Fields](./docs/module-support.md#custom-fields) | Full — `jira:customField`/`customFieldType` with view/edit/viewSubmit |
-| `@forge/llm` (Claude 4.6/4.7) | Full — `forge-sim auth --llm` for the Anthropic key |
-| `@forge/realtime` | Full — channel pub/sub, scoped + global publishes |
-| Rovo Actions | Full — manifest parsing, input schema validation, MCP invocation |
-| [Workflow Modules](./docs/module-support.md#workflow-modules) | Partial — config UI, function invocation (no transition simulation) |
-| Manifest parsing + auto-deploy | Full |
-| Persistent state (KVS + SQL) | Full — save on exit, restore on start |
 
 ## Installation
 
