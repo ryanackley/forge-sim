@@ -67,22 +67,24 @@ Three integration paths into the sim, depending on which surface the app uses:
 
 ## Where the docs live
 
-When you need actual surface details, go to the doc — don't guess from this file.
+When you need actual surface details, go to the doc — don't guess from this file. `docs/` is organized into three task sections plus a shared reference section.
 
 | Topic | Doc |
 |---|---|
-| Architecture (interception strategies, runtime model) | `docs/architecture.md` |
-| Programmatic API (`sim.*`) | `docs/api.md` |
-| CLI (`forge-sim dev`, `auth`, `daemon`) | `docs/cli.md` |
-| MCP server (tools, resources, transport) | `docs/mcp.md` |
-| Tools UI (`/__tools/`) HTTP API | `docs/tools.md` |
-| What's supported per Forge module type | `docs/module-support.md` |
-| Module context shapes (`extension.*` per module) | `docs/module-contexts.md` |
-| Full Forge API → forge-sim status matrix | `docs/implementation-matrix.md` |
-| Auth (PAT, OAuth, third-party providers, LLM key) | `docs/auth.md` |
-| Forge Remotes (`invokeRemote`, FIT JWT, JWKS) | `docs/remotes.md` |
-| Renderer (ForgeDoc → Atlaskit, color modes) | `docs/renderer.md` |
-| Testing patterns (vitest/jest, fixtures, examples) | `docs/testing.md` |
+| Local development overview | `docs/local-development/README.md` |
+| Auth (PAT, third-party providers, LLM key) | `docs/local-development/auth.md` |
+| Forge Remotes (`invokeRemote`, FIT JWT, JWKS) | `docs/local-development/remotes.md` |
+| Tools UI (`/__tools/`) HTTP API | `docs/local-development/dev-tools.md` |
+| Testing patterns (vitest/jest, fixtures, examples) | `docs/testing/README.md` |
+| AI-driven development overview | `docs/ai/README.md` |
+| MCP server (tools, resources, transport) | `docs/ai/mcp.md` |
+| Architecture (interception strategies, runtime model) | `docs/reference/architecture.md` |
+| CLI (`forge-sim dev`, `auth`, `daemon`) | `docs/reference/cli.md` |
+| Programmatic API (`sim.*`) | `docs/reference/api.md` |
+| Renderer (ForgeDoc → Atlaskit, color modes) | `docs/reference/renderer.md` |
+| What's supported per Forge module type | `docs/reference/module-support.md` |
+| Module context shapes (`extension.*` per module) | `docs/reference/module-contexts.md` |
+| Full Forge API → forge-sim status matrix | `docs/reference/implementation-matrix.md` |
 
 ## Running things
 

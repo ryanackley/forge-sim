@@ -172,6 +172,6 @@ The check is on by default when forge-sim is running from a checkout (`import.me
 ## Further reading
 
 - `CLAUDE.md` — quick orientation for agents working in the repo
-- [`docs/api.md`](./api.md) — programmatic surface (`sim.*`)
-- [`docs/renderer.md`](./renderer.md) — ForgeDoc → Atlaskit, color modes
-- [`docs/remotes.md`](./remotes.md) — FIT JWT signing and JWKS, the one place forge-sim *does* hit a network boundary inside the simulator
+- [`api.md`](./api.md) — programmatic surface (`sim.*`)
+- [`renderer.md`](./renderer.md) — ForgeDoc → Atlaskit, color modes
+- [`remotes.md`](../local-development/remotes.md) — FIT JWT signing and JWKS, the one place forge-sim *does* hit a network boundary inside the simulator

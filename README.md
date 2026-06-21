@@ -56,138 +56,64 @@ it uploads to user-attachments and inserts a bare URL on its own line, which
 GitHub renders as an inline player. (GIFs in the repo work too: docs/media/)
 -->
 
-### Connect to your Atlassian site
-
-```bash
-npx forge-sim auth
-```
-
-Enter your site URL, email, and [API token](https://id.atlassian.com/manage-profile/security/api-tokens). `requestJira()`, `requestConfluence()`, and `requestBitbucket()` now hit your site for real.
-
-### Proxy mode for Custom UI
-
-Custom UI pages already bundled and referenced in your manifest work out of the box.
-
-Typically, while developing, you will run your Custom UI in development mode using a webpack/Vite/Parcel dev server. If your Custom UI has its own dev server, run forge-sim in front of it with `--proxy`:
-
-```bash
-# Start your webpack, Vite, or Parcel dev server as usual
-cd my-custom-ui-app && npm start  # → http://localhost:3000
-
-# In another terminal, proxy it through forge-sim
-npx forge-sim dev --proxy http://localhost:3000
-```
-
-forge-sim sits in front of your Custom UI dev server and hosts it in an IFrame with shimmed Forge APIs. HMR and Chrome devtools will just work. 
-
-*🎬 Demo video placeholder — proxy mode: Vite dev server running, `forge-sim dev --proxy`, Custom UI inside the simulated Forge frame with HMR.*
-
-<!-- TODO(demo): record proxy-mode demo and replace the line above (same embed steps as the dev-mode demo). -->
-
-### Forge Remotes (optional)
-
-If your app calls your own backend via `invokeRemote()` or `requestRemote()`, forge-sim signs each request with a real FIT JWT and serves a local JWKS endpoint your backend can validate against. See [Forge Remotes](./docs/remotes.md) for the full guide — FIT claims, key persistence, backend validation, and mock routing.
-
-### External auth providers (optional)
-
-If your app uses `asUser().withProvider()` for third-party OAuth (Google, GitHub, etc.), run `npx forge-sim auth --provider <name>` — or `--providers` for all providers in your manifest. See [Authentication](./docs/auth.md).
+**Full guide:** [Local development](./docs/local-development/) — connecting to your Atlassian site, Custom UI and proxy mode, Forge Remotes, external auth providers, and the dev tools UI.
 
 ---
 
 ## CI/CD testing
 
-The test API runs your app against a headless simulated runtime — no deployment, no Atlassian site, no browser. Test UIKit, resolvers, queues, triggers, KVS, and SQL.
+Run your app against a headless simulated runtime — no deployment, no Atlassian site, no browser. The test API deploys your unmodified app and exposes its storage, queues, triggers, and rendered UI for assertions.
 
 ```typescript
-import { createSimulator } from 'forge-sim';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { createSimulator, type ForgeSimulator } from 'forge-sim';
 
-const sim = createSimulator();
+describe('my forge app', () => {
+  let sim: ForgeSimulator;
 
-// Deploy your app — manifest.yml drives everything
-const result = await sim.deploy('./my-forge-app');
+  beforeAll(async () => {
+    sim = createSimulator();
+    await sim.sql.start();              // embedded MySQL — only if the app uses @forge/sql
+    await sim.deploy('./my-forge-app'); // manifest.yml drives everything
+  });
 
-// Mock the product APIs
-sim.mockProductRoutes('jira', {
-  '/rest/api/3/issue/PROJ-1': { key: 'PROJ-1', summary: 'Fix the thing' },
-});
+  afterAll(async () => {
+    await sim.stop();
+  });
 
-// Test the full stack: resolver → KVS → queue → consumer
-const data = await sim.invoke('getIssue', { issueKey: 'PROJ-1' });
-expect(data.summary).toBe('Fix the thing');
+  it('reads an issue and records a view', async () => {
+    sim.mockProductRoutes('jira', {
+      '/rest/api/3/issue/PROJ-1': { key: 'PROJ-1', summary: 'Fix the thing' },
+    });
 
-// Verify side effects
-const views = await sim.kvs.get('views:PROJ-1');
-expect(views).toBe(1);
+    // The resolver runs your real handler, which writes to KVS
+    const data = await sim.invoke('getIssue', { issueKey: 'PROJ-1' });
+    expect(data.summary).toBe('Fix the thing');
+    expect(await sim.kvs.get('views:PROJ-1')).toBe(1);
+  });
 
-// Fire triggers
-await sim.fireTrigger('avi:jira:created:issue', { issue: { key: 'PROJ-2' } });
+  it('handles an issue-created trigger', async () => {
+    await sim.fireTrigger('avi:jira:created:issue', { issue: { key: 'PROJ-2' } });
 
-// Run SQL queries
-const rows = await sim.sql.query('SELECT * FROM objectives WHERE status = ?', ['active']);
-expect(rows).toHaveLength(3);
-```
-
-### Test UIKit 2 without a browser
-
-When deployed to Forge, UIKit components are rendered as a json tree called ForgeDoc that is passed to the server to be rendered. forge-sim captures the ForgeDoc output from the actual `@forge/react` package and exposes it to your tests. You can render UIKit 2 modules programmatically, interact with components, and assert on the ForgeDoc tree — no browser, no screenshots, no flaky selectors:
-
-```typescript
-// Render a Jira issue panel with context
-await sim.ui.render('issue-summary', {
-  context: { issueKey: 'PROJ-42' },
-});
-
-// Wait for async data to load
-const doc = await sim.ui.waitForContent('issue-summary', 'PROJ-42');
-
-// Assert on the rendered component tree
-const text = sim.ui.getTextContent(doc);
-expect(text).toContain('PROJ-42');
-expect(text).toContain('Views: 1');
-
-// Click a button — triggers real React state updates
-const { updatedDoc } = await sim.ui.interactWith('Button', { matchText: 'Load Comments' });
-
-// Verify the UI updated
-expect(sim.ui.getTextContent(updatedDoc)).toContain('3 comments');
-
-// Verify side effects (KVS writes, queue pushes, etc.)
-const views = await sim.kvs.get('views:PROJ-42');
-expect(views).toBe(1);
-```
-
-The interaction above goes through your real resolvers — KVS writes and queue pushes actually happen, and the ForgeDoc tree reflects the result.
-
-### Mock external services
-
-Same API for product APIs, your own remotes, third-party OAuth providers, and GraphQL:
-
-```typescript
-// Product APIs (Jira, Confluence, Bitbucket)
-sim.mockProductRoutes('jira', {
-  'POST /rest/api/3/issue': { id: '10001', key: 'TEST-1' },
-});
-
-// Your Forge Remotes — by manifest key, no real backend needed
-sim.mockProductRoutes('my-backend', {
-  'GET /api/v1/tasks': [{ id: 1, name: 'Write docs' }],
-  'POST /api/v1/tasks': (path, opts) => ({
-    id: 2, name: JSON.parse(opts?.body).name,
-  }),
-});
-
-// Third-party OAuth providers (asUser().withProvider())
-sim.mockProductRoutes('google-apis', {
-  'GET /userinfo/v2/me': { id: '12345', email: 'test@gmail.com' },
-});
-
-// GraphQL operations
-sim.mockGraphQL({
-  GetCurrentUser: { data: { me: { accountId: 'abc-123' } } },
+    const rows = await sim.sql.query(
+      'SELECT * FROM objectives WHERE status = ?',
+      ['active'],
+    );
+    expect(rows).toHaveLength(3);
+  });
 });
 ```
 
-Mocks take priority; unmocked routes fall through to a real API if one is connected via `forge-sim auth`.
+Features:
+
+- Runs your real handler code through the actual `@forge/*` packages, not hand-written mocks.
+- Invokes resolvers, triggers, scheduled triggers, queues, and consumers directly.
+- Gives direct read/write access to KVS, the Custom Entity Store, and Forge SQL (embedded MySQL) for setup and assertions.
+- Renders UIKit 2 modules to a ForgeDoc tree you can query and interact with — no browser.
+- Mocks product APIs, Forge Remotes, third-party OAuth, and GraphQL by route; unmocked routes fall through to a connected real API.
+- Mocks and records `@forge/llm` calls so tests stay offline.
+
+**Full guide:** [CI/CD testing](./docs/testing/) — bundler configuration, every testing pattern, UIKit rendering, mocking, and the programmatic API reference.
 
 ---
 
@@ -248,24 +174,18 @@ View logs:            forge-sim logs
 Reset everything:     forge-sim reset
 ```
 
+**Full guide:** [AI-driven development](./docs/ai/) — the MCP server (tools and resources), transport options, and the agent CLI.
+
 ---
 
 ## Documentation
 
-See [docs/](./docs/) for the full reference:
+The docs are organized around the three ways to use forge-sim, with a shared reference section:
 
-- [Architecture](./docs/architecture.md) — How forge-sim intercepts `@forge/*` imports and bridges
-- [CLI Reference](./docs/cli.md) — All commands and options
-- [Authentication](./docs/auth.md) — API tokens, OAuth, external auth providers, credential management
-- [Forge Remotes](./docs/remotes.md) — External backends, FIT JWT auth, JWKS endpoint, mock routing
-- [Programmatic API](./docs/api.md) — Using forge-sim in code
-- [MCP Server](./docs/mcp.md) — AI agent integration
-- [UIKit Renderer](./docs/renderer.md) — Architecture, browser mode, component coverage
-- [Implementation Matrix](./docs/implementation-matrix.md) — Full API coverage status
-- [Module Support](./docs/module-support.md) — Per-module-type support matrix
-- [Module Contexts](./docs/module-contexts.md) — Per-module `extension.*` shapes
-- [Testing Patterns](./docs/testing.md) — Vitest/Jest examples, fixtures, common patterns
-- [Dev Tools](./docs/tools.md) — Built-in KVS browser, SQL console, log viewer
+- **[Local development](./docs/local-development/)** — the `forge-sim dev` server, connecting to Atlassian, Custom UI and proxy mode, Forge Remotes, external auth, and the dev tools UI.
+- **[CI/CD testing](./docs/testing/)** — the test API, bundler config, testing patterns, UIKit rendering, mocking, and the programmatic `sim.*` reference.
+- **[AI-driven development](./docs/ai/)** — the MCP server and agent CLI.
+- **[Reference](./docs/reference/)** — architecture, full CLI reference, implementation matrix, module support, and module contexts.
 
 ## Development
 

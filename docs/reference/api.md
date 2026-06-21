@@ -656,9 +656,9 @@ expect(history).toHaveLength(2);
 expect(history[1].prompt.messages.at(-1)?.role).toBe('tool');
 ```
 
-If neither mocks nor `ANTHROPIC_API_KEY` are present, `chat()` throws `LlmApiError` with code `NO_API_KEY`. See [testing.md § Mocking @forge/llm](./testing.md#mocking-forgellm) for the full pattern catalog.
+If neither mocks nor `ANTHROPIC_API_KEY` are present, `chat()` throws `LlmApiError` with code `NO_API_KEY`. See [testing § Mocking @forge/llm](../testing/README.md#mocking-forgellm) for the full pattern catalog.
 
-The MCP equivalents are `forge.llm_mock` and `forge.llm_history` — see [mcp.md](./mcp.md#tools).
+The MCP equivalents are `forge.llm_mock` and `forge.llm_history` — see [mcp.md](../ai/mcp.md#tools).
 
 ---
 

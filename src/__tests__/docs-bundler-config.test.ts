@@ -1,6 +1,6 @@
 /**
- * Regression guard for the bundler-config snippet in docs/testing.md and the
- * forge-local-dev skill.
+ * Regression guard for the bundler-config snippet in docs/testing/README.md
+ * and the forge-local-dev skill.
  *
  * Background: the original snippet used `require.resolve('forge-sim')` to
  * compute the SHIMS dir. forge-sim is ESM-only with no "require" condition
@@ -17,7 +17,7 @@
  *      (Confirms our fix isn't papering over something that started working
  *      again — and documents WHY the old pattern was wrong.)
  *
- *   3. docs/testing.md + the forge-local-dev skill contain the recommended
+ *   3. docs/testing/README.md + the forge-local-dev skill contain the recommended
  *      pattern (`'forge-sim/shims/...'`) and do NOT contain the broken one.
  *      (Drift detection — if someone re-introduces `require.resolve`, this
  *      screams immediately.)
@@ -39,7 +39,7 @@ const SHIMS = [
 ] as const;
 
 const REPO_ROOT = join(import.meta.dirname, '..', '..');
-const TESTING_DOC = join(REPO_ROOT, 'docs', 'testing.md');
+const TESTING_DOC = join(REPO_ROOT, 'docs', 'testing', 'README.md');
 const SKILL_DOC = join(REPO_ROOT, 'skills', 'forge-local-dev', 'SKILL.md');
 const PACKAGE_JSON = JSON.parse(
   readFileSync(join(REPO_ROOT, 'package.json'), 'utf8'),
@@ -81,7 +81,7 @@ describe('package.json exports map — shim contract', () => {
   });
 });
 
-describe('docs/testing.md — bundler snippet drift', () => {
+describe('docs/testing/README.md — bundler snippet drift', () => {
   const content = readFileSync(TESTING_DOC, 'utf8');
 
   it('does NOT reintroduce the broken require.resolve("forge-sim") pattern', () => {

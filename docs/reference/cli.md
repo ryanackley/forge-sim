@@ -227,7 +227,7 @@ forge-sim serve [--port=N]
 
 ## `forge-sim auth`
 
-Manage Atlassian account credentials. See [Authentication](./auth.md) for details.
+Manage Atlassian account credentials. See [Authentication](../local-development/auth.md) for details.
 
 ```bash
 # Atlassian accounts (PAT only — OAuth was removed)
@@ -246,7 +246,7 @@ forge-sim auth --providers                # OAuth dance for all manifest provide
 forge-sim auth --providers --list         # Show auth status for all providers
 ```
 
-External auth reads `providers.auth` and `remotes` from your `manifest.yml`. Provider client secrets are stored per-project in `<app>/.forge-sim/providers.json` (mode 0600). See [Authentication — External Auth](./auth.md#external-auth-third-party-oauth) for details.
+External auth reads `providers.auth` and `remotes` from your `manifest.yml`. Provider client secrets are stored per-project in `<app>/.forge-sim/providers.json` (mode 0600). See [Authentication — External Auth](../local-development/auth.md#external-auth-third-party-oauth) for details.
 
 ---
 

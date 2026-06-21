@@ -23,7 +23,7 @@ forge-sim invoke myResolver
 forge-sim serve
 ```
 
-The daemon runs as a background process. State persists across all CLI and API calls. See [CLI Reference](./cli.md#daemon-lifecycle) for lifecycle details.
+The daemon runs as a background process. State persists across all CLI and API calls. See [CLI Reference](../reference/cli.md#daemon-lifecycle) for lifecycle details.
 
 ### Claude Code / MCP Client Config
 

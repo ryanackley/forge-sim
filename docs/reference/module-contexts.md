@@ -207,7 +207,7 @@ Same context as `jira:customField`. Used when defining reusable field types.
 - `priority-score--view` — the cell renderer (read-only)
 - `priority-score--edit` — the inline editor (with submit handler)
 
-Both render with the field context above; the `--edit` sub-module's `view.submit(payload)` is captured by `sim.ui.onSubmit()` in tests rather than dispatched to the host product (see [testing.md § Custom field subviews](./testing.md#custom-field-subviews)).
+Both render with the field context above; the `--edit` sub-module's `view.submit(payload)` is captured by `sim.ui.onSubmit()` in tests rather than dispatched to the host product (see [testing § Custom field subviews](../testing/README.md#custom-field-subviews)).
 
 ---
 

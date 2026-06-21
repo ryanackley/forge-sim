@@ -107,4 +107,4 @@ All endpoints are under `/__tools/api/`:
 | DELETE | `/api/providers/:key` | Disconnect — revoke stored provider token |
 | GET | `/__tools/oauth/callback` | Unified OAuth callback URL (dispatched to pending flow by `state`) |
 
-> The Tools UI also accepts `?theme=dark|light|auto` on the URL — see [cli.md](./cli.md#theme-dark--light) for the convention shared with the renderer.
+> The Tools UI also accepts `?theme=dark|light|auto` on the URL — see [cli.md](../reference/cli.md#theme-dark--light) for the convention shared with the renderer.

@@ -285,7 +285,7 @@ Clears all sim state (in-memory + drops SQL tables; MySQL server stays running).
 
 When the user asks you to "write tests" / "make this testable" / "add vitest coverage", switch surfaces. Tests run in their own Node process — they can't reach the MCP server.
 
-**The full reference is [docs/testing.md](https://github.com/ryanackley/forge-sim/blob/main/docs/testing.md)** — read it before writing tests. It covers bundler config, every testing pattern (resolvers, SQL, KVS, triggers, queues, UI), product API mocking, and view-event capture (`onSubmit`/`onClose`/`onRefresh`). The summary below is the minimum needed to bootstrap a test file.
+**The full reference is [docs/testing](https://github.com/ryanackley/forge-sim/blob/main/docs/testing/README.md)** — read it before writing tests. It covers bundler config, every testing pattern (resolvers, SQL, KVS, triggers, queues, UI), product API mocking, and view-event capture (`onSubmit`/`onClose`/`onRefresh`). The summary below is the minimum needed to bootstrap a test file.
 
 #### Bundler config (one-time per project)
 
@@ -312,7 +312,7 @@ export default defineConfig({
 });
 ```
 
-Jest uses `moduleNameMapper` with the same paths — see the [Webpack / Jest section](https://github.com/ryanackley/forge-sim/blob/main/docs/testing.md#webpack--jest) of testing.md.
+Jest uses `moduleNameMapper` with the same paths — see the [Webpack / Jest section](https://github.com/ryanackley/forge-sim/blob/main/docs/testing/README.md#webpack--jest) of the testing guide.
 
 > No alias needed for `@forge/sql`. The real `@forge/sql` package talks to the simulator through a runtime hook (`global.__forge_fetch__`) that `createSimulator()` installs automatically.
 

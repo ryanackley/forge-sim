@@ -2,6 +2,8 @@
 
 forge-sim lets you write fast, deterministic tests for your Forge app — resolvers, triggers, queues, KVS, SQL, and product APIs — without a cloud deploy or an Atlassian site.
 
+For the complete `sim.*` surface this guide draws on, see the [programmatic API reference](../reference/api.md).
+
 ## Table of Contents
 
 - [Bundler Configuration](#bundler-configuration)
@@ -797,7 +799,7 @@ The things that have eaten the most debugging time. Check here first when a test
 
 ### `useEffect` + `invoke()` returns the loading state
 
-`sim.ui.render()` only awaits the **initial** reconcile. If your component fetches data in a `useEffect` and re-renders when it lands, the rendered tree from `render()` is the pre-fetch state (`<Text>Loading…</Text>` or similar). Fix: chase it with `sim.ui.waitForContent(moduleKey, expectedText)` — that polls the tree until the substring shows up. Same applies to the MCP `forge.ui_render` tool; use `forge.ui_wait_for` to settle. See [renderer.md § Server-mode useEffect and async state](./renderer.md#server-mode-useeffect-and-async-state).
+`sim.ui.render()` only awaits the **initial** reconcile. If your component fetches data in a `useEffect` and re-renders when it lands, the rendered tree from `render()` is the pre-fetch state (`<Text>Loading…</Text>` or similar). Fix: chase it with `sim.ui.waitForContent(moduleKey, expectedText)` — that polls the tree until the substring shows up. Same applies to the MCP `forge.ui_render` tool; use `forge.ui_wait_for` to settle. See [renderer.md § Server-mode useEffect and async state](../reference/renderer.md#server-mode-useeffect-and-async-state).
 
 ### Don't wrap your Custom UI app in `React.StrictMode` with Atlaskit
 
@@ -851,8 +853,8 @@ Unlike `@forge/api` / `@forge/kvs` / etc., there is no `forge-sim/shims/forge-sq
 
 ### Function-prop equality across renders
 
-ForgeDoc serializes function props as `{ __fn__: '<id>' }` tokens — and **each render produces fresh IDs**. Don't snapshot a tree expecting `onClick` IDs to be stable, and don't compare two ForgeDocs structurally if either has handlers. See [renderer.md § Function serialization](./renderer.md#function-serialization-__id__).
+ForgeDoc serializes function props as `{ __fn__: '<id>' }` tokens — and **each render produces fresh IDs**. Don't snapshot a tree expecting `onClick` IDs to be stable, and don't compare two ForgeDocs structurally if either has handlers. See [renderer.md § Function serialization](../reference/renderer.md#function-serialization-__id__).
 
 ### `forge-sim` is rebuilt mid-session → the MCP daemon serves stale code
 
-This bites devs working on forge-sim itself, not app authors — but if you're hitting "method is not a function" errors from MCP calls right after rebuilding `dist/`, the long-lived daemon has the old code in memory. The simulator self-checks dist mtimes on every MCP response and warns when stale; restart the daemon (`ps aux | grep mcp-server`, kill the PID — the client respawns it). See [architecture.md § Known gotcha: stale daemon](./architecture.md#known-gotcha-stale-daemon-on-rebuild).
+This bites devs working on forge-sim itself, not app authors — but if you're hitting "method is not a function" errors from MCP calls right after rebuilding `dist/`, the long-lived daemon has the old code in memory. The simulator self-checks dist mtimes on every MCP response and warns when stale; restart the daemon (`ps aux | grep mcp-server`, kill the PID — the client respawns it). See [architecture.md § Known gotcha: stale daemon](../reference/architecture.md#known-gotcha-stale-daemon-on-rebuild).

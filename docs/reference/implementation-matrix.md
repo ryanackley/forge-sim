@@ -220,7 +220,7 @@ OpenAI-shaped Anthropic LLM interface. Mock-first; falls through to the real Ant
 | `reset()` | ✅ | Clears queue + history. |
 | `setApiKey(key)` / `getApiKey()` | ✅ | `process.env.ANTHROPIC_API_KEY` wins over config. |
 
-**MCP:** `forge.llm_mock`, `forge.llm_history` — see [mcp.md](./mcp.md#tools).
+**MCP:** `forge.llm_mock`, `forge.llm_history` — see [mcp.md](../ai/mcp.md#tools).
 
 ---
 
@@ -642,7 +642,7 @@ Features beyond individual APIs.
 | Invocation time limits | ✅ | — | Per-function-type timeout warnings matching real Forge limits (25s resolver, 55s trigger, etc.) |
 | Trigger event templates | ✅ | — | 143 centralized templates (76 Confluence + 56 Jira + 9 Jira Software + 2 App Lifecycle) with typed payloads via `TriggerPayloadByEvent` |
 | Memory limits | ❌ | — | No simulation of 128MB heap limit |
-| Forge Remotes | ✅ | `remotes.test.ts` | Full: manifest parsing, endpoint resolution, mock routing, real HTTP with FIT JWT auth, JWKS endpoint. See [remotes.md](./remotes.md) |
+| Forge Remotes | ✅ | `remotes.test.ts` | Full: manifest parsing, endpoint resolution, mock routing, real HTTP with FIT JWT auth, JWKS endpoint. See [remotes.md](../local-development/remotes.md) |
 | Forge Environments | ⚠️ | — | Always returns "DEVELOPMENT" |
 
 ---
