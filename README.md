@@ -1,9 +1,10 @@
 # forge-sim
 
-A local simulation of Atlassian's Forge platform. For CI/CD tests and local development. It's like LocalStack for Forge
+There are three main components
 
-* **Fast local development loop.**  Deploying to Forge to test every change slows iteration and is a subtle pain point that grows over time. tunnel → Edit → deploy → wait → check. Repeat. 
-* **CI/CD test API** Works for UIKit 2 and backend forge modules. See testing section below
+* **A local simulation of Atlassian's Forge platform**  Creates a fast local development loop. Makes iterating faster by removing the deploy to cloud step. Think of it as LocalStack for Forge. 
+* **CI/CD test API** Works for backend forge modules as well as UIKit 2. See testing section below. 
+* **MCP for AI-first development** A simulated Forge environment for AIs to iterate on Forge Apps without giving them access to your Cloud environment and teaching them to navigate Atlassian apps. 
 
 ## What's simulated
 
