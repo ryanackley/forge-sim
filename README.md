@@ -2,7 +2,7 @@
 
 There are three main components
 
-* **Local development loop**  A local simulation of Atlassian's Forge platform for development. Makes iterating faster by removing the deploy to cloud step. Think of it as LocalStack for Forge. 
+* **Local Forge simulation**  A local simulation of Atlassian's Forge platform for a faster development loop. Makes iterating faster by removing the deploy to cloud step. Think of it as LocalStack for Forge. 
 * **CI/CD test API** Works for backend forge modules as well as UIKit 2. See testing section below. 
 * **MCP for AI-first development** A simulated Forge environment for AIs to iterate on Forge Apps without giving them access to your Cloud environment and teaching them to navigate Atlassian apps. 
 
