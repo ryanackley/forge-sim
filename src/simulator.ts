@@ -22,6 +22,7 @@ import { FITProvider } from './fit-provider.js';
 import { RemoteProxy } from './remote-proxy.js';
 import { SimulatedLLM } from './llm.js';
 import { SimulatedRealtime } from './realtime.js';
+import { SimulatedObjectStore } from './object-store.js';
 import type { SimulationConfig, ResolverContext, InvokeOptions, ProductApiHandler, ProductApiRequest, ProductApiResponse } from './types.js';
 import type { TriggerPayloadByEvent } from './trigger-event-types.js';
 import type { ManifestAction } from './manifest.js';
@@ -53,6 +54,7 @@ export class ForgeSimulator {
   readonly remotes: RemoteProxy;
   readonly llm: SimulatedLLM;
   readonly realtime: SimulatedRealtime;
+  readonly objectStore: SimulatedObjectStore;
 
   /** UI API — ForgeDoc access, tree traversal, interaction, bridge lifecycle. */
   readonly ui: SimulatorUI;
@@ -108,6 +110,7 @@ export class ForgeSimulator {
     this.remotes.onLog((level, message, detail) => this.log(level, message, detail));
     this.llm = new SimulatedLLM((level, message, detail) => this.log(level, message, detail));
     this.realtime = new SimulatedRealtime((level, message, detail) => this.log(level, message, detail));
+    this.objectStore = new SimulatedObjectStore();
     this.ui = new SimulatorUI(this);
 
     // Register property store as fallback routes for product APIs
@@ -1010,6 +1013,7 @@ export class ForgeSimulator {
     this.moduleRouting.clear();
     this.resolverOwnership.clear();
     this.realtime.reset();
+    this.objectStore.reset();
     this.manifest = null;
     this.logs.length = 0;
     this.consoleLogs.length = 0;
@@ -1022,6 +1026,7 @@ export class ForgeSimulator {
    * Call this when you're done with the simulator.
    */
   async stop(): Promise<void> {
+    this.objectStore.stop();
     await this.sql.stop();
   }
 }

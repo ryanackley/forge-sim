@@ -29,6 +29,7 @@ import { saveState, loadState, hasPersistedState, getSQLDumpPath } from './persi
 import { buildDefaultContext, buildForgeContext, type RenderContextOptions } from './context.js';
 import { createWebTriggerHandler } from './web-trigger.js';
 import { startTypeCheckWatch, type TypeCheckWatcher } from './type-checker.js';
+import { RAW_HTML_TAG_LIST } from './ui/html-elements.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -243,12 +244,52 @@ export function generateBridgeInlineScript(wsPort: number, defaultModuleKey?: st
     return match ? match[1] : ${defaultModuleKey ? `'${defaultModuleKey}'` : 'undefined'};
   }
 
+  // Parity (spec UIK-003): real Forge UI Kit rejects raw HTML host elements
+  // (<div> etc.) — apps may only render '@forge/react' components. Detection
+  // uses the canonical HTML/SVG/MathML tag list (injected from
+  // src/ui/html-elements.ts) plus the custom-element rule (hyphenated name).
+  // In the dev server the failure is VISUAL — an error doc replaces the app —
+  // while the headless test/MCP bridge hard-fails instead.
+  var RAW_HTML_TAGS = ${JSON.stringify(RAW_HTML_TAG_LIST)};
+  var RAW_HTML_TAG_MAP = {};
+  for (var _rht = 0; _rht < RAW_HTML_TAGS.length; _rht++) RAW_HTML_TAG_MAP[RAW_HTML_TAGS[_rht]] = true;
+
+  function isRawHtmlType(type) {
+    return typeof type === 'string' && (RAW_HTML_TAG_MAP[type] === true || type.indexOf('-') !== -1);
+  }
+
+  function collectRawHtml(doc, found) {
+    if (doc && isRawHtmlType(doc.type)) found.push(doc.type);
+    var kids = (doc && doc.children) || [];
+    for (var i = 0; i < kids.length; i++) collectRawHtml(kids[i], found);
+    return found;
+  }
+
+  function rawHtmlErrorDoc(rootType, tags) {
+    var msg = 'UI Kit does not support raw HTML elements (found: <' + tags.join('>, <') + '>). ' +
+      "Apps are restricted to components exported from '@forge/react' — real Forge rejects this render.";
+    return { type: rootType, key: '', props: {}, children: [
+      { type: 'SectionMessage', props: { title: 'UI Kit rendering error', appearance: 'error' }, key: 'uikit-raw-html-error', children: [
+        { type: 'Text', props: {}, key: 'uikit-raw-html-error-text', children: [
+          { type: 'String', props: { text: msg }, key: 'uikit-raw-html-error-string', children: [] }
+        ] }
+      ] }
+    ] };
+  }
+
   function callBridge(cmd, data) {
     switch(cmd) {
       case 'reconcile':
         if (data && data.forgeDoc) {
-          S.lastForgeDoc = data.forgeDoc;
-          S.reconcileListeners.forEach(function(l) { try { l(data.forgeDoc); } catch(e) { console.warn('[forge-sim] Reconcile listener error:', e); } });
+          var rawTags = collectRawHtml(data.forgeDoc, []);
+          var doc = data.forgeDoc;
+          if (rawTags.length > 0) {
+            console.error('[forge-sim] UI Kit render rejected: raw HTML element(s) <' + rawTags.join('>, <') +
+              "> are not supported. UI Kit apps may only render components exported from '@forge/react'.");
+            doc = rawHtmlErrorDoc(doc.type, rawTags);
+          }
+          S.lastForgeDoc = doc;
+          S.reconcileListeners.forEach(function(l) { try { l(doc); } catch(e) { console.warn('[forge-sim] Reconcile listener error:', e); } });
         }
         return Promise.resolve();
       case 'invoke':
@@ -326,7 +367,6 @@ export function generateBridgeInlineScript(wsPort: number, defaultModuleKey?: st
             },
             push: function(to, state) {
               var loc = createLocation(to, state);
-              var update = { action: 'PUSH', location: loc };
               for (var i = 0; i < blockers.length; i++) {
                 var blocked = false;
                 blockers[i]({ action: 'PUSH', location: loc, retry: function() { history.push(to, state); } });
@@ -339,11 +379,11 @@ export function generateBridgeInlineScript(wsPort: number, defaultModuleKey?: st
               window.history.pushState(stateObj, '', history.createHref(loc));
               history.action = 'PUSH';
               history.location = loc;
-              listeners.forEach(function(fn) { try { fn(update); } catch(e) { console.error(e); } });
+              // v4 listener signature (location, action) — matches real Forge
+              listeners.forEach(function(fn) { try { fn(loc, 'PUSH'); } catch(e) { console.error(e); } });
             },
             replace: function(to, state) {
               var loc = createLocation(to, state);
-              var update = { action: 'REPLACE', location: loc };
               for (var i = 0; i < blockers.length; i++) {
                 blockers[i]({ action: 'REPLACE', location: loc, retry: function() { history.replace(to, state); } });
                 return;
@@ -354,9 +394,11 @@ export function generateBridgeInlineScript(wsPort: number, defaultModuleKey?: st
               window.history.replaceState(stateObj, '', history.createHref(loc));
               history.action = 'REPLACE';
               history.location = loc;
-              listeners.forEach(function(fn) { try { fn(update); } catch(e) { console.error(e); } });
+              listeners.forEach(function(fn) { try { fn(loc, 'REPLACE'); } catch(e) { console.error(e); } });
             },
             go: function(delta) { window.history.go(delta); },
+            goBack: function() { window.history.go(-1); },
+            goForward: function() { window.history.go(1); },
             back: function() { window.history.go(-1); },
             forward: function() { window.history.go(1); },
             listen: function(fn) {
@@ -372,8 +414,8 @@ export function generateBridgeInlineScript(wsPort: number, defaultModuleKey?: st
           window.addEventListener('popstate', function() {
             history.action = 'POP';
             history.location = getCurrentLocation();
-            var update = { action: 'POP', location: history.location };
-            listeners.forEach(function(fn) { try { fn(update); } catch(e) { console.error(e); } });
+            // v4 listener contract: fn(location, action) — matches real Forge's bridge history
+            listeners.forEach(function(fn) { try { fn(history.location, 'POP'); } catch(e) { console.error(e); } });
           });
 
           return history;
@@ -1803,6 +1845,24 @@ export async function devCommand(options: DevCommandOptions) {
       (globalThis as any).__forgeSim_devPort__ = port;
     }
 
+    // Object Store pre-signed URL endpoints — served by the dev server so
+    // upload/download URLs point at a stable origin (no ephemeral server).
+    sim.objectStore.setBaseUrl(`http://localhost:${port}`);
+    proxyServer.addMiddleware('/__object-store', (req, res, pathname) => {
+      sim.objectStore.handleRequest(req, res, pathname).then(handled => {
+        if (!handled && !res.writableEnded) {
+          res.writeHead(404, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Not found' }));
+        }
+      }).catch((err: any) => {
+        if (!res.writableEnded) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: err.message }));
+        }
+      });
+      return true;
+    });
+
     // Stream simulator logs to all connected Tools clients
     sim.onLog((entry: any) => {
       broadcastToolsMessage({ type: 'log', data: entry });
@@ -2041,6 +2101,33 @@ export async function devCommand(options: DevCommandOptions) {
         viteServer.middlewares.use(triggerMiddleware);
       }
       (globalThis as any).__forgeSim_devPort__ = port;
+    }
+
+    // 8d. Serve Object Store pre-signed URL endpoints at /__object-store/<token>
+    sim.objectStore.setBaseUrl(`http://localhost:${port}`);
+    const objectStoreMiddleware = (req: any, res: any, next: any) => {
+      const url = new URL(req.url ?? '/', 'http://localhost');
+      if (url.pathname.startsWith('/__object-store/')) {
+        sim.objectStore.handleRequest(req, res, url.pathname).then(handled => {
+          if (!handled && !res.writableEnded) {
+            res.writeHead(404, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Not found' }));
+          }
+        }).catch((err: any) => {
+          if (!res.writableEnded) {
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: err.message }));
+          }
+        });
+        return;
+      }
+      next();
+    };
+    const objectStoreStack = (viteServer.middlewares as any).stack;
+    if (Array.isArray(objectStoreStack)) {
+      objectStoreStack.unshift({ route: '', handle: objectStoreMiddleware });
+    } else {
+      viteServer.middlewares.use(objectStoreMiddleware);
     }
 
     console.log(`     ➜ Tools:   ${localUrl}__tools/`);

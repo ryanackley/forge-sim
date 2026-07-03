@@ -476,6 +476,11 @@ async function callBridge(cmd: string, data?: any): Promise<any> {
       console.error('[forge-bridge-shim] App error:', data?.error);
       return;
 
+    case 'trackObjectStoreAction':
+      // Object Store analytics — real @forge/bridge fire-and-forgets this
+      // before every objectStore.* call. No-op, must never reject.
+      return;
+
     default:
       console.warn(`[forge-bridge-shim] Unhandled bridge command: "${cmd}"`);
       return;
@@ -510,6 +515,131 @@ export function makeInvoke() {
   return invoke;
 }
 
+// ── Memory history (view.createHistory) ─────────────────────────────────
+// Powers @forge/react/router's <Router> in the browser dev server. Same
+// memory history as the headless shim (src/shims/forge-bridge.ts) —
+// entries/index stack, PUSH truncates the forward stack, listen/unlisten,
+// blockers. A memory history (not window.history) keeps the dev server URL
+// intact — it encodes module key + context in the query string.
+//
+// Parity: real Forge's bridge history uses the history v4 runtime contract —
+// listen((location, action)), goBack()/goForward(). @forge/react's Router
+// destructures the first listener arg as the location, so v5-style notify
+// ({action, location}) breaks Route matching after navigation. We keep
+// back()/forward() too since @forge/bridge's .d.ts types the return as v5.
+
+interface HistoryLocation {
+  pathname: string;
+  search: string;
+  hash: string;
+  state: any;
+  key: string;
+}
+
+type HistoryListener = (location: HistoryLocation, action: string) => void;
+
+function createMemoryHistory(): any {
+  const entries: HistoryLocation[] = [
+    { pathname: '/', search: '', hash: '', state: null, key: 'default' },
+  ];
+  let index = 0;
+  let listeners: HistoryListener[] = [];
+  let blockers: Array<(tx: any) => void> = [];
+
+  function generateKey(): string {
+    return Math.random().toString(36).slice(2, 10);
+  }
+
+  function parsePath(to: string | Partial<HistoryLocation>): Partial<HistoryLocation> {
+    if (typeof to === 'object') return to;
+    const path = to || '/';
+    let pathname = path, search = '', hash = '';
+    const hashIdx = path.indexOf('#');
+    if (hashIdx >= 0) { hash = path.slice(hashIdx); pathname = path.slice(0, hashIdx); }
+    const searchIdx = pathname.indexOf('?');
+    if (searchIdx >= 0) { search = pathname.slice(searchIdx); pathname = pathname.slice(0, searchIdx); }
+    return { pathname, search, hash };
+  }
+
+  function createLocation(to: string | Partial<HistoryLocation>, state?: any): HistoryLocation {
+    const parsed = parsePath(to);
+    return {
+      pathname: parsed.pathname || '/',
+      search: parsed.search || '',
+      hash: parsed.hash || '',
+      state: state ?? null,
+      key: generateKey(),
+    };
+  }
+
+  function notify(action: string): void {
+    const location = entries[index];
+    for (const fn of listeners) {
+      try { fn(location, action); } catch (e) { console.error(e); }
+    }
+  }
+
+  const history = {
+    get action() { return 'POP'; },
+    get location() { return entries[index]; },
+    set location(_loc: HistoryLocation) { /* mutable per history v5 spec */ },
+
+    createHref(to: string | Partial<HistoryLocation>): string {
+      if (typeof to === 'string') return to;
+      return (to.pathname || '') + (to.search || '') + (to.hash || '');
+    },
+
+    push(to: string | Partial<HistoryLocation>, state?: any): void {
+      const loc = createLocation(to, state);
+      if (blockers.length > 0) {
+        blockers[0]({ action: 'PUSH', location: loc, retry: () => history.push(to, state) });
+        return;
+      }
+      // Truncate forward stack and push
+      entries.splice(index + 1);
+      entries.push(loc);
+      index = entries.length - 1;
+      notify('PUSH');
+    },
+
+    replace(to: string | Partial<HistoryLocation>, state?: any): void {
+      const loc = createLocation(to, state);
+      if (blockers.length > 0) {
+        blockers[0]({ action: 'REPLACE', location: loc, retry: () => history.replace(to, state) });
+        return;
+      }
+      entries[index] = loc;
+      notify('REPLACE');
+    },
+
+    go(delta: number): void {
+      const nextIndex = Math.max(0, Math.min(entries.length - 1, index + delta));
+      if (nextIndex === index) return;
+      index = nextIndex;
+      notify('POP');
+    },
+
+    // v4 names (the documented Forge contract)
+    goBack(): void { history.go(-1); },
+    goForward(): void { history.go(1); },
+    // v5 names (what @forge/bridge's .d.ts promises)
+    back(): void { history.go(-1); },
+    forward(): void { history.go(1); },
+
+    listen(fn: HistoryListener): () => void {
+      listeners.push(fn);
+      return () => { listeners = listeners.filter(l => l !== fn); };
+    },
+
+    block(fn: (tx: any) => void): () => void {
+      blockers.push(fn);
+      return () => { blockers = blockers.filter(b => b !== fn); };
+    },
+  };
+
+  return history;
+}
+
 export const view = {
   getContext: () => rpc('getContext', {
     moduleKey: getModuleKeyFromURL(),
@@ -524,7 +654,7 @@ export const view = {
     if (typeof window !== 'undefined') window.location.reload();
     return Promise.resolve();
   },
-  createHistory: () => Promise.reject(new Error('createHistory not supported in forge-sim')),
+  createHistory: () => Promise.resolve(createMemoryHistory()),
   theme: {
     enable: () => {
       // Apply dark mode tokens by setting the Atlaskit theme attribute
@@ -954,5 +1084,221 @@ export const realtime = {
       global: true,
       options,
     });
+  },
+};
+
+// ── Object Store bridge surface ─────────────────────────────────────────
+//
+// Ported from real @forge/bridge 6.x `out/object-store/*` — same validation
+// messages, result shapes, and checksum-mapping flow. Uses this shim's
+// invoke() (RPC to the sim backend) + the browser's native fetch() against
+// the dev server's /__object-store/<token> pre-signed URLs.
+
+/** Matches @forge/bridge's BridgeAPIError (a bare Error subclass). */
+export class BridgeAPIError extends Error {}
+
+const OBJECT_STORE_RESTRICTED_ERROR =
+  'Object Store bridge methods are restricted to Forge apps in a non-production environment. For more information please see https://developer.atlassian.com/platform/forge/cli-reference/environments/ for reference on Forge app environments.';
+
+export interface Base64Object {
+  data: string;
+  mimeType?: string;
+}
+
+export interface UploadResult {
+  success: boolean;
+  key: string;
+  status?: number;
+  error?: string;
+}
+
+export interface DownloadResult {
+  success: boolean;
+  key: string;
+  blob?: Blob;
+  status?: number;
+  error?: string;
+}
+
+export interface UploadPromiseItem {
+  promise: Promise<UploadResult>;
+  index: number;
+  objectType?: string;
+  objectSize?: number;
+}
+
+async function checkRestrictedEnvironment(): Promise<void> {
+  const { environmentType } = await view.getContext();
+  if (environmentType === 'PRODUCTION') {
+    throw new BridgeAPIError(OBJECT_STORE_RESTRICTED_ERROR);
+  }
+}
+
+function base64ToBlob(base64: string, mimeType?: string): Blob {
+  const byteCharacters = atob(base64);
+  const byteNumbers = new Array(byteCharacters.length);
+  for (let i = 0; i < byteCharacters.length; i++) {
+    byteNumbers[i] = byteCharacters.charCodeAt(i);
+  }
+  return new Blob([new Uint8Array(byteNumbers)], { type: mimeType || 'application/octet-stream' });
+}
+
+async function getUploadObjectMetadata(blob: Blob): Promise<{ length: number; checksum: string; checksumType: 'SHA256' }> {
+  const arrayBuffer = await blob.arrayBuffer();
+  const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer);
+  const checksum = btoa(String.fromCharCode(...new Uint8Array(hashBuffer)));
+  return { length: blob.size, checksum, checksumType: 'SHA256' };
+}
+
+export async function createUploadPromises({
+  functionKey,
+  objects,
+}: {
+  functionKey: string;
+  objects: Array<Blob | Base64Object>;
+}): Promise<UploadPromiseItem[]> {
+  if (!functionKey || functionKey.length === 0) {
+    throw new BridgeAPIError('functionKey is required to filter and generate presigned URLs');
+  }
+  if (!Array.isArray(objects) || objects.length === 0) {
+    throw new BridgeAPIError('objects array is required and must not be empty');
+  }
+
+  const blobs = objects.map((obj, index) => {
+    if (obj instanceof Blob) return obj;
+    const isBase64Object = obj && typeof obj === 'object' && 'data' in obj && typeof obj.data === 'string';
+    if (!isBase64Object) {
+      throw new BridgeAPIError(
+        `Invalid object type at index ${index}. Only Blob or Base64Object (with data string and optional mimeType) are accepted.`,
+      );
+    }
+    try {
+      return base64ToBlob(obj.data, obj.mimeType);
+    } catch {
+      throw new BridgeAPIError(`Invalid base64 data at index ${index}. The data string must be valid base64 encoded.`);
+    }
+  });
+
+  const allObjectMetadata = await Promise.all(blobs.map((blob) => getUploadObjectMetadata(blob)));
+
+  const presignedURLsToObjectMetadata = (await invoke(functionKey, { allObjectMetadata })) as
+    | Record<string, { key: string; checksum: string }>
+    | undefined;
+
+  if (!presignedURLsToObjectMetadata || typeof presignedURLsToObjectMetadata !== 'object') {
+    throw new BridgeAPIError('Invalid response from functionKey');
+  }
+
+  const checksumToBlobMap = new Map<string, Blob>();
+  const checksumToIndexMap = new Map<string, number>();
+  blobs.forEach((blob, index) => {
+    const metadata = allObjectMetadata[index];
+    checksumToBlobMap.set(metadata.checksum, blob);
+    checksumToIndexMap.set(metadata.checksum, index);
+  });
+
+  return Object.entries(presignedURLsToObjectMetadata).map(([presignedUrl, metadata]) => {
+    const { key, checksum } = metadata;
+    const object = checksumToBlobMap.get(checksum);
+    const index = checksumToIndexMap.get(checksum);
+    if (index === undefined) {
+      return {
+        promise: Promise.resolve({ success: false, key, error: `Index not found for checksum ${checksum}` }),
+        index: -1,
+      };
+    }
+    if (!object) {
+      return {
+        promise: Promise.resolve({ success: false, key, error: `Blob not found for checksum ${checksum}` }),
+        index,
+      };
+    }
+    const uploadPromise = (async (): Promise<UploadResult> => {
+      try {
+        const response = await fetch(presignedUrl, {
+          method: 'PUT',
+          body: object,
+          headers: {
+            'Content-Type': object.type || 'application/octet-stream',
+            'Content-Length': object.size.toString(),
+          },
+        });
+        return {
+          success: response.ok,
+          key,
+          status: response.status,
+          error: response.ok ? undefined : `Upload failed with status ${response.status}`,
+        };
+      } catch (error) {
+        return { success: false, key, status: 503, error: error instanceof Error ? error.message : 'Upload failed' };
+      }
+    })();
+    return { promise: uploadPromise, index, objectType: object.type, objectSize: object.size };
+  });
+}
+
+export const objectStore = {
+  async upload({ functionKey, objects }: { functionKey: string; objects: Array<Blob | Base64Object> }): Promise<UploadResult[]> {
+    await checkRestrictedEnvironment();
+    const uploadPromises = await createUploadPromises({ functionKey, objects });
+    return Promise.all(uploadPromises.map((item) => item.promise));
+  },
+
+  async download({ functionKey, keys }: { functionKey: string; keys: string[] }): Promise<DownloadResult[]> {
+    await checkRestrictedEnvironment();
+    if (!functionKey || functionKey.length === 0) {
+      throw new BridgeAPIError('functionKey is required to filter and generate download URLs');
+    }
+    if (!Array.isArray(keys) || keys.length === 0) {
+      throw new BridgeAPIError('keys array is required and must not be empty');
+    }
+    const downloadUrlsToKeys = (await invoke(functionKey, { keys })) as Record<string, string> | undefined;
+    if (!downloadUrlsToKeys || typeof downloadUrlsToKeys !== 'object') {
+      throw new BridgeAPIError('Invalid response from functionKey');
+    }
+    return Promise.all(
+      Object.entries(downloadUrlsToKeys).map(async ([downloadUrl, key]): Promise<DownloadResult> => {
+        try {
+          const response = await fetch(downloadUrl, { method: 'GET' });
+          if (!response.ok) {
+            return { success: false, key, status: response.status, error: `Download failed with status ${response.status}` };
+          }
+          const blob = await response.blob();
+          return { success: true, key, blob, status: response.status };
+        } catch (error) {
+          return { success: false, key, status: 503, error: error instanceof Error ? error.message : 'Download failed' };
+        }
+      }),
+    );
+  },
+
+  async getMetadata({ functionKey, keys }: { functionKey: string; keys: string[] }): Promise<Array<Record<string, unknown>>> {
+    await checkRestrictedEnvironment();
+    if (!functionKey || functionKey.length === 0) {
+      throw new BridgeAPIError('functionKey is required to filter and generate object metadata');
+    }
+    if (!Array.isArray(keys) || keys.length === 0) {
+      throw new BridgeAPIError('keys array is required and must not be empty');
+    }
+    return Promise.all(
+      keys.map(async (key) => {
+        const result = await invoke(functionKey, { key });
+        if (!result || typeof result !== 'object') {
+          return { key, error: 'Invalid response from functionKey' };
+        }
+        return result as Record<string, unknown>;
+      }),
+    );
+  },
+
+  async delete({ functionKey, keys }: { functionKey: string; keys: string[] }): Promise<void> {
+    await checkRestrictedEnvironment();
+    if (!functionKey || functionKey.length === 0) {
+      throw new BridgeAPIError('functionKey is required to delete objects');
+    }
+    if (!Array.isArray(keys) || keys.length === 0) {
+      throw new BridgeAPIError('keys array is required and must not be empty');
+    }
+    await Promise.all(keys.map(async (key) => { await invoke(functionKey, { key }); }));
   },
 };

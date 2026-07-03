@@ -139,3 +139,5 @@ export { SimulatedLLM, LlmApiError } from './llm.js';
 export type { LlmPrompt, LlmResponse, LlmStreamResponse, LlmMessage, LlmChoice, LlmTool, LlmToolCall, ModelListResponse, ModelInfo, MockLlmResponse } from './llm.js';
 export { SimulatedRealtime } from './realtime.js';
 export type { RealtimePayload, PublishOptions, PublishResult, SubscriptionOptions, Subscription, RealtimeCallback, TokenResult, PublishListener } from './realtime.js';
+export { SimulatedObjectStore, ObjectStoreError, computeChecksum } from './object-store.js';
+export type { UploadUrlBody, PresignedUrlResponse, ObjectReference, ObjectStoreOptions, CDNUrlOptions, ChecksumType, ObjectStoreDump } from './object-store.js';
