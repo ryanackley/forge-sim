@@ -817,13 +817,30 @@ export class UnifiedKVS {
 
 // ── Query Builder ─────────────────────────────────────────────────────
 
+/**
+ * Error shape for KVS query validation failures. Real @forge/kvs surfaces
+ * these as rejected promises whose message carries a stable error code
+ * (e.g. QUERY_WHERE_INVALID, LIST_QUERY_LIMIT_EXCEEDED). We expose the
+ * code both as `.code` and in the message so either matching style works.
+ */
+export class KVSQueryError extends Error {
+  constructor(public readonly code: string, detail: string) {
+    super(`${code}: ${detail}`);
+    this.name = 'KVSQueryError';
+  }
+}
+
+/** Forge KVS query page-size defaults (spec KVS-025/KVS-026, ENT-025). */
+const KVS_QUERY_DEFAULT_LIMIT = 10;
+const KVS_QUERY_MAX_LIMIT = 100;
+
 export class KVSQueryBuilder {
   private conditions: Array<{
     field: string;
     condition: string;
     value: string;
   }> = [];
-  private _limit = 20;
+  private _limit = KVS_QUERY_DEFAULT_LIMIT;
   private _cursor?: string;
   private _sortDirection: 'ASC' | 'DESC' = 'ASC';
 
@@ -869,6 +886,21 @@ export class KVSQueryBuilder {
   }
 
   async getMany(): Promise<StorageQueryResult> {
+    // Parity: real KVS allows exactly one where clause (KVS-024) and caps
+    // page size at 100 (KVS-026). Both reject at execution time.
+    if (this.conditions.length > 1) {
+      throw new KVSQueryError(
+        'QUERY_WHERE_INVALID',
+        `Only one where clause is supported per query; got ${this.conditions.length}.`
+      );
+    }
+    if (this._limit > KVS_QUERY_MAX_LIMIT) {
+      throw new KVSQueryError(
+        'LIST_QUERY_LIMIT_EXCEEDED',
+        `limit(${this._limit}) exceeds the maximum page size of ${KVS_QUERY_MAX_LIMIT}.`
+      );
+    }
+
     let keys = [...this.store.keys()];
 
     for (const cond of this.conditions) {
@@ -965,7 +997,7 @@ export class EntityQueryBuilder {
   private _filters?: { and?: FilterItem[]; or?: FilterItem[] };
   private _sort: 'ASC' | 'DESC' = 'ASC';
   private _cursor?: string;
-  private _limit = 20;
+  private _limit = KVS_QUERY_DEFAULT_LIMIT;
 
   constructor(
     private entityName: string,
@@ -1007,6 +1039,14 @@ export class EntityQueryBuilder {
   }
 
   async getMany(): Promise<{ results: Array<{ key: string; value: any }>; nextCursor?: string }> {
+    // Parity: entity query page limit must be 1–100 (ENT-025).
+    if (this._limit < 1 || this._limit > KVS_QUERY_MAX_LIMIT) {
+      throw new KVSQueryError(
+        'COMPLEX_QUERY_PAGE_LIMIT_NOT_IN_RANGE',
+        `limit(${this._limit}) is out of range; page limit must be between 1 and ${KVS_QUERY_MAX_LIMIT}.`
+      );
+    }
+
     // Get all entities for this entity name
     let entries = [...this.entities.values()].filter(e => e.entityName === this.entityName);
 

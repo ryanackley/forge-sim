@@ -86,6 +86,17 @@ export class SimulatedForgeSQL {
       // Match TiDB/Forge behavior
       multipleStatements: false,
     });
+
+    // Parity (spec SQL-015): Forge SQL runs on TiDB, which parses FOREIGN KEY
+    // DDL but does NOT enforce the constraints (no referential checks, no
+    // cascading deletes). MySQL enforces them by default, which would make
+    // valid-in-Forge apps fail in the sim. Disable FK checks globally so new
+    // connections inherit it, and per-connection as a belt-and-braces for the
+    // pool's existing sessions.
+    await this.pool.query('SET GLOBAL FOREIGN_KEY_CHECKS = 0');
+    (this.pool as unknown as NodeJS.EventEmitter).on('connection', (conn: mysql.PoolConnection) => {
+      conn.query('SET FOREIGN_KEY_CHECKS = 0');
+    });
   }
 
   /**
@@ -233,7 +244,8 @@ export class SimulatedForgeSQL {
         await conn.query(`DROP TABLE IF EXISTS \`${tableName}\``);
       }
     } finally {
-      await conn.query('SET FOREIGN_KEY_CHECKS = 1').catch(() => {});
+      // Note: FK checks stay disabled — that's the steady-state TiDB-parity
+      // behavior (see _doStart), not just a drop-ordering convenience.
       conn.release();
     }
   }

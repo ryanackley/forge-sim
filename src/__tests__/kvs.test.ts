@@ -188,6 +188,35 @@ describe('UnifiedKVS', () => {
         .getOne();
       expect(result).toBeUndefined();
     });
+
+    // ── Parity: spec KVS-024/025/026 ──────────────────────────────────
+
+    it('default page size is 10 with nextCursor set (KVS-025)', async () => {
+      // 5 from outer beforeEach + 10 more = 15 matching keys
+      for (let i = 0; i < 10; i++) {
+        await kvs.set(`extra:${String(i).padStart(2, '0')}`, { i });
+      }
+      const { results, nextCursor } = await kvs.query().getMany();
+      expect(results).toHaveLength(10);
+      expect(nextCursor).toBeDefined();
+    });
+
+    it('chaining two where clauses rejects with QUERY_WHERE_INVALID (KVS-024)', async () => {
+      await expect(
+        kvs.query()
+          .where('key', WhereConditions.beginsWith('task:'))
+          .where('key', WhereConditions.beginsWith('user:'))
+          .getMany()
+      ).rejects.toThrow(/QUERY_WHERE_INVALID/);
+    });
+
+    it('limit above 100 rejects with LIST_QUERY_LIMIT_EXCEEDED; limit(100) accepted (KVS-026)', async () => {
+      await expect(kvs.query().limit(101).getMany()).rejects.toThrow(
+        /LIST_QUERY_LIMIT_EXCEEDED/
+      );
+      const { results } = await kvs.query().limit(100).getMany();
+      expect(results).toHaveLength(5);
+    });
   });
 
   // ── Batch Operations ────────────────────────────────────────────────
@@ -428,6 +457,28 @@ describe('UnifiedKVS', () => {
         .getMany();
       expect(results).toHaveLength(2);
       expect(nextCursor).toBeDefined();
+    });
+
+    it('default page size is 10 with nextCursor set (ENT-025)', async () => {
+      for (let i = 0; i < 10; i++) {
+        await kvs.entity('Task').set(`extra-${i}`, { title: `Extra ${i}`, priority: 5, status: 'open' });
+      }
+      // 5 from beforeEach + 10 extras = 15 entities, no limit()
+      const { results, nextCursor } = await kvs.entity('Task').query().getMany();
+      expect(results).toHaveLength(10);
+      expect(nextCursor).toBeDefined();
+    });
+
+    it('limit outside 1-100 rejects with COMPLEX_QUERY_PAGE_LIMIT_NOT_IN_RANGE (ENT-025)', async () => {
+      await expect(
+        kvs.entity('Task').query().index('by-status', { partition: ['open'] }).limit(0).getMany()
+      ).rejects.toThrow(/COMPLEX_QUERY_PAGE_LIMIT_NOT_IN_RANGE/);
+      await expect(
+        kvs.entity('Task').query().index('by-status', { partition: ['open'] }).limit(101).getMany()
+      ).rejects.toThrow(/COMPLEX_QUERY_PAGE_LIMIT_NOT_IN_RANGE/);
+      // Boundary values accepted
+      const ok = await kvs.entity('Task').query().index('by-status', { partition: ['open'] }).limit(100).getMany();
+      expect(ok.results.length).toBeGreaterThan(0);
     });
 
     it('cursor paginates through results', async () => {
