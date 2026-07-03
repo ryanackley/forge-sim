@@ -9,8 +9,8 @@
  * To update baselines: npm run test:e2e -- --update-snapshots
  *
  * Sections:
- *   1. Typography          8. Navigation
- *   2. Buttons             9. Overlays
+ *   1. Typography          8. Navigation       15. Atlassian Tiles
+ *   2. Buttons             9. Overlays         16. Files
  *   3. Form Controls      10. Charts
  *   4. Display            11. Users
  *   5. Feedback           12. Editors
@@ -148,6 +148,8 @@ test.describe('Kitchen Sink Visual Regression', () => {
     { name: 'editors', heading: '12. Editors' },
     { name: 'adf-renderer', heading: '13. ADF Renderer' },
     { name: 'product-context', heading: '14. Product Context' },
+    { name: 'atlassian-tiles', heading: '15. Atlassian Tiles' },
+    { name: 'files', heading: '16. Files' },
   ];
 
   for (const section of sections) {
