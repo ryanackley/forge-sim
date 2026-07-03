@@ -38,7 +38,7 @@
     "docs:stats:check": "node scripts/update-stats.mjs --check"
   },
   "dependencies": {
-    "@forge/react": "^11.0.0",
+    "@forge/react": "^12.0.0",
     "@modelcontextprotocol/sdk": "^1.27.1",
     "@vitejs/plugin-react": "^4.3.0",
     "jose": "^6.2.1",
@@ -58,6 +58,7 @@
     "@forge/dashboards-bridge": "^0.1.17",
     "@forge/jira-bridge": "^0.40.0",
     "@forge/kvs": "^1.3.1",
+    "@forge/object-store": "^2.0.0",
     "@forge/sql": "^3.0.18",
     "@playwright/test": "^1.58.2",
     "@types/node": "^22.0.0",

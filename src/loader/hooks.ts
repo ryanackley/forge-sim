@@ -26,18 +26,22 @@ const SHIM_NAMES = [
   '@forge/events',
   '@forge/resolver',
   '@forge/react',
+  '@forge/react/router',
   '@forge/bridge',
   '@forge/jira-bridge',
   '@forge/confluence-bridge',
   '@forge/dashboards-bridge',
   '@forge/llm',
   '@forge/realtime',
+  '@forge/object-store',
 ];
 
+// '@forge/react' → 'forge-react.js'; subpaths flatten slashes:
+// '@forge/react/router' → 'forge-react-router.js'
 const FORGE_SHIMS: Record<string, string> = Object.fromEntries(
   SHIM_NAMES.map(pkg => [
     pkg,
-    pathResolve(SHIM_DIR, pkg.replace('@forge/', 'forge-') + '.js'),
+    pathResolve(SHIM_DIR, pkg.replace('@forge/', 'forge-').replaceAll('/', '-') + '.js'),
   ])
 );
 

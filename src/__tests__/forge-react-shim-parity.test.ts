@@ -17,14 +17,19 @@ import { resolve } from 'node:path';
 
 // Stub the browser bridge globals before loading @forge/react. Real
 // @forge/bridge's invoke module calls getCallBridge() at module-load time,
-// which throws if window.__bridge.callBridge isn't present. We're not
-// invoking anything here — we just need the module graph to load so we
-// can introspect the named exports.
+// which throws if __bridge.callBridge isn't present. We're not invoking
+// anything here — we just need the module graph to load so we can
+// introspect the named exports.
+// @forge/bridge 5.x looked at window.__bridge; 6.x (nested inside
+// @forge/react 12) looks at globalThis.__bridge. Stub both.
 if (typeof (globalThis as any).window === 'undefined') {
   (globalThis as any).window = {};
 }
 if (!(globalThis as any).window.__bridge) {
   (globalThis as any).window.__bridge = { callBridge: () => undefined };
+}
+if (!(globalThis as any).__bridge) {
+  (globalThis as any).__bridge = { callBridge: () => undefined };
 }
 
 // Resolve real @forge/react from forge-sim's own node_modules — same trick

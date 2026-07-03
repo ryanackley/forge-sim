@@ -133,6 +133,11 @@ export const PieChart = realModule.PieChart;
 export const ButtonGroup = realModule.ButtonGroup;
 export const Icon = realModule.Icon;
 export const Inline = realModule.Inline;
+// New in @forge/react 12
+export const Bleed = realModule.Bleed;
+export const Breadcrumbs = realModule.Breadcrumbs;
+export const BreadcrumbsItem = realModule.BreadcrumbsItem;
+export const Pagination = realModule.Pagination;
 export const useProductContext = realModule.useProductContext;
 // Wrapped: tracks whether this module's bundle actually calls useConfig().
 // Drives N10 — the "Did you forget setMacroConfig?" timeout hint only fires
