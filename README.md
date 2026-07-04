@@ -28,6 +28,8 @@ A local simulation of Atlassian's Forge platform. For CI/CD tests and local deve
 | `@forge/realtime` | Full — channel pub/sub, scoped + global publishes |
 | Rovo Actions | Action invocation: full. Custom UI `rovo.open()` not implemented |
 | Workflow Modules | Partial — config UI, function invocation (no transition simulation) |
+| Object Store (`@forge/object-store`) | Full — pre-signed URLs, checksums, Range, TTL, CDN bucket |
+| Environment Variables | Full — `.forge-sim/variables.json` + `sim.setVariables()`, injected into `process.env` at deploy (redeploy-to-take-effect, like real Forge) |
 | Manifest parsing + auto-deploy | Full |
 | Persistent state (KVS + SQL + Entities) | Full — save on exit, restore on start |
 
@@ -39,8 +41,7 @@ forge-sim won't catch bugs that real Forge would:
 - **No scope enforcement** — `permissions.scopes` is parsed but not checked at runtime
 - **No app lifecycle triggers** — install/uninstall/enable/disable don't fire
 - **No rate or memory limits** — Forge's per-app limits aren't simulated
-- **`FORGE_ENV` always `DEVELOPMENT`** — no prod/staging differentiation
-- **Object Store not implemented** — file upload/download absent
+- **`context.environmentType` defaults to `DEVELOPMENT`** — override per render/invoke to simulate staging/prod
 
 ## Local Development Loop
 
@@ -293,7 +294,7 @@ forge-sim logs
 For AI agents that support [Model Context Protocol](https://modelcontextprotocol.io/), forge-sim exposes a full toolkit:
 
 <!-- BEGIN:STATS_COMPACT -->
-1,819 tests · 31 MCP tools · 4 MCP resources
+2,020 tests · 39 MCP tools · 4 MCP resources
 <!-- END:STATS_COMPACT -->
 
 ```bash
@@ -369,11 +370,11 @@ npm run docs:stats:check    # CI guard — fails if stats are stale
 ```
 
 <!-- BEGIN:STATS -->
-**1,819 tests** across **98** test files
-(1,685 core / 94 files
-+ 134 renderer / 4 files)
+**2,020 tests** across **104** test files
+(1,873 core / 100 files
++ 147 renderer / 4 files)
 
-**31 MCP tools** + **4 resources**
+**39 MCP tools** + **4 resources**
 <!-- END:STATS -->
 
 ## License

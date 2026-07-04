@@ -123,6 +123,8 @@ export type {
 export { createDevServer, type DevServer, type DevServerOptions, type DevEvent } from './dev-server.js';
 export { createWebTriggerHandler, getWebTriggerUrl, type WebTriggerConfig } from './web-trigger.js';
 export { WebTriggerUrlRegistry, type WebTriggerUrlRecord } from './web-trigger-urls.js';
+export { VariablesManager, FORGE_USER_VAR_PREFIX, VARIABLES_FILE } from './variables.js';
+export type { ForgeVariable, VariableInput, VariableListEntry } from './variables.js';
 
 export type {
   ParsedManifest,

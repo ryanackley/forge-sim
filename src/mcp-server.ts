@@ -21,6 +21,9 @@
  *   forge:objectstore_put    — Seed an object directly (test setup)
  *   forge:objectstore_delete — Delete an object by key
  *   forge:objectstore_create_download_url — Pre-signed download URL (curl-able, Range-capable)
+ *   forge:variables_set   — Set ephemeral env variables (take effect at next deploy)
+ *   forge:variables_unset — Remove an ephemeral env variable
+ *   forge:variables_list  — List all env variables (encrypted values masked)
  *   forge:queue_push    — Push events to a queue
  *   forge:queue_state   — Inspect queue job state and event log
  *   forge:logs          — Get simulator + console logs
@@ -759,6 +762,74 @@ server.tool(
     }
     return {
       content: [{ type: 'text' as const, text: JSON.stringify({ key, url: res.url, expiresIn: '1h' }, null, 2) }],
+    };
+  }
+);
+
+server.tool(
+  'forge.variables_set',
+  'Set environment variables (ephemeral — never written to disk). Like real Forge (`forge variables set`), values reach process.env at the NEXT deploy — set them before calling forge.deploy. Values: plain string, or { value, encrypt } (encrypt only masks the value in list output; the app still reads cleartext, matching Forge).',
+  {
+    variables: z.record(
+      z.string(),
+      z.union([
+        z.string(),
+        z.object({
+          value: z.string().describe('Variable value'),
+          encrypt: z.boolean().optional().describe('Mask this value in list surfaces (Forge --encrypt parity)'),
+        }),
+      ])
+    ).describe('Map of KEY → value'),
+  },
+  async ({ variables }) => {
+    try {
+      sim.setVariables(variables as Record<string, any>);
+      const keys = Object.keys(variables);
+      return {
+        content: [{
+          type: 'text' as const,
+          text: `✅ Set ${keys.length} variable(s): ${keys.join(', ')}\n⚠️ Like real Forge, variables take effect at the next deploy — call forge.deploy (reset:false preserves other state) if the app is already deployed.`,
+        }],
+      };
+    } catch (err) {
+      return {
+        content: [{ type: 'text' as const, text: `❌ ${err instanceof Error ? err.message : String(err)}` }],
+        isError: true,
+      };
+    }
+  }
+);
+
+server.tool(
+  'forge.variables_unset',
+  'Remove an ephemeral environment variable. Takes effect at the next deploy (Forge parity).',
+  {
+    key: z.string().describe('Variable key to remove'),
+  },
+  async ({ key }) => {
+    const existed = sim.unsetVariable(key);
+    return {
+      content: [{
+        type: 'text' as const,
+        text: existed
+          ? `✅ Unset "${key}" — takes effect at the next deploy.`
+          : `Variable "${key}" was not set (only ephemeral variables can be unset here — file vars live in .forge-sim/variables.json).`,
+      }],
+    };
+  }
+);
+
+server.tool(
+  'forge.variables_list',
+  'List all environment variables from every source (host FORGE_USER_VAR_*, .forge-sim/variables.json, ephemeral). Encrypted values are masked, mirroring `forge variables list`.',
+  {},
+  async () => {
+    const entries = sim.listVariables();
+    if (entries.length === 0) {
+      return { content: [{ type: 'text' as const, text: 'No environment variables set.' }] };
+    }
+    return {
+      content: [{ type: 'text' as const, text: JSON.stringify(entries, null, 2) }],
     };
   }
 );

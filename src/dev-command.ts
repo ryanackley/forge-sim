@@ -2289,6 +2289,11 @@ async function deployResolversOnly(
   const loadedFunctions: string[] = [];
   const errors: Array<{ functionKey: string; error: string }> = [];
 
+  // Re-inject environment variables before (re)loading handler modules —
+  // a dev-mode resolver reload IS a redeploy, so edits to
+  // .forge-sim/variables.json take effect here (Forge redeploy parity).
+  await sim.variables.inject(appDir);
+
   // Find which functions are UI resource entry points — we'll skip those
   const resourceFunctionKeys = new Set<string>();
   for (const mod of manifest.uiModules) {
