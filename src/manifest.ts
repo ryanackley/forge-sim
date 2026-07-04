@@ -239,6 +239,67 @@ export function getCompatibleBackgroundScripts(
 }
 
 /**
+ * Canonical Forge module types, sourced from Atlassian's official module
+ * list (forge-mcp `list-forge-modules`, 2025-10-15) plus sim-supported
+ * extras (`endpoint`, `jira:globalBackgroundScript`, `jira:fullPage`).
+ *
+ * Unknown module types get a WARNING but still deploy — real Forge lint
+ * rejects them, but hard-failing here would break forge-sim for everyone
+ * whenever Atlassian ships a new module type. A future strict mode can
+ * upgrade the warning to a hard reject. (Decided 2026-07-01.)
+ */
+export const KNOWN_MODULE_TYPES = new Set([
+  // Platform (product-agnostic)
+  'function', 'consumer', 'scheduledTrigger', 'trigger', 'webtrigger',
+  'endpoint', 'action',
+  // Jira
+  'jira:adminPage', 'jira:backlogAction', 'jira:boardAction',
+  'jira:customField', 'jira:customFieldType', 'jira:dashboardBackgroundScript',
+  'jira:dashboardGadget', 'jira:entityProperty', 'jira:globalPage',
+  'jira:globalPermission', 'jira:issueAction', 'jira:issueActivity',
+  'jira:issueContext', 'jira:issueGlance', 'jira:issueNavigatorAction',
+  'jira:issuePanel', 'jira:issueViewBackgroundScript', 'jira:jqlFunction',
+  'jira:personalSettingsPage', 'jira:projectPage', 'jira:projectPermission',
+  'jira:projectSettingsPage', 'jira:sprintAction', 'jira:timeTrackingProvider',
+  'jira:uiModifications', 'jira:workflowValidator', 'jira:workflowCondition',
+  'jira:workflowPostFunction', 'jira:command',
+  // Sim-supported Jira extras (not in the official list but in the wild)
+  'jira:globalBackgroundScript', 'jira:fullPage',
+  // Bitbucket
+  'bitbucket:mergeCheck', 'bitbucket:dynamicPipelinesProvider',
+  'bitbucket:repoCodeOverviewCard', 'bitbucket:repoCodeOverviewAction',
+  'bitbucket:repoCodeOverviewPanel', 'bitbucket:repoPullRequestCard',
+  'bitbucket:repoPullRequestAction', 'bitbucket:repoPullRequestOverviewPanel',
+  'bitbucket:repoMainMenuPage', 'bitbucket:repoSettingsMenuPage',
+  'bitbucket:workspaceSettingsMenuPage',
+  // Compass
+  'compass:adminPage', 'compass:componentPage', 'compass:dataProvider',
+  'compass:globalPage', 'compass:teamPage',
+  // Confluence
+  'confluence:contentAction', 'confluence:contentBylineItem',
+  'confluence:contextMenu', 'confluence:customContent',
+  'confluence:globalPage', 'confluence:globalSettings',
+  'confluence:homepageFeed', 'macro', 'confluence:pageBanner',
+  'confluence:spacePage', 'confluence:spaceSettings',
+  'confluence:backgroundScript',
+  // Jira Service Management
+  'jiraServiceManagement:assetsImportType',
+  'jiraServiceManagement:organizationPanel',
+  'jiraServiceManagement:portalFooter',
+  'jiraServiceManagement:portalHeader',
+  'jiraServiceManagement:portalProfilePanel',
+  'jiraServiceManagement:portalRequestCreatePropertyPanel',
+  'jiraServiceManagement:portalRequestDetail',
+  'jiraServiceManagement:portalRequestDetailPanel',
+  'jiraServiceManagement:portalRequestViewAction',
+  'jiraServiceManagement:portalSubheader',
+  'jiraServiceManagement:portalUserMenuAction',
+  'jiraServiceManagement:queuePage',
+  // Rovo
+  'rovo:agent',
+]);
+
+/**
  * Parse a Forge manifest.yml file.
  */
 export async function parseManifest(manifestPath: string): Promise<ParsedManifest> {
@@ -311,6 +372,17 @@ export function parseManifestContent(content: string): ParsedManifest {
   // Parse UI modules (any module with a resolver or resource)
   const uiModules: ManifestUIModule[] = [];
   const warnings: ManifestWarning[] = [];
+
+  // Warn on unknown module types — deploy anyway (see KNOWN_MODULE_TYPES).
+  for (const moduleType of Object.keys(modules)) {
+    if (!KNOWN_MODULE_TYPES.has(moduleType)) {
+      warnings.push({
+        level: 'warning',
+        message: `Unknown module type '${moduleType}' — not validated, deploying anyway. ` +
+          `Real Forge lint may reject this manifest.`,
+      });
+    }
+  }
   // Non-UI module types that should never be treated as UI modules
   // (they appear at the top level of modules: but don't render UI)
   const nonUIModuleTypes = new Set([

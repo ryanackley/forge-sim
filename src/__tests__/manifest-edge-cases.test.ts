@@ -894,3 +894,72 @@ modules:
     }
   });
 });
+
+// ── Unknown module types ───────────────────────────────────────────────
+
+describe('unknown module types', () => {
+  it('warns on unknown module types but still parses the manifest', () => {
+    const result = parseManifestContent(`
+app:
+  id: test-app
+modules:
+  jira:futureNewThing:
+    - key: mystery
+      resource: main
+  function:
+    - key: resolver
+      handler: index.handler
+resources:
+  - key: main
+    path: src/index.tsx
+`);
+    const unknown = result.warnings.filter((w) => w.message.includes("Unknown module type"));
+    expect(unknown).toHaveLength(1);
+    expect(unknown[0].level).toBe('warning');
+    expect(unknown[0].message).toContain("'jira:futureNewThing'");
+    expect(unknown[0].message).toContain('deploying anyway');
+    // Parsing still succeeds — functions intact
+    expect(result.functions.has('resolver')).toBe(true);
+  });
+
+  it('does not warn on any known module types', () => {
+    const result = parseManifestContent(`
+app:
+  id: test-app
+modules:
+  jira:issuePanel:
+    - key: panel
+      resource: main
+      render: native
+  macro:
+    - key: my-macro
+      resource: main
+      render: native
+  webtrigger:
+    - key: hook
+      function: resolver
+  function:
+    - key: resolver
+      handler: index.handler
+resources:
+  - key: main
+    path: src/index.tsx
+`);
+    const unknown = result.warnings.filter((w) => w.message.includes('Unknown module type'));
+    expect(unknown).toHaveLength(0);
+  });
+
+  it('warns once per unknown type, not per module instance', () => {
+    const result = parseManifestContent(`
+app:
+  id: test-app
+modules:
+  totallyMadeUp:
+    - key: one
+    - key: two
+    - key: three
+`);
+    const unknown = result.warnings.filter((w) => w.message.includes('Unknown module type'));
+    expect(unknown).toHaveLength(1);
+  });
+});
