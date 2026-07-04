@@ -202,7 +202,10 @@ describe('Web trigger HTTP handler', () => {
     expect(body).toBe('<h1>Hello</h1>');
   });
 
-  it('defaults to 200 and text/plain when function returns minimal response', async () => {
+  // WTR-009: a result that is not compatible with the documented response
+  // shape (missing statusCode, non-object, undefined) → HTTP 500. Real Forge
+  // rejects malformed handler results rather than guessing a 200.
+  it('returns 500 when function result omits statusCode (WTR-009)', async () => {
     sim.resolver.define('handler', (async () => ({
       body: 'OK',
     })) as any);
@@ -210,10 +213,39 @@ describe('Web trigger HTTP handler', () => {
     await setupServer([{ key: 'hook', functionKey: 'handler' }]);
 
     const res = await fetch(`http://127.0.0.1:${port}/__trigger/hook`);
-    expect(res.status).toBe(200);
-    expect(res.headers.get('content-type')).toBe('text/plain');
-    const body = await res.text();
-    expect(body).toBe('OK');
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    expect(body.error).toMatch(/invalid.*response/i);
+  });
+
+  it('returns 500 when function result is a bare string (WTR-009)', async () => {
+    sim.resolver.define('handler', (async () => 'just a string') as any);
+
+    await setupServer([{ key: 'hook', functionKey: 'handler' }]);
+
+    const res = await fetch(`http://127.0.0.1:${port}/__trigger/hook`);
+    expect(res.status).toBe(500);
+  });
+
+  it('returns 500 when function returns undefined (WTR-009)', async () => {
+    sim.resolver.define('handler', (async () => undefined) as any);
+
+    await setupServer([{ key: 'hook', functionKey: 'handler' }]);
+
+    const res = await fetch(`http://127.0.0.1:${port}/__trigger/hook`);
+    expect(res.status).toBe(500);
+  });
+
+  it('returns 500 when statusCode is not a number (WTR-009)', async () => {
+    sim.resolver.define('handler', (async () => ({
+      statusCode: '200',
+      body: 'OK',
+    })) as any);
+
+    await setupServer([{ key: 'hook', functionKey: 'handler' }]);
+
+    const res = await fetch(`http://127.0.0.1:${port}/__trigger/hook`);
+    expect(res.status).toBe(500);
   });
 
   it('handles GET requests with query parameters', async () => {

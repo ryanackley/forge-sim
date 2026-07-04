@@ -202,8 +202,32 @@ export function createWebTriggerHandler(config: WebTriggerConfig) {
       }
 
       // ── Dynamic response mode (default) ───────────────────────────────
-      // Map Forge response to HTTP response
-      const statusCode = result?.statusCode ?? 200;
+      // WTR-009: the handler result must match the documented response
+      // shape — an object with a numeric statusCode. Anything else (bare
+      // string, undefined, missing/non-numeric statusCode) → 500, matching
+      // real Forge, which rejects malformed results rather than guessing.
+      if (
+        result === null ||
+        typeof result !== 'object' ||
+        Array.isArray(result) ||
+        typeof result.statusCode !== 'number'
+      ) {
+        res.writeHead(500, {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+        });
+        res.end(JSON.stringify({
+          error: `Web trigger "${triggerKey}" returned an invalid response: expected { statusCode: number, headers?, body? }`,
+        }));
+        console.error(
+          `[forge-sim] [webtrigger] ${req.method} ${pathname} → 500 (invalid handler response: ${
+            result === undefined ? 'undefined' : JSON.stringify(result)?.slice(0, 200)
+          })`,
+        );
+        return true;
+      }
+
+      const statusCode = result.statusCode;
       const responseHeaders: Record<string, string> = {
         'Access-Control-Allow-Origin': '*',
       };
