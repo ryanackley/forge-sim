@@ -1842,6 +1842,14 @@ export async function devCommand(options: DevCommandOptions) {
         webTriggerHandler(req, res, pathname);
         return true;
       });
+      // Managed web trigger URLs (webTrigger.getUrl) — /x1/<id> (v1) and
+      // /public/<id> (v2) paths, resolved via the URL registry.
+      for (const prefix of ['/x1', '/public']) {
+        proxyServer.addMiddleware(prefix, (req, res, pathname) => {
+          webTriggerHandler(req, res, pathname);
+          return true;
+        });
+      }
       (globalThis as any).__forgeSim_devPort__ = port;
     }
 
@@ -2085,7 +2093,13 @@ export async function devCommand(options: DevCommandOptions) {
       const webTriggerHandler = createWebTriggerHandler({ triggers: manifest.webTriggers, simulator: sim });
       const triggerMiddleware = (req: any, res: any, next: any) => {
         const url = new URL(req.url ?? '/', 'http://localhost');
-        if (url.pathname.startsWith('/__trigger/')) {
+        // Legacy /__trigger/<key> route + managed URL routes /x1/<id> and
+        // /public/<id> (minted by webTrigger.getUrl via the URL registry).
+        if (
+          url.pathname.startsWith('/__trigger/') ||
+          url.pathname.startsWith('/x1/') ||
+          url.pathname.startsWith('/public/')
+        ) {
           webTriggerHandler(req, res, url.pathname).catch((err: any) => {
             res.writeHead(500, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ error: err.message }));

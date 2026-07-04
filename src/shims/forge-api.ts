@@ -276,13 +276,18 @@ async function invokeRemote(
 
 function invokeService(_key: string, _payload?: any) { return Promise.resolve(null); }
 
+// Mirrors real @forge/api's webTrigger surface (out/webTrigger.js):
+//   getUrl(moduleKey, forceCreate = false), deleteUrl(url), queryUrls(moduleKey?)
+// Delegates to the simulator's WebTriggerUrlRegistry, which generates
+// invokable localhost URLs when the dev server is running and mirrors real
+// Forge's URL formats, ID parsing, and error strings otherwise.
 const webTrigger = {
-  getUrl: async (_key: string) => {
-    // If dev server port is set, return real local URL
-    const port = (globalThis as any).__forgeSim_devPort__;
-    if (port) return `http://localhost:${port}/__trigger/${_key}`;
-    return `https://sim.atlassian.net/x/trigger/${_key}`;
-  },
+  getUrl: (webTriggerModuleKey: string, forceCreate = false): Promise<string> =>
+    getSimulator().webTriggerUrls.getUrl(webTriggerModuleKey, forceCreate),
+  deleteUrl: (webTriggerUrl: string): Promise<void> =>
+    getSimulator().webTriggerUrls.deleteUrl(webTriggerUrl),
+  queryUrls: (moduleKey?: string): Promise<Array<{ moduleKey: string; url: string }>> =>
+    getSimulator().webTriggerUrls.queryUrls(moduleKey),
 };
 
 function createRequestStargateAsApp() { return makeApiClient(); }

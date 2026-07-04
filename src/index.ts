@@ -122,6 +122,7 @@ export type {
 // Dev server (live preview)
 export { createDevServer, type DevServer, type DevServerOptions, type DevEvent } from './dev-server.js';
 export { createWebTriggerHandler, getWebTriggerUrl, type WebTriggerConfig } from './web-trigger.js';
+export { WebTriggerUrlRegistry, type WebTriggerUrlRecord } from './web-trigger-urls.js';
 
 export type {
   ParsedManifest,
@@ -129,6 +130,8 @@ export type {
   ManifestConsumer,
   ManifestTrigger,
   ManifestScheduledTrigger,
+  ManifestWebTrigger,
+  ManifestWebTriggerOutput,
   ManifestUIModule,
 } from './manifest.js';
 

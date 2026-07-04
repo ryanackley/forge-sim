@@ -91,9 +91,22 @@ export interface ManifestScheduledTrigger {
   interval: string;
 }
 
+export interface ManifestWebTriggerOutput {
+  key: string;
+  statusCode: number;
+  contentType?: string;
+  body?: string;
+}
+
 export interface ManifestWebTrigger {
   key: string;
   functionKey: string;
+  /** URL format: v1 → .../x1/<id> (default), v2 → .../public/<id> */
+  urlFormat?: 'v1' | 'v2';
+  /** Response mode — 'dynamic' (default) or 'static' with configured outputs */
+  responseType?: 'static' | 'dynamic';
+  /** Static response outputs (only when responseType === 'static') */
+  outputs?: ManifestWebTriggerOutput[];
 }
 
 export interface ManifestUIModule {
@@ -363,9 +376,25 @@ export function parseManifestContent(content: string): ParsedManifest {
   // Parse web triggers
   const webTriggers: ManifestWebTrigger[] = [];
   for (const wt of (Array.isArray(modules.webtrigger) ? modules.webtrigger : []) as any[]) {
+    // Conditionally spread optional fields so triggers without them keep the
+    // exact minimal shape ({ key, functionKey }) — some tests deep-equal it.
+    const responseType = wt.response?.type as 'static' | 'dynamic' | undefined;
+    const rawOutputs = Array.isArray(wt.response?.outputs) ? wt.response.outputs : undefined;
     webTriggers.push({
       key: wt.key,
       functionKey: wt.function,
+      ...(wt.urlFormat ? { urlFormat: wt.urlFormat } : {}),
+      ...(responseType ? { responseType } : {}),
+      ...(rawOutputs
+        ? {
+            outputs: rawOutputs.map((o: any) => ({
+              key: o.key,
+              statusCode: o.statusCode,
+              ...(o.contentType ? { contentType: o.contentType } : {}),
+              ...(o.body !== undefined ? { body: o.body } : {}),
+            })),
+          }
+        : {}),
     });
   }
 

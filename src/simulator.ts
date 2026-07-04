@@ -23,6 +23,7 @@ import { RemoteProxy } from './remote-proxy.js';
 import { SimulatedLLM } from './llm.js';
 import { SimulatedRealtime } from './realtime.js';
 import { SimulatedObjectStore } from './object-store.js';
+import { WebTriggerUrlRegistry } from './web-trigger-urls.js';
 import type { SimulationConfig, ResolverContext, InvokeOptions, ProductApiHandler, ProductApiRequest, ProductApiResponse } from './types.js';
 import type { TriggerPayloadByEvent } from './trigger-event-types.js';
 import type { ManifestAction } from './manifest.js';
@@ -55,6 +56,8 @@ export class ForgeSimulator {
   readonly llm: SimulatedLLM;
   readonly realtime: SimulatedRealtime;
   readonly objectStore: SimulatedObjectStore;
+  /** Web trigger URL management — mirrors @forge/api webTrigger.getUrl/deleteUrl/queryUrls. */
+  readonly webTriggerUrls: WebTriggerUrlRegistry;
 
   /** UI API — ForgeDoc access, tree traversal, interaction, bridge lifecycle. */
   readonly ui: SimulatorUI;
@@ -111,6 +114,7 @@ export class ForgeSimulator {
     this.llm = new SimulatedLLM((level, message, detail) => this.log(level, message, detail));
     this.realtime = new SimulatedRealtime((level, message, detail) => this.log(level, message, detail));
     this.objectStore = new SimulatedObjectStore();
+    this.webTriggerUrls = new WebTriggerUrlRegistry();
     this.ui = new SimulatorUI(this);
 
     // Register property store as fallback routes for product APIs
@@ -230,6 +234,7 @@ export class ForgeSimulator {
     for (const wt of manifest.webTriggers) {
       this.log('info', `Found web trigger: "${wt.key}" → function "${wt.functionKey}"`);
     }
+    this.webTriggerUrls.registerModules(manifest.webTriggers);
 
     // Wire up remotes with manifest data
     this.remotes.setManifest(manifest);
@@ -1014,6 +1019,7 @@ export class ForgeSimulator {
     this.resolverOwnership.clear();
     this.realtime.reset();
     this.objectStore.reset();
+    this.webTriggerUrls.reset();
     this.manifest = null;
     this.logs.length = 0;
     this.consoleLogs.length = 0;
