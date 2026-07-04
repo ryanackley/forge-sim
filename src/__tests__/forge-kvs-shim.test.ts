@@ -163,3 +163,30 @@ describe('@forge/kvs shim — top-level export surface', () => {
     }
   });
 });
+
+describe('@forge/kvs shim — kvs object method surface', () => {
+  it('shim kvs has exactly the same method names as real kvs', () => {
+    // Parity in BOTH directions:
+    //   - real has a method we lack → apps break in the sim (loud gap)
+    //   - shim has a method real lacks → apps work in the sim but crash
+    //     in Forge (the quiet parity lie — this is how getMany/setMany/
+    //     deleteMany snuck onto the shim until 2026-07-04)
+    // Real kvs is a class instance (methods on the prototype, plus a
+    // `storageApi` own prop); shim kvs is a plain object. Collect callable
+    // members from both regardless of placement.
+    const methodNames = (obj: any): string[] => {
+      const names = new Set<string>();
+      for (const k of Object.keys(obj)) {
+        if (typeof obj[k] === 'function') names.add(k);
+      }
+      const proto = Object.getPrototypeOf(obj);
+      if (proto && proto !== Object.prototype) {
+        for (const k of Object.getOwnPropertyNames(proto)) {
+          if (k !== 'constructor' && typeof obj[k] === 'function') names.add(k);
+        }
+      }
+      return [...names].sort();
+    };
+    expect(methodNames(shim.kvs)).toEqual(methodNames(real.kvs));
+  });
+});

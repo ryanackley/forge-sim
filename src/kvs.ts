@@ -170,6 +170,189 @@ export class UnifiedKVS {
     }
   }
 
+  // ── Direct API: Real @forge/kvs Batch Surface ───────────────────────
+  //
+  // Shapes match node_modules/@forge/kvs/out/interfaces/kvs-api.d.ts:
+  //   batchSet(BatchSetItem[])       → { successfulKeys, failedKeys }
+  //   batchDelete(BatchDeleteItem[]) → { successfulKeys, failedKeys }
+  //   batchGet(BatchGetItem[])       → { successfulKeys: [{key, entityName?,
+  //                                      value, createdAt?, updatedAt?,
+  //                                      expireTime?}], failedKeys }
+  //
+  // Whole-batch validation (KVS-038/039/040/043): >25 items, empty batch,
+  // duplicate key(+entityName), or >4MB batchSet payload reject the entire
+  // batch. Per-item failures (KVS-041) land in failedKeys with spec error
+  // codes (INVALID_KEY, KEY_TOO_SHORT, KEY_TOO_LONG, MAX_SIZE, MAX_DEPTH).
+  //
+  // Missing keys in batchGet are silently OMITTED from successfulKeys
+  // (not failedKeys) — Forge docs don't document this case (spec §8.7);
+  // omission matches "missing keys do not produce values" most literally.
+
+  async batchGet(
+    items: Array<{ key: string; entityName?: string; options?: { metadataFields?: string[] } }>,
+  ): Promise<{ successfulKeys: Array<Record<string, any>>; failedKeys: Array<{ key: string; entityName?: string; error: { code: string; message: string } }> }> {
+    await this.simulateDelay();
+    this.validateBatchRequest(items, 'batchGet');
+
+    const successfulKeys: Array<Record<string, any>> = [];
+    const failedKeys: Array<{ key: string; entityName?: string; error: { code: string; message: string } }> = [];
+
+    for (const item of items) {
+      const keyError = validateKvsKey(item.key);
+      if (keyError) {
+        failedKeys.push({ key: item.key, ...(item.entityName ? { entityName: item.entityName } : {}), error: keyError });
+        continue;
+      }
+      const entry = item.entityName
+        ? this.entities.get(this.entityKey(item.entityName, item.key))
+        : this.store.get(item.key);
+      if (!entry) continue; // Missing key → omitted (see note above)
+
+      const result: Record<string, any> = {
+        key: item.key,
+        ...(item.entityName ? { entityName: item.entityName } : {}),
+        value: entry.value,
+      };
+      const meta = item.options?.metadataFields;
+      if (Array.isArray(meta)) {
+        if (meta.includes('CREATED_AT')) result.createdAt = entry.createdAt;
+        if (meta.includes('UPDATED_AT')) result.updatedAt = entry.updatedAt;
+        if (meta.includes('EXPIRE_TIME') && entry.expireTime !== undefined) result.expireTime = entry.expireTime;
+      }
+      successfulKeys.push(result);
+    }
+
+    return { successfulKeys, failedKeys };
+  }
+
+  async batchSet(
+    items: Array<{ key: string; value: any; entityName?: string; options?: { ttl?: { value: number; unit: string } } }>,
+  ): Promise<{ successfulKeys: Array<{ key: string; entityName?: string }>; failedKeys: Array<{ key: string; entityName?: string; error: { code: string; message: string } }> }> {
+    await this.simulateDelay();
+    this.validateBatchRequest(items, 'batchSet');
+
+    // KVS-043: whole-payload cap of 4 MB
+    const payloadBytes = Buffer.byteLength(JSON.stringify(items), 'utf-8');
+    if (payloadBytes > 4 * 1024 * 1024) {
+      throw new KVSQueryError('MAX_SIZE', `batchSet payload exceeds 4 MB (got ${payloadBytes} bytes)`);
+    }
+
+    const successfulKeys: Array<{ key: string; entityName?: string }> = [];
+    const failedKeys: Array<{ key: string; entityName?: string; error: { code: string; message: string } }> = [];
+
+    for (const item of items) {
+      const failure = (error: { code: string; message: string }) =>
+        failedKeys.push({ key: item.key, ...(item.entityName ? { entityName: item.entityName } : {}), error });
+
+      const keyError = validateKvsKey(item.key);
+      if (keyError) { failure(keyError); continue; }
+
+      if (item.value === null || item.value === undefined) {
+        failure({ code: 'INVALID_VALUE', message: 'Cannot store null or undefined values' });
+        continue;
+      }
+
+      const valueError = validateKvsValue(item.value);
+      if (valueError) { failure(valueError); continue; }
+
+      // Entity items: schema validation when a schema is registered
+      if (item.entityName) {
+        const schema = this.entitySchemas.get(item.entityName);
+        if (schema && item.value && typeof item.value === 'object') {
+          const validationError = validateEntityValue(item.value, schema, item.entityName);
+          if (validationError) {
+            failure({ code: 'VALIDATION_ERROR', message: validationError });
+            continue;
+          }
+        }
+      }
+
+      const now = Date.now();
+      const serialized = JSON.parse(JSON.stringify(item.value));
+      if (item.entityName) {
+        const ek = this.entityKey(item.entityName, item.key);
+        const existing = this.entities.get(ek);
+        this.entities.set(ek, {
+          key: item.key,
+          value: serialized,
+          entityName: item.entityName,
+          createdAt: existing?.createdAt ?? now,
+          updatedAt: now,
+          expireTime: item.options?.ttl ? computeExpireTime(now, item.options.ttl as any) : existing?.expireTime,
+        });
+      } else {
+        const existing = this.store.get(item.key);
+        this.store.set(item.key, {
+          key: item.key,
+          value: serialized,
+          createdAt: existing?.createdAt ?? now,
+          updatedAt: now,
+          expireTime: item.options?.ttl ? computeExpireTime(now, item.options.ttl as any) : existing?.expireTime,
+        });
+      }
+      successfulKeys.push({ key: item.key, ...(item.entityName ? { entityName: item.entityName } : {}) });
+    }
+
+    return { successfulKeys, failedKeys };
+  }
+
+  async batchDelete(
+    items: Array<{ key: string; entityName?: string }>,
+  ): Promise<{ successfulKeys: Array<{ key: string; entityName?: string }>; failedKeys: Array<{ key: string; entityName?: string; error: { code: string; message: string } }> }> {
+    await this.simulateDelay();
+    this.validateBatchRequest(items, 'batchDelete');
+
+    const successfulKeys: Array<{ key: string; entityName?: string }> = [];
+    const failedKeys: Array<{ key: string; entityName?: string; error: { code: string; message: string } }> = [];
+
+    for (const item of items) {
+      const keyError = validateKvsKey(item.key);
+      if (keyError) {
+        failedKeys.push({ key: item.key, ...(item.entityName ? { entityName: item.entityName } : {}), error: keyError });
+        continue;
+      }
+      // Deleting an absent key succeeds (matches single delete semantics)
+      if (item.entityName) {
+        this.entities.delete(this.entityKey(item.entityName, item.key));
+      } else {
+        this.store.delete(item.key);
+      }
+      successfulKeys.push({ key: item.key, ...(item.entityName ? { entityName: item.entityName } : {}) });
+    }
+
+    return { successfulKeys, failedKeys };
+  }
+
+  /**
+   * Whole-batch validation shared by batchGet/batchSet/batchDelete.
+   * KVS-038 (≤25 items), KVS-039 (non-empty), KVS-040 (no duplicate
+   * key/key+entityName). Throws — the entire batch is rejected, nothing
+   * is read or written.
+   *
+   * NOTE: Forge docs don't publish the exact error codes for whole-batch
+   * validation failures (only per-item codes are documented), so the codes
+   * here are best-effort descriptive.
+   */
+  private validateBatchRequest(items: Array<{ key: string; entityName?: string }>, op: string): void {
+    if (!Array.isArray(items) || items.length === 0) {
+      throw new KVSQueryError('INVALID_BATCH', `${op} requires a non-empty array of items`);
+    }
+    if (items.length > 25) {
+      throw new KVSQueryError('BATCH_SIZE_EXCEEDED', `${op} accepts at most 25 items (got ${items.length})`);
+    }
+    const seen = new Set<string>();
+    for (const item of items) {
+      const id = `${item?.entityName ?? ''}\u0000${item?.key}`;
+      if (seen.has(id)) {
+        throw new KVSQueryError(
+          'DUPLICATE_KEY',
+          `${op} contains multiple requests for the same key${item.entityName ? ' + entity' : ''}: "${item.key}"${item.entityName ? ` (entity "${item.entityName}")` : ''}`,
+        );
+      }
+      seen.add(id);
+    }
+  }
+
   // ── Direct API: Entity ───────────────────────────────────────────────
 
   /**
@@ -299,7 +482,11 @@ export class UnifiedKVS {
 
         // Batch
         case '/api/v1/batch/set':
-          return this.handleBatchSet(body);
+          return await this.handleBatch('batchSet', body);
+        case '/api/v1/batch/get':
+          return await this.handleBatch('batchGet', body);
+        case '/api/v1/batch/delete':
+          return await this.handleBatch('batchDelete', body);
 
         // Transaction
         case '/api/v1/transaction':
@@ -596,40 +783,26 @@ export class UnifiedKVS {
 
   // ── HTTP Handlers: Batch & Transaction ──────────────────────────────
 
-  private handleBatchSet(body: Array<{ key: string; value: any; entityName?: string; options?: any }> | { items?: any[] } | any): FetchLikeResponse {
+  /**
+   * HTTP handler for /api/v1/batch/{set,get,delete}. Delegates to the
+   * direct batch methods so validation (KVS-038..043) is identical on
+   * both surfaces. Whole-batch validation failures → 400 with the
+   * KVSQueryError code; per-item failures land in failedKeys with 200.
+   */
+  private async handleBatch(
+    op: 'batchSet' | 'batchGet' | 'batchDelete',
+    body: any[] | { items?: any[] } | any,
+  ): Promise<FetchLikeResponse> {
     const items: any[] = Array.isArray(body) ? body : (body.items ?? body);
-    const successfulKeys: { key: string; entityName?: string }[] = [];
-    const failedKeys: { key: string; entityName?: string; error: { code: string; message: string } }[] = [];
-
-    for (const item of items) {
-      try {
-        const now = Date.now();
-        if (item.entityName) {
-          const ek = this.entityKey(item.entityName, item.key);
-          const existing = this.entities.get(ek);
-          this.entities.set(ek, {
-            key: item.key,
-            value: item.value,
-            entityName: item.entityName,
-            createdAt: existing?.createdAt ?? now,
-            updatedAt: now,
-          });
-        } else {
-          const existing = this.store.get(item.key);
-          this.store.set(item.key, {
-            key: item.key,
-            value: item.value,
-            createdAt: existing?.createdAt ?? now,
-            updatedAt: now,
-          });
-        }
-        successfulKeys.push({ key: item.key, entityName: item.entityName });
-      } catch (err: any) {
-        failedKeys.push({ key: item.key, entityName: item.entityName, error: { code: 'SET_FAILED', message: err.message } });
+    try {
+      const result = await this[op](items);
+      return jsonResponse(200, result);
+    } catch (err: any) {
+      if (err instanceof KVSQueryError) {
+        return jsonResponse(400, { code: err.code, message: err.message });
       }
+      throw err;
     }
-
-    return jsonResponse(200, { successfulKeys, failedKeys });
   }
 
   private handleTransaction(body: any): FetchLikeResponse {
@@ -1177,6 +1350,56 @@ function validateEntityValue(value: Record<string, any>, schema: EntitySchema, e
         return `Type mismatch for attribute "${field}" on entity "${entityName}": expected ${attrDef.type}, got ${typeof val}`;
       }
     }
+  }
+  return null;
+}
+
+// ── Key/Value Validation (batch ops) ──────────────────────────────────
+//
+// Spec KVS-016..021: key regex, key length, value size, value depth.
+// Used by the batch ops for per-item failedKeys entries. (Single-op
+// set/get deliberately don't enforce these yet — behavioral-gap bucket.)
+
+/** Forge KVS key regex (spec KVS-016, storage-reference/handling-errors-kvs). */
+const KVS_KEY_REGEX = /^(?!\s+$)[a-zA-Z0-9:._\s\-#]+$/;
+const KVS_KEY_MAX_LENGTH = 500;
+/** Max serialized value size: 240 KiB (current limits page). */
+const KVS_VALUE_MAX_BYTES = 240 * 1024;
+/** Max object nesting depth: 31 levels. */
+const KVS_VALUE_MAX_DEPTH = 31;
+
+function validateKvsKey(key: unknown): { code: string; message: string } | null {
+  if (typeof key !== 'string' || key.length === 0) {
+    return { code: 'KEY_TOO_SHORT', message: 'Key must be at least 1 character' };
+  }
+  if (key.length > KVS_KEY_MAX_LENGTH) {
+    return { code: 'KEY_TOO_LONG', message: `Key exceeds ${KVS_KEY_MAX_LENGTH} characters` };
+  }
+  if (!KVS_KEY_REGEX.test(key)) {
+    return { code: 'INVALID_KEY', message: `Key "${key}" does not match ${KVS_KEY_REGEX}` };
+  }
+  return null;
+}
+
+function objectDepth(value: any, depth = 1): number {
+  if (value === null || typeof value !== 'object') return depth;
+  let max = depth;
+  for (const v of Object.values(value)) {
+    if (v !== null && typeof v === 'object') {
+      max = Math.max(max, objectDepth(v, depth + 1));
+      if (max > KVS_VALUE_MAX_DEPTH) return max; // early exit
+    }
+  }
+  return max;
+}
+
+function validateKvsValue(value: any): { code: string; message: string } | null {
+  const bytes = Buffer.byteLength(JSON.stringify(value), 'utf-8');
+  if (bytes > KVS_VALUE_MAX_BYTES) {
+    return { code: 'MAX_SIZE', message: `Serialized value is ${bytes} bytes; maximum is ${KVS_VALUE_MAX_BYTES} (240 KiB)` };
+  }
+  if (objectDepth(value) > KVS_VALUE_MAX_DEPTH) {
+    return { code: 'MAX_DEPTH', message: `Value exceeds maximum object depth of ${KVS_VALUE_MAX_DEPTH} levels` };
   }
   return null;
 }

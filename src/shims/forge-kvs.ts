@@ -33,29 +33,29 @@ const kvs = {
   query() {
     return getSimulator().kvs.query();
   },
-  getMany(keys: string[]) {
-    return getSimulator().kvs.getMany(keys);
-  },
-  setMany(entries: Array<{ key: string; value: any }>) {
-    return getSimulator().kvs.setMany(entries);
-  },
-  deleteMany(keys: string[]) {
-    return getSimulator().kvs.deleteMany(keys);
-  },
   entity(entityName: string) {
     return getSimulator().kvs.entity(entityName);
   },
   transact() {
     return getSimulator().kvs.transact();
   },
-  batchGet(keys: string[]) {
-    return getSimulator().kvs.getMany(keys);
+  // ── Batch ops — real @forge/kvs shapes ──────────────────────────────
+  // batchGet(BatchGetItem[]) / batchSet(BatchSetItem[]) /
+  // batchDelete(BatchDeleteItem[]), each returning
+  // { successfulKeys, failedKeys }. Matches @forge/kvs kvs-api.d.ts.
+  //
+  // NOTE: real @forge/kvs has NO getMany/setMany/deleteMany on `kvs` —
+  // those were removed from this shim for parity (an app using them
+  // would work in the sim but crash in Forge). They remain available on
+  // the direct sim API (sim.kvs.getMany etc.) for test convenience.
+  batchGet(items: Array<{ key: string; entityName?: string; options?: { metadataFields?: string[] } }>) {
+    return getSimulator().kvs.batchGet(items);
   },
-  batchSet(items: Array<{ key: string; value: any }>) {
-    return getSimulator().kvs.setMany(items);
+  batchSet(items: Array<{ key: string; value: any; entityName?: string; options?: any }>) {
+    return getSimulator().kvs.batchSet(items);
   },
-  batchDelete(keys: string[]) {
-    return getSimulator().kvs.deleteMany(keys);
+  batchDelete(items: Array<{ key: string; entityName?: string }>) {
+    return getSimulator().kvs.batchDelete(items);
   },
 };
 

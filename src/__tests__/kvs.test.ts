@@ -253,6 +253,197 @@ describe('UnifiedKVS', () => {
     });
   });
 
+  // ── Real @forge/kvs batch surface (KVS-038..043) ───────────────────
+
+  describe('Batch operations — real @forge/kvs surface (KVS-038..043)', () => {
+    // ── batchSet ──
+    it('batchSet writes items and returns successfulKeys in real shape', async () => {
+      const result = await kvs.batchSet([
+        { key: 'bk1', value: 'one' },
+        { key: 'bk2', value: { nested: true } },
+      ]);
+      expect(result).toEqual({
+        successfulKeys: [{ key: 'bk1' }, { key: 'bk2' }],
+        failedKeys: [],
+      });
+      expect(await kvs.get('bk1')).toBe('one');
+      expect(await kvs.get('bk2')).toEqual({ nested: true });
+    });
+
+    it('batchSet writes entity items and includes entityName in successfulKeys', async () => {
+      const result = await kvs.batchSet([
+        { key: 'e1', value: { data: 1 }, entityName: 'Thing' },
+      ]);
+      expect(result.successfulKeys).toEqual([{ key: 'e1', entityName: 'Thing' }]);
+      expect(await kvs.entity('Thing').get('e1')).toEqual({ data: 1 });
+    });
+
+    it('KVS-041: mixed batch partitions per-item — valid item persists, invalid lands in failedKeys', async () => {
+      const result = await kvs.batchSet([
+        { key: 'good', value: 'kept' },
+        { key: 'bad/slash', value: 'rejected' }, // '/' not in allowed charset
+        { key: 'null-val', value: null },
+      ]);
+      expect(result.successfulKeys).toEqual([{ key: 'good' }]);
+      expect(result.failedKeys).toHaveLength(2);
+      expect(result.failedKeys[0]).toMatchObject({ key: 'bad/slash', error: { code: 'INVALID_KEY' } });
+      expect(result.failedKeys[1]).toMatchObject({ key: 'null-val', error: { code: 'INVALID_VALUE' } });
+      expect(await kvs.get('good')).toBe('kept');
+      expect(await kvs.get('bad/slash')).toBeUndefined();
+    });
+
+    it('KVS-041: per-item MAX_SIZE for a value over 240 KiB', async () => {
+      const big = 'x'.repeat(241 * 1024);
+      const result = await kvs.batchSet([
+        { key: 'small', value: 'ok' },
+        { key: 'huge', value: big },
+      ]);
+      expect(result.successfulKeys).toEqual([{ key: 'small' }]);
+      expect(result.failedKeys[0]).toMatchObject({ key: 'huge', error: { code: 'MAX_SIZE' } });
+    });
+
+    it('per-item KEY_TOO_LONG for keys over 500 chars', async () => {
+      const result = await kvs.batchSet([{ key: 'k'.repeat(501), value: 1 }]);
+      expect(result.failedKeys[0].error.code).toBe('KEY_TOO_LONG');
+      expect(result.successfulKeys).toEqual([]);
+    });
+
+    it('entity items validate against registered schema → VALIDATION_ERROR', async () => {
+      kvs.registerEntitySchema('Strict', {
+        attributes: { name: { type: 'string' } },
+        indexes: [],
+      });
+      const result = await kvs.batchSet([
+        { key: 'ok', value: { name: 'fine' }, entityName: 'Strict' },
+        { key: 'nope', value: { name: 123 }, entityName: 'Strict' },
+      ]);
+      expect(result.successfulKeys).toEqual([{ key: 'ok', entityName: 'Strict' }]);
+      expect(result.failedKeys[0]).toMatchObject({
+        key: 'nope',
+        entityName: 'Strict',
+        error: { code: 'VALIDATION_ERROR' },
+      });
+    });
+
+    it('batchSet with ttl sets expireTime (visible via batchGet EXPIRE_TIME)', async () => {
+      await kvs.batchSet([
+        { key: 'expiring', value: 'soon', options: { ttl: { value: 1, unit: 'hours' } } },
+      ]);
+      const got = await kvs.batchGet([
+        { key: 'expiring', options: { metadataFields: ['EXPIRE_TIME'] } },
+      ]);
+      // Real @forge/kvs types expireTime as an ISO string (kvs-api.d.ts)
+      const expireTime = got.successfulKeys[0].expireTime;
+      expect(typeof expireTime).toBe('string');
+      expect(Date.parse(expireTime)).toBeGreaterThan(Date.now());
+    });
+
+    // ── batchGet ──
+    it('batchGet returns values; missing keys are silently omitted (spec §8.7)', async () => {
+      await kvs.set('present', 42);
+      const result = await kvs.batchGet([
+        { key: 'present' },
+        { key: 'absent' },
+      ]);
+      expect(result.successfulKeys).toEqual([{ key: 'present', value: 42 }]);
+      expect(result.failedKeys).toEqual([]);
+    });
+
+    it('KVS-042: metadata fields returned only when requested', async () => {
+      await kvs.set('meta-key', 'v');
+      const bare = await kvs.batchGet([{ key: 'meta-key' }]);
+      expect(bare.successfulKeys[0]).toEqual({ key: 'meta-key', value: 'v' });
+      expect(bare.successfulKeys[0].createdAt).toBeUndefined();
+
+      const withMeta = await kvs.batchGet([
+        { key: 'meta-key', options: { metadataFields: ['CREATED_AT', 'UPDATED_AT'] } },
+      ]);
+      expect(typeof withMeta.successfulKeys[0].createdAt).toBe('number');
+      expect(typeof withMeta.successfulKeys[0].updatedAt).toBe('number');
+      // EXPIRE_TIME not requested and not set → absent
+      expect(withMeta.successfulKeys[0].expireTime).toBeUndefined();
+    });
+
+    it('batchGet reads entity items scoped by entityName', async () => {
+      await kvs.entity('Thing').set('t1', { a: 1 });
+      await kvs.set('t1', 'plain'); // same key, plain store — must not collide
+      const result = await kvs.batchGet([
+        { key: 't1', entityName: 'Thing' },
+        { key: 't1' },
+      ]);
+      expect(result.successfulKeys).toEqual([
+        { key: 't1', entityName: 'Thing', value: { a: 1 } },
+        { key: 't1', value: 'plain' },
+      ]);
+    });
+
+    it('batchGet puts invalid keys in failedKeys', async () => {
+      const result = await kvs.batchGet([{ key: 'bad/slash' }]);
+      expect(result.failedKeys[0]).toMatchObject({ key: 'bad/slash', error: { code: 'INVALID_KEY' } });
+    });
+
+    // ── batchDelete ──
+    it('batchDelete removes keys; deleting an absent key succeeds', async () => {
+      await kvs.set('d1', 1);
+      const result = await kvs.batchDelete([
+        { key: 'd1' },
+        { key: 'never-existed' },
+      ]);
+      expect(result.successfulKeys).toEqual([{ key: 'd1' }, { key: 'never-existed' }]);
+      expect(result.failedKeys).toEqual([]);
+      expect(await kvs.get('d1')).toBeUndefined();
+    });
+
+    it('batchDelete removes entity items scoped by entityName', async () => {
+      await kvs.entity('Thing').set('td', { a: 1 });
+      await kvs.set('td', 'plain');
+      await kvs.batchDelete([{ key: 'td', entityName: 'Thing' }]);
+      expect(await kvs.entity('Thing').get('td')).toBeUndefined();
+      expect(await kvs.get('td')).toBe('plain'); // plain store untouched
+    });
+
+    // ── Whole-batch validation (KVS-038/039/040/043) ──
+    it('KVS-039: empty batch rejects the entire request', async () => {
+      await expect(kvs.batchGet([])).rejects.toMatchObject({ code: 'INVALID_BATCH' });
+      await expect(kvs.batchSet([])).rejects.toMatchObject({ code: 'INVALID_BATCH' });
+      await expect(kvs.batchDelete([])).rejects.toMatchObject({ code: 'INVALID_BATCH' });
+    });
+
+    it('KVS-038: more than 25 items rejects the entire batch, nothing written', async () => {
+      const items = Array.from({ length: 26 }, (_, i) => ({ key: `k${i}`, value: i }));
+      await expect(kvs.batchSet(items)).rejects.toMatchObject({ code: 'BATCH_SIZE_EXCEEDED' });
+      expect(await kvs.get('k0')).toBeUndefined();
+    });
+
+    it('KVS-040: duplicate key rejects the entire batch, nothing written', async () => {
+      await expect(
+        kvs.batchSet([
+          { key: 'dup', value: 1 },
+          { key: 'dup', value: 2 },
+        ]),
+      ).rejects.toMatchObject({ code: 'DUPLICATE_KEY' });
+      expect(await kvs.get('dup')).toBeUndefined();
+    });
+
+    it('KVS-040: same key under different entityName is NOT a duplicate', async () => {
+      const result = await kvs.batchSet([
+        { key: 'shared', value: 1, entityName: 'A' },
+        { key: 'shared', value: 2, entityName: 'B' },
+        { key: 'shared', value: 3 },
+      ]);
+      expect(result.successfulKeys).toHaveLength(3);
+    });
+
+    it('KVS-043: batchSet payload over 4 MB rejects the entire batch', async () => {
+      // 20 items × ~230 KiB each ≈ 4.6 MB total, each item under the
+      // 240 KiB per-value cap — only the whole-payload rule can fire.
+      const chunk = 'y'.repeat(230 * 1024);
+      const items = Array.from({ length: 20 }, (_, i) => ({ key: `big${i}`, value: chunk }));
+      await expect(kvs.batchSet(items)).rejects.toMatchObject({ code: 'MAX_SIZE' });
+      expect(await kvs.get('big0')).toBeUndefined();
+    });
+  });
+
   // ── Entity Direct API ──────────────────────────────────────────────
 
   describe('Entity Direct API', () => {
@@ -922,6 +1113,51 @@ describe('UnifiedKVS', () => {
       });
       expect(resp.ok).toBe(true);
       expect(await kvs.entity('Thing').get('e1')).toEqual({ data: 1 });
+    });
+
+    it('batch get route returns real @forge/kvs result shape', async () => {
+      await kvs.set('hg1', 'val');
+      const resp = await kvs.handleRequest('/api/v1/batch/get', {
+        body: JSON.stringify([{ key: 'hg1' }, { key: 'hg-missing' }]),
+      });
+      expect(resp.ok).toBe(true);
+      const data = await resp.json();
+      expect(data).toEqual({
+        successfulKeys: [{ key: 'hg1', value: 'val' }],
+        failedKeys: [],
+      });
+    });
+
+    it('batch delete route removes keys', async () => {
+      await kvs.set('hd1', 'val');
+      const resp = await kvs.handleRequest('/api/v1/batch/delete', {
+        body: JSON.stringify([{ key: 'hd1' }]),
+      });
+      expect(resp.ok).toBe(true);
+      const data = await resp.json();
+      expect(data.successfulKeys).toEqual([{ key: 'hd1' }]);
+      expect(await kvs.get('hd1')).toBeUndefined();
+    });
+
+    it('whole-batch validation failure returns 400 with error code', async () => {
+      const resp = await kvs.handleRequest('/api/v1/batch/set', {
+        body: JSON.stringify([
+          { key: 'dup', value: 1 },
+          { key: 'dup', value: 2 },
+        ]),
+      });
+      expect(resp.status).toBe(400);
+      const data = await resp.json();
+      expect(data.code).toBe('DUPLICATE_KEY');
+    });
+
+    it('empty batch returns 400 INVALID_BATCH', async () => {
+      const resp = await kvs.handleRequest('/api/v1/batch/get', {
+        body: JSON.stringify([]),
+      });
+      expect(resp.status).toBe(400);
+      const data = await resp.json();
+      expect(data.code).toBe('INVALID_BATCH');
     });
   });
 
