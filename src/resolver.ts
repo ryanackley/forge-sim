@@ -47,6 +47,16 @@ export class SimulatedResolver {
    * `clear()` (which runs on `sim.reset()`).
    */
   private renderContextOverlay: Partial<ResolverContext> = {};
+  /**
+   * The fully-merged context of the invocation currently executing (null
+   * when no resolver is running). This is the sim's equivalent of real
+   * Forge's per-invocation runtime (`__getRuntime().aaid`) — APIs that need
+   * to know "who is the invoking user right now" (e.g. authorize()) read
+   * this so per-call context overrides are honored, not just the sticky
+   * baseline. Saved/restored around handler execution so nested invokes
+   * unwind correctly.
+   */
+  private activeInvocationContext: ResolverContext | null = null;
   private getDefaults: ResolverContextProvider;
 
   constructor(getDefaults: ResolverContextProvider = defaultContextProvider) {
@@ -133,7 +143,21 @@ export class SimulatedResolver {
       context,
     };
 
-    return handler(req);
+    const previous = this.activeInvocationContext;
+    this.activeInvocationContext = context;
+    try {
+      return await handler(req);
+    } finally {
+      this.activeInvocationContext = previous;
+    }
+  }
+
+  /**
+   * Get the merged context of the invocation currently executing, or null
+   * when called outside a resolver invocation.
+   */
+  getActiveContext(): ResolverContext | null {
+    return this.activeInvocationContext ? { ...this.activeInvocationContext } : null;
   }
 
   /**
@@ -173,5 +197,6 @@ export class SimulatedResolver {
     this.definitions.clear();
     this.contextOverrides = {};
     this.renderContextOverlay = {};
+    this.activeInvocationContext = null;
   }
 }

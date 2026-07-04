@@ -8,6 +8,7 @@
 
 import { getSimulator } from './globals.js';
 import { WhereConditions as KvsWhereConditions, FilterConditions as KvsFilterConditions } from './forge-kvs.js';
+import { buildAuthorizeApi, AUTHORIZE_NO_ACCOUNT_ERROR, type AuthorizeFetch } from '../authorize.js';
 
 // ── Route template tag ──────────────────────────────────────────────────
 
@@ -263,9 +264,53 @@ function isHostedCodeError(err: any): boolean {
   return err instanceof Error && err.name.includes('HostedCode');
 }
 
-// ── Stubs for less common APIs ──────────────────────────────────────────
+// ── authorize() — permission check builders (API-029/030, RT-044) ──────
+//
+// Mirrors real @forge/api/out/authorization/index.js:
+//   const accountId = __getRuntime().aaid;
+//   if (!accountId) throw ...;
+//   return { ...authorizeConfluenceWithFetch(...), ...authorizeJiraWithFetch(...) };
+//
+// The sim's equivalent of the invocation runtime's `aaid` is the currently
+// executing resolver's merged context (per-call overrides included), falling
+// back to the sticky/default context when called outside an invocation
+// (e.g. straight from a test).
 
-function authorize(_provider: string) { return Promise.resolve(); }
+/** Resolve the invoking user's accountId the same way the context layer does. */
+function currentInvokingAccountId(): string | undefined {
+  const sim = getSimulator();
+  const active = sim.resolver.getActiveContext();
+  if (active) return active.accountId as string | undefined;
+  const merged = {
+    ...sim.getDefaultContext(),
+    ...sim.resolver.getContextOverrides(),
+    ...sim.resolver.getRenderContext(),
+  };
+  return merged.accountId as string | undefined;
+}
+
+function authorize() {
+  const accountId = currentInvokingAccountId();
+  if (!accountId) {
+    // Byte-for-byte the real error (note the Unicode ’) — thrown
+    // synchronously, exactly like real authorize().
+    throw new Error(AUTHORIZE_NO_ACCOUNT_ERROR);
+  }
+  const sim = getSimulator();
+  // Real authorize() routes through asUser().requestJira/requestConfluence
+  // then res.json(). Our fetch contract also carries the status so the
+  // builders can tell "mocked answer" from "unmocked → permissive true".
+  const wrapFetch = (product: 'jira' | 'confluence'): AuthorizeFetch =>
+    async (path, opts) => {
+      const res = await sim.productApi.request(product, assumeTrustedRoute(path), opts);
+      let json: any;
+      try { json = await res.json(); } catch { json = undefined; }
+      return { status: res.status, json };
+    };
+  return buildAuthorizeApi(accountId, wrapFetch('jira'), wrapFetch('confluence'));
+}
+
+// ── Stubs for less common APIs ──────────────────────────────────────────
 
 async function invokeRemote(
   remoteKey: string,
@@ -357,7 +402,17 @@ function __fetchProduct(productOrDescriptor: string | { provider?: string; remot
 
 const __requestAtlassianAsApp = makeApiClient;
 const __requestAtlassianAsUser = makeApiClient;
-const __getRuntime = () => ({ isEcosystemApp: false });
+const __getRuntime = () => ({
+  isEcosystemApp: false,
+  /** Real Forge's runtime carries the invoking user's aaid — authorize() reads it. */
+  get aaid(): string | undefined {
+    try {
+      return currentInvokingAccountId();
+    } catch {
+      return undefined; // no simulator set
+    }
+  },
+});
 const bindInvocationContext = (fn: Function) => fn;
 /**
  * getAppContext() — returns app-level metadata for the current invocation.
