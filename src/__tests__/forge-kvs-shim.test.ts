@@ -164,6 +164,102 @@ describe('@forge/kvs shim — top-level export surface', () => {
   });
 });
 
+describe('@forge/kvs shim — Filter builder parity with real package', () => {
+  it('Filter is constructible (was aliased to FilterConditions until 2026-07-04)', () => {
+    // Real @forge/kvs exports `FilterBuilder as Filter` — a class. The old
+    // shim aliased it to the FilterConditions helpers object, so
+    // `new Filter()` worked in Forge and crashed in the sim.
+    expect(() => new (shim.Filter as any)()).not.toThrow();
+    expect(() => new (real as any).Filter()).not.toThrow();
+  });
+
+  it('plain new Filter() matches real: filters() is [] and operator() is "or"', () => {
+    const shimF = new (shim.Filter as any)();
+    const realF = new (real as any).Filter();
+    expect(shimF.filters()).toEqual(realF.filters());
+    expect(shimF.operator()).toBe(realF.operator());
+    expect(shimF.operator()).toBe('or'); // the real quirk: base builder reports 'or'
+  });
+
+  it('and-chain produces identical filters()/operator() to real', () => {
+    const build = (F: any, FC: any) =>
+      new F()
+        .and('status', FC.equalTo('open'))
+        .and('total', FC.greaterThan(100));
+    const shimF = build(shim.Filter, shim.FilterConditions);
+    const realF = build((real as any).Filter, real.FilterConditions);
+    expect(shimF.filters()).toEqual(realF.filters());
+    expect(shimF.operator()).toBe(realF.operator());
+    expect(shimF.operator()).toBe('and');
+  });
+
+  it('or-chain produces identical filters()/operator() to real', () => {
+    const build = (F: any, FC: any) =>
+      new F()
+        .or('status', FC.equalTo('cancelled'))
+        .or('total', FC.lessThan(10));
+    const shimF = build(shim.Filter, shim.FilterConditions);
+    const realF = build((real as any).Filter, real.FilterConditions);
+    expect(shimF.filters()).toEqual(realF.filters());
+    expect(shimF.operator()).toBe(realF.operator());
+    expect(shimF.operator()).toBe('or');
+  });
+
+  it('combinator locking matches real: and-builder has no .or, or-builder has no .and', () => {
+    const shimAnd = new (shim.Filter as any)().and('a', shim.FilterConditions.equalTo(1));
+    const realAnd = new (real as any).Filter().and('a', real.FilterConditions.equalTo(1));
+    expect(typeof (shimAnd as any).or).toBe(typeof (realAnd as any).or);
+
+    const shimOr = new (shim.Filter as any)().or('a', shim.FilterConditions.equalTo(1));
+    const realOr = new (real as any).Filter().or('a', real.FilterConditions.equalTo(1));
+    expect(typeof (shimOr as any).and).toBe(typeof (realOr as any).and);
+  });
+});
+
+describe('@forge/kvs shim — error class parity with real package', () => {
+  it('ForgeKvsAPIError constructor signature and fields match real', () => {
+    const responseDetails = { status: 400, statusText: 'Bad Request', traceId: 'trace-123' };
+    const forgeError = {
+      code: 'CONDITION_FAILED',
+      message: 'Condition not met',
+      context: { key: 'o1' },
+      extra: 'body-data',
+    };
+    const shimErr = new (shim.ForgeKvsAPIError as any)(responseDetails, forgeError);
+    const realErr = new (real as any).ForgeKvsAPIError(responseDetails, forgeError);
+
+    expect(shimErr.code).toBe(realErr.code);
+    expect(shimErr.message).toBe(realErr.message);
+    expect(shimErr.context).toEqual(realErr.context);
+    expect(shimErr.responseDetails).toEqual(realErr.responseDetails);
+  });
+
+  it('mirrors the real name quirk: ForgeKvsAPIError.name stays "ForgeKvsError"', () => {
+    // The shipped constructor never sets this.name, so instances inherit
+    // 'ForgeKvsError' from the base class. Apps matching on err.name must
+    // see the same string in the sim as in prod.
+    const shimErr = new (shim.ForgeKvsAPIError as any)(
+      { status: 500, statusText: 'ISE', traceId: null },
+      { code: 'X', message: 'boom' },
+    );
+    const realErr = new (real as any).ForgeKvsAPIError(
+      { status: 500, statusText: 'ISE', traceId: null },
+      { code: 'X', message: 'boom' },
+    );
+    expect(realErr.name).toBe('ForgeKvsError'); // prove the real quirk
+    expect(shimErr.name).toBe(realErr.name);
+  });
+
+  it('instanceof chain matches real: APIError extends ForgeKvsError extends Error', () => {
+    const shimErr = new (shim.ForgeKvsAPIError as any)(
+      { status: 500, statusText: 'ISE', traceId: null },
+      { code: 'X', message: 'boom' },
+    );
+    expect(shimErr).toBeInstanceOf(shim.ForgeKvsError);
+    expect(shimErr).toBeInstanceOf(Error);
+  });
+});
+
 describe('@forge/kvs shim — kvs object method surface', () => {
   it('shim kvs has exactly the same method names as real kvs', () => {
     // Parity in BOTH directions:

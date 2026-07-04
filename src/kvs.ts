@@ -366,9 +366,14 @@ export class UnifiedKVS {
   // ── Direct API: Transaction ─────────────────────────────────────────
 
   /**
-   * Start a transaction builder for batched writes/deletes.
-   * Mirrors real @forge/kvs: kvs.transact().set(k,v).delete(k).execute()
-   * NOTE: This is batched write/delete only. No atomic read-then-write.
+   * Start a transaction builder (ENT-030/031). Mirrors real @forge/kvs:
+   *   kvs.transact()
+   *     .set(k, v, { entityName, conditions? }?, { ttl }?)
+   *     .delete(k, { entityName, conditions? }?)
+   *     .check(k, { entityName, conditions })
+   *     .execute()
+   * All-or-nothing: any failed condition (including check) rejects the
+   * whole transaction with nothing applied.
    */
   transact(): TransactionBuilder {
     return new TransactionBuilder(this);
@@ -409,28 +414,137 @@ export class UnifiedKVS {
     return new EntityQueryBuilder(entityName, this.entities, this.entitySchemas);
   }
 
-  /** @internal Execute a transaction: batched set/delete operations */
-  async executeTransaction(ops: TransactionOps): Promise<void> {
-    const now = Date.now();
+  /**
+   * @internal Execute a transaction request (wire shape produced by
+   * TransactionBuilder.execute() or POSTed to /api/v1/transaction).
+   *
+   * ENT-030: all-or-nothing. ALL conditions (set/delete/check) are
+   * evaluated against current state BEFORE any write is applied. Any
+   * failed condition rejects the whole transaction with nothing applied.
+   *
+   * ENT-031: limits — max 25 operations, each key used at most once
+   * across all operations, payload ≤ 4 MB. (Rate limits are out of sim
+   * scope.) These are server-side checks in real Forge; the shipped
+   * client's only validation is the empty-Filter throw in
+   * buildConditionsRequest.
+   *
+   * Throws KVSQueryError with a stable `.code` on any rejection.
+   */
+  async executeTransaction(request: TransactionRequest): Promise<void> {
+    await this.simulateDelay();
+    const sets = request.set ?? [];
+    const deletes = request.delete ?? [];
+    const checks = request.check ?? [];
+    const allOps: Array<{ key: string; entityName?: string; conditions?: TransactionConditionsWire }> =
+      [...sets, ...deletes, ...checks];
 
-    for (const item of ops.sets) {
+    // ── ENT-031: limits ──────────────────────────────────────────────
+    // Codes TRANSACTION_OPERATION_LIMIT_EXCEEDED / TRANSACTION_DUPLICATE_KEY
+    // are sim-chosen (Forge docs state the limits but document no code).
+    if (allOps.length > TRANSACTION_MAX_OPERATIONS) {
+      throw new KVSQueryError(
+        'TRANSACTION_OPERATION_LIMIT_EXCEEDED',
+        `Transaction contains ${allOps.length} operations; maximum is ${TRANSACTION_MAX_OPERATIONS}`,
+      );
+    }
+    const seenKeys = new Set<string>();
+    for (const op of allOps) {
+      if (seenKeys.has(op.key)) {
+        throw new KVSQueryError(
+          'TRANSACTION_DUPLICATE_KEY',
+          `Transaction uses key "${op.key}" more than once; each key may be used in at most one operation`,
+        );
+      }
+      seenKeys.add(op.key);
+    }
+    const payloadBytes = Buffer.byteLength(JSON.stringify(request), 'utf-8');
+    if (payloadBytes > TRANSACTION_MAX_PAYLOAD_BYTES) {
+      throw new KVSQueryError(
+        'MAX_SIZE',
+        `Transaction payload is ${payloadBytes} bytes; maximum is ${TRANSACTION_MAX_PAYLOAD_BYTES} (4 MB)`,
+      );
+    }
+
+    // ── Upfront validation (atomicity: reject before applying anything) ──
+    for (const item of sets) {
+      if (item.value === null || item.value === undefined) {
+        throw new KVSQueryError('INVALID_VALUE', `Cannot store null or undefined values (key "${item.key}")`);
+      }
       if (item.entityName) {
-        await this.entitySet(item.entityName, item.key, item.value);
-      } else {
-        await this.set(item.key, item.value);
+        const schema = this.entitySchemas.get(item.entityName);
+        if (schema && item.value && typeof item.value === 'object') {
+          const error = validateEntityValue(item.value, schema, item.entityName);
+          if (error) throw new KVSQueryError('INVALID_ENTITY_VALUE', error);
+        }
       }
     }
 
-    for (const item of ops.deletes) {
+    // ── ENT-030: evaluate ALL conditions before applying ANY write ──
+    for (const op of allOps) {
+      if (!this.transactionConditionsMet(op)) {
+        throw new KVSQueryError(
+          'CONDITION_FAILED', // sim-chosen code (Forge docs document the behavior but no code)
+          `Transaction condition failed for key "${op.key}"${op.entityName ? ` (entity "${op.entityName}")` : ''}; no operations were applied`,
+        );
+      }
+    }
+
+    // ── Apply — all conditions passed, commit everything ────────────
+    const now = Date.now();
+    for (const item of sets) {
+      const value = JSON.parse(JSON.stringify(item.value));
+      if (item.entityName) {
+        const ek = this.entityKey(item.entityName, item.key);
+        const existing = this.entities.get(ek);
+        this.entities.set(ek, {
+          key: item.key,
+          value,
+          entityName: item.entityName,
+          createdAt: existing?.createdAt ?? now,
+          updatedAt: now,
+          expireTime: item.options?.ttl ? computeExpireTime(now, item.options.ttl) : existing?.expireTime,
+        });
+      } else {
+        const existing = this.store.get(item.key);
+        this.store.set(item.key, {
+          key: item.key,
+          value,
+          createdAt: existing?.createdAt ?? now,
+          updatedAt: now,
+          expireTime: item.options?.ttl ? computeExpireTime(now, item.options.ttl) : existing?.expireTime,
+        });
+      }
+    }
+    for (const item of deletes) {
+      // Forge docs: "delete succeeds whether the key exists or not"
       if (item.entityName) {
         this.entities.delete(this.entityKey(item.entityName, item.key));
       } else {
         this.store.delete(item.key);
       }
     }
+  }
 
-    // checks are condition assertions — in-memory simulation is atomic per tick,
-    // so we don't need to actually implement optimistic locking
+  /**
+   * Evaluate one operation's conditions against current state.
+   * No conditions (or an op the shipped client sent with
+   * `conditions: undefined`) → vacuous pass.
+   */
+  private transactionConditionsMet(op: {
+    key: string;
+    entityName?: string;
+    conditions?: TransactionConditionsWire;
+  }): boolean {
+    const conditions = op.conditions;
+    if (!conditions) return true;
+    const items = conditions.and ?? conditions.or ?? [];
+    if (items.length === 0) return true;
+    const isOr = !!conditions.or;
+    const entry = op.entityName
+      ? this.entities.get(this.entityKey(op.entityName, op.key))
+      : this.store.get(op.key);
+    const results = items.map((f) => matchCondition(entry?.value?.[f.property], f));
+    return isOr ? results.some(Boolean) : results.every(Boolean);
   }
 
   // ── handleRequest (HTTP endpoint routing for __forge_fetch__) ───────
@@ -490,7 +604,7 @@ export class UnifiedKVS {
 
         // Transaction
         case '/api/v1/transaction':
-          return this.handleTransaction(body);
+          return await this.handleTransaction(body);
 
         default:
           return jsonResponse(404, { code: 'NOT_FOUND', message: `Unknown endpoint: ${path}` });
@@ -805,7 +919,8 @@ export class UnifiedKVS {
     }
   }
 
-  private handleTransaction(body: any): FetchLikeResponse {
+  private async handleTransaction(body: any): Promise<FetchLikeResponse> {
+    // Legacy dev-tools format: { actions: [{ type, key, value, entityName? }] }
     if (body.actions) {
       for (const action of body.actions) {
         if (action.type === 'set') {
@@ -837,46 +952,22 @@ export class UnifiedKVS {
           }
         }
       }
+      return emptyResponse(200);
     }
 
-    // New-style transaction format (from real @forge/kvs TransactionBuilder)
-    if (body.set) {
-      for (const item of body.set) {
-        const now = Date.now();
-        if (item.entityName) {
-          const ek = this.entityKey(item.entityName, item.key);
-          const existing = this.entities.get(ek);
-          this.entities.set(ek, {
-            key: item.key,
-            value: item.value,
-            entityName: item.entityName,
-            createdAt: existing?.createdAt ?? now,
-            updatedAt: now,
-            expireTime: item.options?.ttl ? computeExpireTime(now, item.options.ttl) : existing?.expireTime,
-          });
-        } else {
-          const existing = this.store.get(item.key);
-          this.store.set(item.key, {
-            key: item.key,
-            value: item.value,
-            createdAt: existing?.createdAt ?? now,
-            updatedAt: now,
-          });
-        }
+    // New-style transaction format — the wire shape real @forge/kvs
+    // TransactionBuilder POSTs to /api/v1/transaction: { set?, delete?, check? }.
+    // Routed through executeTransaction so HTTP callers get the same
+    // ENT-030 atomicity + ENT-031 limits as the direct API.
+    try {
+      await this.executeTransaction(body as TransactionRequest);
+      return emptyResponse(200);
+    } catch (err: any) {
+      if (err instanceof KVSQueryError) {
+        return jsonResponse(400, { code: err.code, message: err.message });
       }
+      throw err;
     }
-    if (body.delete) {
-      for (const item of body.delete) {
-        if (item.entityName) {
-          this.entities.delete(this.entityKey(item.entityName, item.key));
-        } else {
-          this.store.delete(item.key);
-        }
-      }
-    }
-    // body.check — condition checks are a no-op in simulation (in-memory is atomic)
-
-    return emptyResponse(200);
   }
 
   // ── Schema Management ───────────────────────────────────────────────
@@ -1295,36 +1386,164 @@ export class EntityQueryBuilder {
   }
 }
 
-// ── Transaction Builder ───────────────────────────────────────────────
+// ── Error classes (parity with real @forge/kvs errors.js) ─────────────
 
-interface TransactionOps {
-  sets: Array<{ key: string; value: any; entityName?: string }>;
-  deletes: Array<{ key: string; entityName?: string }>;
-  checks: Array<{ key: string; entityName: string }>;
+/** Base error class matching real @forge/kvs `ForgeKvsError`. */
+export class ForgeKvsError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ForgeKvsError';
+  }
+}
+
+/**
+ * API error matching real @forge/kvs `ForgeKvsAPIError` exactly:
+ *   new ForgeKvsAPIError({ status, statusText, traceId }, { code, message, context?, ...bodyData })
+ *
+ * QUIRK mirrored from the shipped package: the constructor never sets
+ * `this.name`, so the name stays 'ForgeKvsError' (inherited). Parity
+ * over prettiness — apps matching on `err.name` see the same string
+ * in the sim as in prod.
+ */
+export class ForgeKvsAPIError extends ForgeKvsError {
+  responseDetails: { status: number; statusText: string; traceId?: string | null };
+  code: string;
+  context: Record<string, any>;
+
+  constructor(
+    responseDetails: { status: number; statusText: string; traceId?: string | null },
+    forgeError: { code: string; message: string; context?: Record<string, any>; [key: string]: any },
+  ) {
+    super(forgeError.message);
+    const { status, statusText, traceId } = responseDetails;
+    this.responseDetails = { status, statusText, traceId };
+    const { code, message, context, ...bodyData } = forgeError;
+    this.code = code;
+    this.message = message;
+    this.context = { ...context, ...bodyData };
+  }
+}
+
+// ── Transaction Builder ───────────────────────────────────────────────
+//
+// Mirrors real @forge/kvs TransactionBuilderImpl (out/transaction-api.js):
+//   kvs.transact()
+//     .set(key, value, entity?, options?)   // entity: { entityName, conditions? }
+//     .delete(key, entity?)
+//     .check(key, { entityName, conditions })
+//     .execute()
+// execute() builds the wire request { set?, delete?, check? } (the shape
+// real Forge POSTs to /api/v1/transaction) and hands it to
+// UnifiedKVS.executeTransaction.
+
+/** ENT-031: transaction limits (enforced server-side in real Forge). */
+const TRANSACTION_MAX_OPERATIONS = 25;
+const TRANSACTION_MAX_PAYLOAD_BYTES = 4 * 1024 * 1024;
+
+export interface TransactionConditionsWire {
+  and?: FilterItem[];
+  or?: FilterItem[];
+}
+
+/** Wire shape POSTed to /api/v1/transaction by the real client. */
+export interface TransactionRequest {
+  set?: Array<{
+    key: string;
+    value: any;
+    entityName?: string;
+    conditions?: TransactionConditionsWire;
+    options?: { ttl?: { value: number; unit: string } };
+  }>;
+  delete?: Array<{ key: string; entityName?: string; conditions?: TransactionConditionsWire }>;
+  check?: Array<{ key: string; entityName?: string; conditions?: TransactionConditionsWire }>;
+}
+
+/** A Filter builder as passed to entity refs (matches real FilterBuilder). */
+interface ConditionsFilter {
+  filters(): FilterItem[];
+  operator(): string;
+}
+
+interface TransactionEntityRef {
+  entityName?: string;
+  conditions?: ConditionsFilter;
+}
+
+/**
+ * Mirror of real buildConditionsRequest (out/utils/transaction-request-builder.js).
+ * This empty-Filter throw is the ONLY client-side validation the shipped
+ * package performs — everything else (op count, unique keys, payload size)
+ * is server-side, i.e. executeTransaction here.
+ */
+export function buildConditionsRequest(filter?: ConditionsFilter): TransactionConditionsWire | undefined {
+  if (!filter) return undefined;
+  if (filter.filters().length === 0) {
+    throw new ForgeKvsError('Builder must have at least one condition set');
+  }
+  return { [filter.operator()]: filter.filters() } as TransactionConditionsWire;
+}
+
+/** Real client emits `undefined` (not `[]`) for empty op groups. */
+function undefineEmptyArray<T>(arr: T[]): T[] | undefined {
+  return arr.length === 0 ? undefined : arr;
 }
 
 export class TransactionBuilder {
-  private ops: TransactionOps = { sets: [], deletes: [], checks: [] };
+  private sets: Array<{ key: string; value: any; entity?: TransactionEntityRef; options?: { ttl?: any } }> = [];
+  private deletes: Array<{ key: string; entity?: TransactionEntityRef }> = [];
+  private checks: Array<{ key: string; entity: TransactionEntityRef }> = [];
 
   constructor(private kvs: UnifiedKVS) {}
 
-  set(key: string, value: any, entity?: { entityName: string }): this {
-    this.ops.sets.push({ key, value, entityName: entity?.entityName });
+  /**
+   * NOTE (docs-vs-client quirk, mirrored deliberately): the KVS
+   * transactions doc shows `set(key, value, options?)` with ttl as the
+   * 3rd arg — but the SHIPPED client's 3rd param is `entity`. Passing
+   * `{ ttl }` 3rd produces `entity: { entityName: undefined,
+   * conditions: undefined }` and the ttl never reaches the wire. We
+   * mirror the shipped client because that's what apps run in prod.
+   */
+  set(key: string, value: any, entity?: TransactionEntityRef, options?: { ttl?: any }): this {
+    const op: { key: string; value: any; entity?: TransactionEntityRef; options?: { ttl?: any } } = { key, value };
+    if (entity) op.entity = { entityName: entity.entityName, conditions: entity.conditions };
+    if (options) op.options = options;
+    this.sets.push(op);
     return this;
   }
 
-  delete(key: string, entity?: { entityName: string }): this {
-    this.ops.deletes.push({ key, entityName: entity?.entityName });
+  delete(key: string, entity?: TransactionEntityRef): this {
+    const op: { key: string; entity?: TransactionEntityRef } = { key };
+    if (entity) op.entity = { entityName: entity.entityName, conditions: entity.conditions };
+    this.deletes.push(op);
     return this;
   }
 
-  check(key: string, entity: { entityName: string }): this {
-    this.ops.checks.push({ key, entityName: entity.entityName });
+  check(key: string, entity: TransactionEntityRef): this {
+    this.checks.push({ key, entity: { entityName: entity.entityName, conditions: entity.conditions } });
     return this;
   }
 
   async execute(): Promise<void> {
-    return this.kvs.executeTransaction(this.ops);
+    const request: TransactionRequest = {
+      set: undefineEmptyArray(this.sets.map((op) => ({
+        key: op.key,
+        value: op.value,
+        entityName: op.entity?.entityName,
+        conditions: buildConditionsRequest(op.entity?.conditions),
+        options: op.options,
+      }))),
+      delete: undefineEmptyArray(this.deletes.map((op) => ({
+        key: op.key,
+        entityName: op.entity?.entityName,
+        conditions: buildConditionsRequest(op.entity?.conditions),
+      }))),
+      check: undefineEmptyArray(this.checks.map((op) => ({
+        key: op.key,
+        entityName: op.entity?.entityName,
+        conditions: buildConditionsRequest(op.entity?.conditions),
+      }))),
+    };
+    return this.kvs.executeTransaction(request);
   }
 }
 
