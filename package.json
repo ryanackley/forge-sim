@@ -2,6 +2,37 @@
   "name": "forge-sim",
   "version": "0.1.0",
   "description": "Simulated Forge runtime for AI-driven development and testing",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ryanackley/forge-sim.git"
+  },
+  "homepage": "https://github.com/ryanackley/forge-sim#readme",
+  "bugs": {
+    "url": "https://github.com/ryanackley/forge-sim/issues"
+  },
+  "keywords": [
+    "forge",
+    "atlassian",
+    "jira",
+    "confluence",
+    "simulator",
+    "emulator",
+    "testing",
+    "mcp",
+    "model-context-protocol",
+    "uikit",
+    "atlaskit"
+  ],
+  "engines": {
+    "node": ">=20.6.0"
+  },
+  "files": [
+    "dist",
+    "renderer/src",
+    "renderer/package.json",
+    "docs"
+  ],
   "type": "module",
   "main": "./dist/simulator.js",
   "types": "./dist/simulator.d.ts",
