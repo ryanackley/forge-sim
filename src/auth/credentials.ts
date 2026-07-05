@@ -1,11 +1,13 @@
 /**
  * Credential store for forge-sim.
  *
- * Stores OAuth tokens per-account in ~/.forge-sim/credentials.json.
- * Supports multiple accounts (different users/sites) and 3rd party OAuth tokens.
+ * Stores PAT (API token) accounts in ~/.forge-sim/credentials.json plus
+ * third-party OAuth tokens for external auth providers.
  *
- * Token refresh is handled transparently — callers just call getAccessToken()
- * and get a valid token back.
+ * Atlassian OAuth was removed in favor of PAT-only — PATs are 30-second
+ * setup and don't expire, OAuth was an unnecessary 5-minute developer-app
+ * registration dance with no functional gain in a simulator. Existing
+ * OAuth-typed accounts are dropped at load time via dropOAuthAccounts().
  */
 
 import { readFile, writeFile, mkdir, chmod } from 'node:fs/promises';
@@ -28,15 +30,19 @@ export interface AtlassianAccount {
   cloudId: string;
   /** Account ID from Atlassian (for context.accountId) */
   accountId: string;
-  /** Auth type: 'pat' (API token) or 'oauth' (3LO) */
-  authType: 'pat' | 'oauth';
-  /** OAuth access token OR PAT API token */
+  /**
+   * Auth type — only 'pat' is supported now. Field retained so that older
+   * credentials.json files still parse, and so the productApi auth header
+   * builder has an explicit branch.
+   */
+  authType: 'pat';
+  /** PAT API token (used as the password in HTTP Basic auth). */
   accessToken: string;
-  /** OAuth refresh token (empty for PAT) */
+  /** Unused for PAT — kept to preserve the JSON shape on disk. */
   refreshToken: string;
-  /** Token expiry (Unix ms) — 0 for PAT (never expires) */
+  /** Unused for PAT (PATs don't expire) — kept for JSON-shape compatibility. */
   expiresAt: number;
-  /** Granted OAuth scopes (empty for PAT) */
+  /** Unused for PAT — kept for JSON-shape compatibility. */
   scopes: string[];
   /** Is this the default account? */
   default?: boolean;
@@ -168,13 +174,32 @@ export function getAccount(store: CredentialStore, id: string): AtlassianAccount
 }
 
 /**
- * Check if a token needs refresh (expired or expiring within 5 minutes).
+ * Check if a token needs refresh. Always false for PAT — PATs never expire.
+ * Retained for callers that still invoke this; the result is a constant now.
  */
-export function tokenNeedsRefresh(account: AtlassianAccount): boolean {
-  // PATs don't expire
-  if (account.authType === 'pat') return false;
-  const BUFFER_MS = 5 * 60 * 1000; // 5 minutes
-  return Date.now() >= account.expiresAt - BUFFER_MS;
+export function tokenNeedsRefresh(_account: AtlassianAccount): boolean {
+  return false;
+}
+
+/**
+ * Migration helper — strip any legacy OAuth-typed accounts and return the
+ * list of dropped account IDs. The CredentialStore is mutated in place.
+ *
+ * Existing forge-sim users had OAuth accounts from the pre-PAT-only era
+ * (a deprecated path even then); this lets the CLI surface a clear
+ * "re-add as PAT" message instead of crashing on the now-narrowed type.
+ */
+export function dropOAuthAccounts(store: CredentialStore): string[] {
+  const dropped: string[] = [];
+  store.accounts = store.accounts.filter((a) => {
+    if ((a as any).authType === 'oauth') {
+      dropped.push(a.id);
+      delete store.thirdParty[a.id];
+      return false;
+    }
+    return true;
+  });
+  return dropped;
 }
 
 /**

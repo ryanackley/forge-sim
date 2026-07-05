@@ -24,9 +24,13 @@ import {
   getBridgeCalls,
   resetBridge,
   onRender,
+  onMacroConfigRender,
   resetAll,
   setForgeContext,
   getForgeContext,
+  setActiveCaptureModule,
+  replayCapturedRender,
+  moduleUsesConfig,
 } from './bridge.js';
 import { buildForgeContext, type ForgeContext, type RenderContextOptions } from '../context.js';
 import {
@@ -39,6 +43,14 @@ import {
   listComponentTypes,
   prettyPrint,
 } from './doc-utils.js';
+import {
+  extractInlineConfigFields,
+  validateInlineConfigTree,
+  defaultsFromFields,
+  type InlineConfigField,
+  type InlineConfigHandle,
+  type InlineConfigValidation,
+} from './inline-config.js';
 import type { ForgeSimulator } from '../simulator.js';
 // setSimulator is auto-called in the ForgeSimulator constructor.
 // We keep this import for the defensive re-wire in ensureBridge().
@@ -46,11 +58,155 @@ import { setSimulator } from '../shims/globals.js';
 import { onViewEvent, resetViewEvents, type ViewEventType } from '../shims/forge-bridge.js';
 import { pathToFileURL } from 'node:url';
 
+/**
+ * Heuristic: is this arg likely a user-supplied data object rather than a
+ * synthetic event? Used by `interact` to catch the P10 antipattern of calling
+ * `interact(form, 'onSubmit', { name: 'Pat' })` (passing data where the real
+ * Forge platform passes a SyntheticEvent).
+ *
+ * An event-like object has `preventDefault` (a function) — every SyntheticEvent
+ * does. A plain data object doesn't. We deliberately don't check for `target`
+ * because some test patterns synthesize partial events with target only.
+ */
+function isProbablyDataObject(arg: unknown): boolean {
+  if (typeof arg !== 'object' || arg === null) return false;
+  // Real synthetic events / our minimal stubs always have preventDefault.
+  if (typeof (arg as { preventDefault?: unknown }).preventDefault === 'function') {
+    return false;
+  }
+  // Has `target` (event-shaped) — treat as event, not data.
+  if ('target' in arg) return false;
+  // Otherwise, it's a plain object — almost certainly data.
+  return true;
+}
+
+/** Shape of an option an @forge/react Select accepts / fires onChange with. */
+type AKOption = { label: string; value: unknown };
+
+/**
+ * Collect the options available on a Select node. Real Forge `<Select>` accepts
+ * either an `options={[{label, value}]}` prop or `<Option label value/>` children.
+ * Either form should be reachable from `fillField`'s value lookup.
+ */
+function collectSelectOptions(selectNode: ForgeDoc): AKOption[] {
+  const out: AKOption[] = [];
+  const optionsProp = selectNode.props.options;
+  if (Array.isArray(optionsProp)) {
+    for (const opt of optionsProp) {
+      if (opt && typeof opt === 'object' && 'value' in opt) {
+        out.push({
+          label: typeof (opt as { label?: unknown }).label === 'string'
+            ? String((opt as { label: string }).label)
+            : String((opt as { value: unknown }).value),
+          value: (opt as { value: unknown }).value,
+        });
+      }
+    }
+  }
+  for (const child of selectNode.children ?? []) {
+    if (child.type === 'Option' && child.props && 'value' in child.props) {
+      out.push({
+        label: typeof child.props.label === 'string'
+          ? String(child.props.label)
+          : String(child.props.value),
+        value: child.props.value,
+      });
+    }
+  }
+  return out;
+}
+
+/**
+ * Resolve the caller's `fillField` value into the exact shape Select's
+ * onChange receives in real Forge: `AKOption` (single) or `AKOption[]` (multi).
+ *
+ * Caller can pass:
+ *   - a raw value (string, number, ...) — looked up in `options`
+ *   - a partial option `{value}` — label filled in from `options`
+ *   - a full option `{value, label}` — passed through (label kept as given)
+ *   - `null` (single) or `[]` (multi) — clears the selection
+ *
+ * For isMulti: caller passes an array of any of the above shapes; we resolve
+ * each. For single: caller passes one value.
+ *
+ * Throws with a clear "value not in options" error listing available values.
+ */
+function resolveSelectValue(
+  value: unknown,
+  options: AKOption[],
+  fieldName: string,
+  isMulti: boolean
+): AKOption | AKOption[] | null {
+  if (isMulti) {
+    if (value === null || value === undefined) return [];
+    if (!Array.isArray(value)) {
+      throw new Error(
+        `Select[name="${fieldName}"] is isMulti — fillField expects an array, got ${typeof value}.`
+      );
+    }
+    return value.map((v) => resolveSingleSelectValue(v, options, fieldName));
+  }
+  if (value === null || value === undefined) return null;
+  return resolveSingleSelectValue(value, options, fieldName);
+}
+
+function resolveSingleSelectValue(
+  value: unknown,
+  options: AKOption[],
+  fieldName: string
+): AKOption {
+  // If caller passed a fully-formed option object, use it verbatim — they
+  // know what they want. Lets devs test with custom labels or values that
+  // aren't in `options` (e.g. async-loaded options).
+  if (value && typeof value === 'object' && 'value' in value && 'label' in value) {
+    return {
+      label: String((value as { label: unknown }).label),
+      value: (value as { value: unknown }).value,
+    };
+  }
+  // Partial option {value} — fill in label from the lookup.
+  if (value && typeof value === 'object' && 'value' in value) {
+    const raw = (value as { value: unknown }).value;
+    const match = options.find((o) => o.value === raw);
+    if (match) return match;
+    throw selectOptionNotFound(raw, options, fieldName);
+  }
+  // Raw value — look up the matching option.
+  const match = options.find((o) => o.value === value);
+  if (match) return match;
+  throw selectOptionNotFound(value, options, fieldName);
+}
+
+function selectOptionNotFound(value: unknown, options: AKOption[], fieldName: string): Error {
+  const available = options.length === 0
+    ? '(no options declared on this Select)'
+    : options.map((o) => `${JSON.stringify(o.value)} (${o.label})`).join(', ');
+  return new Error(
+    `Select[name="${fieldName}"] has no option with value=${JSON.stringify(value)}. ` +
+    `Available: ${available}. ` +
+    `Pass a fully-formed { value, label } if you need an option not in the declared list.`
+  );
+}
+
 export class SimulatorUI {
   private bridgeInstalled = false;
 
   /** Per-module ForgeDoc storage: moduleKey → ForgeDoc */
   private moduleDocs = new Map<string, ForgeDoc>();
+
+  /**
+   * Per-module MacroConfig ForgeDoc storage (from ForgeReconciler.addConfig).
+   * Only populated for inline-config macros — the second tree emitted alongside
+   * the main view tree.
+   */
+  private macroConfigDocs = new Map<string, ForgeDoc>();
+
+  /**
+   * Per-macro saved config values: moduleKey → name/value map.
+   * Survives between renders so a view rendered after an inline config save
+   * sees the saved values via context.extension.config / useConfig().
+   */
+  private macroConfigs = new Map<string, Record<string, unknown>>();
 
   /** Which module is currently rendering (set before invoke, cleared after) */
   private activeModuleKey: string | null = null;
@@ -72,6 +228,9 @@ export class SimulatorUI {
 
   /** Unbind function for the global view event listener */
   private viewEventUnbind: (() => void) | null = null;
+
+  /** Unbind function for the MacroConfig render listener */
+  private macroConfigRenderUnbind: (() => void) | null = null;
 
   constructor(private sim: ForgeSimulator) {}
 
@@ -99,6 +258,14 @@ export class SimulatorUI {
               try { fn(doc); } catch {}
             }
           }
+        }
+      });
+      // Listen for MacroConfig renders (ForgeReconciler.addConfig).
+      // Tag to the same active module key — inline config lives on the
+      // flat macro module, not a sub-module.
+      this.macroConfigRenderUnbind = onMacroConfigRender((doc) => {
+        if (this.activeModuleKey) {
+          this.macroConfigDocs.set(this.activeModuleKey, doc);
         }
       });
       // Listen for view.submit()/close()/refresh() from app code
@@ -196,9 +363,38 @@ export class SimulatorUI {
    *
    *   await sim.ui.render('issue-panel', { context: { issueKey: 'PROJ-1' } });
    *   const doc = await sim.ui.waitForContent('issue-panel', 'PROJ-1');
+   *
+   * If the module has never been rendered, this method auto-renders it once
+   * with default options before waiting. This is a convenience for the common
+   * "set state, then assert" pattern:
+   *
+   *   sim.ui.setMacroConfig('pet-card', { name: 'Rex' });
+   *   const doc = await sim.ui.waitForContent('pet-card', 'Rex');  // ← no manual render needed
+   *
+   * Once a module has been rendered (by you or by auto-render), waitForContent
+   * becomes pure observation — it will NOT re-render, so it's safe to use for
+   * waiting on async state changes (useEffect, in-flight invokes, etc.).
+   *
+   * If you need non-default render options (e.g. context overrides), call
+   * sim.ui.render() explicitly first.
+   *
+   * **Text matching scope (convenience method, not exhaustive).** Uses
+   * `getTextContent`, which walks `<String>` child nodes plus a curated list
+   * of visible-text props (Tag.text, FormHeader.title, EmptyState.header,
+   * etc. — see `VISIBLE_TEXT_PROPS` in doc-utils.ts). For composite/nested
+   * data (Select option labels, Comment.author objects, DynamicTable cells)
+   * drop down to `sim.ui.findByType(doc, ...)` and assert on the props
+   * directly:
+   *
+   *   const select = sim.ui.findFirstByType(doc, 'Select')!;
+   *   expect(select.props.options.map(o => o.label)).toContain('Bug');
    */
   async waitForContent(moduleKey: string, text: string, timeoutMs = 5000): Promise<ForgeDoc> {
-    const start = Date.now();
+    // Auto-render if this module has never been rendered. Idempotent: once
+    // a doc exists in moduleDocs, repeat calls skip this branch entirely.
+    if (!this.moduleDocs.has(moduleKey)) {
+      await this.render(moduleKey);
+    }
 
     // Check if already there
     const current = this.getForgeDoc(moduleKey);
@@ -227,12 +423,54 @@ export class SimulatorUI {
       setTimeout(() => {
         unbind();
         unbindGlobal();
-        const currentText = this.getForgeDoc(moduleKey)
-          ? getTextContent(this.getForgeDoc(moduleKey)!)
-          : '(no doc)';
+        const doc = this.getForgeDoc(moduleKey);
+        const currentText = doc ? getTextContent(doc) : '(no doc)';
+
+        // Build a helpful hint when we can detect a likely cause.
+        const hints: string[] = [];
+
+        // Hint 1: macro module with no saved config — likely missed setMacroConfig.
+        // Gated on (a) the bundle actually calling useConfig(), so we don't
+        // fire on macros that don't depend on inline config (N10), and
+        // (b) the doc rendering at all, since if useConfig was never called
+        // we can't make any claim about config dependence.
+        try {
+          const manifest = this.sim.getManifest();
+          const uiModule = manifest?.uiModules.find(m => m.key === moduleKey);
+          if (uiModule?.type === 'macro' && moduleUsesConfig(moduleKey)) {
+            const baseKey = moduleKey.replace(/--(?:view|config)$/, '');
+            const savedConfig = this.macroConfigs.get(baseKey);
+            if (!savedConfig || Object.keys(savedConfig).length === 0) {
+              hints.push(
+                `Module "${moduleKey}" calls useConfig() but no config has been seeded. ` +
+                `Did you forget sim.ui.setMacroConfig("${baseKey}", {...}) before render()? ` +
+                `useConfig() returns {} until setMacroConfig is called.`
+              );
+            }
+          }
+        } catch {
+          // Best-effort hint — never let hint logic itself fail the test.
+        }
+
+        // Hint 2: doc exists but text is missing — guide toward debug output
+        // and the escape-hatch path for composite/nested-data text that the
+        // VISIBLE_TEXT_PROPS allowlist doesn't cover (Select.options[].label,
+        // Comment.author.text-as-object, DynamicTable cells, etc.)
+        if (doc && !hints.length) {
+          hints.push(
+            `The module rendered, but its text content does not include "${text}". ` +
+            `Inspect the tree with sim.ui.getForgeDoc("${moduleKey}") to see what's ` +
+            `there. waitForContent is a convenience method — it walks <String> nodes ` +
+            `and a curated set of visible-text props (Tag.text, FormHeader.title, etc.). ` +
+            `For composite props (Select.options[].label, Comment.author.text), use ` +
+            `sim.ui.findByType(doc, "Select") and assert on .props.options directly.`
+          );
+        }
+
+        const hintBlock = hints.length ? `\n\nHint: ${hints.join('\n      ')}` : '';
         reject(new Error(
-          `Timed out waiting for "${text}" in module "${moduleKey}" after ${timeoutMs}ms. ` +
-          `Current content: "${currentText}"`
+          `Timed out waiting for "${text}" in module "${moduleKey}" after ${timeoutMs}ms.\n` +
+          `Current content: "${currentText}"${hintBlock}`
         ));
       }, timeoutMs);
     });
@@ -377,20 +615,68 @@ export class SimulatorUI {
 
     this.ensureBridge();
     this.setActiveModule(moduleKey);
-    this.moduleRenderConfig.set(moduleKey, options ?? {});
+    // Tell the shim's wrapped ForgeReconciler which module to attribute the
+    // captured render/addConfig elements to. This drives the replay path
+    // below when the bundle is cached by the test runner's module loader.
+    setActiveCaptureModule(moduleKey);
+    // Stash options so `refresh()` can replay them — but strip `macroConfig`,
+    // which is a one-shot per-render override and would defeat its own
+    // semantics if it persisted into refresh.
+    const { macroConfig: _oneShotMacroConfig, ...persistedOptions } = options ?? {};
+    this.moduleRenderConfig.set(moduleKey, persistedOptions);
+
+    // When the caller passes `macroConfig` as a per-render override, force a
+    // fresh render — the bundle's React tree was built against the previous
+    // forgeContext.config and won't re-read it without invalidation. Without
+    // this, vitest's path-based bundle cache turns the second render into a
+    // silent no-op and the new macroConfig appears to "not take" (F3 from
+    // skill run #8).
+    if (options?.macroConfig !== undefined) {
+      this.moduleDocs.delete(moduleKey);
+    }
 
     // Build the full Forge context for this module
     const forgeContext = await buildForgeContext(
       this.sim, moduleKey, uiModule.type, options ?? {},
     );
+
+    // Macro config injection — three sources, in priority order:
+    //   1. `options.macroConfig` (this render only — one-shot override; F3 from run #8)
+    //   2. A previous `renderInlineConfig().save(values)` for the same key
+    //   3. A previous `sim.ui.setMacroConfig(key, values)` call
+    //
+    // Key shapes:
+    //   - Custom config sub-modules:  "<base>--view" / "<base>--config"
+    //     → strip the suffix to find the saved key
+    //   - Inline config / flat macro:  "<key>"
+    if (uiModule.type === 'macro') {
+      const baseKey = moduleKey.replace(/--(?:view|config)$/, '');
+      const oneShot = options?.macroConfig;
+      const saved = this.macroConfigs.get(baseKey) ?? this.macroConfigs.get(moduleKey);
+      const effective = oneShot ?? saved;
+      if (effective !== undefined) {
+        forgeContext.extension = { ...forgeContext.extension, config: effective };
+      }
+    }
+
     this.moduleContexts.set(moduleKey, forgeContext);
     setForgeContext(forgeContext);
 
-    // Also apply extension fields as resolver context overrides
-    // so resolver handlers get context.issueKey etc.
+    // Apply the render's view as a per-render resolver context overlay
+    // — sits between user-set sticky `setContext()` and per-call invoke
+    // overrides in the merge order. Resolvers invoked by the rendered UI
+    // (during render and from React effects spawned by it) see this view;
+    // resolvers invoked outside any render see only the user's sticky.
+    //
+    // Crucially this does NOT mutate sticky `contextOverrides`, so a user
+    // who set `setContext({ accountId: 'alice' })` before calling render
+    // still has 'alice' after the render. Parallel to
+    // `sim.invoke('fn', payload, { context })`, which is also one-shot
+    // non-mutating. Replaced (not merged) by the next render() call,
+    // cleared by `sim.reset()`.
     if (forgeContext.extension) {
       const { type: _type, ...extensionFields } = forgeContext.extension;
-      this.sim.resolver.setContext({
+      this.sim.resolver.setRenderContext({
         ...extensionFields,
         accountId: forgeContext.accountId,
         cloudId: forgeContext.cloudId,
@@ -414,13 +700,28 @@ export class SimulatorUI {
       // safety net in case React's reconciler bails out on a tree it
       // considers unchanged (e.g. refresh of an identical UI), in which
       // case `reconcile` may never fire and we'd otherwise hang.
+      //
+      // Vitest workaround (N9): vitest's vite-node loader caches bundles
+      // by file path and ignores `?t=` query strings, so the cache-bust
+      // is a no-op. On 2nd+ renders the bundle's top-level
+      // ForgeReconciler.render(<App />) call doesn't re-run, no reconcile
+      // pulse fires, and we'd hang forever (or fail at the 100ms race
+      // and leave moduleDocs[key] null). The shim wraps render/addConfig
+      // and captures the React elements; we replay them here against a
+      // fresh container to produce a brand-new reconcile pulse equivalent
+      // to a real bundle re-evaluation.
       if (!this.moduleDocs.has(moduleKey)) {
+        const replayed = await replayCapturedRender(moduleKey);
         await Promise.race([
           renderPromise,
-          new Promise<void>(resolve => setTimeout(resolve, 100)),
+          new Promise<void>(resolve => setTimeout(resolve, replayed ? 200 : 100)),
         ]);
       }
     } finally {
+      // Stop attributing further render() captures to this module — protects
+      // against unrelated ForgeReconciler.render calls (background scripts,
+      // multi-module apps) from clobbering the captured element.
+      setActiveCaptureModule(null);
       // NOTE: We intentionally leave both activeModuleKey AND context set.
       // React effects (useEffect) fire async invoke() calls that trigger
       // re-renders AFTER this function returns. Those calls need:
@@ -430,6 +731,171 @@ export class SimulatorUI {
     }
 
     return this.getForgeDoc(moduleKey);
+  }
+
+  // ── Inline Macro Config ───────────────────────────────────────────────
+
+  /**
+   * Render a macro's inline config tree (`ForgeReconciler.addConfig(<Config />)`)
+   * and return a stateful handle that mirrors the platform's Save/Cancel chrome.
+   *
+   * Inline macro config is platform-managed in real Forge — the user does NOT
+   * write a Save button. The platform harvests named form fields when the user
+   * clicks its rendered Save, and stores them as a key/value map. This API
+   * mirrors that:
+   *
+   *   const cfg = await sim.ui.renderInlineConfig('cool-macro');
+   *   cfg.getFields();              // [{ name: 'age', type: 'TextField', ... }]
+   *   await cfg.save({ age: 5 });   // stores values, available to view
+   *
+   *   await sim.ui.render('cool-macro');
+   *   // The macro's view sees `useConfig()` → { age: 5 }
+   *
+   * The macro's main view tree (`ForgeReconciler.render(<App />)`) is also
+   * loaded as a side effect — `sim.ui.getForgeDoc(moduleKey)` returns it.
+   *
+   * @throws if the module is not a macro, or has no `addConfig()` tree
+   */
+  async renderInlineConfig(
+    moduleKey: string,
+    options?: RenderContextOptions,
+  ): Promise<InlineConfigHandle> {
+    const manifest = this.sim.getManifest();
+    if (!manifest) {
+      throw new Error('No manifest loaded. Deploy an app first.');
+    }
+    const uiModule = manifest.uiModules.find(m => m.key === moduleKey);
+    if (!uiModule) {
+      throw new Error(`No UI module with key "${moduleKey}".`);
+    }
+    if (uiModule.type !== 'macro') {
+      throw new Error(
+        `renderInlineConfig() requires a macro module. "${moduleKey}" is "${uiModule.type}".`
+      );
+    }
+    if ((uiModule as any).viewMode !== undefined) {
+      // This is a custom-config sub-module ('--view' or '--config'). Inline
+      // config is for the flat macro shape (config: true / config: {} without resource).
+      throw new Error(
+        `"${moduleKey}" is a custom-config sub-module. ` +
+        `Inline config requires the flat macro key. ` +
+        `For custom-config, render the sub-module directly: ` +
+        `sim.ui.render('${moduleKey.replace(/--(?:view|config)$/, '--config')}')`
+      );
+    }
+
+    // Clear any stale config doc from a prior render — we want this call to
+    // wait for a fresh emit, not return a cached one.
+    this.macroConfigDocs.delete(moduleKey);
+
+    // Render the macro module — this loads the bundle, which calls both
+    // ForgeReconciler.render() AND ForgeReconciler.addConfig() if defined.
+    await this.render(moduleKey, options);
+
+    // The MacroConfig render fires asynchronously (addConfig runs after render).
+    // Give it a moment to land if it hasn't yet.
+    if (!this.macroConfigDocs.has(moduleKey)) {
+      const { waitForMacroConfigRender } = await import('./bridge.js');
+      await Promise.race([
+        waitForMacroConfigRender(),
+        new Promise<void>(resolve => setTimeout(resolve, 100)),
+      ]);
+    }
+
+    const doc = this.macroConfigDocs.get(moduleKey);
+    if (!doc) {
+      const inline = (uiModule as any).inlineMacroConfig === true;
+      throw new Error(
+        `Macro "${moduleKey}" did not produce a MacroConfig tree. ` +
+        (inline
+          ? 'Manifest declares inline config (config: true) but the app did not call ForgeReconciler.addConfig(<Config />).'
+          : 'Manifest does not declare inline config — set `config: true` and call ForgeReconciler.addConfig(<Config />) in the bundle.')
+      );
+    }
+
+    return this.makeInlineConfigHandle(moduleKey, doc);
+  }
+
+  /**
+   * Get the current MacroConfig ForgeDoc for a macro (the inline config tree).
+   * Returns null if the macro hasn't been rendered or doesn't use addConfig().
+   */
+  getMacroConfigDoc(moduleKey: string): ForgeDoc | null {
+    return this.macroConfigDocs.get(moduleKey) ?? null;
+  }
+
+  /**
+   * Get the saved config values for a macro (whatever the most recent
+   * cfg.save() / setMacroConfig() persisted). Returns undefined if nothing
+   * has been saved yet.
+   */
+  getMacroConfig(moduleKey: string): Record<string, unknown> | undefined {
+    const baseKey = moduleKey.replace(/--(?:view|config)$/, '');
+    return this.macroConfigs.get(baseKey) ?? this.macroConfigs.get(moduleKey);
+  }
+
+  /**
+   * Fast-path bypass: directly seed the saved config for a macro without
+   * exercising the form. Useful for tests that only care about the view's
+   * behavior given a specific config.
+   *
+   *   sim.ui.setMacroConfig('cool-macro', { age: 5 });
+   *   await sim.ui.render('cool-macro');
+   *   // view sees useConfig() → { age: 5 }
+   */
+  setMacroConfig(moduleKey: string, values: Record<string, unknown>): void {
+    const baseKey = moduleKey.replace(/--(?:view|config)$/, '');
+    this.macroConfigs.set(baseKey, { ...values });
+  }
+
+  /**
+   * Validate a MacroConfig ForgeDoc against the allowed component subset.
+   * Returns the violations without throwing — callers decide what to do.
+   */
+  validateInlineConfigTree(doc: ForgeDoc | null): InlineConfigValidation {
+    return validateInlineConfigTree(doc);
+  }
+
+  private makeInlineConfigHandle(moduleKey: string, doc: ForgeDoc): InlineConfigHandle {
+    const ui = this;
+    const baseKey = moduleKey.replace(/--(?:view|config)$/, '');
+    return {
+      get doc() { return ui.macroConfigDocs.get(moduleKey) ?? doc; },
+      moduleKey,
+      getFields() {
+        return extractInlineConfigFields(ui.macroConfigDocs.get(moduleKey) ?? doc);
+      },
+      validate() {
+        return validateInlineConfigTree(ui.macroConfigDocs.get(moduleKey) ?? doc);
+      },
+      async save(values?: Record<string, unknown>) {
+        const fields = extractInlineConfigFields(ui.macroConfigDocs.get(moduleKey) ?? doc);
+        const fieldNames = new Set(fields.map(f => f.name));
+        // Start from declared defaults (mimics platform: clicking Save with
+        // no edits persists whatever the form currently shows).
+        const merged: Record<string, unknown> = defaultsFromFields(fields);
+        if (values) {
+          for (const [k, v] of Object.entries(values)) {
+            if (!fieldNames.has(k)) {
+              // Real Forge would drop unknown keys silently. Surface a warn so
+              // tests can tell when they're testing something the platform won't
+              // actually accept.
+              console.warn(
+                `[forge-sim] Macro "${moduleKey}": value for "${k}" has no matching ` +
+                `<X name="${k}" />. Real Forge ignores unknown keys.`
+              );
+              continue;
+            }
+            merged[k] = v;
+          }
+        }
+        ui.macroConfigs.set(baseKey, merged);
+      },
+      cancel() {
+        // No-op for headless: any stored config is preserved (same as the
+        // platform Cancel button — it only discards in-progress edits).
+      },
+    };
   }
 
   /**
@@ -502,9 +968,180 @@ export class SimulatorUI {
   /**
    * Simulate an event on a ForgeDoc node.
    * Returns the handler's return value (may be a Promise for async handlers).
+   *
+   * For form fields with onChange, this auto-injects `target.type` and
+   * `target.name` if you pass an event-shaped first arg without them — that's
+   * what makes useForm + register() work in headless mode. See
+   * `simulateEvent` in doc-utils.ts for the gory details.
    */
   interact(node: ForgeDoc, eventName: string, ...args: any[]): any {
+    // P10 guard: catch the "passed data as the event" antipattern on Form.onSubmit.
+    // Real Forge Form.onSubmit receives a synthetic event from the platform —
+    // user data is provided by react-hook-form's handleSubmit wrapper. If a test
+    // passes a data object directly, RHF treats it as the event and the user's
+    // submit handler never runs (silent failure that's hard to debug).
+    if (
+      eventName === 'onSubmit' &&
+      node.type === 'Form' &&
+      args.length > 0 &&
+      isProbablyDataObject(args[0])
+    ) {
+      throw new Error(
+        `sim.ui.interact(form, 'onSubmit', data) — Form.onSubmit expects a synthetic event, not a data object.\n` +
+        `\n` +
+        `  • To submit with values:  await sim.ui.submitForm('${this.activeModuleKey ?? '<moduleKey>'}', { /* values */ })\n` +
+        `  • To submit current state: await sim.ui.submitForm('${this.activeModuleKey ?? '<moduleKey>'}')\n` +
+        `\n` +
+        `Both helpers also fire the right preventDefault/stopPropagation that handleSubmit needs.`
+      );
+    }
     return simulateEvent(node, eventName, ...args);
+  }
+
+  /**
+   * Find a form field by its `name` prop and fire onChange with the right
+   * shape for the field's component type.
+   *
+   *   await sim.ui.fillField('macro', 'name', 'Pat');
+   *   await sim.ui.fillField('macro', 'age', 5);
+   *   await sim.ui.fillField('macro', 'role', 'admin');           // Select: raw value
+   *   await sim.ui.fillField('macro', 'role', { value: 'admin' }); // Select: partial option
+   *   await sim.ui.fillField('macro', 'tags', ['a', 'b']);         // Select isMulti
+   *
+   * Most fields receive a synthetic-event-shaped onChange (Textfield, TextArea,
+   * Checkbox, Toggle, etc.) — the target.type/name injection in `simulateEvent`
+   * makes useForm + register() work as expected.
+   *
+   * Select is a special case: real Forge <Select> is backed by react-select,
+   * which fires `onChange(option)` with `AKOption | AKOption[]` — NOT an event.
+   * For Select, fillField looks up the matching option from the Select's
+   * `options` prop (or `Option` children) and fires onChange with that option
+   * object, matching production behavior. (F2)
+   *
+   * Searches Textfield, TextArea, Checkbox, Toggle, Select, RadioGroup,
+   * DatePicker, TimePicker, UserPicker, Range, CheckboxGroup. Throws if
+   * no field with that name is found.
+   */
+  fillField(moduleKey: string, name: string, value: unknown): void {
+    const doc = this.getForgeDoc(moduleKey);
+    if (!doc) {
+      throw new Error(
+        `No rendered ForgeDoc for module "${moduleKey}". ` +
+        `Call await sim.ui.render("${moduleKey}") first.`
+      );
+    }
+
+    // Walk the tree looking for a form field with matching name.
+    const FIELD_TYPES = new Set([
+      'Textfield', 'TextArea', 'Checkbox', 'CheckboxGroup', 'Radio', 'RadioGroup',
+      'Toggle', 'Select', 'DatePicker', 'TimePicker', 'UserPicker', 'Range',
+    ]);
+    let field: ForgeDoc | null = null;
+    function walk(node: ForgeDoc): void {
+      if (field) return;
+      if (FIELD_TYPES.has(node.type) && node.props.name === name) {
+        field = node;
+        return;
+      }
+      for (const child of node.children ?? []) walk(child);
+    }
+    walk(doc);
+
+    if (!field) {
+      const allNamedFields: string[] = [];
+      function collect(node: ForgeDoc): void {
+        if (FIELD_TYPES.has(node.type) && typeof node.props.name === 'string') {
+          allNamedFields.push(`${node.type}[name="${node.props.name}"]`);
+        }
+        for (const child of node.children ?? []) collect(child);
+      }
+      collect(doc);
+      throw new Error(
+        `No form field with name="${name}" in module "${moduleKey}". ` +
+        `Available fields: ${allNamedFields.join(', ') || '(none)'}`
+      );
+    }
+
+    const fieldNode = field as ForgeDoc;
+
+    // ── Select: option-object firing (F2) ────────────────────────────────
+    // Real Forge Select is react-select, which calls onChange(option) — NOT
+    // an event. Look up the option from `options` prop or `Option` children
+    // and fire that exact shape so RHF stores the same value sim and prod.
+    if (fieldNode.type === 'Select') {
+      const options = collectSelectOptions(fieldNode);
+      const isMulti = fieldNode.props.isMulti === true;
+      const selected = resolveSelectValue(value, options, name, isMulti);
+      simulateEvent(fieldNode, 'onChange', selected);
+      return;
+    }
+
+    // Build the synthetic event. simulateEvent will inject target.type/name
+    // if missing — but for Checkbox/Toggle we also need `checked` to mirror
+    // the native event shape. Best-effort: include both for booleans.
+    const isCheckable = fieldNode.type === 'Checkbox' || fieldNode.type === 'Toggle';
+    const target: Record<string, unknown> = { value, name };
+    if (isCheckable && typeof value === 'boolean') {
+      target.checked = value;
+    }
+    simulateEvent(fieldNode, 'onChange', { target });
+  }
+
+  /**
+   * Find a Form node and fire its onSubmit with a minimal synthetic event
+   * (preventDefault + stopPropagation), which is what react-hook-form's
+   * handleSubmit() wrapper needs to suppress the platform's default.
+   *
+   * If `values` is provided, fills each field via `fillField` first — then
+   * submits. Fields not in `values` keep their current state (defaults from
+   * useForm({defaultValues}) or whatever previous fillField calls set).
+   *
+   *   await sim.ui.submitForm('macro');                       // submit current state
+   *   await sim.ui.submitForm('macro', { name: 'Pat', age: 5 });  // fill + submit
+   *
+   * Returns whatever the form's onSubmit returns (often a Promise).
+   *
+   * If validation blocks the submit (required fields missing, etc.),
+   * react-hook-form's handleSubmit returns without calling the user's
+   * handler — same as production. Inspect the rendered tree afterward to
+   * see validation error messages.
+   */
+  async submitForm(moduleKey: string, values?: Record<string, unknown>): Promise<unknown> {
+    if (values) {
+      for (const [name, value] of Object.entries(values)) {
+        this.fillField(moduleKey, name, value);
+      }
+      // Let any state-update re-renders flush before we trigger submit.
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    }
+
+    const doc = this.getForgeDoc(moduleKey);
+    if (!doc) {
+      throw new Error(
+        `No rendered ForgeDoc for module "${moduleKey}". ` +
+        `Call await sim.ui.render("${moduleKey}") first.`
+      );
+    }
+
+    const form = findFirstByType(doc, 'Form');
+    if (!form) {
+      throw new Error(
+        `No <Form> in module "${moduleKey}". submitForm requires a Form node ` +
+        `(typically wired up via useForm + handleSubmit).`
+      );
+    }
+    if (typeof form.props.onSubmit !== 'function') {
+      throw new Error(
+        `<Form> in module "${moduleKey}" has no onSubmit handler.`
+      );
+    }
+
+    const event = {
+      preventDefault: () => {},
+      stopPropagation: () => {},
+    };
+    const result = form.props.onSubmit(event);
+    return result instanceof Promise ? await result : result;
   }
 
   /**
@@ -537,10 +1174,20 @@ export class SimulatorUI {
   reset(): void {
     resetBridge();
     this.moduleDocs.clear();
+    this.macroConfigDocs.clear();
+    this.macroConfigs.clear();
     this.moduleRenderConfig.clear();
     this.moduleContexts.clear();
+    // Clear the moduleKey→resourcePath cache. Without this, a reset+redeploy
+    // sequence that changes a resource path (e.g. renaming foo.jsx → foo.tsx
+    // in the manifest) keeps serving the stale path. Tracked as N1.
+    this.resolvedResources.clear();
     this.viewEventListeners.clear();
     this.activeModuleKey = null;
+    // Clear the per-render resolver context overlay — UI is gone, so post-
+    // render effects (and any subsequent cold sim.invoke) should drop back
+    // to defaults+sticky.
+    this.sim.resolver.setRenderContext(null);
   }
 
   /** Full reset — disconnects simulator too. */
@@ -548,6 +1195,8 @@ export class SimulatorUI {
     resetAll();
     resetViewEvents();
     this.moduleDocs.clear();
+    this.macroConfigDocs.clear();
+    this.macroConfigs.clear();
     this.moduleRenderConfig.clear();
     this.moduleContexts.clear();
     this.resolvedResources.clear();
@@ -557,7 +1206,13 @@ export class SimulatorUI {
       this.viewEventUnbind();
       this.viewEventUnbind = null;
     }
+    if (this.macroConfigRenderUnbind) {
+      this.macroConfigRenderUnbind();
+      this.macroConfigRenderUnbind = null;
+    }
     this.activeModuleKey = null;
     this.bridgeInstalled = false;
+    // Per-render overlay clears with the UI (matches `reset()` above).
+    this.sim.resolver.setRenderContext(null);
   }
 }

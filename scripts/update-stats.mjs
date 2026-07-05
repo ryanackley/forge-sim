@@ -121,14 +121,23 @@ function findMarkdownFiles() {
     } catch {/* missing, skip */}
   }
   for (const d of ['docs', 'proposals']) {
-    try {
-      const entries = readdirSync(join(REPO_ROOT, d));
-      for (const e of entries) {
-        if (e.endsWith('.md')) files.push(join(REPO_ROOT, d, e));
-      }
-    } catch {/* missing, skip */}
+    walkMarkdown(join(REPO_ROOT, d), files);
   }
   return files;
+}
+
+// Recurse so marker blocks in nested docs (e.g. docs/reference/, docs/ai/)
+// are still found and kept in sync.
+function walkMarkdown(dir, files) {
+  let entries;
+  try {
+    entries = readdirSync(dir, { withFileTypes: true });
+  } catch {/* missing, skip */ return; }
+  for (const e of entries) {
+    const full = join(dir, e.name);
+    if (e.isDirectory()) walkMarkdown(full, files);
+    else if (e.name.endsWith('.md')) files.push(full);
+  }
 }
 
 // Markers must start at column 0 so we don't accidentally match prose

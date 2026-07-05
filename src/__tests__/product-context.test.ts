@@ -295,17 +295,28 @@ describe('Context + Resolver integration', () => {
     sim = createSimulator();
   });
 
-  it('extension fields are passed to resolver context', async () => {
+  it('extension fields are visible to resolver invokes triggered by the render', async () => {
     await sim.deploy(new URL('../__tests__/fixtures/simple-panel', import.meta.url).pathname);
+
+    sim.resolver.define('whoami', async (req: any) => ({
+      issueKey: req.context.issueKey,
+      projectKey: req.context.projectKey,
+      moduleKey: req.context.moduleKey,
+    }));
 
     await sim.ui.render('simple-panel', {
       context: { issueKey: 'PROJ-42', projectKey: 'PROJ' },
     });
 
-    // The resolver should have received context overrides including issueKey
-    const overrides = sim.resolver.getContextOverrides();
-    expect(overrides.issueKey).toBe('PROJ-42');
-    expect(overrides.projectKey).toBe('PROJ');
-    expect(overrides.moduleKey).toBe('simple-panel');
+    // Invoke after render — sees the render's overlay (extension fields flattened)
+    const result = await sim.invoke('whoami');
+    expect(result.issueKey).toBe('PROJ-42');
+    expect(result.projectKey).toBe('PROJ');
+    expect(result.moduleKey).toBe('simple-panel');
+
+    // And critically: render did NOT mutate sticky `setContext()` overrides.
+    // Anyone who poked at `getContextOverrides()` to read "what did the user
+    // set?" should still see what they set — empty in this case.
+    expect(sim.resolver.getContextOverrides()).toEqual({});
   });
 });

@@ -9,6 +9,8 @@
  *   forge:deploy        — Deploy a Forge app from a directory
  *   forge:invoke        — Call a resolver function
  *   forge:fire_trigger  — Simulate a product event trigger
+ *   forge:ui_render     — Render a UI module by manifest key (loads bundle + builds context)
+ *   forge:ui_wait_for   — Wait for text to appear in a module's rendered tree (handles async useEffect chains)
  *   forge:ui_state      — Get the current ForgeDoc UI tree
  *   forge:ui_interact   — Interact with UI components (click, submit, etc.)
  *   forge:kvs_get       — Get a value from KVS
@@ -45,15 +47,91 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { z } from 'zod';
 import { createServer } from 'node:http';
+import { statSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { createSimulator } from './simulator.js';
 import { typeCheck } from './type-checker.js';
+import { isStale, buildStalenessWarning, STALENESS_GRACE_MS, shouldRunStalenessCheck, shouldWarnNow } from './staleness.js';
 // UI access is now through sim.ui.* — no direct bridge/doc-utils imports
 
 // ── Simulator Instance ──────────────────────────────────────────────────
 
 const sim = createSimulator();
 
+// ── Stale-daemon self-check ─────────────────────────────────────────────
+//
+// The MCP server is a long-lived Node process — it loads dist/*.js ONCE at
+// startup. If `forge-sim` is rebuilt (or upgraded via `npm install`) while
+// the daemon is running, the daemon keeps the OLD compiled code in memory.
+// Tool calls then fail with errors that don't match the current source —
+// e.g. methods added in the new dist are "not a function" on the in-memory
+// simulator instance.
+//
+// This trap has bit at least three times this week (logged in the project's
+// memory). The fix: on every tool response, re-stat our own loaded
+// `dist/mcp-server.js`. If its mtime is now newer than what we recorded at
+// startup (plus a small grace period for filesystem clock skew), prepend a
+// loud warning to the response. The warning carries our PID so the operator
+// (or agent) can `kill` us — the MCP client respawns automatically with
+// fresh code on the next tool call.
+//
+// Belt + suspenders: also expose a `forge.sim_info` tool returning the
+// current state explicitly, so agents can sanity-check before debugging
+// other classes of bug.
 
+const MCP_SERVER_PATH = fileURLToPath(import.meta.url);
+const DAEMON_PID = process.pid;
+const DAEMON_START_TIME = Date.now();
+
+// Only enable the staleness check when we're running from a non-node_modules
+// location (i.e. from a forge-sim development checkout, not from an end-user's
+// `npm install`). End-users don't rebuild the package mid-session — surfacing
+// a "stale daemon" warning in their tool responses would be pure noise.
+// Overridable via FORGE_SIM_STALE_CHECK=on|off; see staleness.ts.
+const STALENESS_CHECK_ENABLED = shouldRunStalenessCheck(MCP_SERVER_PATH);
+
+let loadedMtimeMs: number | null = null;
+if (STALENESS_CHECK_ENABLED) {
+  try {
+    loadedMtimeMs = statSync(MCP_SERVER_PATH).mtimeMs;
+  } catch {
+    // Can't stat ourselves — disable the check rather than emit warnings
+    // we can't ground in fact.
+    loadedMtimeMs = null;
+  }
+}
+
+/**
+ * mtime of dist/mcp-server.js the last time we emitted a staleness warning
+ * (or null if we haven't warned yet this daemon lifetime). Used by the
+ * pure `shouldWarnNow()` decider in staleness.ts to suppress repeat
+ * warnings at the same on-disk mtime — the agent only needs to be told
+ * once per rebuild. Re-fires on a subsequent rebuild because that's a new
+ * event worth surfacing.
+ */
+let lastWarnedMtimeMs: number | null = null;
+
+function currentMtime(): number | null {
+  try {
+    return statSync(MCP_SERVER_PATH).mtimeMs;
+  } catch {
+    return null;
+  }
+}
+
+function stalenessWarningText(): string | null {
+  if (loadedMtimeMs === null) return null;
+  const cur = currentMtime();
+  if (cur === null) return null;
+  if (!shouldWarnNow(loadedMtimeMs, cur, lastWarnedMtimeMs, STALENESS_GRACE_MS)) return null;
+  // Record that we've warned about this exact mtime so the next call
+  // suppresses. Belt-and-suspenders: re-check isStale here so a future
+  // refactor of shouldWarnNow can't silently start emitting on
+  // not-actually-stale states.
+  if (!isStale(loadedMtimeMs, cur, STALENESS_GRACE_MS)) return null;
+  lastWarnedMtimeMs = cur;
+  return buildStalenessWarning(DAEMON_PID, loadedMtimeMs, cur);
+}
 
 // ── MCP Server Setup ────────────────────────────────────────────────────
 
@@ -62,7 +140,64 @@ const server = new McpServer({
   version: '0.1.0',
 });
 
+// Wrap server.tool so every handler's response carries the staleness warning
+// when applicable. Done by monkey-patching once before any tool registrations.
+const originalServerTool = server.tool.bind(server) as any;
+(server as any).tool = (...args: any[]) => {
+  const handler = args[args.length - 1];
+  if (typeof handler !== 'function') return originalServerTool(...args);
+  const rest = args.slice(0, -1);
+  const wrappedHandler = async (...handlerArgs: any[]) => {
+    const result = await handler(...handlerArgs);
+    const warning = stalenessWarningText();
+    if (!warning) return result;
+    // MCP tool responses are `{ content: [{ type: 'text', text: '...' }, ...] }`.
+    // Prepend a synthetic text item so the warning is the first thing the
+    // agent sees, with the original content immediately after.
+    if (result && typeof result === 'object' && Array.isArray(result.content)) {
+      return {
+        ...result,
+        content: [
+          { type: 'text' as const, text: warning },
+          ...result.content,
+        ],
+      };
+    }
+    return result;
+  };
+  return originalServerTool(...rest, wrappedHandler);
+};
+
 // ── Tools ───────────────────────────────────────────────────────────────
+
+server.tool(
+  'forge.sim_info',
+  'Return daemon-process metadata: PID, start time, loaded mcp-server.js mtime, ' +
+  'and whether the daemon is stale (dist/ has been rebuilt since startup). ' +
+  'Use this to sanity-check before debugging confusing tool errors — most surprising ' +
+  'MCP failures are stale-daemon symptoms, not real bugs.',
+  {},
+  async () => {
+    const onDiskMtime = currentMtime();
+    const stale = onDiskMtime !== null && loadedMtimeMs !== null
+      && isStale(loadedMtimeMs, onDiskMtime, STALENESS_GRACE_MS);
+    const info = {
+      pid: DAEMON_PID,
+      daemonStartedAt: new Date(DAEMON_START_TIME).toISOString(),
+      mcpServerPath: MCP_SERVER_PATH,
+      stalenessCheck: STALENESS_CHECK_ENABLED
+        ? 'enabled (running from non-node_modules location — dev mode)'
+        : 'disabled (running from node_modules — published-install mode; set FORGE_SIM_STALE_CHECK=on to force enable)',
+      loadedMtime: loadedMtimeMs !== null ? new Date(loadedMtimeMs).toISOString() : null,
+      currentOnDiskMtime: onDiskMtime !== null ? new Date(onDiskMtime).toISOString() : null,
+      stale,
+      restartHint: stale ? `kill ${DAEMON_PID}  # MCP client respawns automatically` : null,
+    };
+    return {
+      content: [{ type: 'text' as const, text: JSON.stringify(info, null, 2) }],
+    };
+  }
+);
 
 server.tool(
   'forge.deploy',
@@ -73,7 +208,7 @@ server.tool(
   },
   async ({ appDir, reset }) => {
     if (reset !== false) {
-      sim.reset();
+      await sim.reset();
       sim.ui.reset();
     }
 
@@ -109,6 +244,14 @@ server.tool(
       // Include type errors if any were found
       if (typeErrors.length > 0) {
         summary.typeErrors = typeErrors;
+      }
+
+      // Surface manifest validation warnings (missing app.runtime, unknown
+      // module types, inline-config notes, etc.). The in-process deployer
+      // already console.warn's these, but MCP callers don't see those logs
+      // — adding them to the response keeps parity between surfaces.
+      if (result.warnings.length > 0) {
+        summary.warnings = result.warnings;
       }
 
       // Connect auth credentials (env vars + .forge-sim) now that manifest providers are loaded
@@ -152,8 +295,10 @@ server.tool(
     functionKey: z.string().describe('The resolver function key to invoke'),
     payload: z.record(z.string(), z.any()).optional().describe('Payload to pass to the resolver'),
     actionKey: z.string().optional().describe('If invoking a Rovo action, the action key — enables input validation against the action schema'),
+    moduleKey: z.string().optional().describe('Scope resolver lookup to a specific module — required when multiple modules register the same function key'),
+    context: z.record(z.string(), z.any()).optional().describe('Per-call context override (one-shot, does not mutate sticky setContext). Shape matches Forge req.context: accountId, cloudId, extension, principal, license, ...'),
   },
-  async ({ functionKey, payload, actionKey }) => {
+  async ({ functionKey, payload, actionKey, moduleKey, context }) => {
     try {
       // Validate action inputs if specified
       if (actionKey) {
@@ -169,7 +314,7 @@ server.tool(
       const logsBefore = sim.getLogs().length;
       const consoleBefore = sim.getConsoleLogs().length;
 
-      const result = await sim.invoke(functionKey, payload ?? {});
+      const result = await sim.invoke(functionKey, payload ?? {}, { moduleKey, context });
 
       const newLogs = sim.getLogs().slice(logsBefore);
       const newConsole = sim.getConsoleLogs().slice(consoleBefore);
@@ -247,13 +392,108 @@ server.tool(
 );
 
 server.tool(
+  'forge.ui_render',
+  'Render a UI module by its manifest key. Loads the module bundle, builds the Forge context (with optional issue/content/space hydration), runs ForgeReconciler.render, and returns the resulting ForgeDoc. Use this when a module has no resolver to invoke (macros, custom field views) or when you want to inspect a module under a specific context. For inline-config macros, also returns the MacroConfig tree if the bundle calls ForgeReconciler.addConfig. NOTE: only the INITIAL reconcile is awaited — if the module uses `useEffect` + `invoke()` to fetch data after mount, the response will show the loading state (e.g. `<Text>Loading...</Text>`). Follow up with `forge.ui_wait_for` to settle the async chain before inspecting or interacting.',
+  {
+    moduleKey: z.string().describe('UI module key from the manifest (e.g. "issue-panel", "pet-card"). For sub-module shapes use suffixes: "<key>--view", "<key>--edit", "<key>--config".'),
+    issueKey: z.string().optional().describe('Jira issue key to hydrate context (e.g. "PROJ-1") — also sets project from prefix.'),
+    projectKey: z.string().optional().describe('Jira project key to hydrate context (e.g. "PROJ").'),
+    contentId: z.string().optional().describe('Confluence content ID to hydrate context.'),
+    spaceKey: z.string().optional().describe('Confluence space key to hydrate context.'),
+    context: z.record(z.string(), z.any()).optional().describe('Raw context fields merged into extension (overrides defaults).'),
+    macroConfig: z.record(z.string(), z.any()).optional().describe('For macro modules: seed saved config so useConfig() resolves to these values on this render.'),
+  },
+  async ({ moduleKey, issueKey, projectKey, contentId, spaceKey, context, macroConfig }) => {
+    try {
+      const renderOpts: Record<string, unknown> = {};
+      if (issueKey) renderOpts.issueKey = issueKey;
+      if (projectKey) renderOpts.projectKey = projectKey;
+      if (contentId) renderOpts.contentId = contentId;
+      if (spaceKey) renderOpts.spaceKey = spaceKey;
+      if (context) renderOpts.context = context;
+      // Pass macroConfig through as a one-shot per-render override (matches
+      // both this tool's description "on this render" and the in-process
+      // `sim.ui.render(key, { macroConfig })` semantics). For sticky config
+      // across multiple renders, use `forge.kvs_set` or a dedicated setter.
+      if (macroConfig) renderOpts.macroConfig = macroConfig;
+
+      const doc = await sim.ui.render(moduleKey, renderOpts);
+      if (!doc) {
+        return {
+          content: [{ type: 'text' as const, text: `Module "${moduleKey}" rendered, but no ForgeDoc was produced. Check that the module bundle calls ForgeReconciler.render(<App />).` }],
+          isError: true,
+        };
+      }
+
+      const sections: string[] = [
+        `Rendered "${moduleKey}":`,
+        sim.ui.prettyPrint(doc),
+      ];
+
+      // For macro inline-config modules, surface the MacroConfig tree too —
+      // it's a separate ForgeDoc emitted by ForgeReconciler.addConfig() and
+      // wouldn't show up under the main view tree otherwise.
+      const configDoc = sim.ui.getMacroConfigDoc(moduleKey);
+      if (configDoc) {
+        sections.push('', 'MacroConfig tree (inline addConfig):', sim.ui.prettyPrint(configDoc));
+      }
+
+      return {
+        content: [{ type: 'text' as const, text: sections.join('\n') }],
+      };
+    } catch (err) {
+      return {
+        content: [{ type: 'text' as const, text: `❌ Render failed: ${err instanceof Error ? err.message : String(err)}` }],
+        isError: true,
+      };
+    }
+  }
+);
+
+server.tool(
+  'forge.ui_wait_for',
+  'Wait for a text substring to appear in a UI module\'s rendered tree. Use this after `forge.ui_render` when the initial reconcile shows a loading state and the real content arrives via a `useEffect` -> `invoke()` chain (e.g. `<Text>Loading...</Text>` first, then `<Text>{data}</Text>` after the resolver resolves). Also use after `forge.ui_interact` when an interaction kicks off an async update (form submit -> reload, click -> fetch -> render). `forge.ui_render` only awaits the initial reconcile, so any state set by a post-mount effect will NOT be in its response — call this tool next to settle. Substring match only (no regex). On timeout, returns isError with the current pretty-printed tree so you can see what actually rendered.',
+  {
+    moduleKey: z.string().describe('UI module key — same value passed to `forge.ui_render`. Required: scopes the wait to one module so a global text match on an unrelated render does not resolve early.'),
+    text: z.string().describe('Substring to wait for in the rendered tree. Matched against <String> nodes and a curated set of visible-text props (Tag.text, FormHeader.title, EmptyState.header, etc.). For composite/nested data (Select option labels, table cells), use `forge.ui_state` and inspect the props directly instead.'),
+    timeoutMs: z.number().optional().describe('Max time to wait in ms. Default: 5000.'),
+  },
+  async ({ moduleKey, text, timeoutMs }) => {
+    try {
+      const doc = await sim.ui.waitForContent(moduleKey, text, timeoutMs);
+      return {
+        content: [{
+          type: 'text' as const,
+          text: `Found "${text}" in module "${moduleKey}":\n${sim.ui.prettyPrint(doc)}`,
+        }],
+      };
+    } catch (err) {
+      // sim.ui.waitForContent rejects with a rich Error on timeout: includes
+      // current text content and hints (e.g. "did you forget setMacroConfig?").
+      // Surface that to the agent and attach the current pretty-printed tree
+      // so they don't need a follow-up ui_state call.
+      const message = err instanceof Error ? err.message : String(err);
+      const current = sim.ui.getForgeDoc(moduleKey);
+      const tree = current ? sim.ui.prettyPrint(current) : '(no doc — module never rendered)';
+      return {
+        content: [{
+          type: 'text' as const,
+          text: `❌ ${message}\n\nCurrent tree for "${moduleKey}":\n${tree}`,
+        }],
+        isError: true,
+      };
+    }
+  }
+);
+
+server.tool(
   'forge.ui_state',
   'Get the current ForgeDoc UI tree. Shows what the Forge app UI looks like right now. Returns a pretty-printed component tree.',
   async () => {
     const doc = sim.ui.getForgeDoc();
     if (!doc) {
       return {
-        content: [{ type: 'text' as const, text: 'No UI rendered yet. Deploy an app with UI resources first, or invoke a resolver that triggers a render.' }],
+        content: [{ type: 'text' as const, text: 'No UI rendered yet. Call `forge.ui_render` with a module key to render a UI module, or invoke a resolver that triggers a render.' }],
       };
     }
 
@@ -277,7 +517,7 @@ server.tool(
     const doc = sim.ui.getForgeDoc();
     if (!doc) {
       return {
-        content: [{ type: 'text' as const, text: 'No UI rendered. Deploy an app with UI first.' }],
+        content: [{ type: 'text' as const, text: 'No UI rendered. Call `forge.ui_render` with a module key first.' }],
         isError: true,
       };
     }
@@ -350,7 +590,7 @@ server.tool(
   async ({ prefix, limit }) => {
     if (prefix) {
       const result = await sim.kvs.query()
-        .where('key', { beginsWith: prefix })
+        .where('key', { condition: 'BEGINS_WITH', values: [prefix] })
         .limit(limit ?? 50)
         .getMany();
       return {
@@ -468,39 +708,21 @@ server.tool(
 
 server.tool(
   'forge.logs',
-  'Get simulator logs including captured console.* output from Forge app code. Optionally filter by level.',
+  'Get simulator logs plus captured `console.*` output from Forge app code. ' +
+  'The response has a dedicated `console` array (resolver/trigger/scheduled-trigger ' +
+  'print output) and a `logs` array (simulator-level events plus the same console ' +
+  'lines mirrored under `level=console.<log|warn|error|info|debug>` so existing ' +
+  'level filters keep working).',
   {
-    level: z.string().optional().describe('Filter by log level (e.g. "error", "console.log", "invoke", "trigger")'),
-    limit: z.number().optional().describe('Max number of log entries (default: 100, from most recent)'),
+    level: z.string().optional().describe('Filter `logs` by exact level or level prefix (e.g. "error", "console.log", "invoke", "trigger"). Does NOT filter the `console` array — that is always your captured console.* output.'),
+    limit: z.number().optional().describe('Max entries to return for `logs` and `console` (default: 100, most recent)'),
     clear: z.boolean().optional().describe('Clear logs after reading'),
   },
   async ({ level, limit, clear }) => {
-    let logs = sim.getLogs();
-    const consoleLogs = sim.getConsoleLogs();
-
-    if (level) {
-      logs = logs.filter((l) => l.level === level || l.level.startsWith(level));
-    }
-
-    const maxEntries = limit ?? 100;
-    const recentLogs = logs.slice(-maxEntries);
-
-    const output = {
-      totalEntries: logs.length,
-      showing: recentLogs.length,
-      consoleLinesTotal: consoleLogs.length,
-      logs: recentLogs.map((l) => ({
-        time: new Date(l.timestamp).toISOString(),
-        level: l.level,
-        message: l.message,
-        ...(l.data !== undefined ? { data: l.data } : {}),
-      })),
-    };
-
+    const output = sim.buildLogsResponse({ level, limit });
     if (clear) {
       sim.clearLogs();
     }
-
     return {
       content: [{ type: 'text' as const, text: JSON.stringify(output, null, 2) }],
     };
@@ -943,12 +1165,12 @@ server.tool(
 
 server.tool(
   'forge.reset',
-  'Reset the simulator — clears all state (KVS, queues, resolvers, logs, UI). Like a fresh install.',
+  'Reset the simulator — clears KVS, queues, resolvers, logs, UI, realtime, manifest, AND drops all SQL tables (the MySQL server itself stays running for speed). Use sim.stop() to shut down the SQL server.',
   async () => {
-    sim.reset();
+    await sim.reset();
     sim.ui.reset();
     return {
-      content: [{ type: 'text' as const, text: '✅ Simulator reset. All state cleared.' }],
+      content: [{ type: 'text' as const, text: '✅ Simulator reset. All state cleared (in-memory + SQL tables dropped).' }],
     };
   }
 );
@@ -960,16 +1182,27 @@ server.tool(
   `Register mock HTTP responses for product APIs (Jira, Confluence, Bitbucket) or remotes.
 Route keys are "METHOD /path" (e.g. "GET /rest/api/3/version/10001"). Method defaults to GET if omitted.
 Path matching is prefix-based, so "/rest/api/3/issue" matches "/rest/api/3/issue/TEST-1".
-Values are the JSON response body. Use this to set up test fixtures before firing triggers or invoking resolvers.
+
+A route value is one of:
+  • A bare JSON object → returned as the response body with 200 OK (the common case).
+  • A tagged response object → controls status, body, and headers explicitly. Shape:
+    { "__forgeSimMockResponse": true, "status": <number>, "body"?: <any>, "headers"?: { ... } }
+    (Equivalent to \`mockResponse(status, body, headers)\` in the in-process API.)
 
 Example:
   product: "jira"
   routes: {
     "GET /rest/api/3/version/10001": { "id": "10001", "name": "1.0.0", "releaseDate": "2026-04-03" },
     "GET /rest/api/3/project/10000": { "id": "10000", "key": "PROJ", "name": "My Project" },
-    "GET /rest/api/3/search": { "issues": [{ "key": "PROJ-1", "fields": { "summary": "Fix bug", "issuetype": { "name": "Bug" }, "status": { "name": "Done" }, "assignee": { "displayName": "Ryan" } } }] },
-    "POST /wiki/api/v2/pages": { "id": "12345", "title": "Release Notes" }
-  }`,
+    "GET /rest/api/3/search": { "issues": [{ "key": "PROJ-1", "fields": { "summary": "Fix bug" } }] },
+    "PUT /rest/api/3/issue/FAIL-1": { "__forgeSimMockResponse": true, "status": 500, "body": { "error": "rate limited" } },
+    "GET /rest/api/3/timeout": { "__forgeSimMockResponse": true, "status": 504 }
+  }
+
+Do NOT use \`__status\` / \`_status\` as a shortcut — those will throw a clear error pointing at the
+tagged shape above. Real Jira/Confluence bodies frequently include a \`status\` field (e.g. issue
+status), so the marker is required to disambiguate "this is the response shape" from "this is just
+data that happens to have a status field".`,
   {
     product: z.string().describe('Product name: "jira", "confluence", "bitbucket", or a remote key from manifest.yml'),
     routes: z.record(z.string(), z.any()).describe('Route map: keys are "METHOD /path" patterns, values are JSON response bodies'),

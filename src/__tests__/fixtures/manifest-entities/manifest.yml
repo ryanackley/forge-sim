@@ -1,0 +1,47 @@
+app:
+  id: ari:cloud:ecosystem::app/manifest-entities-test
+  name: Manifest Entities Test
+  runtime:
+    name: nodejs22.x
+  storage:
+    entities:
+      - name: Task
+        attributes:
+          title:
+            type: string
+          status:
+            type: string
+          priority:
+            type: integer
+          projectId:
+            type: string
+          createdAt:
+            type: string
+        indexes:
+          - name: by-project
+            partition:
+              - projectId
+            range: priority
+          - name: by-status
+            partition:
+              - status
+            range: createdAt
+      - name: Comment
+        attributes:
+          body:
+            type: string
+          taskKey:
+            type: string
+        indexes:
+          - name: by-task
+            partition:
+              - taskKey
+
+modules:
+  function:
+    - key: noop
+      handler: index.handler
+
+permissions:
+  scopes:
+    - storage:app

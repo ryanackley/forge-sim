@@ -37,3 +37,34 @@ class IntersectionObserverMock {
   disconnect() {}
 }
 globalThis.IntersectionObserver = IntersectionObserverMock as any;
+
+// Mock WebSocket — Node 25's undici WebSocket has a cross-realm Event issue
+// in jsdom that surfaces as "Uncaught Exception: TypeError: The 'event' argument
+// must be an instance of Event. Received an instance of Event". The bridge shim
+// auto-connects on import; without a mock, the connection attempt blows up.
+// Tests that need WebSocket behavior should override this locally.
+class WebSocketMock {
+  static OPEN = 1;
+  static CLOSED = 3;
+  static CONNECTING = 0;
+  readyState = 0;
+  url: string;
+  // No-op event handlers
+  onopen: ((e: any) => void) | null = null;
+  onmessage: ((e: any) => void) | null = null;
+  onclose: ((e: any) => void) | null = null;
+  onerror: ((e: any) => void) | null = null;
+  constructor(url: string) {
+    this.url = url;
+  }
+  send() {}
+  close() {
+    this.readyState = WebSocketMock.CLOSED;
+  }
+  addEventListener() {}
+  removeEventListener() {}
+  dispatchEvent() {
+    return false;
+  }
+}
+globalThis.WebSocket = WebSocketMock as any;

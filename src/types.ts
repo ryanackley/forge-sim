@@ -13,6 +13,9 @@ export interface ForgeManifest {
       architecture?: string; // arm64 | x86_64
       memoryMB?: number;     // 128-1024, default 512
     };
+    storage?: {
+      entities?: ManifestEntityDef[];
+    };
   };
   modules: Record<string, ManifestModule[]>;
   permissions?: {
@@ -23,6 +26,28 @@ export interface ForgeManifest {
   providers?: {
     auth?: ManifestAuthProvider[];
   };
+}
+
+/**
+ * Custom Entity Store schema (manifest-declared).
+ * Mirrors Forge's app.storage.entities[*] shape — see
+ * https://developer.atlassian.com/platform/forge/storage-reference/entities-manifest/
+ */
+export interface ManifestEntityDef {
+  name: string;
+  attributes: Record<string, ManifestEntityAttribute>;
+  indexes?: ManifestEntityIndex[];
+}
+
+export interface ManifestEntityAttribute {
+  /** Forge supports: integer | float | string | boolean | any */
+  type: string;
+}
+
+export interface ManifestEntityIndex {
+  name: string;
+  partition: string[];
+  range?: string;
 }
 
 export interface ManifestRemote {
@@ -94,6 +119,29 @@ export interface ResolverContext {
   [key: string]: unknown;
 }
 
+/**
+ * Options for sim.invoke() — the third arg.
+ *
+ * - `moduleKey` scopes resolver lookup when multiple modules register the
+ *   same function key (mirrors how Forge routes invokes through a specific
+ *   UI module). Required only when there's ambiguity.
+ *
+ * - `context` overrides the request context for THIS invocation only.
+ *   Merged on top of the sim's base context (set via setContext()) and
+ *   does NOT mutate sticky state — the next call without an override
+ *   sees the unchanged base. Shape matches Forge's `req.context`, so any
+ *   field there is fair game: `accountId`, `cloudId`, `localId`,
+ *   `extension`, `principal`, `license`, `installContext`.
+ *
+ * Example:
+ *   await sim.invoke('castVote', payload, { context: { accountId: 'alice' } });
+ *   await sim.invoke('castVote', payload, { context: { accountId: 'bob' } });
+ */
+export interface InvokeOptions {
+  moduleKey?: string;
+  context?: Partial<ResolverContext>;
+}
+
 // ── Storage Types ───────────────────────────────────────────────────────────
 
 export interface StorageEntry {
@@ -104,7 +152,9 @@ export interface StorageEntry {
 export interface StorageQueryOptions {
   where?: {
     field: 'key';
-    condition: 'beginsWith';
+    /** Internal canonical form — the only condition allowed on simple
+     *  KVS queries is BEGINS_WITH (matches real @forge/kvs). */
+    condition: 'BEGINS_WITH';
     value: string;
   };
   limit?: number;

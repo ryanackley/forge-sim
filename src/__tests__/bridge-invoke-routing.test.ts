@@ -109,7 +109,31 @@ describe('Dev Server RPC invoke routing', () => {
       'GET /api/health': { status: 'ok' },
     });
 
-    server = createDevServer({ port: TEST_PORT, simulator: sim });
+    server = await createDevServer({ port: TEST_PORT, simulator: sim });
+  });
+
+  it('createDevServer reports the actual bound port', () => {
+    expect(server.port).toBe(TEST_PORT);
+  });
+
+  it('createDevServer falls through to next port when requested one is taken', async () => {
+    // First server already owns TEST_PORT — second call without strictPort
+    // should auto-shift up.
+    const sim2 = createSimulator();
+    const server2 = await createDevServer({ port: TEST_PORT, simulator: sim2 });
+    try {
+      expect(server2.port).toBeGreaterThan(TEST_PORT);
+      expect(server2.port).toBeLessThan(TEST_PORT + 10);
+    } finally {
+      server2.close();
+    }
+  });
+
+  it('createDevServer with strictPort throws when requested port is taken', async () => {
+    const sim2 = createSimulator();
+    await expect(
+      createDevServer({ port: TEST_PORT, strictPort: true, simulator: sim2 }),
+    ).rejects.toThrow(/already in use/);
   });
 
   beforeEach(async () => {

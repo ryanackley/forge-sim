@@ -75,8 +75,8 @@ if (command === '--help' || command === '-h' || !command) {
     forge-sim --help                 Show this help
 
   Dev Options:
-    --port <port>              Vite dev server port (default: 5173)
-    --ws-port <port>           WebSocket bridge port (default: 5174)
+    --port <port>              Vite dev server port (default: 5173, auto-falls-through to next free)
+    --ws-port <port>           WebSocket bridge port (default: 5174, auto-falls-through; explicit value is strict)
     --no-open                  Don't open browser automatically
     --module <key>             Specific UI module key to render
     --clean                    Start fresh (wipe app state, keep credentials)
@@ -105,6 +105,7 @@ if (command === 'dev') {
   let appDir = '.';
   let port = 5173;
   let wsPort = 5174;
+  let wsPortExplicit = false;
   let open = true;
   let moduleKey: string | undefined;
   let clean = false;
@@ -122,6 +123,7 @@ if (command === 'dev') {
       port = parseInt(restArgs[++i], 10);
     } else if (arg === '--ws-port' && restArgs[i + 1]) {
       wsPort = parseInt(restArgs[++i], 10);
+      wsPortExplicit = true;
     } else if (arg === '--no-open') {
       open = false;
     } else if (arg === '--module' && restArgs[i + 1]) {
@@ -163,6 +165,7 @@ if (command === 'dev') {
     appDir: resolve(appDir),
     port,
     wsPort,
+    wsPortExplicit,
     open,
     moduleKey,
     clean,
@@ -179,26 +182,33 @@ else if (command === 'auth') {
   let list = false;
   let clear = false;
   let clearAll = false;
-  let setup = false;
-  let oauth = false;
   let llm = false;
   let remove: string | undefined;
   let local: string | undefined;
+  let provider: string | undefined;
+  let providers = false;
+  let secret = false;
 
   for (let i = 0; i < restArgs.length; i++) {
     const arg = restArgs[i];
     if (arg === '--list') list = true;
     else if (arg === '--clear-all') clearAll = true;
     else if (arg === '--clear') clear = true;
-    else if (arg === '--setup') setup = true;
-    else if (arg === '--oauth') oauth = true;
     else if (arg === '--llm') llm = true;
     else if (arg === '--remove' && restArgs[i + 1]) remove = restArgs[++i];
     else if (arg === '--local') local = resolve('.');
+    else if (arg === '--provider' && restArgs[i + 1]) provider = restArgs[++i];
+    else if (arg === '--providers') providers = true;
+    else if (arg === '--secret') secret = true;
+    else if (arg === '--oauth' || arg === '--setup') {
+      console.error(`  ❌ \`forge-sim auth ${arg}\` was removed — Atlassian OAuth is no longer supported.`);
+      console.error(`     Use \`forge-sim auth\` to add an API token instead (30-second setup).`);
+      process.exit(1);
+    }
   }
 
   const { authCommand } = await import('./auth/auth-command.js');
-  await authCommand({ list, clear, clearAll, setup, oauth, llm, remove, local });
+  await authCommand({ list, clear, clearAll, llm, remove, local, provider, providers, secret });
 }
 
 // ── Deploy ──────────────────────────────────────────────────────────────

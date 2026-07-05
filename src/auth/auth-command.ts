@@ -1,33 +1,31 @@
 /**
- * `forge-sim auth` command — manage Atlassian accounts.
- *
- * Default flow uses PAT (API token) — zero setup, just email + token.
- * OAuth flow available for multi-user testing (requires registering an OAuth app).
+ * `forge-sim auth` command — manage Atlassian accounts (PAT only).
  *
  * Usage:
  *   forge-sim auth              — add account (PAT) or select default
- *   forge-sim auth --oauth      — add account via OAuth 3LO
- *   forge-sim auth --setup      — configure OAuth app (client ID/secret)
  *   forge-sim auth --list       — list configured accounts
  *   forge-sim auth --clear      — remove all credentials
+ *   forge-sim auth --clear-all  — credentials AND service config (e.g. Anthropic key)
  *   forge-sim auth --remove <id> — remove a specific account
  *   forge-sim auth --local      — store credentials per-app instead of global
+ *   forge-sim auth --llm        — configure Anthropic API key for @forge/llm
+ *   forge-sim auth --provider <key>  — manage external OAuth providers
+ *   forge-sim auth --providers       — same, for every manifest provider
+ *
+ * Atlassian OAuth was removed (PAT setup is 30s vs ~5min for OAuth app
+ * registration, multi-user testing is solved by multiple PATs, and the
+ * simulator doesn't enforce OAuth scopes anyway).
  */
 
-import { loadCredentials, saveCredentials, upsertAccount, removeAccount, clearCredentials, type AtlassianAccount } from './credentials.js';
-import { startOAuthFlow, setOAuthConfig, hasOAuthConfig } from './oauth.js';
-import { getOAuthAppConfig, saveOAuthAppConfig, getAnthropicApiKey, saveAnthropicApiKey, clearAnthropicApiKey } from './config.js';
+import {
+  loadCredentials, saveCredentials, upsertAccount, removeAccount,
+  clearCredentials, dropOAuthAccounts, type AtlassianAccount,
+} from './credentials.js';
+import {
+  getAnthropicApiKey, saveAnthropicApiKey, clearAnthropicApiKey,
+  dropOAuthAppConfig,
+} from './config.js';
 import { createInterface } from 'node:readline';
-
-// ── Default Scopes (OAuth only) ─────────────────────────────────────────────
-
-const DEFAULT_SCOPES = [
-  'read:jira-work', 'write:jira-work', 'read:jira-user',
-  'manage:jira-project', 'manage:jira-configuration',
-  'read:confluence-content.all', 'write:confluence-content',
-  'read:confluence-space.summary', 'read:confluence-user',
-  'read:me', 'offline_access',
-];
 
 // ── CLI Interface ───────────────────────────────────────────────────────────
 
@@ -36,8 +34,6 @@ export interface AuthCommandOptions {
   clear?: boolean;
   clearAll?: boolean;
   remove?: string;
-  setup?: boolean;
-  oauth?: boolean;
   local?: string;
   /** External auth: specific provider key */
   provider?: string;
@@ -53,7 +49,31 @@ export interface AuthCommandOptions {
   manifestPath?: string;
 }
 
+/**
+ * One-shot migration that fires on every `forge-sim auth` invocation.
+ * Cleans up legacy OAuth-typed accounts and the now-defunct OAuth app
+ * config from ~/.forge-sim/config.json. Idempotent.
+ */
+async function runOAuthRemovalMigration(local?: string): Promise<void> {
+  // Strip OAuth-typed accounts from credentials.json (both local + global).
+  const store = await loadCredentials(local);
+  const dropped = dropOAuthAccounts(store);
+  if (dropped.length) {
+    await saveCredentials(store, { local });
+    console.warn(
+      `  ⚠ Atlassian OAuth was removed in this release. Dropped ${dropped.length} OAuth ` +
+      `account${dropped.length > 1 ? 's' : ''} — re-add with \`forge-sim auth\` (PAT, much faster setup).`,
+    );
+  }
+  // Strip the dev's OAuth-app registration from config.json, if present.
+  if (await dropOAuthAppConfig()) {
+    console.warn(`  ⚠ Removed legacy OAuth app config from ~/.forge-sim/config.json.`);
+  }
+}
+
 export async function authCommand(options: AuthCommandOptions): Promise<void> {
+  await runOAuthRemovalMigration(options.local);
+
   // ── External auth providers (--provider / --providers) ────────────────
   if (options.provider || options.providers) {
     const { externalAuthCommand } = await import('./external-auth-command.js');
@@ -81,10 +101,6 @@ export async function authCommand(options: AuthCommandOptions): Promise<void> {
     return;
   }
 
-  // Load OAuth app config if it exists
-  const oauthAppConfig = await getOAuthAppConfig();
-  if (oauthAppConfig) setOAuthConfig(oauthAppConfig);
-
   // ── List ──────────────────────────────────────────────────────────────
   if (options.list) {
     const store = await loadCredentials(options.local);
@@ -99,9 +115,7 @@ export async function authCommand(options: AuthCommandOptions): Promise<void> {
       console.log('  ───────────────────');
       for (const a of store.accounts) {
         const def = a.default ? ' (default)' : '';
-        const type = a.authType === 'oauth' ? '🔑 OAuth' : '🎫 PAT';
-        const expired = a.authType === 'oauth' && Date.now() >= a.expiresAt ? ' ⚠️  expired' : '';
-        console.log(`  ${a.id}: ${a.name} (${a.email}) @ ${a.site} [${type}]${def}${expired}`);
+        console.log(`  ${a.id}: ${a.name} (${a.email}) @ ${a.site} [🎫 PAT]${def}`);
       }
     }
 
@@ -121,19 +135,19 @@ export async function authCommand(options: AuthCommandOptions): Promise<void> {
     return;
   }
 
-  // ── Clear all (credentials + OAuth app config) ─────────────────────
+  // ── Clear all (credentials + service config) ──────────────────────────
   if (options.clearAll) {
     await clearCredentials(options.local);
     const { saveConfig } = await import('./config.js');
     await saveConfig({});
-    console.log('  ✅ All credentials and OAuth app config cleared.');
+    console.log('  ✅ All credentials and service config cleared.');
     return;
   }
 
   // ── Clear credentials only ────────────────────────────────────────
   if (options.clear) {
     await clearCredentials(options.local);
-    console.log('  ✅ All credentials cleared (OAuth app config preserved).');
+    console.log('  ✅ All credentials cleared (service config preserved).');
     return;
   }
 
@@ -148,22 +162,6 @@ export async function authCommand(options: AuthCommandOptions): Promise<void> {
     return;
   }
 
-  // ── OAuth setup ───────────────────────────────────────────────────────
-  if (options.setup) {
-    await setupOAuthApp();
-    return;
-  }
-
-  // ── OAuth flow ────────────────────────────────────────────────────────
-  if (options.oauth) {
-    if (!hasOAuthConfig()) {
-      await setupOAuthApp();
-      if (!hasOAuthConfig()) return;
-    }
-    await addOAuthAccount(options.local);
-    return;
-  }
-
   // ── Default: PAT flow or account selection ────────────────────────────
   const store = await loadCredentials(options.local);
 
@@ -172,14 +170,12 @@ export async function authCommand(options: AuthCommandOptions): Promise<void> {
     console.log('  👤 Configured accounts:');
     store.accounts.forEach((a, i) => {
       const marker = a.default ? ' ← default' : '';
-      const type = a.authType === 'oauth' ? 'OAuth' : 'PAT';
-      console.log(`     ${i + 1}. ${a.name} (${a.email}) @ ${a.site} [${type}]${marker}`);
+      console.log(`     ${i + 1}. ${a.name} (${a.email}) @ ${a.site}${marker}`);
     });
     console.log(`     ${store.accounts.length + 1}. Add new account (API token)...`);
-    console.log(`     ${store.accounts.length + 2}. Add new account (OAuth)...`);
     console.log('');
 
-    const choice = await prompt(`  Select [1-${store.accounts.length + 2}]: `);
+    const choice = await prompt(`  Select [1-${store.accounts.length + 1}]: `);
     const num = parseInt(choice, 10);
 
     if (num >= 1 && num <= store.accounts.length) {
@@ -188,12 +184,6 @@ export async function authCommand(options: AuthCommandOptions): Promise<void> {
       await saveCredentials(store, { local: options.local });
       const s = store.accounts[num - 1];
       console.log(`  ✅ Default: ${s.name} @ ${s.site}`);
-      return;
-    }
-
-    if (num === store.accounts.length + 2) {
-      if (!hasOAuthConfig()) { await setupOAuthApp(); if (!hasOAuthConfig()) return; }
-      await addOAuthAccount(options.local);
       return;
     }
     // Fall through to PAT flow
@@ -274,73 +264,6 @@ async function addPatAccount(local?: string): Promise<void> {
   } catch (err: any) {
     console.error(`  ❌ Connection failed: ${err.message}`);
   }
-}
-
-// ── OAuth Flow ──────────────────────────────────────────────────────────────
-
-async function addOAuthAccount(local?: string): Promise<void> {
-  console.log('');
-  console.log('  🔑 Starting Atlassian OAuth flow...');
-  console.log('     Opening browser for authorization...');
-  console.log('');
-
-  try {
-    const result = await startOAuthFlow({ scopes: DEFAULT_SCOPES });
-
-    // If multiple unique sites, let user pick
-    if (result.resources.length > 1) {
-      console.log('  📍 Multiple Atlassian sites found:');
-      result.resources.forEach((r, i) => {
-        console.log(`     ${i + 1}. ${r.name} (${new URL(r.url).host})`);
-      });
-      const choice = await prompt(`  Select site [1-${result.resources.length}]: `);
-      const num = parseInt(choice, 10);
-      if (num >= 1 && num <= result.resources.length) {
-        const sel = result.resources[num - 1];
-        result.account.site = new URL(sel.url).host;
-        result.account.cloudId = sel.id;
-      }
-    }
-
-    result.account.authType = 'oauth';
-    const store = await loadCredentials(local);
-    upsertAccount(store, result.account);
-    await saveCredentials(store, { local });
-
-    console.log('');
-    console.log(`  ✅ Authorized as: ${result.account.name} (${result.account.email})`);
-    console.log(`     Site: ${result.account.site}`);
-    console.log(`     Cloud ID: ${result.account.cloudId}`);
-    console.log('');
-  } catch (err: any) {
-    console.error(`  ❌ OAuth failed: ${err.message}`);
-  }
-}
-
-// ── OAuth App Setup ─────────────────────────────────────────────────────────
-
-async function setupOAuthApp(): Promise<void> {
-  console.log('');
-  console.log('  🔧 OAuth App Setup (one-time)');
-  console.log('  ─────────────────────────────');
-  console.log('');
-  console.log('  1. Go to https://developer.atlassian.com/console/myapps/');
-  console.log('  2. Create an OAuth 2.0 (3LO) app');
-  console.log('  3. Set callback URL: http://localhost:5173/__tools/oauth/callback');
-  console.log('  4. Add Jira/Confluence API permissions');
-  console.log('  5. Copy Client ID and Secret from Settings');
-  console.log('');
-
-  const clientId = await prompt('  Client ID: ');
-  if (!clientId) { console.log('  Cancelled.'); return; }
-  const clientSecret = await prompt('  Client Secret: ');
-  if (!clientSecret) { console.log('  Cancelled.'); return; }
-
-  await saveOAuthAppConfig({ clientId, clientSecret });
-  setOAuthConfig({ clientId, clientSecret });
-  console.log('');
-  console.log('  ✅ OAuth app saved to ~/.forge-sim/config.json');
-  console.log('');
 }
 
 // ── Anthropic API Key ────────────────────────────────────────────────────────

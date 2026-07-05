@@ -14,11 +14,11 @@ function mockAccount(overrides: Partial<AtlassianAccount> = {}): AtlassianAccoun
     site: 'test.atlassian.net',
     cloudId: 'cloud-123',
     accountId: 'account-456',
-    authType: 'oauth',
-    accessToken: 'valid-token',
-    refreshToken: 'refresh-token',
-    expiresAt: Date.now() + 3600 * 1000,
-    scopes: ['read:jira-work'],
+    authType: 'pat',
+    accessToken: 'pat-test',
+    refreshToken: '',
+    expiresAt: 0,
+    scopes: [],
     ...overrides,
   };
 }
@@ -63,11 +63,16 @@ describe('Product API Proxy', () => {
 
   it('unmocked routes in real mode attempt real API call', async () => {
     const api = new SimulatedProductApi();
-    api.connectRealApis(mockAccount({ accessToken: 'invalid-token' }));
+    // Use a non-existent site so DNS/HTTP fails deterministically — some
+    // real Atlassian sites return 200 on /serverInfo even unauthenticated,
+    // which would make a token-validity assertion flaky.
+    api.connectRealApis(mockAccount({
+      site: 'forge-sim-nonexistent-site-for-tests.invalid',
+      accessToken: 'invalid-token',
+    }));
 
-    // This path has no mock — will try real API and fail (bad token)
+    // This path has no mock — will try real API and fail (bad host).
     const response = await api.request('jira', '/rest/api/3/serverInfo');
-    // Should get a real HTTP error (not 200 — we have an invalid token)
     expect(response.ok).toBe(false);
   });
 

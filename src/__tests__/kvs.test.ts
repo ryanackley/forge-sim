@@ -7,7 +7,7 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { UnifiedKVS } from '../kvs.js';
+import { UnifiedKVS, WhereConditions } from '../kvs.js';
 import type { EntitySchema } from '../kvs.js';
 
 describe('UnifiedKVS', () => {
@@ -130,18 +130,20 @@ describe('UnifiedKVS', () => {
 
     it('where beginsWith filters by prefix', async () => {
       const { results } = await kvs.query()
-        .where('key', { beginsWith: 'task:' })
+        .where('key', WhereConditions.beginsWith('task:'))
         .getMany();
       expect(results).toHaveLength(3);
       expect(results.every(r => r.key.startsWith('task:'))).toBe(true);
     });
 
-    it('where equalsTo finds exact key', async () => {
-      const { results } = await kvs.query()
-        .where('key', { equalsTo: 'user:1' })
-        .getMany();
-      expect(results).toHaveLength(1);
-      expect(results[0].value).toEqual({ name: 'Alice' });
+    it('where rejects non-beginsWith conditions (parity with real @forge/kvs)', async () => {
+      // Real @forge/kvs declares `WhereClause = BeginsWithClause` for
+      // simple KVS queries — the type system blocks other conditions at
+      // compile time. We runtime-enforce the same contract so silent
+      // behavioral drift can't happen at the simulator boundary.
+      expect(() => {
+        kvs.query().where('key', WhereConditions.equalTo('user:1') as any);
+      }).toThrow(/only supports WhereConditions\.beginsWith/);
     });
 
     it('limit restricts result count', async () => {
@@ -165,7 +167,7 @@ describe('UnifiedKVS', () => {
 
     it('sort DESC reverses order', async () => {
       const { results } = await kvs.query()
-        .where('key', { beginsWith: 'task:' })
+        .where('key', WhereConditions.beginsWith('task:'))
         .sort('DESC')
         .getMany();
       expect(results[0].key).toBe('task:3');
@@ -174,7 +176,7 @@ describe('UnifiedKVS', () => {
 
     it('getOne returns first match', async () => {
       const result = await kvs.query()
-        .where('key', { beginsWith: 'user:' })
+        .where('key', WhereConditions.beginsWith('user:'))
         .getOne();
       expect(result).toBeDefined();
       expect(result!.key).toBe('user:1');
@@ -182,7 +184,7 @@ describe('UnifiedKVS', () => {
 
     it('getOne returns undefined when no match', async () => {
       const result = await kvs.query()
-        .where('key', { beginsWith: 'zzz:' })
+        .where('key', WhereConditions.beginsWith('zzz:'))
         .getOne();
       expect(result).toBeUndefined();
     });
@@ -734,7 +736,7 @@ describe('UnifiedKVS', () => {
       await kvs.set('other:c', 3);
 
       const resp = await kvs.handleRequest('/api/v1/query', {
-        body: JSON.stringify({ where: [{ beginsWith: 'prefix:' }] }),
+        body: JSON.stringify({ where: [WhereConditions.beginsWith('prefix:')] }),
       });
       const data = await resp.json();
       expect(data.data).toHaveLength(2);
@@ -744,7 +746,7 @@ describe('UnifiedKVS', () => {
       for (let i = 0; i < 5; i++) await kvs.set(`p:${i}`, i);
 
       const resp = await kvs.handleRequest('/api/v1/query', {
-        body: JSON.stringify({ where: [{ beginsWith: 'p:' }], limit: 2 }),
+        body: JSON.stringify({ where: [WhereConditions.beginsWith('p:')], limit: 2 }),
       });
       const data = await resp.json();
       expect(data.data).toHaveLength(2);

@@ -8,9 +8,13 @@
  *
  * Then exercises the full browser-driven flow:
  *   - forge-sim loads a manifest with provider config pointing at our mock
- *   - interactiveOAuthFlow starts → callback server listens, onAuthUrl fires
+ *   - interactiveOAuthFlow registers a pending flow on the singleton
+ *     OAuthCallbackRegistry; onAuthUrl captures the auth URL
+ *   - The standalone callback host binds port 5173 + the unified path
+ *     `/__tools/oauth/callback` and forwards callbacks to the registry
  *   - Playwright navigates to the auth URL → clicks "Authorize"
- *   - Mock provider redirects to callback → forge-sim exchanges code → token stored
+ *   - Mock provider redirects to /__tools/oauth/callback → registry runs
+ *     the onCode closure → exchange + token stored
  *
  * No real third-party API calls are made.
  */
@@ -19,11 +23,15 @@ import { test, expect } from '@playwright/test';
 import { createServer, type Server } from 'node:http';
 import { ForgeSimulator } from '../src/simulator.js';
 import { setSimulator } from '../src/shims/globals.js';
+import {
+  ensureCallbackHost,
+  type CallbackHost,
+} from '../src/auth/standalone-callback-host.js';
+import { _resetOAuthCallbackRegistryForTests } from '../src/auth/oauth-callback-registry.js';
 
 // ── Constants ───────────────────────────────────────────────────────────
 
 const MOCK_PORT = 19480;
-const CALLBACK_PORT = 19421;
 
 const MOCK_AUTH_CODE = 'mock-auth-code-12345';
 const MOCK_ACCESS_TOKEN = 'mock-access-token-ya29.xxx';
@@ -173,33 +181,48 @@ providers:
 
 test.describe('External Auth OAuth Flow', () => {
   let mockProvider: Server;
+  let callbackHost: CallbackHost;
   let sim: ForgeSimulator;
 
   test.beforeAll(async () => {
     mockProvider = await startMockProvider();
+    // Bind the unified callback host on port 5173. In production this
+    // role belongs to `forge-sim dev`'s middleware; the standalone host
+    // is the fallback when dev isn't running, which is the right shape
+    // for these e2e tests.
+    callbackHost = await ensureCallbackHost();
   });
 
   test.afterAll(async () => {
     mockProvider?.close();
+    await callbackHost?.shutdown();
   });
 
   test.beforeEach(async () => {
+    // Module-singleton registry is shared across tests in the process —
+    // reset between specs so no pending flows leak.
+    _resetOAuthCallbackRegistryForTests();
     sim = new ForgeSimulator();
     setSimulator(sim);
     await sim.loadManifest(MANIFEST);
     sim.externalAuth.setSecret('mock-google', 'mock-client-secret');
   });
 
-  test('full OAuth dance: interactiveOAuthFlow opens auth URL, browser authorizes, token stored', async ({ page }) => {
+  test('full OAuth dance: interactiveOAuthFlow registers, browser authorizes via /__tools/oauth/callback, token stored', async ({ page }) => {
     // Capture the auth URL via the hook (instead of opening a real browser)
     let capturedAuthUrl = '';
     sim.externalAuth.onAuthUrl = (url) => { capturedAuthUrl = url; };
 
-    // Start the OAuth flow (runs in background — opens callback server, fires onAuthUrl)
-    const flowPromise = sim.externalAuth.interactiveOAuthFlow('mock-google', CALLBACK_PORT);
+    // Start the OAuth flow (registers with registry, captures auth URL)
+    const flowPromise = sim.externalAuth.interactiveOAuthFlow('mock-google');
 
-    // Wait for the callback server to start and onAuthUrl to fire
+    // Wait for the registry to register the flow and onAuthUrl to fire
     await expect.poll(() => capturedAuthUrl, { timeout: 5000 }).toBeTruthy();
+
+    // The redirect URI must point at the unified callback path on 5173
+    const parsedAuthUrl = new URL(capturedAuthUrl);
+    expect(parsedAuthUrl.searchParams.get('redirect_uri'))
+      .toBe('http://localhost:5173/__tools/oauth/callback');
 
     // Playwright navigates to the auth URL (simulating the browser popup)
     await page.goto(capturedAuthUrl);
@@ -209,10 +232,12 @@ test.describe('External Auth OAuth Flow', () => {
     await expect(page.locator('text=mock-client-id')).toBeVisible();
     await expect(page.locator('text=profile email')).toBeVisible();
 
-    // Click "Authorize" — mock provider redirects to our callback with code
+    // Click "Authorize" — mock provider redirects to the unified callback
+    // (handled by the standalone host, dispatched via the registry).
     await page.click('#authorize');
 
-    // Should land on the success page
+    // Should land on the success page (auto-closes on real popup; in the
+    // playwright tab it stays visible).
     await expect(page.locator('h1')).toHaveText('✅ Authorized!');
 
     // The flow promise should resolve with a valid token
@@ -295,7 +320,7 @@ test.describe('External Auth OAuth Flow', () => {
     let capturedAuthUrl = '';
     sim.externalAuth.onAuthUrl = (url) => { capturedAuthUrl = url; };
 
-    const flowPromise = sim.externalAuth.interactiveOAuthFlow('mock-google', CALLBACK_PORT);
+    const flowPromise = sim.externalAuth.interactiveOAuthFlow('mock-google');
 
     await expect.poll(() => capturedAuthUrl, { timeout: 5000 }).toBeTruthy();
 

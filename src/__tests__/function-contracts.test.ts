@@ -42,11 +42,11 @@ describe('Function Invocation Contracts', () => {
       expect(sim.functions.keysOfType('consumer')).toEqual([]);
     });
 
-    it('clears on reset', () => {
+    it('clears on reset', async () => {
       sim.registerFunction('fn1', async () => {}, 'trigger');
       expect(sim.functions.has('fn1')).toBe(true);
 
-      sim.reset();
+      await sim.reset();
       expect(sim.functions.has('fn1')).toBe(false);
     });
   });

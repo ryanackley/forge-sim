@@ -29,7 +29,7 @@ export default defineConfig({
 
   use: {
     headless: true,
-    baseURL: 'http://localhost:19421',
+    baseURL: 'http://localhost:5173',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     // Consistent viewport for visual baselines

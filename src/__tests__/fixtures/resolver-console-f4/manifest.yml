@@ -1,0 +1,10 @@
+app:
+  id: ari:cloud:ecosystem::app/resolver-console-f4
+  name: F4 Console Surface Repro
+  runtime:
+    name: nodejs22.x
+
+modules:
+  function:
+    - key: ping-fn
+      handler: index.handler

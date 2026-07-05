@@ -140,7 +140,7 @@ permissions:
     it('clears all state', async () => {
       sim.resolver.define('test', async () => 'ok');
       await sim.kvs.set('key', 'value');
-      sim.reset();
+      await sim.reset();
 
       expect(sim.kvs.size).toBe(0);
       expect(sim.resolver.getDefinitions()).toHaveLength(0);

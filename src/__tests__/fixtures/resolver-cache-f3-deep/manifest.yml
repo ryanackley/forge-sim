@@ -1,0 +1,10 @@
+app:
+  id: ari:cloud:ecosystem::app/resolver-cache-f3-deep
+  name: F3 Resolver Cache Repro — Deep
+  runtime:
+    name: nodejs22.x
+
+modules:
+  function:
+    - key: ping-fn
+      handler: index.handler

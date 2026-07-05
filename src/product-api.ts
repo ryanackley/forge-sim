@@ -25,6 +25,129 @@ function makeResponse(
   };
 }
 
+// ── Non-200 mock responses ──────────────────────────────────────────────
+//
+// `mockRoutes` has historically only supported 200 OK responses: the value
+// for a route became the body, and the status was hardcoded. That hid a
+// real class of test — "what does my app do when this PUT fails?" — and
+// quietly swallowed user attempts to specify status (e.g. `{ __status: 500 }`
+// passed straight through as a body). Skill run #13 surfaced this as the
+// main ergonomic gap.
+//
+// We follow MSW's spirit: keep a bare-body shortcut for the 200 case, but
+// provide an explicit `mockResponse(status, body?, headers?)` factory for
+// anything else. The factory returns a plain object with a marker property
+// so it survives JSON round-trip (which matters for the MCP path — agents
+// can construct the literal directly when they can't import the factory).
+//
+// Detection rule: a route value (or a function's return value) is a
+// MockResponseTag if it's an object with `__forgeSimMockResponse === true`.
+// Bare values are wrapped as 200 OK bodies.
+
+/** Marker property used to distinguish a `mockResponse(...)` from a plain
+ *  body object. Long and specific so it can't plausibly collide with real
+ *  product API payloads. */
+export const MOCK_RESPONSE_MARKER = '__forgeSimMockResponse' as const;
+
+/**
+ * Tagged plain object returned by `mockResponse(...)`. Plain object (not
+ * a class instance) so it survives JSON serialization across the MCP
+ * boundary — agents can construct the literal shape directly:
+ *
+ *   { __forgeSimMockResponse: true, status: 500, body: { error: '...' } }
+ *
+ * is equivalent to in-process:
+ *
+ *   mockResponse(500, { error: '...' })
+ */
+export interface MockResponseTag {
+  __forgeSimMockResponse: true;
+  status: number;
+  body?: unknown;
+  headers?: Record<string, string>;
+}
+
+/**
+ * Build an explicit response for `sim.mockRoutes(...)`. Use this for any
+ * route that needs a non-200 status, custom headers, or a deliberately-
+ * empty body.
+ *
+ * Examples:
+ *   mockResponse(500)                                 // 500 Internal Server Error, no body
+ *   mockResponse(404, { error: 'not found' })        // 404 with JSON body
+ *   mockResponse(429, { msg: '...' }, { 'Retry-After': '60' })
+ *   mockResponse(204)                                 // 204 No Content
+ *
+ * Lambda routes can also return one of these for per-request control:
+ *   sim.mockRoutes('jira', {
+ *     'PUT /rest/api/3/issue/:key': (path) =>
+ *       path.endsWith('FAIL') ? mockResponse(500, { error: 'oops' }) : { ok: true },
+ *   })
+ */
+export function mockResponse(
+  status: number,
+  body?: unknown,
+  headers?: Record<string, string>,
+): MockResponseTag {
+  return {
+    [MOCK_RESPONSE_MARKER]: true,
+    status,
+    body,
+    headers,
+  };
+}
+
+/** Type guard for the tagged response shape. Tolerates the value being null,
+ *  a primitive, or an object without the marker — only returns true for the
+ *  exact shape produced by `mockResponse(...)`. */
+function isMockResponseTag(value: unknown): value is MockResponseTag {
+  return (
+    typeof value === 'object'
+    && value !== null
+    && (value as Record<string, unknown>)[MOCK_RESPONSE_MARKER] === true
+    && typeof (value as MockResponseTag).status === 'number'
+  );
+}
+
+/**
+ * Unwrap a route value (or a lambda return) into the (status, body, headers)
+ * triple expected by `makeResponse`. Bare values become 200 OK bodies; the
+ * tagged factory shape carries through.
+ *
+ * Throws on a known footgun shape — `{ __status: <number> }` — because the
+ * agent in skill run #13 tried that and it was silently accepted as a body.
+ * Failing loudly here points the next person directly at `mockResponse`.
+ */
+function unwrapMockResponse(value: unknown): {
+  status: number;
+  body: unknown;
+  headers?: Record<string, string>;
+} {
+  if (isMockResponseTag(value)) {
+    return { status: value.status, body: value.body, headers: value.headers };
+  }
+  // Catch the most common misuse pattern: someone reached for `__status`
+  // (or `_status`) thinking it would set the response code. Silent
+  // pass-through is the dangerous behavior — call it out clearly.
+  if (
+    typeof value === 'object'
+    && value !== null
+    && !Array.isArray(value)
+    && (
+      typeof (value as Record<string, unknown>).__status === 'number'
+      || typeof (value as Record<string, unknown>)._status === 'number'
+    )
+  ) {
+    throw new Error(
+      'mockRoutes value looks like an attempt to set a status code with `__status`/`_status`, ' +
+      'but those keys are not recognized. Use the `mockResponse(status, body?, headers?)` factory ' +
+      'from `forge-sim` instead, or — if calling via MCP — pass the literal shape ' +
+      '`{ __forgeSimMockResponse: true, status: <n>, body?: <any>, headers?: {...} }`.'
+    );
+  }
+  return { status: 200, body: value };
+}
+
 /**
  * Default handler that returns a helpful error for unmocked API calls.
  */
@@ -36,13 +159,11 @@ function unmockedHandler(product: string): ProductApiHandler {
   };
 }
 
-// ── Product → base URL mapping ──────────────────────────────────────────
-
-const PRODUCT_BASE_URLS: Record<string, (cloudId: string) => string> = {
-  jira: (cloudId) => `https://api.atlassian.com/ex/jira/${cloudId}`,
-  confluence: (cloudId) => `https://api.atlassian.com/ex/confluence/${cloudId}`,
-  bitbucket: () => `https://api.bitbucket.org/2.0`,
-};
+// ── Products that get a real-API handler when connected ────────────────
+//
+// PAT-only auth hits the site URL directly (https://{site}/), not the
+// api.atlassian.com OAuth gateway, so we just need the product list.
+const REAL_API_PRODUCTS = ['jira', 'confluence', 'bitbucket'] as const;
 
 // ── GraphQL types ───────────────────────────────────────────────────────
 
@@ -66,7 +187,6 @@ export class SimulatedProductApi {
   private mockRouteHandlers = new Map<string, ProductApiHandler>();
   private graphqlMocks = new Map<string, GraphQLHandler | any>();
   private realApiAccount: AtlassianAccount | null = null;
-  private onTokenRefresh?: (account: AtlassianAccount) => void;
   private propertyStore: PropertyStore | null = null;
 
   constructor() {
@@ -85,20 +205,18 @@ export class SimulatedProductApi {
   }
 
   /**
-   * Connect to real Atlassian APIs using an OAuth account.
+   * Connect to real Atlassian APIs using a PAT account.
    * Mock routes still take priority — real API is the fallback.
+   *
+   * Atlassian OAuth was removed; only PAT is supported now. PATs don't
+   * expire so there's no token-refresh callback to wire.
    */
-  connectRealApis(
-    account: AtlassianAccount,
-    options?: { onTokenRefresh?: (account: AtlassianAccount) => void },
-  ): void {
+  connectRealApis(account: AtlassianAccount): void {
     this.realApiAccount = account;
-    this.onTokenRefresh = options?.onTokenRefresh;
 
     // Set up real API handlers for each product
-    for (const [product, baseUrlFn] of Object.entries(PRODUCT_BASE_URLS)) {
-      const realHandler = this.createRealHandler(product, baseUrlFn);
-      this.handlers.set(product, realHandler);
+    for (const product of REAL_API_PRODUCTS) {
+      this.handlers.set(product, this.createRealHandler(product));
     }
 
     console.log(`  📡 Connected to real APIs as ${account.name} @ ${account.site}`);
@@ -109,7 +227,6 @@ export class SimulatedProductApi {
    */
   disconnectRealApis(): void {
     this.realApiAccount = null;
-    this.onTokenRefresh = undefined;
     for (const product of ['jira', 'confluence', 'bitbucket']) {
       if (!this.mockRouteHandlers.has(product)) {
         this.handlers.set(product, unmockedHandler(product));
@@ -125,7 +242,7 @@ export class SimulatedProductApi {
     return this.realApiAccount;
   }
 
-  private createRealHandler(product: string, baseUrlFn: (cloudId: string) => string): ProductApiHandler {
+  private createRealHandler(product: string): ProductApiHandler {
     return async (path: string, options?: ProductApiRequest): Promise<ProductApiResponse> => {
       // Check mock routes first — they take priority over real API
       const mockHandler = this.mockRouteHandlers.get(product);
@@ -142,19 +259,12 @@ export class SimulatedProductApi {
         return makeResponse(501, { error: 'Not connected to real APIs' });
       }
 
-      // Token refresh if needed
-      await this.ensureValidToken();
-
-      // PAT uses site URL directly, OAuth uses api.atlassian.com proxy
-      const baseUrl = this.realApiAccount.authType === 'pat'
-        ? `https://${this.realApiAccount.site}`
-        : baseUrlFn(this.realApiAccount.cloudId);
+      // PAT hits the site URL directly with HTTP Basic auth (email:token).
+      const baseUrl = `https://${this.realApiAccount.site}`;
       const url = `${baseUrl}${path}`;
-
-      // PAT uses Basic auth (email:token), OAuth uses Bearer
-      const authHeader = this.realApiAccount.authType === 'pat'
-        ? `Basic ${Buffer.from(`${this.realApiAccount.email}:${this.realApiAccount.accessToken}`).toString('base64')}`
-        : `Bearer ${this.realApiAccount.accessToken}`;
+      const authHeader = `Basic ${Buffer.from(
+        `${this.realApiAccount.email}:${this.realApiAccount.accessToken}`,
+      ).toString('base64')}`;
 
       try {
         const response = await fetch(url, {
@@ -194,31 +304,6 @@ export class SimulatedProductApi {
     };
   }
 
-  private async ensureValidToken(): Promise<void> {
-    if (!this.realApiAccount) return;
-
-    // PATs don't expire
-    if (this.realApiAccount.authType === 'pat') return;
-
-    const BUFFER_MS = 5 * 60 * 1000; // 5 minutes
-    if (Date.now() < this.realApiAccount.expiresAt - BUFFER_MS) return;
-
-    // Token expired or expiring soon — refresh it
-    try {
-      const { refreshAccessToken } = await import('./auth/oauth.js');
-      const refreshed = await refreshAccessToken(this.realApiAccount);
-      this.realApiAccount.accessToken = refreshed.accessToken;
-      this.realApiAccount.refreshToken = refreshed.refreshToken;
-      this.realApiAccount.expiresAt = refreshed.expiresAt;
-
-      // Notify caller so they can persist the new tokens
-      this.onTokenRefresh?.(this.realApiAccount);
-    } catch (err: any) {
-      console.error(`  ⚠️  Token refresh failed: ${err.message}`);
-      console.error(`     Run 'forge-sim auth' to re-authorize.`);
-    }
-  }
-
   /**
    * Register a mock handler for a product API.
    */
@@ -250,8 +335,13 @@ export class SimulatedProductApi {
 
       for (const { method, pathPattern, response } of parsed) {
         if (requestMethod === method && (path === pathPattern || path.startsWith(pathPattern))) {
-          const body = typeof response === 'function' ? response(path, options) : response;
-          return makeResponse(200, body);
+          // Resolve the route value — function form OR static value.
+          const raw = typeof response === 'function' ? response(path, options) : response;
+          // Unwrap the (optional) mockResponse() shape into a status/body/headers
+          // triple. Bare values become 200 OK bodies. Throws on the `__status`
+          // footgun so the next agent finds the right helper fast.
+          const { status, body, headers } = unwrapMockResponse(raw);
+          return makeResponse(status, body, headers);
         }
       }
       return makeResponse(404, { error: `No mock route matched: ${requestMethod} ${path}` });
@@ -347,16 +437,11 @@ export class SimulatedProductApi {
       });
     }
 
-    await this.ensureValidToken();
-
-    // OAuth uses api.atlassian.com/graphql
-    // PAT/API tokens use {site}/gateway/api/graphql (tenanted gateway)
-    const url = this.realApiAccount.authType === 'pat'
-      ? `https://${this.realApiAccount.site}/gateway/api/graphql`
-      : 'https://api.atlassian.com/graphql';
-    const authHeader = this.realApiAccount.authType === 'pat'
-      ? `Basic ${Buffer.from(`${this.realApiAccount.email}:${this.realApiAccount.accessToken}`).toString('base64')}`
-      : `Bearer ${this.realApiAccount.accessToken}`;
+    // PAT-only: tenanted gateway at {site}/gateway/api/graphql with Basic auth.
+    const url = `https://${this.realApiAccount.site}/gateway/api/graphql`;
+    const authHeader = `Basic ${Buffer.from(
+      `${this.realApiAccount.email}:${this.realApiAccount.accessToken}`,
+    ).toString('base64')}`;
 
     const requestBody: Record<string, any> = { query };
     if (variables) requestBody.variables = variables;
@@ -401,7 +486,6 @@ export class SimulatedProductApi {
     this.mockRouteHandlers.clear();
     this.graphqlMocks.clear();
     this.realApiAccount = null;
-    this.onTokenRefresh = undefined;
     for (const product of ['jira', 'confluence', 'bitbucket']) {
       this.handlers.set(product, unmockedHandler(product));
     }

@@ -18,6 +18,10 @@ import type { ViteDevServer } from 'vite';
 import type { ForgeSimulator } from '../simulator.js';
 import type { ParsedManifest } from '../manifest.js';
 import { createApiHandler } from './api.js';
+import {
+  getOAuthCallbackRegistry,
+  OAUTH_CALLBACK_PATH,
+} from '../auth/oauth-callback-registry.js';
 
 const __dirname = resolve(fileURLToPath(import.meta.url), '..');
 
@@ -46,14 +50,37 @@ export interface ToolsServer {
 }
 
 /**
+ * Shared OAuth callback handler — used by both Vite-mode (attachToolsToVite)
+ * and proxy-mode (dev-command's --proxy path) so behavior stays identical.
+ *
+ * Routes the incoming `state` to the in-process OAuthCallbackRegistry, which
+ * either runs the matching flow's `onCode` closure or returns a failure card.
+ */
+export async function handleOAuthCallback(url: URL, res: ServerResponse): Promise<void> {
+  const { status, html } = await getOAuthCallbackRegistry().handle({
+    state: url.searchParams.get('state') ?? '',
+    code: url.searchParams.get('code') ?? undefined,
+    error: url.searchParams.get('error') ?? undefined,
+  });
+  res.writeHead(status, { 'Content-Type': 'text/html' });
+  res.end(html);
+}
+
+/**
  * Attach Forge Sim Tools as middleware on the Vite dev server.
  * Routes under /__tools/ are handled by the tools UI and API.
  * WebSocket connections to /__tools/ws get upgraded to the tools WS.
  */
 export function attachToolsToVite(options: ToolsServerOptions): ToolsServer {
   const { sim, manifest, viteServer, appDir } = options;
-  const apiHandler = createApiHandler(sim, manifest);
   const clients = new Set<WebSocket>();
+
+  // Wire the api handler to broadcastStateChange so the Providers panel
+  // (and any future state-aware endpoint) can push to connected tabs.
+  const apiHandler = createApiHandler(sim, manifest, {
+    broadcastStateChange: (type, data) => broadcast({ type: 'stateChange', changeType: type, data }),
+    appDir,
+  });
   let lastTypeErrors: { errors: any[]; critical: any[]; checking: boolean } | null = null;
 
   const PREFIX = '/__tools';
@@ -89,6 +116,17 @@ export function attachToolsToVite(options: ToolsServerOptions): ToolsServer {
       apiHandler(req, res, apiUrl).catch((err: any) => {
         res.writeHead(500, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: err.message }));
+      });
+      return;
+    }
+
+    // OAuth callback — single redirect URI for every provider, dispatched
+    // to the right in-flight flow by `state`. See
+    // src/auth/oauth-callback-registry.ts for the lookup.
+    if (toolsPath === OAUTH_CALLBACK_PATH.slice(PREFIX.length) && req.method === 'GET') {
+      handleOAuthCallback(url, res).catch((err: any) => {
+        res.writeHead(500, { 'Content-Type': 'text/plain' });
+        res.end(`OAuth callback handler crashed: ${err.message}`);
       });
       return;
     }
@@ -345,6 +383,7 @@ export function generateFallbackHTML(prefix: string): string {
   <div class="tab" data-panel="kvs">KVS</div>
   <div class="tab" data-panel="sql">SQL</div>
   <div class="tab" data-panel="events">Events</div>
+  <div class="tab" data-panel="providers">Providers</div>
   <div class="tab" data-panel="typescript" id="tsTab">TypeScript</div>
 </div>
 
@@ -404,6 +443,22 @@ export function generateFallbackHTML(prefix: string): string {
             <tbody id="sqlBody"></tbody>
           </table>
           <div class="empty" id="sqlEmpty">Run a query or click a table</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Providers Panel -->
+  <div class="panel" id="panel-providers">
+    <div class="events-layout">
+      <div class="events-section">
+        <h3>🔐 External OAuth Providers</h3>
+        <div id="providersList" style="margin-top:8px">
+          <div class="empty">Loading...</div>
+        </div>
+        <div id="providersEmpty" style="display:none" class="empty">
+          No external auth providers declared in manifest.yml.<br>
+          Add a <code>providers.auth</code> block to use <code>auth.requestCredentials()</code>.
         </div>
       </div>
     </div>
@@ -507,8 +562,20 @@ document.querySelectorAll('.tab').forEach(tab => {
     if (tab.dataset.panel === 'kvs') refreshKVS();
     if (tab.dataset.panel === 'sql') refreshTables();
     if (tab.dataset.panel === 'events') refreshEvents();
+    if (tab.dataset.panel === 'providers') refreshProviders();
   });
 });
+
+// ── State Change Routing ──────────────────────────────────────────
+
+function handleStateChange(msg) {
+  // Server pushes { type: 'stateChange', changeType: <kind>, data: <payload> }
+  const kind = msg.changeType;
+  if (kind === 'providerConnected' || kind === 'providerDisconnected') {
+    refreshProviders();
+  }
+  // (Future: other state-change kinds can dispatch from here.)
+}
 
 // ── Logs ───────────────────────────────────────────────────────────
 
@@ -841,6 +908,97 @@ async function pushQueue() {
   const el = document.getElementById('queueResult');
   el.style.display = 'block';
   el.textContent = JSON.stringify(result, null, 2);
+}
+
+// ── Providers ──────────────────────────────────────────────────────
+
+let providersData = [];
+
+async function refreshProviders() {
+  try {
+    const res = await fetch(API + '/api/providers');
+    const data = await res.json();
+    providersData = Array.isArray(data) ? data : [];
+  } catch(e) {
+    providersData = [];
+  }
+  renderProviders();
+}
+
+function renderProviders() {
+  const list = document.getElementById('providersList');
+  const empty = document.getElementById('providersEmpty');
+  if (providersData.length === 0) {
+    list.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+  list.innerHTML = providersData.map(p => {
+    const status = p.connected
+      ? '<span style="color:var(--green);font-weight:600">✓ Connected</span>'
+      : '<span style="color:var(--subtext)">✗ Disconnected</span>';
+    const acct = p.account
+      ? '<div style="color:var(--subtext);font-size:12px;margin-top:2px">' + escapeHtml(p.account.displayName) + ' (' + escapeHtml(p.account.id) + ')</div>'
+      : '';
+    const secretWarn = !p.hasSecret
+      ? '<div style="color:var(--yellow);font-size:12px;margin-top:2px">⚠ No client secret — set via <code>forge-sim auth --provider ' + escapeHtml(p.key) + ' --secret</code></div>'
+      : '';
+    const scopes = (p.scopes && p.scopes.length)
+      ? '<div style="color:var(--subtext);font-size:11px;margin-top:2px">Scopes: ' + escapeHtml(p.scopes.join(', ')) + '</div>'
+      : '';
+    const button = p.connected
+      ? '<button class="btn btn-sm" onclick="disconnectProvider(\\'' + p.key + '\\')">Disconnect</button>'
+      : '<button class="btn btn-sm btn-primary" onclick="connectProvider(\\'' + p.key + '\\')"' + (p.hasSecret ? '' : ' disabled') + '>Connect</button>';
+    return '<div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border)">'
+      + '<div style="flex:1">'
+      + '<div style="font-weight:600">' + escapeHtml(p.name) + ' <span style="color:var(--subtext);font-weight:normal;font-size:12px">(' + escapeHtml(p.key) + ')</span></div>'
+      + acct
+      + scopes
+      + secretWarn
+      + '</div>'
+      + '<div>' + status + '</div>'
+      + button
+      + '</div>';
+  }).join('');
+}
+
+async function connectProvider(providerKey) {
+  try {
+    const res = await fetch(API + '/api/providers/' + encodeURIComponent(providerKey) + '/start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}',
+    });
+    const data = await res.json();
+    if (!res.ok || data.error) {
+      alert('Could not start OAuth flow: ' + (data.error || res.statusText));
+      return;
+    }
+    // Pop the auth URL — provider returns the user to /__tools/oauth/callback
+    // via the OAuthCallbackRegistry, which auto-closes the popup on success.
+    window.open(data.authUrl, 'forge-sim-oauth', 'width=600,height=700');
+  } catch(e) {
+    alert('OAuth start failed: ' + e.message);
+  }
+}
+
+async function disconnectProvider(providerKey) {
+  if (!confirm('Disconnect "' + providerKey + '"? The stored access token will be removed.')) return;
+  try {
+    const res = await fetch(API + '/api/providers/' + encodeURIComponent(providerKey), {
+      method: 'DELETE',
+    });
+    const data = await res.json();
+    if (!res.ok || data.error) {
+      alert('Disconnect failed: ' + (data.error || res.statusText));
+      return;
+    }
+    // WS stateChange will refresh, but call directly for snappiness.
+    refreshProviders();
+  } catch(e) {
+    alert('Disconnect failed: ' + e.message);
+  }
 }
 
 // ── Actions ────────────────────────────────────────────────────────

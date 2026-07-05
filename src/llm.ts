@@ -148,7 +148,10 @@ export interface MockLlmResponse {
 // ── SimulatedLLM ────────────────────────────────────────────────────────
 
 export class SimulatedLLM {
-  private mockResponses: MockLlmResponse[] = [];
+  // FIFO queue of mock responses, consumed by chat(). Named `responseQueue`
+  // (not `mockResponses`) so the public `mockResponses(...)` setter method
+  // doesn't collide with the field.
+  private responseQueue: MockLlmResponse[] = [];
   private callHistory: Array<{ prompt: LlmPrompt; response: LlmResponse }> = [];
   private logFn: (level: string, message: string, detail?: unknown) => void;
   private configApiKey: string | null = null;
@@ -179,8 +182,8 @@ export class SimulatedLLM {
     });
 
     // 1. Try mock responses first
-    if (this.mockResponses.length > 0) {
-      const mock = this.mockResponses.shift()!;
+    if (this.responseQueue.length > 0) {
+      const mock = this.responseQueue.shift()!;
       const response = this.buildMockResponse(mock);
       this.callHistory.push({ prompt, response });
       this.logFn('info', 'llm.chat → mock response');
@@ -232,12 +235,15 @@ export class SimulatedLLM {
 
   /** Queue a mock response for the next chat() call. FIFO order. */
   mockResponse(mock: MockLlmResponse): void {
-    this.mockResponses.push(mock);
+    this.responseQueue.push(mock);
   }
 
-  /** Queue multiple mock responses. */
-  mockResponses_(...mocks: MockLlmResponse[]): void {
-    this.mockResponses.push(...mocks);
+  /**
+   * Queue multiple mock responses at once. FIFO order — equivalent to
+   * calling `mockResponse()` once per argument.
+   */
+  mockResponses(...mocks: MockLlmResponse[]): void {
+    this.responseQueue.push(...mocks);
   }
 
   /** Get call history for assertions. */
@@ -247,7 +253,7 @@ export class SimulatedLLM {
 
   /** Clear all state. */
   reset(): void {
-    this.mockResponses = [];
+    this.responseQueue = [];
     this.callHistory = [];
   }
 

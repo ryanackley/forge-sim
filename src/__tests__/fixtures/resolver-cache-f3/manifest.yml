@@ -1,0 +1,10 @@
+app:
+  id: ari:cloud:ecosystem::app/resolver-cache-f3
+  name: F3 Resolver Cache Repro
+  runtime:
+    name: nodejs22.x
+
+modules:
+  function:
+    - key: greet-fn
+      handler: index.handler

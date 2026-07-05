@@ -16,7 +16,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import AppProvider, { useSetColorMode } from '@atlaskit/app-provider';
 import '@atlaskit/css-reset';
 import { ForgeDocRenderer } from './ForgeDocRenderer';
-import { onReconcile, view } from './bridge/forge-bridge-shim';
+import { onReconcile, onMacroConfigReconcile, setActiveSubmitTree, view } from './bridge/forge-bridge-shim';
 
 // ---------------------------------------------------------------------------
 // Width presets — mirror the real widths Forge uses across product surfaces.
@@ -529,8 +529,210 @@ interface ShellInnerProps {
   initialColorMode: ColorMode;
 }
 
+// ---------------------------------------------------------------------------
+// Macro inline config — only rendered when ForgeReconciler.addConfig() has
+// produced a config tree alongside the main view tree.
+//
+// Forge's inline macro config is platform-managed: the user does NOT write
+// a Save button inside their Config component — the platform renders modal
+// chrome (Save/Cancel) and harvests named form fields. This shell mirrors
+// that contract so docs-correct apps work in dev mode.
+// ---------------------------------------------------------------------------
+
+/**
+ * Walk a ForgeDoc and collect declared `defaultValue` props keyed by `name`.
+ * Used as the fallback value for components that don't bind to native HTML
+ * forms (Select, DatePicker, UserPicker) — clicking Save without interacting
+ * persists the declared defaults, matching platform behavior.
+ *
+ * Returns the defaults map AND the set of names whose component types do NOT
+ * cleanly bind to FormData. The Save handler uses this set to prefer the
+ * declared default over FormData's empty-string for those components.
+ */
+function collectDefaultsFromConfigTree(
+  node: any,
+  out: Record<string, unknown>,
+  nonFormDataNames: Set<string>,
+): void {
+  if (!node || typeof node !== 'object') return;
+  const props = node.props ?? {};
+  if (typeof props.name === 'string') {
+    if (props.defaultValue !== undefined && !(props.name in out)) {
+      out[props.name] = props.defaultValue;
+    }
+    if (NON_FORMDATA_COMPONENTS.has(node.type)) {
+      nonFormDataNames.add(props.name);
+    }
+  }
+  if (Array.isArray(node.children)) {
+    for (const c of node.children) collectDefaultsFromConfigTree(c, out, nonFormDataNames);
+  }
+}
+
+/**
+ * Walk a ForgeDoc and collect type names of form components that don't
+ * cleanly participate in a native FormData harvest (Atlaskit wraps these in
+ * components that don't expose a [name] attribute on the DOM).
+ *
+ * The dev shell shows a parity note for these so users aren't surprised when
+ * Save captures defaults but not their interactive input.
+ */
+const NON_FORMDATA_COMPONENTS = new Set([
+  'Select',
+  'DatePicker',
+  'UserPicker',
+  'CheckboxGroup', // Atlaskit's CheckboxGroup uses internal state, not [name] on a DOM input
+  'RadioGroup',
+]);
+
+function listNonFormDataComponents(node: any, out: Set<string>): void {
+  if (!node || typeof node !== 'object') return;
+  if (NON_FORMDATA_COMPONENTS.has(node.type)) out.add(node.type);
+  if (Array.isArray(node.children)) {
+    for (const c of node.children) listNonFormDataComponents(c, out);
+  }
+}
+
+interface MacroInlineConfigShellProps {
+  configDoc: any;
+  activeTab: 'view' | 'config';
+  onTabChange: (tab: 'view' | 'config') => void;
+  formRef: React.RefObject<HTMLFormElement | null>;
+  onSave: () => void;
+  onCancel: () => void;
+}
+
+function MacroInlineConfigTabBar({
+  activeTab,
+  onTabChange,
+}: {
+  activeTab: 'view' | 'config';
+  onTabChange: (tab: 'view' | 'config') => void;
+}) {
+  const tabStyle = (active: boolean): React.CSSProperties => ({
+    padding: '6px 16px',
+    fontSize: '13px',
+    fontWeight: 600,
+    border: '1px solid var(--ds-border, #dfe1e6)',
+    cursor: 'pointer',
+    background: active
+      ? 'var(--ds-background-selected, #0c66e4)'
+      : 'var(--ds-background-neutral-subtle, #fafbfc)',
+    color: active
+      ? 'var(--ds-text-inverse, #fff)'
+      : 'var(--ds-text-subtle, #6b778c)',
+    transition: 'all 0.12s ease',
+    fontFamily: 'inherit',
+  });
+
+  return (
+    <div
+      data-forge-sim-macro-tabs
+      style={{
+        display: 'flex',
+        gap: 0,
+        marginBottom: 16,
+        borderBottom: '1px solid var(--ds-border, #f4f5f7)',
+        paddingBottom: 12,
+      }}
+    >
+      <button
+        onClick={() => onTabChange('view')}
+        style={{ ...tabStyle(activeTab === 'view'), borderRadius: '4px 0 0 4px' }}
+      >
+        View
+      </button>
+      <button
+        onClick={() => onTabChange('config')}
+        style={{ ...tabStyle(activeTab === 'config'), borderRadius: '0 4px 4px 0', borderLeft: 'none' }}
+      >
+        Config
+      </button>
+      <span
+        style={{
+          marginLeft: 'auto',
+          fontSize: '11px',
+          color: 'var(--ds-text-subtle, #6b778c)',
+          alignSelf: 'center',
+          fontFamily: 'monospace',
+        }}
+      >
+        inline macro config
+      </span>
+    </div>
+  );
+}
+
+/**
+ * Save/Cancel chrome shown beneath the Config tree. Mirrors how real Forge
+ * renders the macro config modal: app declares fields, platform owns submit.
+ */
+function MacroInlineConfigFooter({
+  onSave,
+  onCancel,
+  parityHint,
+}: {
+  onSave: () => void;
+  onCancel: () => void;
+  parityHint?: string;
+}) {
+  const btnStyle = (primary: boolean): React.CSSProperties => ({
+    padding: '6px 14px',
+    fontSize: '13px',
+    fontWeight: 600,
+    border: '1px solid var(--ds-border, #dfe1e6)',
+    cursor: 'pointer',
+    borderRadius: '4px',
+    background: primary
+      ? 'var(--ds-background-brand-bold, #0c66e4)'
+      : 'var(--ds-background-neutral-subtle, #fafbfc)',
+    color: primary
+      ? 'var(--ds-text-inverse, #fff)'
+      : 'var(--ds-text, #172b4d)',
+    fontFamily: 'inherit',
+  });
+  return (
+    <div
+      data-forge-sim-config-footer
+      style={{
+        marginTop: 16,
+        paddingTop: 12,
+        borderTop: '1px solid var(--ds-border, #f4f5f7)',
+        display: 'flex',
+        gap: 8,
+        justifyContent: 'flex-end',
+        alignItems: 'center',
+      }}
+    >
+      {parityHint && (
+        <span
+          style={{
+            marginRight: 'auto',
+            fontSize: '11px',
+            color: 'var(--ds-text-subtle, #6b778c)',
+            fontFamily: 'monospace',
+          }}
+          title={parityHint}
+        >
+          ⚠️ parity: see console
+        </span>
+      )}
+      <button type="button" onClick={onCancel} style={btnStyle(false)}>
+        Cancel
+      </button>
+      <button type="button" onClick={onSave} style={btnStyle(true)}>
+        Save
+      </button>
+    </div>
+  );
+}
+
 function ShellInner({ initialColorMode }: ShellInnerProps) {
   const [doc, setDoc] = useState<any>(null);
+  // Macro inline config: a separate ForgeDoc tree emitted by
+  // ForgeReconciler.addConfig(<Config />). Null until the app calls addConfig.
+  const [macroConfigDoc, setMacroConfigDoc] = useState<any>(null);
+  const [macroTab, setMacroTab] = useState<'view' | 'config'>('view');
   const [renderCount, setRenderCount] = useState(0);
 
   // Width prefs
@@ -566,7 +768,7 @@ function ShellInner({ initialColorMode }: ShellInnerProps) {
     };
   }, [colorMode]);
 
-  // Listen for ForgeDoc updates
+  // Listen for ForgeDoc updates — main view tree
   useEffect(() => {
     const unbind = onReconcile((forgeDoc: any) => {
       setDoc(forgeDoc);
@@ -574,6 +776,98 @@ function ShellInner({ initialColorMode }: ShellInnerProps) {
     });
     return unbind;
   }, []);
+
+  // Listen for ForgeDoc updates — macro inline config tree
+  useEffect(() => {
+    const unbind = onMacroConfigReconcile((forgeDoc: any) => {
+      setMacroConfigDoc(forgeDoc);
+      setRenderCount((n) => n + 1);
+    });
+    return unbind;
+  }, []);
+
+  // Tell the bridge which tree the next view.submit() is coming from.
+  // The user's inline config component is NOT supposed to call view.submit()
+  // (real Forge auto-saves via platform chrome) — but if they do, route the
+  // payload to the macro config store. Our platform Save button below uses
+  // this same flag, then calls view.submit() with the harvested values.
+  useEffect(() => {
+    setActiveSubmitTree(macroTab === 'config' ? 'macroConfig' : 'view');
+  }, [macroTab]);
+
+  // Form ref + parity bookkeeping for the inline config Save button.
+  const configFormRef = useRef<HTMLFormElement | null>(null);
+  const [configParityHint, setConfigParityHint] = useState<string | undefined>(undefined);
+
+  // Detect non-FormData-binding components (Atlaskit Select etc.) when the
+  // config tree changes, and surface a parity note so the dev sees it.
+  useEffect(() => {
+    if (!macroConfigDoc) {
+      setConfigParityHint(undefined);
+      return;
+    }
+    const offenders = new Set<string>();
+    listNonFormDataComponents(macroConfigDoc, offenders);
+    if (offenders.size === 0) {
+      setConfigParityHint(undefined);
+      return;
+    }
+    const list = [...offenders].sort().join(', ');
+    const msg =
+      `[forge-sim] inline macro config: ${list} doesn't bind to native ` +
+      `FormData. Save will use declared defaultValue for these — interactive ` +
+      `value tracking is a known dev-mode gap. Headless tests via ` +
+      `sim.ui.renderInlineConfig() are unaffected.`;
+    // Log once per config tree change
+    console.warn(msg);
+    setConfigParityHint(msg);
+  }, [macroConfigDoc]);
+
+  // Platform Save: harvest named form fields from the rendered Config tree
+  // and submit them as { name → value }. Falls back to the declared
+  // defaultValue for components that don't bind to native HTML form data.
+  const handleConfigSave = async () => {
+    // 1. Seed from declared defaultValue (matches platform behavior:
+    //    clicking Save without changes persists declared defaults).
+    const values: Record<string, unknown> = {};
+    const nonFormDataNames = new Set<string>();
+    if (macroConfigDoc) {
+      collectDefaultsFromConfigTree(macroConfigDoc, values, nonFormDataNames);
+    }
+
+    // 2. Native HTML form harvest — overlays user-entered values for
+    //    components that actually bind to FormData (Textfield, TextArea,
+    //    Checkbox). For known non-FormData components (Atlaskit Select etc.,
+    //    which inject empty hidden inputs) we keep the declared default
+    //    rather than letting an empty string clobber it.
+    if (configFormRef.current) {
+      try {
+        const fd = new FormData(configFormRef.current);
+        for (const [key, val] of fd.entries()) {
+          if (nonFormDataNames.has(key) && val === '') continue;
+          values[key] = val;
+        }
+      } catch {
+        // FormData can throw on detached elements — ignore and fall through
+      }
+    }
+
+    // 3. Submit through the existing macroConfig route. The bridge tags
+    //    the payload with submitTree:'macroConfig' (we already set the
+    //    flag in the tab effect above), the dev-server stores it under
+    //    the macro key and broadcasts macroConfigUpdate to all clients.
+    await view.submit(values);
+
+    // 4. Switch back to View — the dev-server's broadcast triggers a
+    //    reload of the view iframe, so useConfig() picks up the new values.
+    setMacroTab('view');
+  };
+
+  const handleConfigCancel = () => {
+    // Discard in-progress edits and return to view. The previously stored
+    // config (if any) is preserved — no platform-level rollback needed.
+    setMacroTab('view');
+  };
 
   // Resolve module type once on mount, then set default width if user hasn't
   // explicitly chosen one.
@@ -643,6 +937,13 @@ function ShellInner({ initialColorMode }: ShellInnerProps) {
     );
   }
 
+  // When a macro uses inline config (ForgeReconciler.addConfig), we get a
+  // second ForgeDoc tree. Show tabs so the user can switch between View and
+  // Config in the same iframe — matches how Confluence's macro editor toggles
+  // the macro view vs its config dialog.
+  const hasInlineMacroConfig = macroConfigDoc != null;
+  const activeDoc = hasInlineMacroConfig && macroTab === 'config' ? macroConfigDoc : doc;
+
   return (
     <>
       {/* Page background — flips with color mode via token */}
@@ -668,7 +969,28 @@ function ShellInner({ initialColorMode }: ShellInnerProps) {
             transition: 'max-width 120ms ease, background 120ms ease',
           }}
         >
-          <ForgeDocRenderer doc={doc} />
+          {hasInlineMacroConfig && (
+            <MacroInlineConfigTabBar
+              activeTab={macroTab}
+              onTabChange={setMacroTab}
+            />
+          )}
+          {hasInlineMacroConfig && macroTab === 'config' ? (
+            <form
+              ref={configFormRef}
+              data-forge-sim-config-form
+              onSubmit={(e) => { e.preventDefault(); handleConfigSave(); }}
+            >
+              <ForgeDocRenderer doc={activeDoc} />
+              <MacroInlineConfigFooter
+                onSave={handleConfigSave}
+                onCancel={handleConfigCancel}
+                parityHint={configParityHint}
+              />
+            </form>
+          ) : (
+            <ForgeDocRenderer doc={activeDoc} />
+          )}
         </div>
       </div>
 

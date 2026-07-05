@@ -201,7 +201,7 @@ describe('Module route registration', () => {
 
   it('clears module routes on reset', async () => {
     await sim.loadManifest(MIXED_MANIFEST);
-    sim.reset();
+    await sim.reset();
     expect(sim.getModuleRoute('local-panel')).toBeUndefined();
     expect(sim.getModuleRoute('remote-panel')).toBeUndefined();
   });
@@ -225,39 +225,39 @@ describe('Resolver boundary enforcement', () => {
 
   it('allows invoking functions within own module resolver', async () => {
     // panel-a uses resolver-a which owns getDataA
-    const result = await sim.invoke('getDataA', { test: true }, 'panel-a');
+    const result = await sim.invoke('getDataA', { test: true }, { moduleKey: 'panel-a' });
     expect(result).toEqual({ source: 'A', payload: { test: true } });
   });
 
   it('allows invoking functions within own module resolver (panel-b)', async () => {
     // panel-b uses resolver-b which owns getDataB
-    const result = await sim.invoke('getDataB', { test: true }, 'panel-b');
+    const result = await sim.invoke('getDataB', { test: true }, { moduleKey: 'panel-b' });
     expect(result).toEqual({ source: 'B', payload: { test: true } });
   });
 
   it('rejects cross-module function access', async () => {
     // panel-a tries to invoke getDataB (owned by resolver-b)
     await expect(
-      sim.invoke('getDataB', {}, 'panel-a')
+      sim.invoke('getDataB', {}, { moduleKey: 'panel-a' })
     ).rejects.toThrow(/belongs to resolver "resolver-b".*module "panel-a" uses resolver "resolver-a"/);
   });
 
   it('rejects cross-module function access (reverse)', async () => {
     // panel-b tries to invoke getDataA (owned by resolver-a)
     await expect(
-      sim.invoke('getDataA', {}, 'panel-b')
+      sim.invoke('getDataA', {}, { moduleKey: 'panel-b' })
     ).rejects.toThrow(/belongs to resolver "resolver-a".*module "panel-b" uses resolver "resolver-b"/);
   });
 
-  it('allows invoke without moduleKey for backward compatibility', async () => {
-    // No moduleKey — skip validation (legacy behavior)
+  it('allows invoke without moduleKey (no validation)', async () => {
+    // No moduleKey — skip cross-module validation
     const result = await sim.invoke('getDataA', {});
     expect(result).toEqual({ source: 'A', payload: {} });
   });
 
   it('rejects invoke for unknown module', async () => {
     await expect(
-      sim.invoke('getDataA', {}, 'nonexistent-module')
+      sim.invoke('getDataA', {}, { moduleKey: 'nonexistent-module' })
     ).rejects.toThrow(/Unknown module "nonexistent-module"/);
   });
 });
@@ -295,7 +295,7 @@ describe('Endpoint boundary enforcement', () => {
     await sim.loadManifest(ENDPOINT_ONLY_MANIFEST);
     // Endpoint-only module has no resolver — invoke() should fail
     await expect(
-      sim.invoke('someFunction', {}, 'remote-panel')
+      sim.invoke('someFunction', {}, { moduleKey: 'remote-panel' })
     ).rejects.toThrow(/configured with endpoint "my-endpoint", not a resolver.*Use invokeRemote/);
   });
 
@@ -305,7 +305,7 @@ describe('Endpoint boundary enforcement', () => {
     // local-panel has resolver — can use invoke
     sim.resolver.define('getData', async () => ({ ok: true }));
     sim.registerResolverOwnership('getData', 'my-resolver');
-    const result = await sim.invoke('getData', {}, 'local-panel');
+    const result = await sim.invoke('getData', {}, { moduleKey: 'local-panel' });
     expect(result).toEqual({ ok: true });
 
     // remote-panel has endpoint — can use resolveModuleEndpoint
@@ -314,7 +314,7 @@ describe('Endpoint boundary enforcement', () => {
 
     // But: remote-panel cannot use invoke
     await expect(
-      sim.invoke('getData', {}, 'remote-panel')
+      sim.invoke('getData', {}, { moduleKey: 'remote-panel' })
     ).rejects.toThrow(/configured with endpoint.*not a resolver/);
 
     // And: local-panel cannot use resolveModuleEndpoint

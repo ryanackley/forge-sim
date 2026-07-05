@@ -127,6 +127,34 @@ describe('ensureTsconfig', () => {
     ensureTsconfig(TEST_DIR);
     expect(existsSync(forgeSimDir)).toBe(true);
   });
+
+  it('synthetic tsconfig has a TS-valid module/moduleResolution pairing (TS5110 regression)', () => {
+    // TS5110: "Option 'module' must be set to 'Node16' when option
+    // 'moduleResolution' is set to 'Node16'." This is the precise pairing
+    // rule TypeScript enforces, and the synthetic tsconfig used to violate
+    // it (moduleResolution: 'node16' + module: 'es2022'), causing every
+    // deploy of a JS-only app to surface a spurious TS5110 alongside the
+    // user's real type errors.
+    const path = ensureTsconfig(TEST_DIR);
+    const cfg = JSON.parse(require('node:fs').readFileSync(path, 'utf-8'));
+    const { module: mod, moduleResolution: res } = cfg.compilerOptions;
+
+    // Valid pairings per TS docs:
+    //   moduleResolution: node10/node    → any es*/commonjs module
+    //   moduleResolution: bundler        → esnext / preserve / es*
+    //   moduleResolution: node16/nodenext → node16 / nodenext module only
+    const isValid =
+      (res === 'node16' && (mod === 'node16' || mod === 'nodenext')) ||
+      (res === 'nodenext' && mod === 'nodenext') ||
+      (res === 'bundler' && /^(esnext|preserve|es\d{4})$/.test(mod)) ||
+      (res === 'node' || res === 'node10' || res === undefined);
+
+    expect(
+      isValid,
+      `Synthetic tsconfig has invalid module/moduleResolution pairing: ` +
+        `module=${mod}, moduleResolution=${res}. This triggers TS5110.`,
+    ).toBe(true);
+  });
 });
 
 describe('resolveTsc', () => {
