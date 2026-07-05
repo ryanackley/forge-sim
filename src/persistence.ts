@@ -3,8 +3,9 @@
  *
  * Saves simulator state on shutdown and restores on startup.
  * State is stored in the app's .forge-sim/state/ directory:
- *   - entities.json — KVS + Custom Entities + Secrets, with timestamps
- *   - sql.dump      — MySQL dump (via mysqldump npm package — pure JS, no binary needed)
+ *   - entities.json     — KVS + Custom Entities + Secrets, with timestamps
+ *   - object-store.json — Object Store objects (blobs base64-encoded)
+ *   - sql.dump          — MySQL dump (via mysqldump npm package — pure JS, no binary needed)
  *
  * SQL restore uses mysql-memory-server's initSQLFilePath option so state
  * is loaded during MySQL boot — before app migrations run. The dump file
@@ -21,6 +22,7 @@ import { join } from 'node:path';
 import type { ForgeSimulator } from './simulator.js';
 
 const ENTITY_FILE = 'entities.json';
+const OBJECT_STORE_FILE = 'object-store.json';
 const SQL_FILE = 'sql.dump';
 
 /**
@@ -46,6 +48,13 @@ export async function saveState(sim: ForgeSimulator, stateDir: string): Promise<
     if (entityCount > 0) parts.push(`${entityCount} entities`);
     if (secretCount > 0) parts.push(`${secretCount} secrets`);
     console.log(`  💾 Saved ${parts.join(', ')}`);
+  }
+
+  // ── Object Store ─────────────────────────────────────────────────────
+  const osDump = sim.objectStore.dumpAll();
+  if (osDump.objects.length > 0) {
+    writeFileSync(join(stateDir, OBJECT_STORE_FILE), JSON.stringify(osDump, null, 2));
+    console.log(`  💾 Saved ${osDump.objects.length} objects`);
   }
 
   // ── SQL ──────────────────────────────────────────────────────────────
@@ -121,6 +130,21 @@ export async function loadState(sim: ForgeSimulator, stateDir: string): Promise<
     }
   } catch {
     // No entities.json — fresh install, nothing to restore.
+  }
+
+  // ── Object Store (object-store.json) ─────────────────────────────────
+  const osPath = join(stateDir, OBJECT_STORE_FILE);
+  try {
+    await access(osPath);
+    const raw = await readFile(osPath, 'utf-8');
+    const dump = JSON.parse(raw);
+    if (dump.objects?.length > 0) {
+      sim.objectStore.restoreAll(dump);
+      console.log(`  📂 Restored ${dump.objects.length} objects`);
+      restored = true;
+    }
+  } catch {
+    // No object-store.json — nothing to restore.
   }
 
   // SQL restore is handled via initSQLFilePath — already configured

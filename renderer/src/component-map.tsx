@@ -4,8 +4,9 @@
  * This is the heart of the renderer. Each ForgeDoc node type gets mapped
  * to a real Atlaskit component so we render genuine Atlassian UI.
  *
- * Coverage: 73/73 UIKit 2 component types
- * - Layout: Box, Stack, Inline, Pressable, Text, Heading
+ * Coverage: 78 UIKit 2 component types (all of @forge/react 12)
+ * - Layout: Box, Stack, Inline, Bleed, Pressable, Text, Heading
+ * - Navigation: Breadcrumbs, BreadcrumbsItem, Pagination
  * - Interactive: Button, ButtonGroup, LinkButton, LoadingButton, Toggle, Range,
  *   Checkbox, CheckboxGroup, Radio, RadioGroup, Select, TextField, TextArea,
  *   DatePicker, TimePicker, Calendar
@@ -26,7 +27,7 @@
 import React from 'react';
 
 // Layout primitives
-import { Box, Stack, Inline, Pressable, Text, xcss } from '@atlaskit/primitives';
+import { Box, Stack, Inline, Pressable, Text, Bleed, xcss } from '@atlaskit/primitives';
 import Heading from '@atlaskit/heading';
 
 // Interactive
@@ -63,6 +64,13 @@ import Avatar, { AvatarItem } from '@atlaskit/avatar';
 import AvatarGroup from '@atlaskit/avatar-group';
 import InlineEdit from '@atlaskit/inline-edit';
 import Popup from '@atlaskit/popup';
+import Breadcrumbs, { BreadcrumbsItem } from '@atlaskit/breadcrumbs';
+import Pagination from '@atlaskit/pagination';
+import AkUserPicker, { type OptionData, type Value as UserPickerSelectValue } from '@atlaskit/user-picker';
+// @atlaskit/user-picker requires react-intl context (real Forge's host page
+// provides it); wrap locally so the sim works standalone.
+import { IntlProvider } from 'react-intl';
+import { requestJira } from './bridge/forge-bridge-shim';
 
 // Editors
 import { ForgeChromelessEditor, ForgeCommentEditor } from './editors/ForgeEditors';
@@ -201,6 +209,111 @@ function formatFileSize(bytes?: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+// ── FilePicker (real file selection + drag-and-drop) ────────────────────
+
+/**
+ * SerializedFile — the exact shape @forge/react's FilePicker onChange emits
+ * (canonical: @atlaskit/forge-react-types FilePickerProps.codegen.d.ts).
+ * `data` is plain base64 WITHOUT a data: URL prefix — @forge/bridge's
+ * objectStore.upload feeds it straight into atob().
+ */
+interface SerializedFile {
+  data: string;
+  name: string;
+  size: number;
+  type: string;
+}
+
+function fileToSerialized(file: File): Promise<SerializedFile> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      // readAsDataURL yields "data:<mime>;base64,<data>" — strip the prefix
+      const comma = result.indexOf(',');
+      const base64 = comma >= 0 ? result.slice(comma + 1) : result;
+      resolve({ data: base64, name: file.name, size: file.size, type: file.type });
+    };
+    reader.onerror = () => reject(reader.error ?? new Error(`Failed to read file "${file.name}"`));
+    reader.readAsDataURL(file);
+  });
+}
+
+function ForgeFilePicker({ label, description, testId, onChange }: {
+  label?: string;
+  description?: string;
+  testId?: string;
+  onChange?: (files: SerializedFile[]) => void | Promise<void>;
+}) {
+  const inputRef = React.useRef<HTMLInputElement>(null);
+  const [dragOver, setDragOver] = React.useState(false);
+
+  const emitFiles = async (fileList: FileList | null) => {
+    if (!onChange || !fileList || fileList.length === 0) return;
+    const files = await Promise.all(Array.from(fileList).map(fileToSerialized));
+    await onChange(files);
+  };
+
+  return (
+    <div
+      data-testid={testId}
+      role="button"
+      tabIndex={0}
+      onClick={(e) => {
+        // The hidden input's own click bubbles back up here — ignore it,
+        // or we'd re-trigger the file dialog in a loop.
+        if (e.target === inputRef.current) return;
+        inputRef.current?.click();
+      }}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          inputRef.current?.click();
+        }
+      }}
+      onDragOver={(e) => {
+        e.preventDefault();
+        setDragOver(true);
+      }}
+      onDragLeave={() => setDragOver(false)}
+      onDrop={(e) => {
+        e.preventDefault();
+        setDragOver(false);
+        void emitFiles(e.dataTransfer?.files ?? null);
+      }}
+      style={{
+        border: `2px dashed ${dragOver ? '#0052cc' : '#dfe1e6'}`,
+        background: dragOver ? '#e9f2ff' : 'transparent',
+        borderRadius: '8px',
+        padding: '24px',
+        textAlign: 'center',
+        cursor: 'pointer',
+        transition: 'border-color 0.2s, background 0.2s',
+      }}
+    >
+      <div style={{ fontSize: '24px', marginBottom: '8px' }}>📎</div>
+      <div style={{ fontSize: '14px', fontWeight: 500, color: '#172b4d' }}>
+        {label ?? 'Choose files'}
+      </div>
+      {description && (
+        <div style={{ fontSize: '12px', color: '#6b778c', marginTop: '4px' }}>{description}</div>
+      )}
+      <input
+        ref={inputRef}
+        type="file"
+        multiple
+        data-testid={testId ? `${testId}--input` : undefined}
+        onChange={(e) => {
+          void emitFiles(e.target.files);
+          // Allow re-selecting the same file
+          e.target.value = '';
+        }}
+        style={{ display: 'none' }}
+      />
+    </div>
+  );
+}
+
 // ── Chart wrapper for consistent Atlaskit-like styling ──────────────────
 
 function ChartWrapper({ title, subtitle, width, height, showBorder, children }: {
@@ -306,6 +419,114 @@ function CheckboxGroupWrapper({ name, options, value, defaultValue, isDisabled, 
         />
       ))}
     </>
+  );
+}
+
+// ── UserPicker (Forge) ──────────────────────────────────────────────────
+
+/**
+ * Real Forge renders UserPicker against Atlassian's internal user directory
+ * service. The sim's closest analog is the product API user search endpoint —
+ * mock-first (`forge_mock_routes` on `GET /rest/api/3/user/search`) with
+ * real-API fallback when credentials are connected. An unmocked, offline sim
+ * behaves like an empty user directory rather than erroring.
+ *
+ * Forge onChange payload shape (UserPickerValue):
+ *   { id, type, avatarUrl, name, email }
+ */
+function ForgeUserPicker({ name, label, description, placeholder, isRequired, isMulti, defaultValue, onChange }: {
+  name: string;
+  label?: string;
+  description?: string;
+  placeholder?: string;
+  isRequired?: boolean;
+  isMulti?: boolean;
+  defaultValue?: string | string[];
+  onChange?: (user: any) => void;
+}) {
+  const fieldId = `user-picker-${name}`;
+  const [defaultOptions, setDefaultOptions] = React.useState<OptionData[] | undefined>(undefined);
+
+  const toOption = (u: any): OptionData & { email?: string } => ({
+    id: u.accountId ?? u.id ?? '',
+    name: u.displayName ?? u.name ?? u.accountId ?? 'Unknown user',
+    type: 'user',
+    avatarUrl: u.avatarUrls?.['48x48'] ?? u.avatarUrl,
+    email: u.emailAddress ?? u.email,
+  });
+
+  const loadOptions = React.useCallback(async (query?: string): Promise<OptionData[]> => {
+    try {
+      const res = await requestJira(`/rest/api/3/user/search?query=${encodeURIComponent(query ?? '')}`);
+      const users = await res.json();
+      return Array.isArray(users) ? users.map(toOption) : [];
+    } catch {
+      // No mock route and no real API — behave like an empty directory
+      return [];
+    }
+  }, []);
+
+  // defaultValue is account ID(s); hydrate to option objects via user lookup
+  React.useEffect(() => {
+    if (defaultValue == null) return;
+    const ids = Array.isArray(defaultValue) ? defaultValue : [defaultValue];
+    let cancelled = false;
+    (async () => {
+      const opts: OptionData[] = [];
+      for (const id of ids) {
+        try {
+          const res = await requestJira(`/rest/api/3/user?accountId=${encodeURIComponent(id)}`);
+          const user = await res.json();
+          if (user && (user.accountId || user.id)) opts.push(toOption(user));
+        } catch {
+          // Unresolvable ID — show it raw rather than dropping it silently
+          opts.push({ id, name: id, type: 'user' });
+        }
+      }
+      if (!cancelled && opts.length > 0) setDefaultOptions(opts);
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const toForgeValue = (v: any) =>
+    v == null ? v : {
+      id: v.id ?? '',
+      type: v.type ?? 'user',
+      avatarUrl: v.avatarUrl ?? '',
+      name: v.name ?? '',
+      email: v.email ?? '',
+    };
+
+  const handleChange = (value: UserPickerSelectValue) => {
+    if (Array.isArray(value)) onChange?.(value.map(toForgeValue));
+    else onChange?.(toForgeValue(value));
+  };
+
+  return (
+    <div data-forge-user-picker={name}>
+      {label && (
+        <label htmlFor={fieldId} style={{ fontSize: '14px', fontWeight: 600, color: '#172b4d' }}>
+          {label}
+          {isRequired && <span style={{ color: '#de350b', paddingLeft: '2px' }} aria-hidden="true">*</span>}
+        </label>
+      )}
+      <IntlProvider locale="en">
+        <AkUserPicker
+          // defaultValue is only read on mount — remount once ID hydration lands
+          key={defaultOptions ? `${fieldId}-hydrated` : fieldId}
+          fieldId={fieldId}
+          loadOptions={loadOptions}
+          defaultValue={isMulti ? defaultOptions : defaultOptions?.[0]}
+          onChange={handleChange}
+          isMulti={isMulti}
+          placeholder={placeholder}
+        />
+      </IntlProvider>
+      {description && (
+        <div style={{ fontSize: '12px', color: '#6b778c', marginTop: '4px' }}>{description}</div>
+      )}
+    </div>
   );
 }
 
@@ -441,6 +662,11 @@ export const COMPONENT_MAP: Record<string, ComponentRenderer> = {
     const compiledXcss = rawXcss && typeof rawXcss === 'object' ? xcss(rawXcss) : rawXcss;
     return <Pressable onClick={rest.onClick} xcss={compiledXcss}>{children}</Pressable>;
   },
+  Bleed: (props, children) => (
+    <Bleed all={props.all} inline={props.inline} block={props.block} testId={props.testId}>
+      {children}
+    </Bleed>
+  ),
 
   // ── Typography ──────────────────────────────────────────────────────
   Text: (props, children) => {
@@ -670,6 +896,18 @@ export const COMPONENT_MAP: Record<string, ComponentRenderer> = {
       onChange={props.onChange}
     />
   ),
+  UserPicker: (props) => (
+    <ForgeUserPicker
+      name={props.name}
+      label={props.label}
+      description={props.description}
+      placeholder={props.placeholder}
+      isRequired={props.isRequired}
+      isMulti={props.isMulti}
+      defaultValue={props.defaultValue}
+      onChange={props.onChange}
+    />
+  ),
 
   // ── Form helpers ────────────────────────────────────────────────────
   Label: (props, children) => (
@@ -752,6 +990,59 @@ export const COMPONENT_MAP: Record<string, ComponentRenderer> = {
       appearance={props.appearance}
       icon={<span />}
       id={props.id ?? 'flag'}
+    />
+  ),
+
+  // ── Navigation ──────────────────────────────────────────────────────
+  Breadcrumbs: (props, children) => (
+    <Breadcrumbs
+      defaultExpanded={props.defaultExpanded}
+      isExpanded={props.isExpanded}
+      maxItems={props.maxItems}
+      itemsBeforeCollapse={props.itemsBeforeCollapse}
+      itemsAfterCollapse={props.itemsAfterCollapse}
+      // Forge signature is () => void; drop Atlaskit's (event, analyticsEvent)
+      // args so nothing unserializable crosses the function-prop bridge.
+      onExpand={props.onExpand ? () => props.onExpand() : undefined}
+      label={props.label}
+      ellipsisLabel={props.ellipsisLabel}
+      testId={props.testId}
+    >
+      {children}
+    </Breadcrumbs>
+  ),
+  BreadcrumbsItem: (props) => {
+    // iconBefore/iconAfter are ADS glyph name strings in Forge; resolve via
+    // the same registry the Icon component uses.
+    const resolveIcon = (glyph?: string): React.ReactElement | undefined => {
+      if (!glyph) return undefined;
+      const IconComponent = iconRegistry[glyph];
+      return IconComponent ? <IconComponent label="" /> : undefined;
+    };
+    return (
+      <BreadcrumbsItem
+        text={props.text ?? ''}
+        href={props.href}
+        iconBefore={resolveIcon(props.iconBefore)}
+        iconAfter={resolveIcon(props.iconAfter)}
+        testId={props.testId}
+      />
+    );
+  },
+  Pagination: (props) => (
+    <Pagination
+      pages={props.pages ?? []}
+      defaultSelectedIndex={props.defaultSelectedIndex}
+      selectedIndex={props.selectedIndex}
+      max={props.max}
+      label={props.label}
+      nextLabel={props.nextLabel}
+      previousLabel={props.previousLabel}
+      pageLabel={props.pageLabel}
+      testId={props.testId}
+      // Forge signature is (page: number) => void; Atlaskit's is
+      // (event, page, analyticsEvent). Forward only the serializable page.
+      onChange={props.onChange ? (_e: unknown, page: unknown) => props.onChange(page) : undefined}
     />
   ),
   InlineDialog: (props, children) => (
@@ -879,7 +1170,11 @@ export const COMPONENT_MAP: Record<string, ComponentRenderer> = {
     </Modal>
   ),
   ModalHeader: (_props, children) => <ModalHeader>{children}</ModalHeader>,
-  ModalTitle: (_props, children) => <ModalTitle>{children}</ModalTitle>,
+  ModalTitle: (props, children) => (
+    <ModalTitle appearance={props.appearance} isMultiline={props.isMultiline} testId={props.testId}>
+      {children}
+    </ModalTitle>
+  ),
   ModalBody: (_props, children) => <ModalBody>{children}</ModalBody>,
   ModalFooter: (_props, children) => <ModalFooter>{children}</ModalFooter>,
   ModalTransition: (_props, children) => <ModalTransition>{children}</ModalTransition>,
@@ -953,15 +1248,18 @@ export const COMPONENT_MAP: Record<string, ComponentRenderer> = {
 
   // ── File components ─────────────────────────────────────────────────
   FileCard: (props) => (
-    <div style={{
-      border: '1px solid #dfe1e6',
-      borderRadius: '8px',
-      padding: '12px 16px',
-      display: 'flex',
-      alignItems: 'center',
-      gap: '12px',
-      background: props.error ? '#ffebe6' : '#fff',
-    }}>
+    <div
+      data-testid={props.testId}
+      style={{
+        border: '1px solid #dfe1e6',
+        borderRadius: '8px',
+        padding: '12px 16px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '12px',
+        background: props.error ? '#ffebe6' : '#fff',
+      }}
+    >
       <div style={{
         width: '36px',
         height: '36px',
@@ -981,6 +1279,27 @@ export const COMPONENT_MAP: Record<string, ComponentRenderer> = {
         <div style={{ fontSize: '12px', color: '#6b778c' }}>
           {[props.fileType, formatFileSize(props.fileSize)].filter(Boolean).join(' · ')}
         </div>
+        {props.isUploading && props.uploadProgress != null && (
+          <div
+            data-testid={props.testId ? `${props.testId}--progress` : undefined}
+            role="progressbar"
+            aria-valuenow={Math.round(Math.min(Math.max(props.uploadProgress, 0), 1) * 100)}
+            style={{
+              marginTop: '6px',
+              height: '4px',
+              borderRadius: '2px',
+              background: '#dfe1e6',
+              overflow: 'hidden',
+            }}
+          >
+            <div style={{
+              height: '100%',
+              width: `${Math.min(Math.max(props.uploadProgress, 0), 1) * 100}%`,
+              background: '#0052cc',
+              transition: 'width 0.2s',
+            }} />
+          </div>
+        )}
         {props.error && (
           <div style={{ fontSize: '12px', color: '#de350b', marginTop: '4px' }}>{props.error}</div>
         )}
@@ -999,33 +1318,12 @@ export const COMPONENT_MAP: Record<string, ComponentRenderer> = {
     </div>
   ),
   FilePicker: (props) => (
-    <div style={{
-      border: '2px dashed #dfe1e6',
-      borderRadius: '8px',
-      padding: '24px',
-      textAlign: 'center',
-      cursor: 'pointer',
-      transition: 'border-color 0.2s',
-    }}>
-      <div style={{ fontSize: '24px', marginBottom: '8px' }}>📎</div>
-      <div style={{ fontSize: '14px', fontWeight: 500, color: '#172b4d' }}>
-        {props.label ?? 'Choose files'}
-      </div>
-      {props.description && (
-        <div style={{ fontSize: '12px', color: '#6b778c', marginTop: '4px' }}>{props.description}</div>
-      )}
-      <input
-        type="file"
-        multiple
-        onChange={(e) => {
-          if (props.onChange && e.target.files) {
-            // In real usage, files would be serialized — here we just signal the event
-            props.onChange([]);
-          }
-        }}
-        style={{ display: 'none' }}
-      />
-    </div>
+    <ForgeFilePicker
+      label={props.label}
+      description={props.description}
+      testId={props.testId}
+      onChange={props.onChange}
+    />
   ),
 
   // ── Editors (@atlaskit/editor-core) ─────────────────────────────────

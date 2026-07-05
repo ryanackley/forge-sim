@@ -67,6 +67,9 @@ import ForgeReconciler, {
   LineChart,
   PieChart,
   DonutChart,
+  StackBarChart,
+  HorizontalBarChart,
+  HorizontalStackBarChart,
 
   // Additional
   Popup,
@@ -76,7 +79,18 @@ import ForgeReconciler, {
   Strong,
   User,
   UserGroup,
+  UserPicker,
   Tile,
+  AtlassianTile,
+  AtlassianIcon,
+  Comment,
+  Pressable,
+  Bleed,
+  Breadcrumbs,
+  BreadcrumbsItem,
+  Pagination,
+  FileCard,
+  FilePicker,
 
   // Editors & ADF
   ChromelessEditor,
@@ -148,6 +162,22 @@ const categoryData = [
   { key: 'Marketing', value: 15 },
   { key: 'Sales', value: 12 },
   { key: 'Support', value: 8 },
+];
+
+// Stacked chart data: quarterly revenue split by product line
+const stackedRevenueData = [
+  { quarter: 'Q1', value: 12000, product: 'Cloud' },
+  { quarter: 'Q1', value: 8000, product: 'Server' },
+  { quarter: 'Q1', value: 5000, product: 'Marketplace' },
+  { quarter: 'Q2', value: 15000, product: 'Cloud' },
+  { quarter: 'Q2', value: 7000, product: 'Server' },
+  { quarter: 'Q2', value: 6500, product: 'Marketplace' },
+  { quarter: 'Q3', value: 19000, product: 'Cloud' },
+  { quarter: 'Q3', value: 5500, product: 'Server' },
+  { quarter: 'Q3', value: 8000, product: 'Marketplace' },
+  { quarter: 'Q4', value: 24000, product: 'Cloud' },
+  { quarter: 'Q4', value: 4000, product: 'Server' },
+  { quarter: 'Q4', value: 9500, product: 'Marketplace' },
 ];
 
 // ─── DynamicTable Data ──────────────────────────────────────────
@@ -238,6 +268,9 @@ const App = () => {
   const [timeValue, setTimeValue] = useState('');
   const [loadingBtn, setLoadingBtn] = useState(false);
   const [inlineEditValue, setInlineEditValue] = useState('Blargh!');
+  const [standaloneRadio, setStandaloneRadio] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pressCount, setPressCount] = useState(0);
 
   const context = useProductContext();
 
@@ -378,7 +411,17 @@ console.log(result);`} />
                 value={radioValue}
                 onChange={(e) => setRadioValue(e.target.value)}
               />
-               
+
+              {/* Standalone Radio (outside a RadioGroup) */}
+              <Label labelFor="standalone-radio">Standalone Radio</Label>
+              <Radio
+                name="standalone-radio"
+                value="standalone"
+                label="I agree to the terms"
+                isChecked={standaloneRadio}
+                onChange={() => setStandaloneRadio(!standaloneRadio)}
+              />
+
 
               {/* 6. Label → Range → HelperMessage */}
               <Label labelFor="range">Range</Label>
@@ -510,6 +553,16 @@ console.log(result);`} />
           <Tooltip content="This is a tooltip! Hover or focus to see it.">
             <Button appearance="subtle">Hover me for tooltip</Button>
           </Tooltip>
+
+          <Text>Comment:</Text>
+          <Comment
+            author={{ text: 'Alice Chen' }}
+            time={{ text: 'Jun 30, 2026' }}
+            type="author"
+            edited="Edited"
+            actions={[{ text: 'Reply' }, { text: 'Like' }]}
+            content={<Text>This kitchen sink is looking great! The new components render beautifully.</Text>}
+          />
         </Stack>
       </Box>
 
@@ -598,6 +651,24 @@ console.log(result);`} />
               </Button>
             )}
           />
+
+          <Text>Bleed (negative margin — the inner box escapes its parent's padding):</Text>
+          <Box xcss={{ padding: 'space.200', backgroundColor: 'color.background.accent.yellow.subtler' }}>
+            <Bleed inline="space.200">
+              <Box xcss={{ padding: 'space.100', backgroundColor: 'color.background.accent.magenta.subtler' }}>
+                <Text>This content bleeds horizontally past the parent padding.</Text>
+              </Box>
+            </Bleed>
+          </Box>
+
+          <Text>Pressable (clickable primitive):</Text>
+          <Pressable
+            onClick={() => setPressCount(pressCount + 1)}
+            backgroundColor="color.background.accent.blue.subtler"
+            padding="space.150"
+          >
+            <Text>Press me — clicked {String(pressCount)} times</Text>
+          </Pressable>
         </Stack>
       </Box>
 
@@ -670,6 +741,20 @@ console.log(result);`} />
 
           <Text>Progress Tracker:</Text>
           <ProgressTracker items={trackerStages} />
+
+          <Text>Breadcrumbs:</Text>
+          <Breadcrumbs>
+            <BreadcrumbsItem href="#" text="Projects" />
+            <BreadcrumbsItem href="#" text="Forge Apps" />
+            <BreadcrumbsItem text="Kitchen Sink" />
+          </Breadcrumbs>
+
+          <Text>Pagination (page {String(currentPage)} selected):</Text>
+          <Pagination
+            pages={[1, 2, 3, 4, 5, 6, 7]}
+            selectedIndex={currentPage - 1}
+            onChange={(page: number) => setCurrentPage(page)}
+          />
         </Stack>
       </Box>
 
@@ -740,6 +825,21 @@ console.log(result);`} />
               <DonutChart data={categoryData} colorAccessor="key" valueAccessor="value" labelAccessor="key" height={250} />
             </Stack>
           </Inline>
+
+          <Stack space="space.100">
+            <Heading as="h4">Quarterly Revenue by Product (Stack Bar Chart)</Heading>
+            <StackBarChart data={stackedRevenueData} xAccessor="quarter" yAccessor="value" colorAccessor="product" height={250} />
+          </Stack>
+
+          <Stack space="space.100">
+            <Heading as="h4">Monthly Revenue (Horizontal Bar Chart)</Heading>
+            <HorizontalBarChart data={revenueData} xAccessor="key" yAccessor="value" height={250} />
+          </Stack>
+
+          <Stack space="space.100">
+            <Heading as="h4">Quarterly Revenue by Product (Horizontal Stack Bar Chart)</Heading>
+            <HorizontalStackBarChart data={stackedRevenueData} xAccessor="quarter" yAccessor="value" colorAccessor="product" height={250} />
+          </Stack>
         </Stack>
       </Box>
 
@@ -767,6 +867,14 @@ console.log(result);`} />
           >
             📊
           </Tile>
+
+          <Text>User Picker:</Text>
+          <UserPicker
+            label="Assignee"
+            placeholder="Search for a user..."
+            name="assignee"
+            onChange={(user: any) => console.log('user picked:', user)}
+          />
         </Stack>
       </Box>
 
@@ -880,6 +988,71 @@ console.log(result);`} />
           />
         </Stack>
       </Box>
+
+      {/* ── 15. Atlassian Tiles & Icons ── */}
+      <Box xcss={xcssSection}>
+        <Stack space="space.200">
+          <SectionHeader title="15. Atlassian Tiles" />
+
+          <Text>AtlassianTile (work-type tiles):</Text>
+          <Inline space="space.100" alignBlock="center">
+            <AtlassianTile glyph="bug" size="medium" />
+            <AtlassianTile glyph="task" size="medium" />
+            <AtlassianTile glyph="story" size="medium" />
+            <AtlassianTile glyph="epic" size="medium" />
+            <AtlassianTile glyph="idea" size="medium" />
+          </Inline>
+
+          <Text>AtlassianTile sizes + bold:</Text>
+          <Inline space="space.100" alignBlock="center">
+            <AtlassianTile glyph="task" size="xsmall" />
+            <AtlassianTile glyph="task" size="small" />
+            <AtlassianTile glyph="task" size="medium" />
+            <AtlassianTile glyph="task" size="large" isBold />
+            <AtlassianTile glyph="task" size="xlarge" isBold />
+          </Inline>
+
+          <Text>AtlassianIcon:</Text>
+          <Inline space="space.100" alignBlock="center">
+            <AtlassianIcon glyph="bug" size="small" />
+            <AtlassianIcon glyph="story" size="medium" />
+            <AtlassianIcon glyph="epic" size="medium" />
+          </Inline>
+        </Stack>
+      </Box>
+
+      {/* ── 16. Files ── */}
+      <Box xcss={xcssSection}>
+        <Stack space="space.200">
+          <SectionHeader title="16. Files" />
+
+          <Text>FileCard:</Text>
+          <Inline space="space.100">
+            <FileCard fileName="quarterly-report.pdf" fileSize={2457600} fileType="application/pdf" />
+            <FileCard fileName="team-photo.png" fileSize={891200} fileType="image/png" />
+            <FileCard fileName="upload-in-progress.zip" fileSize={10485760} fileType="application/zip" isUploading uploadProgress={0.6} />
+          </Inline>
+
+          <Text>FilePicker:</Text>
+          <FilePicker
+            label="Attachments"
+            description="Drop files here or click to browse"
+            onChange={(files: any[]) => console.log('files picked:', files.map((f) => f.name))}
+          />
+        </Stack>
+      </Box>
+
+      {/*
+        Deliberately NOT included:
+        - Frame: takes a `resource` manifest key (loads a Custom UI resource) —
+          needs a second resource in the manifest; our map impl also currently
+          reads `props.url` instead of `resource` (circle-back item).
+        - Global, ContentWrapper, CustomFieldEdit: page-type / context-specific
+          containers that don't render meaningfully inside a standalone page.
+        - InlineDialog, Table/Head/Row/Cell, Flag: UIKit 1 ghosts — NOT exported
+          by @forge/react 12. Importing them would fail at build time. Popup and
+          DynamicTable are the UIKit 2 replacements (rendered above).
+      */}
 
       {/* ── Footer ── */}
       <Box xcss={{ padding: 'space.200', backgroundColor: 'elevation.surface.sunken' }}>

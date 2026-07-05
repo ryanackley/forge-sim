@@ -1,8 +1,11 @@
 /**
  * Tests for view.createHistory() — memory history implementation.
  *
- * Covers the history v5 interface used by react-router and Custom UI apps:
- * push, replace, go, back, forward, listen, block, createHref, location.
+ * Parity note: real Forge's bridge history follows the history v4 runtime
+ * contract — `listen((location, action) => void)`, `goBack()`/`goForward()`.
+ * @forge/react's Router and @forge/bridge's createHistory wrapper both depend
+ * on it (the wrapper does `history.listen((location) => { ... })`). We expose
+ * v5 method names (back/forward) too since @forge/bridge's .d.ts promises them.
  */
 
 import { describe, it, expect, vi } from 'vitest';
@@ -132,6 +135,20 @@ describe('createMemoryHistory', () => {
       expect(history.location.pathname).toBe('/b');
     });
 
+    it('goBack()/goForward() (v4 names) navigate like back()/forward()', () => {
+      const history = createMemoryHistory();
+      history.push('/a');
+      history.push('/b');
+      history.goBack();
+      expect(history.location.pathname).toBe('/a');
+      history.goBack();
+      expect(history.location.pathname).toBe('/');
+      history.goForward();
+      expect(history.location.pathname).toBe('/a');
+      history.goForward();
+      expect(history.location.pathname).toBe('/b');
+    });
+
     it('go() clamps to bounds', () => {
       const history = createMemoryHistory();
       history.push('/a');
@@ -166,10 +183,11 @@ describe('createMemoryHistory', () => {
 
       history.push('/a');
       expect(listener).toHaveBeenCalledTimes(1);
-      expect(listener).toHaveBeenCalledWith({
-        action: 'PUSH',
-        location: expect.objectContaining({ pathname: '/a' }),
-      });
+      // v4 contract: fn(location, action)
+      expect(listener).toHaveBeenCalledWith(
+        expect.objectContaining({ pathname: '/a' }),
+        'PUSH',
+      );
     });
 
     it('notifies on replace', () => {
@@ -178,10 +196,10 @@ describe('createMemoryHistory', () => {
       history.listen(listener);
 
       history.replace('/a');
-      expect(listener).toHaveBeenCalledWith({
-        action: 'REPLACE',
-        location: expect.objectContaining({ pathname: '/a' }),
-      });
+      expect(listener).toHaveBeenCalledWith(
+        expect.objectContaining({ pathname: '/a' }),
+        'REPLACE',
+      );
     });
 
     it('notifies on back/forward with POP action', () => {
@@ -193,10 +211,10 @@ describe('createMemoryHistory', () => {
       history.listen(listener);
 
       history.back();
-      expect(listener).toHaveBeenCalledWith({
-        action: 'POP',
-        location: expect.objectContaining({ pathname: '/a' }),
-      });
+      expect(listener).toHaveBeenCalledWith(
+        expect.objectContaining({ pathname: '/a' }),
+        'POP',
+      );
     });
 
     it('unlisten stops notifications', () => {
@@ -314,8 +332,9 @@ describe('createMemoryHistory', () => {
       const history = createMemoryHistory();
       const locations: string[] = [];
 
-      // Simulate what react-router does
-      history.listen(({ location }) => {
+      // Simulate what a router does with the v4 listener contract:
+      // fn(location, action) — same shape @forge/react's Router consumes.
+      history.listen((location) => {
         locations.push(location.pathname);
       });
 

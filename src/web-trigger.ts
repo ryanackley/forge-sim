@@ -34,6 +34,7 @@ function buildForgeRequest(
   req: IncomingMessage,
   triggerKey: string,
   body: string,
+  userPath: string,
 ): Record<string, any> {
   const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`);
 
@@ -53,7 +54,11 @@ function buildForgeRequest(
 
   return {
     method: req.method ?? 'GET',
+    // `path` keeps the full pathname incl. the trigger prefix (matches Forge,
+    // where it includes /x1/<id>). `userPath` is only the suffix the caller
+    // appended after the trigger URL — "" when the bare URL was hit (WTR-007).
     path: url.pathname,
+    userPath,
     headers,
     queryParameters,
     body,
@@ -98,11 +103,34 @@ export function createWebTriggerHandler(config: WebTriggerConfig) {
     res: ServerResponse,
     pathname: string,
   ): Promise<boolean> => {
-    // Extract trigger key from path: /__trigger/<key> or /__trigger/<key>/extra/path
-    const match = pathname.match(/^\/__trigger\/([^/]+)(\/.*)?$/);
-    if (!match) return false;
+    // Two invocation styles:
+    //   1. Legacy dev route:   /__trigger/<moduleKey>[/user/path]
+    //   2. Managed URL routes: /x1/<id>[/user/path] (v1) and
+    //                          /public/<id>[/user/path] (v2)
+    //      where <id> was minted by webTrigger.getUrl() (WebTriggerUrlRegistry).
+    let triggerKey: string | undefined;
+    let userPath = '';
 
-    const triggerKey = match[1];
+    const legacyMatch = pathname.match(/^\/__trigger\/([^/]+)(\/.*)?$/);
+    const managedMatch = pathname.match(/^\/(?:x1|public)\/([^/]+)(\/.*)?$/);
+
+    if (legacyMatch) {
+      triggerKey = legacyMatch[1];
+      userPath = legacyMatch[2] ?? '';
+    } else if (managedMatch) {
+      const id = managedMatch[1];
+      userPath = managedMatch[2] ?? '';
+      triggerKey = simulator.webTriggerUrls.resolveId(id);
+      if (!triggerKey) {
+        // Unknown or deleted URL — must NOT invoke the handler (WTR-004).
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Web trigger URL not found or deleted' }));
+        return true;
+      }
+    } else {
+      return false;
+    }
+
     const trigger = triggerMap.get(triggerKey);
 
     if (!trigger) {
@@ -139,14 +167,67 @@ export function createWebTriggerHandler(config: WebTriggerConfig) {
 
     try {
       const body = await readBody(req);
-      const forgeRequest = buildForgeRequest(req, triggerKey, body);
+      const forgeRequest = buildForgeRequest(req, triggerKey, body, userPath);
       const context = buildWebTriggerContext(simulator, triggerKey);
 
       // Call with Forge web trigger convention: (request, context) as two args
       const result = await (handler as Function)(forgeRequest, context);
 
-      // Map Forge response to HTTP response
-      const statusCode = result?.statusCode ?? 200;
+      // ── Static response mode (WTR-011) ────────────────────────────────
+      // When the manifest declares response.type: static, the handler
+      // returns { outputKey } and the HTTP response comes from the
+      // matching configured output. Unknown outputKey → 500.
+      if (trigger.responseType === 'static') {
+        const outputKey = result?.outputKey;
+        const output = (trigger.outputs ?? []).find((o) => o.key === outputKey);
+        if (!output) {
+          res.writeHead(500, {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',
+          });
+          res.end(JSON.stringify({
+            error: `Web trigger "${triggerKey}" returned unknown outputKey "${outputKey}"`,
+            available: (trigger.outputs ?? []).map((o) => o.key),
+          }));
+          console.log(`[forge-sim] [webtrigger] ${req.method} ${pathname} → 500 (unknown outputKey)`);
+          return true;
+        }
+        res.writeHead(output.statusCode, {
+          'Content-Type': output.contentType ?? 'text/plain',
+          'Access-Control-Allow-Origin': '*',
+        });
+        res.end(output.body ?? '');
+        console.log(`[forge-sim] [webtrigger] ${req.method} ${pathname} → ${output.statusCode} (static output "${output.key}")`);
+        return true;
+      }
+
+      // ── Dynamic response mode (default) ───────────────────────────────
+      // WTR-009: the handler result must match the documented response
+      // shape — an object with a numeric statusCode. Anything else (bare
+      // string, undefined, missing/non-numeric statusCode) → 500, matching
+      // real Forge, which rejects malformed results rather than guessing.
+      if (
+        result === null ||
+        typeof result !== 'object' ||
+        Array.isArray(result) ||
+        typeof result.statusCode !== 'number'
+      ) {
+        res.writeHead(500, {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+        });
+        res.end(JSON.stringify({
+          error: `Web trigger "${triggerKey}" returned an invalid response: expected { statusCode: number, headers?, body? }`,
+        }));
+        console.error(
+          `[forge-sim] [webtrigger] ${req.method} ${pathname} → 500 (invalid handler response: ${
+            result === undefined ? 'undefined' : JSON.stringify(result)?.slice(0, 200)
+          })`,
+        );
+        return true;
+      }
+
+      const statusCode = result.statusCode;
       const responseHeaders: Record<string, string> = {
         'Access-Control-Allow-Origin': '*',
       };
@@ -170,7 +251,7 @@ export function createWebTriggerHandler(config: WebTriggerConfig) {
       res.writeHead(statusCode, responseHeaders);
       res.end(result?.body ?? '');
 
-      console.log(`[forge-sim] [webtrigger] ${req.method} /__trigger/${triggerKey} → ${statusCode}`);
+      console.log(`[forge-sim] [webtrigger] ${req.method} ${pathname} → ${statusCode}`);
     } catch (err: any) {
       console.error(`[forge-sim] [webtrigger] ${triggerKey} threw: ${err.message}`);
       res.writeHead(500, {

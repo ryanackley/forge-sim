@@ -1,0 +1,17 @@
+modules:
+  jira:issuePanel:
+    - key: router-panel
+      resource: main
+      render: native
+      title: Router Panel
+      icon: https://example.com/icon.svg
+
+resources:
+  - key: main
+    path: src/frontend.tsx
+
+app:
+  id: ari:cloud:ecosystem::app/router-panel-test
+  name: Router Panel Test
+  runtime:
+    name: nodejs22.x

@@ -1,0 +1,15 @@
+modules:
+  jira:issuePanel:
+    - key: raw-html-panel
+      resource: main
+      render: native
+      title: Raw HTML Panel
+      icon: https://example.com/icon.svg
+
+resources:
+  - key: main
+    path: src/frontend.tsx
+
+app:
+  id: ari:cloud:ecosystem::app/raw-html-panel-test
+  name: Raw HTML Panel Test

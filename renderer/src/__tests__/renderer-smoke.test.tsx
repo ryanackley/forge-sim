@@ -7,7 +7,7 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import React from 'react';
 import AppProvider from '@atlaskit/app-provider';
 import { ForgeDocRenderer } from '../ForgeDocRenderer';
@@ -106,6 +106,15 @@ describe('ForgeDocRenderer smoke tests', () => {
         ]),
       );
       expect(screen.getByText('inline content')).toBeInTheDocument();
+    });
+
+    it('Bleed renders children', () => {
+      renderDoc(
+        makeDoc('Bleed', { all: 'space.100' }, [
+          makeDoc('String', { text: 'bled content' }),
+        ]),
+      );
+      expect(screen.getByText('bled content')).toBeInTheDocument();
     });
 
     it('Text renders with content prop', () => {
@@ -535,6 +544,56 @@ describe('ForgeDocRenderer smoke tests', () => {
 
   // ── Modal ────────────────────────────────────────────────────────────
 
+  // ── Navigation ───────────────────────────────────────────────────────
+
+  describe('Navigation', () => {
+    it('Breadcrumbs renders BreadcrumbsItem children', () => {
+      renderDoc(
+        makeDoc('Breadcrumbs', {}, [
+          makeDoc('BreadcrumbsItem', { text: 'Projects', href: '/projects' }),
+          makeDoc('BreadcrumbsItem', { text: 'My Project' }),
+        ]),
+      );
+      expect(screen.getByText('Projects')).toBeInTheDocument();
+      expect(screen.getByText('My Project')).toBeInTheDocument();
+      // href passes through to the anchor
+      expect(screen.getByText('Projects').closest('a')).toHaveAttribute('href', '/projects');
+    });
+
+    it('BreadcrumbsItem resolves iconBefore glyph name via icon registry', () => {
+      const { container } = renderDoc(
+        makeDoc('Breadcrumbs', {}, [
+          makeDoc('BreadcrumbsItem', { text: 'With icon', iconBefore: 'add' }),
+        ]),
+      );
+      expect(screen.getByText('With icon')).toBeInTheDocument();
+      // Forge passes ADS glyph name strings; the mapping resolves them to a
+      // real icon element (SVG), not the raw string.
+      expect(container.querySelector('svg')).toBeInTheDocument();
+      expect(screen.queryByText('add')).not.toBeInTheDocument();
+    });
+
+    it('Pagination renders page buttons', () => {
+      renderDoc(
+        makeDoc('Pagination', { pages: [1, 2, 3], nextLabel: 'Next', previousLabel: 'Previous' }),
+      );
+      expect(screen.getByText('1')).toBeInTheDocument();
+      expect(screen.getByText('2')).toBeInTheDocument();
+      expect(screen.getByText('3')).toBeInTheDocument();
+    });
+
+    it('Pagination onChange adapts Atlaskit (event, page) to Forge (page)', () => {
+      const onChange = vi.fn();
+      renderDoc(
+        makeDoc('Pagination', { pages: [1, 2, 3], onChange }),
+      );
+      fireEvent.click(screen.getByText('2'));
+      // Forge signature is (page: number) => void — no synthetic event leaks
+      expect(onChange).toHaveBeenCalledTimes(1);
+      expect(onChange).toHaveBeenCalledWith(2);
+    });
+  });
+
   describe('Modal', () => {
     it('Modal with header, body, footer renders', () => {
       renderDoc(
@@ -579,6 +638,24 @@ describe('ForgeDocRenderer smoke tests', () => {
       );
       expect(screen.getByText('Confirm Delete')).toBeInTheDocument();
       expect(screen.getByText('Are you sure?')).toBeInTheDocument();
+    });
+
+    it('ModalTitle passes appearance and isMultiline through to Atlaskit', () => {
+      renderDoc(
+        makeDoc('Modal', {}, [
+          makeDoc('ModalHeader', {}, [
+            makeDoc('ModalTitle', { appearance: 'danger', isMultiline: true, testId: 'mt-danger' }, [
+              makeDoc('String', { text: 'Danger Title' }),
+            ]),
+          ]),
+        ]),
+      );
+      expect(screen.getByText('Danger Title')).toBeInTheDocument();
+      // testId pass-through proves the props reach the real Atlaskit ModalTitle
+      const title = screen.getByTestId('mt-danger');
+      expect(title).toBeInTheDocument();
+      // appearance='danger' renders a status icon (SVG) alongside the title
+      expect(title.querySelector('svg')).toBeTruthy();
     });
 
     it('Modal without title still renders children-only (no spurious header)', () => {
@@ -847,6 +924,28 @@ describe('ForgeDocRenderer smoke tests', () => {
       // AvatarGroup renders the group container
       expect(container.firstChild).toBeTruthy();
     });
+
+    it('UserPicker renders label, description, and picker', () => {
+      const { container } = renderDoc(
+        makeDoc('UserPicker', {
+          name: 'assignee',
+          label: 'Assignee',
+          description: 'Pick a user',
+          placeholder: 'Search users…',
+        }),
+      );
+      expect(screen.getByText('Assignee')).toBeInTheDocument();
+      expect(screen.getByText('Pick a user')).toBeInTheDocument();
+      expect(container.querySelector('[data-forge-user-picker="assignee"]')).toBeInTheDocument();
+    });
+
+    it('UserPicker shows required asterisk when isRequired', () => {
+      renderDoc(
+        makeDoc('UserPicker', { name: 'reviewer', label: 'Reviewer', isRequired: true }),
+      );
+      expect(screen.getByText('Reviewer')).toBeInTheDocument();
+      expect(screen.getByText('*')).toBeInTheDocument();
+    });
   });
 
   // ── Tiles ────────────────────────────────────────────────────────────
@@ -899,6 +998,99 @@ describe('ForgeDocRenderer smoke tests', () => {
       );
       expect(screen.getByText('Upload files')).toBeInTheDocument();
       expect(screen.getByText('Max 10MB')).toBeInTheDocument();
+    });
+
+    it('FilePicker fires onChange with SerializedFile shape on file selection', async () => {
+      const onChange = vi.fn();
+      const { container } = renderDoc(
+        makeDoc('FilePicker', { label: 'Upload', testId: 'picker', onChange }),
+      );
+      const input = container.querySelector(
+        '[data-testid="picker--input"]',
+      ) as HTMLInputElement;
+      expect(input).not.toBeNull();
+      expect(input.type).toBe('file');
+
+      const file = new File(['hello'], 'notes.txt', { type: 'text/plain' });
+      fireEvent.change(input, { target: { files: [file] } });
+
+      // FileReader is async — the SerializedFile lands after a tick
+      await waitFor(() => expect(onChange).toHaveBeenCalledTimes(1));
+      expect(onChange).toHaveBeenCalledWith([
+        {
+          // Plain base64, no "data:...;base64," prefix — real bridge feeds
+          // this straight into atob()
+          data: btoa('hello'),
+          name: 'notes.txt',
+          size: 5,
+          type: 'text/plain',
+        },
+      ]);
+    });
+
+    it('FilePicker drop zone click triggers the hidden file input', () => {
+      const { container } = renderDoc(
+        makeDoc('FilePicker', { label: 'Upload', testId: 'picker' }),
+      );
+      const zone = container.querySelector('[data-testid="picker"]') as HTMLElement;
+      const input = container.querySelector(
+        '[data-testid="picker--input"]',
+      ) as HTMLInputElement;
+      const clickSpy = vi.spyOn(input, 'click');
+      fireEvent.click(zone);
+      expect(clickSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('FilePicker handles dropped files', async () => {
+      const onChange = vi.fn();
+      const { container } = renderDoc(
+        makeDoc('FilePicker', { testId: 'picker', onChange }),
+      );
+      const zone = container.querySelector('[data-testid="picker"]') as HTMLElement;
+      const file = new File(['dropped'], 'drop.bin', {
+        type: 'application/octet-stream',
+      });
+      fireEvent.drop(zone, { dataTransfer: { files: [file] } });
+
+      await waitFor(() => expect(onChange).toHaveBeenCalledTimes(1));
+      const files = onChange.mock.calls[0][0];
+      expect(files).toHaveLength(1);
+      expect(files[0]).toMatchObject({
+        name: 'drop.bin',
+        size: 7,
+        type: 'application/octet-stream',
+      });
+      expect(files[0].data).toBe(btoa('dropped'));
+    });
+
+    it('FileCard renders uploadProgress bar while uploading', () => {
+      const { container } = renderDoc(
+        makeDoc('FileCard', {
+          fileName: 'big.zip',
+          fileSize: 2048,
+          isUploading: true,
+          uploadProgress: 0.5,
+          testId: 'card',
+        }),
+      );
+      expect(container.querySelector('[data-testid="card"]')).not.toBeNull();
+      const bar = container.querySelector('[data-testid="card--progress"]');
+      expect(bar).not.toBeNull();
+      expect(bar!.getAttribute('role')).toBe('progressbar');
+      expect(bar!.getAttribute('aria-valuenow')).toBe('50');
+      const fill = bar!.firstElementChild as HTMLElement;
+      expect(fill.style.width).toBe('50%');
+    });
+
+    it('FileCard hides progress bar when not uploading', () => {
+      const { container } = renderDoc(
+        makeDoc('FileCard', {
+          fileName: 'done.zip',
+          uploadProgress: 1,
+          testId: 'card',
+        }),
+      );
+      expect(container.querySelector('[data-testid="card--progress"]')).toBeNull();
     });
   });
 

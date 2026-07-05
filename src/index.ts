@@ -122,6 +122,9 @@ export type {
 // Dev server (live preview)
 export { createDevServer, type DevServer, type DevServerOptions, type DevEvent } from './dev-server.js';
 export { createWebTriggerHandler, getWebTriggerUrl, type WebTriggerConfig } from './web-trigger.js';
+export { WebTriggerUrlRegistry, type WebTriggerUrlRecord } from './web-trigger-urls.js';
+export { VariablesManager, FORGE_USER_VAR_PREFIX, VARIABLES_FILE } from './variables.js';
+export type { ForgeVariable, VariableInput, VariableListEntry } from './variables.js';
 
 export type {
   ParsedManifest,
@@ -129,6 +132,8 @@ export type {
   ManifestConsumer,
   ManifestTrigger,
   ManifestScheduledTrigger,
+  ManifestWebTrigger,
+  ManifestWebTriggerOutput,
   ManifestUIModule,
 } from './manifest.js';
 
@@ -139,3 +144,5 @@ export { SimulatedLLM, LlmApiError } from './llm.js';
 export type { LlmPrompt, LlmResponse, LlmStreamResponse, LlmMessage, LlmChoice, LlmTool, LlmToolCall, ModelListResponse, ModelInfo, MockLlmResponse } from './llm.js';
 export { SimulatedRealtime } from './realtime.js';
 export type { RealtimePayload, PublishOptions, PublishResult, SubscriptionOptions, Subscription, RealtimeCallback, TokenResult, PublishListener } from './realtime.js';
+export { SimulatedObjectStore, ObjectStoreError, computeChecksum } from './object-store.js';
+export type { UploadUrlBody, PresignedUrlResponse, ObjectReference, ObjectStoreOptions, CDNUrlOptions, ChecksumType, ObjectStoreDump } from './object-store.js';

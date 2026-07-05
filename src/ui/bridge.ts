@@ -12,6 +12,7 @@
  */
 
 import type { ForgeSimulator } from '../simulator.js';
+import { isRawHtmlType } from './html-elements.js';
 
 // ── Types ───────────────────────────────────────────────────────────────
 
@@ -33,16 +34,25 @@ import type { ForgeContext } from '../context.js';
 
 // ── State ───────────────────────────────────────────────────────────────
 
+interface RenderWaiter {
+  resolve: (doc: ForgeDoc) => void;
+  reject: (err: Error) => void;
+}
+
 let simulator: ForgeSimulator | null = null;
 let latestForgeDoc: ForgeDoc | null = null;
-let renderResolvers: Array<(doc: ForgeDoc) => void> = [];
+let renderResolvers: RenderWaiter[] = [];
 let renderListeners: Array<(doc: ForgeDoc) => void> = [];
 // Macro inline config — second tree emitted by ForgeReconciler.addConfig().
 // Tracked separately from the main view tree so headless tests can render
 // both without confusion.
 let latestMacroConfigDoc: ForgeDoc | null = null;
-let macroConfigRenderResolvers: Array<(doc: ForgeDoc) => void> = [];
+let macroConfigRenderResolvers: RenderWaiter[] = [];
 let macroConfigRenderListeners: Array<(doc: ForgeDoc) => void> = [];
+// Set when a reconcile is rejected (raw HTML, UIK-003). Cleared by the next
+// successful reconcile. simulator-ui.render() consumes this to throw even
+// when its waitForRender promise wasn't directly awaited (N9 race paths).
+let latestRenderError: Error | null = null;
 const bridgeCalls: BridgeCall[] = [];
 let tornDown = false;
 let currentForgeContext: ForgeContext | null = null;
@@ -70,21 +80,82 @@ let activeCaptureModuleKey: string | null = null;
 // sending devs on red-herring debugging trips.
 const modulesThatUseConfig = new Set<string>();
 
+// ── Raw HTML rejection (spec UIK-003) ───────────────────────────────────
+//
+// Real Forge UI Kit cannot render arbitrary HTML: apps are restricted to
+// components exported from '@forge/react', and a host element like <div>
+// surfaces a render error instead of the app. The sim must match — silently
+// passing raw HTML through would give false confidence that dies in prod.
+//
+// Detection: a ForgeDoc type that is a known HTML/SVG/MathML tag, or a
+// custom element (hyphenated name, per the HTML spec) — see
+// html-elements.ts. In headless mode (test API + MCP) this is a HARD FAIL:
+// pending waitForRender promises reject with UIKitRawHtmlError and
+// sim.ui.render() throws. The dev-server browser shim (dev-command.ts)
+// instead shows a visual error panel — right UX for each surface.
+
+/** Thrown when a UI Kit render contains raw HTML host elements (UIK-003). */
+export class UIKitRawHtmlError extends Error {
+  constructor(public readonly rawTags: string[]) {
+    super(
+      `UI Kit does not support raw HTML elements (found: ` +
+      `${rawTags.map((t) => `<${t}>`).join(', ')}). Apps are restricted to ` +
+      `components exported from '@forge/react' — real Forge rejects this render.`
+    );
+    this.name = 'UIKitRawHtmlError';
+  }
+}
+
+function collectRawHtmlTypes(doc: ForgeDoc, found: Set<string> = new Set()): Set<string> {
+  if (isRawHtmlType(doc.type)) {
+    found.add(doc.type);
+  }
+  for (const child of doc.children ?? []) {
+    collectRawHtmlTypes(child, found);
+  }
+  return found;
+}
+
 // ── Bridge command handlers ─────────────────────────────────────────────
 
 async function handleReconcile(data: any): Promise<void> {
   if (!data?.forgeDoc) return;
+
+  const isMacroConfig = data.forgeDoc.type === 'MacroConfig';
+
+  // Parity (UIK-003): HARD FAIL on raw HTML host elements. The doc is not
+  // published — pending waiters reject, and the error is recorded so
+  // sim.ui.render() throws even if no waiter was pending.
+  const rawTypes = collectRawHtmlTypes(data.forgeDoc);
+  if (rawTypes.size > 0) {
+    const error = new UIKitRawHtmlError([...rawTypes]);
+    console.error(
+      `[forge-sim] UI Kit render rejected: raw HTML element(s) ` +
+      `${error.rawTags.map((t) => `<${t}>`).join(', ')} are not supported. ` +
+      `UI Kit apps may only render components exported from '@forge/react'. ` +
+      `Real Forge fails this render — fix the app, don't rely on passthrough.`
+    );
+    latestRenderError = error;
+    const waiters = isMacroConfig ? macroConfigRenderResolvers : renderResolvers;
+    if (isMacroConfig) macroConfigRenderResolvers = [];
+    else renderResolvers = [];
+    for (const { reject } of waiters) {
+      reject(error);
+    }
+    return;
+  }
+  latestRenderError = null;
 
   // The reconciler emits two roots when a macro uses inline config:
   //   - { type: 'Root' }        from ForgeReconciler.render(<App />)
   //   - { type: 'MacroConfig' } from ForgeReconciler.addConfig(<Config />)
   // Route them to separate listener pools so headless tests can subscribe
   // to each tree independently — same shape as the browser bridge shim.
-  if (data.forgeDoc.type === 'MacroConfig') {
+  if (isMacroConfig) {
     latestMacroConfigDoc = data.forgeDoc;
     const resolvers = macroConfigRenderResolvers;
     macroConfigRenderResolvers = [];
-    for (const resolve of resolvers) {
+    for (const { resolve } of resolvers) {
       resolve(latestMacroConfigDoc!);
     }
     for (const listener of macroConfigRenderListeners) {
@@ -96,7 +167,7 @@ async function handleReconcile(data: any): Promise<void> {
   latestForgeDoc = data.forgeDoc;
   const resolvers = renderResolvers;
   renderResolvers = [];
-  for (const resolve of resolvers) {
+  for (const { resolve } of resolvers) {
     resolve(latestForgeDoc!);
   }
   // Notify persistent listeners (e.g., dev server)
@@ -176,11 +247,33 @@ async function handleEventSubscribe(): Promise<{ unsubscribe: () => void }> {
 /**
  * Listeners registered via history.listen().
  * Notified by notifyHistoryListeners() when location changes.
+ *
+ * Parity: real Forge's bridge history uses the history v4 listener signature
+ * (location, action) — NOT v5's ({action, location}). @forge/react's Router
+ * and @forge/bridge's createHistory wrapper both destructure the first arg
+ * as the location, so v5-style notify breaks Route matching after navigation.
  */
-type HistoryListener = (update: { action: string; location: any }) => void;
+type HistoryListener = (location: any, action: string) => void;
 const historyListeners: HistoryListener[] = [];
-let currentHistoryLocation: any = { pathname: '/', search: '', hash: '', state: null, key: 'default' };
+const initialHistoryLocation = () => ({ pathname: '/', search: '', hash: '', state: null, key: 'default' });
+let currentHistoryLocation: any = initialHistoryLocation();
 let currentHistoryAction = 'POP';
+
+// In-memory entries stack for the no-WS (headless/MCP) path — makes
+// go()/goBack()/goForward() actually navigate instead of silently no-oping,
+// so @forge/react/router's useNavigate(-1) works in headless renders.
+// In WS-proxy mode the browser's real history owns the stack instead.
+let historyEntries: any[] = [initialHistoryLocation()];
+let historyIndex = 0;
+
+/** Reset headless history state (called from resetBridge). */
+function resetHistoryState(): void {
+  historyListeners.length = 0;
+  historyEntries = [initialHistoryLocation()];
+  historyIndex = 0;
+  currentHistoryLocation = historyEntries[0];
+  currentHistoryAction = 'POP';
+}
 
 /**
  * Called by the dev server when the browser sends a history navigation event
@@ -190,7 +283,7 @@ export function notifyHistoryListeners(action: string, location: any): void {
   currentHistoryAction = action;
   currentHistoryLocation = location;
   for (const fn of historyListeners) {
-    try { fn({ action, location }); } catch (e) { console.error(e); }
+    try { fn(location, action); } catch (e) { console.error(e); }
   }
 }
 
@@ -208,6 +301,11 @@ async function handleCreateHistory(): Promise<any> {
   const history = {
     get action() { return currentHistoryAction; },
     get location() { return currentHistoryLocation; },
+    // No-op setter: @forge/bridge's createHistory wrapper assigns
+    // `history.location = location` inside its own listen callback. The
+    // getter above is already live, so the assignment is redundant — but
+    // without a setter it would throw in strict-mode callers.
+    set location(_loc: any) { /* getter is live */ },
 
     createHref(to: string | Record<string, any>): string {
       if (typeof to === 'string') return to;
@@ -218,10 +316,13 @@ async function handleCreateHistory(): Promise<any> {
       if (historyWsSender) {
         await historyWsSender('history.push', { to, state });
       } else {
-        // No WS connection (e.g., MCP/headless mode) — update in-memory
-        currentHistoryLocation = parseTo(to, state);
-        currentHistoryAction = 'PUSH';
-        notifyHistoryListeners('PUSH', currentHistoryLocation);
+        // No WS connection (e.g., MCP/headless mode) — update in-memory.
+        // Truncate the forward stack, then push (browser history semantics).
+        const loc = parseTo(to, state);
+        historyEntries.splice(historyIndex + 1);
+        historyEntries.push(loc);
+        historyIndex = historyEntries.length - 1;
+        notifyHistoryListeners('PUSH', loc);
       }
     },
 
@@ -229,18 +330,27 @@ async function handleCreateHistory(): Promise<any> {
       if (historyWsSender) {
         await historyWsSender('history.replace', { to, state });
       } else {
-        currentHistoryLocation = parseTo(to, state);
-        currentHistoryAction = 'REPLACE';
-        notifyHistoryListeners('REPLACE', currentHistoryLocation);
+        const loc = parseTo(to, state);
+        historyEntries[historyIndex] = loc;
+        notifyHistoryListeners('REPLACE', loc);
       }
     },
 
     async go(delta: number): Promise<void> {
       if (historyWsSender) {
         await historyWsSender('history.go', { delta });
+      } else {
+        const nextIndex = Math.max(0, Math.min(historyEntries.length - 1, historyIndex + delta));
+        if (nextIndex === historyIndex) return;
+        historyIndex = nextIndex;
+        notifyHistoryListeners('POP', historyEntries[historyIndex]);
       }
     },
 
+    // v4 names (the documented Forge contract)
+    goBack(): void { history.go(-1); },
+    goForward(): void { history.go(1); },
+    // v5 names (what @forge/bridge's .d.ts promises)
     back(): void { history.go(-1); },
     forward(): void { history.go(1); },
 
@@ -286,6 +396,9 @@ const HANDLERS: Record<string, (data: any) => Promise<any>> = {
   // @forge/bridge's events.on dispatches via callBridge('on', ...).
   on: handleEventSubscribe,
   onPublic: handleEventSubscribe,
+  // Object Store analytics — real @forge/bridge fire-and-forgets this before
+  // every objectStore.* call. No-op so it never rejects or warns.
+  trackObjectStoreAction: async () => undefined,
 };
 
 function callBridge(cmd: string, data?: any): any {
@@ -359,18 +472,37 @@ export function getLatestMacroConfigDoc(): ForgeDoc | null {
   return latestMacroConfigDoc;
 }
 
-/** Wait for the next render (reconcile bridge call). */
+/**
+ * Wait for the next render (reconcile bridge call).
+ *
+ * Rejects with {@link UIKitRawHtmlError} if the render contains raw HTML
+ * host elements (UIK-003) — hard fail, matching real Forge.
+ */
 export function waitForRender(): Promise<ForgeDoc> {
-  return new Promise((resolve) => {
-    renderResolvers.push(resolve);
+  return new Promise((resolve, reject) => {
+    renderResolvers.push({ resolve, reject });
   });
 }
 
-/** Wait for the next MacroConfig render (from ForgeReconciler.addConfig). */
+/**
+ * Wait for the next MacroConfig render (from ForgeReconciler.addConfig).
+ * Rejects with {@link UIKitRawHtmlError} on raw HTML (UIK-003).
+ */
 export function waitForMacroConfigRender(): Promise<ForgeDoc> {
-  return new Promise((resolve) => {
-    macroConfigRenderResolvers.push(resolve);
+  return new Promise((resolve, reject) => {
+    macroConfigRenderResolvers.push({ resolve, reject });
   });
+}
+
+/**
+ * Consume the most recent render error (UIK-003 hard fail), if any.
+ * Returns the error once and clears it. Used by simulator-ui.render() to
+ * throw even when its waitForRender promise wasn't the awaited path.
+ */
+export function consumeRenderError(): Error | null {
+  const err = latestRenderError;
+  latestRenderError = null;
+  return err;
 }
 
 /** Get all bridge calls made so far. */
@@ -406,10 +538,12 @@ export function resetBridge(): void {
   tornDown = true;
   latestForgeDoc = null;
   latestMacroConfigDoc = null;
+  latestRenderError = null;
   renderResolvers = [];
   macroConfigRenderResolvers = [];
   bridgeCalls.length = 0;
   currentForgeContext = null;
+  resetHistoryState();
 }
 
 // ── Captured render element API (N9 workaround) ─────────────────────────

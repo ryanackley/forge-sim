@@ -9,7 +9,14 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 // Bridge must be installed BEFORE any @forge/react or @forge/bridge imports
-import { installBridge, connectSimulator, getLatestForgeDoc, waitForRender, resetBridge } from '../ui/bridge.js';
+import {
+  installBridge,
+  connectSimulator,
+  getLatestForgeDoc,
+  waitForRender,
+  resetBridge,
+  UIKitRawHtmlError,
+} from '../ui/bridge.js';
 installBridge();
 
 import { createSimulator, ForgeSimulator } from '../simulator.js';
@@ -54,7 +61,7 @@ describe('UI ↔ Simulator Integration', () => {
     const renderPromise = waitForRender();
     
     // Import the UI app (triggers ForgeReconciler.render())
-    await import('../../test-app/src/ui-app.js');
+    await import('./fixtures/test-app/src/ui-app.js');
     
     // First render shows "Loading..."
     let doc = await renderPromise;
@@ -91,7 +98,7 @@ describe('UI ↔ Simulator Integration', () => {
 
     // Load app and wait for data
     const renderPromise = waitForRender();
-    await import('../../test-app/src/ui-app.js');
+    await import('./fixtures/test-app/src/ui-app.js');
     await renderPromise;
     const firstDataRender = await waitForRender();
 
@@ -116,5 +123,44 @@ describe('UI ↔ Simulator Integration', () => {
     // Views should now be 2
     expect(text).toContain('2');
     expect(await sim.kvs.get('views:TEST-1')).toBe(2);
+  });
+
+  it('hard-fails on raw HTML elements (UIK-003)', async () => {
+    // Real Forge UI Kit cannot render host elements like <div> — apps are
+    // restricted to '@forge/react' components. In headless mode (test API +
+    // MCP) the sim HARD FAILS: waitForRender rejects with UIKitRawHtmlError
+    // and no ForgeDoc is published. (The dev server shows a visual error
+    // panel instead — see dev-command.ts.)
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const renderPromise = waitForRender();
+      await import('./fixtures/test-app/src/raw-html-app.js');
+
+      let caught: unknown;
+      try {
+        await renderPromise;
+      } catch (e) {
+        caught = e;
+      }
+
+      // Typed, actionable error — names the offending tags
+      expect(caught).toBeInstanceOf(UIKitRawHtmlError);
+      const err = caught as UIKitRawHtmlError;
+      expect(err.rawTags).toEqual(['div']);
+      expect(err.message).toContain('UI Kit does not support raw HTML elements');
+      expect(err.message).toContain('<div>');
+
+      // The doc was never published — no silent passthrough
+      expect(getLatestForgeDoc()).toBeNull();
+
+      // And logged loudly for the dev
+      expect(
+        errorSpy.mock.calls.some((args) =>
+          String(args[0]).includes('raw HTML element(s) <div>')
+        )
+      ).toBe(true);
+    } finally {
+      errorSpy.mockRestore();
+    }
   });
 });

@@ -31,6 +31,7 @@ import {
   setActiveCaptureModule,
   replayCapturedRender,
   moduleUsesConfig,
+  consumeRenderError,
 } from './bridge.js';
 import { buildForgeContext, type ForgeContext, type RenderContextOptions } from '../context.js';
 import {
@@ -688,7 +689,16 @@ export class SimulatorUI {
     try {
       // Set up a render listener BEFORE the import, so we don't miss the
       // reconcile if it fires synchronously during evaluation.
-      const renderPromise = waitForRender();
+      //
+      // The waiter can REJECT (UIK-003 raw HTML hard fail). It isn't always
+      // awaited (cached-bundle paths skip the race below), so capture the
+      // error instead of letting an unhandled rejection escape — the
+      // consumeRenderError() check after the import turns it into a throw.
+      let renderError: Error | null = null;
+      const renderPromise = waitForRender().catch((e: Error) => {
+        renderError = e;
+        return null as unknown as ForgeDoc;
+      });
 
       // Import the frontend module — this triggers ForgeReconciler.render()
       // which produces a ForgeDoc via the bridge.
@@ -716,6 +726,16 @@ export class SimulatorUI {
           renderPromise,
           new Promise<void>(resolve => setTimeout(resolve, replayed ? 200 : 100)),
         ]);
+      }
+
+      // UIK-003 hard fail: if the reconcile was rejected (raw HTML host
+      // elements), surface it as a throw from render() — the doc was never
+      // published, so returning null here would just be a confusing hang
+      // for the caller. Covers both the awaited-waiter path (renderError)
+      // and paths where the waiter wasn't racing (consumeRenderError).
+      const rawHtmlError = renderError ?? consumeRenderError();
+      if (rawHtmlError) {
+        throw rawHtmlError;
       }
     } finally {
       // Stop attributing further render() captures to this module — protects
@@ -796,10 +816,15 @@ export class SimulatorUI {
     // Give it a moment to land if it hasn't yet.
     if (!this.macroConfigDocs.has(moduleKey)) {
       const { waitForMacroConfigRender } = await import('./bridge.js');
+      // The waiter can reject (UIK-003 raw HTML). If the timeout wins the
+      // race first, a later rejection must not escape as an unhandled
+      // rejection — capture it and rethrow synchronously when raced.
+      let configRenderError: Error | null = null;
       await Promise.race([
-        waitForMacroConfigRender(),
+        waitForMacroConfigRender().catch((e: Error) => { configRenderError = e; }),
         new Promise<void>(resolve => setTimeout(resolve, 100)),
       ]);
+      if (configRenderError) throw configRenderError;
     }
 
     const doc = this.macroConfigDocs.get(moduleKey);

@@ -16,6 +16,14 @@
  *   forge:kvs_get       — Get a value from KVS
  *   forge:kvs_list      — List/dump KVS contents
  *   forge:kvs_set       — Set a value in KVS (for test setup)
+ *   forge:objectstore_list   — List Object Store objects (metadata)
+ *   forge:objectstore_get    — Get object metadata + content (utf-8 or base64)
+ *   forge:objectstore_put    — Seed an object directly (test setup)
+ *   forge:objectstore_delete — Delete an object by key
+ *   forge:objectstore_create_download_url — Pre-signed download URL (curl-able, Range-capable)
+ *   forge:variables_set   — Set ephemeral env variables (take effect at next deploy)
+ *   forge:variables_unset — Remove an ephemeral env variable
+ *   forge:variables_list  — List all env variables (encrypted values masked)
  *   forge:queue_push    — Push events to a queue
  *   forge:queue_state   — Inspect queue job state and event log
  *   forge:logs          — Get simulator + console logs
@@ -626,6 +634,202 @@ server.tool(
     await sim.kvs.set(key, value);
     return {
       content: [{ type: 'text' as const, text: `✅ Set "${key}"` }],
+    };
+  }
+);
+
+// ── Object Store tools ──────────────────────────────────────────────────
+
+const MCP_OBJECT_CONTENT_CAP = 64 * 1024; // 64 kB of content per response
+
+function isTextualContentType(contentType: string): boolean {
+  return /^text\/|[+/](json|xml)|^application\/(json|xml|javascript|x-www-form-urlencoded)/i.test(contentType);
+}
+
+server.tool(
+  'forge.objectstore_list',
+  'List all Object Store objects (metadata only). Optionally filter by bucket ("default" or "cdn").',
+  {
+    bucket: z.enum(['default', 'cdn']).optional().describe('Only show objects in this bucket'),
+  },
+  async ({ bucket }) => {
+    const objects = sim.objectStore.listObjects(bucket);
+    return {
+      content: [{
+        type: 'text' as const,
+        text: JSON.stringify({
+          count: objects.length,
+          objects: objects.map((o) => ({
+            key: o.key,
+            bucket: o.bucket,
+            size: o.size,
+            contentType: o.contentType,
+            checksumType: o.checksumType,
+            currentVersion: o.currentVersion,
+            createdAt: new Date(o.createdAt).toISOString(),
+            updatedAt: new Date(o.updatedAt).toISOString(),
+            expiresAt: new Date(o.expiresAt).toISOString(),
+          })),
+        }, null, 2),
+      }],
+    };
+  }
+);
+
+server.tool(
+  'forge.objectstore_get',
+  'Get an Object Store object — metadata plus content. Textual content types are returned as UTF-8, everything else as base64. Content is capped at 64 kB (truncated flag set if larger).',
+  {
+    key: z.string().describe('Object key'),
+    cdn: z.boolean().optional().describe('Read from the CDN bucket instead of default'),
+  },
+  async ({ key, cdn }) => {
+    const ref = await sim.objectStore.get(key, { cdn });
+    const content = sim.objectStore.getObjectContent(key, { cdn });
+    if (!ref || !content) {
+      return {
+        content: [{ type: 'text' as const, text: `Object "${key}" not found${cdn ? ' (cdn bucket)' : ''}` }],
+        isError: true,
+      };
+    }
+    const textual = isTextualContentType(content.contentType);
+    const truncated = content.buffer.length > MCP_OBJECT_CONTENT_CAP;
+    const slice = truncated ? content.buffer.subarray(0, MCP_OBJECT_CONTENT_CAP) : content.buffer;
+    return {
+      content: [{
+        type: 'text' as const,
+        text: JSON.stringify({
+          ...ref,
+          contentType: content.contentType,
+          encoding: textual ? 'utf-8' : 'base64',
+          truncated,
+          data: textual ? slice.toString('utf-8') : slice.toString('base64'),
+        }, null, 2),
+      }],
+    };
+  }
+);
+
+server.tool(
+  'forge.objectstore_put',
+  'Seed an Object Store object directly (test setup). Bypasses the pre-signed URL flow.',
+  {
+    key: z.string().describe('Object key'),
+    data: z.string().describe('Object content (UTF-8 text, or base64 with isBase64: true)'),
+    isBase64: z.boolean().optional().describe('Treat data as base64-encoded binary (default: false)'),
+    contentType: z.string().optional().describe('Content type (default: application/octet-stream)'),
+    cdn: z.boolean().optional().describe('Store in the CDN bucket instead of default'),
+    ttlSeconds: z.number().optional().describe('Object TTL in seconds (default: 90 days)'),
+  },
+  async ({ key, data, isBase64, contentType, cdn, ttlSeconds }) => {
+    const buffer = isBase64 ? Buffer.from(data, 'base64') : Buffer.from(data, 'utf-8');
+    const ref = sim.objectStore.seedObject({ key, data: buffer, contentType, cdn, ttlSeconds });
+    return {
+      content: [{ type: 'text' as const, text: JSON.stringify({ seeded: true, ...ref }, null, 2) }],
+    };
+  }
+);
+
+server.tool(
+  'forge.objectstore_delete',
+  'Delete an Object Store object by key. Deleting an absent key succeeds (matches Forge).',
+  {
+    key: z.string().describe('Object key to delete'),
+    cdn: z.boolean().optional().describe('Delete from the CDN bucket instead of default'),
+  },
+  async ({ key, cdn }) => {
+    await sim.objectStore.delete(key, { cdn });
+    return {
+      content: [{ type: 'text' as const, text: `✅ Deleted "${key}"${cdn ? ' (cdn bucket)' : ''}` }],
+    };
+  }
+);
+
+server.tool(
+  'forge.objectstore_create_download_url',
+  'Create a pre-signed download URL for an object (valid 1 hour). Useful for fetching a blob with curl, including Range requests.',
+  {
+    key: z.string().describe('Object key'),
+    cdn: z.boolean().optional().describe('Use the CDN bucket instead of default'),
+  },
+  async ({ key, cdn }) => {
+    const res = await sim.objectStore.createDownloadUrl(key, { cdn });
+    if (!res) {
+      return {
+        content: [{ type: 'text' as const, text: `Object "${key}" not found${cdn ? ' (cdn bucket)' : ''} — no URL created` }],
+        isError: true,
+      };
+    }
+    return {
+      content: [{ type: 'text' as const, text: JSON.stringify({ key, url: res.url, expiresIn: '1h' }, null, 2) }],
+    };
+  }
+);
+
+server.tool(
+  'forge.variables_set',
+  'Set environment variables (ephemeral — never written to disk). Like real Forge (`forge variables set`), values reach process.env at the NEXT deploy — set them before calling forge.deploy. Values: plain string, or { value, encrypt } (encrypt only masks the value in list output; the app still reads cleartext, matching Forge).',
+  {
+    variables: z.record(
+      z.string(),
+      z.union([
+        z.string(),
+        z.object({
+          value: z.string().describe('Variable value'),
+          encrypt: z.boolean().optional().describe('Mask this value in list surfaces (Forge --encrypt parity)'),
+        }),
+      ])
+    ).describe('Map of KEY → value'),
+  },
+  async ({ variables }) => {
+    try {
+      sim.setVariables(variables as Record<string, any>);
+      const keys = Object.keys(variables);
+      return {
+        content: [{
+          type: 'text' as const,
+          text: `✅ Set ${keys.length} variable(s): ${keys.join(', ')}\n⚠️ Like real Forge, variables take effect at the next deploy — call forge.deploy (reset:false preserves other state) if the app is already deployed.`,
+        }],
+      };
+    } catch (err) {
+      return {
+        content: [{ type: 'text' as const, text: `❌ ${err instanceof Error ? err.message : String(err)}` }],
+        isError: true,
+      };
+    }
+  }
+);
+
+server.tool(
+  'forge.variables_unset',
+  'Remove an ephemeral environment variable. Takes effect at the next deploy (Forge parity).',
+  {
+    key: z.string().describe('Variable key to remove'),
+  },
+  async ({ key }) => {
+    const existed = sim.unsetVariable(key);
+    return {
+      content: [{
+        type: 'text' as const,
+        text: existed
+          ? `✅ Unset "${key}" — takes effect at the next deploy.`
+          : `Variable "${key}" was not set (only ephemeral variables can be unset here — file vars live in .forge-sim/variables.json).`,
+      }],
+    };
+  }
+);
+
+server.tool(
+  'forge.variables_list',
+  'List all environment variables from every source (host FORGE_USER_VAR_*, .forge-sim/variables.json, ephemeral). Encrypted values are masked, mirroring `forge variables list`.',
+  {},
+  async () => {
+    const entries = sim.listVariables();
+    if (entries.length === 0) {
+      return { content: [{ type: 'text' as const, text: 'No environment variables set.' }] };
+    }
+    return {
+      content: [{ type: 'text' as const, text: JSON.stringify(entries, null, 2) }],
     };
   }
 );

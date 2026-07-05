@@ -45,7 +45,7 @@ For MCP clients that support stdio servers, add to your `.mcp.json`:
 ## Tools
 
 <!-- BEGIN:STATS_COMPACT -->
-1,819 tests · 31 MCP tools · 4 MCP resources
+2,029 tests · 39 MCP tools · 4 MCP resources
 <!-- END:STATS_COMPACT -->
 
 | Tool | Description |
@@ -62,6 +62,14 @@ For MCP clients that support stdio servers, add to your `.mcp.json`:
 | `forge.kvs_get` | Get a KVS value by key |
 | `forge.kvs_set` | Set a KVS value (for test setup) |
 | `forge.kvs_list` | List/dump KVS contents (optional prefix filter) |
+| `forge.objectstore_list` | List Object Store objects (metadata, optional bucket filter) |
+| `forge.objectstore_get` | Get object metadata + content (utf-8 or base64, 64 kB cap) |
+| `forge.objectstore_put` | Seed an object directly (test setup) |
+| `forge.objectstore_delete` | Delete an object by key |
+| `forge.objectstore_create_download_url` | Pre-signed download URL (curl-able, Range-capable) |
+| `forge.variables_set` | Set ephemeral env variables — take effect at next deploy (Forge parity) |
+| `forge.variables_unset` | Remove an ephemeral env variable |
+| `forge.variables_list` | List env variables from all sources (encrypted values masked) |
 | `forge.queue_push` | Push events to a queue |
 | `forge.queue_state` | Inspect queue jobs and event log |
 | `forge.logs` | Get simulator + captured console.* logs |

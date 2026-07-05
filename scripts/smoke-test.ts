@@ -8,7 +8,7 @@ import { getLatestForgeDoc, resetBridge } from '../src/ui/bridge.js';
 import { prettyPrint } from '../src/ui/doc-utils.js';
 import { resolve } from 'node:path';
 
-const TEST_APP = resolve(import.meta.dirname, '..', 'test-app');
+const TEST_APP = resolve(import.meta.dirname, '..', 'src/__tests__/fixtures/test-app');
 
 async function main() {
   console.log('🔧 Creating simulator...');

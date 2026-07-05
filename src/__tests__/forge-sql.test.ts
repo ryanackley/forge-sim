@@ -244,4 +244,41 @@ describe('SimulatedForgeSQL', () => {
       expect(freshSim.sql.isRunning).toBe(false);
     });
   });
+
+  // ── FK parity (spec SQL-015) ──────────────────────────────────────────
+  //
+  // Forge SQL runs on TiDB: FOREIGN KEY DDL is parsed and accepted but the
+  // constraints are NOT enforced (no referential checks, no cascades). The
+  // sim must match — MySQL's default enforcement would reject data flows
+  // that work fine on the real platform.
+
+  describe('Foreign keys are parsed but not enforced (TiDB parity)', () => {
+    it('accepts FK DDL and allows rows that violate the constraint', async () => {
+      await sim.sql.query(
+        'CREATE TABLE fk_parent (id INT PRIMARY KEY)'
+      );
+      await sim.sql.query(
+        `CREATE TABLE fk_child (
+           id INT PRIMARY KEY,
+           parent_id INT,
+           FOREIGN KEY (parent_id) REFERENCES fk_parent(id) ON DELETE CASCADE
+         )`
+      );
+
+      // Orphan insert: no matching parent row — Forge/TiDB allows this.
+      await sim.sql.query('INSERT INTO fk_child (id, parent_id) VALUES (1, 999)');
+      const orphans = await sim.sql.query<{ id: number }>('SELECT id FROM fk_child WHERE parent_id = 999');
+      expect(orphans).toHaveLength(1);
+    });
+
+    it('does not cascade or block deletes of referenced rows', async () => {
+      await sim.sql.query('INSERT INTO fk_parent (id) VALUES (1)');
+      await sim.sql.query('INSERT INTO fk_child (id, parent_id) VALUES (2, 1)');
+
+      // Deleting the referenced parent succeeds and does NOT cascade.
+      await sim.sql.query('DELETE FROM fk_parent WHERE id = 1');
+      const children = await sim.sql.query<{ id: number }>('SELECT id FROM fk_child WHERE id = 2');
+      expect(children).toHaveLength(1);
+    });
+  });
 });

@@ -17,7 +17,20 @@ function getBridge() {
   return bridge;
 }
 
-// ── Memory History (history v5 compatible) ──────────────────────────────
+// ── Memory History (history v4 semantics) ───────────────────────────────
+//
+// Real Forge's bridge history uses the history v4 runtime contract:
+//   listen((location, action) => void)   — NOT v5's listen(({action, location}))
+//   goBack() / goForward()
+// Source of truth: the createHistory signature in the official view docs, and
+// the @ts-ignore in @forge/react's Router ("the history object returned by
+// the bridge does not conform to the v5 types. Instead it uses v4 types").
+// @forge/bridge's own createHistory wrapper and @forge/react/router both
+// destructure the first listener arg as the location — v5-style notify
+// breaks Route matching after every navigation.
+//
+// We also keep back()/forward() (v5 names): @forge/bridge's .d.ts types the
+// return as history v5's `History`, so TS apps are told those exist.
 
 interface HistoryLocation {
   pathname: string;
@@ -27,17 +40,14 @@ interface HistoryLocation {
   key: string;
 }
 
-interface HistoryUpdate {
-  action: string;
-  location: HistoryLocation;
-}
+type HistoryListener = (location: HistoryLocation, action: string) => void;
 
 function createMemoryHistory(): any {
   const entries: HistoryLocation[] = [
     { pathname: '/', search: '', hash: '', state: null, key: 'default' },
   ];
   let index = 0;
-  let listeners: Array<(update: HistoryUpdate) => void> = [];
+  let listeners: HistoryListener[] = [];
   let blockers: Array<(tx: any) => void> = [];
 
   function generateKey(): string {
@@ -67,9 +77,9 @@ function createMemoryHistory(): any {
   }
 
   function notify(action: string): void {
-    const update = { action, location: entries[index] };
+    const location = entries[index];
     for (const fn of listeners) {
-      try { fn(update); } catch (e) { console.error(e); }
+      try { fn(location, action); } catch (e) { console.error(e); }
     }
   }
 
@@ -113,10 +123,14 @@ function createMemoryHistory(): any {
       notify('POP');
     },
 
+    // v4 names (the documented Forge contract)
+    goBack(): void { history.go(-1); },
+    goForward(): void { history.go(1); },
+    // v5 names (what @forge/bridge's .d.ts promises)
     back(): void { history.go(-1); },
     forward(): void { history.go(1); },
 
-    listen(fn: (update: HistoryUpdate) => void): () => void {
+    listen(fn: HistoryListener): () => void {
       listeners.push(fn);
       return () => { listeners = listeners.filter(l => l !== fn); };
     },
@@ -591,4 +605,277 @@ export const realtime = {
     }
     return rt.publishGlobalFromBridge(channel, payload, options);
   },
+};
+
+// ── Object Store bridge surface ─────────────────────────────────────────
+//
+// Ported from the real @forge/bridge 6.x `out/object-store/*` sources —
+// same validation messages, same result shapes, same checksum-mapping
+// flow. The real implementation is `invoke()` + plain fetch() against
+// pre-signed URLs, so it runs against SimulatedObjectStore's HTTP
+// endpoints unmodified. Node 22 provides Blob/atob/btoa/fetch/
+// crypto.subtle globally, so this works headless in vitest too.
+
+/** Matches @forge/bridge's BridgeAPIError (it's a bare Error subclass). */
+export class BridgeAPIError extends Error {}
+
+const BRIDGE_OBJECT_STORE_RESTRICTED_ENVIRONMENT_ERROR =
+  'Object Store bridge methods are restricted to Forge apps in a non-production environment. For more information please see https://developer.atlassian.com/platform/forge/cli-reference/environments/ for reference on Forge app environments.';
+
+export interface Base64Object {
+  data: string;
+  mimeType?: string;
+}
+
+export interface UploadResult {
+  success: boolean;
+  key: string;
+  status?: number;
+  error?: string;
+}
+
+export interface DownloadResult {
+  success: boolean;
+  key: string;
+  blob?: Blob;
+  status?: number;
+  error?: string;
+}
+
+export interface UploadPromiseItem {
+  promise: Promise<UploadResult>;
+  index: number;
+  objectType?: string;
+  objectSize?: number;
+}
+
+async function checkRestrictedEnvironment(): Promise<void> {
+  const { environmentType } = await view.getContext();
+  if (environmentType === 'PRODUCTION') {
+    throw new BridgeAPIError(BRIDGE_OBJECT_STORE_RESTRICTED_ENVIRONMENT_ERROR);
+  }
+}
+
+function trackObjectStoreAction(action: string): void {
+  // Fire-and-forget analytics call — must never reject the caller.
+  void getBridge().callBridge('trackObjectStoreAction', { action }).catch(() => {});
+}
+
+function base64ToBlob(base64: string, mimeType?: string): Blob {
+  const byteCharacters = atob(base64);
+  const byteNumbers = new Array(byteCharacters.length);
+  for (let i = 0; i < byteCharacters.length; i++) {
+    byteNumbers[i] = byteCharacters.charCodeAt(i);
+  }
+  const byteArray = new Uint8Array(byteNumbers);
+  return new Blob([byteArray], { type: mimeType || 'application/octet-stream' });
+}
+
+async function getUploadObjectMetadata(blob: Blob): Promise<{ length: number; checksum: string; checksumType: 'SHA256' }> {
+  const length = blob.size;
+  const arrayBuffer = await blob.arrayBuffer();
+  const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer);
+  const hashArray = new Uint8Array(hashBuffer);
+  const checksum = btoa(String.fromCharCode(...hashArray));
+  return { length, checksum, checksumType: 'SHA256' };
+}
+
+export async function createUploadPromises({
+  functionKey,
+  objects,
+}: {
+  functionKey: string;
+  objects: Array<Blob | Base64Object>;
+}): Promise<UploadPromiseItem[]> {
+  if (!functionKey || functionKey.length === 0) {
+    throw new BridgeAPIError('functionKey is required to filter and generate presigned URLs');
+  }
+  if (!Array.isArray(objects) || objects.length === 0) {
+    throw new BridgeAPIError('objects array is required and must not be empty');
+  }
+
+  const blobs = objects.map((obj, index) => {
+    if (obj instanceof Blob) return obj;
+    const isBase64Object = obj && typeof obj === 'object' && 'data' in obj && typeof obj.data === 'string';
+    if (!isBase64Object) {
+      throw new BridgeAPIError(
+        `Invalid object type at index ${index}. Only Blob or Base64Object (with data string and optional mimeType) are accepted.`,
+      );
+    }
+    try {
+      return base64ToBlob(obj.data, obj.mimeType);
+    } catch {
+      throw new BridgeAPIError(
+        `Invalid base64 data at index ${index}. The data string must be valid base64 encoded.`,
+      );
+    }
+  });
+
+  const allObjectMetadata = await Promise.all(blobs.map((blob) => getUploadObjectMetadata(blob)));
+
+  const presignedURLsToObjectMetadata = (await invoke(functionKey, { allObjectMetadata })) as
+    | Record<string, { key: string; checksum: string }>
+    | undefined;
+
+  if (!presignedURLsToObjectMetadata || typeof presignedURLsToObjectMetadata !== 'object') {
+    throw new BridgeAPIError('Invalid response from functionKey');
+  }
+
+  const checksumToBlobMap = new Map<string, Blob>();
+  const checksumToIndexMap = new Map<string, number>();
+  blobs.forEach((blob, index) => {
+    const metadata = allObjectMetadata[index];
+    checksumToBlobMap.set(metadata.checksum, blob);
+    checksumToIndexMap.set(metadata.checksum, index);
+  });
+
+  return Object.entries(presignedURLsToObjectMetadata).map(([presignedUrl, metadata]) => {
+    const { key, checksum } = metadata;
+    const object = checksumToBlobMap.get(checksum);
+    const index = checksumToIndexMap.get(checksum);
+    if (index === undefined) {
+      return {
+        promise: Promise.resolve({ success: false, key, error: `Index not found for checksum ${checksum}` }),
+        index: -1,
+      };
+    }
+    if (!object) {
+      return {
+        promise: Promise.resolve({ success: false, key, error: `Blob not found for checksum ${checksum}` }),
+        index,
+      };
+    }
+    const uploadPromise = (async (): Promise<UploadResult> => {
+      try {
+        const response = await fetch(presignedUrl, {
+          method: 'PUT',
+          body: object,
+          headers: {
+            'Content-Type': object.type || 'application/octet-stream',
+            'Content-Length': object.size.toString(),
+          },
+        });
+        return {
+          success: response.ok,
+          key,
+          status: response.status,
+          error: response.ok ? undefined : `Upload failed with status ${response.status}`,
+        };
+      } catch (error) {
+        return {
+          success: false,
+          key,
+          status: 503,
+          error: error instanceof Error ? error.message : 'Upload failed',
+        };
+      }
+    })();
+    return { promise: uploadPromise, index, objectType: object.type, objectSize: object.size };
+  });
+}
+
+async function objectStoreUpload({
+  functionKey,
+  objects,
+}: {
+  functionKey: string;
+  objects: Array<Blob | Base64Object>;
+}): Promise<UploadResult[]> {
+  await checkRestrictedEnvironment();
+  trackObjectStoreAction('upload');
+  const uploadPromises = await createUploadPromises({ functionKey, objects });
+  return Promise.all(uploadPromises.map((item) => item.promise));
+}
+
+async function objectStoreDownload({
+  functionKey,
+  keys,
+}: {
+  functionKey: string;
+  keys: string[];
+}): Promise<DownloadResult[]> {
+  await checkRestrictedEnvironment();
+  trackObjectStoreAction('download');
+  if (!functionKey || functionKey.length === 0) {
+    throw new BridgeAPIError('functionKey is required to filter and generate download URLs');
+  }
+  if (!Array.isArray(keys) || keys.length === 0) {
+    throw new BridgeAPIError('keys array is required and must not be empty');
+  }
+
+  const downloadUrlsToKeys = (await invoke(functionKey, { keys })) as Record<string, string> | undefined;
+  if (!downloadUrlsToKeys || typeof downloadUrlsToKeys !== 'object') {
+    throw new BridgeAPIError('Invalid response from functionKey');
+  }
+
+  return Promise.all(
+    Object.entries(downloadUrlsToKeys).map(async ([downloadUrl, key]): Promise<DownloadResult> => {
+      try {
+        const response = await fetch(downloadUrl, { method: 'GET' });
+        if (!response.ok) {
+          return { success: false, key, status: response.status, error: `Download failed with status ${response.status}` };
+        }
+        const blob = await response.blob();
+        return { success: true, key, blob, status: response.status };
+      } catch (error) {
+        return {
+          success: false,
+          key,
+          status: 503,
+          error: error instanceof Error ? error.message : 'Download failed',
+        };
+      }
+    }),
+  );
+}
+
+async function objectStoreGetMetadata({
+  functionKey,
+  keys,
+}: {
+  functionKey: string;
+  keys: string[];
+}): Promise<Array<Record<string, unknown>>> {
+  await checkRestrictedEnvironment();
+  trackObjectStoreAction('getMetadata');
+  if (!functionKey || functionKey.length === 0) {
+    throw new BridgeAPIError('functionKey is required to filter and generate object metadata');
+  }
+  if (!Array.isArray(keys) || keys.length === 0) {
+    throw new BridgeAPIError('keys array is required and must not be empty');
+  }
+  return Promise.all(
+    keys.map(async (key) => {
+      const result = await invoke(functionKey, { key });
+      if (!result || typeof result !== 'object') {
+        return { key, error: 'Invalid response from functionKey' };
+      }
+      return result as Record<string, unknown>;
+    }),
+  );
+}
+
+async function objectStoreDelete({
+  functionKey,
+  keys,
+}: {
+  functionKey: string;
+  keys: string[];
+}): Promise<void> {
+  await checkRestrictedEnvironment();
+  trackObjectStoreAction('delete');
+  if (!functionKey || functionKey.length === 0) {
+    throw new BridgeAPIError('functionKey is required to delete objects');
+  }
+  if (!Array.isArray(keys) || keys.length === 0) {
+    throw new BridgeAPIError('keys array is required and must not be empty');
+  }
+  await Promise.all(keys.map(async (key) => { await invoke(functionKey, { key }); }));
+}
+
+export const objectStore = {
+  upload: objectStoreUpload,
+  download: objectStoreDownload,
+  getMetadata: objectStoreGetMetadata,
+  delete: objectStoreDelete,
 };

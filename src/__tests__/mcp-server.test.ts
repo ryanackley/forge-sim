@@ -18,7 +18,7 @@ import { resolve } from 'node:path';
 import { createSimulator, ForgeSimulator } from '../simulator.js';
 import { installBridge, getLatestForgeDoc, resetBridge } from '../ui/bridge.js';
 
-const TEST_APP_DIR = resolve(__dirname, '..', '..', 'test-app');
+const TEST_APP_DIR = resolve(__dirname, 'fixtures', 'test-app');
 
 // Helper: simulate what MCP tools do for SQL
 async function sqlExecute(sim: ForgeSimulator, query: string, params: any[] = []) {

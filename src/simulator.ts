@@ -22,6 +22,9 @@ import { FITProvider } from './fit-provider.js';
 import { RemoteProxy } from './remote-proxy.js';
 import { SimulatedLLM } from './llm.js';
 import { SimulatedRealtime } from './realtime.js';
+import { SimulatedObjectStore } from './object-store.js';
+import { WebTriggerUrlRegistry } from './web-trigger-urls.js';
+import { VariablesManager, type VariableInput, type VariableListEntry } from './variables.js';
 import type { SimulationConfig, ResolverContext, InvokeOptions, ProductApiHandler, ProductApiRequest, ProductApiResponse } from './types.js';
 import type { TriggerPayloadByEvent } from './trigger-event-types.js';
 import type { ManifestAction } from './manifest.js';
@@ -53,6 +56,11 @@ export class ForgeSimulator {
   readonly remotes: RemoteProxy;
   readonly llm: SimulatedLLM;
   readonly realtime: SimulatedRealtime;
+  readonly objectStore: SimulatedObjectStore;
+  /** Web trigger URL management — mirrors @forge/api webTrigger.getUrl/deleteUrl/queryUrls. */
+  readonly webTriggerUrls: WebTriggerUrlRegistry;
+  /** Environment variables — `forge variables` equivalent. Injected into process.env at deploy time. */
+  readonly variables: VariablesManager;
 
   /** UI API — ForgeDoc access, tree traversal, interaction, bridge lifecycle. */
   readonly ui: SimulatorUI;
@@ -108,6 +116,12 @@ export class ForgeSimulator {
     this.remotes.onLog((level, message, detail) => this.log(level, message, detail));
     this.llm = new SimulatedLLM((level, message, detail) => this.log(level, message, detail));
     this.realtime = new SimulatedRealtime((level, message, detail) => this.log(level, message, detail));
+    this.objectStore = new SimulatedObjectStore();
+    this.webTriggerUrls = new WebTriggerUrlRegistry();
+    this.variables = new VariablesManager((level, message, detail) => {
+      this.log(level, message, detail);
+      if (level === 'warn') console.warn(message);
+    });
     this.ui = new SimulatorUI(this);
 
     // Register property store as fallback routes for product APIs
@@ -227,6 +241,7 @@ export class ForgeSimulator {
     for (const wt of manifest.webTriggers) {
       this.log('info', `Found web trigger: "${wt.key}" → function "${wt.functionKey}"`);
     }
+    this.webTriggerUrls.registerModules(manifest.webTriggers);
 
     // Wire up remotes with manifest data
     this.remotes.setManifest(manifest);
@@ -249,6 +264,30 @@ export class ForgeSimulator {
   async deploy(appDir: string): Promise<import('./deployer.js').DeployResult> {
     const { deploy } = await import('./deployer.js');
     return deploy(this, appDir);
+  }
+
+  // ── Environment Variables ─────────────────────────────────────────────
+
+  /**
+   * Set environment variables (ephemeral — never written to disk).
+   * Like real Forge (`forge variables set`), values reach process.env at
+   * the next deploy; calls made after a deploy warn about the redeploy gate.
+   * Value shapes: `'plain'` or `{ value: 'secret', encrypt: true }`
+   * (encrypt masks the value in list surfaces only — the app still reads
+   * cleartext from process.env, matching real Forge).
+   */
+  setVariables(vars: Record<string, VariableInput>): void {
+    this.variables.setVariables(vars);
+  }
+
+  /** Remove an ephemeral variable. Takes effect at the next deploy. */
+  unsetVariable(key: string): boolean {
+    return this.variables.unsetVariable(key);
+  }
+
+  /** Merged view of all variable sources (host FORGE_USER_VAR_ < variables.json < ephemeral), encrypted values masked. */
+  listVariables(): VariableListEntry[] {
+    return this.variables.list();
   }
 
   // ── Module Routing ────────────────────────────────────────────────────────
@@ -1010,6 +1049,13 @@ export class ForgeSimulator {
     this.moduleRouting.clear();
     this.resolverOwnership.clear();
     this.realtime.reset();
+    this.objectStore.reset();
+    this.webTriggerUrls.reset();
+    // Restores process.env; ephemeral vars deliberately SURVIVE reset —
+    // real Forge variables are environment-scoped, not deployment-scoped,
+    // and MCP forge.deploy defaults to reset:true which would otherwise
+    // clobber pre-deploy forge.variables_set calls.
+    this.variables.reset();
     this.manifest = null;
     this.logs.length = 0;
     this.consoleLogs.length = 0;
@@ -1022,6 +1068,7 @@ export class ForgeSimulator {
    * Call this when you're done with the simulator.
    */
   async stop(): Promise<void> {
+    this.objectStore.stop();
     await this.sql.stop();
   }
 }

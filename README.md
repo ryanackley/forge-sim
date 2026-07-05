@@ -146,7 +146,7 @@ The first command auto-starts a background daemon; state persists across calls a
 For AI agents that support [Model Context Protocol](https://modelcontextprotocol.io/), forge-sim exposes the same operations as MCP tools:
 
 <!-- BEGIN:STATS_COMPACT -->
-1,819 tests · 31 MCP tools · 4 MCP resources
+2,029 tests · 39 MCP tools · 4 MCP resources
 <!-- END:STATS_COMPACT -->
 
 ```bash
@@ -157,7 +157,7 @@ forge-sim-mcp
 forge-sim serve  # starts on random port, writes to ~/.forge-sim/daemon.port
 ```
 
-The full tool list: `deploy`, `invoke`, `fire_trigger`, `fire_scheduled_trigger`, `ui_state`, `ui_interact`, `kvs_get`, `kvs_set`, `kvs_list`, `queue_push`, `queue_state`, `logs`, `sql_execute`, `sql_migrate`, `sql_schema`, `entity_get`, `entity_set`, `entity_delete`, `entity_query`, `entity_list`, `auth_status`, `mock_routes`, `mock_graphql`, `llm_mock`, `llm_history`, `realtime_publish`, `realtime_state`, `reset`. 141 trigger event templates with typed payloads are built-in for Confluence, Jira, Jira Software, and App Lifecycle events.
+The full tool list: `deploy`, `invoke`, `fire_trigger`, `fire_scheduled_trigger`, `ui_state`, `ui_interact`, `kvs_get`, `kvs_set`, `kvs_list`, `queue_push`, `queue_state`, `logs`, `sql_execute`, `sql_migrate`, `sql_schema`, `entity_get`, `entity_set`, `entity_delete`, `entity_query`, `entity_list`, `auth_status`, `mock_routes`, `mock_graphql`, `llm_mock`, `llm_history`, `realtime_publish`, `realtime_state`, `reset`, `objectstore_list`, `objectstore_get`, `objectstore_put`, `objectstore_delete`, `objectstore_create_download_url`, `variables_set`, `variables_unset`, `variables_list`. 143 trigger event templates with typed payloads are built-in for Confluence, Jira, Jira Software, and App Lifecycle events.
 
 ### As an AI skill
 
@@ -177,6 +177,18 @@ Reset everything:     forge-sim reset
 **Full guide:** [AI-driven development](./docs/ai/) — the MCP server (tools and resources), transport options, and the agent CLI.
 
 ---
+
+## Known limitations
+
+forge-sim won't catch bugs that real Forge would:
+
+- **No egress filtering** — `permissions.external` is parsed but not enforced
+- **No scope enforcement** — `permissions.scopes` is parsed but not checked at runtime
+- **No app lifecycle triggers** — install/uninstall/enable/disable don't fire
+- **No rate or memory limits** — Forge's per-app limits aren't simulated
+- **`context.environmentType` defaults to `DEVELOPMENT`** — override per render/invoke to simulate staging/prod
+
+See the [implementation matrix](./docs/reference/implementation-matrix.md) for full coverage detail.
 
 ## Documentation
 
@@ -199,11 +211,11 @@ npm run docs:stats:check    # CI guard — fails if stats are stale
 ```
 
 <!-- BEGIN:STATS -->
-**1,819 tests** across **98** test files
-(1,685 core / 94 files
-+ 134 renderer / 4 files)
+**2,029 tests** across **104** test files
+(1,882 core / 100 files
++ 147 renderer / 4 files)
 
-**31 MCP tools** + **4 resources**
+**39 MCP tools** + **4 resources**
 <!-- END:STATS -->
 
 ## License

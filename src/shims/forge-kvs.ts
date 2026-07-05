@@ -9,6 +9,7 @@
  */
 
 import { getSimulator } from './globals.js';
+import { ForgeKvsError, ForgeKvsAPIError } from '../kvs.js';
 
 /** Lazy proxy — delegates to simulator's KVS at call time */
 const kvs = {
@@ -33,29 +34,29 @@ const kvs = {
   query() {
     return getSimulator().kvs.query();
   },
-  getMany(keys: string[]) {
-    return getSimulator().kvs.getMany(keys);
-  },
-  setMany(entries: Array<{ key: string; value: any }>) {
-    return getSimulator().kvs.setMany(entries);
-  },
-  deleteMany(keys: string[]) {
-    return getSimulator().kvs.deleteMany(keys);
-  },
   entity(entityName: string) {
     return getSimulator().kvs.entity(entityName);
   },
   transact() {
     return getSimulator().kvs.transact();
   },
-  batchGet(keys: string[]) {
-    return getSimulator().kvs.getMany(keys);
+  // ── Batch ops — real @forge/kvs shapes ──────────────────────────────
+  // batchGet(BatchGetItem[]) / batchSet(BatchSetItem[]) /
+  // batchDelete(BatchDeleteItem[]), each returning
+  // { successfulKeys, failedKeys }. Matches @forge/kvs kvs-api.d.ts.
+  //
+  // NOTE: real @forge/kvs has NO getMany/setMany/deleteMany on `kvs` —
+  // those were removed from this shim for parity (an app using them
+  // would work in the sim but crash in Forge). They remain available on
+  // the direct sim API (sim.kvs.getMany etc.) for test convenience.
+  batchGet(items: Array<{ key: string; entityName?: string; options?: { metadataFields?: string[] } }>) {
+    return getSimulator().kvs.batchGet(items);
   },
-  batchSet(items: Array<{ key: string; value: any }>) {
-    return getSimulator().kvs.setMany(items);
+  batchSet(items: Array<{ key: string; value: any; entityName?: string; options?: any }>) {
+    return getSimulator().kvs.batchSet(items);
   },
-  batchDelete(keys: string[]) {
-    return getSimulator().kvs.deleteMany(keys);
+  batchDelete(items: Array<{ key: string; entityName?: string }>) {
+    return getSimulator().kvs.batchDelete(items);
   },
 };
 
@@ -106,7 +107,57 @@ const FilterConditions = {
   lessThanEqualTo: (value: string | number) => ({ condition: 'LESS_THAN_EQUAL_TO', values: [value] }),
 };
 
-const Filter = FilterConditions;
+// ── Filter builder (parity with real @forge/kvs entity-query.js) ───────
+//
+// Real @forge/kvs exports `FilterBuilder as Filter` — a CONSTRUCTIBLE
+// class used for transaction conditions:
+//   new Filter().and('status', FilterConditions.equalTo('open'))
+// The first .and()/.or() call returns a locked builder (And- or Or-)
+// that only exposes its own combinator, exactly like the shipped code.
+// (Until 2026-07-04 this shim aliased Filter = FilterConditions — a
+// quiet parity lie: `new Filter()` crashed in the sim, worked in Forge.)
+
+class BaseFilter {
+  items: Array<{ property: string; condition: string; values: any[] }>;
+
+  constructor(items: Array<{ property: string; condition: string; values: any[] }> = []) {
+    this.items = items;
+  }
+
+  filters(): Array<{ property: string; condition: string; values: any[] }> {
+    return this.items;
+  }
+
+  operator(): 'and' | 'or' {
+    return this instanceof AndFilterBuilder ? 'and' : 'or';
+  }
+}
+
+class AndFilterBuilder extends BaseFilter {
+  and(field: string, condition: { condition: string; values: any[] }): this {
+    this.items.push({ property: field, ...condition });
+    return this;
+  }
+}
+
+class OrFilterBuilder extends BaseFilter {
+  or(field: string, condition: { condition: string; values: any[] }): this {
+    this.items.push({ property: field, ...condition });
+    return this;
+  }
+}
+
+class FilterBuilder extends BaseFilter {
+  and(field: string, condition: { condition: string; values: any[] }): AndFilterBuilder {
+    return new AndFilterBuilder().and(field, condition);
+  }
+
+  or(field: string, condition: { condition: string; values: any[] }): OrFilterBuilder {
+    return new OrFilterBuilder().or(field, condition);
+  }
+}
+
+const Filter = FilterBuilder;
 
 // Metadata fields for entity storage — matches real @forge/kvs enum
 // (no KEY field; values are the SCREAMING_SNAKE form).
@@ -121,19 +172,11 @@ const Sort = {
   DESC: 'DESC' as const,
 };
 
-class ForgeKvsError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'ForgeKvsError';
-  }
-}
-
-class ForgeKvsAPIError extends ForgeKvsError {
-  constructor(message: string, public statusCode?: number) {
-    super(message);
-    this.name = 'ForgeKvsAPIError';
-  }
-}
+// Error classes live in ../kvs.js (single source of truth, mirrored
+// byte-for-byte from real @forge/kvs errors.js — including the quirk
+// that ForgeKvsAPIError never sets `name`, so it stays 'ForgeKvsError').
+// The old local classes here had the WRONG constructor signature
+// (message, statusCode?) and wrongly set name to 'ForgeKvsAPIError'.
 
 function isOverrideAndReturnOptions(options: any): boolean {
   return options && typeof options === 'object' && 'ifRevisionIs' in options;

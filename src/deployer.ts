@@ -270,6 +270,12 @@ export async function deploy(sim: ForgeSimulator, appDir: string): Promise<Deplo
     });
   }
 
+  // 1d. Inject environment variables into process.env BEFORE loading any
+  // handler modules — top-level handler code reads process.env at module
+  // evaluation time. Re-reads .forge-sim/variables.json on every deploy,
+  // so (like real Forge) variable changes take effect at redeploy.
+  await sim.variables.inject(absDir);
+
   const loadedFunctions: string[] = [];
   const loadedResources: string[] = [];
   const errors: Array<{ functionKey: string; error: string }> = [];

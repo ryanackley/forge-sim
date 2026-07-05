@@ -14,6 +14,7 @@
     "@atlaskit/app-provider": "^4.1.0",
     "@atlaskit/avatar-group": "^12.4.10",
     "@atlaskit/badge": "^18.4.0",
+    "@atlaskit/breadcrumbs": "^17.2.0",
     "@atlaskit/button": "^23.9.0",
     "@atlaskit/calendar": "^17.2.9",
     "@atlaskit/checkbox": "^17.3.0",
@@ -35,6 +36,7 @@
     "@atlaskit/media-client": "^36.0.1",
     "@atlaskit/media-core": "^37.0.0",
     "@atlaskit/modal-dialog": "^14.11.0",
+    "@atlaskit/pagination": "^17.1.1",
     "@atlaskit/popup": "^4.13.3",
     "@atlaskit/primitives": "^18.0.0",
     "@atlaskit/progress-bar": "^4.1.0",
@@ -54,9 +56,11 @@
     "@atlaskit/toggle": "^15.2.0",
     "@atlaskit/tokens": "^11.0.0",
     "@atlaskit/tooltip": "^20.14.0",
+    "@atlaskit/user-picker": "^13.4.0",
     "@emotion/react": "^11.11.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "react-intl": "^6.8.9",
     "recharts": "^2.15.4"
   },
   "devDependencies": {

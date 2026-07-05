@@ -9,8 +9,9 @@
  *   // assert on the tree, interact with components, etc.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { createSimulator, ForgeSimulator } from '../simulator.js';
+import { UIKitRawHtmlError } from '../ui/bridge.js';
 
 describe('SimulatorUI', () => {
   let sim: ForgeSimulator;
@@ -80,6 +81,33 @@ describe('SimulatorUI', () => {
 
     it('render throws without manifest', async () => {
       await expect(sim.ui.render('anything')).rejects.toThrow('No manifest loaded');
+    });
+
+    it('hard-fails with UIKitRawHtmlError when the app renders raw HTML (UIK-003)', async () => {
+      // Real Forge rejects raw host elements — the sim's test API surface
+      // must throw, not silently publish a doc (behavioral parity).
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      try {
+        const fixtureDir = new URL('./fixtures/raw-html-panel', import.meta.url).pathname;
+        await sim.deploy(fixtureDir);
+
+        let caught: unknown;
+        try {
+          await sim.ui.render('raw-html-panel');
+        } catch (e) {
+          caught = e;
+        }
+
+        expect(caught).toBeInstanceOf(UIKitRawHtmlError);
+        const err = caught as UIKitRawHtmlError;
+        expect(err.rawTags).toEqual(['div']);
+        expect(err.message).toContain('UI Kit does not support raw HTML elements');
+
+        // The doc was never published
+        expect(sim.ui.getForgeDoc('raw-html-panel')).toBeNull();
+      } finally {
+        errorSpy.mockRestore();
+      }
     });
 
     it('refresh re-renders a module', async () => {

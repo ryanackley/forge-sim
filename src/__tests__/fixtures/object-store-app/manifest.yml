@@ -1,0 +1,30 @@
+modules:
+  jira:issuePanel:
+    - key: object-store-panel
+      resource: main
+      render: native
+      resolver:
+        function: resolver
+      title: Object Store Panel
+      icon: https://example.com/icon.svg
+
+  # Real Forge requires an objectStore module to enable Object Store.
+  # The exact shape is undocumented (forge-spec open question #9) — the sim
+  # recognizes its presence permissively and warns if @forge/object-store is
+  # used without it.
+  objectStore:
+    - key: object-store
+
+  function:
+    - key: resolver
+      handler: src/resolvers.handler
+
+resources:
+  - key: main
+    path: src/frontend.tsx
+
+app:
+  id: ari:cloud:ecosystem::app/object-store-test
+  name: Object Store Test
+  runtime:
+    name: nodejs22.x
