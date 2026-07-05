@@ -45,6 +45,47 @@ const FORGE_SHIMS: Record<string, string> = Object.fromEntries(
   ])
 );
 
+// @forge/* packages that deliberately pass through to the REAL Atlassian
+// package with no shim and no warning. @forge/sql ships CJS and routes all
+// its I/O through global.__forge_fetch__, which the simulator installs —
+// the real package runs unmodified against the sim's MySQL backend.
+const PASSTHROUGH_OK = new Set(['@forge/sql']);
+
+// Warn (once per specifier) when app code imports a @forge/* package that
+// forge-sim doesn't simulate. Without this, the REAL Atlassian package loads
+// silently and fails — or worse, silently misbehaves — at call time, deep in
+// the app, with an error that says nothing about forge-sim. This is the #1
+// "works in Forge, breaks mysteriously in the sim" footgun.
+//
+// Warn, don't throw: some real packages partially work outside Forge (e.g.
+// @forge/feature-flags catches transport errors and serves defaults), and
+// throwing here would break apps that only import — but never call — the
+// package from a code path the test exercises.
+//
+// Known blind spot: CJS `require()` bypasses ESM loader hooks entirely, so
+// requires of unshimmed packages load the real package with no warning.
+const warnedUnshimmed = new Set<string>();
+
+function warnUnshimmedForgeImport(specifier: string): void {
+  if (warnedUnshimmed.has(specifier)) return;
+  warnedUnshimmed.add(specifier);
+
+  // '@forge/feature-flags/out/client' → '@forge/feature-flags'
+  const rootPkg = specifier.split('/').slice(0, 2).join('/');
+  const rootIsShimmed = rootPkg in FORGE_SHIMS;
+
+  const message = rootIsShimmed
+    ? `[forge-sim] "${specifier}" resolves to the REAL Atlassian package — ` +
+      `forge-sim shims "${rootPkg}" but not this subpath. ` +
+      `Behavior may not match the simulated "${rootPkg}".`
+    : `[forge-sim] "${specifier}" is not simulated by forge-sim — the real ` +
+      `Atlassian package will be loaded instead. Outside the real Forge ` +
+      `runtime it may throw or silently misbehave when called. If calls ` +
+      `into "${rootPkg}" fail or return unexpected results, this is why.`;
+
+  console.warn(message);
+}
+
 // React deduplication.
 //
 // `@forge/react` is a custom React renderer — it sets up the hooks dispatcher
@@ -269,6 +310,16 @@ export async function resolve(
       url: pathToFileURL(shimPath).href,
       shortCircuit: true,
     };
+  }
+
+  // 1b. Unshimmed @forge/* — warn once, then fall through to native
+  // resolution so the real package loads (matching previous behavior,
+  // but no longer silently).
+  if (specifier.startsWith('@forge/')) {
+    const rootPkg = specifier.split('/').slice(0, 2).join('/');
+    if (!PASSTHROUGH_OK.has(rootPkg)) {
+      warnUnshimmedForgeImport(specifier);
+    }
   }
 
   // 2. React deduplication — every `react`/`react-dom`/`react/jsx-*-runtime`

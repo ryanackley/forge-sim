@@ -5,7 +5,7 @@
  * both when running from source (tsx) and from compiled dist.
  */
 
-import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, vi, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
 import { resolve, load } from '../loader/hooks.js';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { resolve as pathResolve, join, sep } from 'node:path';
@@ -81,6 +81,91 @@ describe('Loader Hooks — resolve()', () => {
       const result = await resolve('@forge/unknown-package', {}, nextResolve);
 
       expect(nextResolve).toHaveBeenCalledWith('@forge/unknown-package', {});
+    });
+  });
+
+  describe('unshimmed @forge/* warning', () => {
+    let warnSpy: ReturnType<typeof vi.spyOn>;
+
+    beforeEach(() => {
+      warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    });
+
+    afterEach(() => {
+      warnSpy.mockRestore();
+    });
+
+    it('warns when an unshimmed @forge package resolves natively', async () => {
+      await resolve('@forge/feature-flags', {}, nextResolve);
+
+      const warning = warnSpy.mock.calls.map(c => String(c[0])).find(m =>
+        m.includes('@forge/feature-flags')
+      );
+      expect(warning).toBeDefined();
+      expect(warning).toContain('not simulated by forge-sim');
+      expect(warning).toContain('real');
+    });
+
+    it('still resolves the unshimmed package via nextResolve (warn, not throw)', async () => {
+      nextResolve.mockClear();
+
+      const result = await resolve('@forge/cache', {}, nextResolve);
+
+      expect(nextResolve).toHaveBeenCalledWith('@forge/cache', {});
+      expect(result.url).toBe('passthrough://@forge/cache');
+    });
+
+    it('warns only once per specifier', async () => {
+      await resolve('@forge/warn-once-test', {}, nextResolve);
+      await resolve('@forge/warn-once-test', {}, nextResolve);
+      await resolve('@forge/warn-once-test', {}, nextResolve);
+
+      const warnings = warnSpy.mock.calls.filter(c =>
+        String(c[0]).includes('@forge/warn-once-test')
+      );
+      expect(warnings).toHaveLength(1);
+    });
+
+    it('does NOT warn for @forge/sql (deliberate passthrough via __forge_fetch__)', async () => {
+      await resolve('@forge/sql', {}, nextResolve);
+
+      const warnings = warnSpy.mock.calls.filter(c =>
+        String(c[0]).includes('@forge/sql')
+      );
+      expect(warnings).toHaveLength(0);
+    });
+
+    it('does NOT warn for @forge/sql subpaths', async () => {
+      await resolve('@forge/sql/out/migration', {}, nextResolve);
+
+      const warnings = warnSpy.mock.calls.filter(c =>
+        String(c[0]).includes('@forge/sql')
+      );
+      expect(warnings).toHaveLength(0);
+    });
+
+    it('does NOT warn for shimmed packages', async () => {
+      await resolve('@forge/api', {}, nextResolve);
+      await resolve('@forge/react', {}, nextResolve);
+      await resolve('@forge/react/router', {}, nextResolve);
+
+      expect(warnSpy).not.toHaveBeenCalled();
+    });
+
+    it('warns with a subpath-specific message for unshimmed subpaths of shimmed packages', async () => {
+      await resolve('@forge/react/some-internal-util', {}, nextResolve);
+
+      const warning = warnSpy.mock.calls.map(c => String(c[0])).find(m =>
+        m.includes('@forge/react/some-internal-util')
+      );
+      expect(warning).toBeDefined();
+      expect(warning).toContain('not this subpath');
+    });
+
+    it('does not warn for non-@forge packages', async () => {
+      await resolve('lodash', {}, nextResolve);
+
+      expect(warnSpy).not.toHaveBeenCalled();
     });
   });
 
