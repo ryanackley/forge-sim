@@ -949,6 +949,23 @@ resources:
     expect(unknown).toHaveLength(0);
   });
 
+  it('does not warn on graph:connector (Teamwork Graph EAP module)', () => {
+    const result = parseManifestContent(`
+app:
+  id: test-app
+modules:
+  graph:connector:
+    - key: my-connector
+      datasource:
+        name: External Tool
+  function:
+    - key: resolver
+      handler: index.handler
+`);
+    const unknown = result.warnings.filter((w) => w.message.includes('Unknown module type'));
+    expect(unknown).toHaveLength(0);
+  });
+
   it('warns once per unknown type, not per module instance', () => {
     const result = parseManifestContent(`
 app:

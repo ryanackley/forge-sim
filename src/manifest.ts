@@ -265,6 +265,8 @@ export const KNOWN_MODULE_TYPES = new Set([
   // Platform (product-agnostic)
   'function', 'consumer', 'scheduledTrigger', 'trigger', 'webtrigger',
   'endpoint', 'action',
+  // Teamwork Graph (EAP) — connector apps ingest data into the org graph
+  'graph:connector',
   // Jira
   'jira:adminPage', 'jira:backlogAction', 'jira:boardAction',
   'jira:customField', 'jira:customFieldType', 'jira:dashboardBackgroundScript',
