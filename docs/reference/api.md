@@ -836,5 +836,5 @@ Warnings fire when a function exceeds its Forge time limit:
 | Type | Limit |
 |------|-------|
 | Resolver / Action / Workflow | 25s |
-| Trigger / Consumer / WebTrigger | 55s |
-| Scheduled Trigger (with `timeoutSeconds`) | Up to 900s |
+| Trigger / Scheduled Trigger / WebTrigger | 55s |
+| Consumer (with `timeoutSeconds`) | Up to 900s |
