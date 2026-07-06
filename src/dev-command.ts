@@ -30,6 +30,7 @@ import { buildDefaultContext, buildForgeContext, type RenderContextOptions } fro
 import { createWebTriggerHandler } from './web-trigger.js';
 import { startTypeCheckWatch, type TypeCheckWatcher } from './type-checker.js';
 import { RAW_HTML_TAG_LIST } from './ui/html-elements.js';
+import { ensureRendererDeps } from './renderer-deps.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -1958,6 +1959,21 @@ export async function devCommand(options: DevCommandOptions) {
 
   // 6. Generate temp project for Vite (multi-module)
   const forgeSimRoot = resolve(__dirname, '..');
+
+  // The published package ships renderer/src but not renderer/node_modules —
+  // install the Atlaskit deps on first `dev` run. No-op when already present
+  // (repo checkout, or any run after the first). Only UIKit modules compile
+  // the renderer's Atlaskit tree; Custom UI uses the dependency-free bridge
+  // shim, and proxy mode returns above without touching Vite at all.
+  if (detectedModules.some((m) => m.mode === 'uikit')) {
+    try {
+      ensureRendererDeps(forgeSimRoot);
+    } catch (err: any) {
+      console.error(`  ❌ ${err.message}`);
+      process.exit(1);
+    }
+  }
+
   const tempDir = join(appDir, '.forge-sim', 'tmp');
 
   // Clean up previous temp files (but preserve .forge-sim/state/)
