@@ -36,7 +36,7 @@
 
 ### NPM publishing — first public release
 
-Get forge-sim onto npm so it installs via `npx forge-sim dev`.
+Get forge-sim onto npm so it installs with `npm install -g forge-sim`.
 
 - Decide license (MIT recommended for adoption)
 - Add `files` allowlist, `keywords`, `repository`, `homepage`, `bugs`, `author`, `engines.node` to `package.json`
@@ -106,8 +106,8 @@ For the full history, see `git log`. Highlights of the last few weeks:
 ## Test suite
 
 <!-- BEGIN:STATS -->
-**2,122 tests** across **109** test files
-(1,975 core / 105 files
+**2,118 tests** across **109** test files
+(1,971 core / 105 files
 + 147 renderer / 4 files)
 
 **39 MCP tools** + **4 resources**

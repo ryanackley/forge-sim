@@ -17,8 +17,8 @@ Apps run **completely unmodified**. `@forge/*` imports are intercepted by Node l
 ## Quick stats
 
 <!-- BEGIN:STATS -->
-**2,122 tests** across **109** test files
-(1,975 core / 105 files
+**2,118 tests** across **109** test files
+(1,971 core / 105 files
 + 147 renderer / 4 files)
 
 **39 MCP tools** + **4 resources**
@@ -72,8 +72,10 @@ When you need actual surface details, go to the doc — don't guess from this fi
 | Topic | Doc |
 |---|---|
 | Local development overview | `docs/local-development/README.md` |
-| Auth (PAT, third-party providers, LLM key) | `docs/local-development/auth.md` |
-| Forge Remotes (`invokeRemote`, FIT JWT, JWKS) | `docs/local-development/remotes.md` |
+| Atlassian API access (PAT, mock-first) | `docs/local-development/atlassian-apis.md` |
+| Third-party OAuth (`withProvider`, mock/token/live) | `docs/local-development/third-party-apis.md` |
+| Forge Remotes (FIT JWT, JWKS, ngrok) | `docs/local-development/remotes.md` |
+| Credential storage, accounts, CI env vars, LLM key | `docs/local-development/credentials.md` |
 | Tools UI (`/__tools/`) HTTP API | `docs/local-development/dev-tools.md` |
 | Testing patterns (vitest/jest, fixtures, examples) | `docs/testing/README.md` |
 | AI-driven development overview | `docs/ai/README.md` |

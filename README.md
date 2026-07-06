@@ -11,12 +11,14 @@ There are three main components
 Requires **Node.js 22+** (uses native TypeScript type stripping for `.ts` loader hooks).
 
 ```bash
-# As a dev dependency (recommended)
-npm install --save-dev forge-sim
-
-# Or install globally
+# Global install (CLI: dev server, agent commands, MCP)
 npm install -g forge-sim
+
+# And/or as a dev dependency (CI/CD testing with the programmatic API)
+npm install --save-dev forge-sim
 ```
+
+The docs assume the global install — prefer not to install globally? Substitute `npx forge-sim` anywhere you see `forge-sim`.
 
 ## Local development loop
 
@@ -26,15 +28,7 @@ Run your Forge app locally by using the `forge-sim dev` command
 
 Navigate to your forge app directory and run forge-sim in dev mode. This will launch a browser tab that shows a navigable index of all of your UI modules. Click on one to run outside of Atlassian products. 
 
-**Using npx**
 ```bash
-cd /path/to/forge/app
-npx forge-sim dev
-```
-
-**Installing as a global tool**
-```bash
-npm install -g forge-sim
 cd /path/to/forge/app
 forge-sim dev
 ```
@@ -56,7 +50,7 @@ it uploads to user-attachments and inserts a bare URL on its own line, which
 GitHub renders as an inline player. (GIFs in the repo work too: docs/media/)
 -->
 
-**Full guide:** [Local development](./docs/local-development/) — connecting to your Atlassian site, Custom UI and proxy mode, Forge Remotes, external auth providers, and the dev tools UI.
+**Full guide:** [Local development](./docs/local-development/) — Custom UI and proxy mode, the dev tools UI, and the integration stories: talking to Atlassian APIs, third-party APIs, and your own remote backend.
 
 ---
 
@@ -146,7 +140,7 @@ The first command auto-starts a background daemon; state persists across calls a
 For AI agents that support [Model Context Protocol](https://modelcontextprotocol.io/), forge-sim exposes the same operations as MCP tools:
 
 <!-- BEGIN:STATS_COMPACT -->
-2,122 tests · 39 MCP tools · 4 MCP resources
+2,118 tests · 39 MCP tools · 4 MCP resources
 <!-- END:STATS_COMPACT -->
 
 ```bash
@@ -211,8 +205,8 @@ npm run docs:stats:check    # CI guard — fails if stats are stale
 ```
 
 <!-- BEGIN:STATS -->
-**2,122 tests** across **109** test files
-(1,975 core / 105 files
+**2,118 tests** across **109** test files
+(1,971 core / 105 files
 + 147 renderer / 4 files)
 
 **39 MCP tools** + **4 resources**

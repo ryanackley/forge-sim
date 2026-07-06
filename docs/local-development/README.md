@@ -4,24 +4,28 @@ Run an unmodified Forge app on your machine with `forge-sim dev`. It serves your
 
 ```bash
 cd /path/to/forge/app
-npx forge-sim dev
+forge-sim dev
 ```
 
 For the full command and its flags (module selection, context injection, ports, `--clean`, theme), see the [CLI reference](../reference/cli.md#forge-sim-dev).
 
-## In this section
+## A tour of the dev server
 
-- [Authentication](./auth.md) — connect your Atlassian site (PAT), configure the LLM key, and authorize third-party OAuth providers.
-- [Forge Remotes](./remotes.md) — call your own backend with `invokeRemote()` / `requestRemote()`, FIT JWT signing, and the local JWKS endpoint.
-- [Dev tools UI](./dev-tools.md) — the KVS browser, SQL console, log viewer, and event triggers served at `/__tools/`.
+Starting `forge-sim dev` opens a browser tab with the **module index** — every UI module declared in your manifest, with its type and title:
 
-## Connect to your Atlassian site
+![Module index — every UI module in the manifest, ready to render](../media/dev-module-index.png)
 
-```bash
-npx forge-sim auth
-```
+Click a module to render it outside of Atlassian products, with the module's Forge context simulated (issue, project, space — injectable via CLI flags). UIKit modules render through real Atlaskit components, backed by your real resolvers running against the simulated backend. Edits hot-reload, and Chrome DevTools debugs your actual source:
 
-Enter your site URL, email, and [API token](https://id.atlassian.com/manage-profile/security/api-tokens). After that, `requestJira()`, `requestConfluence()`, and `requestBitbucket()` hit your real site. See [Authentication](./auth.md) for managing multiple accounts, credential storage, and the LLM key.
+![A UIKit module rendering live — real Atlaskit components, real resolver data](../media/dev-uikit-module.png)
+
+This is a real app doing real work: the Add buttons push events onto Forge queues, consumers process them, and the board re-renders from KVS — the full async loop, locally.
+
+The **dev tools UI** at `http://localhost:5173/__tools/` is the window into the simulated backend. The log viewer below shows that same app booting: queue consumers registering, resolvers invoked with payloads and return values, and the app's own `console.log` output captured inline. Other tabs give you a KVS browser, SQL console, event trigger panel, OAuth provider connections, and TypeScript diagnostics:
+
+![Dev tools — consumer registrations, resolver invocations, and captured console output](../media/dev-tools-logs.png)
+
+See [Dev tools UI](./dev-tools.md) for the full walkthrough.
 
 ## Custom UI and proxy mode
 
@@ -34,7 +38,7 @@ While developing, you'll usually run your Custom UI through its own webpack/Vite
 cd my-custom-ui-app && npm start  # → http://localhost:3000
 
 # In another terminal, proxy it through forge-sim
-npx forge-sim dev --proxy http://localhost:3000
+forge-sim dev --proxy http://localhost:3000
 ```
 
 forge-sim sits in front of your dev server and hosts it in an iframe with shimmed Forge APIs, so HMR and Chrome DevTools keep working.
@@ -43,17 +47,20 @@ forge-sim sits in front of your dev server and hosts it in an iframe with shimme
 
 <!-- TODO(demo): record proxy-mode demo and replace the line above. To embed on GitHub, edit this file on github.com and drag the .mp4/.mov in. -->
 
-## Forge Remotes
+## Integration stories
 
-If your app calls your own backend via `invokeRemote()` or `requestRemote()`, forge-sim signs each request with a real FIT (Forge Invocation Token) JWT and serves a local JWKS endpoint your backend can validate against. See [Forge Remotes](./remotes.md) for the manifest configuration, FIT claims, key persistence, backend validation, and mock routing.
+Real apps talk to things: Atlassian's own APIs, third-party services, your own backend. Each has a local-development story:
 
-## External auth providers
+- **[Talking to Atlassian APIs](./atlassian-apis.md)** — connect your real site with a PAT so `requestJira()` / `requestConfluence()` / `requestBitbucket()` return live data, with mock routes taking priority.
+- **[Talking to third-party APIs](./third-party-apis.md)** — `asUser().withProvider()` OAuth against Google, GitHub, Slack, …: mock mode, manual tokens, or the full live OAuth dance.
+- **[Talking to your remote backend](./remotes.md)** — Forge Remotes with real FIT JWT signing, the local JWKS endpoint your backend validates against, and the ngrok recipe for deployed backends.
 
-If your app uses `asUser().withProvider()` for third-party OAuth (Google, GitHub, and so on), authorize the providers declared in your manifest:
+Credential plumbing shared by all three (account management, storage locations, CI environment variables, the LLM key) lives in the [Credentials](./credentials.md) appendix.
 
-```bash
-npx forge-sim auth --provider google   # one provider
-npx forge-sim auth --providers         # all providers in the manifest
-```
+## In this section
 
-See [Authentication — External Auth](./auth.md#external-auth-third-party-oauth) for the client-secret setup and credential storage.
+- [Talking to Atlassian APIs](./atlassian-apis.md)
+- [Talking to third-party APIs](./third-party-apis.md)
+- [Talking to your remote backend (Forge Remotes)](./remotes.md)
+- [Credentials](./credentials.md)
+- [Dev tools UI](./dev-tools.md)
