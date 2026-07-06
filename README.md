@@ -146,7 +146,7 @@ The first command auto-starts a background daemon; state persists across calls a
 For AI agents that support [Model Context Protocol](https://modelcontextprotocol.io/), forge-sim exposes the same operations as MCP tools:
 
 <!-- BEGIN:STATS_COMPACT -->
-2,029 tests · 39 MCP tools · 4 MCP resources
+2,038 tests · 39 MCP tools · 4 MCP resources
 <!-- END:STATS_COMPACT -->
 
 ```bash
@@ -211,8 +211,8 @@ npm run docs:stats:check    # CI guard — fails if stats are stale
 ```
 
 <!-- BEGIN:STATS -->
-**2,029 tests** across **104** test files
-(1,882 core / 100 files
+**2,038 tests** across **105** test files
+(1,891 core / 101 files
 + 147 renderer / 4 files)
 
 **39 MCP tools** + **4 resources**
@@ -220,4 +220,4 @@ npm run docs:stats:check    # CI guard — fails if stats are stale
 
 ## License
 
-Pre-release. License will be assigned at first npm publish.
+[MIT](./LICENSE)
