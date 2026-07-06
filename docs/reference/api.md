@@ -1,6 +1,6 @@
 # Programmatic API
 
-Use forge-sim directly in your code for tests, scripts, or custom tooling.
+Use forge-sim directly in your code for testing.
 
 ## Quick Start
 
@@ -20,8 +20,6 @@ const value = await sim.kvs.get('my-key');
 const logs = sim.getLogs();
 ```
 
-> **Note:** `deploy()` automatically registers Node.js loader hooks so that `@forge/api`, `@forge/kvs`, `@forge/resolver`, etc. in your app code resolve to forge-sim's shims. No `--import` flag needed.
->
 > **Edge case:** If your *test file itself* imports `@forge/*` packages at the top level (e.g. `import { storage } from '@forge/api'`), those imports run before `deploy()`. In that case, add the `--import` flag:
 > ```bash
 > node --import forge-sim/dist/loader/register.js your-test.js
