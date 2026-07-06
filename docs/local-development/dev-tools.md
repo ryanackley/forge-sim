@@ -58,7 +58,7 @@ Connect to `ws://localhost:5173/__tools/ws` for live updates.
 
 ### Server → Client Events
 
-```typescript
+```typescript no-check
 // Initial state on connect
 { type: 'init', data: { manifest: {...}, functionCount: N } }
 

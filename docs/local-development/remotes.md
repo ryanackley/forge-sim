@@ -184,7 +184,7 @@ sim.mockProductRoutes('my-backend', {
     { id: 1, name: 'Write docs' },
     { id: 2, name: 'Ship feature' },
   ],
-  'POST /api/v1/tasks': (path, options) => ({
+  'POST /api/v1/tasks': (path: string, options?: { body?: string }) => ({
     id: 3,
     name: JSON.parse(options?.body ?? '{}').name,
   }),
@@ -289,8 +289,8 @@ const JWKS = createRemoteJWKSet(
   new URL('http://localhost:5173/__forge/jwks.json')
 );
 
-async function validateFIT(request) {
-  const token = request.headers.authorization?.replace('Bearer ', '');
+async function validateFIT(request: { headers: { authorization?: string } }) {
+  const token = request.headers.authorization?.replace('Bearer ', '') ?? '';
   const { payload } = await jwtVerify(token, JWKS, {
     audience: 'ari:cloud:ecosystem::app/your-app-id',
     issuer: 'forge-sim',  // In production, issuer is 'forge'

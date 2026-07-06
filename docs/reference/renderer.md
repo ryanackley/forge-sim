@@ -39,7 +39,7 @@ This is what `forge-sim dev` uses.
 
 For browser mode, forge-sim provides a Vite plugin that aliases `@forge/bridge` to a WebSocket-backed shim:
 
-```typescript
+```typescript no-check
 // vite.config.ts (in your Forge app)
 import { forgeSimPlugin } from 'forge-sim/renderer/bridge/vite-plugin-forge-sim';
 
@@ -137,7 +137,9 @@ Two ways to settle:
 // In-process tests — substring match on the rendered tree
 await sim.ui.render('my-module');
 const doc = await sim.ui.waitForContent('my-module', 'Hello world');
+```
 
+```ts no-check
 // MCP — same idea, scoped to the module
 await mcp.forge_ui_wait_for({ moduleKey: 'my-module', text: 'Hello world' });
 ```

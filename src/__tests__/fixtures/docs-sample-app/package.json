@@ -1,0 +1,6 @@
+{
+  "name": "docs-sample-app",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Fixture app backing the runnable examples in the docs (see docs-examples-sync.test.ts)"
+}

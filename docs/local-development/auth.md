@@ -112,6 +112,8 @@ sim.mockProductRoutes('google-apis', {
 });
 
 // In app code:
+import api from '@forge/api';
+
 const response = await api.asUser()
   .withProvider('google', 'google-apis')
   .fetch('/userinfo/v2/me');

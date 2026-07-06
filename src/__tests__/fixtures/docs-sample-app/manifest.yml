@@ -1,0 +1,19 @@
+modules:
+  jira:issuePanel:
+    - key: items-panel
+      title: Items
+      icon: https://example.com/icon.svg
+      resource: main
+      resolver:
+        function: resolver
+  function:
+    - key: resolver
+      handler: index.handler
+resources:
+  - key: main
+    path: src/frontend/index.tsx
+app:
+  id: ari:cloud:ecosystem::app/docs-sample-app
+  name: Docs Sample App
+  runtime:
+    name: nodejs22.x

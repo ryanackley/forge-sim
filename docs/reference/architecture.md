@@ -79,7 +79,7 @@ const SHIM_NAMES = [
 
 When the app does `import { chat } from '@forge/llm'`, the hook returns `dist/shims/forge-llm.js` instead of the real package. That shim is a tiny file:
 
-```ts
+```ts no-check
 // src/shims/forge-llm.ts
 import { getSimulator } from './globals.js';
 export async function chat(prompt) {

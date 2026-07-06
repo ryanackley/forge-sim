@@ -19,6 +19,10 @@ export default defineConfig({
       // mangle '@forge/react/router' into 'forge-react.ts/router'.
       '@forge/react/router': resolve(__dirname, 'src/shims/forge-react-router.ts'),
       '@forge/react': resolve(__dirname, 'src/shims/forge-react.ts'),
+      // Self-alias so doc-example tests can use the user-facing import
+      // (`from 'forge-sim'`) while running against live source — the bare
+      // self-reference would resolve to a possibly-stale dist/ build.
+      'forge-sim': resolve(__dirname, 'src/simulator.ts'),
     },
   },
   esbuild: {

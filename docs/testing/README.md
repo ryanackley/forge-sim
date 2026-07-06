@@ -139,7 +139,7 @@ npm link ../path/to/forge-sim
 
 ### Your First Test
 
-```ts
+```ts run=fixtures/docs-sample-app/test/quickstart.test.ts#first-test
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { createSimulator, type ForgeSimulator } from 'forge-sim';
 import { resolve } from 'node:path';
@@ -249,7 +249,7 @@ The first argument is the function key defined in your resolver (via `resolver.d
 
 Test your resolver handlers through `sim.invoke()`:
 
-```ts
+```ts run=docs-examples/api-examples.test.ts#resolver-create-retrieve
 it('creates and retrieves an item', async () => {
   const created = await sim.invoke('createItem', {
     title: 'Test Item',
@@ -422,7 +422,7 @@ let sim: ForgeSimulator;
 
 beforeEach(async () => {
   sim = createSimulator();
-  await sim.deploy(APP_DIR);
+  await sim.deploy('./my-app');
 });
 
 it('summarizes an issue', async () => {
@@ -753,7 +753,9 @@ sim.ui.onRefresh((moduleKey, payload) => {
 Each listener returns an unbind function:
 
 ```ts
-const unbind = sim.ui.onSubmit((key, payload) => { ... });
+const unbind = sim.ui.onSubmit((moduleKey, payload) => {
+  // ...
+});
 // ... later
 unbind(); // stop listening
 ```
@@ -858,3 +860,21 @@ ForgeDoc serializes function props as `{ __fn__: '<id>' }` tokens — and **each
 ### `forge-sim` is rebuilt mid-session → the MCP daemon serves stale code
 
 This bites devs working on forge-sim itself, not app authors — but if you're hitting "method is not a function" errors from MCP calls right after rebuilding `dist/`, the long-lived daemon has the old code in memory. The simulator self-checks dist mtimes on every MCP response and warns when stale; restart the daemon (`ps aux | grep mcp-server`, kill the PID — the client respawns it). See [architecture.md § Known gotcha: stale daemon](../reference/architecture.md#known-gotcha-stale-daemon-on-rebuild).
+
+---
+
+## Doc examples are tested
+
+Every TypeScript code block in `README.md` and `docs/**/*.md` is typechecked against the live source API (`src/__tests__/docs-examples-typecheck.test.ts`), and yaml manifest blocks are parsed for unknown module types. New blocks are guarded automatically — a bare ` ```ts ` fence is checked by default.
+
+Three fence flags control this (they go after the language token, and are invisible in rendered markdown):
+
+| Fence | Meaning |
+|-------|---------|
+| ` ```ts ` | Typechecked (the default) |
+| ` ```ts no-check ` | Skipped — for output shapes, type-signature listings, and pseudo-code |
+| ` ```ts run=<file>#<region> ` | Must match a `// #region <name>` of a real test file that executes in the normal suite |
+
+Fragment blocks (no imports) compile inside an ambient world where `sim`, `createSimulator`, `route`, `WhereConditions`, etc. are already declared — the context a reader carries between blocks. Blocks with imports must be copy-paste runnable as-is.
+
+To make an example *executable*, add it as a `// #region` in a test under `src/__tests__/docs-examples/` (or in the fixture app at `src/__tests__/fixtures/docs-sample-app/`), then flag the doc block with `run=<file>#<region>` — the path resolves relative to `src/__tests__/`. `docs-examples-sync.test.ts` keeps the two in lockstep (whitespace-normalized), so the example in the docs is exactly the code that ran.

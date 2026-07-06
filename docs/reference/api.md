@@ -59,8 +59,8 @@ const result = await sim.kvs.query()
   .getMany();
 
 await sim.kvs.transact()
-  .set('key1', value1)
-  .set('key2', value2)
+  .set('key1', { count: 1 })
+  .set('key2', { count: 2 })
   .delete('key3')
   .execute();
 
@@ -150,6 +150,7 @@ const history = sim.llm.getHistory();  // [{ prompt, response }, ...]
 const doc = await sim.ui.render('issue-panel', {
   context: { issueKey: 'PROJ-42' },
 });
+if (!doc) throw new Error('module did not render');   // render() returns ForgeDoc | null
 const rendered = await sim.ui.waitForContent('issue-panel', 'PROJ-42');
 const text = sim.ui.getTextContent(rendered);
 
@@ -210,13 +211,13 @@ Complete type signatures for every public method, grouped by subsystem.
 
 ## `createSimulator`
 
-```typescript
+```typescript no-check
 function createSimulator(config?: SimulationConfig): ForgeSimulator
 ```
 
 Creates and returns a new simulator instance. Auto-wires as the global singleton (so `@forge/*` shims resolve to it).
 
-```typescript
+```typescript no-check
 interface SimulationConfig {
   context?: Partial<ResolverContext>;          // Mock context values
   initialStorage?: Record<string, any>;        // Pre-seed KVS data
@@ -258,29 +259,29 @@ The main orchestrator. All subsystems are accessible as properties:
 
 ### Deploy & Lifecycle
 
-```typescript
+```typescript no-check
 sim.deploy(appDir: string): Promise<DeployResult>
 ```
 Deploy a Forge app. Reads `manifest.yml`, imports handlers, wires resolvers/consumers/triggers.
 
-```typescript
+```typescript no-check
 sim.reset(): void
 ```
 Reset all state (KVS, queues, resolvers, UI, logs). Does not stop SQL server.
 
-```typescript
+```typescript no-check
 sim.stop(): Promise<void>
 ```
 Stop all background services (MySQL server). Call when done.
 
-```typescript
+```typescript no-check
 sim.getManifest(): ParsedManifest | null
 ```
 Get the currently deployed manifest.
 
 ### Resolvers & Invocation
 
-```typescript
+```typescript no-check
 sim.invoke(
   functionKey: string,
   payload?: any,
@@ -310,41 +311,41 @@ await sim.invoke('castVote', payload, {
 
 Bad shapes throw a `TypeError` with a fix-it hint — e.g. passing `{ accountId: 'x' }` directly tells you to use `{ context: { accountId: 'x' } }` instead.
 
-```typescript
+```typescript no-check
 sim.registerFunction(key: string, handler: Function, type: ForgeFunctionType): void
 ```
 Register a non-resolver function (trigger, consumer, webTrigger, etc.).
 
-```typescript
+```typescript no-check
 sim.registerConsumer(queueKey: string, handler: (event, context) => any): void
 ```
 Register a consumer handler for a queue key.
 
 ### Triggers
 
-```typescript
+```typescript no-check
 sim.fireTrigger(event: string, data: object): Promise<any[]>
 ```
 Fire a product event trigger. Typed overloads exist for all 143 known events.
 
-```typescript
+```typescript no-check
 sim.fireScheduledTrigger(triggerKey: string): Promise<{ statusCode: number }>
 ```
 Fire a scheduled trigger. Handler receives `{ context: { cloudId, moduleKey }, contextToken }`.
 
 ### Product API Mocking
 
-```typescript
+```typescript no-check
 sim.mockProductApi(product: string, handler: ProductApiHandler): void
 ```
 Register a mock handler function for a product.
 
-```typescript
+```typescript no-check
 sim.mockProductRoutes(product: string, routes: Record<string, any>): void
 ```
 Register route-based mocks. Keys are `"METHOD /path"` (method defaults to GET).
 
-```typescript
+```typescript no-check
 sim.mockGraphQL(mocks: Record<string, any>): void
 ```
 Mock GraphQL responses by operation name.
@@ -353,13 +354,14 @@ Mock GraphQL responses by operation name.
 // Example
 sim.mockProductRoutes('jira', {
   '/rest/api/3/issue/PROJ-1': { key: 'PROJ-1', summary: 'Fix the thing' },
-  'POST /rest/api/3/issue': (path, opts) => ({ id: '10001', key: 'PROJ-2' }),
+  'POST /rest/api/3/issue': (path: string, opts?: { body?: string }) =>
+    ({ id: '10001', key: 'PROJ-2' }),
 });
 ```
 
 ### Auth
 
-```typescript
+```typescript no-check
 sim.loadAuthFromEnv(): Promise<LoadAuthResult>
 ```
 Load credentials from env vars and/or `.forge-sim/` files. **Must be called after `deploy()`.**
@@ -384,7 +386,7 @@ interface LoadAuthResult {
 
 ### Logs
 
-```typescript
+```typescript no-check
 sim.getLogs(): LogEntry[]                    // Simulator logs (deploy, invoke, warnings)
 sim.getConsoleLogs(): ConsoleLine[]          // Captured console.* from app code
 sim.clearLogs(): void
@@ -399,7 +401,7 @@ Unified storage implementing `@forge/kvs`, `@forge/api` storage, and Custom Enti
 
 ### Basic CRUD
 
-```typescript
+```typescript no-check
 sim.kvs.get(key: string): Promise<any>
 sim.kvs.set(key: string, value: any): Promise<void>
 sim.kvs.delete(key: string): Promise<void>
@@ -410,13 +412,19 @@ sim.kvs.delete(key: string): Promise<void>
 ```typescript
 import { WhereConditions } from 'forge-sim';
 
-const result = await sim.kvs.query()
+const page = await sim.kvs.query()
   .where('key', WhereConditions.beginsWith('board:'))
   .limit(10)
-  .cursor(lastCursor)
   .getMany();
+// page: { results: Array<{ key, value }>, nextCursor?: string }
 
-// result: { results: Array<{ key, value }>, nextCursor?: string }
+if (page.nextCursor) {
+  const nextPage = await sim.kvs.query()
+    .where('key', WhereConditions.beginsWith('board:'))
+    .limit(10)
+    .cursor(page.nextCursor)
+    .getMany();
+}
 ```
 
 `WhereConditions` mirrors the real `@forge/kvs` clause builder. Available
@@ -427,10 +435,10 @@ the simulator throws a clear error pointing you at the helper form.
 
 ### Transactions
 
-```typescript
+```typescript run=docs-examples/api-examples.test.ts#kvs-transactions
 await sim.kvs.transact()
-  .set('key1', value1)
-  .set('key2', value2)
+  .set('key1', { count: 1 })
+  .set('key2', { count: 2 })
   .delete('key3')
   .execute();
 ```
@@ -438,25 +446,23 @@ await sim.kvs.transact()
 ### Entity Store
 
 ```typescript
-const api = sim.kvs.entity('Employee');
+const employees = sim.kvs.entity('Employee');   // schema comes from manifest.yml
 
-api.defineSchema(schema: EntitySchema): void
-await api.set(key: string, value: any): Promise<void>
-await api.get(key: string): Promise<any>
-await api.delete(key: string): Promise<void>
+await employees.set('emp-1', { name: 'Pat', department: 'Engineering' });
+const emp = await employees.get('emp-1');
+await employees.delete('emp-1');
 
-// Indexed queries
-const result = await api.query()
-  .index('by-department')
-  .where({ department: 'Engineering' })
-  .sort('asc')
+// Indexed queries — index + partition defined in the manifest entity schema
+const result = await employees.query()
+  .index('by-department', { partition: ['Engineering'] })
+  .sort('ASC')
   .limit(25)
   .getMany();
 ```
 
 ### Secrets
 
-```typescript
+```typescript no-check
 sim.kvs.getSecret(key: string): Promise<string | undefined>
 sim.kvs.setSecret(key: string, value: string): Promise<void>
 sim.kvs.deleteSecret(key: string): Promise<void>
@@ -464,7 +470,7 @@ sim.kvs.deleteSecret(key: string): Promise<void>
 
 ### Dump & Restore
 
-```typescript
+```typescript no-check
 sim.kvs.dump(): Record<string, any>               // Plain KVS as raw values
 sim.kvs.dumpAll(): EntityStoreDump                 // Full state (KVS + entities + secrets)
 sim.kvs.restore(data: Record<string, any>): void   // Restore plain KVS
@@ -479,7 +485,7 @@ sim.kvs.clearAll(): void                           // Full clear including schem
 
 Real MySQL 8.4 backend via an ephemeral in-memory server. Starts lazily on first query.
 
-```typescript
+```typescript no-check
 sim.sql.start(): Promise<void>               // Eager start (optional)
 sim.sql.stop(): Promise<void>                // Stop MySQL server
 sim.sql.isRunning: boolean                   // Check if server is running
@@ -506,7 +512,7 @@ const rows = await sim.sql.query('SELECT * FROM users WHERE active = ?', [true])
 
 Simulates `@forge/events` queue push → consumer handler flow.
 
-```typescript
+```typescript no-check
 sim.queue.push(queueKey: string, events: QueueEvent | QueueEvent[]): Promise<QueuePushResult>
 sim.queue.registerConsumer(queueKey: string, handler: Function): void
 sim.queue.getEventLog(): Array<{ queueKey, event }>
@@ -529,7 +535,7 @@ interface QueueEvent {
 
 Mirrors `@forge/resolver`. Usually populated by `deploy()`, but can be used directly.
 
-```typescript
+```typescript no-check
 sim.resolver.define(functionKey: string, handler: Function): void
 sim.resolver.invoke(functionKey: string, payload?: any): Promise<any>
 sim.resolver.getDefinitions(): string[]
@@ -544,7 +550,7 @@ sim.resolver.clear(): void
 
 Mock and/or proxy for `requestJira()`, `requestConfluence()`, `requestBitbucket()`.
 
-```typescript
+```typescript no-check
 sim.productApi.mock(product: string, handler: ProductApiHandler): void
 sim.productApi.mockRoutes(product: string, routes: Record<string, any>): void
 sim.productApi.mockGraphQL(mocks: Record<string, any>): void
@@ -558,14 +564,13 @@ sim.productApi.connectedAccount: AtlassianAccount | null
 sim.productApi.clear(): void
 ```
 
-Mock routes take priority over real APIs. Use `route()` helper for dynamic handlers:
+Mock routes take priority over real APIs. Use a function handler for dynamic responses (the `route` export is the template tag mirroring `@forge/api`'s, for building request paths):
 
 ```typescript
-import { route } from 'forge-sim';
-
-sim.productApi.mock('jira', route.json({
-  '/rest/api/3/issue/:key': (params) => ({ key: params.key, summary: 'Test' }),
-}));
+sim.mockProductRoutes('jira', {
+  'GET /rest/api/3/issue': (path: string) =>
+    ({ key: path.split('/').pop(), summary: 'Test' }),
+});
 ```
 
 ---
@@ -574,7 +579,7 @@ sim.productApi.mock('jira', route.json({
 
 Manages OAuth providers defined in `manifest.yml` (`providers.auth.*`).
 
-```typescript
+```typescript no-check
 // Token management
 sim.externalAuth.setToken(providerKey: string, token: ThirdPartyToken): void
 sim.externalAuth.getToken(providerKey: string): ThirdPartyToken | undefined
@@ -609,7 +614,7 @@ Backend for the `@forge/llm` shim. Two modes:
 
 Mock responses take priority over the real proxy — if the queue has entries, they're consumed first.
 
-```typescript
+```typescript no-check
 // Direct calls (matches the @forge/llm shim's chat() surface)
 sim.llm.chat(prompt: LlmPrompt): Promise<LlmResponse>
 sim.llm.stream(prompt: LlmPrompt): Promise<LlmStreamResponse>
@@ -630,7 +635,7 @@ sim.llm.getApiKey(): string | null                          // env wins over con
 
 ### MockLlmResponse shape
 
-```typescript
+```typescript no-check
 interface MockLlmResponse {
   content: string | ContentPart[];        // assistant text
   tool_calls?: LlmToolCall[];             // optional tool-use blocks
@@ -668,7 +673,7 @@ Renders UIKit 2 modules to ForgeDoc trees. Works both in-process (tests) and in-
 
 ### Rendering
 
-```typescript
+```typescript no-check
 sim.ui.render(moduleKey: string, options?: RenderContextOptions): Promise<ForgeDoc | null>
 sim.ui.refresh(moduleKey?: string): Promise<ForgeDoc | null>
 sim.ui.getForgeDoc(moduleKey?: string): ForgeDoc | null
@@ -677,7 +682,7 @@ sim.ui.waitForContent(moduleKey: string, text: string, timeoutMs?: number): Prom
 sim.ui.getContext(moduleKey?: string): ForgeContext | null
 ```
 
-```typescript
+```typescript no-check
 interface RenderContextOptions {
   context?: Partial<ForgeContext>;  // Override context values
 }
@@ -692,7 +697,7 @@ interface ForgeDoc {
 
 ### Querying the ForgeDoc Tree
 
-```typescript
+```typescript no-check
 sim.ui.findByType(doc: ForgeDoc, type: string): ForgeDoc[]
 sim.ui.findFirstByType(doc: ForgeDoc, type: string): ForgeDoc | null
 sim.ui.findByTypeAndText(doc: ForgeDoc, type: string, text?: string, nth?: number): ForgeDoc
@@ -704,7 +709,7 @@ sim.ui.prettyPrint(doc: ForgeDoc): string
 
 ### Interaction
 
-```typescript
+```typescript no-check
 sim.ui.interact(node: ForgeDoc, eventName: string, ...args: any[]): any
 sim.ui.interactWith(type: string, options?: {
   matchText?: string;
@@ -726,7 +731,7 @@ sim.ui.interact(btn, 'onClick');
 
 ### Events
 
-```typescript
+```typescript no-check
 sim.ui.waitForRender(): Promise<ForgeDoc>
 sim.ui.onRender(listener: (doc: ForgeDoc) => void): () => void          // Any module
 sim.ui.onModuleRender(moduleKey: string, listener: (doc) => void): () => void
@@ -740,7 +745,7 @@ sim.ui.resetAll(): void    // Full reset including simulator disconnection
 
 For Confluence `macro` modules with config (inline `config: true` or sub-module `config: { resource: '...' }`):
 
-```typescript
+```typescript no-check
 // Inspect the MacroConfig ForgeDoc tree (inline addConfig() registrations)
 sim.ui.getMacroConfigDoc(moduleKey: string): ForgeDoc | null
 
@@ -765,7 +770,7 @@ A bonus diagnostic: if you `render()` a macro module before calling `setMacroCon
 
 Key types exported from `'forge-sim'`:
 
-```typescript
+```typescript no-check
 // Core
 export { ForgeSimulator, createSimulator } from 'forge-sim';
 export type { SimulationConfig, LoadAuthResult } from 'forge-sim';
