@@ -107,7 +107,7 @@ Endpoint keys are scoped to the app, not to a particular module — a module wit
 
 ## Mock routes (no backend needed)
 
-For testing and development, mock remote responses using the same system as product API mocks:
+In automated tests and MCP sessions, mock remote responses using the same system as product API mocks. This isn't available in `forge-sim dev` — there, remote calls always go to the real `baseUrl`:
 
 ```typescript
 import { createSimulator } from 'forge-sim';

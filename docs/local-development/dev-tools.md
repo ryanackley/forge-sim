@@ -100,8 +100,8 @@ All endpoints are under `/__tools/api/`:
 | POST | `/api/ui/render` | Render a UI module |
 | GET | `/api/ui/context` | Inspect the current Forge context |
 | GET | `/api/entities` | List Custom Entities and registered schemas |
-| POST | `/api/mock/routes` | Register mock HTTP responses for product APIs / remotes |
-| POST | `/api/mock/graphql` | Register mock GraphQL operation responses |
+| POST | `/api/mock/routes` | Register mock HTTP responses for product APIs / remotes (in-memory — cleared on restart) |
+| POST | `/api/mock/graphql` | Register mock GraphQL operation responses (in-memory — cleared on restart) |
 | GET | `/api/providers` | List external OAuth providers + connection status |
 | POST | `/api/providers/:key/start` | Begin OAuth flow; returns `{ authUrl, state, redirectUri }` |
 | DELETE | `/api/providers/:key` | Disconnect — revoke stored provider token |

@@ -51,8 +51,8 @@ forge-sim sits in front of your dev server and hosts it in an iframe with shimme
 
 Real apps talk to things: Atlassian's own APIs, third-party services, your own backend. Each has a local-development story:
 
-- **[Talking to Atlassian APIs](./atlassian-apis.md)** — connect your real site with a PAT so `requestJira()` / `requestConfluence()` / `requestBitbucket()` return live data, with mock routes taking priority.
-- **[Talking to third-party APIs](./third-party-apis.md)** — `asUser().withProvider()` OAuth against Google, GitHub, Slack, …: mock mode, manual tokens, or the full live OAuth dance.
+- **[Talking to Atlassian APIs](./atlassian-apis.md)** — connect your real site with a PAT so `requestJira()` / `requestConfluence()` / `requestBitbucket()` return live data.
+- **[Talking to third-party APIs](./third-party-apis.md)** — `asUser().withProvider()` OAuth against Google, GitHub, Slack, …: manual tokens or the full live OAuth flow.
 - **[Talking to your remote backend](./remotes.md)** — Forge Remotes with real FIT JWT signing, the local JWKS endpoint your backend validates against, and the ngrok recipe for deployed backends.
 
 Credential plumbing shared by all three (account management, storage locations, CI environment variables, the LLM key) lives in the [Credentials](./credentials.md) appendix.

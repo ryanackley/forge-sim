@@ -1,46 +1,24 @@
 # Talking to third-party APIs
 
-Forge apps can authenticate with external APIs (Google, GitHub, Slack, …) using OAuth 2.0 via `asUser().withProvider()` / `asApp().withProvider()`. forge-sim supports three modes, from zero-setup mocks to the full live OAuth dance.
+Forge apps can authenticate with external APIs (Google, GitHub, Slack, …) using OAuth 2.0 via `asUser().withProvider()` / `asApp().withProvider()`. 
 
-## 1. Mock mode (default)
+The Forge platform has built-in mechanics to support OAuth. Forge-sim mimics these so you can use these locally. Other auth types should work out of the box. 
 
-No tokens needed. Mock the route by its remote name:
-
-```typescript
-sim.mockProductRoutes('google-apis', {
-  'GET /userinfo/v2/me': { id: '12345', email: 'test@gmail.com' },
-});
-
-// In app code:
-import api from '@forge/api';
-
-const response = await api.asUser()
-  .withProvider('google', 'google-apis')
-  .fetch('/userinfo/v2/me');
-```
-
-## 2. Token mode (manual)
-
-Set a token directly — useful for dev tokens from a provider's console:
-
-```typescript
-sim.externalAuth.setToken('google', {
-  provider: 'google',
-  accessToken: 'ya29.your-test-token',
-  scopes: ['profile', 'email'],
-  account: { id: '12345', displayName: 'test@gmail.com', scopes: ['profile', 'email'] },
-});
-```
-
-Or via the CLI:
+## Configuration
+First, you'll need to set the provider's client secret
 
 ```bash
-forge-sim auth --provider google
+# Set the client secret once per provider (stored in <app>/.forge-sim/providers.json)
+forge-sim auth --provider google --secret
 ```
 
-## 3. Live OAuth mode
+Then you'll need to add the forge-sim OAuth callback url in the provider's developer console.
 
-Run the full 3LO dance against the provider's real endpoints (read from `manifest.yml`).
+```
+http://localhost:5173/__tools/oauth/callback
+```
+
+## Authorization Flow
 
 **Via the Tools UI (recommended when `forge-sim dev` is running):**
 
@@ -65,7 +43,6 @@ forge-sim auth --providers
 forge-sim auth --providers --list
 ```
 
-If `forge-sim dev` is already running on 5173, the CLI exits with a clear error and points at the Tools UI Providers panel — both flows would otherwise race for the same port.
 
 ## Unified callback URL
 
@@ -76,56 +53,6 @@ http://localhost:5173/__tools/oauth/callback
 ```
 
 Set this in each provider's developer console. The callback is dispatched to the right pending flow by the `state` parameter — multiple concurrent flows (e.g. two browser tabs, two providers) settle independently.
-
-## Manifest configuration
-
-forge-sim reads provider config directly from `manifest.yml`:
-
-```yaml
-providers:
-  auth:
-    - key: google
-      name: Google
-      type: oauth2
-      clientId: YOUR_CLIENT_ID
-      scopes:
-        - profile
-        - email
-      remotes:
-        - google-apis
-      bearerMethod: authorization-header
-      actions:
-        authorization:
-          remote: google-account
-          path: /o/oauth2/v2/auth
-        exchange:
-          remote: google-oauth
-          path: /token
-        retrieveProfile:
-          remote: google-apis
-          path: /userinfo/v2/me
-          resolvers:
-            id: id
-            displayName: email
-
-remotes:
-  - key: google-apis
-    baseUrl: https://www.googleapis.com
-  - key: google-account
-    baseUrl: https://accounts.google.com
-  - key: google-oauth
-    baseUrl: https://oauth2.googleapis.com
-```
-
-## Priority order
-
-When `withProvider().fetch()` is called:
-
-1. **Mock routes** — checked first (same as the [Atlassian API pattern](./atlassian-apis.md))
-2. **Real HTTP + token** — if a valid token exists and no mock matched
-3. **501 Unmocked** — if neither mock nor token exists
-
-This means you can mock specific endpoints while using real tokens for everything else.
 
 ## Token refresh
 

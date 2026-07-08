@@ -1,6 +1,6 @@
 # Credentials
 
-Reference for how forge-sim stores and manages credentials. The integration guides ([Atlassian APIs](./atlassian-apis.md), [third-party APIs](./third-party-apis.md), [remote backends](./remotes.md)) link here — you rarely need this page until you're juggling multiple accounts or wiring up CI.
+Reference for how forge-sim stores and manages credentials. 
 
 ## Managing accounts
 
