@@ -10,11 +10,17 @@
  * New shape (pre-release, no back-compat baggage):
  *   sim.invoke(functionKey, payload?, options?: InvokeOptions)
  *
- * Where InvokeOptions = { moduleKey?: string; context?: Partial<ResolverContext> }.
+ * Where InvokeOptions = { moduleKey?: string; context?; extension? }.
  *
  * `context` is a one-shot per-call override — merged onto sim's base + sticky
  * context for THIS invocation only. The sticky `setContext()` state is
  * untouched.
+ *
+ * `extension` is a dedicated top-level option that REPLACES the request
+ * context's extension object wholesale. It is deliberately NOT allowed inside
+ * `context` (merge vs replace semantics) — both the type (`extension?: never`)
+ * and a runtime TypeError enforce the split. Mirrors the render surface's
+ * context/extension split in buildForgeContext.
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { createSimulator, type ForgeSimulator } from '../simulator.js';
@@ -61,11 +67,34 @@ describe('sim.invoke options object — per-call context override', () => {
     expect(result.cloudId).toBe('sticky-cloud');
   });
 
-  it('per-call override supports nested extension fields', async () => {
+  it('top-level extension option sets req.context.extension for this call', async () => {
     const result = await sim.invoke('whoami', {}, {
-      context: { extension: { issueKey: 'PROJ-1', spaceKey: 'TEAM' } },
+      extension: { issueKey: 'PROJ-1', spaceKey: 'TEAM' },
     });
     expect(result.extension).toEqual({ issueKey: 'PROJ-1', spaceKey: 'TEAM' });
+  });
+
+  it('extension combines with context in the same options object', async () => {
+    const result = await sim.invoke('whoami', {}, {
+      context: { accountId: 'alice' },
+      extension: { content: { id: '12345' } },
+    });
+    expect(result.accountId).toBe('alice');
+    expect(result.extension).toEqual({ content: { id: '12345' } });
+  });
+
+  it('extension REPLACES sticky extension wholesale (no deep merge)', async () => {
+    sim.resolver.setContext({ extension: { type: 'macro', config: { color: 'red' } } });
+
+    const overridden = await sim.invoke('whoami', {}, {
+      extension: { issue: { key: 'PROJ-7' } },
+    });
+    // Replace semantics: sticky fields (type, config) must NOT leak through
+    expect(overridden.extension).toEqual({ issue: { key: 'PROJ-7' } });
+
+    // One-shot: next call sees the untouched sticky extension
+    const next = await sim.invoke('whoami', {});
+    expect(next.extension).toEqual({ type: 'macro', config: { color: 'red' } });
   });
 
   it('two adjacent calls with different accountIds (the run-7/run-10 use case)', async () => {
@@ -163,6 +192,46 @@ describe('sim.invoke options object — bad shapes throw with hints', () => {
       // @ts-expect-error
       sim.invoke('noop', {}, { context: ['alice'] })
     ).rejects.toThrow(/options\.context must be an object/);
+  });
+
+  it('throws TypeError when extension is nested inside context', async () => {
+    await expect(
+      // @ts-expect-error — extension?: never forbids this at compile time too
+      sim.invoke('noop', {}, { context: { extension: { issueKey: 'PROJ-1' } } })
+    ).rejects.toThrow(/context\.extension is not supported.*top-level option.*\{ context: \{\.\.\.\}, extension: \{\.\.\.\} \}/s);
+  });
+
+  it('throws even when nested extension rides along with valid context fields', async () => {
+    await expect(
+      sim.invoke('noop', {}, {
+        // @ts-expect-error — mixed valid + forbidden keys still rejected
+        context: { accountId: 'alice', extension: { spaceKey: 'TEAM' } },
+      })
+    ).rejects.toThrow(/context\.extension is not supported/);
+  });
+
+  it('throws even when the forbidden shape arrives via an untyped variable (JSON path)', async () => {
+    // Simulates MCP / CLI --context: parsed JSON bypasses the compiler entirely.
+    const fromJson: Record<string, unknown> = JSON.parse(
+      '{ "accountId": "alice", "extension": { "issueKey": "PROJ-1" } }'
+    );
+    await expect(
+      sim.invoke('noop', {}, { context: fromJson as any })
+    ).rejects.toThrow(/context\.extension is not supported/);
+  });
+
+  it('throws TypeError when options.extension is not an object', async () => {
+    await expect(
+      // @ts-expect-error
+      sim.invoke('noop', {}, { extension: 'PROJ-1' })
+    ).rejects.toThrow(/options\.extension must be an object, got: string/);
+  });
+
+  it('throws TypeError when options.extension is an array', async () => {
+    await expect(
+      // @ts-expect-error
+      sim.invoke('noop', {}, { extension: ['PROJ-1'] })
+    ).rejects.toThrow(/options\.extension must be an object, got: array/);
   });
 
   it('accepts undefined options gracefully', async () => {

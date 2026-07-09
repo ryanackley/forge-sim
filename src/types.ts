@@ -131,15 +131,29 @@ export interface ResolverContext {
  *   does NOT mutate sticky state — the next call without an override
  *   sees the unchanged base. Shape matches Forge's `req.context`, so any
  *   field there is fair game: `accountId`, `cloudId`, `localId`,
- *   `extension`, `principal`, `license`, `installContext`.
+ *   `principal`, `license`, `installContext`. The one exception is
+ *   `extension` — it is NOT allowed inside `context` (enforced by both
+ *   the type and a runtime TypeError) because its semantics are replace,
+ *   not merge. Use the dedicated top-level `extension` option instead.
+ *
+ * - `extension` replaces the request context's `extension` object wholesale
+ *   for THIS invocation only. Separate from `context` on purpose: `context`
+ *   fields merge onto the base, `extension` is placement data the caller
+ *   owns end-to-end.
  *
  * Example:
  *   await sim.invoke('castVote', payload, { context: { accountId: 'alice' } });
- *   await sim.invoke('castVote', payload, { context: { accountId: 'bob' } });
+ *   await sim.invoke('castVote', payload, {
+ *     context: { accountId: 'bob' },
+ *     extension: { content: { id: '12345' } },
+ *   });
  */
 export interface InvokeOptions {
   moduleKey?: string;
-  context?: Partial<ResolverContext>;
+  /** Merged onto the base context. `extension` is not allowed here — use the top-level `extension` option. */
+  context?: Partial<ResolverContext> & { extension?: never };
+  /** Replaces `req.context.extension` wholesale for this invocation. */
+  extension?: Record<string, unknown>;
 }
 
 // ── Storage Types ───────────────────────────────────────────────────────────

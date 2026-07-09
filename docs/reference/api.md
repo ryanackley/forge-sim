@@ -1,6 +1,6 @@
 # Programmatic API
 
-Use forge-sim directly in your code for testing.
+Use this API for writing CI/CD tests for your Forge App without relying on deploying to Atlassian's servers.
 
 ## Quick Start
 
@@ -283,14 +283,15 @@ Get the currently deployed manifest.
 sim.invoke(
   functionKey: string,
   payload?: any,
-  options?: { moduleKey?: string; context?: Partial<ResolverContext> }
+  options?: { moduleKey?: string; context?: Partial<ResolverContext>; extension?: Record<string, unknown> }
 ): Promise<any>
 ```
 Invoke a resolver function. Wraps payload in `{ payload, context }` per the Forge bridge contract.
 
 The third arg (optional) is an `InvokeOptions` object:
 - **`moduleKey`** — scope resolver lookup when multiple modules register the same function key.
-- **`context`** — per-call context override (one-shot). Merged onto the sim's base + sticky context for THIS invocation only; the sticky `setContext()` state is untouched. Shape matches Forge's `req.context` (`accountId`, `cloudId`, `extension`, `principal`, `license`, ...).
+- **`context`** — per-call context override (one-shot). Merged onto the sim's base + sticky context for THIS invocation only; the sticky `setContext()` state is untouched. Fields match Forge's `req.context` (`accountId`, `cloudId`, `principal`, `license`, ...) — except `extension`, which is not allowed here.
+- **`extension`** — replaces `req.context.extension` wholesale for THIS invocation. Kept separate from `context` on purpose: `context` fields *merge* onto the base, while extension data *replaces* the whole object.
 
 ```typescript
 // Vary the calling user per invocation without mutating sticky state
@@ -300,14 +301,15 @@ await sim.invoke('castVote', { optionIndex: 1 }, { context: { accountId: 'bob' }
 // Scope to a specific module
 await sim.invoke('getData', payload, { moduleKey: 'panel-a' });
 
-// Combine both
+// Combine all three
 await sim.invoke('castVote', payload, {
   moduleKey: 'pulse-macro',
-  context: { accountId: 'alice', extension: { contentId: '12345' } },
+  context: { accountId: 'alice' },
+  extension: { content: { id: '12345' } },
 });
 ```
 
-Bad shapes throw a `TypeError` with a fix-it hint — e.g. passing `{ accountId: 'x' }` directly tells you to use `{ context: { accountId: 'x' } }` instead.
+Bad shapes throw a `TypeError` with a fix-it hint — e.g. passing `{ accountId: 'x' }` directly tells you to use `{ context: { accountId: 'x' } }` instead, and nesting `extension` inside `context` points you at the top-level `extension` option.
 
 ```typescript no-check
 sim.registerFunction(key: string, handler: Function, type: ForgeFunctionType): void

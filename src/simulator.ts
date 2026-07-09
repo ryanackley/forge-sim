@@ -412,13 +412,17 @@ export class ForgeSimulator {
    *   - `context` overrides request context for THIS invocation only.
    *     Merged onto base context (sticky `setContext()` + defaults). Mutating
    *     state happens only in setContext(); the override here is one-shot.
+   *     `extension` is NOT allowed inside `context` — use the top-level option.
+   *   - `extension` replaces `req.context.extension` wholesale for THIS
+   *     invocation only (placement data has replace semantics, not merge).
    *
    * Example:
    *   await sim.invoke('castVote', payload, { context: { accountId: 'alice' } });
    *   await sim.invoke('getDataA', payload, { moduleKey: 'panel-a' });
    *   await sim.invoke('castVote', payload, {
    *     moduleKey: 'pulse-macro',
-   *     context: { accountId: 'bob', extension: { contentId: '12345' } },
+   *     context: { accountId: 'bob' },
+   *     extension: { content: { id: '12345' } },
    *   });
    */
   async invoke(
@@ -1104,11 +1108,13 @@ export interface LoadAuthResult {
  *
  * Accepts:
  *   - undefined / null  (no options)
- *   - { moduleKey?: string, context?: Partial<ResolverContext> }
+ *   - { moduleKey?: string, context?: Partial<ResolverContext>, extension?: Record<string, unknown> }
  *
  * Rejects (with a fix-it hint):
  *   - strings, numbers, booleans, arrays
  *   - objects with unknown top-level keys (e.g. raw `{ accountId: 'x' }`)
+ *   - `extension` nested inside `context` (merge vs replace semantics — the
+ *     dedicated top-level option is the only way to pass placement data)
  */
 function parseInvokeOptions(
   options: InvokeOptions | undefined
@@ -1120,32 +1126,32 @@ function parseInvokeOptions(
   if (typeof options !== 'object' || Array.isArray(options)) {
     throw new TypeError(
       `sim.invoke() third arg must be an InvokeOptions object ` +
-      `({ moduleKey?, context? }) or omitted. Got: ${typeof options}` +
+      `({ moduleKey?, context?, extension? }) or omitted. Got: ${typeof options}` +
       (typeof options === 'string'
         ? `. To scope to a module, use { moduleKey: "${options}" }.`
         : '')
     );
   }
 
-  const known = new Set(['moduleKey', 'context']);
+  const known = new Set(['moduleKey', 'context', 'extension']);
   const unknownKeys = Object.keys(options).filter((k) => !known.has(k));
 
   if (unknownKeys.length > 0) {
     // Detect the most common mistake: passing a bare context shape like
     // { accountId: 'alice' } instead of { context: { accountId: 'alice' } }.
     const looksLikeContext = unknownKeys.some((k) =>
-      ['accountId', 'cloudId', 'siteUrl', 'installContext', 'extension', 'principal', 'license', 'localId'].includes(k)
+      ['accountId', 'cloudId', 'siteUrl', 'installContext', 'principal', 'license', 'localId'].includes(k)
     );
     const hint = looksLikeContext
       ? ` Did you mean { context: { ${unknownKeys.map((k) => `${k}: ...`).join(', ')} } }?`
       : '';
     throw new TypeError(
       `sim.invoke() options object has unknown key(s): ${unknownKeys.map((k) => `"${k}"`).join(', ')}. ` +
-      `Valid keys: moduleKey, context.${hint}`
+      `Valid keys: moduleKey, context, extension.${hint}`
     );
   }
 
-  const { moduleKey, context } = options;
+  const { moduleKey, context, extension } = options;
 
   if (moduleKey !== undefined && typeof moduleKey !== 'string') {
     throw new TypeError(
@@ -1159,7 +1165,26 @@ function parseInvokeOptions(
     );
   }
 
-  return { moduleKey, contextOverride: context };
+  // Same rule as buildForgeContext: `context` merges, `extension` replaces.
+  // Nesting one inside the other mixes the semantics — reject with a fix-it.
+  if (context && 'extension' in context) {
+    throw new TypeError(
+      `context.extension is not supported — the context option merges fields, but extension ` +
+      `data replaces the whole extension object. Pass it via the dedicated top-level option ` +
+      `instead: { context: {...}, extension: {...} }.`
+    );
+  }
+
+  if (extension !== undefined && (typeof extension !== 'object' || extension === null || Array.isArray(extension))) {
+    throw new TypeError(
+      `sim.invoke() options.extension must be an object, got: ${Array.isArray(extension) ? 'array' : typeof extension}`
+    );
+  }
+
+  const contextOverride =
+    extension !== undefined ? { ...context, extension } : context;
+
+  return { moduleKey, contextOverride };
 }
 
 /**

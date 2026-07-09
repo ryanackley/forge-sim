@@ -88,6 +88,25 @@ function partitionContextOverrides(
   return { canonical, extensionFields };
 }
 
+/**
+ * The shape accepted by the `context` option on render and invoke surfaces.
+ *
+ * Canonical ForgeContext fields are typed; anything else (loose fields like
+ * `issueKey`, `fieldValue`, custom data) is allowed via the index signature
+ * and merged into `extension`.
+ *
+ * `extension` is deliberately NOT allowed here (`extension?: never`):
+ * `context` fields MERGE onto the built context, while extension data
+ * REPLACES the whole extension object — mixing the two semantics in one bag
+ * is how bugs happen. Pass placement data via the dedicated top-level
+ * `extension` option instead. Enforced at runtime too (TypeError with a
+ * fix-it hint) since JSON-sourced callers (MCP, CLI `--context`) bypass the
+ * compiler.
+ */
+export type ContextOverride = Omit<Partial<ForgeContext>, 'extension'> & {
+  extension?: never;
+} & Record<string, unknown>;
+
 export interface RenderContextOptions {
   /**
    * Raw context fields. Canonical ForgeContext fields (`accountId`, `cloudId`,
@@ -97,8 +116,11 @@ export interface RenderContextOptions {
    * `ctx.accountId`, NOT `ctx.extension.accountId`. Anything else is merged
    * into `extension`. The same partial-context shape is used by
    * `sim.invoke(fn, payload, { context })`; this is the parallel UI surface.
+   *
+   * `extension` is not allowed inside this object — use the top-level
+   * `extension` option (replace semantics, suppresses hydration).
    */
-  context?: Record<string, unknown>;
+  context?: ContextOverride;
   /** Jira issue key — fetches issue data to build context */
   issueKey?: string;
   /** Jira project key — fetches project data to build context */
@@ -188,11 +210,17 @@ function getDefaultFieldValue(fieldType?: string): any {
  * themselves in the render options.
  *
  * Resolution order for extension data:
- *   1. Explicit `extension` override (used as-is)
+ *   1. Explicit `extension` override — replaces the extension object and
+ *      suppresses hydration. `options.context` still applies: canonical
+ *      fields promote to the top level, loose fields fill extension gaps
+ *      (explicit extension keys win).
  *   2. Item key shortcuts (`issueKey`, `contentId`) — hydrated via product API
  *   3. Raw `context` object — non-canonical fields spread into extension,
  *      canonical fields promoted to top level
  *   4. Defaults based on module type
+ *
+ * `extension` nested inside `options.context` throws a TypeError — the two
+ * options have different semantics (merge vs replace) and must stay separate.
  */
 export async function buildForgeContext(
   sim: ForgeSimulator,
@@ -200,6 +228,18 @@ export async function buildForgeContext(
   moduleType: string,
   options: RenderContextOptions = {},
 ): Promise<ForgeContext> {
+  // `context` merges, `extension` replaces — nesting one inside the other
+  // silently mixes the two semantics, so reject it loudly. This is the single
+  // runtime choke point for every JSON-sourced caller (MCP tools, CLI
+  // --context) that the ContextOverride type can't reach.
+  if (options.context && typeof options.context === 'object' && 'extension' in options.context) {
+    throw new TypeError(
+      `context.extension is not supported — the context option merges fields, but extension ` +
+      `data replaces the whole extension object. Pass it via the dedicated top-level option ` +
+      `instead: { context: {...}, extension: {...} }.`
+    );
+  }
+
   const account = sim.productApi.connectedAccount;
   const sticky = sim.resolver.getContextOverrides();
 
@@ -227,9 +267,16 @@ export async function buildForgeContext(
     }
   }
 
-  // 1. Explicit extension override → use as-is
+  // 1. Explicit extension override → replaces the extension object (over the
+  //    bare { type } base) and suppresses hydration. Canonical fields from
+  //    options.context still promote to the top level — `context` (merge) +
+  //    `extension` (replace) together is the documented fully-mocked combo.
+  //    Loose (non-canonical) context fields fill extension gaps, but keys the
+  //    explicit extension names always win.
   if (options.extension) {
-    base.extension = { type: moduleType, ...options.extension };
+    const { canonical, extensionFields } = partitionContextOverrides(options.context);
+    base.extension = { type: moduleType, ...extensionFields, ...options.extension };
+    Object.assign(base, canonical);
     return base;
   }
 

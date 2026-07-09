@@ -304,9 +304,10 @@ server.tool(
     payload: z.record(z.string(), z.any()).optional().describe('Payload to pass to the resolver'),
     actionKey: z.string().optional().describe('If invoking a Rovo action, the action key — enables input validation against the action schema'),
     moduleKey: z.string().optional().describe('Scope resolver lookup to a specific module — required when multiple modules register the same function key'),
-    context: z.record(z.string(), z.any()).optional().describe('Per-call context override (one-shot, does not mutate sticky setContext). Shape matches Forge req.context: accountId, cloudId, extension, principal, license, ...'),
+    context: z.record(z.string(), z.any()).optional().describe('Per-call context override (one-shot, does not mutate sticky setContext). Merged onto the base context. Fields match Forge req.context: accountId, cloudId, principal, license, ... Do NOT nest extension here — use the extension param.'),
+    extension: z.record(z.string(), z.any()).optional().describe('Replaces req.context.extension wholesale for this invocation (placement data: issue, project, content, space, config, ...).'),
   },
-  async ({ functionKey, payload, actionKey, moduleKey, context }) => {
+  async ({ functionKey, payload, actionKey, moduleKey, context, extension }) => {
     try {
       // Validate action inputs if specified
       if (actionKey) {
@@ -322,7 +323,7 @@ server.tool(
       const logsBefore = sim.getLogs().length;
       const consoleBefore = sim.getConsoleLogs().length;
 
-      const result = await sim.invoke(functionKey, payload ?? {}, { moduleKey, context });
+      const result = await sim.invoke(functionKey, payload ?? {}, { moduleKey, context, extension });
 
       const newLogs = sim.getLogs().slice(logsBefore);
       const newConsole = sim.getConsoleLogs().slice(consoleBefore);
@@ -408,10 +409,11 @@ server.tool(
     projectKey: z.string().optional().describe('Jira project key to hydrate context (e.g. "PROJ").'),
     contentId: z.string().optional().describe('Confluence content ID to hydrate context.'),
     spaceKey: z.string().optional().describe('Confluence space key to hydrate context.'),
-    context: z.record(z.string(), z.any()).optional().describe('Raw context fields merged into extension (overrides defaults).'),
+    context: z.record(z.string(), z.any()).optional().describe('Raw context fields. Canonical ForgeContext fields (accountId, cloudId, locale, ...) are promoted to the top level; anything else is merged into extension. Do NOT nest extension here — use the extension param.'),
+    extension: z.record(z.string(), z.any()).optional().describe('Replaces the extension object wholesale (placement data: issue, project, content, space, config, ...). Suppresses issueKey/contentId hydration.'),
     macroConfig: z.record(z.string(), z.any()).optional().describe('For macro modules: seed saved config so useConfig() resolves to these values on this render.'),
   },
-  async ({ moduleKey, issueKey, projectKey, contentId, spaceKey, context, macroConfig }) => {
+  async ({ moduleKey, issueKey, projectKey, contentId, spaceKey, context, extension, macroConfig }) => {
     try {
       const renderOpts: Record<string, unknown> = {};
       if (issueKey) renderOpts.issueKey = issueKey;
@@ -419,6 +421,7 @@ server.tool(
       if (contentId) renderOpts.contentId = contentId;
       if (spaceKey) renderOpts.spaceKey = spaceKey;
       if (context) renderOpts.context = context;
+      if (extension) renderOpts.extension = extension;
       // Pass macroConfig through as a one-shot per-render override (matches
       // both this tool's description "on this render" and the in-process
       // `sim.ui.render(key, { macroConfig })` semantics). For sticky config
@@ -1618,16 +1621,16 @@ Shows which channels have subscribers and the history of published events.`,
 
 server.resource(
   'manifest',
-  'forge.//manifest',
+  'forge://manifest',
   { description: 'The currently deployed Forge app manifest', mimeType: 'application/json' },
   async () => {
     const manifest = sim.getManifest();
     if (!manifest) {
-      return { contents: [{ uri: 'forge.//manifest', text: 'No manifest loaded. Deploy an app first.' }] };
+      return { contents: [{ uri: 'forge://manifest', text: 'No manifest loaded. Deploy an app first.' }] };
     }
     return {
       contents: [{
-        uri: 'forge.//manifest',
+        uri: 'forge://manifest',
         text: JSON.stringify({
           app: manifest.raw.app,
           functions: [...manifest.functions.entries()].map(([k, v]) => ({ key: k, handler: v.handler })),
@@ -1644,13 +1647,13 @@ server.resource(
 
 server.resource(
   'functions',
-  'forge.//functions',
+  'forge://functions',
   { description: 'List of registered resolver functions', mimeType: 'application/json' },
   async () => {
     const defs = sim.resolver.getDefinitions();
     return {
       contents: [{
-        uri: 'forge.//functions',
+        uri: 'forge://functions',
         text: JSON.stringify({ resolvers: defs, count: defs.length }, null, 2),
       }],
     };
@@ -1659,16 +1662,16 @@ server.resource(
 
 server.resource(
   'triggers',
-  'forge.//triggers',
+  'forge://triggers',
   { description: 'Registered triggers and their events', mimeType: 'application/json' },
   async () => {
     const manifest = sim.getManifest();
     if (!manifest) {
-      return { contents: [{ uri: 'forge.//triggers', text: 'No manifest loaded.' }] };
+      return { contents: [{ uri: 'forge://triggers', text: 'No manifest loaded.' }] };
     }
     return {
       contents: [{
-        uri: 'forge.//triggers',
+        uri: 'forge://triggers',
         text: JSON.stringify({
           triggers: manifest.triggers,
           scheduledTriggers: manifest.scheduledTriggers,
@@ -1680,7 +1683,7 @@ server.resource(
 
 server.resource(
   'state',
-  'forge.//state',
+  'forge://state',
   { description: 'Full simulator state snapshot (KVS, queue, UI)', mimeType: 'application/json' },
   async () => {
     const doc = sim.ui.getForgeDoc();
@@ -1688,7 +1691,7 @@ server.resource(
 
     return {
       contents: [{
-        uri: 'forge.//state',
+        uri: 'forge://state',
         text: JSON.stringify({
           kvs: { entries: sim.kvs.dump(), size: sim.kvs.size },
           queue: {

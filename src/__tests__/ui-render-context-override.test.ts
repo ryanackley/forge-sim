@@ -335,3 +335,84 @@ describe('buildForgeContext directly — unit-level coverage', () => {
     }
   });
 });
+
+describe('context / extension split — the fully-mocked combo', () => {
+  let sim: ForgeSimulator;
+
+  beforeEach(async () => {
+    sim = createSimulator();
+    await sim.deploy(SIMPLE_PANEL_FIXTURE);
+  });
+
+  afterEach(async () => {
+    await sim.stop();
+  });
+
+  it('context (merge) + extension (replace) apply together on one render', async () => {
+    await sim.ui.render('simple-panel', {
+      context: { accountId: 'alice', locale: 'de-DE' },
+      extension: {
+        issue: { key: 'MOCK-1', id: '99001', type: 'Task', typeId: '10009' },
+        project: { key: 'MOCK', id: '88001' },
+      },
+    });
+
+    const ctx = sim.ui.getContext('simple-panel')!;
+    // Canonical context fields promoted to the top level — this was silently
+    // dropped before the split (the extension branch returned early).
+    expect(ctx.accountId).toBe('alice');
+    expect(ctx.locale).toBe('de-DE');
+    // Extension replaced wholesale (plus the type the sim always provides)
+    expect(ctx.extension).toEqual({
+      type: 'jira:issuePanel',
+      issue: { key: 'MOCK-1', id: '99001', type: 'Task', typeId: '10009' },
+      project: { key: 'MOCK', id: '88001' },
+    });
+  });
+
+  it('explicit extension suppresses issueKey hydration and default module extension', async () => {
+    const ctx = await buildForgeContext(sim, 'panel', 'jira:projectPage', {
+      extension: { custom: true },
+    });
+    // No default project payload — extension is caller-owned
+    expect(ctx.extension).toEqual({ type: 'jira:projectPage', custom: true });
+  });
+
+  it('loose context fields fill extension gaps, explicit extension keys win', async () => {
+    const ctx = await buildForgeContext(sim, 'panel', 'jira:globalPage', {
+      context: { accountId: 'alice', tenantTag: 'pro', flavor: 'from-context' },
+      extension: { flavor: 'from-extension' },
+    });
+    expect(ctx.accountId).toBe('alice');
+    expect(ctx.extension.tenantTag).toBe('pro');           // gap-filled
+    expect(ctx.extension.flavor).toBe('from-extension');   // extension wins
+  });
+
+  it('render rejects extension nested inside context (runtime TypeError)', async () => {
+    await expect(
+      sim.ui.render('simple-panel', {
+        // @ts-expect-error — extension?: never forbids this at compile time too
+        context: { accountId: 'alice', extension: { issue: { key: 'PROJ-1' } } },
+      })
+    ).rejects.toThrow(/context\.extension is not supported.*\{ context: \{\.\.\.\}, extension: \{\.\.\.\} \}/s);
+  });
+
+  it('buildForgeContext rejects nested extension arriving via untyped JSON (MCP/CLI path)', async () => {
+    const fromJson: Record<string, unknown> = JSON.parse(
+      '{ "accountId": "alice", "extension": { "spaceKey": "TEAM" } }'
+    );
+    await expect(
+      buildForgeContext(sim, 'panel', 'jira:globalPage', { context: fromJson as any })
+    ).rejects.toThrow(/context\.extension is not supported/);
+  });
+
+  it('nested extension is rejected even when a top-level extension is also present', async () => {
+    await expect(
+      buildForgeContext(sim, 'panel', 'jira:globalPage', {
+        // @ts-expect-error
+        context: { extension: { a: 1 } },
+        extension: { b: 2 },
+      })
+    ).rejects.toThrow(/context\.extension is not supported/);
+  });
+});

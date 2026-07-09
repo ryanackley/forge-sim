@@ -79,7 +79,7 @@ export type {
 export { SimulatorUI } from './ui/index.js';
 export type { ForgeDoc, BridgeCall } from './ui/index.js';
 export { buildForgeContext, buildDefaultContext } from './context.js';
-export type { ForgeContext, RenderContextOptions } from './context.js';
+export type { ForgeContext, RenderContextOptions, ContextOverride } from './context.js';
 
 // Backward-compat UI exports (deprecated — prefer sim.ui.*)
 export {
