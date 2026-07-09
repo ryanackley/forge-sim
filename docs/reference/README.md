@@ -8,4 +8,4 @@ Lookup material shared across local development, testing, and AI-driven use.
 - [UIKit renderer](./renderer.md) — ForgeDoc → Atlaskit, color modes, component coverage.
 - [Implementation matrix](./implementation-matrix.md) — Forge API → forge-sim status, surface by surface.
 - [Module support](./module-support.md) — per-module-type support level.
-- [Module contexts](./module-contexts.md) — the `extension.*` shape each module receives.
+- [Module contexts](./module-contexts.md) — what forge-sim hydrates into `useProductContext()`, and how to inject the rest.

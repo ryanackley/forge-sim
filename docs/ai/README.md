@@ -1,6 +1,6 @@
 # AI-driven development
 
-forge-sim gives an AI agent a complete Forge runtime with no Atlassian credentials and no deploy permissions. The agent writes code, deploys it locally, invokes resolvers, fires triggers, inspects KVS/SQL, and reads logs — all without any way to reach a real site.
+forge-sim gives an AI agent a simulated Forge runtime with no Atlassian credentials and no deploy permissions. The agent can write code, deploy it locally, invoke resolvers, fire triggers, inspect KVS/SQL, and read logs. This can all be done without ever leaving a local sandbox.
 
 Agents drive forge-sim two ways: the CLI (paste-able into a prompt) or the MCP server (for clients that speak [Model Context Protocol](https://modelcontextprotocol.io/)).
 

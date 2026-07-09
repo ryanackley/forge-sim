@@ -1,6 +1,6 @@
 # MCP Server
 
-forge-sim exposes the full simulator to AI agents via [Model Context Protocol](https://modelcontextprotocol.io/).
+forge-sim exposes the testing engine as a headless simulator to AI agents via [Model Context Protocol](https://modelcontextprotocol.io/).
 
 ## Transport Options
 
@@ -40,7 +40,90 @@ For MCP clients that support stdio servers, add to your `.mcp.json`:
 }
 ```
 
-> **Note:** The stdio transport is stateless — each connection starts fresh. For persistent state, use the daemon CLI commands instead.
+
+## Talking to real Atlassian APIs and providers
+
+By default the MCP simulator is fully isolated: unmocked product API calls return a `501` with a hint to register a mock, and `withProvider()` calls run in mock mode. That's the right default for automated tests, but for live iteration you often want the AI's app code hitting your real Jira/Confluence site and real provider endpoints instead of mocks.
+
+Credential setup happens **outside** the MCP session, with the CLI. `forge.deploy` re-reads the credential store on every call, so credentials added mid-session are picked up on the next deploy — no daemon restart needed.
+
+### Atlassian APIs (PAT)
+
+Add an Atlassian account with a Personal Access Token:
+
+```bash
+forge-sim auth
+```
+
+This prompts for your site URL, email, and PAT, and stores them in the credential store (`.forge-sim/credentials.json` in the app directory if present, otherwise `~/.forge-sim/credentials.json`). After the next `forge.deploy`, `requestJira` / `requestConfluence` calls that don't match a registered mock go to your real site, authenticated with the PAT.
+
+### Third-party providers (OAuth)
+
+For providers declared in your manifest (`providers.auth`), run the OAuth dance from the CLI before the MCP session:
+
+```bash
+forge-sim auth --provider google --secret   # set the client secret first (one time)
+forge-sim auth --provider google            # opens the browser, runs the authorization flow
+```
+
+Tokens land in the same credential store. After the next `forge.deploy`, `api.asUser().withProvider('google')` calls use the real token instead of mock mode.
+
+> If `forge-sim dev` is running, the CLI can't run the OAuth dance (the callback listener needs port 5173, which the dev server holds). Use the Providers panel in the Tools UI at `http://localhost:5173/__tools/` instead — tokens end up in the same store either way.
+
+### Environment variables
+
+As an alternative to the credential store, credentials can come from env vars (env vars win when both are set):
+
+```
+FORGE_SIM_SITE=mysite.atlassian.net
+FORGE_SIM_EMAIL=you@example.com
+FORGE_SIM_PAT=ATATT3x...
+FORGE_SIM_PROVIDER_GOOGLE_TOKEN=ya29...   # FORGE_SIM_PROVIDER_<KEY>_TOKEN, key uppercased, hyphens → underscores
+```
+
+These must be set in the **MCP server's process environment** — exporting them in your shell profile does not reach a server launched by an MCP client. Put them in the `env` block of your `.mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "forge-sim": {
+      "command": "forge-sim-mcp",
+      "env": {
+        "FORGE_SIM_SITE": "mysite.atlassian.net",
+        "FORGE_SIM_EMAIL": "you@example.com",
+        "FORGE_SIM_PAT": "ATATT3x..."
+      }
+    }
+  }
+}
+```
+
+### How routing works once connected
+
+Mocks still take priority. A route registered with `forge.mock_routes` or `forge.mock_graphql` is served from the mock; anything unmatched falls through to the real API. This lets an AI agent mix both — mock the endpoints under test, hit the real site for everything else.
+
+The `forge.deploy` response includes an `auth` block showing what connected, and `forge.auth_status` reports the current account, provider tokens, and manifest providers at any time.
+
+See [Credentials](../local-development/credentials.md) for the full `forge-sim auth` flag reference.
+
+## Overlap with `forge-sim dev`
+
+The MCP daemon and `forge-sim dev` are **separate processes with separate runtime state**. Each holds its own simulator: its own in-memory KVS, its own embedded MySQL instance, its own queues, logs, and deployed app. Nothing you do in one is visible in the other at runtime.
+
+Common point of confusion: `forge-sim kvs list` (and the other daemon CLI commands) talk to the **daemon**, not the dev server. Running it while `forge-sim dev` is up works fine — but it shows the daemon's KVS, not what your dev-mode app has stored. To inspect dev-mode state, use the Dev Tools at `http://localhost:5173/__tools/`.
+
+What the two surfaces **do** share is the `.forge-sim/` directory on disk:
+
+| Path | Shared? | Notes |
+|------|---------|-------|
+| `credentials.json` | ✅ Shared | Atlassian accounts + provider tokens. Local `.forge-sim/` checked first, then `~/.forge-sim/`. Auth once with the CLI; dev mode, MCP, and the test library all read it. |
+| `providers.json` | ✅ Shared | OAuth client secrets for manifest providers. |
+| `variables.json` | ✅ Shared | Environment variables — read at deploy time by every surface. |
+| `fit-keys/` | ✅ Shared | FIT signing keys for remotes. Sharing these means your remote backend's cached JWKS stays valid across surfaces. |
+| `bundles/` | ✅ Shared | Resolver bundle cache. Each deploy writes fresh files, so concurrent use is safe. |
+| `state/` | ❌ Dev mode only | Persisted KVS + SQL state, auto-saved and restored by `forge-sim dev`. The MCP daemon and test library never read or write it — seeding KVS via `forge.kvs_set` does not appear in dev mode, and dev-mode data does not appear in `forge.kvs_list`. |
+
+In practice: credentials, secrets, and variables are set-once-and-shared; runtime data is per-process. Running `forge-sim dev` and an MCP session against the same app directory at the same time is fine — they won't corrupt each other, they just won't see each other's data.
 
 ## Tools
 
@@ -90,7 +173,6 @@ For MCP clients that support stdio servers, add to your `.mcp.json`:
 | `forge.realtime_state` | Inspect realtime subscriptions and event log |
 | `forge.reset` | Clear all state |
 
-> The stats block above is auto-generated by `npm run docs:stats`. Adding a new MCP tool? Re-run the script and update the table here too.
 
 ## Resources (4)
 

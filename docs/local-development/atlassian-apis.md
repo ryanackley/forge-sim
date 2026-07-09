@@ -32,13 +32,3 @@ When `forge-sim dev` starts, it loads stored credentials and connects automatica
 📡 Connected to real APIs as Ryan Ackley @ mysite.atlassian.net
 ```
 
-If no credentials exist, mock APIs are used:
-
-```
-📡 No Atlassian accounts — using mock APIs
-   Run 'forge-sim auth' to connect to a real site
-```
-
-## Mocks
-
-Mock routes take priority over the connected site, but registering them is a [test API](../testing/README.md) / [MCP](../ai/mcp.md) feature — `sim.mockProductRoutes()` in tests, `forge_mock_routes` over MCP. `forge-sim dev` has no mock setup: every product API call goes to your connected site, or fails with a `501` when no site is connected.

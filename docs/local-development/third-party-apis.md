@@ -1,10 +1,11 @@
 # Talking to third-party APIs
 
-Forge apps can authenticate with external APIs (Google, GitHub, Slack, …) using OAuth 2.0 via `asUser().withProvider()` / `asApp().withProvider()`. 
+Forge apps can authenticate with external APIs (Google, GitHub, Slack, …) using OAuth 2.0 via `asUser().withProvider()` / `asApp().withProvider()`.
 
-The Forge platform has built-in mechanics to support OAuth. Forge-sim mimics these so you can use these locally. Other auth types should work out of the box. 
+The Forge platform has built-in mechanics to support OAuth. Forge-sim mimics these so you can use these locally. They require some configuration similar to what you would do in forge.
 
 ## Configuration
+
 First, you'll need to set the provider's client secret
 
 ```bash
@@ -20,7 +21,10 @@ http://localhost:5173/__tools/oauth/callback
 
 ## Authorization Flow
 
-**Via the Tools UI (recommended when `forge-sim dev` is running):**
+**Automatically:**
+Any call to `withProvider().requestCredentials` will launch your default browser to initiate the oauth flow
+
+**Via the Tools UI:**
 
 1. Open `http://localhost:5173/__tools/` and click the **Providers** tab
 2. Click **Connect** on a provider — a popup opens the provider's auth URL
@@ -43,7 +47,6 @@ forge-sim auth --providers
 forge-sim auth --providers --list
 ```
 
-
 ## Unified callback URL
 
 Every external provider uses the same redirect URI:
@@ -60,9 +63,10 @@ External provider tokens with `expiresAt` and a `refreshToken` are refreshed aut
 
 ## Where things are stored
 
-| File | Contents |
-|------|----------|
-| `<app>/.forge-sim/providers.json` | Provider client secrets (per-project, `0600`) |
-| `~/.forge-sim/credentials.json` | Third-party tokens (in the `thirdParty` field, keyed by account) |
+
+| File                              | Contents                                                        |
+| --------------------------------- | --------------------------------------------------------------- |
+| `<app>/.forge-sim/providers.json` | Provider client secrets (per-project,`0600`)                    |
+| `~/.forge-sim/credentials.json`   | Third-party tokens (in the`thirdParty` field, keyed by account) |
 
 Provider secrets are per-project because `clientId` comes from the manifest, which varies per app. Full credential-management reference: [Credentials](./credentials.md).

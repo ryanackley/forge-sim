@@ -1,6 +1,6 @@
 # UIKit Renderer
 
-Real-time visual preview of Forge UIKit apps using genuine Atlaskit components. Your app renders exactly as it would in Jira/Confluence — without deploying.
+Real-time visual preview of Forge UIKit apps using genuine Atlaskit components. Your app renders closely to how it would in Jira/Confluence. There will be differences based on a variety of factors. It should be close enough for testing. 
 
 ## Architecture
 

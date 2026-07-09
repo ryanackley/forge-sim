@@ -85,7 +85,7 @@ When you need actual surface details, go to the doc — don't guess from this fi
 | Programmatic API (`sim.*`) | `docs/reference/api.md` |
 | Renderer (ForgeDoc → Atlaskit, color modes) | `docs/reference/renderer.md` |
 | What's supported per Forge module type | `docs/reference/module-support.md` |
-| Module context shapes (`extension.*` per module) | `docs/reference/module-contexts.md` |
+| Context hydration (what `useProductContext()` returns) | `docs/reference/module-contexts.md` |
 | Full Forge API → forge-sim status matrix | `docs/reference/implementation-matrix.md` |
 
 ## Running things

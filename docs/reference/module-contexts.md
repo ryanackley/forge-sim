@@ -1,11 +1,90 @@
-# Forge Module Context Reference
+# Module Contexts
 
-What `useProductContext()` / `view.getContext()` returns for every Forge module type.
+What `useProductContext()` / `view.getContext()` return when your module runs in forge-sim.
 
-**Source:** [Atlassian Forge Docs](https://developer.atlassian.com/platform/forge/manifest-reference/modules/)  
-**Last updated:** 2026-05-24
+You can either fully mock contexts, let forge-sim inject fake data, or pull data from a connected Atlassian site. 
 
-> **Scope of this doc.** This is the Forge contract — what `useProductContext()` returns when your module runs on the real platform. forge-sim hydrates the same shape for the modules it knows how to look up (issues, content, projects, spaces). Modules not in those groups still get the canonical top-level fields (`accountId`, `cloudId`, `siteUrl`, etc.) plus `extension.type`; richer extension data can be passed via the [CLI hydration flags](#cli-hydration-flags) or `sim.invoke(fn, payload, { context })`.
+
+---
+
+## Fully Mocked Contexts
+
+For tests you usually want to control the entire context yourself. Combine the two override options: `context` for the canonical top-level fields, `extension` for the module-specific data.
+
+```ts
+await sim.ui.render('my-panel', {
+  // Canonical fields → promoted to the top level of the context
+  context: {
+    accountId: 'alice-001',
+    cloudId: 'test-cloud',
+    siteUrl: 'https://test.atlassian.net',
+    locale: 'fr-FR',
+    timezone: 'Europe/Paris',
+    license: { active: true, type: 'PAID' },
+  },
+  // Extension → used exactly as given. Skips ALL hydration.
+  extension: {
+    issue: { key: 'PROJ-42', id: '10042', type: 'Bug' },
+    project: { key: 'PROJ', id: '10000' },
+    issueKey: 'PROJ-42',
+    projectKey: 'PROJ',
+  },
+});
+```
+
+- Passing `extension` **replaces** the extension object: it's merged over `{ type: '<moduleType>' }` and used verbatim. Hydration is never attempted.
+- `context` **merges**: canonical fields (see [the whitelist below](#how-context-is-built)) override the sim defaults and any sticky resolver context; loose fields fill extension gaps under your explicit `extension` keys.
+- The two are deliberately separate options with different semantics — nesting `extension` inside `context` is **rejected** on every surface (compile error in TypeScript, `TypeError` at runtime).
+- The only field you can't override is `moduleKey` — it always comes from the render call.
+- Both options work the same on the test library (`sim.ui.render`, `sim.invoke(fn, payload, { context, extension })`) and MCP (`forge.ui_render`, `forge.invoke`). The CLI has `--context` but no `--extension` flag yet — pass loose fields through `--context` there (they merge into `extension`, they just don't suppress shorthand-key hydration).
+
+---
+
+## Hydrated Contexts (the shorthand keys)
+
+The other main approach: pass a key and let forge-sim build the context around it. With a [connected account](../local-development/credentials.md) the data is fetched live from your Atlassian site; without one, registered mock routes answer, and failing that the context is built offline from the key itself — no auth or network required.
+
+```ts
+await sim.ui.render('issue-panel', { issueKey: 'PROJ-42' });
+await sim.ui.render('project-page', { projectKey: 'PROJ' });
+await sim.ui.render('byline-item', { contentId: '12345', spaceKey: 'ENG' });
+await sim.ui.render('space-page', { spaceKey: 'ENG' });
+```
+
+The complete set of options — same names in the test library, MCP `forge.ui_render`, and (where noted) `forge-sim dev` flags:
+
+- **`issueKey`** — hydrates `extension.issue` and `extension.project`, plus flat `issueKey` / `issueId` / `projectKey` / `projectId`. Live fetch: `GET /rest/api/3/issue/<key>`. Offline: the key as-is, project key from the prefix. CLI: `--issue`.
+- **`projectKey`** — hydrates `extension.project` plus flat `projectKey` / `projectId`. Live fetch: `GET /rest/api/3/project/<key>`. CLI: `--project`.
+- **`contentId`** — hydrates `extension.content` and `extension.space`, plus flat `contentId` / `spaceKey`. Live fetch: `GET /rest/api/content/<id>?expand=space`. CLI: `--content`.
+- **`spaceKey`** — a hint alongside `contentId` (seeds the space when offline), or standalone for space modules. Never fetched on its own. CLI: `--space`.
+- **`context`** — raw context object. Canonical fields promoted to the top level, everything else merged into `extension`. `context: { issueKey }` on a Jira issue module behaves like the `issueKey` shortcut. A literal `extension` key inside `context` is rejected — use the top-level `extension` option. CLI: `--context '<JSON>'`.
+- **`extension`** — full extension override; skips hydration entirely (the [fully mocked](#fully-mocked-contexts) path). Test library and MCP; no CLI flag yet — pass loose fields via `--context` there.
+- **`macroConfig`** — one-shot saved-config injection for `macro` modules, surfaced via `useConfig()`. Doesn't persist across renders — use `sim.ui.setMacroConfig(key, config)` for sticky values. Test library and MCP only.
+
+Only one hydration shortcut applies per render — `issueKey` wins over `contentId`, which wins over `projectKey` — and `extension` beats them all. The shortcuts aren't gated by module type: `issueKey` on a non-issue module still hydrates issue fields into its extension.
+
+---
+
+## How Context Is Built in forge-sim
+
+`sim.ui.render(moduleKey, options)`, `forge.ui_render` (MCP), and the [`forge-sim dev` flags](#cli-hydration-flags) resolve these options in the same order (surface availability per option is noted [above](#hydrated-contexts-the-shorthand-keys)). For the `extension` object, first match wins:
+
+1. **`extension` override** — used as-is (merged over `{ type }`). No hydration. A `context` option passed alongside still applies: canonical fields are promoted to the top level, and loose context fields fill extension gaps under your explicit `extension` keys.
+2. **`issueKey` / `contentId` / `projectKey`** — hydrated via the product API (see the groups below). Mock-first, offline-safe: mock routes answer if registered, a connected account is used if present, and otherwise the context is built from the key itself with no network call.
+3. **`context`** — a raw object. Canonical top-level fields (`accountId`, `cloudId`, `siteUrl`, `environmentId`, `environmentType`, `localId`, `locale`, `timezone`, `license`, `theme`, `surfaceColor`, `userAccess`, `permissions`) are promoted to the top level of the context; everything else is merged into `extension`. A literal `extension` key here throws a `TypeError` — extension data goes through the top-level `extension` option. One smart mapping: `context: { issueKey: 'PROJ-1' }` on a Jira issue module behaves like the `issueKey` shortcut and hydrates.
+4. **Module-type defaults** — project and space modules get canned defaults; custom fields get a mock field value; macros get an empty config; everything else gets bare `{ type }`.
+
+Two more layers on the top-level fields:
+
+- **Connected account** — with [credentials configured](../local-development/credentials.md), `accountId`, `cloudId`, and `siteUrl` come from your real account instead of the sim defaults, and the hydration shortcuts fetch live data from your site.
+- **Sticky resolver context** — canonical fields set via `sim.resolver.setContext({ accountId: 'alice' })` apply to rendered contexts too, so the UI's `useProductContext()` and the resolvers it invokes see the same user. An explicit `context` option still wins over sticky values.
+
+```ts
+// All equivalent surfaces:
+await sim.ui.render('my-panel', { issueKey: 'PROJ-42' });          // test library
+// forge.ui_render { moduleKey: "my-panel", issueKey: "PROJ-42" }  // MCP
+// forge-sim dev --module my-panel --issue PROJ-42                 // dev server
+```
 
 ---
 
@@ -13,305 +92,140 @@ What `useProductContext()` / `view.getContext()` returns for every Forge module 
 
 Every module receives these top-level fields:
 
-| Field | Type | Description | Example |
-|-------|------|-------------|---------|
-| `accountId` | string | Current user's Atlassian account ID | `"5b10a2844c20165700ede21g"` |
-| `cloudId` | string | Cloud instance ID | `"a1b2c3d4-e5f6-7890-abcd-ef1234567890"` |
-| `siteUrl` | string | Base URL of the Atlassian site | `"https://mysite.atlassian.net"` |
-| `moduleKey` | string | The key of the current module from manifest | `"my-issue-panel"` |
-| `environmentId` | string | Forge environment ID | `"abc123def456"` |
-| `environmentType` | string | `"DEVELOPMENT"`, `"STAGING"`, or `"PRODUCTION"` | `"PRODUCTION"` |
-| `localId` | string | Unique ID for this module instance | `"ari:cloud:ecosystem::extension/..."` |
-| `locale` | string | User's locale | `"en-US"` |
-| `timezone` | string | User's timezone | `"America/New_York"` |
-| `license` | object | App license info | `{ active: true, type: "PAID" }` |
-| `theme` | object | UI theme | `{ colorMode: "light" }` |
-| `extension` | object | **Module-specific data (see below)** | varies |
+
+| Field             | Default                            | Notes                                                                                            |
+| ----------------- | ---------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `accountId`       | `"sim-user-001"`                   | Connected account's real account ID when[auth is set up](../local-development/credentials.md).   |
+| `cloudId`         | `"sim-cloud-001"`                  | Connected account's real cloud ID when auth is set up.                                           |
+| `siteUrl`         | `"https://sim-site.atlassian.net"` | `https://<your-site>` when auth is set up.                                                       |
+| `moduleKey`       | —                                 | The module key being rendered. Always set from the render call; can't be overridden via context. |
+| `environmentId`   | `"sim-env"`                        |                                                                                                  |
+| `environmentType` | `"DEVELOPMENT"`                    | Always`DEVELOPMENT` unless overridden.                                                           |
+| `localId`         | `"forge-sim-<timestamp>"`          | Unique per render. Real Forge uses an ARI here; forge-sim uses a plain unique string.            |
+| `locale`          | `"en-US"`                          |                                                                                                  |
+| `timezone`        | host machine's timezone            |                                                                                                  |
+| `extension`       | `{ type: "<moduleType>" }`         | Module-specific data — see below.                                                               |
+
+`license`, `theme`, `surfaceColor`, `userAccess`, and `permissions` are **not set by default**. They're recognized as canonical fields, so if you pass them via a context override they land at the top level (not inside `extension`) — but a module that reads `context.license` without supplying one gets `undefined`, same as an unlicensed dev app on the real platform.
 
 ---
 
-## Jira Modules
+## Hydrated Module Groups
 
-### Issue-Level Modules
-
-These modules all share the same extension shape. They render in the context of a specific Jira issue.
+### Jira issue modules
 
 **Applies to:** `jira:issuePanel`, `jira:issueContext`, `jira:issueGlance`, `jira:issueActivity`, `jira:issueAction`
 
-| Field | Type | Description | Example |
-|-------|------|-------------|---------|
-| `extension.type` | string | Module type | `"jira:issuePanel"` |
-| `extension.issue.key` | string | Issue key | `"PROJ-42"` |
-| `extension.issue.id` | string | Issue ID | `"10001"` |
-| `extension.issue.type` | string | Issue type name | `"Story"` |
-| `extension.issue.typeId` | string | Issue type ID | `"10001"` |
-| `extension.project.id` | string | Project ID | `"10000"` |
-| `extension.project.key` | string | Project key | `"PROJ"` |
-| `extension.project.type` | string | Project type key | `"software"` |
-| `extension.isNewToIssue` | boolean | First time panel is rendered on this issue | `true` |
-| `extension.entryPoint` | string | `"edit"` for edit view, absent for main view | — |
+Pass `issueKey` (or `context: { issueKey }`) to hydrate. With a connected account the issue is fetched live (`GET /rest/api/3/issue/<key>`); without one, the key is used as-is and the project key is extracted from the issue key prefix (`PROJ-1` → `PROJ`).
 
-#### `jira:issuePanel` (additional)
 
-| Field | Type | Description | Example |
-|-------|------|-------------|---------|
-| `extension.spacing` | string | Panel spacing setting | `"default"` |
+| Field                    | Live API            | Offline fallback           |
+| ------------------------ | ------------------- | -------------------------- |
+| `extension.issue.key`    | ✅                  | ✅ (the key you passed)    |
+| `extension.issue.id`     | ✅                  | —                         |
+| `extension.issue.type`   | ✅ issue type name  | —                         |
+| `extension.issue.typeId` | ✅                  | —                         |
+| `extension.project.key`  | ✅                  | ✅ (extracted from prefix) |
+| `extension.project.id`   | ✅                  | —                         |
+| `extension.project.type` | ✅ project type key | —                         |
 
----
+Convenience flat fields are set alongside the nested objects — many apps read these directly: `extension.issueKey`, `extension.issueId`, `extension.projectKey`, `extension.projectId` (the last two only when available).
 
-### `jira:projectPage`
+Without `issueKey`, issue modules get bare `{ type }` — there is no auto-default issue.
 
-Renders as a tab in Jira project navigation.
+### Jira project modules
 
-| Field | Type | Description | Example |
-|-------|------|-------------|---------|
-| `extension.type` | string | Module type | `"jira:projectPage"` |
-| `extension.project.id` | string | Project ID | `"10000"` |
-| `extension.project.key` | string | Project key | `"PROJ"` |
-| `extension.project.type` | string | Project type | `"software"` |
-| `extension.board.id` | string | Board ID (Jira Software only) | `"1"` |
-| `extension.board.type` | string | `"simple"`, `"scrum"`, or `"kanban"` | `"scrum"` |
-| `extension.location` | string | Full URL of the host page | `"https://site.atlassian.net/..."` |
+**Applies to:** `jira:projectPage`, `jira:projectSettingsPage`
 
----
+Pass `projectKey` to hydrate (`GET /rest/api/3/project/<key>` when connected; key-only fallback otherwise). Sets `extension.project.{ id, key, type }` plus flats `extension.projectKey` / `extension.projectId`.
 
-### `jira:projectSettingsPage`
+With no options at all, project modules auto-default to:
 
-Renders in project settings.
+```
+extension.project = { key: 'SIM', id: '10001', type: 'software' }
+extension.projectKey = 'SIM'
+extension.projectId = '10001'
+```
 
-| Field | Type | Description | Example |
-|-------|------|-------------|---------|
-| `extension.type` | string | Module type | `"jira:projectSettingsPage"` |
-| `extension.project.id` | string | Project ID | `"10000"` |
-| `extension.project.key` | string | Project key | `"PROJ"` |
-| `extension.project.type` | string | Project type | `"software"` |
+### Confluence content modules
 
----
+**Applies to:** `confluence:contentAction`, `confluence:contentBylineItem`, `confluence:contextMenu`, `macro`
 
-### `jira:globalPage`
+Pass `contentId` (optionally with `spaceKey` as a hint) to hydrate (`GET /rest/api/content/<id>?expand=space` when connected). Sets `extension.content.{ id, type }` and `extension.space.{ key, id }`, plus flats `extension.contentId` / `extension.spaceKey`. In the offline fallback, `content.type` and `space.id` are omitted, and `space` is only set if you passed `spaceKey`.
 
-Full-page module, not scoped to any project or issue.
+Content modules have **no auto-default** — without `contentId` they get bare `{ type }` (macros additionally get `config`, see [Macros](#macros)).
 
-| Field | Type | Description | Example |
-|-------|------|-------------|---------|
-| `extension.type` | string | Module type | `"jira:globalPage"` |
+### Confluence space modules
 
-No additional context. This is a standalone page.
+**Applies to:** `confluence:spacePage`, `confluence:spaceSettings`, `confluence:spaceSidebar`
 
----
+With no options, these auto-default to:
 
-### `jira:adminPage`
+```
+extension.space = { key: 'SIM', id: '65536' }
+extension.spaceKey = 'SIM'
+```
 
-Renders in Jira admin settings under Apps.
+Passing `spaceKey` substitutes your key (no API fetch for space-only hydration).
 
-| Field | Type | Description | Example |
-|-------|------|-------------|---------|
-| `extension.type` | string | Module type | `"jira:adminPage"` |
+### Everything else
 
-No additional context. Admin-level, not scoped to project or issue.
+`jira:globalPage`, `jira:adminPage`, `confluence:globalPage`, `confluence:globalSettings`, `confluence:homepageFeed`, dashboard gadgets, JSM modules, Bitbucket modules, Compass modules, commands, Rovo actions — all get the common context plus bare `extension: { type }`.
+
+That's correct for the global/admin pages (the real platform sends no extra context there either). For the rest, the real platform sends richer shapes (`gadgetConfiguration`, `portal.id`, `repository.uuid`, …) that forge-sim doesn't fabricate — check the [Atlassian module reference](https://developer.atlassian.com/platform/forge/manifest-reference/modules/) for the shape your module expects, then inject it:
+
+```ts
+await sim.ui.render('my-gadget', {
+  extension: {
+    gadgetConfiguration: { jql: 'project = PROJ' },
+    dashboard: { id: '10100' },
+    gadget: { id: '10200' },
+  },
+});
+```
 
 ---
 
-### `jira:command`
+## Custom Fields
 
-Command palette entry (Cmd-K). Page targets and resource-based commands both supported.
+**Applies to:** `jira:customField`, `jira:customFieldType`
 
-| Field | Type | Description | Example |
-|-------|------|-------------|---------|
-| `extension.type` | string | Module type | `"jira:command"` |
-| `extension.commandKey` | string | The manifest `key` of the invoked command | `"open-issue"` |
-| `extension.invokedFrom` | string | UI surface that invoked the command | `"command-palette"` |
+When no context options are given, forge-sim provides a mock `extension.fieldValue` based on the field's data type (from the manifest), plus `extension.fieldType`:
 
-Commands without a `resource` (page-target commands) don't render UI — they navigate; the manifest entry is still listed in `sim.getManifest()` for assertion.
 
----
+| Field type | Mock value                                               |
+| ---------- | -------------------------------------------------------- |
+| `number`   | `42`                                                     |
+| `string`   | `"Sample value"`                                         |
+| `user`     | `{ accountId: 'sim-user-001', displayName: 'Sim User' }` |
+| `group`    | `{ groupId: 'sim-group-001', name: 'Sim Group' }`        |
+| `date`     | today,`YYYY-MM-DD`                                       |
+| `datetime` | now, ISO 8601                                            |
+| `object`   | `{ key: 'value' }`                                       |
+| (other)    | `"Sample value"`                                         |
 
-### `action` (Rovo Actions)
+To test with a specific value, pass it explicitly: `sim.ui.render(key, { context: { fieldValue: 87 } })`.
 
-AI action invocation. Renders an optional configuration UI; the action body is a function call validated against the manifest input schema.
-
-| Field | Type | Description | Example |
-|-------|------|-------------|---------|
-| `extension.type` | string | Module type | `"action"` |
-| `extension.actionKey` | string | The manifest `key` of the action | `"summarize-issue"` |
-| `extension.input` | object | Validated input matching the action's `inputSchema` | `{ issueKey: "PROJ-1" }` |
-
-When invoking via `sim.invoke(fn, payload, { actionKey })`, the input is validated against the action's schema before the handler runs — invalid payloads throw without dispatching.
-
----
-
-### `jira:dashboardGadget`
-
-Renders as a gadget on a Jira dashboard.
-
-| Field | Type | Description | Example |
-|-------|------|-------------|---------|
-| `extension.type` | string | Module type | `"jira:dashboardGadget"` |
-| `extension.gadgetConfiguration` | object | Saved gadget config (from edit view submit) | `{ jql: "project = PROJ" }` |
-| `extension.dashboard.id` | string | Dashboard ID | `"10100"` |
-| `extension.gadget.id` | string | Gadget instance ID | `"10200"` |
-| `extension.entryPoint` | string | `"edit"` for edit mode, absent for view mode | `"edit"` |
-| `extension.location` | string | Full URL of the dashboard | `"https://site.atlassian.net/..."` |
-
----
-
-### Workflow Modules
-
-`jira:workflowCondition`, `jira:workflowValidator`, `jira:workflowPostFunction` — each has up to three UI sub-modules for the create/edit/view phases of the workflow rule wizard. forge-sim splits these on parse, so a manifest module with key `my-condition` becomes:
-
-- `my-condition--create` — the configuration form shown when the rule is first added
-- `my-condition--edit` — the configuration form shown when the rule is edited later
-- `my-condition--view` — the read-only summary shown on the workflow diagram
-
-Each sub-module renders independently with its own ForgeDoc tree. Context shape:
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `extension.type` | string | The parent module type (e.g. `"jira:workflowCondition"`) |
-| `extension.viewMode` | string | `"create"`, `"edit"`, or `"view"` |
-| `extension.workflow` | object | Workflow metadata (id, name) when available |
-| `extension.transition` | object | Transition the rule applies to (from, to, name) |
-| `extension.fieldsConfig` | object | (edit/view only) The values the user previously saved in the create form |
-
-The function side (the `function` declared on the same module) receives the saved config and the workflow event payload at invocation time — see [the Forge docs on workflow rules](https://developer.atlassian.com/platform/forge/manifest-reference/modules/jira-workflow-condition/) for the full event shape.
-
----
-
-### `jira:customField`
-
-Renders as a custom field on issues.
-
-| Field | Type | Description | Example |
-|-------|------|-------------|---------|
-| `extension.type` | string | Module type | `"jira:customField"` |
-| `extension.fieldId` | string | Custom field ID | `"customfield_10001"` |
-| `extension.fieldValue` | any | Current field value (type depends on field config) | `42`, `"text"`, `{...}` |
-| `extension.renderContext` | string | Where the field is being rendered | `"issue-view"`, `"issue-create"`, `"issue-transition"` |
-| `extension.issue.key` | string | Issue key (when on an issue) | `"PROJ-42"` |
-| `extension.issue.id` | string | Issue ID | `"10001"` |
-| `extension.issue.type` | string | Issue type name | `"Story"` |
-| `extension.issue.typeId` | string | Issue type ID | `"10001"` |
-| `extension.project.id` | string | Project ID | `"10000"` |
-| `extension.project.key` | string | Project key | `"PROJ"` |
-| `extension.project.type` | string | Project type | `"software"` |
-| `extension.entryPoint` | string | `"edit"` for edit view | `"edit"` |
-
----
-
-### `jira:customFieldType`
-
-Same context as `jira:customField`. Used when defining reusable field types.
-
-**Sub-module keys.** Like workflow modules, custom fields split on parse into `--view` and `--edit` sub-modules so the two render targets are addressable independently:
+**Sub-module keys.** Custom fields split on parse into `--view` and `--edit` sub-modules so the two render targets are addressable independently:
 
 - `priority-score--view` — the cell renderer (read-only)
 - `priority-score--edit` — the inline editor (with submit handler)
 
-Both render with the field context above; the `--edit` sub-module's `view.submit(payload)` is captured by `sim.ui.onSubmit()` in tests rather than dispatched to the host product (see [testing § Custom field subviews](../testing/README.md#custom-field-subviews)).
+Both render with the same field context; the `--edit` sub-module's `view.submit(payload)` is captured by `sim.ui.onSubmit()` in tests rather than dispatched to the host product (see [testing § Custom field subviews](../testing/README.md#custom-field-subviews)).
 
 ---
 
-### JSM Modules
+## Macros
 
-#### `jira:serviceManagement:queuePage`
+Macros are Confluence content modules (hydration above), plus config handling: when no config has been saved, `extension.config` defaults to `{}` so `useConfig()` resolves instead of hanging.
 
-| Field | Type | Description | Example |
-|-------|------|-------------|---------|
-| `extension.type` | string | Module type | `"jira:serviceManagement:queuePage"` |
-| `extension.project.id` | string | Project ID | `"10000"` |
-| `extension.project.key` | string | Project key | `"SRVDESK"` |
-| `extension.project.type` | string | Project type | `"service_desk"` |
+Config can be seeded three ways:
 
-#### `jira:serviceManagement:portalRequestDetail`
+- `sim.ui.render(key, { macroConfig: {...} })` / `forge.ui_render` with `macroConfig` — one-shot, doesn't persist
+- `sim.ui.setMacroConfig(key, {...})` — sticky across renders
+- Submitting the config form in dev mode or via `renderInlineConfig().save(values)` — the saved values persist and are returned on subsequent renders
 
-| Field | Type | Description | Example |
-|-------|------|-------------|---------|
-| `extension.type` | string | Module type | `"jira:serviceManagement:portalRequestDetail"` |
-| `extension.portal.id` | string | Portal ID | `"1"` |
-| `extension.portal.key` | string | Portal key | `"SRVDESK"` |
-| `extension.request.id` | string | Request/issue ID | `"10001"` |
-| `extension.request.key` | string | Request/issue key | `"SRVDESK-42"` |
-
-#### `jira:serviceManagement:portalRequestCreate`
-
-| Field | Type | Description | Example |
-|-------|------|-------------|---------|
-| `extension.type` | string | Module type | `"jira:serviceManagement:portalRequestCreate"` |
-| `extension.portal.id` | string | Portal ID | `"1"` |
-| `extension.portal.key` | string | Portal key | `"SRVDESK"` |
-| `extension.requestType.id` | string | Request type ID | `"10"` |
-
-#### `jira:serviceManagement:assetsObjectViewPanel`
-
-| Field | Type | Description | Example |
-|-------|------|-------------|---------|
-| `extension.type` | string | Module type | `"jira:serviceManagement:assetsObjectViewPanel"` |
-| `extension.objectId` | string | Assets object ID | `"12345"` |
-| `extension.objectTypeId` | string | Object type ID | `"100"` |
-| `extension.workspaceId` | string | Assets workspace ID | `"ws-1"` |
-
----
-
-## Confluence Modules
-
-### `confluence:contentBylineItem`
-
-Renders in the content byline (under the title).
-
-| Field | Type | Description | Example |
-|-------|------|-------------|---------|
-| `extension.type` | string | Module type | `"confluence:contentBylineItem"` |
-| `extension.content.id` | string | Content ID | `"12345"` |
-| `extension.content.type` | string | Content type | `"page"`, `"blogpost"` |
-| `extension.space.id` | string | Space ID | `"65537"` |
-| `extension.space.key` | string | Space key | `"MYSPACE"` |
-
----
-
-### `confluence:contentAction`
-
-Action button on Confluence content.
-
-| Field | Type | Description | Example |
-|-------|------|-------------|---------|
-| `extension.type` | string | Module type | `"confluence:contentAction"` |
-| `extension.content.id` | string | Content ID | `"12345"` |
-| `extension.content.type` | string | Content type | `"page"` |
-| `extension.space.id` | string | Space ID | `"65537"` |
-| `extension.space.key` | string | Space key | `"MYSPACE"` |
-
----
-
-### `confluence:contextMenu`
-
-Context menu item on Confluence content.
-
-| Field | Type | Description | Example |
-|-------|------|-------------|---------|
-| `extension.type` | string | Module type | `"confluence:contextMenu"` |
-| `extension.content.id` | string | Content ID | `"12345"` |
-| `extension.content.type` | string | Content type | `"page"` |
-| `extension.space.id` | string | Space ID | `"65537"` |
-| `extension.space.key` | string | Space key | `"MYSPACE"` |
-
----
-
-### `macro` (Confluence Macro)
-
-Renders inline in Confluence content.
-
-| Field | Type | Description | Example |
-|-------|------|-------------|---------|
-| `extension.type` | string | Module type | `"macro"` |
-| `extension.config` | object | Macro configuration set by the user | `{ color: "blue", count: 5 }` |
-| `extension.content.id` | string | Content ID of the page containing the macro | `"12345"` |
-| `extension.content.type` | string | Content type | `"page"` |
-| `extension.space.id` | string | Space ID | `"65537"` |
-| `extension.space.key` | string | Space key | `"MYSPACE"` |
-
-**Note:** Macro config comes from the `config` property defined in `manifest.yml`. Users set these values when inserting or editing the macro.
-
-#### Custom config (`config: { resource: '...' }`)
+### Custom config (`config: { resource: '...' }`)
 
 When a macro declares a `config.resource`, forge-sim parses it as a separate sub-module
 and renders the macro page with **View / Config tabs**:
@@ -342,7 +256,7 @@ The picker groups these as a single row under the macro's base key. URLs:
 - `/module/<key>--view/` — view iframe (used internally by the combined page)
 - `/module/<key>--config/` — config iframe (used internally by the combined page)
 
-#### Inline config (`config: true` or `config: {}`)
+### Inline config (`config: true` or `config: {}`)
 
 When a macro uses simple/inline config — registered at runtime via
 `ForgeReconciler.addConfig(<Config />)` from the same bundle as the main view —
@@ -394,117 +308,17 @@ modules:
 
 ---
 
-### `confluence:spacePage`
+## Workflow Modules
 
-Renders as a page in Confluence space navigation.
+`jira:workflowCondition`, `jira:workflowValidator`, `jira:workflowPostFunction` — each has up to three UI sub-modules for the create/edit/view phases of the workflow rule wizard. forge-sim splits these on parse, so a manifest module with key `my-condition` becomes:
 
-| Field | Type | Description | Example |
-|-------|------|-------------|---------|
-| `extension.type` | string | Module type | `"confluence:spacePage"` |
-| `extension.space.id` | string | Space ID | `"65537"` |
-| `extension.space.key` | string | Space key | `"MYSPACE"` |
-| `extension.location` | string | Full URL of the page | `"https://site.atlassian.net/..."` |
+- `my-condition--create` — the configuration form shown when the rule is first added
+- `my-condition--edit` — the configuration form shown when the rule is edited later
+- `my-condition--view` — the read-only summary shown on the workflow diagram
 
----
+Each sub-module renders independently with its own ForgeDoc tree, using the common context plus `extension.type` set to the parent module type. The real platform additionally provides workflow/transition metadata and (in edit/view) previously saved config — forge-sim doesn't fabricate those; inject them via `extension` or `context` overrides if your component reads them.
 
-### `confluence:globalPage`
-
-Full-page module, not scoped to space or content.
-
-| Field | Type | Description | Example |
-|-------|------|-------------|---------|
-| `extension.type` | string | Module type | `"confluence:globalPage"` |
-
-No additional context.
-
----
-
-### `confluence:globalSettings`
-
-Renders in Confluence admin settings.
-
-| Field | Type | Description | Example |
-|-------|------|-------------|---------|
-| `extension.type` | string | Module type | `"confluence:globalSettings"` |
-
-No additional context. Admin-level.
-
----
-
-### `confluence:homepageFeed`
-
-Renders in the Confluence homepage feed.
-
-| Field | Type | Description | Example |
-|-------|------|-------------|---------|
-| `extension.type` | string | Module type | `"confluence:homepageFeed"` |
-
-Limited context. Not scoped to specific content.
-
----
-
-## Bitbucket Modules
-
-### `bitbucket:repoPage`
-
-Renders as a page in a Bitbucket repository.
-
-| Field | Type | Description | Example |
-|-------|------|-------------|---------|
-| `extension.type` | string | Module type | `"bitbucket:repoPage"` |
-| `extension.repository.uuid` | string | Repository UUID | `"{abc-123}"` |
-| `extension.repository.fullName` | string | Full repo name | `"workspace/repo-name"` |
-| `extension.workspace.uuid` | string | Workspace UUID | `"{def-456}"` |
-| `extension.workspace.slug` | string | Workspace slug | `"myworkspace"` |
-
----
-
-### `bitbucket:pipelineStep`
-
-Renders in Bitbucket Pipelines.
-
-| Field | Type | Description | Example |
-|-------|------|-------------|---------|
-| `extension.type` | string | Module type | `"bitbucket:pipelineStep"` |
-| `extension.repository.uuid` | string | Repository UUID | `"{abc-123}"` |
-| `extension.repository.fullName` | string | Full repo name | `"workspace/repo-name"` |
-| `extension.pipeline.uuid` | string | Pipeline UUID | `"{ghi-789}"` |
-| `extension.step.uuid` | string | Step UUID | `"{jkl-012}"` |
-
----
-
-## Compass Modules
-
-### `compass:componentPage`
-
-Renders on a Compass component page.
-
-| Field | Type | Description | Example |
-|-------|------|-------------|---------|
-| `extension.type` | string | Module type | `"compass:componentPage"` |
-| `extension.component.id` | string | Component ARI | `"ari:cloud:compass:..."` |
-
----
-
-### `compass:adminPage`
-
-Renders in Compass admin settings.
-
-| Field | Type | Description | Example |
-|-------|------|-------------|---------|
-| `extension.type` | string | Module type | `"compass:adminPage"` |
-
-No additional context.
-
----
-
-## Rovo Modules
-
-### `rovo:agent`
-
-Not a UI module — defines an AI agent. No `useProductContext()` applies.
-
-Context is passed through action invocations, not the extension object.
+The function side (the `function` declared on the same module) receives the saved config and the workflow event payload at invocation time — see [the Forge docs on workflow rules](https://developer.atlassian.com/platform/forge/manifest-reference/modules/jira-workflow-condition/) for the full event shape.
 
 ---
 
@@ -512,36 +326,14 @@ Context is passed through action invocations, not the extension object.
 
 Some modules don't render UI in the conventional sense. They appear in the manifest and forge-sim parses them, but they receive event payloads rather than `useProductContext()`:
 
-| Module Type | What it gets instead |
-|-------------|----------------------|
-| Background scripts (`jira:issueViewBackgroundScript`, `jira:dashboardBackgroundScript`, `jira:globalBackgroundScript`, `confluence:backgroundScript`) | Run inside a hidden iframe in the host page; broker `postMessage` to/from the experience. No `useProductContext()`; the host page provides whatever payload the script subscribes to. |
-| Web triggers (`webtrigger`) | Receive an HTTP request object via the function signature `(request) => { statusCode, body? }`. See [api.md § Web Triggers](./api.md). |
-| Event triggers / consumers | Receive the platform event payload (issue created, page updated, queue message, …). See [the trigger event templates registry](./api.md). |
-| Scheduled triggers | Receive `{ context }` and must return `{ statusCode }`. |
 
----
-
-## Context Groups Summary
-
-For quick reference, here's which modules share context shapes:
-
-| Context Group | Modules | Key Fields |
-|---------------|---------|------------|
-| **Jira Issue** | `issuePanel`, `issueContext`, `issueGlance`, `issueActivity`, `issueAction` | `issue.key`, `issue.id`, `project.key` |
-| **Jira Project** | `projectPage`, `projectSettingsPage` | `project.key`, `project.id`, `board.id` |
-| **Jira Dashboard** | `dashboardGadget` | `dashboard.id`, `gadget.id`, `gadgetConfiguration` |
-| **Jira Custom Field** | `customField`, `customFieldType` | `fieldId`, `fieldValue`, `renderContext`, + issue fields |
-| **Jira Global** | `globalPage`, `adminPage` | (none) |
-| **JSM Project** | `queuePage` | `project.key` |
-| **JSM Portal** | `portalRequestDetail`, `portalRequestCreate` | `portal.id`, `request.key` |
-| **Confluence Content** | `contentBylineItem`, `contentAction`, `contextMenu`, `macro` | `content.id`, `content.type`, `space.key` |
-| **Confluence Space** | `spacePage` | `space.key`, `space.id` |
-| **Confluence Global** | `globalPage`, `globalSettings`, `homepageFeed` | (none) |
-| **Bitbucket Repo** | `repoPage`, `pipelineStep` | `repository.uuid`, `workspace.slug` |
-| **Compass** | `componentPage` | `component.id` |
-| **Jira Workflow** | `workflowCondition`, `workflowValidator`, `workflowPostFunction` (each splits into `--create` / `--edit` / `--view`) | `viewMode`, `workflow`, `transition`, `fieldsConfig` |
-| **Jira Command** | `command` | `commandKey`, `invokedFrom` |
-| **Rovo Action** | `action` | `actionKey`, `input` |
+| Module Type                                                                                                                                           | What it gets instead                                                                                                                                                                 |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Background scripts (`jira:issueViewBackgroundScript`, `jira:dashboardBackgroundScript`, `jira:globalBackgroundScript`, `confluence:backgroundScript`) | Run inside a hidden iframe in the host page; broker`postMessage` to/from the experience. No `useProductContext()`; the host page provides whatever payload the script subscribes to. |
+| Web triggers (`webtrigger`)                                                                                                                           | Receive an HTTP request object via the function signature`(request) => { statusCode, body? }`. See [api.md § Web Triggers](./api.md).                                               |
+| Event triggers / consumers                                                                                                                            | Receive the platform event payload (issue created, page updated, queue message, …). See[the trigger event templates registry](./api.md).                                            |
+| Scheduled triggers                                                                                                                                    | Receive`{ context }` and must return `{ statusCode }`.                                                                                                                               |
+| Rovo actions (`action`)                                                                                                                               | Invoked as a function call with input validated against the manifest`inputSchema` — `sim.invoke(fn, payload, { actionKey })` throws on invalid payloads before dispatching.         |
 
 ---
 
@@ -549,13 +341,14 @@ For quick reference, here's which modules share context shapes:
 
 `forge-sim dev` builds the initial render context for a module from these flags. Pass any subset; missing pieces default to canned sim values (`sim-user-001`, `https://sim-site.atlassian.net`, etc.).
 
-| Flag | Hydrates | Notes |
-|------|----------|-------|
-| `--issue <KEY>` | Jira issue context (issue.key, issue.id, issue.type, project.key, project.id, …) | Fetches the live issue if a real API account is connected; falls back to extracting the project key from the issue key (`PROJ-1` → `PROJ`). |
-| `--project <KEY>` | Jira project context (project.key, project.id, project.type) | Fetches the live project when possible. |
-| `--content <ID>` | Confluence content context (content.id, content.type, space.key, space.id) | Combine with `--space` to seed the space when no real API is available. |
-| `--space <KEY>` | Confluence space context (space.key, space.id) | Standalone, or as a hint for `--content`. |
-| `--context '<JSON>'` | Arbitrary raw context — canonical fields (`accountId`, `cloudId`, `locale`, `permissions`, …) are promoted to the top level; everything else lands in `extension`. | The same shape `sim.invoke(fn, payload, { context })` and `sim.ui.render(key, { context })` accept. |
+
+| Flag                 | Hydrates                                                                                                                                                             | Notes                                                                                                                                        |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--issue <KEY>`      | Jira issue context (issue.key, issue.id, issue.type, project.key, project.id, …)                                                                                    | Fetches the live issue if a real API account is connected; falls back to extracting the project key from the issue key (`PROJ-1` → `PROJ`). |
+| `--project <KEY>`    | Jira project context (project.key, project.id, project.type)                                                                                                         | Fetches the live project when possible.                                                                                                      |
+| `--content <ID>`     | Confluence content context (content.id, content.type, space.key, space.id)                                                                                           | Combine with`--space` to seed the space when no real API is available.                                                                       |
+| `--space <KEY>`      | Confluence space context (space.key, space.id)                                                                                                                       | Standalone, or as a hint for`--content`.                                                                                                     |
+| `--context '<JSON>'` | Arbitrary raw context — canonical fields (`accountId`, `cloudId`, `locale`, `permissions`, …) are promoted to the top level; everything else lands in `extension`. | The same shape`sim.invoke(fn, payload, { context })` and `sim.ui.render(key, { context })` accept.                                           |
 
 ```bash
 # Render a Jira issue panel as if viewing PROJ-42
@@ -569,4 +362,4 @@ forge-sim dev --module my-panel --issue PROJ-42 \
 forge-sim dev --module byline --content 12345 --space ENG
 ```
 
-The MCP equivalent is `forge.ui_render` — same fields, same precedence. The MCP tool additionally accepts `macroConfig` for one-shot config injection on `macro` modules. The in-process `sim.ui.render(moduleKey, { macroConfig })` shares that contract.
+The MCP equivalent is `forge.ui_render` — same fields, same precedence. The MCP tool additionally accepts `extension` (full extension override, [fully mocked](#fully-mocked-contexts) path) and `macroConfig` for one-shot config injection on `macro` modules. The in-process `sim.ui.render(moduleKey, { extension, macroConfig })` shares that contract.

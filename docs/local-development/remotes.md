@@ -103,37 +103,6 @@ Unknown endpoint "typo-endpoint". Available endpoints: my-endpoint, analytics-en
 
 Endpoint keys are scoped to the app, not to a particular module — a module without `resolver.endpoint` in its own manifest entry still falls back to the single-endpoint auto-resolve rule when there's only one to choose.
 
----
-
-## Mock routes (no backend needed)
-
-In automated tests and MCP sessions, mock remote responses using the same system as product API mocks. This isn't available in `forge-sim dev` — there, remote calls always go to the real `baseUrl`:
-
-```typescript
-import { createSimulator } from 'forge-sim';
-
-const sim = createSimulator();
-await sim.deploy('./my-app');
-
-// Mock remote routes (remote key = mock key)
-sim.mockProductRoutes('my-backend', {
-  'GET /api/v1/tasks': [
-    { id: 1, name: 'Write docs' },
-    { id: 2, name: 'Ship feature' },
-  ],
-  'POST /api/v1/tasks': (path: string, options?: { body?: string }) => ({
-    id: 3,
-    name: JSON.parse(options?.body ?? '{}').name,
-  }),
-});
-
-// Now invokeRemote hits your mocks
-const response = await sim.remotes.invoke('my-backend', { path: '/api/v1/tasks' });
-const tasks = await response.json();
-// → [{ id: 1, name: 'Write docs' }, { id: 2, name: 'Ship feature' }]
-```
-
-**Mock-first routing:** forge-sim checks mock routes before making real HTTP requests. If a mock matches, it's used. If not, the request falls through to the real `baseUrl` with FIT auth.
 
 ---
 

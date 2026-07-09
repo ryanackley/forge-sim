@@ -1,6 +1,8 @@
 # Local development
 
-Run an unmodified Forge app on your machine with `forge-sim dev`. It serves your UIKit and Custom UI modules, simulates the backend services (functions, queues, consumers, SQL, KVS), and gives you a browsable index of every UI module in the app.
+Run an unmodified Forge app for development that is completely local to your machine with `forge-sim dev`. It serves your UIKit and Custom UI modules and simulates the backend services (functions, queues, consumers, SQL, KVS).
+
+Iterate faster by not having to deploy to Atlassian's servers to test every change.
 
 ```bash
 cd /path/to/forge/app
@@ -9,7 +11,7 @@ forge-sim dev
 
 For the full command and its flags (module selection, context injection, ports, `--clean`, theme), see the [CLI reference](../reference/cli.md#forge-sim-dev).
 
-## A tour of the dev server
+## Running the dev server
 
 Starting `forge-sim dev` opens a browser tab with the **module index** — every UI module declared in your manifest, with its type and title:
 
@@ -19,9 +21,9 @@ Click a module to render it outside of Atlassian products, with the module's For
 
 ![A UIKit module rendering live — real Atlaskit components, real resolver data](../media/dev-uikit-module.png)
 
-This is a real app doing real work: the Add buttons push events onto Forge queues, consumers process them, and the board re-renders from KVS — the full async loop, locally.
+The example above works end-to-end locally: The UIKit interface renders AtlasKit components, the Add buttons push events onto Forge queues, consumers process them, and the board re-renders from KVS — the full async loop, locally.
 
-The **dev tools UI** at `http://localhost:5173/__tools/` is the window into the simulated backend. The log viewer below shows that same app booting: queue consumers registering, resolvers invoked with payloads and return values, and the app's own `console.log` output captured inline. Other tabs give you a KVS browser, SQL console, event trigger panel, OAuth provider connections, and TypeScript diagnostics:
+The **dev tools UI** at `http://localhost:5173/__tools/` is a window into the simulated backend. The log viewer below shows that same app booting: queue consumers registering, resolvers invoked with payloads and return values, and the app's own `console.log` output captured inline. Other tabs give you a KVS browser, SQL console, event trigger panel, OAuth provider connections, and TypeScript diagnostics:
 
 ![Dev tools — consumer registrations, resolver invocations, and captured console output](../media/dev-tools-logs.png)
 
@@ -47,13 +49,13 @@ forge-sim sits in front of your dev server and hosts it in an iframe with shimme
 
 <!-- TODO(demo): record proxy-mode demo and replace the line above. To embed on GitHub, edit this file on github.com and drag the .mp4/.mov in. -->
 
-## Integration stories
+## Atlassian, third party APIs, and remotes
 
-Real apps talk to things: Atlassian's own APIs, third-party services, your own backend. Each has a local-development story:
+Real apps integrate with things: Atlassian's own APIs, third-party services, your own backend. forge-sim supports all three:
 
 - **[Talking to Atlassian APIs](./atlassian-apis.md)** — connect your real site with a PAT so `requestJira()` / `requestConfluence()` / `requestBitbucket()` return live data.
 - **[Talking to third-party APIs](./third-party-apis.md)** — `asUser().withProvider()` OAuth against Google, GitHub, Slack, …: manual tokens or the full live OAuth flow.
-- **[Talking to your remote backend](./remotes.md)** — Forge Remotes with real FIT JWT signing, the local JWKS endpoint your backend validates against, and the ngrok recipe for deployed backends.
+- **[Talking to your remote backend](./remotes.md)** — Forge Remotes.
 
 Credential plumbing shared by all three (account management, storage locations, CI environment variables, the LLM key) lives in the [Credentials](./credentials.md) appendix.
 
