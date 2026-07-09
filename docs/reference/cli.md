@@ -16,15 +16,15 @@ forge-sim dev [appDir]
 | `--no-open` | — | Don't open browser automatically |
 | `--module <key>` | auto | Specific UI module key to render |
 | `--clean` | — | Start fresh (wipe app state, keep credentials) |
-| `--issue <key>` | — | Set Jira issue context (e.g., `PROJ-42`) — hydrates via real API if connected |
+| `--issue <key>` | — | Set Jira issue context (e.g., `PROJ-42`); hydrates via real API if connected |
 | `--content <id>` | — | Set Confluence content context (e.g., `12345`) |
 | `--space <key>` | — | Set Confluence space context (e.g., `SPACEKEY`) |
-| `--project <key>` | — | Set Jira project context (e.g., `PROJ`) — hydrates via real API if connected |
+| `--project <key>` | — | Set Jira project context (e.g., `PROJ`); hydrates via real API if connected |
 | `--context <json>` | — | Set raw context JSON (merged into `extension`) |
-| `--strict-mode` | off | Enable React.StrictMode (off by default — breaks Atlaskit portals) |
+| `--strict-mode` | off | Enable React.StrictMode (off by default because it breaks Atlaskit portals) |
 
 **What starts:**
-- Dev server at `http://localhost:5173` (app preview — Vite for UIKit/Custom UI, reverse proxy with `--proxy`)
+- Dev server at `http://localhost:5173` (app preview: Vite for UIKit/Custom UI, reverse proxy with `--proxy`)
 - WebSocket bridge at `ws://localhost:5174` (event bridge)
 - Dev tools at `http://localhost:5173/__tools/` (KVS browser, SQL console, logs, events)
 - JWKS endpoint at `http://localhost:5173/__forge/jwks.json` (when remotes are configured)
@@ -81,14 +81,14 @@ If the upstream server is unreachable, forge-sim returns a styled 502 error page
 
 #### Theme (dark / light)
 
-Real Forge hosts your iframe with `?theme=dark` or `?theme=light` on the URL. forge-sim matches that contract — append the query string to pick a theme:
+Real Forge hosts your iframe with `?theme=dark` or `?theme=light` on the URL. forge-sim matches that contract; append the query string to pick a theme:
 
 ```
 http://localhost:5173/?theme=dark
 http://localhost:5173/?theme=light
 ```
 
-Your app's theme init should read `?theme=` from `window.location.search` — the same code works in both forge-sim and production. Omit the param to fall back to OS preference (`prefers-color-scheme`). Bookmark both if you toggle often.
+Your app's theme init should read `?theme=` from `window.location.search`; the same code works in both forge-sim and production. Omit the param to fall back to OS preference (`prefers-color-scheme`). Bookmark both if you toggle often.
 
 > Atlaskit gotcha: components require `setGlobalTheme({ colorMode, light, dark, spacing, typography, shape, motion })` at app boot, otherwise they render with unresolved tokens and can appear invisible.
 
@@ -96,7 +96,7 @@ Your app's theme init should read `?theme=` from `window.location.search` — th
 
 ## Daemon Commands
 
-These commands interact with the forge-sim daemon — a background process that maintains simulator state across CLI calls. The daemon auto-starts on first use and auto-exits after 30 minutes of inactivity.
+These commands interact with the forge-sim daemon, a background process that maintains simulator state across CLI calls. The daemon auto-starts on first use and auto-exits after 30 minutes of inactivity.
 
 ### `forge-sim deploy`
 
@@ -193,7 +193,7 @@ forge-sim logs
 
 ### `forge-sim reset`
 
-Reset all simulator state — KVS, queues, SQL, resolvers, UI, logs.
+Reset all simulator state: KVS, queues, SQL, resolvers, UI, logs.
 
 ```bash
 forge-sim reset
@@ -201,7 +201,7 @@ forge-sim reset
 
 ### `forge-sim status`
 
-Show daemon status — PID, port, uptime, idle time, deployed app.
+Show daemon status: PID, port, uptime, idle time, deployed app.
 
 ```bash
 forge-sim status
@@ -230,7 +230,7 @@ forge-sim serve [--port=N]
 Manage Atlassian account credentials. See [Talking to Atlassian APIs](../local-development/atlassian-apis.md) and [Credentials](../local-development/credentials.md) for details.
 
 ```bash
-# Atlassian accounts (PAT only — OAuth was removed)
+# Atlassian accounts (PAT only; OAuth was removed)
 forge-sim auth              # Add account (interactive PAT flow)
 forge-sim auth --list       # List configured accounts
 forge-sim auth --remove ID  # Remove a specific account

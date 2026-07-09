@@ -12,7 +12,7 @@ Real-time log viewer for both simulator and app output. Filter by level:
 - **warn/error** — warnings and errors
 - **console** — captured `console.log/warn/error` from your app code
 
-Logs stream over WebSocket — no polling.
+Logs stream over WebSocket. No polling.
 
 ### KVS
 Browse, search, and edit Key-Value Storage entries:
@@ -41,7 +41,7 @@ Manage external OAuth provider credentials (Google, GitHub, Slack, …):
 - **Connect** opens a popup OAuth flow that bounces through the unified
   callback URL (`/__tools/oauth/callback`) and auto-closes on success
 - **Disconnect** revokes the stored token (in-memory + on-disk)
-- Updates live via WebSocket — connecting in the popup auto-refreshes
+- Updates live via WebSocket: connecting in the popup auto-refreshes
   the panel without a manual reload
 - The provider must have a client secret set first (via
   `forge-sim auth --provider <key> --secret`); rows without a secret
@@ -100,11 +100,11 @@ All endpoints are under `/__tools/api/`:
 | POST | `/api/ui/render` | Render a UI module |
 | GET | `/api/ui/context` | Inspect the current Forge context |
 | GET | `/api/entities` | List Custom Entities and registered schemas |
-| POST | `/api/mock/routes` | Register mock HTTP responses for product APIs / remotes (in-memory — cleared on restart) |
-| POST | `/api/mock/graphql` | Register mock GraphQL operation responses (in-memory — cleared on restart) |
+| POST | `/api/mock/routes` | Register mock HTTP responses for product APIs / remotes (in-memory; cleared on restart) |
+| POST | `/api/mock/graphql` | Register mock GraphQL operation responses (in-memory; cleared on restart) |
 | GET | `/api/providers` | List external OAuth providers + connection status |
 | POST | `/api/providers/:key/start` | Begin OAuth flow; returns `{ authUrl, state, redirectUri }` |
 | DELETE | `/api/providers/:key` | Disconnect — revoke stored provider token |
 | GET | `/__tools/oauth/callback` | Unified OAuth callback URL (dispatched to pending flow by `state`) |
 
-> The Tools UI also accepts `?theme=dark|light|auto` on the URL — see [cli.md](../reference/cli.md#theme-dark--light) for the convention shared with the renderer.
+> The Tools UI also accepts `?theme=dark|light|auto` on the URL. See [cli.md](../reference/cli.md#theme-dark--light) for the convention shared with the renderer.

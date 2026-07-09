@@ -13,15 +13,15 @@ For the full command and its flags (module selection, context injection, ports, 
 
 ## Running the dev server
 
-Starting `forge-sim dev` opens a browser tab with the **module index** — every UI module declared in your manifest, with its type and title:
+Starting `forge-sim dev` opens a browser tab with the **module index**, every UI module declared in your manifest, with its type and title:
 
 ![Module index — every UI module in the manifest, ready to render](../media/dev-module-index.png)
 
-Click a module to render it outside of Atlassian products, with the module's Forge context simulated (issue, project, space — injectable via CLI flags). UIKit modules render through real Atlaskit components, backed by your real resolvers running against the simulated backend. Edits hot-reload, and Chrome DevTools debugs your actual source:
+Click a module to render it outside of Atlassian products, with the module's Forge context simulated (issue, project, space; injectable via CLI flags). UIKit modules render through real Atlaskit components, backed by your real resolvers running against the simulated backend. Edits hot-reload, and Chrome DevTools debugs your actual source:
 
-![A UIKit module rendering live — real Atlaskit components, real resolver data](../media/dev-uikit-module.png)
+![A UIKit module rendering live: real Atlaskit components, real resolver data](../media/dev-uikit-module.png)
 
-The example above works end-to-end locally: The UIKit interface renders AtlasKit components, the Add buttons push events onto Forge queues, consumers process them, and the board re-renders from KVS — the full async loop, locally.
+The example above works end-to-end locally: The UIKit interface renders AtlasKit components, the Add buttons push events onto Forge queues, consumers process them, and the board re-renders from KVS. The full async loop, locally.
 
 The **dev tools UI** at `http://localhost:5173/__tools/` is a window into the simulated backend. The log viewer below shows that same app booting: queue consumers registering, resolvers invoked with payloads and return values, and the app's own `console.log` output captured inline. Other tabs give you a KVS browser, SQL console, event trigger panel, OAuth provider connections, and TypeScript diagnostics:
 
@@ -31,7 +31,7 @@ See [Dev tools UI](./dev-tools.md) for the full walkthrough.
 
 ## Custom UI and proxy mode
 
-Custom UI pages that are already bundled and referenced in your manifest work out of the box — forge-sim serves them and injects the `@forge/bridge` shim.
+Custom UI pages that are already bundled and referenced in your manifest work out of the box; forge-sim serves them and injects the `@forge/bridge` shim.
 
 While developing, you'll usually run your Custom UI through its own webpack/Vite/Parcel dev server so you get hot reload. Point forge-sim at it with `--proxy`:
 

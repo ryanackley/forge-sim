@@ -45,7 +45,7 @@ For MCP clients that support stdio servers, add to your `.mcp.json`:
 
 By default the MCP simulator is fully isolated: unmocked product API calls return a `501` with a hint to register a mock, and `withProvider()` calls run in mock mode. That's the right default for automated tests, but for live iteration you often want the AI's app code hitting your real Jira/Confluence site and real provider endpoints instead of mocks.
 
-Credential setup happens **outside** the MCP session, with the CLI. `forge.deploy` re-reads the credential store on every call, so credentials added mid-session are picked up on the next deploy — no daemon restart needed.
+Credential setup happens **outside** the MCP session, with the CLI. `forge.deploy` re-reads the credential store on every call, so credentials added mid-session are picked up on the next deploy, no daemon restart needed.
 
 ### Atlassian APIs (PAT)
 
@@ -68,7 +68,7 @@ forge-sim auth --provider google            # opens the browser, runs the author
 
 Tokens land in the same credential store. After the next `forge.deploy`, `api.asUser().withProvider('google')` calls use the real token instead of mock mode.
 
-> If `forge-sim dev` is running, the CLI can't run the OAuth dance (the callback listener needs port 5173, which the dev server holds). Use the Providers panel in the Tools UI at `http://localhost:5173/__tools/` instead — tokens end up in the same store either way.
+> If `forge-sim dev` is running, the CLI can't run the OAuth dance (the callback listener needs port 5173, which the dev server holds). Use the Providers panel in the Tools UI at `http://localhost:5173/__tools/` instead; tokens end up in the same store either way.
 
 ### Environment variables
 
@@ -81,7 +81,7 @@ FORGE_SIM_PAT=ATATT3x...
 FORGE_SIM_PROVIDER_GOOGLE_TOKEN=ya29...   # FORGE_SIM_PROVIDER_<KEY>_TOKEN, key uppercased, hyphens → underscores
 ```
 
-These must be set in the **MCP server's process environment** — exporting them in your shell profile does not reach a server launched by an MCP client. Put them in the `env` block of your `.mcp.json`:
+These must be set in the **MCP server's process environment**; exporting them in your shell profile does not reach a server launched by an MCP client. Put them in the `env` block of your `.mcp.json`:
 
 ```json
 {
@@ -100,7 +100,7 @@ These must be set in the **MCP server's process environment** — exporting them
 
 ### How routing works once connected
 
-Mocks still take priority. A route registered with `forge.mock_routes` or `forge.mock_graphql` is served from the mock; anything unmatched falls through to the real API. This lets an AI agent mix both — mock the endpoints under test, hit the real site for everything else.
+Mocks still take priority. A route registered with `forge.mock_routes` or `forge.mock_graphql` is served from the mock; anything unmatched falls through to the real API. This lets an AI agent mix both: mock the endpoints under test, hit the real site for everything else.
 
 The `forge.deploy` response includes an `auth` block showing what connected, and `forge.auth_status` reports the current account, provider tokens, and manifest providers at any time.
 
@@ -110,7 +110,7 @@ See [Credentials](../local-development/credentials.md) for the full `forge-sim a
 
 The MCP daemon and `forge-sim dev` are **separate processes with separate runtime state**. Each holds its own simulator: its own in-memory KVS, its own embedded MySQL instance, its own queues, logs, and deployed app. Nothing you do in one is visible in the other at runtime.
 
-Common point of confusion: `forge-sim kvs list` (and the other daemon CLI commands) talk to the **daemon**, not the dev server. Running it while `forge-sim dev` is up works fine — but it shows the daemon's KVS, not what your dev-mode app has stored. To inspect dev-mode state, use the Dev Tools at `http://localhost:5173/__tools/`.
+Common point of confusion: `forge-sim kvs list` (and the other daemon CLI commands) talk to the **daemon**, not the dev server. Running it while `forge-sim dev` is up works fine, but it shows the daemon's KVS, not what your dev-mode app has stored. To inspect dev-mode state, use the Dev Tools at `http://localhost:5173/__tools/`.
 
 What the two surfaces **do** share is the `.forge-sim/` directory on disk:
 
@@ -121,9 +121,9 @@ What the two surfaces **do** share is the `.forge-sim/` directory on disk:
 | `variables.json` | ✅ Shared | Environment variables — read at deploy time by every surface. |
 | `fit-keys/` | ✅ Shared | FIT signing keys for remotes. Sharing these means your remote backend's cached JWKS stays valid across surfaces. |
 | `bundles/` | ✅ Shared | Resolver bundle cache. Each deploy writes fresh files, so concurrent use is safe. |
-| `state/` | ❌ Dev mode only | Persisted KVS + SQL state, auto-saved and restored by `forge-sim dev`. The MCP daemon and test library never read or write it — seeding KVS via `forge.kvs_set` does not appear in dev mode, and dev-mode data does not appear in `forge.kvs_list`. |
+| `state/` | ❌ Dev mode only | Persisted KVS + SQL state, auto-saved and restored by `forge-sim dev`. The MCP daemon and test library never read or write it: seeding KVS via `forge.kvs_set` does not appear in dev mode, and dev-mode data does not appear in `forge.kvs_list`. |
 
-In practice: credentials, secrets, and variables are set-once-and-shared; runtime data is per-process. Running `forge-sim dev` and an MCP session against the same app directory at the same time is fine — they won't corrupt each other, they just won't see each other's data.
+In practice: credentials, secrets, and variables are set-once-and-shared; runtime data is per-process. Running `forge-sim dev` and an MCP session against the same app directory at the same time is fine; they won't corrupt each other, they just won't see each other's data.
 
 ## Tools
 
@@ -134,12 +134,12 @@ In practice: credentials, secrets, and variables are set-once-and-shared; runtim
 | Tool | Description |
 |------|-------------|
 | `forge.deploy` | Deploy a Forge app from a directory (auto-loads auth credentials) |
-| `forge.sim_info` | Return daemon-process metadata (PID, start time, dist mtime, stale flag) — sanity-check before debugging confusing tool errors |
+| `forge.sim_info` | Return daemon-process metadata (PID, start time, dist mtime, stale flag); sanity-check before debugging confusing tool errors |
 | `forge.invoke` | Call a resolver function with payload |
 | `forge.fire_trigger` | Simulate product event triggers |
 | `forge.fire_scheduled_trigger` | Fire a scheduled trigger by key |
-| `forge.ui_render` | Render a UI module by manifest key — loads bundle, builds context, returns ForgeDoc (and MacroConfig tree for inline-config macros) |
-| `forge.ui_wait_for` | Wait for text to appear in a module's rendered tree — settles async `useEffect → invoke()` chains after `ui_render` or `ui_interact` |
+| `forge.ui_render` | Render a UI module by manifest key: loads bundle, builds context, returns ForgeDoc (and MacroConfig tree for inline-config macros) |
+| `forge.ui_wait_for` | Wait for text to appear in a module's rendered tree; settles async `useEffect → invoke()` chains after `ui_render` or `ui_interact` |
 | `forge.ui_state` | Get the current ForgeDoc UI tree |
 | `forge.ui_interact` | Click buttons, submit forms, interact with UI |
 | `forge.kvs_get` | Get a KVS value by key |
@@ -150,7 +150,7 @@ In practice: credentials, secrets, and variables are set-once-and-shared; runtim
 | `forge.objectstore_put` | Seed an object directly (test setup) |
 | `forge.objectstore_delete` | Delete an object by key |
 | `forge.objectstore_create_download_url` | Pre-signed download URL (curl-able, Range-capable) |
-| `forge.variables_set` | Set ephemeral env variables — take effect at next deploy (Forge parity) |
+| `forge.variables_set` | Set ephemeral env variables; take effect at next deploy (Forge parity) |
 | `forge.variables_unset` | Remove an ephemeral env variable |
 | `forge.variables_list` | List env variables from all sources (encrypted values masked) |
 | `forge.queue_push` | Push events to a queue |

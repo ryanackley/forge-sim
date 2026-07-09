@@ -34,15 +34,15 @@ await sim.ui.render('my-panel', {
 
 - Passing `extension` **replaces** the extension object: it's merged over `{ type: '<moduleType>' }` and used verbatim. Hydration is never attempted.
 - `context` **merges**: canonical fields (see [the whitelist below](#how-context-is-built)) override the sim defaults and any sticky resolver context; loose fields fill extension gaps under your explicit `extension` keys.
-- The two are deliberately separate options with different semantics — nesting `extension` inside `context` is **rejected** on every surface (compile error in TypeScript, `TypeError` at runtime).
-- The only field you can't override is `moduleKey` — it always comes from the render call.
-- Both options work the same on the test library (`sim.ui.render`, `sim.invoke(fn, payload, { context, extension })`) and MCP (`forge.ui_render`, `forge.invoke`). The CLI has `--context` but no `--extension` flag yet — pass loose fields through `--context` there (they merge into `extension`, they just don't suppress shorthand-key hydration).
+- The two are deliberately separate options with different semantics: nesting `extension` inside `context` is **rejected** on every surface (compile error in TypeScript, `TypeError` at runtime).
+- The only field you can't override is `moduleKey`; it always comes from the render call.
+- Both options work the same on the test library (`sim.ui.render`, `sim.invoke(fn, payload, { context, extension })`) and MCP (`forge.ui_render`, `forge.invoke`). The CLI has `--context` but no `--extension` flag yet, so pass loose fields through `--context` there (they merge into `extension`, they just don't suppress shorthand-key hydration).
 
 ---
 
 ## Hydrated Contexts (the shorthand keys)
 
-The other main approach: pass a key and let forge-sim build the context around it. With a [connected account](../local-development/credentials.md) the data is fetched live from your Atlassian site; without one, registered mock routes answer, and failing that the context is built offline from the key itself — no auth or network required.
+The other main approach: pass a key and let forge-sim build the context around it. With a [connected account](../local-development/credentials.md) the data is fetched live from your Atlassian site; without one, registered mock routes answer, and failing that the context is built offline from the key itself, no auth or network required.
 
 ```ts
 await sim.ui.render('issue-panel', { issueKey: 'PROJ-42' });
@@ -51,17 +51,17 @@ await sim.ui.render('byline-item', { contentId: '12345', spaceKey: 'ENG' });
 await sim.ui.render('space-page', { spaceKey: 'ENG' });
 ```
 
-The complete set of options — same names in the test library, MCP `forge.ui_render`, and (where noted) `forge-sim dev` flags:
+The complete set of options, with the same names in the test library, MCP `forge.ui_render`, and (where noted) `forge-sim dev` flags:
 
 - **`issueKey`** — hydrates `extension.issue` and `extension.project`, plus flat `issueKey` / `issueId` / `projectKey` / `projectId`. Live fetch: `GET /rest/api/3/issue/<key>`. Offline: the key as-is, project key from the prefix. CLI: `--issue`.
 - **`projectKey`** — hydrates `extension.project` plus flat `projectKey` / `projectId`. Live fetch: `GET /rest/api/3/project/<key>`. CLI: `--project`.
 - **`contentId`** — hydrates `extension.content` and `extension.space`, plus flat `contentId` / `spaceKey`. Live fetch: `GET /rest/api/content/<id>?expand=space`. CLI: `--content`.
 - **`spaceKey`** — a hint alongside `contentId` (seeds the space when offline), or standalone for space modules. Never fetched on its own. CLI: `--space`.
-- **`context`** — raw context object. Canonical fields promoted to the top level, everything else merged into `extension`. `context: { issueKey }` on a Jira issue module behaves like the `issueKey` shortcut. A literal `extension` key inside `context` is rejected — use the top-level `extension` option. CLI: `--context '<JSON>'`.
-- **`extension`** — full extension override; skips hydration entirely (the [fully mocked](#fully-mocked-contexts) path). Test library and MCP; no CLI flag yet — pass loose fields via `--context` there.
-- **`macroConfig`** — one-shot saved-config injection for `macro` modules, surfaced via `useConfig()`. Doesn't persist across renders — use `sim.ui.setMacroConfig(key, config)` for sticky values. Test library and MCP only.
+- **`context`** — raw context object. Canonical fields promoted to the top level, everything else merged into `extension`. `context: { issueKey }` on a Jira issue module behaves like the `issueKey` shortcut. A literal `extension` key inside `context` is rejected; use the top-level `extension` option. CLI: `--context '<JSON>'`.
+- **`extension`** — full extension override; skips hydration entirely (the [fully mocked](#fully-mocked-contexts) path). Test library and MCP; no CLI flag yet, so pass loose fields via `--context` there.
+- **`macroConfig`** — one-shot saved-config injection for `macro` modules, surfaced via `useConfig()`. Doesn't persist across renders; use `sim.ui.setMacroConfig(key, config)` for sticky values. Test library and MCP only.
 
-Only one hydration shortcut applies per render — `issueKey` wins over `contentId`, which wins over `projectKey` — and `extension` beats them all. The shortcuts aren't gated by module type: `issueKey` on a non-issue module still hydrates issue fields into its extension.
+Only one hydration shortcut applies per render (`issueKey` wins over `contentId`, which wins over `projectKey`), and `extension` beats them all. The shortcuts aren't gated by module type: `issueKey` on a non-issue module still hydrates issue fields into its extension.
 
 ---
 
@@ -71,7 +71,7 @@ Only one hydration shortcut applies per render — `issueKey` wins over `content
 
 1. **`extension` override** — used as-is (merged over `{ type }`). No hydration. A `context` option passed alongside still applies: canonical fields are promoted to the top level, and loose context fields fill extension gaps under your explicit `extension` keys.
 2. **`issueKey` / `contentId` / `projectKey`** — hydrated via the product API (see the groups below). Mock-first, offline-safe: mock routes answer if registered, a connected account is used if present, and otherwise the context is built from the key itself with no network call.
-3. **`context`** — a raw object. Canonical top-level fields (`accountId`, `cloudId`, `siteUrl`, `environmentId`, `environmentType`, `localId`, `locale`, `timezone`, `license`, `theme`, `surfaceColor`, `userAccess`, `permissions`) are promoted to the top level of the context; everything else is merged into `extension`. A literal `extension` key here throws a `TypeError` — extension data goes through the top-level `extension` option. One smart mapping: `context: { issueKey: 'PROJ-1' }` on a Jira issue module behaves like the `issueKey` shortcut and hydrates.
+3. **`context`** — a raw object. Canonical top-level fields (`accountId`, `cloudId`, `siteUrl`, `environmentId`, `environmentType`, `localId`, `locale`, `timezone`, `license`, `theme`, `surfaceColor`, `userAccess`, `permissions`) are promoted to the top level of the context; everything else is merged into `extension`. A literal `extension` key here throws a `TypeError`; extension data goes through the top-level `extension` option. One smart mapping: `context: { issueKey: 'PROJ-1' }` on a Jira issue module behaves like the `issueKey` shortcut and hydrates.
 4. **Module-type defaults** — project and space modules get canned defaults; custom fields get a mock field value; macros get an empty config; everything else gets bare `{ type }`.
 
 Two more layers on the top-level fields:
@@ -106,7 +106,7 @@ Every module receives these top-level fields:
 | `timezone`        | host machine's timezone            |                                                                                                  |
 | `extension`       | `{ type: "<moduleType>" }`         | Module-specific data — see below.                                                               |
 
-`license`, `theme`, `surfaceColor`, `userAccess`, and `permissions` are **not set by default**. They're recognized as canonical fields, so if you pass them via a context override they land at the top level (not inside `extension`) — but a module that reads `context.license` without supplying one gets `undefined`, same as an unlicensed dev app on the real platform.
+`license`, `theme`, `surfaceColor`, `userAccess`, and `permissions` are **not set by default**. They're recognized as canonical fields, so if you pass them via a context override they land at the top level (not inside `extension`), but a module that reads `context.license` without supplying one gets `undefined`, same as an unlicensed dev app on the real platform.
 
 ---
 
@@ -129,9 +129,9 @@ Pass `issueKey` (or `context: { issueKey }`) to hydrate. With a connected accoun
 | `extension.project.id`   | ✅                  | —                         |
 | `extension.project.type` | ✅ project type key | —                         |
 
-Convenience flat fields are set alongside the nested objects — many apps read these directly: `extension.issueKey`, `extension.issueId`, `extension.projectKey`, `extension.projectId` (the last two only when available).
+Convenience flat fields are set alongside the nested objects; many apps read these directly: `extension.issueKey`, `extension.issueId`, `extension.projectKey`, `extension.projectId` (the last two only when available).
 
-Without `issueKey`, issue modules get bare `{ type }` — there is no auto-default issue.
+Without `issueKey`, issue modules get bare `{ type }`; there is no auto-default issue.
 
 ### Jira project modules
 
@@ -153,7 +153,7 @@ extension.projectId = '10001'
 
 Pass `contentId` (optionally with `spaceKey` as a hint) to hydrate (`GET /rest/api/content/<id>?expand=space` when connected). Sets `extension.content.{ id, type }` and `extension.space.{ key, id }`, plus flats `extension.contentId` / `extension.spaceKey`. In the offline fallback, `content.type` and `space.id` are omitted, and `space` is only set if you passed `spaceKey`.
 
-Content modules have **no auto-default** — without `contentId` they get bare `{ type }` (macros additionally get `config`, see [Macros](#macros)).
+Content modules have **no auto-default**: without `contentId` they get bare `{ type }` (macros additionally get `config`, see [Macros](#macros)).
 
 ### Confluence space modules
 
@@ -170,9 +170,9 @@ Passing `spaceKey` substitutes your key (no API fetch for space-only hydration).
 
 ### Everything else
 
-`jira:globalPage`, `jira:adminPage`, `confluence:globalPage`, `confluence:globalSettings`, `confluence:homepageFeed`, dashboard gadgets, JSM modules, Bitbucket modules, Compass modules, commands, Rovo actions — all get the common context plus bare `extension: { type }`.
+`jira:globalPage`, `jira:adminPage`, `confluence:globalPage`, `confluence:globalSettings`, `confluence:homepageFeed`, dashboard gadgets, JSM modules, Bitbucket modules, Compass modules, commands, Rovo actions: all get the common context plus bare `extension: { type }`.
 
-That's correct for the global/admin pages (the real platform sends no extra context there either). For the rest, the real platform sends richer shapes (`gadgetConfiguration`, `portal.id`, `repository.uuid`, …) that forge-sim doesn't fabricate — check the [Atlassian module reference](https://developer.atlassian.com/platform/forge/manifest-reference/modules/) for the shape your module expects, then inject it:
+That's correct for the global/admin pages (the real platform sends no extra context there either). For the rest, the real platform sends richer shapes (`gadgetConfiguration`, `portal.id`, `repository.uuid`, …) that forge-sim doesn't fabricate; check the [Atlassian module reference](https://developer.atlassian.com/platform/forge/manifest-reference/modules/) for the shape your module expects, then inject it:
 
 ```ts
 await sim.ui.render('my-gadget', {
@@ -223,7 +223,7 @@ Config can be seeded three ways:
 
 - `sim.ui.render(key, { macroConfig: {...} })` / `forge.ui_render` with `macroConfig` — one-shot, doesn't persist
 - `sim.ui.setMacroConfig(key, {...})` — sticky across renders
-- Submitting the config form in dev mode or via `renderInlineConfig().save(values)` — the saved values persist and are returned on subsequent renders
+- Submitting the config form in dev mode or via `renderInlineConfig().save(values)`: the saved values persist and are returned on subsequent renders
 
 ### Custom config (`config: { resource: '...' }`)
 
@@ -243,7 +243,7 @@ modules:
 ```
 
 - The **View** tab renders `resource: main` exactly like a normal macro.
-- The **Config** tab renders `resource: config-bundle` — typically a `<Form>` with named
+- The **Config** tab renders `resource: config-bundle`, typically a `<Form>` with named
   fields (`<Textfield name="age" />`, etc.).
 - Submitting the config form (`view.submit()` or pressing the Save button) stores the
   payload as the macro's saved config, scoped to the macro's base key.
@@ -258,8 +258,8 @@ The picker groups these as a single row under the macro's base key. URLs:
 
 ### Inline config (`config: true` or `config: {}`)
 
-When a macro uses simple/inline config — registered at runtime via
-`ForgeReconciler.addConfig(<Config />)` from the same bundle as the main view —
+When a macro uses simple/inline config (registered at runtime via
+`ForgeReconciler.addConfig(<Config />)` from the same bundle as the main view),
 the Forge reconciler emits a **second** ForgeDoc tree (with `type: 'MacroConfig'`)
 alongside the main view tree. forge-sim captures both, and the renderer shell
 shows **in-iframe View / Config tabs** so you can switch between the two trees
@@ -293,7 +293,7 @@ modules:
       title: Pet Info
       resource: main
       render: native
-      config: true   # or `config: {}` — inline form via addConfig()
+      config: true   # or `config: {}`, inline form via addConfig()
 ```
 
 - **View tab** shows the `App` tree.
@@ -304,21 +304,21 @@ modules:
   dev-server can route them to the inline macro config store (rather than treating
   them as a generic viewSubmit).
 - The picker shows the macro as a flat row with an "inline macro config" hint;
-  no separate URLs for the trees — they live together at `/module/<key>/`.
+  no separate URLs for the trees; they live together at `/module/<key>/`.
 
 ---
 
 ## Workflow Modules
 
-`jira:workflowCondition`, `jira:workflowValidator`, `jira:workflowPostFunction` — each has up to three UI sub-modules for the create/edit/view phases of the workflow rule wizard. forge-sim splits these on parse, so a manifest module with key `my-condition` becomes:
+`jira:workflowCondition`, `jira:workflowValidator`, `jira:workflowPostFunction`: each has up to three UI sub-modules for the create/edit/view phases of the workflow rule wizard. forge-sim splits these on parse, so a manifest module with key `my-condition` becomes:
 
 - `my-condition--create` — the configuration form shown when the rule is first added
 - `my-condition--edit` — the configuration form shown when the rule is edited later
 - `my-condition--view` — the read-only summary shown on the workflow diagram
 
-Each sub-module renders independently with its own ForgeDoc tree, using the common context plus `extension.type` set to the parent module type. The real platform additionally provides workflow/transition metadata and (in edit/view) previously saved config — forge-sim doesn't fabricate those; inject them via `extension` or `context` overrides if your component reads them.
+Each sub-module renders independently with its own ForgeDoc tree, using the common context plus `extension.type` set to the parent module type. The real platform additionally provides workflow/transition metadata and (in edit/view) previously saved config. forge-sim doesn't fabricate those; inject them via `extension` or `context` overrides if your component reads them.
 
-The function side (the `function` declared on the same module) receives the saved config and the workflow event payload at invocation time — see [the Forge docs on workflow rules](https://developer.atlassian.com/platform/forge/manifest-reference/modules/jira-workflow-condition/) for the full event shape.
+The function side (the `function` declared on the same module) receives the saved config and the workflow event payload at invocation time; see [the Forge docs on workflow rules](https://developer.atlassian.com/platform/forge/manifest-reference/modules/jira-workflow-condition/) for the full event shape.
 
 ---
 
@@ -333,7 +333,7 @@ Some modules don't render UI in the conventional sense. They appear in the manif
 | Web triggers (`webtrigger`)                                                                                                                           | Receive an HTTP request object via the function signature`(request) => { statusCode, body? }`. See [api.md § Web Triggers](./api.md).                                               |
 | Event triggers / consumers                                                                                                                            | Receive the platform event payload (issue created, page updated, queue message, …). See[the trigger event templates registry](./api.md).                                            |
 | Scheduled triggers                                                                                                                                    | Receive`{ context }` and must return `{ statusCode }`.                                                                                                                               |
-| Rovo actions (`action`)                                                                                                                               | Invoked as a function call with input validated against the manifest`inputSchema` — `sim.invoke(fn, payload, { actionKey })` throws on invalid payloads before dispatching.         |
+| Rovo actions (`action`)                                                                                                                               | Invoked as a function call with input validated against the manifest`inputSchema`; `sim.invoke(fn, payload, { actionKey })` throws on invalid payloads before dispatching.         |
 
 ---
 
@@ -362,4 +362,4 @@ forge-sim dev --module my-panel --issue PROJ-42 \
 forge-sim dev --module byline --content 12345 --space ENG
 ```
 
-The MCP equivalent is `forge.ui_render` — same fields, same precedence. The MCP tool additionally accepts `extension` (full extension override, [fully mocked](#fully-mocked-contexts) path) and `macroConfig` for one-shot config injection on `macro` modules. The in-process `sim.ui.render(moduleKey, { extension, macroConfig })` shares that contract.
+The MCP equivalent is `forge.ui_render`: same fields, same precedence. The MCP tool additionally accepts `extension` (full extension override, [fully mocked](#fully-mocked-contexts) path) and `macroConfig` for one-shot config injection on `macro` modules. The in-process `sim.ui.render(moduleKey, { extension, macroConfig })` shares that contract.

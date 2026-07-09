@@ -1,6 +1,6 @@
 # CLAUDE.md — forge-sim
 
-> Short brief for LLM agents working in this repo. Points at `docs/` for specifics rather than duplicating them — those files are the source of truth.
+> Short brief for LLM agents working in this repo. Points at `docs/` for specifics rather than duplicating them; those files are the source of truth.
 
 ## Core principle
 
@@ -10,7 +10,7 @@ Behavioral parity is the goal. Silently succeeding where Forge would fail is a b
 
 ## What this is
 
-A simulated Atlassian Forge runtime. An agent (or human) deploys a Forge app into the sim, invokes resolvers, interacts with UIKit components, queries real MySQL, manipulates Custom Entities, fires triggers — all without deploying to Atlassian.
+A simulated Atlassian Forge runtime. An agent (or human) deploys a Forge app into the sim, invokes resolvers, interacts with UIKit components, queries real MySQL, manipulates Custom Entities, fires triggers, all without deploying to Atlassian.
 
 Apps run **completely unmodified**. `@forge/*` imports are intercepted by Node loader hooks and routed to in-process shims that talk to the simulator.
 
@@ -67,7 +67,7 @@ Three integration paths into the sim, depending on which surface the app uses:
 
 ## Where the docs live
 
-When you need actual surface details, go to the doc — don't guess from this file. `docs/` is organized into three task sections plus a shared reference section.
+When you need actual surface details, go to the doc; don't guess from this file. `docs/` is organized into three task sections plus a shared reference section.
 
 | Topic | Doc |
 |---|---|
@@ -103,20 +103,20 @@ Node 22+ required (native TS type stripping). MySQL-memory-server bundles its ow
 
 ## Conventions to follow
 
-- **No silent stubs.** If a Forge API returns data in production, our shim returns shaped data — not undefined. If we don't implement it, throw a clear "not yet implemented" error so the parity violation is visible.
+- **No silent stubs.** If a Forge API returns data in production, our shim returns shaped data, not undefined. If we don't implement it, throw a clear "not yet implemented" error so the parity violation is visible.
 - **Shim → real package fallthrough.** Where possible, the shim imports the real CJS `@forge/*` package and only intercepts the bits that hit Atlassian's cloud. This keeps behavior aligned automatically when Atlassian ships a patch release.
 - **Test fixtures live in `src/__tests__/fixtures/<app-name>/`.** Each fixture is a tiny self-contained Forge app (`manifest.yml` + handler files). Real-world end-to-end apps live under `~/Projects/{retro-board, okr-tracker, my-issues, ...}` and have their own e2e test files.
 - **Manifest changes go through `src/manifest-validator.ts`.** That validator is what tells the user "your manifest is missing X" before deploy fails. Keep error messages copy-pasteable (include the YAML snippet they should add).
 - **Persistence is `entities.json` + `sql.dump`.** No more `kvs.json` (removed; everything goes through the entity store). State lives under `<app>/.forge-sim/state/`.
-- **Stats blocks** in markdown use HTML-comment marker pairs (`BEGIN:STATS` and `END:STATS`, each wrapped in `<!-- ... -->`) and are rewritten by `scripts/update-stats.mjs`. Don't hand-edit numbers inside markers — re-run the script. The known generators are `STATS`, `STATS_COMPACT`, and `MCP_TOOLS`. See the script for details.
+- **Stats blocks** in markdown use HTML-comment marker pairs (`BEGIN:STATS` and `END:STATS`, each wrapped in `<!-- ... -->`) and are rewritten by `scripts/update-stats.mjs`. Don't hand-edit numbers inside markers; re-run the script. The known generators are `STATS`, `STATS_COMPACT`, and `MCP_TOOLS`. See the script for details.
 
 ## Forge platform quirks that bite you
 
 These are the ones you'll forget and re-learn the hard way:
 
 - Handler format: `file.export` — file path relative to `src/`, dot-separated export name (e.g. `index.handler` → `src/index.js` export `handler`).
-- Resources are **top-level** in `manifest.yml` — not nested under modules.
-- `app.runtime.name` is required (`nodejs22.x` / `nodejs24.x` / `nodejs20.x`). Manifests without it are rejected — including by us.
+- Resources are **top-level** in `manifest.yml`, not nested under modules.
+- `app.runtime.name` is required (`nodejs22.x` / `nodejs24.x` / `nodejs20.x`). Manifests without it are rejected, including by us.
 - UIKit modules in UIKit 2 require **both** `resource:` and `render: native`. Just `function:` is the deprecated UIKit 1 shape.
 - React `StrictMode` + Atlaskit silently breaks rendering. Don't.
 - Atlaskit components need `setGlobalTheme({ colorMode, ... })` at boot or they render with unresolved tokens (often invisible).
@@ -124,11 +124,11 @@ These are the ones you'll forget and re-learn the hard way:
 - Function timeouts vary by type: resolvers 25s, triggers 55s, scheduled/consumer up to 900s. We enforce these and warn when an invocation exceeds the limit.
 - `?theme=dark|light` query string is the real-Forge convention for telling the iframe which theme to render. Custom UI apps should read `window.location.search`. Auto = OS preference.
 - KVS uses `@forge/kvs` (new). `@forge/api`'s `storage` API is legacy.
-- Custom Entity Store uses `@forge/kvs.entity()` — separate API from plain KVS, but same `global.__forge_fetch__({ type: 'kvs' })` bridge underneath.
+- Custom Entity Store uses `@forge/kvs.entity()`: separate API from plain KVS, but same `global.__forge_fetch__({ type: 'kvs' })` bridge underneath.
 
 ## When something doesn't work the way you expect
 
-1. Check the relevant doc in `docs/` first — that's the source of truth.
+1. Check the relevant doc in `docs/` first; that's the source of truth.
 2. Check `src/__tests__/` for an existing test that exercises the same surface.
-3. If the parity principle is being violated, it's a bug — file or fix.
-4. If you're not sure whether real Forge does X or Y, the answer is in [Atlassian's developer docs](https://developer.atlassian.com/platform/forge/) — don't guess.
+3. If the parity principle is being violated, it's a bug: file or fix.
+4. If you're not sure whether real Forge does X or Y, the answer is in [Atlassian's developer docs](https://developer.atlassian.com/platform/forge/); don't guess.

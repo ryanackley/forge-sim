@@ -4,7 +4,7 @@ How forge-sim runs your Forge app code unmodified, and the (small) set of tricks
 
 ## The big picture
 
-forge-sim is a single in-process simulator (`ForgeSimulator`) that exposes Forge's storage, queues, product APIs, UI rendering, triggers, remotes, LLM, and realtime as plain methods on a `sim` object. The interesting question is how *your* app code — which calls `requestJira()`, `kvs.set()`, `chat()`, etc. — ends up reaching those methods.
+forge-sim is a single in-process simulator (`ForgeSimulator`) that exposes Forge's storage, queues, product APIs, UI rendering, triggers, remotes, LLM, and realtime as plain methods on a `sim` object. The interesting question is how *your* app code (which calls `requestJira()`, `kvs.set()`, `chat()`, etc.) ends up reaching those methods.
 
 The answer is two parallel interception strategies, one for the frontend and one for the backend:
 
@@ -37,7 +37,7 @@ The answer is two parallel interception strategies, one for the frontend and one
                           └──────────────────────┘
 ```
 
-The two strategies are different because the real packages on each side work differently — see below.
+The two strategies are different because the real packages on each side work differently; see below.
 
 ## How real Forge backends work
 
@@ -54,7 +54,7 @@ function __getRuntime() {
 
 Atlassian's Lambda host attaches `__forge_runtime__` to `global` before invoking your handler. The runtime exposes `invoke`, `fetch`, `asApp`, `asUser`, metrics, etc., and *that* is what crosses the network into Atlassian's services.
 
-The backend `@forge/*` packages are thin facades over this runtime object. By contrast, the frontend `@forge/bridge` *is* the network layer — `bridge.invoke('method', args)` becomes a `postMessage` to the parent iframe, which the Atlassian container relays.
+The backend `@forge/*` packages are thin facades over this runtime object. By contrast, the frontend `@forge/bridge` *is* the network layer: `bridge.invoke('method', args)` becomes a `postMessage` to the parent iframe, which the Atlassian container relays.
 
 Different model, different interception.
 
@@ -96,21 +96,21 @@ shim       → getSimulator().llm.chat(prompt)
 simulator  → llm.chat() runs against sim.llm (mocks or real Anthropic)
 ```
 
-The real `@forge/llm` package still sits in `node_modules`. It just never loads. We bypass `__forge_runtime__` entirely — there is no runtime object to fake.
+The real `@forge/llm` package still sits in `node_modules`. It just never loads. We bypass `__forge_runtime__` entirely; there is no runtime object to fake.
 
 For programmatic use (`createSimulator()` in tests), `sim.deploy()` registers the hooks for you via `module.register()`. No `--import` flag needed.
 
 ### A few packages need a different shape
 
-`@forge/sql` and `@forge/kvs` are partially CJS, partially using a different bridge model — they call `global.__forge_fetch__({ type: 'kvs', ... })` internally. For those, the shim imports the real package and substitutes only the bridge function on `globalThis`. See `src/shims/globals.ts`. This is the "shim → real package fallthrough" convention noted in `CLAUDE.md` — same Atlassian code path, just routed to our backing storage.
+`@forge/sql` and `@forge/kvs` are partially CJS, partially using a different bridge model: they call `global.__forge_fetch__({ type: 'kvs', ... })` internally. For those, the shim imports the real package and substitutes only the bridge function on `globalThis`. See `src/shims/globals.ts`. This is the "shim → real package fallthrough" convention noted in `CLAUDE.md`: same Atlassian code path, just routed to our backing storage.
 
 ### Bundle caching for handler imports
 
-There's one place where Node's ESM cache fights the iterate loop: `sim.deploy()`. Node keys the dynamic-import cache on the full specifier URL, so appending `?t=Date.now()` to the entry-point URL busts the entry's cache — but **not** its transitive imports. Those resolve to plain URLs with no query string and stay cached forever across redeploys. The agent edits `validation.js`, redeploys, and the resolver still throws the old error message.
+There's one place where Node's ESM cache fights the iterate loop: `sim.deploy()`. Node keys the dynamic-import cache on the full specifier URL, so appending `?t=Date.now()` to the entry-point URL busts the entry's cache, but **not** its transitive imports. Those resolve to plain URLs with no query string and stay cached forever across redeploys. The agent edits `validation.js`, redeploys, and the resolver still throws the old error message.
 
 The fix lives in `src/deployer.ts`. Before importing the handler, esbuild bundles the entry plus every relative-import descendant into a single ESM file at `<appDir>/.forge-sim/bundles/deploy-<timestamp>-<random>.mjs`. The bundle filename is per-deploy unique, so the resulting `file://` URL is a brand-new module specifier that neither Node's ESM cache nor vite-node's path-based cache has seen before. Stale bundles are swept at the start of each redeploy.
 
-Bare specifiers (`@forge/*`, react, axios, …) stay external. The bundle file lives inside the app directory, so when Node resolves those externals it walks up into the app's `node_modules` normally — and our loader hooks still intercept `@forge/*` from there. The shim interception path survives bundling.
+Bare specifiers (`@forge/*`, react, axios, …) stay external. The bundle file lives inside the app directory, so when Node resolves those externals it walks up into the app's `node_modules` normally, and our loader hooks still intercept `@forge/*` from there. The shim interception path survives bundling.
 
 `data:` URLs were the obvious first attempt but don't work: Node can't resolve bare specifiers from a `data:` URL because there's no parent path to anchor the `node_modules` walk. A file URL inside the app dir is the cheapest fix that keeps the resolver behavior intact. Sourcemaps are inline, so stack traces still point at user source.
 
@@ -122,17 +122,17 @@ Frontend interception is fundamentally simpler because the bridge is already a n
 - **`--proxy` mode** — forge-sim sits in front of any external dev server (webpack/Vite/Parcel/etc.), injects the bridge shim into HTML responses, and intercepts `/__forge/*` and `/__tools/*` routes. The upstream dev server's HMR WebSocket falls through unchanged.
 - **UIKit reconciler** — `@forge/react` calls `bridge.callBridge('reconcile', { forgeDoc })`. The shim captures the tree, fires listeners, and the renderer turns ForgeDoc into Atlaskit components.
 
-In all three cases, the bridge contract — `bridge.invoke(method, args) → Promise<result>` — stays exactly the shape real Forge enforces.
+In all three cases, the bridge contract (`bridge.invoke(method, args) → Promise<result>`) stays exactly the shape real Forge enforces.
 
 ### Module-type auto-detection
 
-`forge-sim dev` picks the rendering mode per module by inspecting the manifest resource — no flag, no config. The detection rules live in `detectModuleType()` in `src/dev-command.ts`:
+`forge-sim dev` picks the rendering mode per module by inspecting the manifest resource: no flag, no config. The detection rules live in `detectModuleType()` in `src/dev-command.ts`:
 
 1. **No `resource` key** → server-only module, no UI rendered.
 2. **Resource path is a directory containing `index.html`** → Custom UI mode (served by Vite or proxied to an external dev server via `--proxy`).
 3. **Resource path is a file (`.tsx` / `.ts` / `.jsx` / `.js` / `index.*` inside a dir)** → read it. If the source imports `@forge/react` or references `ForgeReconciler`, it's UIKit. Otherwise, Custom UI.
 
-This is why a UIKit app and a Custom UI app coexist happily in the same project — the detector classifies each module independently and the dev server wires the right surface for each.
+This is why a UIKit app and a Custom UI app coexist happily in the same project; the detector classifies each module independently and the dev server wires the right surface for each.
 
 ## Trade-offs
 
@@ -151,11 +151,11 @@ The cost:
 
 ## Known gotcha: stale daemon on rebuild
 
-The MCP server is a long-lived Node process. It loads `dist/*.js` once at startup. If `forge-sim` is rebuilt during development (or upgraded via `npm install` in published-package usage), the daemon keeps the **old** compiled code in memory — new methods are `not a function`, properties on shared globals drift, parity bugs you just fixed don't actually go away. This trap has bit at least three times in skill runs across two days.
+The MCP server is a long-lived Node process. It loads `dist/*.js` once at startup. If `forge-sim` is rebuilt during development (or upgraded via `npm install` in published-package usage), the daemon keeps the **old** compiled code in memory: new methods are `not a function`, properties on shared globals drift, parity bugs you just fixed don't actually go away. This trap has bit at least three times in skill runs across two days.
 
 The self-check in `src/staleness.ts` compares the in-memory `dist/mcp-server.js` mtime against the file on disk on every tool response. If disk is newer (beyond a 2-second grace window for stat resolution noise), the response carries a loud warning telling the operator/agent to restart the daemon. The MCP client respawns automatically on the next tool call.
 
-The check is on by default when forge-sim is running from a checkout (`import.meta.url` doesn't contain `/node_modules/`) and off when installed as a dependency — `npm`-installed users don't rebuild the package mid-session and don't need the noise. Override with `FORGE_SIM_STALE_CHECK=on|off` in the environment.
+The check is on by default when forge-sim is running from a checkout (`import.meta.url` doesn't contain `/node_modules/`) and off when installed as a dependency; `npm`-installed users don't rebuild the package mid-session and don't need the noise. Override with `FORGE_SIM_STALE_CHECK=on|off` in the environment.
 
 ## Where this lives in the code
 

@@ -27,7 +27,7 @@ Any call to `withProvider().requestCredentials` will launch your default browser
 **Via the Tools UI:**
 
 1. Open `http://localhost:5173/__tools/` and click the **Providers** tab
-2. Click **Connect** on a provider — a popup opens the provider's auth URL
+2. Click **Connect** on a provider; a popup opens the provider's auth URL
 3. After the user grants access, the popup bounces through `/__tools/oauth/callback`, auto-closes, and the panel updates via WebSocket to show ✓ Connected
 4. The token is persisted to `~/.forge-sim/credentials.json` under the default Atlassian account
 
@@ -55,7 +55,7 @@ Every external provider uses the same redirect URI:
 http://localhost:5173/__tools/oauth/callback
 ```
 
-Set this in each provider's developer console. The callback is dispatched to the right pending flow by the `state` parameter — multiple concurrent flows (e.g. two browser tabs, two providers) settle independently.
+Set this in each provider's developer console. The callback is dispatched to the right pending flow by the `state` parameter. Multiple concurrent flows (e.g. two browser tabs, two providers) settle independently.
 
 ## Token refresh
 

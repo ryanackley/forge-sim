@@ -42,7 +42,7 @@ Make the JWKS URL and issuer configurable (environment variables) so the same co
 
 ### Backend deployed remotely (ngrok)
 
-If your backend is already deployed somewhere (Azure Functions, Lambda, a VPS), the *outbound* leg already works — forge-sim reaches your backend's public `baseUrl` just fine. What breaks is the *inbound* leg: your deployed backend can't fetch a JWKS from your `localhost`.
+If your backend is already deployed somewhere (Azure Functions, Lambda, a VPS), the *outbound* leg already works: forge-sim reaches your backend's public `baseUrl` just fine. What breaks is the *inbound* leg: your deployed backend can't fetch a JWKS from your `localhost`.
 
 Tunnel it:
 
@@ -56,13 +56,13 @@ Then set your backend's JWKS URL to the tunnel:
 https://<your-tunnel>.ngrok.app/__forge/jwks.json
 ```
 
-Any tunnel works (cloudflared, Tailscale Funnel, …) — ngrok is just the shortest path. The tunnel only needs to expose the JWKS route; it doesn't route your app's traffic.
+Any tunnel works (cloudflared, Tailscale Funnel, …); ngrok is just the shortest path. The tunnel only needs to expose the JWKS route; it doesn't route your app's traffic.
 
 ---
 
 ## What forge-sim sends
 
-Each real HTTP request to a remote carries the headers from the [Forge Remote Invocation Contract](https://developer.atlassian.com/platform/forge/forge-remote-invocation-contract/): `authorization: Bearer <FIT>`, `x-b3-traceid` / `x-b3-spanid`, and — when the manifest's `auth` block enables them — `x-forge-oauth-system` / `x-forge-oauth-user`. An endpoint-level `auth` overrides the remote-level setting, same as production.
+Each real HTTP request to a remote carries the headers from the [Forge Remote Invocation Contract](https://developer.atlassian.com/platform/forge/forge-remote-invocation-contract/): `authorization: Bearer <FIT>`, `x-b3-traceid` / `x-b3-spanid`, and, when the manifest's `auth` block enables them, `x-forge-oauth-system` / `x-forge-oauth-user`. An endpoint-level `auth` overrides the remote-level setting, same as production.
 
 Differences from production:
 
@@ -71,9 +71,9 @@ Differences from production:
 | `iss` claim | `forge` | `forge-sim` |
 | Signing key / `kid` | Atlassian-managed | local RSA key, `kid: forge-sim-1` |
 | JWKS location | Atlassian's public JWKS | `http://localhost:5173/__forge/jwks.json` |
-| `x-forge-oauth-*` values | real OAuth tokens | placeholders — but **presence/absence matches production**, so backends that branch on whether the header is set behave correctly |
+| `x-forge-oauth-*` values | real OAuth tokens | placeholders, but **presence/absence matches production**, so backends that branch on whether the header is set behave correctly |
 
-Everything else in the FIT — `aud`, `exp`, `app` (id, version, installation, environment, module), `context` (cloudId, siteUrl, moduleKey, localId), `principal` — is populated with your app's simulated values, so claims-based logic in your backend exercises the same code paths.
+Everything else in the FIT (`aud`, `exp`, `app` (id, version, installation, environment, module), `context` (cloudId, siteUrl, moduleKey, localId), `principal`) is populated with your app's simulated values, so claims-based logic in your backend exercises the same code paths.
 
 ### Key persistence
 
@@ -101,7 +101,7 @@ If you pass an endpoint key that isn't in the manifest, you get:
 Unknown endpoint "typo-endpoint". Available endpoints: my-endpoint, analytics-endpoint
 ```
 
-Endpoint keys are scoped to the app, not to a particular module — a module without `resolver.endpoint` in its own manifest entry still falls back to the single-endpoint auto-resolve rule when there's only one to choose.
+Endpoint keys are scoped to the app, not to a particular module: a module without `resolver.endpoint` in its own manifest entry still falls back to the single-endpoint auto-resolve rule when there's only one to choose.
 
 
 ---

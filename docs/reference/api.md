@@ -9,7 +9,7 @@ import { createSimulator } from 'forge-sim';
 
 const sim = createSimulator();  // Auto-wires global shim state
 
-// Deploy your app — automatically registers @forge/* loader hooks
+// Deploy your app; automatically registers @forge/* loader hooks
 const result = await sim.deploy('./my-forge-app');
 
 // Invoke resolvers
@@ -24,7 +24,7 @@ const logs = sim.getLogs();
 > ```bash
 > node --import forge-sim/dist/loader/register.js your-test.js
 > ```
-> This is rarely needed — test files should import from `'forge-sim'` (the `sim.*` API), not from `@forge/*` directly.
+> This is rarely needed; test files should import from `'forge-sim'` (the `sim.*` API), not from `@forge/*` directly.
 
 ### Deploy & Reset
 
@@ -290,7 +290,7 @@ Invoke a resolver function. Wraps payload in `{ payload, context }` per the Forg
 
 The third arg (optional) is an `InvokeOptions` object:
 - **`moduleKey`** — scope resolver lookup when multiple modules register the same function key.
-- **`context`** — per-call context override (one-shot). Merged onto the sim's base + sticky context for THIS invocation only; the sticky `setContext()` state is untouched. Fields match Forge's `req.context` (`accountId`, `cloudId`, `principal`, `license`, ...) — except `extension`, which is not allowed here.
+- **`context`** — per-call context override (one-shot). Merged onto the sim's base + sticky context for THIS invocation only; the sticky `setContext()` state is untouched. Fields match Forge's `req.context` (`accountId`, `cloudId`, `principal`, `license`, ...), except `extension`, which is not allowed here.
 - **`extension`** — replaces `req.context.extension` wholesale for THIS invocation. Kept separate from `context` on purpose: `context` fields *merge* onto the base, while extension data *replaces* the whole object.
 
 ```typescript
@@ -309,7 +309,7 @@ await sim.invoke('castVote', payload, {
 });
 ```
 
-Bad shapes throw a `TypeError` with a fix-it hint — e.g. passing `{ accountId: 'x' }` directly tells you to use `{ context: { accountId: 'x' } }` instead, and nesting `extension` inside `context` points you at the top-level `extension` option.
+Bad shapes throw a `TypeError` with a fix-it hint; e.g. passing `{ accountId: 'x' }` directly tells you to use `{ context: { accountId: 'x' } }` instead, and nesting `extension` inside `context` points you at the top-level `extension` option.
 
 ```typescript no-check
 sim.registerFunction(key: string, handler: Function, type: ForgeFunctionType): void
@@ -430,7 +430,7 @@ if (page.nextCursor) {
 `WhereConditions` mirrors the real `@forge/kvs` clause builder. Available
 helpers: `beginsWith(prefix)`, `between(min, max)`, `equalTo(value)`,
 `greaterThan(value)`, `greaterThanEqualTo(value)`, `lessThan(value)`,
-`lessThanEqualTo(value)`. Plain object literals are rejected at runtime —
+`lessThanEqualTo(value)`. Plain object literals are rejected at runtime;
 the simulator throws a clear error pointing you at the helper form.
 
 ### Transactions
@@ -590,7 +590,7 @@ sim.externalAuth.revokeToken(providerKey: string): void
 sim.externalAuth.getProvider(key: string): ManifestAuthProvider | undefined
 sim.externalAuth.listProviders(): ManifestAuthProvider[]
 
-// OAuth flow (interactive — opens browser)
+// OAuth flow (interactive, opens browser)
 sim.externalAuth.interactiveOAuthFlow(providerKey: string, port?: number): Promise<ThirdPartyToken | null>
 
 // Secrets
@@ -612,7 +612,7 @@ Backend for the `@forge/llm` shim. Two modes:
 1. **Mock** — pre-registered responses returned FIFO. Good for tests.
 2. **Real proxy** — if `ANTHROPIC_API_KEY` is set (env or via `forge-sim auth --llm`), forwards to the Anthropic Messages API and translates between `@forge/llm`'s OpenAI-shaped dialect and Anthropic's native format.
 
-Mock responses take priority over the real proxy — if the queue has entries, they're consumed first.
+Mock responses take priority over the real proxy: if the queue has entries, they're consumed first.
 
 ```typescript no-check
 // Direct calls (matches the @forge/llm shim's chat() surface)
@@ -663,7 +663,7 @@ expect(history[1].prompt.messages.at(-1)?.role).toBe('tool');
 
 If neither mocks nor `ANTHROPIC_API_KEY` are present, `chat()` throws `LlmApiError` with code `NO_API_KEY`. See [testing § Mocking @forge/llm](../testing/README.md#mocking-forgellm) for the full pattern catalog.
 
-The MCP equivalents are `forge.llm_mock` and `forge.llm_history` — see [mcp.md](../ai/mcp.md#tools).
+The MCP equivalents are `forge.llm_mock` and `forge.llm_history`; see [mcp.md](../ai/mcp.md#tools).
 
 ---
 
@@ -752,7 +752,7 @@ sim.ui.getMacroConfigDoc(moduleKey: string): ForgeDoc | null
 // Read the saved config values (what useConfig() returns)
 sim.ui.getMacroConfig(moduleKey: string): Record<string, unknown> | undefined
 
-// Seed config values before render — useConfig() resolves to these
+// Seed config values before render; useConfig() resolves to these
 sim.ui.setMacroConfig(moduleKey: string, values: Record<string, unknown>): void
 ```
 
@@ -762,7 +762,7 @@ For per-render (non-sticky) config injection, pass `macroConfig` in `RenderConte
 await sim.ui.render('pet-card', { macroConfig: { name: 'Rex', age: 5 } });
 ```
 
-A bonus diagnostic: if you `render()` a macro module before calling `setMacroConfig` and `useConfig()` returns `{}`, forge-sim emits a hint suggesting `setMacroConfig` — surface this when triaging "why is my macro empty?" tests.
+A bonus diagnostic: if you `render()` a macro module before calling `setMacroConfig` and `useConfig()` returns `{}`, forge-sim emits a hint suggesting `setMacroConfig`; surface this when triaging "why is my macro empty?" tests.
 
 ---
 

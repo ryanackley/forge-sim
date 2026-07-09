@@ -13,7 +13,7 @@ You'll be prompted for:
 2. **Email** — your Atlassian account email
 3. **API token** — create one at [id.atlassian.com/manage-profile/security/api-tokens](https://id.atlassian.com/manage-profile/security/api-tokens)
 
-forge-sim validates by calling `/rest/api/3/myself` and detects your Cloud ID automatically. The token is stored in `~/.forge-sim/credentials.json` (mode `0600`) — see [Credentials](./credentials.md) for storage details, multiple accounts, and CI environment variables.
+forge-sim validates by calling `/rest/api/3/myself` and detects your Cloud ID automatically. The token is stored in `~/.forge-sim/credentials.json` (mode `0600`); see [Credentials](./credentials.md) for storage details, multiple accounts, and CI environment variables.
 
 
 ### Auth header
@@ -22,7 +22,7 @@ forge-sim validates by calling `/rest/api/3/myself` and detects your Cloud ID au
 Authorization: Basic base64(email:token)
 ```
 
-PAT requests go straight to `https://{site}/...` — no `api.atlassian.com` gateway involved. GraphQL hits `{site}/gateway/api/graphql`.
+PAT requests go straight to `https://{site}/...`, with no `api.atlassian.com` gateway involved. GraphQL hits `{site}/gateway/api/graphql`.
 
 ## How it works
 

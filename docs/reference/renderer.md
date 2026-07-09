@@ -87,7 +87,7 @@ App JSX → @forge/react reconciler → ForgeDoc → ForgeDocRenderer → Atlask
 
 Each ForgeDoc node has:
 - `type` — component name (e.g., `"Button"`, `"Text"`, `"Stack"`)
-- `props` — component props (functions are serialized with `__id__` for the event bridge — see below)
+- `props` — component props (functions are serialized with `__id__` for the event bridge; see below)
 - `children` — child nodes
 - `key` — React key
 
@@ -108,13 +108,13 @@ The pretty-printer (`sim.ui.prettyPrint()`) produces a readable tree:
 
 ### Function serialization (`__id__`)
 
-ForgeDoc is pure JSON — it has to be, because it travels over the WebSocket between Node and the browser (or sits in `sim.ui.getForgeDoc()` for headless inspection). React handlers like `onClick={() => doThing()}` aren't JSON-serializable, so the reconciler replaces every function prop with a `{ __fn__: '<id>' }` token and stashes the real callback in a Node-side registry keyed by `__id__`.
+ForgeDoc is pure JSON; it has to be, because it travels over the WebSocket between Node and the browser (or sits in `sim.ui.getForgeDoc()` for headless inspection). React handlers like `onClick={() => doThing()}` aren't JSON-serializable, so the reconciler replaces every function prop with a `{ __fn__: '<id>' }` token and stashes the real callback in a Node-side registry keyed by `__id__`.
 
-When the renderer (browser) or `sim.ui.interact()` (tests) fires an event, the bridge sends `{ __fn__: '<id>', args }` back to Node, the registry looks the function up, and it runs in the original closure where it was created — so `useState` setters, captured variables, and refs all behave normally.
+When the renderer (browser) or `sim.ui.interact()` (tests) fires an event, the bridge sends `{ __fn__: '<id>', args }` back to Node, the registry looks the function up, and it runs in the original closure where it was created, so `useState` setters, captured variables, and refs all behave normally.
 
 Practical consequences:
 - Two renders with the same JSX produce **different** `__id__` values (functions are reconstructed each render). Don't snapshot or assert on `__fn__` IDs.
-- `sim.ui.interact(node, 'onClick', ...args)` works because the node's `onClick` prop is still a serialized `__fn__` token — `interact` is the thing that resolves it.
+- `sim.ui.interact(node, 'onClick', ...args)` works because the node's `onClick` prop is still a serialized `__fn__` token; `interact` is the thing that resolves it.
 - If a function prop is **missing** from the ForgeDoc when you expected it (e.g. `onClick` is `undefined`), the most common cause is that you forgot to pass it as a prop in your JSX, not a serialization bug.
 
 ### Server-mode `useEffect` and async state
@@ -129,7 +129,7 @@ const App = () => {
 };
 ```
 
-then `sim.ui.render('my-module')` resolves with the **loading** tree, because the effect hasn't run-and-resolved-and-re-rendered yet. The MCP `forge.ui_render` tool has the same behavior — it only awaits the first reconcile.
+then `sim.ui.render('my-module')` resolves with the **loading** tree, because the effect hasn't run-and-resolved-and-re-rendered yet. The MCP `forge.ui_render` tool has the same behavior: it only awaits the first reconcile.
 
 Two ways to settle:
 
@@ -144,4 +144,4 @@ const doc = await sim.ui.waitForContent('my-module', 'Hello world');
 await mcp.forge_ui_wait_for({ moduleKey: 'my-module', text: 'Hello world' });
 ```
 
-This applies to **server mode** only (the Node-side reconciler used by tests and MCP). In **browser mode** (`forge-sim dev`), effects run in the browser exactly like real Forge — no wait helpers needed.
+This applies to **server mode** only (the Node-side reconciler used by tests and MCP). In **browser mode** (`forge-sim dev`), effects run in the browser exactly like real Forge, so no wait helpers are needed.

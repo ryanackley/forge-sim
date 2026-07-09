@@ -90,7 +90,7 @@ These all follow the **UI + Resolver** or **UI + Custom UI** pattern. They have 
 | Module Key | Level | Notes |
 |------------|-------|-------|
 | `jira:jqlFunction` | ❌ None | Has `resolver.function` or `resolver.endpoint` but no `resource:`. Returns JQL-compatible data. Not parsed as UI module (correctly), but no invocation path exists. Would need a JQL context simulation. |
-| `jira:entityProperty` | ❌ None | **Config-only.** Declares indexed entity properties for JQL. No function, no resource. Nothing to simulate — this is a Forge platform indexing instruction. |
+| `jira:entityProperty` | ❌ None | **Config-only.** Declares indexed entity properties for JQL. No function, no resource. Nothing to simulate; this is a Forge platform indexing instruction. |
 | `jira:globalPermission` | ❌ None | **Host-driven function.** `function:` returns boolean. Only invoked by Jira permission checks. No simulation path. |
 | `jira:projectPermission` | ❌ None | Same as globalPermission but project-scoped. |
 | `jira:timeTrackingProvider` | ❌ None | **Nested UI.** Has `view.resource`, `edit.resource`. Replaces Jira's native time tracking. (Preview) |
@@ -99,7 +99,7 @@ These all follow the **UI + Resolver** or **UI + Custom UI** pattern. They have 
 
 | Module Key | Level | Notes |
 |------------|-------|-------|
-| `jira:workflowValidator` | ⚠️ Partial | Manifest parsed, config UI renders (create/edit/view resources), function invocable. No workflow transition simulation — the function runs but there's no simulated transition context. |
+| `jira:workflowValidator` | ⚠️ Partial | Manifest parsed, config UI renders (create/edit/view resources), function invocable. No workflow transition simulation: the function runs but there's no simulated transition context. |
 | `jira:workflowCondition` | ⚠️ Partial | Same as workflowValidator. (Preview) |
 | `jira:workflowPostFunction` | ⚠️ Partial | Same as workflowValidator. (Preview) |
 
