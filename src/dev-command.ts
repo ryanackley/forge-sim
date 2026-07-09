@@ -1482,7 +1482,9 @@ async function buildViteConfig(opts: {
     plugins: [reactPlugin(), customUiPlugin],
     server: {
       port,
-      host: true,
+      // Loopback only — the dev server exposes /__tools/ (KVS browser, SQL
+      // console) and the bridge, so it must not accept LAN connections.
+      host: '127.0.0.1',
       open: false,
       fs: {
         allow: [...new Set(fsAllow)],

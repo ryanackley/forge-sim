@@ -45,14 +45,16 @@ export interface DevServerOptions {
  * Try to bind a WebSocketServer on the given port. Resolves with the live
  * wss on success, or null on EADDRINUSE so the caller can try the next port.
  *
- * We can't pre-probe with a separate `net.createServer` because the probe's
- * default interface (loopback) doesn't match what `ws` binds to (all
- * interfaces) — a race-prone false-positive. Instead, bind ws directly and
- * wait for either the 'listening' or 'error' event.
+ * We can't pre-probe with a separate `net.createServer` — a probe-then-bind
+ * sequence is race-prone. Instead, bind ws directly and wait for either the
+ * 'listening' or 'error' event.
+ *
+ * Bound to loopback only: the bridge WS carries resolver invocations and
+ * must never accept remote connections.
  */
 function tryBindWebSocketServer(port: number): Promise<WebSocketServer | null> {
   return new Promise((resolve, reject) => {
-    const wss = new WebSocketServer({ port });
+    const wss = new WebSocketServer({ port, host: '127.0.0.1' });
     let settled = false;
     wss.once('listening', () => {
       if (settled) return;

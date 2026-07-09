@@ -130,7 +130,8 @@ export function createProxyServer(options: ProxyServerOptions): ProxyServer {
   return {
     server,
     listen(port: number) {
-      server.listen(port, () => {
+      // Loopback only — never accept remote connections
+      server.listen(port, '127.0.0.1', () => {
         // Server is listening — logged by caller
       });
     },

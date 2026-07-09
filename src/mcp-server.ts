@@ -1730,7 +1730,9 @@ async function main() {
       }
     });
 
-    httpServer.listen(port, () => {
+    // Loopback only — the MCP HTTP endpoint executes SQL/KVS operations with
+    // no auth, so it must never accept connections from other machines.
+    httpServer.listen(port, '127.0.0.1', () => {
       console.error(`[forge-sim] MCP server running on http://localhost:${port}/mcp`);
     });
   } else {
