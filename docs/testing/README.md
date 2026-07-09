@@ -1,6 +1,6 @@
 # Testing Forge Apps with forge-sim
 
-forge-sim lets you write fast, deterministic tests for your Forge app — resolvers, triggers, queues, KVS, SQL, and product APIs — without a cloud deploy or an Atlassian site.
+forge-sim lets you write fast, deterministic tests for your Forge app (resolvers, triggers, queues, KVS, SQL, and product APIs) without a cloud deploy or an Atlassian site.
 
 For the complete `sim.*` surface this guide draws on, see the [programmatic API reference](../reference/api.md).
 
@@ -46,7 +46,7 @@ Forge apps import packages like `@forge/api`, `@forge/resolver`, `@forge/kvs`, e
 // vitest.config.ts
 import { defineConfig } from 'vitest/config';
 
-// Aliases use forge-sim's "./shims/*" subpath exports — no path math needed.
+// Aliases use forge-sim's "./shims/*" subpath exports; no path math needed.
 // Works on every Node version that supports exports maps (>=14.13).
 export default defineConfig({
   resolve: {
@@ -77,7 +77,7 @@ export default defineConfig({
 
 ```js
 // jest.config.js (or webpack.config.js resolve.alias)
-// Aliases use forge-sim's "./shims/*" subpath exports — no path math needed.
+// Aliases use forge-sim's "./shims/*" subpath exports; no path math needed.
 module.exports = {
   // Jest
   moduleNameMapper: {
@@ -220,7 +220,7 @@ const result = await sim.deploy('./my-forge-app');
 
 result.loadedFunctions;  // ['myResolver', 'migrationFn', 'onIssueFn']
 result.loadedResources;  // ['main', 'admin-page']
-result.errors;           // [{ functionKey, error }] — empty if all good
+result.errors;           // [{ functionKey, error }]; empty if all good
 ```
 
 **If your app uses Forge SQL**, start the embedded MySQL before deploying (migrations often run on deploy):
@@ -230,9 +230,16 @@ await sim.sql.start();
 await sim.deploy('./my-app');
 ```
 
+> **CI note:** the first `sim.sql.start()` on a machine downloads the MySQL
+> binary (a few hundred MB, cached in the OS temp dir under `mysqlmsn/binaries`): the
+> one place a network connection is needed. Subsequent runs use the cache; on
+> ephemeral CI runners, cache that directory to avoid re-downloading. Everything
+> else runs fully offline. All simulator servers (MySQL included) bind to
+> loopback only and never accept remote connections.
+
 ### sim.invoke()
 
-Calls a resolver function — the same way the Forge UI bridge does:
+Calls a resolver function, the same way the Forge UI bridge does:
 
 ```ts
 const result = await sim.invoke('getItems', { page: 1 });
@@ -344,7 +351,7 @@ it('handles issue created event', async () => {
     },
   });
 
-  // fireTrigger returns an array — one result per matching handler
+  // fireTrigger returns an array, one result per matching handler
   expect(results).toHaveLength(1);
 
   // Check side effects (e.g., trigger stored something)
@@ -426,7 +433,7 @@ beforeEach(async () => {
 });
 
 it('summarizes an issue', async () => {
-  // Queue an LLM response — consumed FIFO on the next chat() call
+  // Queue an LLM response; consumed FIFO on the next chat() call
   sim.llm.mockResponse({ content: 'A 2-sentence summary of the issue.' });
 
   const result = await sim.invoke('summarizeIssue', { issueKey: 'PROJ-1' });
@@ -446,7 +453,7 @@ sim.llm.mockResponses(
 );
 ```
 
-Responses are consumed FIFO — `mockResponses(a, b, c)` is equivalent to three separate `mockResponse()` calls.
+Responses are consumed FIFO: `mockResponses(a, b, c)` is equivalent to three separate `mockResponse()` calls.
 
 #### Asserting on what your code asked the LLM
 
@@ -499,11 +506,11 @@ sim.llm.reset();  // clears mocks + history, leaves the rest of the sim alone
 
 #### Real API fallthrough
 
-If no mock is queued **and** `ANTHROPIC_API_KEY` is set (via env or `forge-sim auth --llm`), the simulator forwards the call to the real Anthropic API. In CI you almost always want this to be impossible — either always queue a mock before every chat(), or unset the env var. When both are absent, `chat()` throws `LlmApiError(NO_API_KEY)` instead of silently doing nothing.
+If no mock is queued **and** `ANTHROPIC_API_KEY` is set (via env or `forge-sim auth --llm`), the simulator forwards the call to the real Anthropic API. In CI you almost always want this to be impossible: either always queue a mock before every chat(), or unset the env var. When both are absent, `chat()` throws `LlmApiError(NO_API_KEY)` instead of silently doing nothing.
 
 ### UIKit 2 Rendering
 
-forge-sim includes a headless UIKit renderer. Your app's JSX runs through the same `@forge/react` reconciler that Forge uses, producing a **ForgeDoc** — a JSON tree representing the rendered UI. You can inspect it, query it, simulate interactions, and assert on it. No browser needed.
+forge-sim includes a headless UIKit renderer. Your app's JSX runs through the same `@forge/react` reconciler that Forge uses, producing a **ForgeDoc**, a JSON tree representing the rendered UI. You can inspect it, query it, simulate interactions, and assert on it. No browser needed.
 
 #### Render and inspect
 
@@ -541,7 +548,7 @@ it('renders a button and a badge', async () => {
   const saveBtn = sim.ui.findByTypeAndText(doc, 'Button', 'Save');
   expect(saveBtn.props.appearance).toBe('primary');
 
-  // Find by type — works for any UIKit component
+  // Find by type; works for any UIKit component
   const badges = sim.ui.findByType(doc, 'Badge');
   expect(badges[0].props.appearance).toBe('added');
 });
@@ -675,7 +682,7 @@ it('renders view and edit sub-modules', async () => {
   const editDoc = sim.ui.getForgeDoc('priority-score--edit')!;
   expect(sim.ui.getTextContent(editDoc)).toContain('Edit');
 
-  // Both coexist — isolated ForgeDoc trees, shared KVS/SQL
+  // Both coexist: isolated ForgeDoc trees, shared KVS/SQL
   expect(sim.ui.getRenderedModules()).toEqual(
     expect.arrayContaining(['priority-score--view', 'priority-score--edit'])
   );
@@ -706,7 +713,7 @@ it('edit view submits the new value', async () => {
 
 #### Full edit → view transition flow
 
-forge-sim doesn't auto-transition between views (that's the host product's job). Instead, you orchestrate it yourself — capture the submit, then re-render the view with the new value:
+forge-sim doesn't auto-transition between views (that's the host product's job). Instead, you orchestrate it yourself. Capture the submit, then re-render the view with the new value:
 
 ```ts
 it('submit from edit updates the view', async () => {
@@ -766,7 +773,7 @@ unbind(); // stop listening
 
 **One simulator per `describe` block.** Create in `beforeAll`, stop in `afterAll`. This keeps tests isolated while sharing the deploy overhead.
 
-**Use `sim.sql.start()` only when needed.** It launches an embedded MySQL process. If your app doesn't use `@forge/sql`, skip it — tests will be faster.
+**Use `sim.sql.start()` only when needed.** It launches an embedded MySQL process. If your app doesn't use `@forge/sql`, skip it; tests will be faster.
 
 **Mock product APIs before deploy.** If your app's scheduled triggers hit Jira/Confluence on startup, set up mocks first:
 
@@ -801,15 +808,15 @@ The things that have eaten the most debugging time. Check here first when a test
 
 ### `useEffect` + `invoke()` returns the loading state
 
-`sim.ui.render()` only awaits the **initial** reconcile. If your component fetches data in a `useEffect` and re-renders when it lands, the rendered tree from `render()` is the pre-fetch state (`<Text>Loading…</Text>` or similar). Fix: chase it with `sim.ui.waitForContent(moduleKey, expectedText)` — that polls the tree until the substring shows up. Same applies to the MCP `forge.ui_render` tool; use `forge.ui_wait_for` to settle. See [renderer.md § Server-mode useEffect and async state](../reference/renderer.md#server-mode-useeffect-and-async-state).
+`sim.ui.render()` only awaits the **initial** reconcile. If your component fetches data in a `useEffect` and re-renders when it lands, the rendered tree from `render()` is the pre-fetch state (`<Text>Loading…</Text>` or similar). Fix: chase it with `sim.ui.waitForContent(moduleKey, expectedText)`; that polls the tree until the substring shows up. Same applies to the MCP `forge.ui_render` tool; use `forge.ui_wait_for` to settle. See [renderer.md § Server-mode useEffect and async state](../reference/renderer.md#server-mode-useeffect-and-async-state).
 
 ### Don't wrap your Custom UI app in `React.StrictMode` with Atlaskit
 
-Atlaskit components (especially anything that uses portals or the design-token theme provider) break under `React.StrictMode`'s double-invoke — symptoms range from invisible components to portal duplication to "DOM looks empty but the warnings fire." Drop `<React.StrictMode>` from `main.tsx` / `index.tsx` in any Atlaskit-consuming app, including UIKit 2 modules in browser mode. forge-sim's dev server bridge ships with strict mode **off** for the same reason.
+Atlaskit components (especially anything that uses portals or the design-token theme provider) break under `React.StrictMode`'s double-invoke. Symptoms range from invisible components to portal duplication to "DOM looks empty but the warnings fire." Drop `<React.StrictMode>` from `main.tsx` / `index.tsx` in any Atlaskit-consuming app, including UIKit 2 modules in browser mode. forge-sim's dev server bridge ships with strict mode **off** for the same reason.
 
 ### Atlaskit needs `setGlobalTheme()` at boot
 
-Atlaskit reads its colors from design tokens at runtime. Without `setGlobalTheme()`, components render but with unresolved tokens — often invisible. Custom UI test apps need this wired into the theme init:
+Atlaskit reads its colors from design tokens at runtime. Without `setGlobalTheme()`, components render but with unresolved tokens, often invisible. Custom UI test apps need this wired into the theme init:
 
 ```ts
 import { setGlobalTheme } from '@atlaskit/tokens';
@@ -838,34 +845,34 @@ await sim.deploy('./my-app');                  // safe now
 
 ### `sim.sql.start()` order with migrations
 
-If your app declares migrations (typically via a `runOn: deployment` scheduled trigger), `sim.sql.start()` must run **before** `sim.deploy()` — otherwise the migration trigger fires against a non-existent database and fails. Always:
+If your app declares migrations (typically via a `runOn: deployment` scheduled trigger), `sim.sql.start()` must run **before** `sim.deploy()`; otherwise the migration trigger fires against a non-existent database and fails. Always:
 
 ```ts
 await sim.sql.start();
 await sim.deploy('./my-app');
 ```
 
-### `@forge/sql` has no shim — and that's intentional
+### `@forge/sql` has no shim, and that's intentional
 
 Unlike `@forge/api` / `@forge/kvs` / etc., there is no `forge-sim/shims/forge-sql` alias. The real `@forge/sql` package talks to the simulator through a runtime hook (`global.__forge_fetch__`) that `createSimulator()` installs automatically. If you add it to your `vitest.config.ts` alias map, you'll get module-resolution errors. Just leave it out.
 
 ### `sim.reset()` wipes mocks too
 
-`sim.reset()` is total — KVS, SQL, queues, resolvers, logs, LLM mocks, the lot. If your tests share a sim across `it()` blocks via `beforeAll`/`afterAll`, calling `reset()` between tests can wipe the mock product routes you set up in `beforeAll`. Either re-mock in `beforeEach`, or use targeted resets like `sim.llm.reset()` / `sim.kvs.clear()` that leave the rest alone.
+`sim.reset()` is total: KVS, SQL, queues, resolvers, logs, LLM mocks, the lot. If your tests share a sim across `it()` blocks via `beforeAll`/`afterAll`, calling `reset()` between tests can wipe the mock product routes you set up in `beforeAll`. Either re-mock in `beforeEach`, or use targeted resets like `sim.llm.reset()` / `sim.kvs.clear()` that leave the rest alone.
 
 ### Function-prop equality across renders
 
-ForgeDoc serializes function props as `{ __fn__: '<id>' }` tokens — and **each render produces fresh IDs**. Don't snapshot a tree expecting `onClick` IDs to be stable, and don't compare two ForgeDocs structurally if either has handlers. See [renderer.md § Function serialization](../reference/renderer.md#function-serialization-__id__).
+ForgeDoc serializes function props as `{ __fn__: '<id>' }` tokens, and **each render produces fresh IDs**. Don't snapshot a tree expecting `onClick` IDs to be stable, and don't compare two ForgeDocs structurally if either has handlers. See [renderer.md § Function serialization](../reference/renderer.md#function-serialization-__id__).
 
 ### `forge-sim` is rebuilt mid-session → the MCP daemon serves stale code
 
-This bites devs working on forge-sim itself, not app authors — but if you're hitting "method is not a function" errors from MCP calls right after rebuilding `dist/`, the long-lived daemon has the old code in memory. The simulator self-checks dist mtimes on every MCP response and warns when stale; restart the daemon (`ps aux | grep mcp-server`, kill the PID — the client respawns it). See [architecture.md § Known gotcha: stale daemon](../reference/architecture.md#known-gotcha-stale-daemon-on-rebuild).
+This bites devs working on forge-sim itself, not app authors. But if you're hitting "method is not a function" errors from MCP calls right after rebuilding `dist/`, the long-lived daemon has the old code in memory. The simulator self-checks dist mtimes on every MCP response and warns when stale; restart the daemon (`ps aux | grep mcp-server`, kill the PID; the client respawns it). See [architecture.md § Known gotcha: stale daemon](../reference/architecture.md#known-gotcha-stale-daemon-on-rebuild).
 
 ---
 
 ## Doc examples are tested
 
-Every TypeScript code block in `README.md` and `docs/**/*.md` is typechecked against the live source API (`src/__tests__/docs-examples-typecheck.test.ts`), and yaml manifest blocks are parsed for unknown module types. New blocks are guarded automatically — a bare ` ```ts ` fence is checked by default.
+Every TypeScript code block in `README.md` and `docs/**/*.md` is typechecked against the live source API (`src/__tests__/docs-examples-typecheck.test.ts`), and yaml manifest blocks are parsed for unknown module types. New blocks are guarded automatically: a bare ` ```ts ` fence is checked by default.
 
 Three fence flags control this (they go after the language token, and are invisible in rendered markdown):
 
@@ -875,6 +882,6 @@ Three fence flags control this (they go after the language token, and are invisi
 | ` ```ts no-check ` | Skipped — for output shapes, type-signature listings, and pseudo-code |
 | ` ```ts run=<file>#<region> ` | Must match a `// #region <name>` of a real test file that executes in the normal suite |
 
-Fragment blocks (no imports) compile inside an ambient world where `sim`, `createSimulator`, `route`, `WhereConditions`, etc. are already declared — the context a reader carries between blocks. Blocks with imports must be copy-paste runnable as-is.
+Fragment blocks (no imports) compile inside an ambient world where `sim`, `createSimulator`, `route`, `WhereConditions`, etc. are already declared, the context a reader carries between blocks. Blocks with imports must be copy-paste runnable as-is.
 
-To make an example *executable*, add it as a `// #region` in a test under `src/__tests__/docs-examples/` (or in the fixture app at `src/__tests__/fixtures/docs-sample-app/`), then flag the doc block with `run=<file>#<region>` — the path resolves relative to `src/__tests__/`. `docs-examples-sync.test.ts` keeps the two in lockstep (whitespace-normalized), so the example in the docs is exactly the code that ran.
+To make an example *executable*, add it as a `// #region` in a test under `src/__tests__/docs-examples/` (or in the fixture app at `src/__tests__/fixtures/docs-sample-app/`), then flag the doc block with `run=<file>#<region>`; the path resolves relative to `src/__tests__/`. `docs-examples-sync.test.ts` keeps the two in lockstep (whitespace-normalized), so the example in the docs is exactly the code that ran.

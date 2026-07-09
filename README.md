@@ -1,10 +1,12 @@
 # forge-sim
 
-There are three main components
+A locally simulated Forge runtime, three ways to drive it:
 
-* **Local Forge simulation**  A local simulation of Atlassian's Forge platform for a faster development loop. Makes iterating faster by removing the deploy to cloud step. Think of it as LocalStack for Forge. 
-* **CI/CD test API** Works for backend forge modules as well as UIKit 2. See testing section below. 
-* **MCP for AI-first development** A simulated Forge environment for AIs to iterate on Forge Apps without giving them access to your Cloud environment and teaching them to navigate Atlassian apps. 
+* **Automated testing** — Forge ships no test harness: today your options are mocking or shimming every `@forge/*` import by hand, or deploying to find out. forge-sim gives you `createSimulator()` in vitest/jest: invoke resolvers, fire product events, assert on KVS/SQL state and rendered UIKit output. No network, no credentials, runs in CI.
+
+* **Local development** — think LocalStack for Forge. Skip the deploy-to-cloud step and run your app against simulated storage, product APIs, and triggers, with dev tools for inspecting Forge state as you go. Unlike `forge tunnel`, it needs no dev site or network.
+
+* **AI-assisted development (MCP)** — let an agent deploy, invoke, render, and inspect your app in a simulated Forge environment via MCP tools instead of handing it your cloud credentials or a browser pointed at your Jira. Faster feedback, zero blast radius.
 
 ## Installation
 
@@ -18,45 +20,11 @@ npm install -g forge-sim
 npm install --save-dev forge-sim
 ```
 
-The docs assume the global install — prefer not to install globally? Substitute `npx forge-sim` anywhere you see `forge-sim`.
+The docs assume the global install. Prefer not to install globally? Substitute `npx forge-sim` anywhere you see `forge-sim`.
 
-## Local development loop
+## Automated testing
 
-Run your Forge app locally by using the `forge-sim dev` command
-
-### Quick start
-
-Navigate to your forge app directory and run forge-sim in dev mode. This will launch a browser tab that shows a navigable index of all of your UI modules. Click on one to run outside of Atlassian products. 
-
-```bash
-cd /path/to/forge/app
-forge-sim dev
-```
-
-Dev mode features:
-
-- **UIKit 2 and Custom UI** — uses Atlaskit to render UIKit 2 components. Supports Hot Module Reload (HMR) and Chrome Devtools. 
-- **Simulates Forge services locally** — Functions, queues, consumers, SQL, KVS, etc.
-- **Real API access** — connect your Atlassian account and `requestJira()` hits your real site
-- **Local Debugging tools** — KVS browser, SQL console, log viewer, event triggers at `localhost:5173/__tools/`
-- **Persistent state** — KVS and SQL survive restarts. `--clean` to start fresh.
-
-*🎬 Demo video placeholder — `forge-sim dev`: launch, module index, UIKit panel rendering live, edit a file and watch HMR refresh.*
-
-<!--
-TODO(demo): record dev-mode demo and replace the line above.
-To embed on GitHub: edit this file on github.com and drag the .mp4/.mov in —
-it uploads to user-attachments and inserts a bare URL on its own line, which
-GitHub renders as an inline player. (GIFs in the repo work too: docs/media/)
--->
-
-**Full guide:** [Local development](./docs/local-development/) — Custom UI and proxy mode, the dev tools UI, and the integration stories: talking to Atlassian APIs, third-party APIs, and your own remote backend.
-
----
-
-## CI/CD testing
-
-Run your app against a headless simulated runtime — no deployment, no Atlassian site, no browser. The test API deploys your unmodified app and exposes its storage, queues, triggers, and rendered UI for assertions.
+Test your app against a headless local runtime. The test API creates a simulated deployment of your unmodified app and exposes its storage, queues, triggers, and a rendered UIKit2 tree for assertions.
 
 ```typescript
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -67,7 +35,7 @@ describe('my forge app', () => {
 
   beforeAll(async () => {
     sim = createSimulator();
-    await sim.sql.start();              // embedded MySQL — only if the app uses @forge/sql
+    await sim.sql.start();              // embedded MySQL, only if the app uses @forge/sql
     await sim.deploy('./my-forge-app'); // manifest.yml drives everything
   });
 
@@ -103,13 +71,49 @@ Features:
 - Runs your real handler code through the actual `@forge/*` packages, not hand-written mocks.
 - Invokes resolvers, triggers, scheduled triggers, queues, and consumers directly.
 - Gives direct read/write access to KVS, the Custom Entity Store, and Forge SQL (embedded MySQL) for setup and assertions.
-- Renders UIKit 2 modules to a ForgeDoc tree you can query and interact with — no browser.
+- Renders UIKit 2 modules to a ForgeDoc tree you can query and interact with; no browser.
 - Mocks product APIs, Forge Remotes, third-party OAuth, and GraphQL by route; unmocked routes fall through to a connected real API.
 - Mocks and records `@forge/llm` calls so tests stay offline.
 
 **Full guide:** [CI/CD testing](./docs/testing/) — bundler configuration, every testing pattern, UIKit rendering, mocking, and the programmatic API reference.
 
 ---
+
+## Local development loop
+
+Run your Forge app locally by using the `forge-sim dev` command
+
+### Quick start
+
+Navigate to your forge app directory and run forge-sim in dev mode. This will launch a browser tab that shows a navigable index of all of your UI modules. Click on one to run outside of Atlassian products. 
+
+```bash
+cd /path/to/forge/app
+forge-sim dev
+```
+
+Dev mode features:
+
+- **UIKit 2 and Custom UI** — uses Atlaskit to render UIKit 2 components. Supports Hot Module Reload (HMR) and Chrome Devtools. 
+- **Simulates Forge services locally** — Functions, queues, consumers, SQL, KVS, etc.
+- **Real API access** — connect your Atlassian account and `requestJira()` hits your real site
+- **Local Debugging tools** — KVS browser, SQL console, log viewer, event triggers at `localhost:5173/__tools/`
+- **Persistent state** — KVS and SQL survive restarts. `--clean` to start fresh.
+
+*🎬 Demo video placeholder — `forge-sim dev`: launch, module index, UIKit panel rendering live, edit a file and watch HMR refresh.*
+
+<!--
+TODO(demo): record dev-mode demo and replace the line above.
+To embed on GitHub: edit this file on github.com and drag the .mp4/.mov in;
+it uploads to user-attachments and inserts a bare URL on its own line, which
+GitHub renders as an inline player. (GIFs in the repo work too: docs/media/)
+-->
+
+**Full guide:** [Local development](./docs/local-development/) — Custom UI and proxy mode, the dev tools UI, and the integration stories: talking to Atlassian APIs, third-party APIs, and your own remote backend.
+
+---
+
+
 
 ## AI-driven development
 
@@ -171,6 +175,18 @@ Reset everything:     forge-sim reset
 **Full guide:** [AI-driven development](./docs/ai/) — the MCP server (tools and resources), transport options, and the agent CLI.
 
 ---
+
+## Scope
+
+forge-sim aims for behavioral parity: if it works in forge-sim, it should
+work in Forge, and vice versa. The [implementation matrix](./docs/reference/implementation-matrix.md)
+shows exactly what's simulated and how faithfully. If something you rely on
+is missing or behaves differently, [open an issue](https://github.com/ryanackley/forge-sim/issues):
+parity gaps are bugs, not omissions.
+
+**This is a development tool**, not a replacement for the platform. Iterate here,
+then deploy and verify in-product before you ship. A simulation is the fast
+loop, not the final word.
 
 ## Known limitations
 
