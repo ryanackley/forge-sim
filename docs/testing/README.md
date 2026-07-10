@@ -36,7 +36,7 @@ For the complete `sim.*` surface this guide draws on, see the [programmatic API 
 
 ## Bundler Configuration
 
-**This section goes first because your tests won't work without it.**
+**Read this first because your tests won't work without it.**
 
 Forge apps import packages like `@forge/api`, `@forge/resolver`, `@forge/kvs`, etc. In production, these are provided by the Forge runtime. In tests, forge-sim provides shim modules that redirect those imports to the simulator. Your test runner needs to know about these shims.
 
@@ -131,12 +131,6 @@ However, **bundler-based test runners** (Vitest, Jest, webpack) use their own mo
 npm install --save-dev forge-sim vitest
 ```
 
-If forge-sim isn't published to npm yet, link it locally:
-
-```bash
-npm link ../path/to/forge-sim
-```
-
 ### Your First Test
 
 ```ts run=fixtures/docs-sample-app/test/quickstart.test.ts#first-test
@@ -195,8 +189,6 @@ const sim = createSimulator({
 });
 ```
 
-The constructor automatically calls `setSimulator()`, so all `@forge/*` shims connect to this instance immediately.
-
 ### getSimulator()
 
 Retrieves the active simulator instance from anywhere. Useful in shared test utilities:
@@ -246,7 +238,7 @@ const result = await sim.invoke('getItems', { page: 1 });
 // result is whatever your resolver returns
 ```
 
-The first argument is the function key defined in your resolver (via `resolver.define('getItems', ...)`), not the manifest function key.
+The first argument is the function key defined in your Forge resolver (via `resolver.define('getItems', ...)`), not the manifest function key.
 
 ---
 
@@ -377,6 +369,36 @@ it('consumer processes queue jobs', async () => {
   expect(sent.to).toBe('user@example.com');
 });
 ```
+
+#### Hunting race conditions: concurrent mode + KVS latency
+
+By default, consumers run **sequentially**: `push()` processes events one at a time and resolves after every consumer has finished. That is deliberate. Deterministic ordering surfaces fan-out bugs that real Forge's async queues would race-cover.
+
+Real Forge processes queue events concurrently, though, so consumer code with read-modify-write patterns can hide race conditions the sequential default never triggers. forge-sim has a two-part rig for flushing these out:
+
+1. **Concurrent mode**: pass `queueMode: 'concurrent'` to `createSimulator()`, or flip it at runtime with `sim.queue.setMode('concurrent')`. Events within a push are processed in parallel. Per-event `concurrency` keys are still honored as shared semaphores across queues, matching the Forge spec.
+2. **KVS latency**: `sim.kvs.setLatency(true)` makes every KVS operation yield a macrotask before completing (pass a number for a random delay between 0 and that many milliseconds instead; `false` turns it off). Without this, in-memory KVS calls complete so fast that concurrent consumers rarely interleave. With it, read-modify-write windows actually open up.
+
+```ts
+it('counter consumer survives concurrent delivery', async () => {
+  sim.queue.setMode('concurrent');
+  sim.kvs.setLatency(true); // yield between KVS ops so interleavings happen
+
+  await sim.queue.push('counterQueue', [
+    { body: { amount: 1 } },
+    { body: { amount: 1 } },
+    { body: { amount: 1 } },
+  ]);
+
+  // A consumer doing get() -> add -> set() loses updates here.
+  const total = await sim.kvs.get('counter');
+  expect(total).toBe(3);
+});
+```
+
+Even in concurrent mode, `push()` resolves only after all events in the job settle, so the test keeps a deterministic finish line: no sleeps, no polling.
+
+Recommended split: keep the sequential default for functional tests, then add one focused concurrent + latency test per consumer that mutates shared state.
 
 ### Product API Mocking
 
