@@ -106,8 +106,8 @@ For the full history, see `git log`. Highlights of the last few weeks:
 ## Test suite
 
 <!-- BEGIN:STATS -->
-**2,115 tests** across **109** test files
-(1,968 core / 105 files
+**2,139 tests** across **110** test files
+(1,992 core / 106 files
 + 147 renderer / 4 files)
 
 **39 MCP tools** + **4 resources**
