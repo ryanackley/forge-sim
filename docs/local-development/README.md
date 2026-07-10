@@ -59,6 +59,62 @@ Real apps integrate with things: Atlassian's own APIs, third-party services, you
 
 Credential plumbing shared by all three (account management, storage locations, CI environment variables, the LLM key) lives in the [Credentials](./credentials.md) appendix.
 
+## Debugging
+
+### Frontend: Chrome DevTools just works
+
+UI modules run in the browser as regular source-mapped code. Open DevTools, set breakpoints in your `.tsx`/`.jsx` files, and use React DevTools as usual; there is nothing to configure. This applies to UIKit modules rendered by the dev server and to Custom UI, in both served and `--proxy` mode.
+
+### Backend: attach VS Code to `forge-sim dev`
+
+Resolvers, triggers, and consumers run inside the `forge-sim dev` Node process. forge-sim transpiles and bundles backend code with inline source maps, so once a debugger is attached, breakpoints bind in your original `.ts`/`.tsx`/`.jsx` source.
+
+The zero-config way is VS Code's **JavaScript Debug Terminal**: open one (Command Palette → "Debug: JavaScript Debug Terminal"), run `forge-sim dev` in it, and set breakpoints in your resolver source. The debugger auto-attaches; invoking a resolver from the browser stops on the breakpoint. This works with a global install, no `launch.json` needed.
+
+Prefer F5? Add a launch configuration (this path requires forge-sim installed as a dev dependency):
+
+```json
+{
+  "name": "forge-sim dev",
+  "type": "node",
+  "request": "launch",
+  "program": "${workspaceFolder}/node_modules/forge-sim/dist/cli.js",
+  "args": ["dev"],
+  "runtimeArgs": ["--enable-source-maps"],
+  "cwd": "${workspaceFolder}",
+  "console": "integratedTerminal",
+  "skipFiles": ["<node_internals>/**"]
+}
+```
+
+`--enable-source-maps` is optional; it makes error stack traces printed by the dev server point at your TypeScript source instead of transpiled code.
+
+For debugging automated tests rather than the dev server, see [Debugging tests](../testing/README.md#debugging-tests).
+
+## Common gotchas
+
+### Don't wrap your Custom UI app in `React.StrictMode` with Atlaskit
+
+Atlaskit components (especially anything that uses portals or the design-token theme provider) break under `React.StrictMode`'s double-invoke. Symptoms range from invisible components to portal duplication to "DOM looks empty but the warnings fire." Drop `<React.StrictMode>` from `main.tsx` / `index.tsx` in any Atlaskit-consuming app, including UIKit 2 modules in browser mode. forge-sim's dev server bridge ships with strict mode **off** for the same reason.
+
+### Atlaskit needs `setGlobalTheme()` at boot
+
+Atlaskit reads its colors from design tokens at runtime. Without `setGlobalTheme()`, components render but with unresolved tokens, often invisible. Custom UI apps need this wired into their theme init:
+
+```ts
+import { setGlobalTheme } from '@atlaskit/tokens';
+
+setGlobalTheme({
+  colorMode: 'auto',
+  light: 'light',
+  dark: 'dark',
+  spacing: 'spacing',
+  typography: 'typography',
+  shape: 'shape',
+  motion: 'motion',
+});
+```
+
 ## In this section
 
 - [Talking to Atlassian APIs](./atlassian-apis.md)

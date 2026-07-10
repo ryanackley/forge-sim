@@ -182,3 +182,9 @@ In practice: credentials, secrets, and variables are set-once-and-shared; runtim
 | `forge://functions` | Registered resolver functions |
 | `forge://triggers` | Registered triggers and events |
 | `forge://state` | Full state snapshot (KVS + queue + UI) |
+
+## Common gotchas
+
+### `forge-sim` is rebuilt mid-session → the daemon serves stale code
+
+This bites devs working on forge-sim itself, not app authors. But if you're hitting "method is not a function" errors from MCP calls right after rebuilding `dist/`, the long-lived daemon has the old code in memory. The simulator self-checks dist mtimes on every MCP response and warns when stale; `forge.sim_info` reports the daemon's PID, start time, and stale flag on demand. To recover, restart the daemon (`ps aux | grep mcp-server`, kill the PID; the client respawns it). See [architecture.md § Known gotcha: stale daemon](../reference/architecture.md#known-gotcha-stale-daemon-on-rebuild).

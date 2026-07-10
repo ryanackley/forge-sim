@@ -30,6 +30,7 @@ For the complete `sim.*` surface this guide draws on, see the [programmatic API 
   - [UIKit 2 Rendering](#uikit-2-rendering)
   - [View Events: submit, close, refresh](#view-events-submit-close-refresh)
 - [Tips](#tips)
+- [Debugging Tests](#debugging-tests)
 - [Common Gotchas](#common-gotchas)
 
 ---
@@ -824,6 +825,43 @@ expect(item).toBeUndefined();
 
 ---
 
+## Debugging Tests
+
+Breakpoints work in your test files **and** in your app source: forge-sim's loader transpiles `.ts`/`.tsx`/`.jsx` app modules with inline source maps, so you can step from a test straight into the resolver it invokes.
+
+The zero-config way is VS Code's **JavaScript Debug Terminal** (Command Palette → "Debug: JavaScript Debug Terminal"). Open one, set breakpoints, run the tests in it:
+
+```bash
+npx vitest run                                  # whole suite
+npx vitest run board.test.ts -t 'adds a card'   # one test
+```
+
+The debugger auto-attaches to vitest's worker processes, so this works with the default parallel pool.
+
+For an F5 launch configuration, run vitest through Node directly and disable file parallelism so execution stays in one steppable process:
+
+```json
+{
+  "name": "Debug vitest",
+  "type": "node",
+  "request": "launch",
+  "program": "${workspaceFolder}/node_modules/vitest/vitest.mjs",
+  "args": ["run", "--no-file-parallelism"],
+  "cwd": "${workspaceFolder}",
+  "console": "integratedTerminal",
+  "skipFiles": ["<node_internals>/**"]
+}
+```
+
+The [Vitest VS Code extension](https://marketplace.visualstudio.com/items?itemName=vitest.explorer) also works; it adds per-test run/debug buttons in the editor gutter using the same attach mechanism.
+
+Two notes:
+
+- **Timeouts still count wall-clock time.** Sitting at a breakpoint past `testTimeout` fails the test when you resume. Bump the timeout in `vitest.config.ts` (or pass `--testTimeout=0`) for debug sessions.
+- **Debugging the dev server instead of tests?** See [Local development § Debugging](../local-development/README.md#debugging).
+
+---
+
 ## Common Gotchas
 
 The things that have eaten the most debugging time. Check here first when a test does something weird.
@@ -831,28 +869,6 @@ The things that have eaten the most debugging time. Check here first when a test
 ### `useEffect` + `invoke()` returns the loading state
 
 `sim.ui.render()` only awaits the **initial** reconcile. If your component fetches data in a `useEffect` and re-renders when it lands, the rendered tree from `render()` is the pre-fetch state (`<Text>Loading…</Text>` or similar). Fix: chase it with `sim.ui.waitForContent(moduleKey, expectedText)`; that polls the tree until the substring shows up. Same applies to the MCP `forge.ui_render` tool; use `forge.ui_wait_for` to settle. See [renderer.md § Server-mode useEffect and async state](../reference/renderer.md#server-mode-useeffect-and-async-state).
-
-### Don't wrap your Custom UI app in `React.StrictMode` with Atlaskit
-
-Atlaskit components (especially anything that uses portals or the design-token theme provider) break under `React.StrictMode`'s double-invoke. Symptoms range from invisible components to portal duplication to "DOM looks empty but the warnings fire." Drop `<React.StrictMode>` from `main.tsx` / `index.tsx` in any Atlaskit-consuming app, including UIKit 2 modules in browser mode. forge-sim's dev server bridge ships with strict mode **off** for the same reason.
-
-### Atlaskit needs `setGlobalTheme()` at boot
-
-Atlaskit reads its colors from design tokens at runtime. Without `setGlobalTheme()`, components render but with unresolved tokens, often invisible. Custom UI test apps need this wired into the theme init:
-
-```ts
-import { setGlobalTheme } from '@atlaskit/tokens';
-
-setGlobalTheme({
-  colorMode: 'auto',
-  light: 'light',
-  dark: 'dark',
-  spacing: 'spacing',
-  typography: 'typography',
-  shape: 'shape',
-  motion: 'motion',
-});
-```
 
 ### Mock product APIs **before** `deploy()` if scheduled triggers run on startup
 
@@ -886,9 +902,7 @@ Unlike `@forge/api` / `@forge/kvs` / etc., there is no `forge-sim/shims/forge-sq
 
 ForgeDoc serializes function props as `{ __fn__: '<id>' }` tokens, and **each render produces fresh IDs**. Don't snapshot a tree expecting `onClick` IDs to be stable, and don't compare two ForgeDocs structurally if either has handlers. See [renderer.md § Function serialization](../reference/renderer.md#function-serialization-__id__).
 
-### `forge-sim` is rebuilt mid-session → the MCP daemon serves stale code
-
-This bites devs working on forge-sim itself, not app authors. But if you're hitting "method is not a function" errors from MCP calls right after rebuilding `dist/`, the long-lived daemon has the old code in memory. The simulator self-checks dist mtimes on every MCP response and warns when stale; restart the daemon (`ps aux | grep mcp-server`, kill the PID; the client respawns it). See [architecture.md § Known gotcha: stale daemon](../reference/architecture.md#known-gotcha-stale-daemon-on-rebuild).
+Gotchas that live in the browser rather than the test runner (Atlaskit theming, `React.StrictMode`) are in [Local development § Common gotchas](../local-development/README.md#common-gotchas). MCP-specific gotchas (stale daemon after rebuild) are in [MCP server § Common gotchas](../ai/mcp.md#common-gotchas).
 
 ---
 
