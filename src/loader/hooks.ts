@@ -292,7 +292,7 @@ export async function load(
     return transpileWithEsbuild(url, 'jsx', context, nextLoad);
   }
 
-  // Plain .ts — let Node handle it natively (built-in type stripping since v22)
+  // Plain .ts — let Node handle it natively (built-in, unflagged type stripping since v22.18)
   // No load hook needed; Node strips types and preserves source positions.
 
   return nextLoad(url, context);

@@ -25,11 +25,12 @@
     "atlaskit"
   ],
   "engines": {
-    "node": ">=20.6.0"
+    "node": ">=22.18.0"
   },
   "files": [
     "dist",
     "renderer/src",
+    "!renderer/src/__tests__",
     "renderer/package.json",
     "docs"
   ],

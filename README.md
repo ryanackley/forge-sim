@@ -19,7 +19,7 @@ is missing or behaves differently, please [open an issue](https://github.com/rya
 
 ## Installation
 
-Requires **Node.js 22+** (uses native TypeScript type stripping for `.ts` loader hooks).
+Requires **Node.js 22.18+** (uses native TypeScript type stripping for `.ts` loader hooks, unflagged since 22.18).
 
 ```bash
 # Global install (CLI: dev server, agent commands, MCP)
