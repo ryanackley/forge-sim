@@ -1,12 +1,21 @@
 # forge-sim
 
-A locally simulated Forge runtime, three ways to drive it:
+A locally simulated runtime for [Forge](https://developer.atlassian.com/platform/forge/), Atlassian's platform for building apps that run inside their cloud products, three ways to drive it:
 
-* **Automated testing** — Forge ships no test harness: today your options are mocking or shimming every `@forge/*` import by hand, or deploying to find out. forge-sim gives you `createSimulator()` in vitest/jest: invoke resolvers, fire product events, assert on KVS/SQL state and rendered UIKit output. No network, no credentials, runs in CI.
+* **Automated testing** — Forge ships no test harness: today your options are mocking or shimming every `@forge/*` import by hand, or deploying to find out. forge-sim gives you a robust API: invoke resolvers, fire product events, assert on KVS/SQL state and rendered UIKit output. No network or credentials required, runs in CI.
 
 * **Local development** — think LocalStack for Forge. Skip the deploy-to-cloud step and run your app against simulated storage, product APIs, and triggers, with dev tools for inspecting Forge state as you go. Unlike `forge tunnel`, it needs no dev site or network.
 
-* **AI-assisted development (MCP)** — let an agent deploy, invoke, render, and inspect your app in a simulated Forge environment via MCP tools instead of handing it your cloud credentials or a browser pointed at your Jira. Faster feedback, zero blast radius.
+* **AI-assisted development (MCP)** — let an agent deploy, invoke, render, and inspect your app in a simulated Forge environment via MCP tools instead of handing it your cloud credentials or a browser pointed at your dev site. Faster feedback, zero blast radius.
+
+## Scope
+
+forge-sim aims for behavioral parity for the most part (see [Known limitations](#known-limitations) below): if it works in forge-sim, it should
+work in Forge, and vice versa. The [implementation matrix](./docs/reference/implementation-matrix.md)
+shows exactly what's implemented and how faithfully. If something you rely on
+is missing or behaves differently, please [open an issue](https://github.com/ryanackley/forge-sim/issues).
+
+**This is a development tool**. Iterate here, then deploy and test in-product to look for behavioral differences.
 
 ## Installation
 
@@ -63,6 +72,16 @@ describe('my forge app', () => {
     );
     expect(rows).toHaveLength(3);
   });
+
+  it('renders the issue panel', async () => {
+    // Headless UIKit 2: your JSX runs through the real @forge/react reconciler
+    await sim.ui.render('issue-panel', { context: { issueKey: 'PROJ-1' } });
+
+    // Wait for useEffect → invoke → re-render to settle, then assert on the tree
+    const doc = await sim.ui.waitForContent('issue-panel', 'Fix the thing');
+    const badge = sim.ui.findByTypeAndText(doc, 'Badge', '1 view');
+    expect(badge.props.appearance).toBe('primary');
+  });
 });
 ```
 
@@ -72,16 +91,16 @@ Features:
 - Invokes resolvers, triggers, scheduled triggers, queues, and consumers directly.
 - Gives direct read/write access to KVS, the Custom Entity Store, and Forge SQL (embedded MySQL) for setup and assertions.
 - Renders UIKit 2 modules to a ForgeDoc tree you can query and interact with; no browser.
-- Mocks product APIs, Forge Remotes, third-party OAuth, and GraphQL by route; unmocked routes fall through to a connected real API.
+- Mocks product APIs, Forge Remotes, third-party OAuth, and GraphQL by route; unmocked routes can be configured to fall through to a connected real API.
 - Mocks and records `@forge/llm` calls so tests stay offline.
 
-**Full guide:** [CI/CD testing](./docs/testing/) — bundler configuration, every testing pattern, UIKit rendering, mocking, and the programmatic API reference.
+**Full guide:** [Automated testing](./docs/testing/) — bundler configuration, every testing pattern, UIKit rendering, mocking, and the programmatic API reference.
 
 ---
 
 ## Local development loop
 
-Run your Forge app locally by using the `forge-sim dev` command
+Run your Forge app locally by using the `forge-sim dev` command. This is the end-to-end app experience being driven by a browser. 
 
 ### Quick start
 
@@ -176,21 +195,9 @@ Reset everything:     forge-sim reset
 
 ---
 
-## Scope
 
-forge-sim aims for behavioral parity: if it works in forge-sim, it should
-work in Forge, and vice versa. The [implementation matrix](./docs/reference/implementation-matrix.md)
-shows exactly what's simulated and how faithfully. If something you rely on
-is missing or behaves differently, [open an issue](https://github.com/ryanackley/forge-sim/issues):
-parity gaps are bugs, not omissions.
-
-**This is a development tool**, not a replacement for the platform. Iterate here,
-then deploy and verify in-product before you ship. A simulation is the fast
-loop, not the final word.
 
 ## Known limitations
-
-forge-sim won't catch bugs that real Forge would:
 
 - **No egress filtering** — `permissions.external` is parsed but not enforced
 - **No scope enforcement** — `permissions.scopes` is parsed but not checked at runtime
@@ -205,7 +212,7 @@ See the [implementation matrix](./docs/reference/implementation-matrix.md) for f
 The docs are organized around the three ways to use forge-sim, with a shared reference section:
 
 - **[Local development](./docs/local-development/)** — the `forge-sim dev` server, connecting to Atlassian, Custom UI and proxy mode, Forge Remotes, external auth, and the dev tools UI.
-- **[CI/CD testing](./docs/testing/)** — the test API, bundler config, testing patterns, UIKit rendering, mocking, and the programmatic `sim.*` reference.
+- **[Automated Testing](./docs/testing/)** — the test API, bundler config, testing patterns, UIKit rendering, mocking, and the programmatic `sim.*` reference.
 - **[AI-driven development](./docs/ai/)** — the MCP server and agent CLI.
 - **[Reference](./docs/reference/)** — architecture, full CLI reference, implementation matrix, module support, and module contexts.
 
