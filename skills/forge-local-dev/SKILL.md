@@ -285,7 +285,7 @@ Clears all sim state (in-memory + drops SQL tables; MySQL server stays running).
 
 When the user asks you to "write tests" / "make this testable" / "add vitest coverage", switch surfaces. Tests run in their own Node process — they can't reach the MCP server.
 
-**The full reference is [docs/testing](https://github.com/ryanackley/forge-sim/blob/main/docs/testing/README.md)** — read it before writing tests. It covers bundler config, every testing pattern (resolvers, SQL, KVS, triggers, queues, UI), product API mocking, and view-event capture (`onSubmit`/`onClose`/`onRefresh`). The summary below is the minimum needed to bootstrap a test file.
+**The full reference is [docs/testing](../../docs/testing/README.md)** — read it before writing tests. When this skill is installed as a plugin, that path resolves on disk relative to this file (the plugin bundles the whole repo); if you only have the skill file, use the [GitHub copy](https://github.com/ryanackley/forge-sim/blob/main/docs/testing/README.md). It covers bundler config, every testing pattern (resolvers, SQL, KVS, triggers, queues, UI), product API mocking, and view-event capture (`onSubmit`/`onClose`/`onRefresh`). The summary below is the minimum needed to bootstrap a test file.
 
 #### Bundler config (one-time per project)
 
@@ -487,6 +487,7 @@ When in doubt, the agent should defer to one of those skills rather than improvi
 
 ## References
 
-- [forge-sim repo](https://github.com/ryanackley/forge-sim) — full docs, MCP tool reference, module support matrix
+- Bundled docs (on disk when installed as a plugin, relative to this file): [testing guide](../../docs/testing/README.md), [test API reference](../../docs/reference/api.md), [MCP tool reference](../../docs/ai/mcp.md), [module support matrix](../../docs/reference/module-support.md)
+- [forge-sim repo](https://github.com/ryanackley/forge-sim) — the same docs on GitHub, plus source
 - [Forge developer documentation](https://developer.atlassian.com/platform/forge/) — official Forge platform docs
 - [@forge/react component reference](https://developer.atlassian.com/platform/forge/ui-kit/components/) — canonical list of UIKit components and which ones work in macro config
