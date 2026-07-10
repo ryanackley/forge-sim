@@ -192,6 +192,7 @@ Complete type signatures for every public method, grouped by subsystem.
   - [Entity Store](#entity-store)
   - [Secrets](#secrets)
   - [Dump & Restore](#dump--restore)
+  - [Latency Simulation](#latency-simulation)
 - [sim.sql — Forge SQL](#simsql--forge-sql)
 - [sim.queue — Async Events](#simqueue--async-events)
 - [sim.resolver — Resolver Registry](#simresolver--resolver-registry)
@@ -479,6 +480,14 @@ sim.kvs.clear(): void                              // Clear runtime data (preser
 sim.kvs.clearAll(): void                           // Full clear including schemas
 ```
 
+### Latency Simulation
+
+```typescript no-check
+sim.kvs.setLatency(latency: boolean | number): void
+```
+
+Injects artificial latency into every KVS operation. `true` yields a macrotask per call, a number adds a random delay between 0 and that many milliseconds, `false` (the default) turns it off. In-memory KVS calls normally complete too fast for concurrent code paths to interleave; enabling latency opens real read-modify-write windows. Pair it with `sim.queue.setMode('concurrent')` to expose race conditions in consumer code. See [Hunting race conditions](../testing/README.md#hunting-race-conditions-concurrent-mode--kvs-latency) in the testing guide.
+
 ---
 
 ## `sim.sql` — Forge SQL
@@ -524,10 +533,16 @@ sim.queue.clear(): void
 
 ```typescript
 interface QueueEvent {
-  body: any;
-  concurrencyKey?: string;   // Events with same key run sequentially
+  body: Record<string, unknown>;
+  delayInSeconds?: number;   // Accepted for API parity; not simulated (events process immediately)
+  concurrency?: {
+    key: string;             // Named semaphore, shared across queues (per Forge spec)
+    limit: number;           // Max events processing under this key at once
+  };
 }
 ```
+
+The default processing mode is `sequential`: `push()` runs consumers one at a time and resolves when all have finished. Switch to `concurrent` (via `setMode()` above or `queueMode` in `createSimulator()`) to process a push's events in parallel and hunt race conditions; see [Hunting race conditions](../testing/README.md#hunting-race-conditions-concurrent-mode--kvs-latency) in the testing guide.
 
 ---
 
