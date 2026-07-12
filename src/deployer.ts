@@ -17,7 +17,7 @@ import type { ForgeSimulator } from './simulator.js';
 /** Per-app cache dir for esbuild deploy bundles. Convention follows fit-keys/
  *  and other forge-sim sidecar state. Bundles live here briefly between
  *  deploys; we sweep stale ones at the start of every redeploy. */
-function deployBundleDir(appDir: string): string {
+export function deployBundleDir(appDir: string): string {
   return join(appDir, '.forge-sim', 'bundles');
 }
 
@@ -52,7 +52,7 @@ export function _resetPrintedManifestWarnings(): void {
 /** Best-effort sweep of older deploy bundles so the dir doesn't grow without
  *  bound across many redeploys. Failures are swallowed (e.g. dir doesn't
  *  exist yet, or files are still in-use somewhere on Windows). */
-async function sweepStaleBundles(dir: string): Promise<void> {
+export async function sweepStaleBundles(dir: string): Promise<void> {
   try {
     const names = await readdir(dir);
     await Promise.all(
@@ -92,7 +92,7 @@ async function sweepStaleBundles(dir: string): Promise<void> {
  *
  * Sourcemap is inline so stack traces still point back at user source.
  */
-async function bundleHandlerToFileUrl(entryPath: string, appDir: string): Promise<string> {
+export async function bundleHandlerToFileUrl(entryPath: string, appDir: string): Promise<string> {
   const esbuild = await import('esbuild');
   const result = await esbuild.build({
     entryPoints: [entryPath],

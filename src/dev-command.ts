@@ -22,7 +22,7 @@ import { resolve, join, relative, dirname } from 'node:path';
 import { existsSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { createSimulator, ForgeSimulator } from './simulator.js';
-import { deploy } from './deployer.js';
+import { deploy, bundleHandlerToFileUrl, sweepStaleBundles, deployBundleDir } from './deployer.js';
 import { createDevServer } from './dev-server.js';
 import { parseManifest, type ParsedManifest, type ManifestUIModule, BACKGROUND_SCRIPT_TYPES, getCompatibleBackgroundScripts } from './manifest.js';
 import { saveState, loadState, hasPersistedState, getSQLDumpPath } from './persistence.js';
@@ -2320,6 +2320,19 @@ async function deployResolversOnly(
     // So we load ALL functions (resolvers, triggers, consumers) but skip resource imports.
   }
 
+  // Sweep old deploy bundles so `.forge-sim/bundles/` doesn't grow without
+  // bound across dev-server restarts (mirrors deployer.deploy()).
+  await sweepStaleBundles(deployBundleDir(appDir));
+
+  // Per-deploy bundle/import cache keyed by absolute source path. Many
+  // manifests route multiple function entries through the same source file
+  // (e.g. OKR's `index.handler`, `index.runMigration`, ... all live in
+  // `src/index.ts`). Without this cache, each function re-imported the same
+  // file under a unique URL, re-evaluating its top-level code N times and
+  // tripping the "resolver.define overwriting" warning on every redundant
+  // pass. Mirrors the F8 fix in deployer.deploy().
+  const moduleCache = new Map<string, any>();
+
   for (const [fnKey, fnDef] of manifest.functions) {
     try {
       const { fileStem, exportName } = parseHandlerString(fnDef.handler);
@@ -2333,9 +2346,18 @@ async function deployResolversOnly(
         continue;
       }
 
-      const { pathToFileURL } = await import('node:url');
-      const fileUrl = pathToFileURL(filePath).href;
-      const mod = await import(fileUrl + '?t=' + Date.now());
+      // Bundle+import via esbuild — NOT `import(fileUrl + '?t=' + Date.now())`.
+      // The `?t=` trick only cache-busts the entry file; transitive relative
+      // imports keep plain URLs and stay cached forever, so edits to helper
+      // files never took effect on dev reloads (same F3 bug fixed in
+      // deployer.deploy()). Bundling folds the whole relative-import tree
+      // into one fresh-URL module per deploy pass.
+      let mod = moduleCache.get(filePath);
+      if (!mod) {
+        const fileUrl = await bundleHandlerToFileUrl(filePath, appDir);
+        mod = await import(fileUrl);
+        moduleCache.set(filePath, mod);
+      }
 
       const handler = mod[exportName] ?? mod.default?.[exportName];
       if (!handler) {
