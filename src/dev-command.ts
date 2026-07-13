@@ -2299,7 +2299,15 @@ function registerDispatchFunction(sim: ForgeSimulator, fnKey: string, dispatchFn
   };
 }
 
-async function deployResolversOnly(
+/**
+ * Dev-server deploy pass: load every manifest function into the simulator.
+ *
+ * Exported for tests — the CLI entry point is `runDevCommand`. This is the
+ * dev-mode sibling of `deployer.deploy()` and must keep parity with its
+ * bundling behavior (F3: transitive-import freshness, F8: one evaluation
+ * per source file regardless of how many function entries share it).
+ */
+export async function deployResolversOnly(
   sim: ForgeSimulator,
   appDir: string,
   manifest: ParsedManifest

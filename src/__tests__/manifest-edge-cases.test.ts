@@ -966,6 +966,26 @@ modules:
     expect(unknown).toHaveLength(0);
   });
 
+  it('does not warn on sql (Forge SQL database declaration)', () => {
+    // Regression: okr-tracker's `modules.sql: [{ key: main, engine: mysql }]`
+    // tripped a false-positive "Unknown module type 'sql'" warning (2026-07-12).
+    const result = parseManifestContent(`
+app:
+  id: test-app
+modules:
+  sql:
+    - key: main
+      engine: mysql
+  function:
+    - key: resolver
+      handler: index.handler
+`);
+    const unknown = result.warnings.filter((w) => w.message.includes('Unknown module type'));
+    expect(unknown).toHaveLength(0);
+    // sql entries have no resource/render — must not be slurped as UI modules
+    expect(result.uiModules).toHaveLength(0);
+  });
+
   it('warns once per unknown type, not per module instance', () => {
     const result = parseManifestContent(`
 app:

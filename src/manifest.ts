@@ -265,6 +265,8 @@ export const KNOWN_MODULE_TYPES = new Set([
   // Platform (product-agnostic)
   'function', 'consumer', 'scheduledTrigger', 'trigger', 'webtrigger',
   'endpoint', 'action',
+  // Forge SQL — declares a provisioned database (key + engine), no code
+  'sql',
   // Teamwork Graph (EAP) — connector apps ingest data into the org graph
   'graph:connector',
   // Jira
@@ -418,7 +420,7 @@ export function parseManifestContent(content: string): ParsedManifest {
   // (they appear at the top level of modules: but don't render UI)
   const nonUIModuleTypes = new Set([
     'function', 'endpoint', 'consumer', 'scheduledTrigger',
-    'trigger', 'webtrigger', 'remote',
+    'trigger', 'webtrigger', 'remote', 'sql',
   ]);
 
   // Module types with nested resource patterns (view.resource / edit.resource)

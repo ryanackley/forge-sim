@@ -1,0 +1,17 @@
+app:
+  id: ari:cloud:ecosystem::app/dev-shared-entry
+  name: Dev Shared Entry Repro
+  runtime:
+    name: nodejs22.x
+
+# Three function entries all routed through src/index.js — the okr-tracker
+# shape that exposed the dev-path F8 regression (2026-07-12): each entry was
+# imported under a unique URL, re-evaluating index.js top-level code N times.
+modules:
+  function:
+    - key: fn-main
+      handler: index.handler
+    - key: fn-run
+      handler: index.run
+    - key: fn-cleanup
+      handler: index.cleanup
