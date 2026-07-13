@@ -684,10 +684,11 @@ export async function createDevServer(options: DevServerOptions = {}): Promise<D
         if (onFileChange) {
           try {
             const newDoc = await onFileChange(relPath);
-            if (newDoc) {
-              broadcast(newDoc);
-              sendEvent({ type: 'ready', timestamp: Date.now() });
-            }
+            if (newDoc) broadcast(newDoc);
+            // Always signal ready on success — backend hot-redeploy returns
+            // null (no server-side ForgeDoc; the browser owns rendering),
+            // but renderers still need the 'reloading' state cleared.
+            sendEvent({ type: 'ready', timestamp: Date.now() });
           } catch (err: any) {
             console.error(`[dev-server] Re-deploy error:`, err.message);
             sendEvent({ type: 'error', message: err.message, timestamp: Date.now() });

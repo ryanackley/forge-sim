@@ -1625,6 +1625,7 @@ export async function devCommand(options: DevCommandOptions) {
         console.warn(`     ⚠️  ${err.functionKey}: ${err.error}`);
       }
     }
+    console.log(`     🔁 Backend hot-redeploy on save (frontend reloads stay with Vite)`);
   } catch (err: any) {
     console.error(`  ❌ Deploy failed: ${err.message}`);
     if (err.stack) {
@@ -1700,6 +1701,33 @@ export async function devCommand(options: DevCommandOptions) {
     ? await buildForgeContext(sim, primaryModule.module.key, primaryModule.module.type, renderContext)
     : buildDefaultContext(primaryModule.module.key, primaryModule.module.type, sim.productApi.connectedAccount, cfExtra);
 
+  // Backend hot-redeploy on save (forge tunnel parity). The watcher fires
+  // for any app-source change; we re-parse the manifest and reload every
+  // function so the NEXT invoke runs fresh code. The frontend is untouched —
+  // Vite (or the proxied dev server) owns frontend reloads, and simulator
+  // state (KVS/SQL/queues) survives the pass. Serialized so rapid saves
+  // can't interleave two deploy passes.
+  let redeployChain: Promise<unknown> = Promise.resolve();
+  const redeployOnChange = (changedFile: string) => {
+    const pass = redeployChain.then(async () => {
+      const freshManifest = await parseManifest(manifestPath);
+      const result = await deployResolversOnly(sim, appDir, freshManifest, { reload: true });
+      if (result.errors.length > 0) {
+        for (const err of result.errors) {
+          console.warn(`  ⚠️  ${err.functionKey}: ${err.error}`);
+        }
+      }
+      console.log(
+        `  🔁 Redeployed ${result.loadedFunctions.length} function(s) after change: ${changedFile}`
+      );
+      return null;
+    });
+    // Keep the chain alive even when a pass fails (error is surfaced to the
+    // watcher, which broadcasts it to connected renderers).
+    redeployChain = pass.catch(() => {});
+    return pass as Promise<null>;
+  };
+
   const devServer = await createDevServer({
     port: wsPort,
     // strictPort = true when the user explicitly passed --ws-port: respect
@@ -1708,6 +1736,7 @@ export async function devCommand(options: DevCommandOptions) {
     watchDir: appDir,
     simulator: sim,
     context: moduleContext,
+    onFileChange: redeployOnChange,
   });
   // Reassign — the requested port may have been taken and the bridge is
   // now listening on a higher one. Everything downstream (Vite WS_URL,
@@ -2306,14 +2335,30 @@ function registerDispatchFunction(sim: ForgeSimulator, fnKey: string, dispatchFn
  * dev-mode sibling of `deployer.deploy()` and must keep parity with its
  * bundling behavior (F3: transitive-import freshness, F8: one evaluation
  * per source file regardless of how many function entries share it).
+ *
+ * Pass `{ reload: true }` for save-triggered hot redeploys (forge tunnel
+ * parity — a local rebuild, not a fresh install):
+ *  - resolver definitions are cleared first, so re-registration is clean
+ *    instead of a wall of "overwriting an existing definition" warnings
+ *  - scheduled triggers are NOT re-fired (tunnel rebuilds don't re-run
+ *    your migrations on every save; they fire on schedule / real deploy)
+ * Simulator state (KVS, SQL, queues) is untouched either way.
  */
 export async function deployResolversOnly(
   sim: ForgeSimulator,
   appDir: string,
-  manifest: ParsedManifest
+  manifest: ParsedManifest,
+  opts: { reload?: boolean } = {}
 ): Promise<{ loadedFunctions: string[]; errors: Array<{ functionKey: string; error: string }> }> {
+  const { reload = false } = opts;
   const loadedFunctions: string[] = [];
   const errors: Array<{ functionKey: string; error: string }> = [];
+
+  if (reload) {
+    // Drop all previous definitions so this pass registers fresh handlers
+    // silently. The bundle import below re-runs every resolver.define().
+    sim.resolver.clear();
+  }
 
   // Re-inject environment variables before (re)loading handler modules —
   // a dev-mode resolver reload IS a redeploy, so edits to
@@ -2442,8 +2487,10 @@ export async function deployResolversOnly(
     }
   }
 
-  // Fire scheduled triggers once on deploy (e.g. migrations)
-  for (const st of manifest.scheduledTriggers) {
+  // Fire scheduled triggers once on INITIAL deploy (e.g. migrations).
+  // Hot-redeploy passes skip this — forge tunnel parity: a local rebuild
+  // doesn't re-run scheduled work on every file save.
+  for (const st of reload ? [] : manifest.scheduledTriggers) {
     const handlerMap = sim.resolver.getHandlerMap();
     const handler = handlerMap.get(st.functionKey);
     if (handler && typeof handler === 'function') {

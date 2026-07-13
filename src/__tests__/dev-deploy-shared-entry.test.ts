@@ -35,6 +35,8 @@ export function greet() {
 declare global {
   // eslint-disable-next-line no-var
   var __devSharedEntryEvals: number | undefined;
+  // eslint-disable-next-line no-var
+  var __devSharedEntryTicks: number | undefined;
 }
 
 describe('deployResolversOnly — shared entry file (F8/F3 dev path)', () => {
@@ -43,6 +45,7 @@ describe('deployResolversOnly — shared entry file (F8/F3 dev path)', () => {
 
   beforeEach(async () => {
     globalThis.__devSharedEntryEvals = 0;
+    globalThis.__devSharedEntryTicks = 0;
     originalHelper ??= await readFile(HELPER_FILE, 'utf-8');
     await writeFile(HELPER_FILE, originalHelper, 'utf-8');
     sim = createSimulator();
@@ -99,5 +102,61 @@ describe('deployResolversOnly — shared entry file (F8/F3 dev path)', () => {
     await deployResolversOnly(sim, FIXTURE, manifest2);
 
     expect(await sim.resolver.invoke('greet')).toEqual({ message: 'dev v2', edited: true });
+  });
+
+  // ── Hot redeploy ({ reload: true }) — the save-triggered dev path ──────
+  //
+  // `forge-sim dev` wires the file watcher to `deployResolversOnly(sim, dir,
+  // manifest, { reload: true })`. Forge tunnel parity: a local rebuild, not a
+  // fresh install — definitions swap cleanly, scheduled work doesn't re-run,
+  // simulator state survives.
+
+  it('hot redeploy serves fresh transitive code without reset or warnings', async () => {
+    const warnSpy = vi.spyOn(console, 'warn');
+    try {
+      const manifest = await parseManifest(join(FIXTURE, 'manifest.yml'));
+      await deployResolversOnly(sim, FIXTURE, manifest);
+      expect(await sim.resolver.invoke('greet')).toEqual({ message: 'dev v1' });
+
+      await writeFile(HELPER_FILE, HELPER_V2, 'utf-8');
+
+      // No sim.reset() — this is the live watcher path. reload: true clears
+      // definitions itself, so re-registration must be silent.
+      const result = await deployResolversOnly(sim, FIXTURE, manifest, { reload: true });
+      expect(result.errors).toEqual([]);
+      expect(result.loadedFunctions.sort()).toEqual(['fn-cleanup', 'fn-main', 'fn-run']);
+
+      const overwriteWarnings = warnSpy.mock.calls.filter((args) =>
+        String(args[0]).includes('overwriting an existing definition')
+      );
+      expect(overwriteWarnings).toEqual([]);
+
+      expect(await sim.resolver.invoke('greet')).toEqual({ message: 'dev v2', edited: true });
+      expect(await sim.resolver.invoke('stats')).toEqual({ ok: true });
+      expect(await sim.resolver.invoke('fn-cleanup')).toEqual({ cleaned: true });
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  it('scheduled triggers fire on the initial pass but NOT on hot redeploys', async () => {
+    const manifest = await parseManifest(join(FIXTURE, 'manifest.yml'));
+
+    await deployResolversOnly(sim, FIXTURE, manifest);
+    expect(globalThis.__devSharedEntryTicks).toBe(1);
+
+    await deployResolversOnly(sim, FIXTURE, manifest, { reload: true });
+    await deployResolversOnly(sim, FIXTURE, manifest, { reload: true });
+    expect(globalThis.__devSharedEntryTicks).toBe(1);
+  });
+
+  it('KVS state survives a hot redeploy pass', async () => {
+    const manifest = await parseManifest(join(FIXTURE, 'manifest.yml'));
+    await deployResolversOnly(sim, FIXTURE, manifest);
+
+    await sim.kvs.set('sticky', { keep: 'me' });
+    await deployResolversOnly(sim, FIXTURE, manifest, { reload: true });
+
+    expect(await sim.kvs.get('sticky')).toEqual({ keep: 'me' });
   });
 });

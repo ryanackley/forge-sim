@@ -15,3 +15,10 @@ modules:
       handler: index.run
     - key: fn-cleanup
       handler: index.cleanup
+  # Fires once on the initial dev deploy pass — hot redeploys (reload: true)
+  # must NOT re-fire it (forge tunnel parity: rebuilds don't re-run your
+  # migrations on every save).
+  scheduledTrigger:
+    - key: tick
+      function: fn-run
+      interval: hour
