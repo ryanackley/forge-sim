@@ -8,7 +8,7 @@
  */
 
 import { join, dirname } from 'node:path';
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync, readFileSync } from 'node:fs';
 import { execSync, spawn, type ChildProcess } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
@@ -85,16 +85,51 @@ export function ensureTsconfig(appDir: string): string {
 }
 
 /**
- * Resolve the tsc binary. Checks app's node_modules first,
- * then falls back to forge-sim's own bundled typescript.
+ * Minimum TypeScript major version we can drive.
+ *
+ * The synthetic tsconfig uses `moduleResolution: 'bundler'` (TS 5.0+) and
+ * `jsx: 'react-jsx'` (TS 4.1+), and modern @types packages use syntax that
+ * older parsers report as TS1005 spam. npm regularly hoists ancient
+ * *transitive* typescript versions (e.g. 3.9.x via the Atlaskit tree inside
+ * @forge/react) to the app's top-level node_modules — those must never win
+ * over forge-sim's bundled TypeScript.
+ */
+const MIN_TS_MAJOR = 5;
+
+/** Read the major version of typescript installed under `baseDir`, or null. */
+function installedTsMajor(baseDir: string): number | null {
+  try {
+    const pkg = JSON.parse(
+      readFileSync(join(baseDir, 'node_modules', 'typescript', 'package.json'), 'utf-8')
+    );
+    const major = parseInt(String(pkg.version).split('.')[0], 10);
+    return Number.isFinite(major) ? major : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Resolve the tsc binary. Prefers the app's node_modules tsc when it's
+ * modern enough (>= TS 5), otherwise falls back to forge-sim's own
+ * bundled typescript.
  */
 export function resolveTsc(appDir: string): string | null {
-  // 1. App's own tsc (preferred — matches their TS version)
-  const appTsc = join(appDir, 'node_modules', '.bin', 'tsc');
-  if (existsSync(appTsc)) return appTsc;
+  // 1. App's own tsc (preferred — matches their TS version), but only if
+  //    it's new enough to parse our synthetic tsconfig + modern @types.
+  const appTsMajor = installedTsMajor(appDir);
+  if (appTsMajor === null || appTsMajor >= MIN_TS_MAJOR) {
+    const appTsc = join(appDir, 'node_modules', '.bin', 'tsc');
+    if (existsSync(appTsc)) return appTsc;
 
-  const appTscJs = join(appDir, 'node_modules', 'typescript', 'bin', 'tsc');
-  if (existsSync(appTscJs)) return `node ${appTscJs}`;
+    const appTscJs = join(appDir, 'node_modules', 'typescript', 'bin', 'tsc');
+    if (existsSync(appTscJs)) return `node ${appTscJs}`;
+  } else {
+    console.log(
+      `  ℹ️  App has typescript@${appTsMajor}.x in node_modules (likely a hoisted ` +
+      `transitive dependency) — too old for type checking, using forge-sim's TypeScript instead`
+    );
+  }
 
   // 2. forge-sim's own typescript (bundled as a dependency)
   const forgeSimRoot = join(__dirname, '..');
@@ -162,9 +197,16 @@ export function parseTscOutput(output: string): TypeCheckError[] {
 
 /**
  * Filter errors to only critical ones that would break deploy/runtime.
+ *
+ * Errors inside node_modules are never critical: the app developer can't fix
+ * a dependency's .d.ts, and we run with skipLibCheck anyway (which skips
+ * semantic checks but NOT syntax errors — an old tsc parsing a modern @types
+ * package produces TS1005 spam that would otherwise flood this filter).
  */
 export function filterCriticalErrors(errors: TypeCheckError[]): TypeCheckError[] {
-  return errors.filter(e => CRITICAL_TS_ERROR_CODES.has(e.code));
+  return errors.filter(
+    e => CRITICAL_TS_ERROR_CODES.has(e.code) && !/(^|[\\/])node_modules[\\/]/.test(e.file)
+  );
 }
 
 // ── Watch Mode ─────────────────────────────────────────────────────────

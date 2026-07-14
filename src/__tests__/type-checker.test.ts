@@ -79,6 +79,29 @@ describe('filterCriticalErrors', () => {
     ];
     expect(filterCriticalErrors(errors)).toEqual([]);
   });
+
+  it('never treats node_modules errors as critical (phantom @types syntax spam)', () => {
+    // An old hoisted tsc parsing a modern @types package produces TS1005
+    // syntax "errors" in node_modules .d.ts files — skipLibCheck skips
+    // semantic checks but NOT parse errors. These are unfixable by the app
+    // dev and must not count as critical (bg-test-app regression: 817 of them).
+    const errors: TypeCheckError[] = [
+      { file: 'node_modules/@types/node/buffer.d.ts', line: 122, column: 5, code: 'TS1005', message: "',' expected." },
+      { file: 'node_modules\\@types\\node\\cluster.d.ts', line: 273, column: 5, code: 'TS1005', message: "',' expected." },
+      { file: '/abs/path/app/node_modules/@types/node/fs.d.ts', line: 9, column: 1, code: 'TS2307', message: 'Cannot find module' },
+      { file: 'src/index.ts', line: 5, column: 10, code: 'TS2307', message: 'Cannot find module' },
+    ];
+    const critical = filterCriticalErrors(errors);
+    expect(critical).toHaveLength(1);
+    expect(critical[0].file).toBe('src/index.ts');
+  });
+
+  it('does not filter app files whose name merely contains "node_modules"', () => {
+    const errors: TypeCheckError[] = [
+      { file: 'src/my-node_modules-helper.ts', line: 1, column: 1, code: 'TS2307', message: 'Cannot find module' },
+    ];
+    expect(filterCriticalErrors(errors)).toHaveLength(1);
+  });
 });
 
 describe('CRITICAL_TS_ERROR_CODES', () => {
@@ -173,6 +196,37 @@ describe('resolveTsc', () => {
 
     const result = resolveTsc(TEST_DIR);
     expect(result).toBe(join(binDir, 'tsc'));
+  });
+
+  it('uses app typescript when its version is >= 5', () => {
+    const binDir = join(TEST_DIR, 'node_modules', '.bin');
+    mkdirSync(binDir, { recursive: true });
+    writeFileSync(join(binDir, 'tsc'), '#!/bin/sh\necho "app tsc"', { mode: 0o755 });
+    const tsDir = join(TEST_DIR, 'node_modules', 'typescript');
+    mkdirSync(tsDir, { recursive: true });
+    writeFileSync(join(tsDir, 'package.json'), JSON.stringify({ name: 'typescript', version: '5.9.3' }));
+
+    const result = resolveTsc(TEST_DIR);
+    expect(result).toBe(join(binDir, 'tsc'));
+  });
+
+  it('skips ancient hoisted app typescript (< 5) and falls back to bundled TS', () => {
+    // npm hoists transitive typescript deps (e.g. 3.9.10 via the Atlaskit
+    // tree inside @forge/react) to the app's top-level node_modules. TS 3.9
+    // can't parse modern @types syntax nor our synthetic tsconfig
+    // (moduleResolution: 'bundler' is TS 5.0+) — bg-test-app regression.
+    const binDir = join(TEST_DIR, 'node_modules', '.bin');
+    mkdirSync(binDir, { recursive: true });
+    writeFileSync(join(binDir, 'tsc'), '#!/bin/sh\necho "ancient tsc"', { mode: 0o755 });
+    const tsDir = join(TEST_DIR, 'node_modules', 'typescript');
+    mkdirSync(tsDir, { recursive: true });
+    writeFileSync(join(tsDir, 'package.json'), JSON.stringify({ name: 'typescript', version: '3.9.10' }));
+
+    const result = resolveTsc(TEST_DIR);
+    // Must NOT be the app's ancient tsc — falls through to forge-sim's bundled TS
+    expect(result).not.toBe(join(binDir, 'tsc'));
+    expect(result).toBeTruthy();
+    expect(result!.startsWith(TEST_DIR)).toBe(false);
   });
 });
 

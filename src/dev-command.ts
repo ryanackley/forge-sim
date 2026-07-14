@@ -124,7 +124,7 @@ export function detectModuleType(appDir: string, manifest: ParsedManifest, mod: 
 
 // ── Entry Point Generation ────────────────────────────────────────────────
 
-function generateUIKitEntry(appResourcePath: string, wsPort: number, strictMode: boolean): string {
+export function generateUIKitEntry(appResourcePath: string, wsPort: number, strictMode: boolean): string {
   const shellElement = 'React.createElement(ForgeSimShell)';
   const rootElement = strictMode
     ? `React.createElement(React.StrictMode, null, ${shellElement})`
@@ -158,9 +158,29 @@ async function boot() {
   ReactDOM.createRoot(document.getElementById('root')!).render(
     ${rootElement}
   );
+
+  // Clean boot — clear the one-shot reload guard
+  try { sessionStorage.removeItem('forge-sim-boot-retried'); } catch {}
 }
 
 boot().catch((err) => {
+  // A TypeError from a dynamic import is almost always Vite invalidating
+  // optimized deps mid-boot (cold cache / re-optimization), not an app bug.
+  // Reload once — the second load hits the fresh dep cache and succeeds.
+  // sessionStorage guards against a reload loop for real failures.
+  const msg = String((err && (err.message || err)) || '');
+  const isImportFetchFailure = err instanceof TypeError &&
+    /Failed to fetch dynamically imported module|error loading dynamically imported module|Importing a module script failed/i.test(msg);
+  let retried = false;
+  try { retried = sessionStorage.getItem('forge-sim-boot-retried') === '1'; } catch {}
+  if (isImportFetchFailure && !retried) {
+    try { sessionStorage.setItem('forge-sim-boot-retried', '1'); } catch {}
+    console.warn('[forge-sim] Boot import failed (likely Vite dep re-optimization) — reloading once...');
+    location.reload();
+    return;
+  }
+  try { sessionStorage.removeItem('forge-sim-boot-retried'); } catch {}
+
   console.error('[forge-sim] Boot failed:', err);
   document.getElementById('root')!.innerHTML =
     '<div style="padding:40px;font-family:monospace;color:#de350b">' +
@@ -1386,7 +1406,7 @@ export function installModuleRouting(
  * Custom UI modules are served via aliases mapping /_customui_<key>/ paths
  * to their resource directories.
  */
-async function buildViteConfig(opts: {
+export async function buildViteConfig(opts: {
   appDir: string;
   tempDir: string;
   modules: DetectedModule[];
@@ -1508,6 +1528,17 @@ async function buildViteConfig(opts: {
     },
     optimizeDeps: {
       include: ['react', 'react-dom', 'react-dom/client', 'react/jsx-runtime'],
+      // Vite's dep scanner only crawls <root>/index.html by default. Our
+      // module pages live in per-module subdirectories (<key>/entry.tsx), so
+      // without explicit entries NONE of the heavy imports (app code →
+      // @forge/react, ForgeSimShell → ~1200 @atlaskit modules) are discovered
+      // until the browser requests a module page. That mid-flight discovery
+      // triggers a re-optimization pass that 504s in-flight dynamic imports
+      // ("Failed to fetch dynamically imported module") — a race that's worst
+      // on first-ever load when background-script iframes boot concurrently
+      // with the main frame. Seeding the scanner with the real entries moves
+      // discovery to server startup, before any request exists.
+      entries: ['entry.tsx', '*/entry.tsx'],
     },
   };
 }
