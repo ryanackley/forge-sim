@@ -82,7 +82,7 @@ These all follow the **UI + Resolver** or **UI + Custom UI** pattern. They have 
 
 | Module Key | Level | Notes |
 |------------|-------|-------|
-| `jira:customField` | ✅ Full | **View and edit sub-modules** extracted from nested `view.resource` / `edit.resource`. Module picker shows grouped row with View/Edit toggle. Mock `fieldValue` provided in context based on field type (number, string, user, group, date, datetime, object). Value function registered as resolver. Formatter expressions (Jira Expressions DSL) and search suggestions are **not** evaluated. |
+| `jira:customField` | ✅ Full | **View and edit sub-modules** extracted from nested `view.resource` / `edit.resource`. Module picker shows grouped row with View/Edit toggle. Mock `fieldValue` provided in context based on field type (number, string, user, group, date, datetime, object). Value function registered as resolver. Formatter expressions, `edit.validation.expression` (Jira Expressions DSL), and search suggestions are **not** evaluated — an invalid value that a validation expression would reject in production saves normally in forge-sim. Prefer app-side validation via `CustomFieldEdit` (the idiomatic inline-edit pattern), which behaves identically in both. |
 | `jira:customFieldType` | ✅ Full | Same treatment as `jira:customField`. View/edit extraction, context enrichment, value function registration. Schema validation not enforced locally. |
 
 ### Data / Logic Modules

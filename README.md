@@ -1,10 +1,10 @@
 # forge-sim
 
-A locally simulated runtime for [Forge](https://developer.atlassian.com/platform/forge/), Atlassian's platform for building apps that run inside their cloud products, three ways to drive it:
+A local simulated runtime for [Forge](https://developer.atlassian.com/platform/forge/), Atlassian's platform for building apps that run inside their cloud products, three ways to drive it:
 
 * **Automated testing** — Forge ships no test harness: today your options are mocking or shimming every `@forge/*` import by hand, or deploying to find out. forge-sim gives you a robust API: invoke resolvers, fire product events, assert on KVS/SQL state and rendered UIKit output. No network or credentials required, runs in CI.
 
-* **Local development** — think LocalStack for Forge. Skip the deploy-to-cloud step and run your app against simulated storage, product APIs, and triggers, with dev tools for inspecting Forge state as you go. Unlike `forge tunnel`, it needs no dev site or network.
+* **Local development** — think LocalStack for Forge. Skip the deploy-to-cloud step and run your app against simulated storage, product APIs, and triggers, with dev tools for inspecting Forge state as you go. Orders of magnitude faster than iterating via `forge tunnel`
 
 * **AI-assisted development (MCP)** — let an agent deploy, invoke, render, and inspect your app in a simulated Forge environment via MCP tools instead of handing it your cloud credentials or a browser pointed at your dev site. Faster feedback, zero blast radius.
 

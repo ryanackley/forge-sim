@@ -569,7 +569,7 @@ Module types recognized by forge-sim manifest parser.
 | `jira:workflowValidator` | ⚠️ | Config UI renders (create/edit/view resources), function invocable. No workflow transition simulation. |
 | `jira:workflowCondition` | ⚠️ | Config UI renders, function invocable. No workflow transition simulation. |
 | `jira:workflowPostFunction` | ⚠️ | Config UI renders, function invocable. No workflow transition simulation. |
-| `jira:customField` | ✅ | View/edit sub-module extraction, grouped module picker, mock fieldValue in context |
+| `jira:customField` | ✅ | View/edit sub-module extraction, grouped module picker, mock fieldValue in context. Jira Expressions (formatter, `edit.validation.expression`) not evaluated. |
 | `jira:customFieldType` | ✅ | Same as customField. Schema validation not enforced locally. |
 | `jira:command` | ⚠️ | Parsed, page targets, resource-based commands. No command palette simulation. |
 
