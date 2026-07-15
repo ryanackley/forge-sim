@@ -574,6 +574,28 @@ configure({ wsUrl: 'ws://localhost:${wsPort}' });
 `;
 }
 
+/**
+ * Root index.html for the Vite temp dir. Vite requires an index.html at
+ * root, and its SPA fallback serves this file for any unknown extension-less
+ * URL that no middleware claims. It must NOT reference ./entry.tsx — no root
+ * entry exists (module entries live in per-module subdirectories), and a
+ * dangling module script spams "Pre-transform error: Failed to load url
+ * /entry.tsx" on every fallback hit. Redirect humans to the module picker.
+ */
+export function generateRootIndexHtml(title: string): string {
+  return `<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="refresh" content="0;url=/" />
+    <title>${title} — forge-sim</title>
+  </head>
+  <body>
+    <p style="font-family: sans-serif; padding: 24px;">Redirecting to the <a href="/">module picker</a>…</p>
+  </body>
+</html>`;
+}
+
 function generateIndexHtml(title: string): string {
   return `<!DOCTYPE html>
 <html lang="en">
@@ -1362,11 +1384,20 @@ export function installModuleRouting(
         return;
       }
 
+      // Extension-less nested paths are client-side routes (view router /
+      // fullPage routePrefix) — serve the module page and let the app's own
+      // router handle the path, mirroring how real Forge serves the app HTML
+      // for any route under a fullPage module. Without this, SPA routes fall
+      // through to Vite's root SPA fallback, which serves the wrong page
+      // (found via forgebuilder's routed jira:fullPage, 2026-07-14).
+      const lastSegment = rest.split('/').pop() ?? '';
+      const isFileRequest = lastSegment.includes('.');
+
       if (mod.mode === 'uikit') {
         // Rewrite URL to serve from the module's temp subdirectory
         // /module/<key>/ → /<key>/index.html
         // /module/<key>/entry.tsx → /<key>/entry.tsx
-        if (rest === '/' || rest === '/index.html') {
+        if (rest === '/' || !isFileRequest) {
           req.url = `/${key}/index.html`;
         } else {
           req.url = `/${key}${rest}`;
@@ -1374,7 +1405,7 @@ export function installModuleRouting(
       } else {
         // Custom UI — rewrite to serve from /_customui_<key>/ virtual prefix
         // The Vite alias handles mapping this to the actual resource directory
-        if (rest === '/' || rest === '/index.html') {
+        if (rest === '/' || !isFileRequest) {
           req.url = `/_customui_${key}/index.html`;
         } else {
           req.url = `/_customui_${key}${rest}`;
@@ -1463,7 +1494,16 @@ export async function buildViteConfig(opts: {
         req.url = rest;
         // Use Vite's static file serving by changing the url
         // We need to actually serve the file from the right directory
-        const filePath = join(resourceDir, rest);
+        let filePath = join(resourceDir, rest);
+        if (!existsSync(filePath)) {
+          // SPA fallback: extension-less paths that don't map to a real file
+          // are client-side routes — serve the module's index.html (with
+          // bridge injection), matching real Forge's fullPage route serving.
+          const lastSegment = rest.split('/').pop() ?? '';
+          if (!lastSegment.includes('.') && existsSync(join(resourceDir, 'index.html'))) {
+            filePath = join(resourceDir, 'index.html');
+          }
+        }
         if (existsSync(filePath)) {
           const ext = filePath.split('.').pop() || '';
           const mimeTypes: Record<string, string> = {
@@ -2063,8 +2103,9 @@ export async function devCommand(options: DevCommandOptions) {
     // Custom UI modules don't need temp files — served from resource dir via middleware
   }
 
-  // Write a minimal root index.html (Vite needs one at root)
-  writeFileSync(join(tempDir, 'index.html'), generateIndexHtml(manifest.raw.app?.name ?? 'Forge App'));
+  // Write a minimal root index.html (Vite needs one at root; also served by
+  // Vite's SPA fallback for unknown URLs — must not reference ./entry.tsx)
+  writeFileSync(join(tempDir, 'index.html'), generateRootIndexHtml(manifest.raw.app?.name ?? 'Forge App'));
 
   const uikitCount = detectedModules.filter((m) => m.mode === 'uikit').length;
   const customUiCount = detectedModules.filter((m) => m.mode === 'customui').length;

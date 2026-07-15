@@ -558,6 +558,76 @@ describe('Multi-Module Routing', () => {
       expect(nextCalled).toBe(true);
       expect(req.url).toBe('/assets/style.css');
     });
+
+    // ── SPA client-side routes (fullPage routePrefix / view router) ─────
+    // Extension-less nested paths are client-side routes: real Forge serves
+    // the module's HTML for any route under a fullPage module and lets the
+    // app's router take over. Found via forgebuilder's routed jira:fullPage.
+
+    it('should serve module index.html for extension-less SPA routes (UIKit)', () => {
+      const vite = createMockViteServer();
+      installModuleRouting(vite, testModules, '/tmp');
+      const middleware = vite.getMiddleware();
+
+      const { req, res } = createMockReqRes('/module/panel/some/client/route');
+      let nextCalled = false;
+      middleware(req, res, () => { nextCalled = true; });
+
+      expect(nextCalled).toBe(true);
+      expect(req.url).toBe('/panel/index.html');
+    });
+
+    it('should serve module index.html for extension-less SPA routes (Custom UI)', () => {
+      const vite = createMockViteServer();
+      installModuleRouting(vite, testModules, '/tmp');
+      const middleware = vite.getMiddleware();
+
+      const { req, res } = createMockReqRes('/module/page/forgebuilder/settings');
+      let nextCalled = false;
+      middleware(req, res, () => { nextCalled = true; });
+
+      expect(nextCalled).toBe(true);
+      expect(req.url).toBe('/_customui_page/index.html');
+    });
+
+    it('should still rewrite nested file requests literally (Custom UI assets)', () => {
+      const vite = createMockViteServer();
+      installModuleRouting(vite, testModules, '/tmp');
+      const middleware = vite.getMiddleware();
+
+      const { req, res } = createMockReqRes('/module/page/static/js/main.abc123.js');
+      let nextCalled = false;
+      middleware(req, res, () => { nextCalled = true; });
+
+      expect(nextCalled).toBe(true);
+      expect(req.url).toBe('/_customui_page/static/js/main.abc123.js');
+    });
+
+    it('should treat /module/<key>/index.html as a literal file request', () => {
+      const vite = createMockViteServer();
+      installModuleRouting(vite, testModules, '/tmp');
+      const middleware = vite.getMiddleware();
+
+      const { req, res } = createMockReqRes('/module/page/index.html');
+      let nextCalled = false;
+      middleware(req, res, () => { nextCalled = true; });
+
+      expect(nextCalled).toBe(true);
+      expect(req.url).toBe('/_customui_page/index.html');
+    });
+
+    it('should preserve query strings on SPA route rewrites', () => {
+      const vite = createMockViteServer();
+      installModuleRouting(vite, testModules, '/tmp');
+      const middleware = vite.getMiddleware();
+
+      const { req, res } = createMockReqRes('/module/page/settings/general?tab=auth');
+      let nextCalled = false;
+      middleware(req, res, () => { nextCalled = true; });
+
+      expect(nextCalled).toBe(true);
+      expect(req.url).toBe('/_customui_page/index.html');
+    });
   });
 
   // Cleanup

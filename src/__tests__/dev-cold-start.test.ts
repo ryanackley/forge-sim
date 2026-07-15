@@ -19,7 +19,7 @@
  *     dying on a transient race.
  */
 import { describe, it, expect } from 'vitest';
-import { generateUIKitEntry, buildViteConfig } from '../dev-command.js';
+import { generateUIKitEntry, buildViteConfig, generateRootIndexHtml } from '../dev-command.js';
 
 describe('generateUIKitEntry — boot resilience', () => {
   const entry = generateUIKitEntry('/app/src/frontend/index.jsx', 5174, false);
@@ -74,5 +74,28 @@ describe('buildViteConfig — dep scanner seeding', () => {
     expect(config.optimizeDeps.include).toEqual(
       expect.arrayContaining(['react', 'react-dom/client'])
     );
+  });
+});
+
+describe('generateRootIndexHtml — SPA fallback page', () => {
+  // forgebuilder regression (2026-07-14): the root index.html used to be a
+  // full module page referencing ./entry.tsx — a file never generated at
+  // root. Vite's SPA fallback served it for unknown extension-less URLs,
+  // spamming "Failed to load url /entry.tsx" on every client-side route.
+  const html = generateRootIndexHtml('My App');
+
+  it('does not reference entry.tsx (never generated at root)', () => {
+    expect(html).not.toContain('entry.tsx');
+    expect(html).not.toContain('<script');
+  });
+
+  it('redirects humans to the module picker at /', () => {
+    expect(html).toContain('http-equiv="refresh"');
+    expect(html).toContain('url=/');
+    expect(html).toContain('href="/"');
+  });
+
+  it('includes the app name in the title', () => {
+    expect(html).toContain('<title>My App — forge-sim</title>');
   });
 });
