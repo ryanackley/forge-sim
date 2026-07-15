@@ -1303,6 +1303,124 @@ describe('UnifiedKVS', () => {
     });
   });
 
+  // ── Read Isolation (Forge JSON parity: reads return detached copies) ──
+  //
+  // Real Forge KVS JSON-serializes on write AND read. Mutating a value
+  // returned from any read surface must never mutate storage — an app that
+  // mutates a fetched object without calling set() would "persist" the
+  // change in the sim but lose it in production (inverted parity violation).
+
+  describe('Read isolation', () => {
+    it('get returns a detached copy — mutations do not write back', async () => {
+      await kvs.set('entry', { status: 'open', tags: ['a'] });
+      const fetched = await kvs.get('entry');
+      fetched.status = 'MUTATED';
+      fetched.tags.push('EVIL');
+      expect(await kvs.get('entry')).toEqual({ status: 'open', tags: ['a'] });
+    });
+
+    it('two gets of the same key return distinct object identities', async () => {
+      await kvs.set('entry', { nested: { n: 1 } });
+      const a = await kvs.get('entry');
+      const b = await kvs.get('entry');
+      expect(a).not.toBe(b);
+      expect(a.nested).not.toBe(b.nested);
+      a.nested.n = 999;
+      expect(b.nested.n).toBe(1);
+    });
+
+    it('getSecret returns a detached copy', async () => {
+      await kvs.setSecret('sec', { token: 'abc' });
+      const s = await kvs.getSecret('sec');
+      s.token = 'MUTATED';
+      expect(await kvs.getSecret('sec')).toEqual({ token: 'abc' });
+    });
+
+    it('getMany returns detached copies', async () => {
+      await kvs.set('k1', { v: 1 });
+      const many = await kvs.getMany(['k1']);
+      many.get('k1').v = 999;
+      expect(await kvs.get('k1')).toEqual({ v: 1 });
+    });
+
+    it('batchGet returns detached copies', async () => {
+      await kvs.set('k1', { v: 1 });
+      const { successfulKeys } = await kvs.batchGet([{ key: 'k1' }]);
+      successfulKeys[0].value.v = 999;
+      expect(await kvs.get('k1')).toEqual({ v: 1 });
+    });
+
+    it('entity get returns a detached copy', async () => {
+      await kvs.entity('Task').set('t1', { title: 'original' });
+      const t = await kvs.entity('Task').get('t1');
+      t.title = 'MUTATED';
+      expect(await kvs.entity('Task').get('t1')).toEqual({ title: 'original' });
+    });
+
+    it('kvs.query().getMany() results are detached copies', async () => {
+      await kvs.set('list-1', { v: 1 });
+      const { results } = await kvs
+        .query()
+        .where('key', WhereConditions.beginsWith('list-'))
+        .getMany();
+      results[0].value.v = 999;
+      expect(await kvs.get('list-1')).toEqual({ v: 1 });
+    });
+
+    it('entity query getMany results are detached copies', async () => {
+      const schema: EntitySchema = {
+        attributes: { status: { type: 'string' } },
+        indexes: [{ name: 'by-status', partition: ['status'] }],
+      };
+      kvs.registerEntitySchema('Task', schema);
+      await kvs.entity('Task').set('t1', { status: 'open' });
+      const { results } = await kvs
+        .entity('Task')
+        .query()
+        .index('by-status', { partition: ['open'] })
+        .getMany();
+      results[0].value.status = 'MUTATED';
+      expect(await kvs.entity('Task').get('t1')).toEqual({ status: 'open' });
+    });
+
+    it('handleRequest json() returns fresh copies that never alias storage', async () => {
+      await kvs.set('http-key', { v: 1 });
+      const res = await kvs.handleRequest('/api/v1/get', {
+        method: 'POST',
+        body: JSON.stringify({ key: 'http-key' }),
+      });
+      const first = await res.json();
+      const second = await res.json();
+      expect(first).not.toBe(second);
+      first.value.v = 999;
+      expect(second.value.v).toBe(1);
+      expect(await kvs.get('http-key')).toEqual({ v: 1 });
+    });
+
+    it('dump/dumpKvs/dumpEntities return detached copies', async () => {
+      await kvs.set('k1', { v: 1 });
+      await kvs.entity('Task').set('t1', { title: 'x' });
+      kvs.dump()['k1'].v = 999;
+      kvs.dumpKvs()['k1'].v = 999;
+      kvs.dumpEntities()['Task'][0].value.title = 'MUTATED';
+      expect(await kvs.get('k1')).toEqual({ v: 1 });
+      expect(await kvs.entity('Task').get('t1')).toEqual({ title: 'x' });
+    });
+
+    it('regression: a captured read does not mutate retroactively (log snapshot bug)', async () => {
+      // The publish-gate report caught a log entry whose data payload
+      // changed after the fact because it shared identity with storage.
+      await kvs.set('standup:1', { entries: [{ who: 'ryan' }] });
+      const captured = await kvs.get('standup:1'); // e.g. logged as `data`
+      const later = await kvs.get('standup:1');
+      later.entries.push({ who: 'nyx' });
+      // The "log" snapshot must be unaffected by later mutations…
+      expect(captured.entries).toHaveLength(1);
+      // …and the mutation itself must not have persisted without set().
+      expect((await kvs.get('standup:1')).entries).toHaveLength(1);
+    });
+  });
+
   // ── Latency Simulation ────────────────────────────────────────────
 
   describe('Latency Simulation', () => {

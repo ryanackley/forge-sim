@@ -14,6 +14,24 @@
 
 import type { StorageEntry, StorageQueryResult } from './types.js';
 
+// ── Helpers ───────────────────────────────────────────────────────────
+
+/**
+ * Detach a stored value before handing it to a caller.
+ *
+ * Parity (KVS reads): real Forge KVS JSON-serializes on write AND read —
+ * a value returned from get()/query()/batchGet() is always a fresh copy.
+ * Mutating it never mutates storage; persisting a change requires an
+ * explicit set(). Returning our internal reference instead would let apps
+ * "persist" mutations in the sim that silently vanish in production
+ * (inverted parity violation), and would let two get() calls observe each
+ * other's mutations.
+ */
+function detach<T>(value: T): T {
+  if (value === undefined) return value;
+  return JSON.parse(JSON.stringify(value));
+}
+
 // ── Types ─────────────────────────────────────────────────────────────
 
 export interface StoredEntry {
@@ -94,7 +112,7 @@ export class UnifiedKVS {
 
   async get(key: string): Promise<any> {
     await this.simulateDelay();
-    return this.store.get(key)?.value ?? undefined;
+    return detach(this.store.get(key)?.value ?? undefined);
   }
 
   async set(key: string, value: any): Promise<void> {
@@ -121,7 +139,7 @@ export class UnifiedKVS {
   // ── Direct API: Secrets ─────────────────────────────────────────────
 
   async getSecret(key: string): Promise<any> {
-    return this.secrets.get(key)?.value ?? undefined;
+    return detach(this.secrets.get(key)?.value ?? undefined);
   }
 
   async setSecret(key: string, value: any): Promise<void> {
@@ -152,7 +170,7 @@ export class UnifiedKVS {
     for (const key of keys) {
       const entry = this.store.get(key);
       if (entry !== undefined) {
-        result.set(key, entry.value);
+        result.set(key, detach(entry.value));
       }
     }
     return result;
@@ -211,7 +229,7 @@ export class UnifiedKVS {
       const result: Record<string, any> = {
         key: item.key,
         ...(item.entityName ? { entityName: item.entityName } : {}),
-        value: entry.value,
+        value: detach(entry.value),
       };
       const meta = item.options?.metadataFields;
       if (Array.isArray(meta)) {
@@ -383,7 +401,7 @@ export class UnifiedKVS {
 
   /** @internal */ async entityGet(entityName: string, key: string): Promise<any> {
     const entry = this.entities.get(this.entityKey(entityName, key));
-    return entry?.value ?? undefined;
+    return detach(entry?.value ?? undefined);
   }
 
   /** @internal */ async entitySet(entityName: string, key: string, value: any): Promise<void> {
@@ -992,7 +1010,7 @@ export class UnifiedKVS {
   dump(): Record<string, any> {
     const result: Record<string, any> = {};
     for (const [k, v] of this.store) {
-      result[k] = v.value;
+      result[k] = detach(v.value);
     }
     return result;
   }
@@ -1013,7 +1031,7 @@ export class UnifiedKVS {
   /** Get all plain KVS entries as raw values */
   dumpKvs(): Record<string, any> {
     const result: Record<string, any> = {};
-    for (const [k, v] of this.store) result[k] = v.value;
+    for (const [k, v] of this.store) result[k] = detach(v.value);
     return result;
   }
 
@@ -1023,7 +1041,7 @@ export class UnifiedKVS {
     for (const entry of this.entities.values()) {
       const name = entry.entityName!;
       if (!result[name]) result[name] = [];
-      result[name].push({ entityName: name, key: entry.key, value: entry.value });
+      result[name].push({ entityName: name, key: entry.key, value: detach(entry.value) });
     }
     return result;
   }
@@ -1192,7 +1210,7 @@ export class KVSQueryBuilder {
     const page = keys.slice(0, this._limit);
     const results: StorageEntry[] = page.map((key) => ({
       key,
-      value: this.store.get(key)!.value,
+      value: detach(this.store.get(key)!.value),
     }));
 
     return {
@@ -1374,7 +1392,7 @@ export class EntityQueryBuilder {
     const hasMore = entries.length > this._limit;
 
     return {
-      results: page.map(e => ({ key: e.key, value: e.value })),
+      results: page.map(e => ({ key: e.key, value: detach(e.value) })),
       nextCursor: hasMore ? page[page.length - 1].key : undefined,
     };
   }
@@ -1667,7 +1685,10 @@ function jsonResponse(status: number, body: any): FetchLikeResponse {
     statusText: status >= 200 && status < 300 ? 'OK' : 'Error',
     ok: status >= 200 && status < 300,
     text: async () => bodyStr,
-    json: async () => body,
+    // Fresh copy per call — never hand out a reference that aliases
+    // internal storage (see detach() above). Matches real fetch semantics
+    // where json() yields data decoded from the wire, not live objects.
+    json: async () => JSON.parse(bodyStr),
     headers: {
       ...headers,
       get(name: string) { return headers[name.toLowerCase()] ?? null; },
