@@ -29,8 +29,13 @@
   },
   "files": [
     "dist",
+    "!dist/**/*.map",
     "renderer/src",
     "!renderer/src/__tests__",
+    "!renderer/src/test-harness.tsx",
+    "!renderer/src/test-fixtures.ts",
+    "!renderer/src/popup-test.tsx",
+    "!renderer/src/portal-stress.tsx",
     "renderer/package.json",
     "docs"
   ],

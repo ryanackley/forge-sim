@@ -1505,6 +1505,7 @@ export async function buildViteConfig(opts: {
   forgeSimRoot: string;
 }): Promise<any> {
   const { appDir, tempDir, modules, wsPort, port, forgeSimRoot } = opts;
+  const hasUikitModules = modules.some((m) => m.mode === 'uikit');
   const shimPath = join(forgeSimRoot, 'renderer', 'src', 'bridge', 'forge-bridge-shim.ts');
   const bridgeBarrel = join(forgeSimRoot, 'renderer', 'src', 'bridge', 'index.ts');
 
@@ -1626,7 +1627,15 @@ export async function buildViteConfig(opts: {
       'process.env': JSON.stringify({}),
     },
     optimizeDeps: {
-      include: ['react', 'react-dom', 'react-dom/client', 'react/jsx-runtime'],
+      // Only UIKit modules import react through Vite (generated entry.tsx →
+      // ForgeSimShell → @atlaskit). Custom UI modules serve prebuilt static
+      // bundles with react already compiled in, so for Custom-UI-only apps
+      // these includes point at packages the app never installed at its
+      // root — Vite spams "Failed to resolve dependency: react" for deps
+      // that no page will ever import.
+      include: hasUikitModules
+        ? ['react', 'react-dom', 'react-dom/client', 'react/jsx-runtime']
+        : [],
       // Vite's dep scanner only crawls <root>/index.html by default. Our
       // module pages live in per-module subdirectories (<key>/entry.tsx), so
       // without explicit entries NONE of the heavy imports (app code →
@@ -1637,7 +1646,7 @@ export async function buildViteConfig(opts: {
       // on first-ever load when background-script iframes boot concurrently
       // with the main frame. Seeding the scanner with the real entries moves
       // discovery to server startup, before any request exists.
-      entries: ['entry.tsx', '*/entry.tsx'],
+      entries: hasUikitModules ? ['entry.tsx', '*/entry.tsx'] : [],
     },
   };
 }
@@ -2635,13 +2644,26 @@ export async function deployResolversOnly(
   // Fire scheduled triggers once on INITIAL deploy (e.g. migrations).
   // Hot-redeploy passes skip this — forge tunnel parity: a local rebuild
   // doesn't re-run scheduled work on every file save.
+  //
+  // Delegates to sim.fireScheduledTrigger so the handler receives the real
+  // Forge request shape — { context: { cloudId, moduleKey }, contextToken }
+  // — plus response-format validation (424 on missing statusCode). The dev
+  // path used to hand-roll a made-up `{ scheduledTrigger: { key, interval } }`
+  // payload, so apps that switch on `event.context.moduleKey` (the documented
+  // way to tell which schedule fired) saw `undefined` locally but worked in
+  // production — an inverted parity violation.
   for (const st of reload ? [] : manifest.scheduledTriggers) {
     const handlerMap = sim.resolver.getHandlerMap();
     const handler = handlerMap.get(st.functionKey);
     if (handler && typeof handler === 'function') {
       try {
         console.log(` ⏰ Firing scheduled trigger: ${st.key} (${st.functionKey})`);
-        await (handler as Function)({ scheduledTrigger: { key: st.key, interval: st.interval } });
+        const result = await sim.fireScheduledTrigger(st.key);
+        if (result.statusCode >= 400) {
+          const detail = result.error ?? `status ${result.statusCode}`;
+          console.error(` ⚠️ Scheduled trigger "${st.key}" failed: ${detail}`);
+          errors.push({ functionKey: st.functionKey, error: `Scheduled trigger error: ${detail}` });
+        }
       } catch (err: any) {
         console.error(` ⚠️ Scheduled trigger "${st.key}" failed:`, err.message);
         errors.push({ functionKey: st.functionKey, error: `Scheduled trigger error: ${err.message}` });

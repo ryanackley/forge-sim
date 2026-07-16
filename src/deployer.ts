@@ -509,39 +509,38 @@ export async function deploy(sim: ForgeSimulator, appDir: string): Promise<Deplo
     }
   }
 
+  // Store manifest + app dir on simulator BEFORE firing scheduled triggers —
+  // fireScheduledTrigger looks the trigger up in sim.manifest and throws
+  // "No manifest loaded" otherwise. loadManifestData only sets state
+  // (manifest ref, module routing, webTrigger URLs, remotes), so hoisting it
+  // above the firing step is side-effect-free.
+  sim.loadManifestData(manifest);
+  sim.setAppDir(absDir);
+
   // 8. Fire scheduled triggers once on deploy
   // In real Forge, scheduled triggers run on an interval (e.g. hourly).
   // For simulation, we fire them once at deploy time — this handles migrations
   // and any other startup tasks that use scheduledTrigger.
+  //
+  // Delegates to sim.fireScheduledTrigger — the single source of truth for
+  // the request shape ({ context: { cloudId, moduleKey }, contextToken }),
+  // full context (installContext, connected-account identity), and strict
+  // response validation. This used to be a lenient inline copy that swallowed
+  // missing-statusCode responses; real Forge records a 424 Failed Dependency
+  // for those, so hiding them was an inverted parity violation (the
+  // okr-tracker silent-424, 2026-07-14). Requires loadManifestData to have
+  // run first — see the hoisted call above.
   for (const st of manifest.scheduledTriggers) {
     const handler = handlerExports.get(st.functionKey);
     if (handler && typeof handler === 'function') {
       console.log(` ⏰ Firing scheduled trigger: ${st.key} (${st.functionKey})`);
-
-      // Build request per Forge docs: { context: { cloudId, moduleKey }, contextToken }
-      const request = {
-        context: {
-          cloudId: 'sim-cloud-001',
-          moduleKey: st.key,
-        },
-        contextToken: 'sim-context-token',
-      };
-      const context = {
-        installContext: 'ari:cloud:jira::site/sim-site',
-      };
-
       try {
-        const result = await handler(request, context);
-
-        // Validate response format (Forge requires { statusCode })
-        if (result !== undefined && result !== null && typeof result === 'object' && 'statusCode' in result) {
-          if (result.statusCode >= 500) {
-            console.error(` ⚠️ Scheduled trigger "${st.key}" returned error: ${result.statusCode}`);
-            errors.push({ functionKey: st.functionKey, error: `Scheduled trigger returned status ${result.statusCode}` });
-          }
+        const result = await sim.fireScheduledTrigger(st.key);
+        if (result.statusCode >= 400) {
+          const detail = result.error ?? `status ${result.statusCode}`;
+          console.error(` ⚠️ Scheduled trigger "${st.key}" failed: ${detail}`);
+          errors.push({ functionKey: st.functionKey, error: `Scheduled trigger error: ${detail}` });
         }
-        // Note: we don't enforce the return format here to be lenient during development.
-        // Use sim.fireScheduledTrigger() for strict validation.
       } catch (err: any) {
         console.error(` ⚠️ Scheduled trigger "${st.key}" failed:`, err.message);
         errors.push({ functionKey: st.functionKey, error: `Scheduled trigger error: ${err.message}` });
@@ -571,10 +570,6 @@ export async function deploy(sim: ForgeSimulator, appDir: string): Promise<Deplo
   if (manifest.remotes.size > 0) {
     await sim.fit.init(absDir);
   }
-
-  // Store manifest + app dir on simulator
-  sim.loadManifestData(manifest);
-  sim.setAppDir(absDir);
 
   return {
     manifest,

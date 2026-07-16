@@ -55,15 +55,26 @@ describe('generateUIKitEntry — boot resilience', () => {
 });
 
 describe('buildViteConfig — dep scanner seeding', () => {
-  it('seeds optimizeDeps.entries with module entry files', async () => {
-    const config = await buildViteConfig({
-      appDir: '/app',
-      tempDir: '/app/.forge-sim/tmp',
-      modules: [],
-      wsPort: 5174,
-      port: 5173,
-      forgeSimRoot: new URL('../..', import.meta.url).pathname,
-    });
+  const baseOpts = {
+    appDir: '/app',
+    tempDir: '/app/.forge-sim/tmp',
+    wsPort: 5174,
+    port: 5173,
+    forgeSimRoot: new URL('../..', import.meta.url).pathname,
+  };
+  const uikitModule = {
+    module: { type: 'jira:issuePanel', key: 'panel', title: 'Panel' },
+    resourcePath: '/app/src/frontend/index.tsx',
+    mode: 'uikit',
+  } as any;
+  const customUiModule = {
+    module: { type: 'jira:dashboardGadget', key: 'gadget', title: 'Gadget' },
+    resourcePath: '/app/static/gadget/build',
+    mode: 'customui',
+  } as any;
+
+  it('seeds optimizeDeps.entries + react includes when UIKit modules exist', async () => {
+    const config = await buildViteConfig({ ...baseOpts, modules: [uikitModule, customUiModule] });
 
     // Without explicit entries, Vite only scans <root>/index.html and misses
     // every per-module entry — pushing @atlaskit discovery to request time.
@@ -74,6 +85,17 @@ describe('buildViteConfig — dep scanner seeding', () => {
     expect(config.optimizeDeps.include).toEqual(
       expect.arrayContaining(['react', 'react-dom/client'])
     );
+  });
+
+  it('skips react pre-bundling for Custom-UI-only apps', async () => {
+    // Custom UI resources are prebuilt bundles with react compiled in — the
+    // app root often has no react installed at all. Unconditional includes
+    // made Vite spam "Failed to resolve dependency: react" (report-gen,
+    // 2026-07-16) for packages no page would ever import.
+    const config = await buildViteConfig({ ...baseOpts, modules: [customUiModule] });
+
+    expect(config.optimizeDeps.include).toEqual([]);
+    expect(config.optimizeDeps.entries).toEqual([]);
   });
 });
 

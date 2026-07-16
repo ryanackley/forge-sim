@@ -12,10 +12,13 @@ resolver.define('greet', () => greet());
 resolver.define('stats', () => ({ ok: true }));
 
 export const handler = resolver.getDefinitions();
-export const run = async () => {
+export const run = async (event) => {
   // Counts scheduled-trigger firings — initial deploy fires once, hot
-  // redeploys must not re-fire.
+  // redeploys must not re-fire. Captures the event so tests can pin the
+  // real Forge request shape ({ context: { cloudId, moduleKey }, contextToken }).
   globalThis.__devSharedEntryTicks = (globalThis.__devSharedEntryTicks ?? 0) + 1;
-  return { ran: true };
+  globalThis.__devSharedEntryLastEvent = event;
+  // Scheduled triggers must return { statusCode } — anything else is a 424.
+  return { statusCode: 204 };
 };
 export const cleanup = async () => ({ cleaned: true });

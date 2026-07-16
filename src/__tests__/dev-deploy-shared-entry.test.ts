@@ -37,6 +37,8 @@ declare global {
   var __devSharedEntryEvals: number | undefined;
   // eslint-disable-next-line no-var
   var __devSharedEntryTicks: number | undefined;
+  // eslint-disable-next-line no-var
+  var __devSharedEntryLastEvent: any;
 }
 
 describe('deployResolversOnly — shared entry file (F8/F3 dev path)', () => {
@@ -46,6 +48,7 @@ describe('deployResolversOnly — shared entry file (F8/F3 dev path)', () => {
   beforeEach(async () => {
     globalThis.__devSharedEntryEvals = 0;
     globalThis.__devSharedEntryTicks = 0;
+    globalThis.__devSharedEntryLastEvent = undefined;
     originalHelper ??= await readFile(HELPER_FILE, 'utf-8');
     await writeFile(HELPER_FILE, originalHelper, 'utf-8');
     sim = createSimulator();
@@ -80,7 +83,7 @@ describe('deployResolversOnly — shared entry file (F8/F3 dev path)', () => {
       // Resolver definitions from the shim AND plain function exports all land.
       expect(await sim.resolver.invoke('greet')).toEqual({ message: 'dev v1' });
       expect(await sim.resolver.invoke('stats')).toEqual({ ok: true });
-      expect(await sim.resolver.invoke('fn-run')).toEqual({ ran: true });
+      expect(await sim.resolver.invoke('fn-run')).toEqual({ statusCode: 204 });
       expect(await sim.resolver.invoke('fn-cleanup')).toEqual({ cleaned: true });
     } finally {
       warnSpy.mockRestore();
@@ -137,6 +140,23 @@ describe('deployResolversOnly — shared entry file (F8/F3 dev path)', () => {
     } finally {
       warnSpy.mockRestore();
     }
+  });
+
+  it('scheduled trigger handlers receive the real Forge request shape', async () => {
+    // report-gen (2026-07-16): the dev path hand-rolled a made-up
+    // `{ scheduledTrigger: { key, interval } }` payload, so apps that switch
+    // on `event.context.moduleKey` — the documented way to tell which
+    // schedule fired — saw `undefined` locally but worked in production.
+    const manifest = await parseManifest(join(FIXTURE, 'manifest.yml'));
+    const result = await deployResolversOnly(sim, FIXTURE, manifest);
+
+    expect(result.errors).toEqual([]);
+    const event = globalThis.__devSharedEntryLastEvent;
+    expect(event?.context?.moduleKey).toBe('tick');
+    expect(event?.context?.cloudId).toBeDefined();
+    expect(event?.contextToken).toBeDefined();
+    // The invented dev-only shape must be gone.
+    expect(event?.scheduledTrigger).toBeUndefined();
   });
 
   it('scheduled triggers fire on the initial pass but NOT on hot redeploys', async () => {
