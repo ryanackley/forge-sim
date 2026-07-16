@@ -384,7 +384,7 @@ That's the whole pattern. Direct method calls. No HTTP, no port file, no client 
 `sim.ui.render()` returns once the initial reconcile finishes. If the component fires a `useEffect → invoke()` chain to load data, the first paint shows the loading state. Wait for the real content with `sim.ui.waitForContent(moduleKey, expectedText)` before asserting — it's a proper waiter, not a poll loop:
 
 ```ts
-await sim.ui.render('issue-panel', { context: { issueKey: 'PROJ-42' } });
+await sim.ui.render('issue-panel', { issueKey: 'PROJ-42' });
 const doc = await sim.ui.waitForContent('issue-panel', 'PROJ-42');
 expect(sim.ui.getTextContent(doc)).toContain('Fix the bug');
 

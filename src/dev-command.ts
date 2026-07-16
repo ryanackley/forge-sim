@@ -26,7 +26,7 @@ import { deploy, bundleHandlerToFileUrl, sweepStaleBundles, deployBundleDir } fr
 import { createDevServer } from './dev-server.js';
 import { parseManifest, type ParsedManifest, type ManifestUIModule, BACKGROUND_SCRIPT_TYPES, getCompatibleBackgroundScripts } from './manifest.js';
 import { saveState, loadState, hasPersistedState, getSQLDumpPath } from './persistence.js';
-import { buildDefaultContext, buildForgeContext, type RenderContextOptions } from './context.js';
+import { buildDefaultContext, buildForgeContext, contextFlagForModuleType, type RenderContextOptions } from './context.js';
 import { createWebTriggerHandler } from './web-trigger.js';
 import { startTypeCheckWatch, type TypeCheckWatcher } from './type-checker.js';
 import { RAW_HTML_TAG_LIST } from './ui/html-elements.js';
@@ -62,6 +62,65 @@ export interface DetectedModule {
   module: ManifestUIModule;
   resourcePath: string;
   mode: 'uikit' | 'customui';
+}
+
+/**
+ * Startup hint pointing at the context-hydration flags (publish-gate F5).
+ *
+ * With no context flags, an issue panel renders its own "no issue context"
+ * empty state and nothing in the terminal or the page points the dev at
+ * `--issue`. Returns banner lines when (a) no render context was provided
+ * and (b) at least one detected module benefits from a hydration flag.
+ */
+export function contextHintLines(
+  detected: DetectedModule[],
+  renderContext?: RenderContextOptions,
+): string[] {
+  if (renderContext) return [];
+  const examples: Record<string, string> = {
+    '--issue': '--issue PROJ-1',
+    '--project': '--project PROJ',
+    '--content': '--content 12345',
+    '--space': '--space DOCS',
+  };
+  const flags = new Set<string>();
+  for (const d of detected) {
+    const flag = contextFlagForModuleType(d.module.type);
+    if (flag) flags.add(flag);
+  }
+  if (flags.size === 0) return [];
+  const flagExamples = [...flags].map((f) => examples[f]).join('  ');
+  return [
+    `     💡 No context flags — modules render with default context.`,
+    `        Hydrate real context: forge-sim dev ${flagExamples}  (or --context '<json>')`,
+  ];
+}
+
+/**
+ * Dev-server favicon (publish-gate F7). Apps under simulation have no
+ * favicon of their own, so every page load 404'd on /favicon.ico — the
+ * only red line in an otherwise clean browser console. Serve a tiny
+ * Forge-ish bolt so the console stays quiet and the tab gets an icon.
+ */
+export const FAVICON_SVG =
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">' +
+  '<rect width="32" height="32" rx="6" fill="#0052CC"/>' +
+  '<path d="M18 4 8 18h6l-2 10L22 14h-6l2-10z" fill="#FFF"/>' +
+  '</svg>';
+
+/**
+ * Serve /favicon.ico from the dev server. Returns true when the request
+ * was handled (response ended), false to pass through to the next
+ * middleware. SVG favicons are supported by every current browser as
+ * long as the Content-Type is right.
+ */
+export function serveFavicon(pathname: string, res: any): boolean {
+  if (pathname !== '/favicon.ico' && pathname !== '/favicon.svg') return false;
+  res.setHeader('Content-Type', 'image/svg+xml');
+  res.setHeader('Cache-Control', 'public, max-age=86400');
+  res.writeHead(200);
+  res.end(FAVICON_SVG);
+  return true;
 }
 
 /**
@@ -1723,6 +1782,13 @@ export async function devCommand(options: DevCommandOptions) {
     if (account) {
       sim.productApi.connectRealApis(account);
 
+      // Publish-gate F8: when credentials exist, resolvers live-fire at
+      // production APIs on any unmocked route — say so loudly at startup
+      // instead of letting the dev find out from their audit log.
+      console.log(`  🔐 Real Atlassian APIs ACTIVE: ${account.site} (${account.email})`);
+      console.log(`     Unmocked product API requests from resolvers hit this site for real.`);
+      console.log(`     Mock routes take priority; run 'forge-sim auth' to manage accounts.`);
+
       // Load third-party OAuth tokens for this account (from `forge-sim auth --provider`)
       const thirdPartyTokens = store.thirdParty[account.id];
       if (thirdPartyTokens) {
@@ -2019,6 +2085,9 @@ export async function devCommand(options: DevCommandOptions) {
     console.log('');
     console.log(`     🔧 Proxying all requests to ${proxy}`);
     console.log(`     💉 Bridge script injected into HTML responses`);
+    for (const line of contextHintLines(detectedModules, renderContext)) {
+      console.log(line);
+    }
     console.log('');
     console.log('  ─────────────────────────────────────────────');
     console.log('');
@@ -2153,6 +2222,9 @@ export async function devCommand(options: DevCommandOptions) {
     if (manifest.remotes.size > 0) {
       console.log(`     ➜ JWKS:    ${localUrl}/__forge/jwks.json`);
     }
+    for (const line of contextHintLines(detectedModules, renderContext)) {
+      console.log(line);
+    }
 
     // 8. Start Forge Sim Tools (uses Vite's HTTP server via middleware)
     const { attachToolsToVite } = await import('./tools/server.js');
@@ -2187,7 +2259,7 @@ export async function devCommand(options: DevCommandOptions) {
       },
     });
 
-    // 8b. Serve FIT JWKS endpoint at /__forge/jwks.json
+    // 8b. Serve FIT JWKS endpoint at /__forge/jwks.json (+ favicon, F7)
     const forgeMiddleware = (req: any, res: any, next: any) => {
       const url = new URL(req.url ?? '/', 'http://localhost');
       if (url.pathname === '/__forge/jwks.json') {
@@ -2198,6 +2270,7 @@ export async function devCommand(options: DevCommandOptions) {
         res.end(JSON.stringify(sim.fit.getJWKS()));
         return;
       }
+      if (serveFavicon(url.pathname, res)) return;
       next();
     };
     const viteStack = (viteServer.middlewares as any).stack;

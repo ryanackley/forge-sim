@@ -7,9 +7,7 @@
  * Usage:
  *   const sim = createSimulator();
  *   await sim.deploy('./my-app');
- *   await sim.ui.render('issue-panel', {
- *     context: { issueKey: 'PROJ-1', projectKey: 'PROJ' }
- *   });
+ *   await sim.ui.render('issue-panel', { issueKey: 'PROJ-1' });
  *   const doc = sim.ui.getForgeDoc('issue-panel');
  *   const btn = sim.ui.findByTypeAndText(doc, 'Button', 'Edit');
  *   sim.ui.interact(btn, 'onClick');
@@ -362,7 +360,7 @@ export class SimulatorUI {
    * Wait until a module's ForgeDoc contains the expected text.
    * Useful for async frontends that show "Loading..." then fetch data.
    *
-   *   await sim.ui.render('issue-panel', { context: { issueKey: 'PROJ-1' } });
+   *   await sim.ui.render('issue-panel', { issueKey: 'PROJ-1' });
    *   const doc = await sim.ui.waitForContent('issue-panel', 'PROJ-1');
    *
    * If the module has never been rendered, this method auto-renders it once
@@ -538,16 +536,15 @@ export class SimulatorUI {
    * and produces a ForgeDoc. The frontend's invoke() calls are routed
    * to the module's resolver via the bridge.
    *
-   *   // Full context object
-   *   await sim.ui.render('my-panel', {
-   *     context: { issueKey: 'PROJ-1', projectKey: 'PROJ' }
-   *   });
-   *
    *   // Item key shortcut — hydrates full context via product API
    *   await sim.ui.render('my-panel', { issueKey: 'PROJ-42' });
    *
    *   // Confluence content
    *   await sim.ui.render('my-macro', { contentId: '12345' });
+   *
+   *   // Raw context-field overrides (accountId, locale, …) — merged, with
+   *   // canonical fields promoted to the top level. See docs/reference/module-contexts.md.
+   *   await sim.ui.render('my-panel', { issueKey: 'PROJ-1', context: { accountId: 'user-9' } });
    *
    *   const doc = sim.ui.getForgeDoc('my-panel');
    */

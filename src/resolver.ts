@@ -57,6 +57,14 @@ export class SimulatedResolver {
    * unwind correctly.
    */
   private activeInvocationContext: ResolverContext | null = null;
+  /**
+   * Keys carried over from a previous deploy epoch. Redefining one of these
+   * is a silent replacement (that's what a redeploy *is* — real Forge never
+   * warns you for deploying your app again). Redefining a key NOT in this
+   * set means it was defined twice within the current epoch — the actual
+   * footgun (same key in two files) — and still warns. Publish-gate F6.
+   */
+  private staleKeys = new Set<string>();
   private getDefaults: ResolverContextProvider;
 
   constructor(getDefaults: ResolverContextProvider = defaultContextProvider) {
@@ -73,14 +81,34 @@ export class SimulatedResolver {
   }
 
   /**
+   * Mark the start of a deploy epoch. Every currently-registered key becomes
+   * "stale" — a subsequent define() of that key silently replaces it instead
+   * of warning, because a redeploy re-evaluating app code and re-registering
+   * the same resolvers is normal Forge behavior, not a duplicate-key bug.
+   * Called by the deployer before handler modules are (re-)evaluated.
+   * Publish-gate F6: `sim.deploy()` twice without `reset()` used to print
+   * one "overwriting an existing definition" warning per resolver.
+   */
+  beginDeployEpoch(): void {
+    this.staleKeys = new Set(this.definitions.keys());
+  }
+
+  /**
    * Define a resolver function (mirrors Resolver.define()).
    */
   define(functionKey: string, handler: ResolverHandler): void {
     if (this.definitions.has(functionKey)) {
-      console.warn(
-        `[forge-sim] Warning: resolver.define("${functionKey}") is overwriting an existing definition. ` +
-        `In Forge, duplicate resolver names across files may cause unexpected behavior.`
-      );
+      if (this.staleKeys.has(functionKey)) {
+        // Redeploy replacing a previous epoch's definition — silent.
+        this.staleKeys.delete(functionKey);
+      } else {
+        console.warn(
+          `[forge-sim] Warning: resolver.define("${functionKey}") is overwriting an existing definition. ` +
+          `In Forge, duplicate resolver names across files may cause unexpected behavior.`
+        );
+      }
+    } else {
+      this.staleKeys.delete(functionKey);
     }
     this.definitions.set(functionKey, handler);
   }
@@ -198,5 +226,6 @@ export class SimulatedResolver {
     this.contextOverrides = {};
     this.renderContextOverlay = {};
     this.activeInvocationContext = null;
+    this.staleKeys.clear();
   }
 }

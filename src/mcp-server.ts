@@ -59,7 +59,16 @@ import { statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { createSimulator } from './simulator.js';
 import { typeCheck } from './type-checker.js';
-import { isStale, buildStalenessWarning, STALENESS_GRACE_MS, shouldRunStalenessCheck, shouldWarnNow } from './staleness.js';
+import {
+  isStale,
+  buildStalenessWarning,
+  buildAutoRestartNotice,
+  STALENESS_GRACE_MS,
+  AUTO_RESTART_EXIT_DELAY_MS,
+  shouldRunStalenessCheck,
+  shouldWarnNow,
+  shouldAutoRestartOnStale,
+} from './staleness.js';
 // UI access is now through sim.ui.* — no direct bridge/doc-utils imports
 
 // ── Simulator Instance ──────────────────────────────────────────────────
@@ -141,6 +150,41 @@ function stalenessWarningText(): string | null {
   return buildStalenessWarning(DAEMON_PID, loadedMtimeMs, cur);
 }
 
+// ── Auto-restart on stale dist (publish-gate F2) ────────────────────────
+//
+// The warn-only flow still required the operator/agent to `kill <pid>` and
+// retry — a two-step recovery that publish-gate F2 flagged as the remaining
+// friction. With auto-restart, a stale daemon answers the in-flight tool
+// call (prepending a self-contained notice), then exits after the response
+// flushes. The MCP client respawns a fresh daemon — running the rebuilt
+// dist — on the very next tool call. Recovery cost drops to "re-deploy".
+//
+// FORGE_SIM_STALE_AUTORESTART=off restores warn-only mode (e.g. when you
+// deliberately want to keep in-memory sim state alive across rebuilds).
+const AUTO_RESTART_ENABLED = shouldAutoRestartOnStale();
+let staleExitScheduled = false;
+
+/**
+ * If the daemon is stale and auto-restart is enabled: schedule process exit
+ * (once) and return the notice to prepend to THIS response. Returns null
+ * when not stale, when auto-restart is disabled, or when the staleness
+ * check itself is off.
+ */
+function maybeScheduleStaleExit(): string | null {
+  if (!AUTO_RESTART_ENABLED || loadedMtimeMs === null) return null;
+  const cur = currentMtime();
+  if (cur === null || !isStale(loadedMtimeMs, cur, STALENESS_GRACE_MS)) return null;
+  if (!staleExitScheduled) {
+    staleExitScheduled = true;
+    console.error(
+      `[forge-sim] stale daemon (pid=${DAEMON_PID}) auto-restarting in ${AUTO_RESTART_EXIT_DELAY_MS}ms — ` +
+      `dist/mcp-server.js was rebuilt after this process started.`
+    );
+    setTimeout(() => process.exit(0), AUTO_RESTART_EXIT_DELAY_MS);
+  }
+  return buildAutoRestartNotice(DAEMON_PID, loadedMtimeMs, cur);
+}
+
 // ── MCP Server Setup ────────────────────────────────────────────────────
 
 const server = new McpServer({
@@ -157,8 +201,13 @@ const originalServerTool = server.tool.bind(server) as any;
   const rest = args.slice(0, -1);
   const wrappedHandler = async (...handlerArgs: any[]) => {
     const result = await handler(...handlerArgs);
-    const warning = stalenessWarningText();
-    if (!warning) return result;
+    // Auto-restart takes precedence over the warn-only message: when the
+    // daemon is about to exit on its own, "run `kill <pid>`" would be wrong
+    // advice, so the self-contained restart notice replaces the warning.
+    // The notice intentionally repeats on every response in the (brief)
+    // window before exit — each of those responses ran on stale code.
+    const notice = maybeScheduleStaleExit() ?? stalenessWarningText();
+    if (!notice) return result;
     // MCP tool responses are `{ content: [{ type: 'text', text: '...' }, ...] }`.
     // Prepend a synthetic text item so the warning is the first thing the
     // agent sees, with the original content immediately after.
@@ -166,7 +215,7 @@ const originalServerTool = server.tool.bind(server) as any;
       return {
         ...result,
         content: [
-          { type: 'text' as const, text: warning },
+          { type: 'text' as const, text: notice },
           ...result.content,
         ],
       };
@@ -199,7 +248,14 @@ server.tool(
       loadedMtime: loadedMtimeMs !== null ? new Date(loadedMtimeMs).toISOString() : null,
       currentOnDiskMtime: onDiskMtime !== null ? new Date(onDiskMtime).toISOString() : null,
       stale,
-      restartHint: stale ? `kill ${DAEMON_PID}  # MCP client respawns automatically` : null,
+      autoRestart: AUTO_RESTART_ENABLED
+        ? 'enabled — a stale daemon exits after responding; the MCP client respawns it fresh (set FORGE_SIM_STALE_AUTORESTART=off to disable)'
+        : 'disabled via FORGE_SIM_STALE_AUTORESTART — stale daemons warn only; restart manually',
+      restartHint: stale
+        ? (AUTO_RESTART_ENABLED
+            ? 'auto-restart armed — daemon exits after this response; call forge.deploy again, then retry'
+            : `kill ${DAEMON_PID}  # MCP client respawns automatically`)
+        : null,
     };
     return {
       content: [{ type: 'text' as const, text: JSON.stringify(info, null, 2) }],
@@ -229,23 +285,13 @@ server.tool(
         app: result.manifest.raw.app,
         loadedFunctions: result.loadedFunctions,
         loadedResources: result.loadedResources,
-        resolvers: sim.resolver.getDefinitions(),
-        triggers: result.manifest.triggers.map((t) => ({
-          key: t.key,
-          events: t.events,
-          function: t.functionKey,
-        })),
-        consumers: result.manifest.consumers.map((c) => ({
-          key: c.key,
-          queue: c.queue,
-          function: c.functionKey,
-        })),
-        uiModules: result.manifest.uiModules.map((u) => ({
-          key: u.key,
-          type: u.type,
-          resource: u.resourceKey,
-          resolver: u.resolverFunctionKey,
-        })),
+        // Shared summary fields from DeployResult — the in-process
+        // `sim.deploy()` returns these same shapes, so MCP and vitest
+        // assertions can't drift (publish-gate F3).
+        resolvers: result.resolvers,
+        triggers: result.triggers,
+        consumers: result.consumers,
+        uiModules: result.uiModules,
         errors: result.errors,
       };
 

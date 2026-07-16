@@ -237,4 +237,92 @@ describe('Dev command context flags', () => {
       expect(ctx.extension).toEqual({ type: 'jira:issuePanel' });
     });
   });
+
+  describe('startup context hint (F5)', () => {
+    const mod = (type: string, key = 'm1') =>
+      ({ module: { key, type }, resourcePath: '', mode: 'uikit' }) as any;
+
+    it('suggests --issue for issue modules when no context flags given', async () => {
+      const { contextHintLines } = await import('../dev-command.js');
+      const lines = contextHintLines([mod('jira:issuePanel')], undefined);
+      expect(lines.join('\n')).toContain('--issue PROJ-1');
+      expect(lines.join('\n')).toContain('--context');
+    });
+
+    it('suggests each relevant flag once across module kinds', async () => {
+      const { contextHintLines } = await import('../dev-command.js');
+      const lines = contextHintLines(
+        [mod('jira:issuePanel'), mod('jira:issueGlance', 'm2'), mod('macro', 'm3'), mod('confluence:spacePage', 'm4')],
+        undefined,
+      );
+      const text = lines.join('\n');
+      expect(text.match(/--issue PROJ-1/g)).toHaveLength(1);
+      expect(text).toContain('--content 12345');
+      expect(text).toContain('--space DOCS');
+    });
+
+    it('stays silent when context flags were provided', async () => {
+      const { contextHintLines } = await import('../dev-command.js');
+      expect(contextHintLines([mod('jira:issuePanel')], { issueKey: 'PROJ-1' })).toEqual([]);
+    });
+
+    it('stays silent for modules that need no item context', async () => {
+      const { contextHintLines } = await import('../dev-command.js');
+      expect(contextHintLines([mod('jira:globalPage')], undefined)).toEqual([]);
+    });
+  });
+
+  describe('hydration fallback warning (F8)', () => {
+    it('warns when --issue points at an issue no mock or real API can serve', async () => {
+      const { vi } = await import('vitest');
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      try {
+        // Publish-gate F8: `--issue GATE-1` against an empty mock set used to
+        // fall back to minimal context with zero log output.
+        await buildForgeContext(sim, 'panel', 'jira:issuePanel', { issueKey: 'GATE-1' });
+        const hydrationWarns = warnSpy.mock.calls.filter((args) =>
+          typeof args[0] === 'string' && args[0].includes('Could not hydrate issue "GATE-1"')
+        );
+        expect(hydrationWarns).toHaveLength(1);
+        // The message must be actionable: name the route to mock.
+        expect(hydrationWarns[0][0]).toContain('GET /rest/api/3/issue/GATE-1');
+      } finally {
+        warnSpy.mockRestore();
+      }
+    });
+
+    it('does NOT warn when the issue hydrates from a mock route', async () => {
+      const { vi } = await import('vitest');
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      try {
+        sim.productApi.mockRoutes('jira', {
+          '/rest/api/3/issue/OK-1?fields=summary,issuetype,project': {
+            key: 'OK-1', id: '1',
+            fields: { summary: 'x', issuetype: { name: 'Task', id: '1' }, project: { key: 'OK', id: '2' } },
+          },
+        });
+        await buildForgeContext(sim, 'panel', 'jira:issuePanel', { issueKey: 'OK-1' });
+        const hydrationWarns = warnSpy.mock.calls.filter((args) =>
+          typeof args[0] === 'string' && args[0].includes('Could not hydrate')
+        );
+        expect(hydrationWarns).toHaveLength(0);
+      } finally {
+        warnSpy.mockRestore();
+      }
+    });
+
+    it('warns for content and project hydration failures too', async () => {
+      const { vi } = await import('vitest');
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      try {
+        await buildForgeContext(sim, 'macro', 'macro', { contentId: '404404' });
+        await buildForgeContext(sim, 'page', 'jira:projectPage', { projectKey: 'NOPE' });
+        const text = warnSpy.mock.calls.map((a) => String(a[0])).join('\n');
+        expect(text).toContain('Could not hydrate content "404404"');
+        expect(text).toContain('Could not hydrate project "NOPE"');
+      } finally {
+        warnSpy.mockRestore();
+      }
+    });
+  });
 });

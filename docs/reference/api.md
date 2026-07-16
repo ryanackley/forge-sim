@@ -145,9 +145,7 @@ const history = sim.llm.getHistory();  // [{ prompt, response }, ...]
 ### UI
 
 ```typescript
-const doc = await sim.ui.render('issue-panel', {
-  context: { issueKey: 'PROJ-42' },
-});
+const doc = await sim.ui.render('issue-panel', { issueKey: 'PROJ-42' });
 if (!doc) throw new Error('module did not render');   // render() returns ForgeDoc | null
 const rendered = await sim.ui.waitForContent('issue-panel', 'PROJ-42');
 const text = sim.ui.getTextContent(rendered);
@@ -736,7 +734,7 @@ sim.ui.interactWith(type: string, options?: {
 
 ```typescript
 // Example: full integration test
-await sim.ui.render('issue-panel', { context: { issueKey: 'PROJ-42' } });
+await sim.ui.render('issue-panel', { issueKey: 'PROJ-42' });
 const doc = await sim.ui.waitForContent('issue-panel', 'PROJ-42');
 expect(sim.ui.getTextContent(doc)).toContain('PROJ-42');
 

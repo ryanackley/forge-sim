@@ -75,7 +75,7 @@ describe('my forge app', () => {
 
   it('renders the issue panel', async () => {
     // Headless UIKit 2: your JSX runs through the real @forge/react reconciler
-    await sim.ui.render('issue-panel', { context: { issueKey: 'PROJ-1' } });
+    await sim.ui.render('issue-panel', { issueKey: 'PROJ-1' });
 
     // Wait for useEffect → invoke → re-render to settle, then assert on the tree
     const doc = await sim.ui.waitForContent('issue-panel', 'Fix the thing');

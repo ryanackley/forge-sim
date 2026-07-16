@@ -36,6 +36,41 @@ describe('Deployer', () => {
     expect(result.errors).toHaveLength(0);
   });
 
+  it('returns the same summary shapes as the MCP forge.deploy response (F3)', async () => {
+    // Publish-gate F3: assertions written against the MCP deploy output
+    // (`{resolvers, triggers, uiModules}`) failed against the in-process
+    // `sim.deploy()` result, which only exposed the raw manifest. Both
+    // surfaces now share these summary fields — this test pins the
+    // in-process side; the MCP handler consumes these exact fields.
+    sim.mockProductRoutes('jira', {
+      '/rest/api/3/issue/': { key: 'MOCK-1', fields: { summary: 'Mocked' } },
+    });
+
+    const result = await deploy(sim, TEST_APP_DIR);
+
+    // resolvers: registered resolver keys, same as sim.resolver.getDefinitions()
+    expect(result.resolvers).toEqual(expect.arrayContaining(['getIssue', 'getText', 'getCount']));
+    expect(result.resolvers).toEqual(sim.resolver.getDefinitions());
+
+    // consumers: {key, queue, function}
+    expect(result.consumers).toEqual([
+      { key: 'analytics-consumer', queue: 'analytics-queue', function: 'queue-handler' },
+    ]);
+
+    // uiModules: {key, type, resource, resolver}
+    expect(result.uiModules).toEqual([
+      expect.objectContaining({
+        key: 'hello-panel',
+        type: 'jira:issuePanel',
+        resource: 'main',
+        resolver: 'resolver',
+      }),
+    ]);
+
+    // triggers: present (empty for this fixture) with a stable array shape
+    expect(result.triggers).toEqual([]);
+  });
+
   it('exposes manifest warnings on the deploy result (N6)', async () => {
     // Build a manifest that's missing app.runtime — that's the specific
     // case the N6 audit called out. The in-process deploy used to

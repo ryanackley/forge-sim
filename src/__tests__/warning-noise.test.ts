@@ -170,17 +170,40 @@ describe('F8 — resolver.define overwrite warning silenced on fresh deploy', ()
     expect(overwrites).toHaveLength(0);
   });
 
-  it('redeploy WITHOUT reset still no warnings (deployer is idempotent)', async () => {
+  it('redeploy WITHOUT reset fires no warnings (deploy-epoch replacement, F6)', async () => {
     await sim.deploy(FIXTURE_F4);
     await sim.deploy(FIXTURE_F4); // no reset
     const overwrites = warnSpy.mock.calls.filter((args) =>
       typeof args[0] === 'string' && args[0].includes('overwriting an existing definition')
     );
-    // The shim re-registers (same key, new fn ref) on a fresh bundle import,
-    // which DOES legitimately trigger the warning — those are real overwrites
-    // by user code, even if benign. Just make sure the deployer's own loop
-    // isn't *additionally* tripping it.
-    expect(overwrites.length).toBeLessThanOrEqual(2);
+    // Publish-gate F6: a redeploy re-evaluating app code and re-registering
+    // the same resolver keys is normal Forge behavior — real Forge never
+    // warns you for deploying again. The deployer marks pre-existing keys
+    // as a stale epoch, so the shim's re-defines are silent replacements.
+    expect(overwrites).toHaveLength(0);
+  });
+
+  it('same key defined twice WITHIN one deploy still warns (F6 keeps the footgun)', async () => {
+    // Simulate the deploy lifecycle by hand: epoch start, then two defines
+    // of the same key — as would happen if two source files both defined it.
+    await sim.deploy(FIXTURE_F4);
+    sim.resolver.beginDeployEpoch();
+    sim.resolver.define('chatty', () => 1); // silent: replaces stale epoch key
+    sim.resolver.define('chatty', () => 2); // warns: second define in SAME epoch
+    const overwrites = warnSpy.mock.calls.filter((args) =>
+      typeof args[0] === 'string' && args[0].includes('overwriting an existing definition')
+    );
+    expect(overwrites).toHaveLength(1);
+  });
+
+  it('manual define over a live (non-stale) key still warns after deploy', async () => {
+    await sim.deploy(FIXTURE_F4);
+    // The deploy consumed its own epoch — 'chatty' is a live definition now.
+    sim.resolver.define('chatty', () => 'user override');
+    const overwrites = warnSpy.mock.calls.filter((args) =>
+      typeof args[0] === 'string' && args[0].includes('overwriting an existing definition')
+    );
+    expect(overwrites).toHaveLength(1);
   });
 
   it('resolvers are still callable after a fresh deploy (regression guard)', async () => {

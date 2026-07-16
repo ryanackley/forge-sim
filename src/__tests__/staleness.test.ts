@@ -6,7 +6,16 @@
  * logic so the threshold and message format don't drift.
  */
 import { describe, it, expect } from 'vitest';
-import { isStale, buildStalenessWarning, STALENESS_GRACE_MS, shouldRunStalenessCheck, shouldWarnNow } from '../staleness.js';
+import {
+  isStale,
+  buildStalenessWarning,
+  buildAutoRestartNotice,
+  STALENESS_GRACE_MS,
+  AUTO_RESTART_EXIT_DELAY_MS,
+  shouldRunStalenessCheck,
+  shouldWarnNow,
+  shouldAutoRestartOnStale,
+} from '../staleness.js';
 
 describe('isStale', () => {
   it('returns false when current mtime equals loaded mtime', () => {
@@ -242,5 +251,61 @@ describe('shouldWarnNow — dedup once per rebuild', () => {
     expect(shouldWarnNow(LOADED, REBUILT_ONCE, REBUILT_ONCE - 1)).toBe(true);
     expect(shouldWarnNow(LOADED, REBUILT_ONCE, REBUILT_ONCE + 1)).toBe(true);
     expect(shouldWarnNow(LOADED, REBUILT_ONCE, REBUILT_ONCE)).toBe(false);
+  });
+});
+
+describe('shouldAutoRestartOnStale — publish-gate F2 gating', () => {
+  it('defaults to enabled with no env override', () => {
+    expect(shouldAutoRestartOnStale({})).toBe(true);
+  });
+
+  it('"off" / "0" / "false" restore warn-only mode', () => {
+    expect(shouldAutoRestartOnStale({ FORGE_SIM_STALE_AUTORESTART: 'off' })).toBe(false);
+    expect(shouldAutoRestartOnStale({ FORGE_SIM_STALE_AUTORESTART: '0' })).toBe(false);
+    expect(shouldAutoRestartOnStale({ FORGE_SIM_STALE_AUTORESTART: 'false' })).toBe(false);
+  });
+
+  it('override is case-insensitive', () => {
+    expect(shouldAutoRestartOnStale({ FORGE_SIM_STALE_AUTORESTART: 'OFF' })).toBe(false);
+  });
+
+  it('unrecognized values fall back to enabled (default-on)', () => {
+    expect(shouldAutoRestartOnStale({ FORGE_SIM_STALE_AUTORESTART: 'maybe' })).toBe(true);
+    expect(shouldAutoRestartOnStale({ FORGE_SIM_STALE_AUTORESTART: undefined })).toBe(true);
+  });
+
+  it('exit delay constant is long enough to flush stdio, short enough to be invisible', () => {
+    expect(AUTO_RESTART_EXIT_DELAY_MS).toBeGreaterThanOrEqual(100);
+    expect(AUTO_RESTART_EXIT_DELAY_MS).toBeLessThanOrEqual(2000);
+  });
+});
+
+describe('buildAutoRestartNotice', () => {
+  const PID = 54321;
+  const LOADED = Date.parse('2026-07-15T15:00:00Z');
+  const REBUILT = Date.parse('2026-07-15T15:04:20Z');
+  const msg = buildAutoRestartNotice(PID, LOADED, REBUILT);
+
+  it('identifies the daemon and both timestamps', () => {
+    expect(msg).toContain('pid=54321');
+    expect(msg).toContain('2026-07-15T15:00:00');
+    expect(msg).toContain('2026-07-15T15:04:20');
+  });
+
+  it('flags that THIS response ran on the old code', () => {
+    expect(msg).toMatch(/OLD code/);
+  });
+
+  it('says the respawn is automatic — the agent must NOT be told to kill anything', () => {
+    expect(msg).toMatch(/respawn/i);
+    expect(msg).not.toContain(`kill ${PID}`);
+  });
+
+  it('warns that in-memory state is gone and to re-deploy', () => {
+    expect(msg).toMatch(/re-?deploy|forge\.deploy/i);
+  });
+
+  it('documents the opt-out env var', () => {
+    expect(msg).toContain('FORGE_SIM_STALE_AUTORESTART=off');
   });
 });

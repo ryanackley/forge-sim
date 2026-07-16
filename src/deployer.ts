@@ -129,10 +129,46 @@ export async function bundleHandlerToFileUrl(entryPath: string, appDir: string):
 }
 // Bridge is now managed by sim.ui — no direct bridge imports needed here
 
+/** Summary entry for a trigger, matching the MCP `forge.deploy` response shape. */
+export interface DeployTriggerSummary {
+  key: string;
+  events: string[];
+  function: string;
+}
+
+/** Summary entry for a queue consumer, matching the MCP `forge.deploy` response shape. */
+export interface DeployConsumerSummary {
+  key: string;
+  queue: string;
+  function: string;
+}
+
+/** Summary entry for a UI module, matching the MCP `forge.deploy` response shape. */
+export interface DeployUIModuleSummary {
+  key: string;
+  type: string;
+  resource?: string;
+  resolver?: string;
+}
+
 export interface DeployResult {
   manifest: ParsedManifest;
   loadedFunctions: string[];
   loadedResources: string[];
+  /**
+   * Convenience summaries mirroring the MCP `forge.deploy` response.
+   *
+   * Publish-gate F3: the MCP tool returned `{resolvers, triggers, uiModules}`
+   * while the in-process `sim.deploy()` only exposed the raw manifest —
+   * assertions written against one surface failed on the other. Both
+   * surfaces now share these fields (the MCP handler consumes them
+   * directly), so the shapes cannot drift.
+   */
+  /** Registered resolver function keys after this deploy. */
+  resolvers: string[];
+  triggers: DeployTriggerSummary[];
+  consumers: DeployConsumerSummary[];
+  uiModules: DeployUIModuleSummary[];
   errors: Array<{ functionKey: string; error: string }>;
   /**
    * Manifest validation warnings (and info-level notes). Mirrored from
@@ -279,6 +315,14 @@ export async function deploy(sim: ForgeSimulator, appDir: string): Promise<Deplo
   const loadedFunctions: string[] = [];
   const loadedResources: string[] = [];
   const errors: Array<{ functionKey: string; error: string }> = [];
+
+  // Start a deploy epoch: existing resolver keys become "stale", so the
+  // re-evaluated app code silently REPLACES them instead of tripping the
+  // "overwriting an existing definition" warning. Redeploying without
+  // reset() is normal (real Forge redeploys replace the app wholesale);
+  // the warning is reserved for the same key defined twice WITHIN one
+  // deploy — the actual duplicate-key footgun. Publish-gate F6.
+  sim.resolver.beginDeployEpoch();
 
   // Sweep old deploy bundles so this dir doesn't grow without bound. Bundles
   // from previous deploys are no longer needed once their modules are cached
@@ -536,6 +580,23 @@ export async function deploy(sim: ForgeSimulator, appDir: string): Promise<Deplo
     manifest,
     loadedFunctions,
     loadedResources,
+    resolvers: sim.resolver.getDefinitions(),
+    triggers: manifest.triggers.map((t) => ({
+      key: t.key,
+      events: t.events,
+      function: t.functionKey,
+    })),
+    consumers: manifest.consumers.map((c) => ({
+      key: c.key,
+      queue: c.queue,
+      function: c.functionKey,
+    })),
+    uiModules: manifest.uiModules.map((u) => ({
+      key: u.key,
+      type: u.type,
+      resource: u.resourceKey,
+      resolver: u.resolverFunctionKey,
+    })),
     errors,
     warnings: manifest.warnings,
   };

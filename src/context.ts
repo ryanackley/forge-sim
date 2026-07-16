@@ -179,6 +179,23 @@ const MACRO_TYPES = new Set([
   'macro',
 ]);
 
+/**
+ * Which context-hydration CLI flag (if any) a module type benefits from.
+ *
+ * Publish-gate F5: with no context flags, an issue panel renders its own
+ * "no issue context" empty state and nothing points the dev at `--issue`.
+ * The dev command uses this to print a targeted startup hint.
+ */
+export function contextFlagForModuleType(
+  moduleType: string,
+): '--issue' | '--project' | '--content' | '--space' | null {
+  if (JIRA_ISSUE_MODULES.has(moduleType)) return '--issue';
+  if (JIRA_PROJECT_MODULES.has(moduleType)) return '--project';
+  if (CONFLUENCE_CONTENT_MODULES.has(moduleType)) return '--content';
+  if (CONFLUENCE_SPACE_MODULES.has(moduleType)) return '--space';
+  return null;
+}
+
 /** Provide a sensible default field value based on the field's data type */
 function getDefaultFieldValue(fieldType?: string): any {
   switch (fieldType) {
@@ -375,6 +392,25 @@ export async function buildForgeContext(
 
 // ── Hydration helpers ───────────────────────────────────────────────────
 
+/**
+ * Log a context-hydration fallback (publish-gate F8). `--issue GATE-1`
+ * pointing at a nonexistent issue used to fall back to minimal context
+ * with no log line at all — the module just rendered with a bare
+ * `{ issueKey }` and the dev had nothing to go on. One warn per failed
+ * lookup, with the mock-route hint that fixes it.
+ */
+function warnHydrationFallback(
+  kind: 'issue' | 'content' | 'project',
+  key: string,
+  detail: string,
+  mockHint: string,
+): void {
+  console.warn(
+    `[forge-sim] ⚠️ Could not hydrate ${kind} "${key}" (${detail}) — using minimal context. ` +
+    `Mock it (${mockHint}) or connect a real site with 'forge-sim auth'.`,
+  );
+}
+
 async function hydrateJiraIssueContext(
   sim: ForgeSimulator,
   moduleType: string,
@@ -409,6 +445,8 @@ async function hydrateJiraIssueContext(
       extension.projectId = extension.project.id;
     } else {
       // API call failed — use the key as-is with project key extracted
+      warnHydrationFallback('issue', issueKey, `Jira returned ${response.status}`,
+        `GET /rest/api/3/issue/${issueKey}`);
       extension.issueKey = issueKey;
       extension.issue = { key: issueKey };
       const projectKey = issueKey.split('-')[0];
@@ -417,8 +455,11 @@ async function hydrateJiraIssueContext(
         extension.project = { key: projectKey };
       }
     }
-  } catch {
+  } catch (err) {
     // No real API available — use the key as-is with minimal context
+    warnHydrationFallback('issue', issueKey,
+      `product API unavailable: ${err instanceof Error ? err.message : String(err)}`,
+      `GET /rest/api/3/issue/${issueKey}`);
     extension.issueKey = issueKey;
     extension.issue = { key: issueKey };
     const projectKey = issueKey.split('-')[0];
@@ -460,6 +501,8 @@ async function hydrateConfluenceContentContext(
       extension.contentId = extension.content.id;
       extension.spaceKey = extension.space.key;
     } else {
+      warnHydrationFallback('content', contentId, `Confluence returned ${response.status}`,
+        `GET /rest/api/content/${contentId}`);
       extension.contentId = contentId;
       extension.content = { id: contentId };
       if (spaceKey) {
@@ -467,7 +510,10 @@ async function hydrateConfluenceContentContext(
         extension.space = { key: spaceKey };
       }
     }
-  } catch {
+  } catch (err) {
+    warnHydrationFallback('content', contentId,
+      `product API unavailable: ${err instanceof Error ? err.message : String(err)}`,
+      `GET /rest/api/content/${contentId}`);
     extension.contentId = contentId;
     extension.content = { id: contentId };
     if (spaceKey) {
@@ -503,10 +549,15 @@ async function hydrateJiraProjectContext(
       extension.projectKey = extension.project.key;
       extension.projectId = extension.project.id;
     } else {
+      warnHydrationFallback('project', projectKey, `Jira returned ${response.status}`,
+        `GET /rest/api/3/project/${projectKey}`);
       extension.project = { key: projectKey };
       extension.projectKey = projectKey;
     }
-  } catch {
+  } catch (err) {
+    warnHydrationFallback('project', projectKey,
+      `product API unavailable: ${err instanceof Error ? err.message : String(err)}`,
+      `GET /rest/api/3/project/${projectKey}`);
     extension.project = { key: projectKey };
     extension.projectKey = projectKey;
   }

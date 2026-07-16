@@ -539,10 +539,12 @@ forge-sim includes a headless UIKit renderer. Your app's JSX runs through the sa
 
 ```ts
 it('renders the issue panel', async () => {
-  // Render a UI module from your manifest (by module key)
-  await sim.ui.render('issue-panel', {
-    context: { issueKey: 'PROJ-42' },
-  });
+  // Render a UI module from your manifest (by module key).
+  // `issueKey` is a top-level option — it fetches the issue (mock or real)
+  // and hydrates the module context (extension.issue, project, …).
+  // Same for `projectKey`, `contentId`, `spaceKey`. Use the `context`
+  // option only for raw context-field overrides (accountId, locale, …).
+  await sim.ui.render('issue-panel', { issueKey: 'PROJ-42' });
 
   // Wait for async data to load (e.g., useEffect → invoke → re-render)
   const doc = await sim.ui.waitForContent('issue-panel', 'PROJ-42');
@@ -615,7 +617,7 @@ Each module gets its own ForgeDoc tree. Render multiple modules and assert indep
 
 ```ts
 it('renders two panels without cross-contamination', async () => {
-  await sim.ui.render('issue-panel', { context: { issueKey: 'TEST-1' } });
+  await sim.ui.render('issue-panel', { issueKey: 'TEST-1' });
   await sim.ui.render('admin-panel');
 
   await sim.ui.waitForContent('issue-panel', 'TEST-1');
@@ -663,7 +665,7 @@ it('debug example', async () => {
 
 | Method | Description |
 |--------|-------------|
-| `render(moduleKey, options?)` | Render a UIKit module. Options: `{ context: { issueKey?, contentId?, spaceKey? } }` |
+| `render(moduleKey, options?)` | Render a UIKit module. Options: `{ issueKey?, projectKey?, contentId?, spaceKey?, context?, extension?, macroConfig? }` — see [module contexts](../reference/module-contexts.md) |
 | `getForgeDoc(moduleKey?)` | Get the current ForgeDoc tree. Omit key for most recent render. |
 | `waitForRender()` | Wait for the next render from any module. |
 | `waitForContent(moduleKey, text)` | Wait until rendered text includes the given string. |

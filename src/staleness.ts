@@ -119,6 +119,66 @@ export function shouldWarnNow(
 }
 
 /**
+ * Delay between sending the final (stale) tool response and exiting the
+ * process for auto-restart. The MCP SDK writes the JSON-RPC response to
+ * stdout right after the handler resolves; this window lets the pipe flush
+ * before we die. Generous relative to any plausible flush time, invisible
+ * relative to human/agent iteration speed.
+ */
+export const AUTO_RESTART_EXIT_DELAY_MS = 500;
+
+/**
+ * Decide whether a stale daemon should exit so the MCP client respawns it
+ * with fresh code (publish-gate F2).
+ *
+ * Manual recovery ("run `kill <pid>` yourself") worked but made stale-daemon
+ * first contact a two-step dance: read the warning, kill, retry. Auto-restart
+ * collapses it to zero steps — the daemon answers the in-flight call (with a
+ * loud notice), then exits; the client transparently respawns a fresh daemon
+ * on the next call.
+ *
+ * Default ON whenever the staleness check itself is enabled. Override:
+ *   FORGE_SIM_STALE_AUTORESTART=off  warn-only mode (the pre-F2 behavior —
+ *                                    useful if you want to keep in-memory
+ *                                    sim state alive across rebuilds)
+ */
+export function shouldAutoRestartOnStale(
+  env: Record<string, string | undefined> = process.env,
+): boolean {
+  const override = env.FORGE_SIM_STALE_AUTORESTART?.toLowerCase();
+  if (override === 'off' || override === '0' || override === 'false') return false;
+  return true;
+}
+
+/**
+ * Build the notice prepended to the FINAL response of a stale daemon that is
+ * about to auto-restart. Self-contained: replaces (not supplements) the
+ * manual-kill warning, because "run kill <pid>" is wrong advice when the
+ * process is already exiting on its own.
+ *
+ * Must tell the agent three things:
+ *   1. THIS response came from the old code — treat with suspicion.
+ *   2. The next tool call runs on fresh code automatically.
+ *   3. In-memory state died with the daemon — re-deploy before invoking.
+ */
+export function buildAutoRestartNotice(
+  pid: number,
+  loadedMtimeMs: number,
+  currentMtimeMs: number,
+): string {
+  const loadedAt = new Date(loadedMtimeMs).toISOString();
+  const rebuiltAt = new Date(currentMtimeMs).toISOString();
+  return (
+    `♻️  STALE forge-sim MCP daemon (pid=${pid}) — auto-restarting. ` +
+    `This process loaded dist/mcp-server.js at ${loadedAt}, but the file on disk was rebuilt at ${rebuiltAt}. ` +
+    `THIS response was produced by the OLD code and may not match the current build. ` +
+    `The daemon exits right after this response; your MCP client respawns it with fresh code on the next tool call. ` +
+    `In-memory simulator state is gone — call forge.deploy again before invoking. ` +
+    `Set FORGE_SIM_STALE_AUTORESTART=off to disable auto-restart (warn-only mode).`
+  );
+}
+
+/**
  * Build the warning string the daemon prepends to tool responses when stale.
  * Includes the PID so the operator can `kill <pid>` directly; the MCP client
  * respawns the daemon on the next tool call.
