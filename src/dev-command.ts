@@ -30,7 +30,7 @@ import { buildDefaultContext, buildForgeContext, contextFlagForModuleType, type 
 import { createWebTriggerHandler } from './web-trigger.js';
 import { startTypeCheckWatch, type TypeCheckWatcher } from './type-checker.js';
 import { RAW_HTML_TAG_LIST } from './ui/html-elements.js';
-import { ensureRendererDeps } from './renderer-deps.js';
+import { materializeRenderer } from './renderer-deps.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -1503,13 +1503,22 @@ export async function buildViteConfig(opts: {
   wsPort: number;
   port: number;
   forgeSimRoot: string;
+  /**
+   * Renderer directory (contains src/ + node_modules/). Defaults to
+   * `<forgeSimRoot>/renderer` (git checkout layout). For installed packages
+   * this is the materialized `~/.forge-sim/renderer/<version>` dir — the
+   * renderer must live outside any node_modules path or Vite's dep
+   * optimizer refuses to pre-bundle the Atlaskit graph.
+   */
+  rendererRoot?: string;
 }): Promise<any> {
   const { appDir, tempDir, modules, wsPort, port, forgeSimRoot } = opts;
+  const rendererRoot = opts.rendererRoot ?? join(forgeSimRoot, 'renderer');
   const hasUikitModules = modules.some((m) => m.mode === 'uikit');
-  const shimPath = join(forgeSimRoot, 'renderer', 'src', 'bridge', 'forge-bridge-shim.ts');
-  const bridgeBarrel = join(forgeSimRoot, 'renderer', 'src', 'bridge', 'index.ts');
+  const shimPath = join(rendererRoot, 'src', 'bridge', 'forge-bridge-shim.ts');
+  const bridgeBarrel = join(rendererRoot, 'src', 'bridge', 'index.ts');
 
-  const rendererNodeModules = join(forgeSimRoot, 'renderer', 'node_modules');
+  const rendererNodeModules = join(rendererRoot, 'node_modules');
   const mainNodeModules = join(forgeSimRoot, 'node_modules');
   const appNodeModules = join(appDir, 'node_modules');
 
@@ -1521,12 +1530,12 @@ export async function buildViteConfig(opts: {
     '@forge/bridge': shimPath,
     'forge-sim/renderer/bridge': bridgeBarrel,
     'forge-sim/renderer/bridge-shim': shimPath,
-    'forge-sim/renderer/ForgeDocRenderer': join(forgeSimRoot, 'renderer', 'src', 'ForgeDocRenderer.tsx'),
-    'forge-sim/renderer/ForgeSimShell': join(forgeSimRoot, 'renderer', 'src', 'ForgeSimShell.tsx'),
+    'forge-sim/renderer/ForgeDocRenderer': join(rendererRoot, 'src', 'ForgeDocRenderer.tsx'),
+    'forge-sim/renderer/ForgeSimShell': join(rendererRoot, 'src', 'ForgeSimShell.tsx'),
   };
 
   // Collect all directories Vite needs fs access to
-  const fsAllow = [forgeSimRoot, appDir, tempDir];
+  const fsAllow = [forgeSimRoot, rendererRoot, appDir, tempDir];
 
   // For Custom UI modules, add a Vite plugin to resolve /_customui_<key>/ paths
   const customUiModules = modules.filter((m) => m.mode === 'customui');
@@ -2141,13 +2150,16 @@ export async function devCommand(options: DevCommandOptions) {
   const forgeSimRoot = resolve(__dirname, '..');
 
   // The published package ships renderer/src but not renderer/node_modules —
-  // install the Atlaskit deps on first `dev` run. No-op when already present
-  // (repo checkout, or any run after the first). Only UIKit modules compile
-  // the renderer's Atlaskit tree; Custom UI uses the dependency-free bridge
-  // shim, and proxy mode returns above without touching Vite at all.
+  // materialize the renderer on first `dev` run. Git checkouts install deps
+  // in place; installed packages materialize to ~/.forge-sim/renderer/<ver>
+  // (Vite won't pre-bundle sources living under node_modules). No-op when
+  // already present. Only UIKit modules compile the renderer's Atlaskit
+  // tree; Custom UI uses the dependency-free bridge shim, and proxy mode
+  // returns above without touching Vite at all.
+  let rendererRoot = join(forgeSimRoot, 'renderer');
   if (detectedModules.some((m) => m.mode === 'uikit')) {
     try {
-      ensureRendererDeps(forgeSimRoot);
+      rendererRoot = materializeRenderer(forgeSimRoot);
     } catch (err: any) {
       console.error(`  ❌ ${err.message}`);
       process.exit(1);
@@ -2204,6 +2216,7 @@ export async function devCommand(options: DevCommandOptions) {
       wsPort,
       port,
       forgeSimRoot,
+      rendererRoot,
     });
 
     const viteServer = await createServer(viteConfig);

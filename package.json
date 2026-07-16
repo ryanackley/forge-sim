@@ -37,6 +37,7 @@
     "!renderer/src/popup-test.tsx",
     "!renderer/src/portal-stress.tsx",
     "renderer/package.json",
+    "renderer/package-lock.json",
     "docs"
   ],
   "type": "module",
