@@ -41,12 +41,12 @@
     "docs"
   ],
   "type": "module",
-  "main": "./dist/simulator.js",
-  "types": "./dist/simulator.d.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/simulator.d.ts",
-      "import": "./dist/simulator.js"
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
     },
     "./shims/*": {
       "types": "./dist/shims/*.d.ts",

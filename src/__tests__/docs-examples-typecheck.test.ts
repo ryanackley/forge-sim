@@ -179,7 +179,7 @@ const COMPILER_OPTIONS: ts.CompilerOptions = {
   types: ['node', 'vitest/globals'],
   baseUrl: REPO_ROOT,
   paths: {
-    'forge-sim': ['src/simulator.ts'],
+    'forge-sim': ['src/index.ts'],
     'forge-sim/shims/*': ['src/shims/*'],
     '@forge/api': ['src/shims/forge-api.ts'],
     '@forge/kvs': ['src/shims/forge-kvs.ts'],

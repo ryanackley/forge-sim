@@ -22,7 +22,7 @@ export default defineConfig({
       // Self-alias so doc-example tests can use the user-facing import
       // (`from 'forge-sim'`) while running against live source — the bare
       // self-reference would resolve to a possibly-stale dist/ build.
-      'forge-sim': resolve(__dirname, 'src/simulator.ts'),
+      'forge-sim': resolve(__dirname, 'src/index.ts'),
     },
   },
   esbuild: {

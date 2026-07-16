@@ -3,7 +3,17 @@
  */
 
 export { ForgeSimulator, createSimulator } from './simulator.js';
-export type { LoadAuthResult } from './simulator.js';
+export type { LoadAuthResult, LogEntry } from './simulator.js';
+export type { ConsoleLine } from './console-capture.js';
+export { SimulatedForgeSQL } from './forge-sql.js';
+export type { ForgeSQLOptions } from './forge-sql.js';
+/** @deprecated Use UnifiedKVS instead */
+export { UnifiedKVS as SimulatedEntityStore } from './kvs.js';
+export { FunctionRegistry } from './function-registry.js';
+export type { ForgeFunctionType, RegisteredFunction } from './function-registry.js';
+export { FITProvider } from './fit-provider.js';
+export { RemoteProxy } from './remote-proxy.js';
+export type { InvokeOptions } from './types.js';
 export { UnifiedKVS, WhereConditions, KVSQueryBuilder, EntityAPI, EntityQueryBuilder, TransactionBuilder } from './kvs.js';
 export type { EntitySchema, IndexDefinition, EntityStoreDump, StoredEntry } from './kvs.js';
 /** @deprecated Use UnifiedKVS instead */
