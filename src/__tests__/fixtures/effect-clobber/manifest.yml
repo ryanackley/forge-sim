@@ -1,0 +1,27 @@
+modules:
+  jira:issuePanel:
+    - key: settings-panel
+      resource: main
+      resolver:
+        function: resolver
+      render: native
+      title: Settings Panel
+      icon: https://developer.atlassian.com/platform/forge/images/icons/issue-panel-icon.svg
+
+  function:
+    - key: resolver
+      handler: src/resolver.handler
+
+resources:
+  - key: main
+    path: src/frontend/index.tsx
+
+permissions:
+  scopes:
+    - storage:app
+
+app:
+  id: ari:cloud:ecosystem::app/effect-clobber-demo
+  name: Effect Clobber
+  runtime:
+    name: nodejs22.x

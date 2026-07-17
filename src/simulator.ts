@@ -79,6 +79,14 @@ export class ForgeSimulator {
   private logListeners: Array<(entry: LogEntry) => void> = [];
 
   /**
+   * Number of resolver invocations currently in flight — every path funnels
+   * through invoke() (direct sim.invoke calls, UI bridge invokes fired by
+   * React effects, MCP forge.invoke). Drives sim.idle() and the drain in
+   * sim.stop(), and lets sim.ui.settle() know the UI can't be quiescent yet.
+   */
+  private pendingInvokeCount = 0;
+
+  /**
    * Module routing: maps moduleKey → { resolverFunctionKey?, endpointKey? }
    * Built by the deployer from manifest UI modules.
    */
@@ -442,6 +450,7 @@ export class ForgeSimulator {
     const fnType = fnMeta?.type || 'resolver';
 
     const startMs = Date.now();
+    this.pendingInvokeCount++;
     try {
       const { result, console: captured } = await withCapture(() =>
         this.resolver.invoke(functionKey, payload, contextOverride)
@@ -460,6 +469,60 @@ export class ForgeSimulator {
       this.checkInvocationTime(functionKey, startMs, fnType, fnMeta?.timeoutSeconds);
       this.log('error', `Resolver "${functionKey}" failed: ${err}`);
       throw err;
+    } finally {
+      this.pendingInvokeCount--;
+    }
+  }
+
+  /**
+   * Number of resolver invocations currently in flight (direct sim.invoke,
+   * UI bridge invokes from React effects, MCP forge.invoke — all paths).
+   */
+  get pendingInvokes(): number {
+    return this.pendingInvokeCount;
+  }
+
+  /**
+   * Resolve when no resolver invocations are in flight.
+   *
+   * "Idle" means the pending-invoke count has been zero continuously for
+   * `quietMs` — the quiet window catches chained work (an invoke resolves,
+   * a React effect schedules the next one a tick later).
+   *
+   * Throws if the simulator is still busy after `timeoutMs` — the error
+   * names how many invocations are stuck, so a hung resolver (or an app
+   * polling in a loop) is diagnosable instead of silently waiting forever.
+   *
+   * Typical use — drain before teardown so in-flight UI effects don't land
+   * on stopped services:
+   *
+   *   afterAll(async () => {
+   *     await sim.idle();   // optional: sim.stop() already drains
+   *     await sim.stop();
+   *   });
+   */
+  async idle(options?: { quietMs?: number; timeoutMs?: number }): Promise<void> {
+    const quietMs = options?.quietMs ?? 25;
+    const timeoutMs = options?.timeoutMs ?? 5000;
+    const deadline = Date.now() + timeoutMs;
+    let quietSince = this.pendingInvokeCount === 0 ? Date.now() : null;
+
+    while (true) {
+      const now = Date.now();
+      if (this.pendingInvokeCount === 0) {
+        if (quietSince === null) quietSince = now;
+        if (now - quietSince >= quietMs) return;
+      } else {
+        quietSince = null;
+      }
+      if (now >= deadline) {
+        throw new Error(
+          `sim.idle() timed out after ${timeoutMs}ms — ` +
+          `${this.pendingInvokeCount} resolver invocation(s) still in flight. ` +
+          `A resolver may be hung, or the app may be re-invoking in a loop.`
+        );
+      }
+      await new Promise((r) => setTimeout(r, 5));
     }
   }
 
@@ -1070,8 +1133,23 @@ export class ForgeSimulator {
   /**
    * Stop all background services (MySQL server, etc.).
    * Call this when you're done with the simulator.
+   *
+   * Drains in-flight resolver invocations first (bounded). Without the
+   * drain, a fire-and-forget UI effect (useEffect → invoke → @forge/sql)
+   * still running at teardown lands on a stopped MySQL and surfaces as an
+   * unhandled ForgeSQLError ("connection is in closed state") that the test
+   * runner can't attribute to anything. If invocations are still stuck
+   * after the drain window, stop() warns and proceeds.
    */
   async stop(): Promise<void> {
+    try {
+      await this.idle({ timeoutMs: 3000 });
+    } catch (err) {
+      console.warn(
+        `[forge-sim] sim.stop(): ${err instanceof Error ? err.message : err} ` +
+        `— stopping anyway; late failures from those invocations may surface as unhandled errors.`
+      );
+    }
     this.objectStore.stop();
     await this.sql.stop();
   }

@@ -1,0 +1,13 @@
+{
+  "name": "effect-clobber",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@forge/resolver": "*",
+    "@forge/kvs": "*",
+    "@forge/react": "*",
+    "@forge/bridge": "*",
+    "react": "^18.2.0"
+  }
+}

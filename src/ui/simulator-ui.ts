@@ -374,6 +374,14 @@ export class SimulatorUI {
    * becomes pure observation — it will NOT re-render, so it's safe to use for
    * waiting on async state changes (useEffect, in-flight invokes, etc.).
    *
+   * **Settles before resolving.** After the text appears, waitForContent
+   * waits for render quiescence (no re-renders, no invokes in flight — see
+   * `settle()`) and returns the latest doc. This makes it safe to interact
+   * immediately: effects scheduled by the matched render (e.g.
+   * `useEffect(() => setValue(...), [dep])`) have flushed, so a subsequent
+   * `fillField`/`interact` can't be clobbered by a late effect — matching
+   * what's physically possible in a real browser.
+   *
    * If you need non-default render options (e.g. context overrides), call
    * sim.ui.render() explicitly first.
    *
@@ -395,84 +403,201 @@ export class SimulatorUI {
       await this.render(moduleKey);
     }
 
-    // Check if already there
-    const current = this.getForgeDoc(moduleKey);
-    if (current && getTextContent(current).includes(text)) {
-      return current;
+    const deadline = Date.now() + timeoutMs;
+
+    while (true) {
+      // Find a doc containing the text: the current module doc if it already
+      // matches, otherwise wait for the next matching render (or time out).
+      let candidate = this.getForgeDoc(moduleKey);
+      if (!candidate || !getTextContent(candidate).includes(text)) {
+        const remaining = deadline - Date.now();
+        if (remaining <= 0) {
+          throw this.buildWaitForContentTimeout(moduleKey, text, timeoutMs);
+        }
+        candidate = await this.waitForMatchingRender(moduleKey, text, remaining);
+        if (!candidate) {
+          throw this.buildWaitForContentTimeout(moduleKey, text, timeoutMs);
+        }
+      }
+
+      // The text is on screen — but effects scheduled by that same render
+      // commit (useEffect → setState/invoke chains) haven't necessarily
+      // flushed yet. In a real browser those flush long before a human could
+      // read the text and act on it; resolving here would let a headless
+      // driver interact "faster than physics" and get its state update
+      // clobbered by a still-pending effect (B3, sprint-pulse eval). Settle
+      // to render-quiescence first, then re-verify the text on the latest doc.
+      const settleBudget = Math.min(Math.max(deadline - Date.now(), 0), 1000);
+      const settled = await this.settle(moduleKey, {
+        timeoutMs: settleBudget,
+        warnOnTimeout: false,
+      });
+
+      if (settled && getTextContent(settled).includes(text)) {
+        return settled;
+      }
+      if (!settled) {
+        // Module-key tagging missed (candidate came from the global render
+        // listener) — nothing newer to offer, return the matched doc as-is.
+        return candidate;
+      }
+      // The settling renders removed the text (a pending effect replaced the
+      // matched state). Loop and wait for a match that survives quiescence.
+    }
+  }
+
+  /**
+   * Wait until the UI stops re-rendering — no render commits for `quietMs`
+   * AND no resolver invocations in flight. Returns the latest ForgeDoc for
+   * the module (or the global latest when `moduleKey` is omitted).
+   *
+   * Use this before interacting when you rendered manually and didn't go
+   * through `waitForContent` (which settles for you):
+   *
+   *   await sim.ui.render('my-panel', { issueKey: 'PROJ-1' });
+   *   const doc = await sim.ui.settle('my-panel');
+   *   sim.ui.fillField('my-panel', 'threshold', '55');
+   *
+   * Why this exists: React effects scheduled by a render commit flush a tick
+   * later. Firing onChange between the commit and the effect flush simulates
+   * an interaction no human could perform in a real browser — and a pending
+   * `useEffect(() => setValue(...), [dep])` will clobber the state you just
+   * set, silently. Settling makes the impossible ordering impossible here too.
+   *
+   * If the UI never goes quiet (e.g. the app re-renders on an interval
+   * shorter than `quietMs`, or an invoke is hung), resolves anyway at
+   * `timeoutMs` with the current doc and logs a warning.
+   */
+  async settle(
+    moduleKey?: string,
+    options?: { quietMs?: number; timeoutMs?: number; warnOnTimeout?: boolean }
+  ): Promise<ForgeDoc | null> {
+    const quietMs = options?.quietMs ?? 50;
+    const timeoutMs = options?.timeoutMs ?? 5000;
+    const warnOnTimeout = options?.warnOnTimeout ?? true;
+    const deadline = Date.now() + timeoutMs;
+
+    let lastActivity = Date.now();
+    const bump = () => { lastActivity = Date.now(); };
+    const unbind = moduleKey
+      ? this.onModuleRender(moduleKey, bump)
+      : onRender(bump);
+
+    try {
+      while (true) {
+        const now = Date.now();
+        const quietFor = now - lastActivity;
+        if (quietFor >= quietMs && this.sim.pendingInvokes === 0) {
+          break;
+        }
+        if (now >= deadline) {
+          if (warnOnTimeout) {
+            console.warn(
+              `[forge-sim] sim.ui.settle(${moduleKey ? `"${moduleKey}"` : ''}) ` +
+              `did not reach quiescence within ${timeoutMs}ms ` +
+              `(pending invokes: ${this.sim.pendingInvokes}) — returning the current doc. ` +
+              `The app may re-render continuously or a resolver may be hung.`
+            );
+          }
+          break;
+        }
+        const wait = Math.min(
+          Math.max(quietMs - quietFor, 5),
+          Math.max(deadline - now, 1),
+        );
+        await new Promise((r) => setTimeout(r, wait));
+      }
+    } finally {
+      unbind();
     }
 
-    // Wait for renders until content appears or timeout
-    return new Promise<ForgeDoc>((resolve, reject) => {
-      const unbind = this.onModuleRender(moduleKey, (doc) => {
-        if (getTextContent(doc).includes(text)) {
-          unbind();
-          resolve(doc);
-        }
-      });
+    return this.getForgeDoc(moduleKey);
+  }
 
-      // Also listen globally in case module key tagging missed it
-      const unbindGlobal = onRender((doc) => {
-        if (getTextContent(doc).includes(text)) {
-          unbindGlobal();
-          unbind();
-          resolve(doc);
-        }
-      });
-
-      setTimeout(() => {
+  /**
+   * Wait for the next render of `moduleKey` whose text contains `text`.
+   * Also listens globally in case module-key tagging missed the render.
+   * Resolves null on timeout. @internal
+   */
+  private waitForMatchingRender(
+    moduleKey: string,
+    text: string,
+    timeoutMs: number,
+  ): Promise<ForgeDoc | null> {
+    return new Promise<ForgeDoc | null>((resolve) => {
+      let unbind = () => {};
+      let unbindGlobal = () => {};
+      const timer = setTimeout(() => {
         unbind();
         unbindGlobal();
-        const doc = this.getForgeDoc(moduleKey);
-        const currentText = doc ? getTextContent(doc) : '(no doc)';
+        resolve(null);
+      }, timeoutMs);
+      const finish = (doc: ForgeDoc) => {
+        clearTimeout(timer);
+        unbind();
+        unbindGlobal();
+        resolve(doc);
+      };
+      unbind = this.onModuleRender(moduleKey, (doc) => {
+        if (getTextContent(doc).includes(text)) finish(doc);
+      });
+      unbindGlobal = onRender((doc) => {
+        if (getTextContent(doc).includes(text)) finish(doc);
+      });
+    });
+  }
 
-        // Build a helpful hint when we can detect a likely cause.
-        const hints: string[] = [];
+  /** Build the waitForContent timeout error with contextual hints. @internal */
+  private buildWaitForContentTimeout(moduleKey: string, text: string, timeoutMs: number): Error {
+    const doc = this.getForgeDoc(moduleKey);
+    const currentText = doc ? getTextContent(doc) : '(no doc)';
 
-        // Hint 1: macro module with no saved config — likely missed setMacroConfig.
-        // Gated on (a) the bundle actually calling useConfig(), so we don't
-        // fire on macros that don't depend on inline config (N10), and
-        // (b) the doc rendering at all, since if useConfig was never called
-        // we can't make any claim about config dependence.
-        try {
-          const manifest = this.sim.getManifest();
-          const uiModule = manifest?.uiModules.find(m => m.key === moduleKey);
-          if (uiModule?.type === 'macro' && moduleUsesConfig(moduleKey)) {
-            const baseKey = moduleKey.replace(/--(?:view|config)$/, '');
-            const savedConfig = this.macroConfigs.get(baseKey);
-            if (!savedConfig || Object.keys(savedConfig).length === 0) {
-              hints.push(
-                `Module "${moduleKey}" calls useConfig() but no config has been seeded. ` +
-                `Did you forget sim.ui.setMacroConfig("${baseKey}", {...}) before render()? ` +
-                `useConfig() returns {} until setMacroConfig is called.`
-              );
-            }
-          }
-        } catch {
-          // Best-effort hint — never let hint logic itself fail the test.
-        }
+    // Build a helpful hint when we can detect a likely cause.
+    const hints: string[] = [];
 
-        // Hint 2: doc exists but text is missing — guide toward debug output
-        // and the escape-hatch path for composite/nested-data text that the
-        // VISIBLE_TEXT_PROPS allowlist doesn't cover (Select.options[].label,
-        // Comment.author.text-as-object, DynamicTable cells, etc.)
-        if (doc && !hints.length) {
+    // Hint 1: macro module with no saved config — likely missed setMacroConfig.
+    // Gated on (a) the bundle actually calling useConfig(), so we don't
+    // fire on macros that don't depend on inline config (N10), and
+    // (b) the doc rendering at all, since if useConfig was never called
+    // we can't make any claim about config dependence.
+    try {
+      const manifest = this.sim.getManifest();
+      const uiModule = manifest?.uiModules.find(m => m.key === moduleKey);
+      if (uiModule?.type === 'macro' && moduleUsesConfig(moduleKey)) {
+        const baseKey = moduleKey.replace(/--(?:view|config)$/, '');
+        const savedConfig = this.macroConfigs.get(baseKey);
+        if (!savedConfig || Object.keys(savedConfig).length === 0) {
           hints.push(
-            `The module rendered, but its text content does not include "${text}". ` +
-            `Inspect the tree with sim.ui.getForgeDoc("${moduleKey}") to see what's ` +
-            `there. waitForContent is a convenience method — it walks <String> nodes ` +
-            `and a curated set of visible-text props (Tag.text, FormHeader.title, etc.). ` +
-            `For composite props (Select.options[].label, Comment.author.text), use ` +
-            `sim.ui.findByType(doc, "Select") and assert on .props.options directly.`
+            `Module "${moduleKey}" calls useConfig() but no config has been seeded. ` +
+            `Did you forget sim.ui.setMacroConfig("${baseKey}", {...}) before render()? ` +
+            `useConfig() returns {} until setMacroConfig is called.`
           );
         }
+      }
+    } catch {
+      // Best-effort hint — never let hint logic itself fail the test.
+    }
 
-        const hintBlock = hints.length ? `\n\nHint: ${hints.join('\n      ')}` : '';
-        reject(new Error(
-          `Timed out waiting for "${text}" in module "${moduleKey}" after ${timeoutMs}ms.\n` +
-          `Current content: "${currentText}"${hintBlock}`
-        ));
-      }, timeoutMs);
-    });
+    // Hint 2: doc exists but text is missing — guide toward debug output
+    // and the escape-hatch path for composite/nested-data text that the
+    // VISIBLE_TEXT_PROPS allowlist doesn't cover (Select.options[].label,
+    // Comment.author.text-as-object, DynamicTable cells, etc.)
+    if (doc && !hints.length) {
+      hints.push(
+        `The module rendered, but its text content does not include "${text}". ` +
+        `Inspect the tree with sim.ui.getForgeDoc("${moduleKey}") to see what's ` +
+        `there. waitForContent is a convenience method — it walks <String> nodes ` +
+        `and a curated set of visible-text props (Tag.text, FormHeader.title, etc.). ` +
+        `For composite props (Select.options[].label, Comment.author.text), use ` +
+        `sim.ui.findByType(doc, "Select") and assert on .props.options directly.`
+      );
+    }
+
+    const hintBlock = hints.length ? `\n\nHint: ${hints.join('\n      ')}` : '';
+    return new Error(
+      `Timed out waiting for "${text}" in module "${moduleKey}" after ${timeoutMs}ms.\n` +
+      `Current content: "${currentText}"${hintBlock}`
+    );
   }
 
   /** Get all bridge calls made so far (for debugging/assertions). */
@@ -723,6 +848,31 @@ export class SimulatorUI {
           renderPromise,
           new Promise<void>(resolve => setTimeout(resolve, replayed ? 200 : 100)),
         ]);
+      } else {
+        // Already-rendered module: an explicit render() must be a fresh
+        // mount (re-runs effects, re-fetches data), never a silent no-op.
+        // Under native Node ESM the `?t=` cache-bust re-evaluated the
+        // bundle and a reconcile pulse is landing — wait for it. Under
+        // vite-node (vitest with a linked/inlined forge-sim, e.g.
+        // `npm link`) the import was cached and NO pulse arrives: without
+        // this branch the caller gets the STALE doc from the previous
+        // mount — old props, old fetched data — which silently defeats
+        // scenarios like "seed new KVS state, re-render, assert the UI
+        // picked it up". Detect the missing pulse and replay the captured
+        // element to force a real re-mount.
+        const gotFreshPulse = await Promise.race([
+          renderPromise.then(() => true),
+          new Promise<boolean>(resolve => setTimeout(() => resolve(false), 100)),
+        ]);
+        if (!gotFreshPulse) {
+          const replayed = await replayCapturedRender(moduleKey);
+          if (replayed) {
+            await Promise.race([
+              renderPromise,
+              new Promise<void>(resolve => setTimeout(resolve, 200)),
+            ]);
+          }
+        }
       }
 
       // UIK-003 hard fail: if the reconcile was rejected (raw HTML host
@@ -1043,6 +1193,13 @@ export class SimulatorUI {
    * Searches Textfield, TextArea, Checkbox, Toggle, Select, RadioGroup,
    * DatePicker, TimePicker, UserPicker, Range, CheckboxGroup. Throws if
    * no field with that name is found.
+   *
+   * **Settle before filling.** If the module just rendered, reach it through
+   * `await sim.ui.waitForContent(...)` (which settles pending effects) or
+   * `await sim.ui.settle(moduleKey)` first. Firing onChange while a render's
+   * effects are still flushing simulates typing faster than a browser could
+   * paint — a pending `useEffect(() => setValue(...), [dep])` will clobber
+   * the value you just set.
    */
   fillField(moduleKey: string, name: string, value: unknown): void {
     const doc = this.getForgeDoc(moduleKey);

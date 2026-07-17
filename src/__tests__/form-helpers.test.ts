@@ -208,11 +208,11 @@ describe('sim.ui.interact P10 guard', () => {
     await sim.ui.render('form-page');
     const doc = sim.ui.getForgeDoc('form-page')!;
     const button = sim.ui.findByType(doc, 'Button')[0];
-    // Hypothetical: button has no onSubmit so interact returns undefined,
-    // but the GUARD specifically checks node.type === 'Form' — verify it doesn't
-    // misfire on Button.
+    // The P10 GUARD specifically checks node.type === 'Form' — verify it
+    // doesn't misfire on Button. Button has no onSubmit, so the missing-
+    // handler error (not the Form guard's bare-submit error) should fire.
     expect(() => sim.ui.interact(button, 'onSubmit', { weirdData: true }))
-      .not.toThrow();
+      .toThrow(/has no "onSubmit" handler/);
   });
 });
 

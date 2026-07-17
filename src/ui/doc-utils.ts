@@ -244,10 +244,26 @@ function isEventLike(arg: unknown): arg is { target: Record<string, unknown> } {
  * Backwards-compatible: callers that already supply `target.type` / `target.name`
  * keep their values, callers that pass raw values (not event-shaped) are
  * untouched, and any non-onChange event is forwarded verbatim.
+ *
+ * Throws if the node has no handler for `eventName` — a silent no-op here
+ * hides real bugs (interacting with a stale doc, typo'd event name, or a
+ * component that never wired the handler). The error lists the function
+ * props that DO exist on the node.
  */
 export function simulateEvent(node: ForgeDoc, eventName: string, ...args: any[]): any {
   const handler = node.props[eventName];
-  if (typeof handler !== 'function') return undefined;
+  if (typeof handler !== 'function') {
+    const fnProps = Object.keys(node.props).filter(
+      (k) => typeof node.props[k] === 'function'
+    );
+    throw new Error(
+      `simulateEvent: <${node.type}> has no "${eventName}" handler — firing it would be ` +
+      `a silent no-op. Function props on this node: ${fnProps.join(', ') || '(none)'}. ` +
+      `If your source defines the handler, you may be holding a stale ForgeDoc — ` +
+      `re-fetch it after \`await sim.ui.waitForContent(...)\`, or use ` +
+      `sim.ui.fillField()/interactWith(), which always walk the live tree.`
+    );
+  }
 
   // Auto-inject target.type/target.name on onChange for known form fields.
   if (eventName === 'onChange' && args.length > 0 && isEventLike(args[0])) {

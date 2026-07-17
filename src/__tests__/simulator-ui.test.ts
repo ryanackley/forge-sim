@@ -279,9 +279,10 @@ describe('SimulatorUI', () => {
       expect(sim.ui.interact(node, 'onClick')).toBe(42);
     });
 
-    it('interact returns undefined for missing handler', () => {
+    it('interact throws for missing handler (silent no-ops hide bugs)', () => {
       const node = { type: 'Button', props: {}, key: 'b1', children: [] };
-      expect(sim.ui.interact(node, 'onClick')).toBeUndefined();
+      expect(() => sim.ui.interact(node, 'onClick'))
+        .toThrow(/has no "onClick" handler/);
     });
 
     it('interact passes args to handler', () => {
