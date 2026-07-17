@@ -471,6 +471,55 @@ it('handles empty search results', async () => {
 });
 ```
 
+#### Error responses with `mockResponse()`
+
+A bare object as a route value always means "200 OK with this body". To test
+failure handling — rate limits, 404s, permission errors — wrap the route value
+with `mockResponse(status, body?, headers?)`:
+
+```ts
+import { mockResponse } from 'forge-sim';
+
+sim.mockProductRoutes('jira', {
+  // Plain body → 200 OK (the common case, unchanged)
+  'GET /rest/api/3/myself': { accountId: 'user-123' },
+
+  // Explicit status / headers / empty body
+  'PUT /rest/api/3/issue/FAIL-1': mockResponse(500, { error: 'boom' }),
+  'POST /rest/api/3/search/jql': mockResponse(429, { msg: 'slow down' }, { 'Retry-After': '60' }),
+  'DELETE /rest/api/3/version/10001': mockResponse(204),
+});
+```
+
+Just like real Forge, `requestJira()` does **not** throw on non-2xx — your app
+code sees `res.ok === false` and `res.status === 429`, so you're testing the
+error path your resolver actually has (or is missing):
+
+```ts
+it('surfaces the rate limit to the caller', async () => {
+  const result = await sim.invoke('searchIssues', { jql: 'x' });
+  expect(result).toEqual({ error: 'Jira rate limited us, try again later' });
+});
+```
+
+Function route values can return a `mockResponse(...)` too, so a route can
+succeed on one call and fail on the next:
+
+```ts
+sim.mockProductRoutes('jira', {
+  'PUT /rest/api/3/issue/:key': (path: string) =>
+    path.endsWith('FAIL-1') ? mockResponse(500, { error: 'oops' }) : { ok: true },
+});
+```
+
+`mockResponse()` returns a plain tagged object, so it survives JSON
+serialization — over the MCP boundary (where you can't import the factory)
+construct the literal shape directly:
+
+```json
+{ "__forgeSimMockResponse": true, "status": 500, "body": { "error": "boom" } }
+```
+
 ### Mocking @forge/llm
 
 If your app calls `@forge/llm` to talk to Claude, mock the responses with `sim.llm.mockResponse()` so tests stay offline and burn zero tokens.

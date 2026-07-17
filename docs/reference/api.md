@@ -654,6 +654,26 @@ sim.mockProductRoutes('jira', {
 });
 ```
 
+### `mockResponse()` — non-200 responses
+
+Bare route values become 200 OK bodies. For explicit status codes, headers, or empty bodies, wrap with the `mockResponse` export:
+
+```typescript no-check
+mockResponse(status: number, body?: unknown, headers?: Record<string, string>): MockResponseTag
+```
+
+```typescript
+import { mockResponse } from 'forge-sim';
+
+sim.mockProductRoutes('jira', {
+  'PUT /rest/api/3/issue/FAIL-1': mockResponse(500, { error: 'boom' }),
+  'POST /rest/api/3/search/jql': mockResponse(429, { msg: 'slow down' }, { 'Retry-After': '60' }),
+  'DELETE /rest/api/3/version/10001': mockResponse(204),
+});
+```
+
+Matches real Forge semantics: `requestJira()` does not throw on non-2xx — app code sees `res.ok === false` / `res.status`. Function handlers may also return a `mockResponse(...)` for per-request control. The return value is a plain tagged object (`{ __forgeSimMockResponse: true, status, body?, headers? }`), so it survives JSON serialization — over MCP, construct the literal directly. See [Testing → Error responses with mockResponse()](../testing/README.md#error-responses-with-mockresponse) for full examples.
+
 ---
 
 ## `sim.externalAuth` — Third-Party Auth

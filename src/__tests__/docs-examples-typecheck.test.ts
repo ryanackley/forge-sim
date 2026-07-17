@@ -53,6 +53,7 @@ const PREAMBLE_DECLS: Array<[name: string, line: string]> = [
   ['setSimulator', `declare const setSimulator: typeof __fs.setSimulator;`],
   ['WhereConditions', `declare const WhereConditions: typeof __fs.WhereConditions;`],
   ['route', `declare const route: typeof __fs.route;`],
+  ['mockResponse', `declare const mockResponse: typeof __fs.mockResponse;`],
   ['payload', `declare const payload: Record<string, unknown>;`],
   ['ForgeSimulator', `type ForgeSimulator = __fs.ForgeSimulator;`],
   ['ParsedManifest', `type ParsedManifest = __fs.ParsedManifest;`],
