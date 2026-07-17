@@ -637,8 +637,20 @@ function togglePause() {
 let selectedKvsKey = null;
 
 async function refreshKVS() {
-  const res = await fetch(API + '/api/kvs');
-  kvsData = await res.json();
+  const [kvsRes, entRes] = await Promise.all([
+    fetch(API + '/api/kvs'),
+    fetch(API + '/api/entities'),
+  ]);
+  kvsData = await kvsRes.json();
+  // Custom Entities live in their own store — surface them in the same
+  // table with the entity name as the type (eval-4 F7: this panel used
+  // to show plain KVS only, so entity data was invisible in the tools).
+  const ent = await entRes.json();
+  for (const [name, rows] of Object.entries(ent.entities || {})) {
+    for (const row of rows) {
+      kvsData.push({ key: name + ' ▸ ' + row.key, value: row.value, entity: name });
+    }
+  }
   filterKVS();
   // Re-select if detail was open
   if (selectedKvsKey) {
@@ -654,7 +666,7 @@ function filterKVS() {
   const body = document.getElementById('kvsBody');
   body.innerHTML = filtered.map((e, i) => {
     const val = JSON.stringify(e.value);
-    const type = Array.isArray(e.value) ? 'array' : typeof e.value;
+    const type = e.entity ? 'entity: ' + e.entity : Array.isArray(e.value) ? 'array' : typeof e.value;
     const sel = e.key === selectedKvsKey ? ' selected' : '';
     const preview = val.length > 120 ? escapeHtml(val.substring(0, 120)) + '…' : escapeHtml(val);
     const safeKey = JSON.stringify(e.key).replace(/&/g, '&amp;').replace(/"/g, '&quot;');

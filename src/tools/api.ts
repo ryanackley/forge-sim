@@ -323,10 +323,20 @@ export function createApiHandler(
       }
 
       // ── Entities ───────────────────────────────────────────────────
-      // Entity store is accessed via the product API (storage:entities routes).
-      // For the tools UI, we expose a simple list endpoint.
+      // Custom Entities live in their own store (not plain KVS keys), so
+      // the tools UI needs a dedicated endpoint. Used to be a stub that
+      // pointed at the KVS panel — which never showed entities (eval-4 F7).
       if (path === '/api/entities' && method === 'GET') {
-        return json(res, { message: 'Use KVS panel — entity store shares the same backing storage' });
+        const schemas: Record<string, unknown> = {};
+        for (const [name, schema] of sim.kvs.getEntitySchemas()) {
+          schemas[name] = schema;
+        }
+        const grouped = sim.kvs.dumpEntities();
+        const entities: Record<string, Array<{ key: string; value: any }>> = {};
+        for (const [name, rows] of Object.entries(grouped)) {
+          entities[name] = rows.map(({ key, value }) => ({ key, value }));
+        }
+        return json(res, { schemas, entities });
       }
 
       // ── Mocks ────────────────────────────────────────────────────
