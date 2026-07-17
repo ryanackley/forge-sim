@@ -157,6 +157,40 @@ describe('filterJsAdvisoryErrors', () => {
     expect(suppressed).toBe(2);
     expect(errors).toEqual([]);
   });
+
+  // eval-4 F8: apps without @forge/* installed locally still run under
+  // forge-sim (loader hooks shim the imports), so TS2307 against @forge/*
+  // specifiers is pure noise on a working deploy — 10 of them, in the eval.
+  it('suppresses TS2307 for @forge/* specifiers when app has no tsconfig (eval-4 F8)', () => {
+    const errs: TypeCheckError[] = [
+      { file: 'src/index.js', line: 1, column: 1, code: 'TS2307', message: "Cannot find module '@forge/api' or its corresponding type declarations." },
+      { file: 'src/consumer.js', line: 2, column: 1, code: 'TS2307', message: "Cannot find module '@forge/kvs' or its corresponding type declarations." },
+      { file: 'src/index.js', line: 5, column: 10, code: 'TS2307', message: "Cannot find module './missing.js'" },
+    ];
+    const { errors, suppressed, shimSuppressed } = filterJsAdvisoryErrors(errs, false);
+    expect(shimSuppressed).toBe(2);
+    expect(suppressed).toBe(0);
+    // Real resolution failures (relative imports, non-@forge packages) stay
+    expect(errors).toEqual([errs[2]]);
+  });
+
+  it('keeps @forge/* TS2307 when the app has its own tsconfig (opted in)', () => {
+    const errs: TypeCheckError[] = [
+      { file: 'src/index.ts', line: 1, column: 1, code: 'TS2307', message: "Cannot find module '@forge/api' or its corresponding type declarations." },
+    ];
+    const { errors, shimSuppressed } = filterJsAdvisoryErrors(errs, true);
+    expect(shimSuppressed).toBe(0);
+    expect(errors).toEqual(errs);
+  });
+
+  it('applies @forge/* TS2307 suppression to .ts files too (criterion is the specifier, not the extension)', () => {
+    const errs: TypeCheckError[] = [
+      { file: 'src/index.ts', line: 1, column: 1, code: 'TS2307', message: "Cannot find module '@forge/resolver' or its corresponding type declarations." },
+    ];
+    const { errors, shimSuppressed } = filterJsAdvisoryErrors(errs, false);
+    expect(shimSuppressed).toBe(1);
+    expect(errors).toEqual([]);
+  });
 });
 
 describe('JS_ADVISORY_CODES', () => {

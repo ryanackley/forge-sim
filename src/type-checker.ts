@@ -64,19 +64,40 @@ export const JS_ADVISORY_CODES = new Set([
 const JS_FILE_RE = /\.(js|jsx|mjs|cjs)$/i;
 
 /**
+ * TS2307 for an `@forge/*` specifier is a false positive under forge-sim:
+ * the loader hooks shim those imports at runtime, so the app works without
+ * the packages installed locally (eval-4 F8: 10 spurious "Cannot find
+ * module '@forge/api'" errors on a working deploy). Only suppressed in
+ * synthetic-config mode — an app with its own tsconfig opted into full
+ * checking and would see the same diagnostic in its editor anyway.
+ */
+const FORGE_SHIM_UNRESOLVED_RE = /Cannot find module '@forge\//;
+
+/**
  * Drop advisory diagnostics from plain-JS files when the app never opted
  * into type checking (no tsconfig.json of its own). Returns the kept
- * errors plus how many were suppressed (for a one-line info log).
+ * errors plus how many were suppressed (for a one-line info log), with
+ * unresolved-`@forge/*` suppressions counted separately so the log can
+ * explain each accurately.
  */
 export function filterJsAdvisoryErrors(
   errors: TypeCheckError[],
   hasOwnTsconfig: boolean
-): { errors: TypeCheckError[]; suppressed: number } {
-  if (hasOwnTsconfig) return { errors, suppressed: 0 };
-  const kept = errors.filter(
-    e => !(JS_ADVISORY_CODES.has(e.code) && JS_FILE_RE.test(e.file))
-  );
-  return { errors: kept, suppressed: errors.length - kept.length };
+): { errors: TypeCheckError[]; suppressed: number; shimSuppressed: number } {
+  if (hasOwnTsconfig) return { errors, suppressed: 0, shimSuppressed: 0 };
+  let shimSuppressed = 0;
+  const kept = errors.filter(e => {
+    if (e.code === 'TS2307' && FORGE_SHIM_UNRESOLVED_RE.test(e.message)) {
+      shimSuppressed++;
+      return false;
+    }
+    return !(JS_ADVISORY_CODES.has(e.code) && JS_FILE_RE.test(e.file));
+  });
+  return {
+    errors: kept,
+    suppressed: errors.length - kept.length - shimSuppressed,
+    shimSuppressed,
+  };
 }
 
 /** Synthetic tsconfig content for JS-only projects.
@@ -213,11 +234,17 @@ export function typeCheck(appDir: string): TypeCheckError[] {
   } catch (err: any) {
     // tsc exits non-zero when there are errors; stdout contains the diagnostics
     const output = (err.stdout || '') + (err.stderr || '');
-    const { errors, suppressed } = filterJsAdvisoryErrors(parseTscOutput(output), hasOwnTsconfig);
+    const { errors, suppressed, shimSuppressed } = filterJsAdvisoryErrors(parseTscOutput(output), hasOwnTsconfig);
     if (suppressed > 0) {
       console.log(
         `  ℹ️  ${suppressed} type-strictness diagnostic(s) in plain-JS files suppressed ` +
         `(only fixable with JSDoc annotations) — add a tsconfig.json to opt in`
+      );
+    }
+    if (shimSuppressed > 0) {
+      console.log(
+        `  ℹ️  ${shimSuppressed} "Cannot find module '@forge/...'" diagnostic(s) suppressed — ` +
+        `forge-sim shims these imports at runtime. Install the @forge/* packages for editor types.`
       );
     }
     return errors;
@@ -326,12 +353,20 @@ export function startTypeCheckWatch(options: TypeCheckWatchOptions): TypeCheckWa
       // Parse all errors from this cycle's buffer
       const filtered = filterJsAdvisoryErrors(parseTscOutput(buffer), hasOwnTsconfig);
       errors = filtered.errors;
-      if (filtered.suppressed > 0 && !loggedSuppression) {
+      if ((filtered.suppressed > 0 || filtered.shimSuppressed > 0) && !loggedSuppression) {
         loggedSuppression = true;
-        console.log(
-          `  ℹ️  ${filtered.suppressed} type-strictness diagnostic(s) in plain-JS files suppressed ` +
-          `(only fixable with JSDoc annotations) — add a tsconfig.json to opt in`
-        );
+        if (filtered.suppressed > 0) {
+          console.log(
+            `  ℹ️  ${filtered.suppressed} type-strictness diagnostic(s) in plain-JS files suppressed ` +
+            `(only fixable with JSDoc annotations) — add a tsconfig.json to opt in`
+          );
+        }
+        if (filtered.shimSuppressed > 0) {
+          console.log(
+            `  ℹ️  ${filtered.shimSuppressed} "Cannot find module '@forge/...'" diagnostic(s) suppressed — ` +
+            `forge-sim shims these imports at runtime. Install the @forge/* packages for editor types.`
+          );
+        }
       }
       const critical = filterCriticalErrors(errors);
       checking = false;
