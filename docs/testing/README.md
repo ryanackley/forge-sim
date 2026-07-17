@@ -163,92 +163,23 @@ describe('My Forge App', () => {
 
 ### Anatomy of a Manifest
 
-If you're new to Forge, here is a complete `manifest.yml` showing every module type this guide tests, annotated with the sim API that exercises each one. You don't need all of these — a resolver-backed UI module and one `function` entry is a perfectly good app.
+forge-sim reads your standard, unmodified `manifest.yml` — the format is Atlassian's, and the authoritative documentation is the [Forge manifest reference](https://developer.atlassian.com/platform/forge/manifest-reference/). If you're new to Forge manifests, start there.
 
-```yaml
-app:
-  id: ari:cloud:ecosystem::app/my-app-id   # any string works in forge-sim
-  runtime:
-    name: nodejs22.x
+What *is* forge-sim's job is how each module type maps to the sim API that exercises it:
 
-modules:
-  # ── UI module (issue panel) ─────────────────────────────────────
-  # render: native = UIKit 2. resource points at your frontend entry;
-  # resolver.function points at the backend function below.
-  # Exercise with: sim.ui.render('items-panel') / sim.invoke('resolver', ...)
-  jira:issuePanel:
-    - key: items-panel
-      resource: main
-      render: native
-      resolver:
-        function: resolver
-      title: Items
-      icon: https://example.com/icon.svg   # required by the module type
+| Manifest module | Exercise with | Guide section |
+|-----------------|---------------|---------------|
+| UI modules (`jira:issuePanel`, macros, …) | `sim.ui.render('<key>')` / `sim.invoke('<resolver fn>', …)` | [UIKit 2 Rendering](#uikit-2-rendering) |
+| `trigger` | `sim.fireTrigger('avi:jira:created:issue', payload)` | [Trigger Tests](#trigger-tests) |
+| `scheduledTrigger` | `sim.fireScheduledTrigger('<key>')` (also fires once at `deploy()` for `runOn: deployment`) | [Trigger Tests](#trigger-tests) |
+| `consumer` | `sim.queue.push('<queue>', { body })` or `Queue.push()` in app code | [Queue / Consumer Tests](#queue--consumer-tests) |
+| `webtrigger` | `sim.fireWebTrigger('<key>', request)` | [Trigger Tests](#trigger-tests) |
 
-  # ── Backend functions ───────────────────────────────────────────
-  # Every handler your app runs needs a function entry. handler is
-  # "<file path relative to src/>.<export name>".
-  function:
-    - key: resolver
-      handler: index.handler          # src/index.ts, export const handler
-    - key: on-issue-created
-      handler: triggers.onIssueCreated
-    - key: nightly-job
-      handler: jobs.nightly
-    - key: process-item
-      handler: consumers.processItem
-    - key: incoming-hook
-      handler: web.incomingHook
+A few sim-specific notes:
 
-  # ── Product event trigger ───────────────────────────────────────
-  # Exercise with: sim.fireTrigger('avi:jira:created:issue', payload)
-  trigger:
-    - key: issue-created-trigger
-      function: on-issue-created
-      events:
-        - avi:jira:created:issue
-
-  # ── Scheduled trigger ───────────────────────────────────────────
-  # Fires once at deploy() by default (great for migrations); fire
-  # on demand with sim.fireScheduledTrigger('nightly')
-  scheduledTrigger:
-    - key: nightly
-      function: nightly-job
-      interval: day                   # hour | day | week
-
-  # ── Async events queue consumer ─────────────────────────────────
-  # Push with @forge/events Queue({ key: 'item-queue' }).push(...) in app
-  # code, or sim.queue.push('item-queue', { body: {...} }) from tests.
-  consumer:
-    - key: item-consumer
-      queue: item-queue
-      function: process-item
-
-  # ── Web trigger (inbound HTTP endpoint) ─────────────────────────
-  # Exercise with: sim.fireWebTrigger('incoming-webhook', request), or
-  # HTTP POST to /__trigger/incoming-webhook when `forge-sim dev` is running.
-  webtrigger:
-    - key: incoming-webhook
-      function: incoming-hook
-
-# Frontend entry for UI modules — JSX/TSX is compiled on the fly.
-resources:
-  - key: main
-    path: src/frontend/index.tsx
-
-# Parsed but not enforced by forge-sim (no permission failures locally);
-# keep them accurate so the app deploys cleanly to real Forge.
-permissions:
-  scopes:
-    - read:jira-work
-    - write:jira-work
-  external:
-    fetch:
-      backend:
-        - api.example.com
-```
-
-The same manifest keys map 1:1 to the [Testing Patterns](#testing-patterns) sections below: `trigger` → [Trigger Tests](#trigger-tests), `consumer` → [Queue / Consumer Tests](#queue--consumer-tests), UI modules → [UIKit 2 Rendering](#uikit-2-rendering).
+- `app.id` can be any string locally — no registration needed.
+- `permissions` are parsed but not enforced (no permission failures locally); keep them accurate so the app deploys cleanly to real Forge.
+- `resources` pointing at JSX/TSX are compiled on the fly.
 
 ---
 
