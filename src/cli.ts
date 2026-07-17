@@ -227,7 +227,10 @@ else if (command === 'deploy') {
     if (result.success) {
       console.log(`✅ Deployed${result.app?.name ? ` "${result.app.name}"` : ''}`);
       console.log(`   Functions: ${result.loadedFunctions?.join(', ') || 'none'}`);
-      if (result.resolvers?.length) console.log(`   Resolvers: ${result.resolvers.map((r: any) => r.key).join(', ')}`);
+      // /api/deploy returns resolvers as a plain string[] of keys (unlike
+      // triggers/consumers/uiModules which are objects) — mapping `.key`
+      // here printed "Resolvers: , , ," (eval-5 bonus find).
+      if (result.resolvers?.length) console.log(`   Resolvers: ${result.resolvers.map((r: any) => typeof r === 'string' ? r : r.key).join(', ')}`);
       if (result.triggers?.length) console.log(`   Triggers:  ${result.triggers.map((t: any) => t.key).join(', ')}`);
       if (result.consumers?.length) console.log(`   Consumers: ${result.consumers.map((c: any) => c.key).join(', ')}`);
       if (result.uiModules?.length) console.log(`   UI:        ${result.uiModules.map((u: any) => u.key).join(', ')}`);
