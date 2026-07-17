@@ -90,7 +90,7 @@ http://localhost:5173/?theme=light
 
 Your app's theme init should read `?theme=` from `window.location.search`; the same code works in both forge-sim and production. Omit the param to fall back to OS preference (`prefers-color-scheme`). Bookmark both if you toggle often.
 
-> Atlaskit gotcha: components require `setGlobalTheme({ colorMode, light, dark, spacing, typography, shape, motion })` at app boot, otherwise they render with unresolved tokens and can appear invisible.
+> Atlaskit gotcha: components require `setGlobalTheme({ colorMode, light, dark, spacing, typography, shape })` at app boot, otherwise they render with unresolved tokens and can appear invisible.
 
 ---
 

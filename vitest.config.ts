@@ -1,7 +1,17 @@
 import { defineConfig } from 'vitest/config';
 import { resolve } from 'path';
+import { tmpdir } from 'os';
+import { realpathSync } from 'fs';
 
 export default defineConfig({
+  // vite >= 6.4.2 (security backport) gates vite-node's fs reads on
+  // server.fs.allow — including the rewritten dynamic import() in our
+  // deployer, which loads per-deploy handler bundles written into the app
+  // dir. Several tests deploy apps from os.tmpdir(), so allow it (both the
+  // symlink and its realpath; macOS tmpdirs live under /var -> /private/var).
+  server: {
+    fs: { allow: [__dirname, tmpdir(), realpathSync(tmpdir())] },
+  },
   test: {
     globals: true,
     exclude: ['**/node_modules/**', '**/renderer/**', '**/e2e/**'],

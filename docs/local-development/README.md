@@ -109,9 +109,8 @@ setGlobalTheme({
   light: 'light',
   dark: 'dark',
   spacing: 'spacing',
-  typography: 'typography',
+  typography: 'typography-adg3',
   shape: 'shape',
-  motion: 'motion',
 });
 ```
 
