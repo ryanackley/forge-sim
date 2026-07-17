@@ -275,6 +275,60 @@ export async function createDevServer(options: DevServerOptions = {}): Promise<D
 
   // ── RPC handler (browser mode) ─────────────────────────────────────
 
+  /**
+   * Resolve the ForgeContext for a module — the SINGLE source of truth used
+   * by both the `getContext` RPC (what useProductContext/view.getContext see)
+   * and the `invoke` RPC (what the resolver's req.context is built from).
+   *
+   * Keeping these on one code path is a parity requirement: in real Forge the
+   * frontend context and the resolver's context.extension describe the same
+   * placement. (0.1.1 eval HIGH-1: invoke used to drop context entirely, so
+   * `context.extension.project.key` — the canonical Forge pattern — was
+   * silently null in every resolver called through the UI bridge.)
+   */
+  async function resolveModuleContext(
+    reqModuleKey: string | undefined,
+    contextOptions: Record<string, any> | undefined,
+  ): Promise<any> {
+    // If the client sent context options (from URL query params),
+    // build a rich context using buildForgeContext
+    if (contextOptions && simulator) {
+      const { buildForgeContext } = await import('./context.js');
+      // Look up the module type from the manifest if available
+      const manifest = simulator.getManifest?.();
+      const mod = manifest?.uiModules.find((m: any) => m.key === reqModuleKey);
+      const moduleType = mod?.type ?? 'jira:issuePanel';
+      return buildForgeContext(simulator, reqModuleKey ?? 'sim-module', moduleType, contextOptions);
+    }
+
+    // If the client sent a moduleKey, rebuild context for that module
+    if (reqModuleKey && context) {
+      const ctx = { ...context, moduleKey: reqModuleKey, extension: { ...context.extension } };
+      // Inject stored field value for custom field modules
+      const cfBaseKey = reqModuleKey.replace(/--(?:view|edit)$/, '');
+      if (cfBaseKey !== reqModuleKey && fieldValues.has(cfBaseKey)) {
+        ctx.extension.fieldValue = fieldValues.get(cfBaseKey);
+      }
+      // Inject stored config for macro modules. Two key shapes:
+      //   - Custom config sub-modules:  "<base>--view" / "<base>--config"
+      //     → strip the suffix to find the base key
+      //   - Inline config:              flat "<key>" with stored config
+      const macroBaseKey = reqModuleKey.replace(/--(?:view|config)$/, '');
+      if (macroConfigs.has(macroBaseKey)) {
+        ctx.extension.config = macroConfigs.get(macroBaseKey);
+      } else if (macroConfigs.has(reqModuleKey)) {
+        ctx.extension.config = macroConfigs.get(reqModuleKey);
+      }
+      return ctx;
+    }
+
+    // Fall back to the default context passed at startup
+    if (context) return context;
+    const { buildDefaultContext } = await import('./context.js');
+    const account = simulator?.productApi.connectedAccount;
+    return buildDefaultContext(reqModuleKey ?? 'sim-module', undefined, account);
+  }
+
   async function handleRpc(method: string, params: any): Promise<any> {
     if (!simulator) {
       throw new Error(`No simulator connected. Pass { simulator } to createDevServer() for browser mode.`);
@@ -282,8 +336,20 @@ export async function createDevServer(options: DevServerOptions = {}): Promise<D
 
     switch (method) {
       case 'invoke': {
-        const { functionKey, payload, moduleKey } = params;
-        return simulator.invoke(functionKey, payload, { moduleKey });
+        const { functionKey, payload, moduleKey, contextOptions } = params;
+        // Thread the module's context to the resolver — same context object
+        // the frontend sees via getContext, so `context.extension.*` (and
+        // accountId/cloudId/siteUrl) match real Forge's resolver req.context.
+        const ctx = await resolveModuleContext(moduleKey, contextOptions);
+        return simulator.invoke(functionKey, payload, {
+          moduleKey,
+          context: {
+            accountId: ctx.accountId,
+            cloudId: ctx.cloudId,
+            siteUrl: ctx.siteUrl,
+          },
+          ...(ctx.extension ? { extension: ctx.extension } : {}),
+        });
       }
 
       case 'invokeRemote': {
@@ -330,44 +396,7 @@ export async function createDevServer(options: DevServerOptions = {}): Promise<D
 
       case 'getContext': {
         const { moduleKey: reqModuleKey, contextOptions } = params ?? {};
-
-        // If the client sent context options (from URL query params),
-        // build a rich context using buildForgeContext
-        if (contextOptions && simulator) {
-          const { buildForgeContext } = await import('./context.js');
-          // Look up the module type from the manifest if available
-          const manifest = simulator.getManifest?.();
-          const mod = manifest?.uiModules.find((m: any) => m.key === reqModuleKey);
-          const moduleType = mod?.type ?? 'jira:issuePanel';
-          return buildForgeContext(simulator, reqModuleKey ?? 'sim-module', moduleType, contextOptions);
-        }
-
-        // If the client sent a moduleKey, rebuild context for that module
-        if (reqModuleKey && context) {
-          const ctx = { ...context, moduleKey: reqModuleKey, extension: { ...context.extension } };
-          // Inject stored field value for custom field modules
-          const cfBaseKey = reqModuleKey.replace(/--(?:view|edit)$/, '');
-          if (cfBaseKey !== reqModuleKey && fieldValues.has(cfBaseKey)) {
-            ctx.extension.fieldValue = fieldValues.get(cfBaseKey);
-          }
-          // Inject stored config for macro modules. Two key shapes:
-          //   - Custom config sub-modules:  "<base>--view" / "<base>--config"
-          //     → strip the suffix to find the base key
-          //   - Inline config:              flat "<key>" with stored config
-          const macroBaseKey = reqModuleKey.replace(/--(?:view|config)$/, '');
-          if (macroConfigs.has(macroBaseKey)) {
-            ctx.extension.config = macroConfigs.get(macroBaseKey);
-          } else if (macroConfigs.has(reqModuleKey)) {
-            ctx.extension.config = macroConfigs.get(reqModuleKey);
-          }
-          return ctx;
-        }
-
-        // Fall back to the default context passed at startup
-        if (context) return context;
-        const { buildDefaultContext } = await import('./context.js');
-        const account = simulator?.productApi.connectedAccount;
-        return buildDefaultContext('sim-module', undefined, account);
+        return resolveModuleContext(reqModuleKey, contextOptions);
       }
 
       case 'viewSubmit': {

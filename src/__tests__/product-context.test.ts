@@ -299,20 +299,25 @@ describe('Context + Resolver integration', () => {
     await sim.deploy(new URL('../__tests__/fixtures/simple-panel', import.meta.url).pathname);
 
     sim.resolver.define('whoami', async (req: any) => ({
-      issueKey: req.context.issueKey,
-      projectKey: req.context.projectKey,
+      // Real Forge delivers placement data nested under context.extension —
+      // never as top-level context.issueKey/projectKey (0.1.1 eval HIGH-1).
+      issueKey: req.context.extension?.issueKey,
+      projectKey: req.context.extension?.projectKey,
       moduleKey: req.context.moduleKey,
+      flattenedIssueKey: req.context.issueKey ?? null,
     }));
 
     await sim.ui.render('simple-panel', {
       context: { issueKey: 'PROJ-42', projectKey: 'PROJ' },
     });
 
-    // Invoke after render — sees the render's overlay (extension fields flattened)
+    // Invoke after render — sees the render's overlay (extension nested,
+    // matching real Forge's resolver req.context shape)
     const result = await sim.invoke('whoami');
     expect(result.issueKey).toBe('PROJ-42');
     expect(result.projectKey).toBe('PROJ');
     expect(result.moduleKey).toBe('simple-panel');
+    expect(result.flattenedIssueKey).toBeNull();
 
     // And critically: render did NOT mutate sticky `setContext()` overrides.
     // Anyone who poked at `getContextOverrides()` to read "what did the user

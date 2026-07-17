@@ -422,11 +422,15 @@ async function callBridge(cmd: string, data?: any): Promise<any> {
           moduleKey: getModuleKeyFromURL(),
         });
       }
-      // Route to forge-sim backend
+      // Route to forge-sim backend. contextOptions rides along so the
+      // dev server builds the resolver's req.context from the SAME
+      // placement data the frontend's getContext sees — real Forge
+      // delivers matching context.extension to both sides.
       return rpc('invoke', {
         functionKey: data?.functionKey,
         payload: data?.payload,
         moduleKey: getModuleKeyFromURL(),
+        contextOptions: getContextFromURL(),
       });
 
     case 'fetchProduct':
@@ -508,7 +512,12 @@ installBridgeShim();
 // These match the real @forge/bridge exports so this file works as a drop-in
 
 export async function invoke<T = any>(functionKey: string, payload?: Record<string, any>): Promise<T> {
-  return rpc('invoke', { functionKey, payload });
+  return rpc('invoke', {
+    functionKey,
+    payload,
+    moduleKey: getModuleKeyFromURL(),
+    contextOptions: getContextFromURL(),
+  });
 }
 
 export function makeInvoke() {

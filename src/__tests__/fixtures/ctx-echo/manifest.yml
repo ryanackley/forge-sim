@@ -1,0 +1,20 @@
+modules:
+  jira:issuePanel:
+    - key: ctx-echo
+      resource: main
+      resolver:
+        function: resolver
+      render: native
+      title: Context Echo
+
+  function:
+    - key: resolver
+      handler: src/resolver.handler
+
+resources:
+  - key: main
+    path: src/frontend.tsx
+
+app:
+  id: ari:cloud:ecosystem::app/ctx-echo-test
+  name: Context Echo Test

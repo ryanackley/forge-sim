@@ -4,7 +4,7 @@ import { kvs } from '@forge/kvs';
 const resolver = new Resolver();
 
 resolver.define('getIssueSummary', async (req: any) => {
-  const issueKey = req.context?.issueKey ?? 'UNKNOWN';
+  const issueKey = req.context?.extension?.issueKey ?? 'UNKNOWN';
   
   // Track view count
   const views = ((await kvs.get(`views:${issueKey}`)) as number) ?? 0;
@@ -18,7 +18,7 @@ resolver.define('getIssueSummary', async (req: any) => {
 });
 
 resolver.define('getIssueComments', async (req: any) => {
-  const issueKey = req.context?.issueKey ?? 'UNKNOWN';
+  const issueKey = req.context?.extension?.issueKey ?? 'UNKNOWN';
   return {
     comments: [
       { author: 'alice', text: `First comment on ${issueKey}` },

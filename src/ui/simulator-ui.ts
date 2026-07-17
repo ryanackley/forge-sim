@@ -797,16 +797,21 @@ export class SimulatorUI {
     // `sim.invoke('fn', payload, { context })`, which is also one-shot
     // non-mutating. Replaced (not merged) by the next render() call,
     // cleared by `sim.reset()`.
-    if (forgeContext.extension) {
-      const { type: _type, ...extensionFields } = forgeContext.extension;
-      this.sim.resolver.setRenderContext({
-        ...extensionFields,
-        accountId: forgeContext.accountId,
-        cloudId: forgeContext.cloudId,
-        siteUrl: forgeContext.siteUrl,
-        moduleKey: forgeContext.moduleKey,
-      });
-    }
+    //
+    // Extension data is nested under `extension` — the resolver reads
+    // `context.extension.project.key` etc., matching real Forge's
+    // req.context shape exactly. (0.1.1 eval HIGH-1: an earlier version
+    // spread the extension fields at the top level of the context, which
+    // both broke the canonical `context.extension.*` pattern AND invented
+    // top-level fields like `context.project` that real Forge never
+    // delivers — a double parity violation.)
+    this.sim.resolver.setRenderContext({
+      accountId: forgeContext.accountId,
+      cloudId: forgeContext.cloudId,
+      siteUrl: forgeContext.siteUrl,
+      moduleKey: forgeContext.moduleKey,
+      ...(forgeContext.extension ? { extension: forgeContext.extension } : {}),
+    });
 
     try {
       // Set up a render listener BEFORE the import, so we don't miss the
