@@ -326,12 +326,36 @@ export function findByTypeAndText(
   return matches[idx];
 }
 
+/**
+ * React `useId` tokens look like `:rootr0:` / `:r1:` — the counter increments
+ * on every mount, so ids differ between renders of the same UI. That's
+ * correct ForgeDoc content (real @forge/react emits it), but it makes
+ * prettyPrint output non-deterministic — noisy for snapshot tests. We
+ * normalize the counter to `#` in id-ish props for display only; the
+ * underlying doc is untouched.
+ */
+const USE_ID_TOKEN = /:([a-zA-Z$]*r)[0-9a-z]+:/g;
+
+function isIdProp(key: string): boolean {
+  return key === 'id' || key === 'labelFor' || key.endsWith('Id') || key.startsWith('aria-');
+}
+
 /** Pretty-print a ForgeDoc tree. */
 export function prettyPrint(doc: ForgeDoc, indent = 0): string {
   const pad = '  '.repeat(indent);
   const propsStr = Object.entries(doc.props)
-    .filter(([, v]) => typeof v !== 'function' && typeof v !== 'object')
-    .map(([k, v]) => `${k}=${JSON.stringify(v)}`)
+    .filter(([k, v]) => {
+      if (typeof v === 'function' || typeof v === 'object' || v === undefined) return false;
+      // `children` also arrives as a prop when it's a plain string, but the
+      // reconciler already materializes it as a `<String>` child node — print
+      // it once (as the child), not twice.
+      if (k === 'children' && doc.children.length > 0) return false;
+      return true;
+    })
+    .map(([k, v]) => {
+      const display = typeof v === 'string' && isIdProp(k) ? v.replace(USE_ID_TOKEN, ':$1#:') : v;
+      return `${k}=${JSON.stringify(display)}`;
+    })
     .join(' ');
 
   let line = `${pad}<${doc.type}`;

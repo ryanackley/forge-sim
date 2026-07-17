@@ -312,6 +312,51 @@ describe('SimulatorUI', () => {
       expect(output).toContain('<Text>');
       expect(output).toContain('text="Hello"');
     });
+
+    // Eval paper cut: "prettyPrint duplicates children props after
+    // interactions; Textfield ids flip between renders — noisy for snapshot
+    // tests." The ForgeDoc itself is real @forge/react output (children
+    // arrives both as a string prop and a materialized <String> child; ids
+    // come from React useId, whose counter increments per mount) — so the
+    // doc stays untouched and prettyPrint normalizes for display.
+    it('omits the children prop when child nodes already carry it', () => {
+      const doc = {
+        type: 'Label', props: { labelFor: 'name', children: 'Name' }, key: 'l1', children: [
+          { type: 'String', props: { text: 'Name' }, key: 's1', children: [] },
+        ],
+      };
+      const output = sim.ui.prettyPrint(doc);
+      expect(output).not.toContain('children=');
+      expect(output).toContain('text="Name"');
+    });
+
+    it('keeps a scalar children prop when there are no child nodes', () => {
+      const doc = { type: 'Label', props: { children: 'Name' }, key: 'l1', children: [] };
+      expect(sim.ui.prettyPrint(doc)).toContain('children="Name"');
+    });
+
+    it('omits undefined-valued props', () => {
+      const doc = { type: 'Textfield', props: { name: 'x', isDisabled: undefined }, key: 't1', children: [] };
+      const output = sim.ui.prettyPrint(doc);
+      expect(output).not.toContain('isDisabled');
+      expect(output).toContain('name="x"');
+    });
+
+    it('normalizes React useId tokens in id-ish props so renders are snapshot-stable', () => {
+      const render1 = { type: 'Textfield', props: { id: 'form-:rootr0:-name', name: 'name' }, key: 't1', children: [] };
+      const render2 = { type: 'Textfield', props: { id: 'form-:rootr1:-name', name: 'name' }, key: 't1', children: [] };
+      const out1 = sim.ui.prettyPrint(render1);
+      expect(out1).toBe(sim.ui.prettyPrint(render2));
+      expect(out1).toContain('id="form-:rootr#:-name"');
+    });
+
+    it('leaves colon-y strings in non-id props alone', () => {
+      const doc = { type: 'Text', props: { testId: ':r3:', value: 'status :error: now' }, key: 't1', children: [] };
+      const output = sim.ui.prettyPrint(doc);
+      // testId ends with "Id" — normalized; value is not an id prop — untouched.
+      expect(output).toContain('testId=":r#:"');
+      expect(output).toContain('value="status :error: now"');
+    });
   });
 
   describe('reset', () => {

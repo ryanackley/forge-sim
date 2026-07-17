@@ -128,7 +128,7 @@ In practice: credentials, secrets, and variables are set-once-and-shared; runtim
 ## Tools
 
 <!-- BEGIN:STATS_COMPACT -->
-2,245 tests · 40 MCP tools · 4 MCP resources
+2,250 tests · 40 MCP tools · 4 MCP resources
 <!-- END:STATS_COMPACT -->
 
 | Tool | Description |
