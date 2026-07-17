@@ -1761,9 +1761,16 @@ export async function devCommand(options: DevCommandOptions) {
 
   // Deploy functions (resolvers, triggers, etc.) — these run on the server side
   // For browser mode, we skip loading UI resources (they'll run in the browser)
+  //
+  // Live count of successfully loaded manifest functions for the Tools UI
+  // header. Dev mode registers handlers through `sim.resolver` (only the
+  // daemon's full deployer populates `sim.functions`), so counting
+  // `sim.functions` here always showed "0 registered" (eval 3.7).
+  let registeredFunctionCount = 0;
   try {
     console.log(`     Resolver before deploy: [${[...sim.resolver.getHandlerMap().keys()].join(', ')}]`);
     const deployResult = await deployResolversOnly(sim, appDir, manifest);
+    registeredFunctionCount = deployResult.loadedFunctions.length;
     console.log(`     Resolver after deploy: [${[...sim.resolver.getHandlerMap().keys()].join(', ')}]`);
     if (deployResult.loadedFunctions.length > 0) {
       console.log(`     Loaded ${deployResult.loadedFunctions.length} function(s): ${deployResult.loadedFunctions.join(', ')}`);
@@ -1867,6 +1874,7 @@ export async function devCommand(options: DevCommandOptions) {
     const pass = redeployChain.then(async () => {
       const freshManifest = await parseManifest(manifestPath);
       const result = await deployResolversOnly(sim, appDir, freshManifest, { reload: true });
+      registeredFunctionCount = result.loadedFunctions.length;
       if (result.errors.length > 0) {
         for (const err of result.errors) {
           console.warn(`  ⚠️  ${err.functionKey}: ${err.error}`);
@@ -1915,7 +1923,7 @@ export async function devCommand(options: DevCommandOptions) {
     // We can't reuse attachToolsToVite() (it depends on Vite's connect server
     // and httpServer), so we replicate its behavior on top of our proxy primitives.
     const { createApiHandler } = await import('./tools/api.js');
-    const { generateFallbackHTML, handleOAuthCallback } = await import('./tools/server.js');
+    const { generateFallbackHTML, handleOAuthCallback, appDisplayName } = await import('./tools/server.js');
     const { OAUTH_CALLBACK_PATH } = await import('./auth/oauth-callback-registry.js');
     const { WebSocketServer, WebSocket } = await import('ws');
     const TOOLS_PREFIX = '/__tools';
@@ -1981,14 +1989,14 @@ export async function devCommand(options: DevCommandOptions) {
         type: 'init',
         data: {
           manifest: {
-            appName: manifest.raw.app?.name ?? 'Unknown',
+            appName: appDisplayName(manifest, appDir),
             functions: manifest.functions.size,
             uiModules: manifest.uiModules.length,
             consumers: manifest.consumers.length,
             triggers: manifest.triggers.length,
             scheduledTriggers: manifest.scheduledTriggers.length,
           },
-          functionCount: sim.functions.keys().length,
+          functionCount: registeredFunctionCount,
         },
       }));
 
@@ -2250,7 +2258,13 @@ export async function devCommand(options: DevCommandOptions) {
 
     // 8. Start Forge Sim Tools (uses Vite's HTTP server via middleware)
     const { attachToolsToVite } = await import('./tools/server.js');
-    const toolsServer = attachToolsToVite({ sim, manifest, viteServer, appDir });
+    const toolsServer = attachToolsToVite({
+      sim,
+      manifest,
+      viteServer,
+      appDir,
+      getRegisteredFunctionCount: () => registeredFunctionCount,
+    });
 
     // Hook simulator logs into tools broadcast
     sim.onLog((entry: any) => {

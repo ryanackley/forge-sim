@@ -12,7 +12,7 @@
 
 import { type IncomingMessage, type ServerResponse } from 'node:http';
 import { WebSocketServer, WebSocket } from 'ws';
-import { resolve } from 'node:path';
+import { resolve, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { ViteDevServer } from 'vite';
 import type { ForgeSimulator } from '../simulator.js';
@@ -34,6 +34,13 @@ export interface ToolsServerOptions {
   viteServer: ViteDevServer;
   /** App directory path */
   appDir?: string;
+  /**
+   * Live count of successfully loaded manifest functions, maintained by the
+   * dev command across hot-redeploys. Dev mode registers handlers through
+   * `sim.resolver` (only the daemon's full deployer populates `sim.functions`),
+   * so counting `sim.functions` here always showed "0 registered" (eval 3.7).
+   */
+  getRegisteredFunctionCount?: () => number;
 }
 
 export interface ToolsServer {
@@ -47,6 +54,18 @@ export interface ToolsServer {
   readonly clientCount: number;
   /** Close the server */
   close(): void;
+}
+
+/**
+ * Human-friendly app name for the Tools UI header.
+ *
+ * `app.name` is optional in real Forge manifests — the display name usually
+ * lives in the developer console, not the manifest — so most apps used to
+ * show up as "Unknown" in the header (eval 3.7). Fall back to the app
+ * directory's basename, which is what developers actually call the project.
+ */
+export function appDisplayName(manifest: ParsedManifest, appDir?: string): string {
+  return manifest.raw.app?.name ?? (appDir ? basename(resolve(appDir)) : 'Forge App');
 }
 
 /**
@@ -72,7 +91,7 @@ export async function handleOAuthCallback(url: URL, res: ServerResponse): Promis
  * WebSocket connections to /__tools/ws get upgraded to the tools WS.
  */
 export function attachToolsToVite(options: ToolsServerOptions): ToolsServer {
-  const { sim, manifest, viteServer, appDir } = options;
+  const { sim, manifest, viteServer, appDir, getRegisteredFunctionCount } = options;
   const clients = new Set<WebSocket>();
 
   // Wire the api handler to broadcastStateChange so the Providers panel
@@ -175,14 +194,14 @@ export function attachToolsToVite(options: ToolsServerOptions): ToolsServer {
       type: 'init',
       data: {
         manifest: {
-          appName: manifest.raw.app?.name ?? 'Unknown',
+          appName: appDisplayName(manifest, appDir),
           functions: manifest.functions.size,
           uiModules: manifest.uiModules.length,
           consumers: manifest.consumers.length,
           triggers: manifest.triggers.length,
           scheduledTriggers: manifest.scheduledTriggers.length,
         },
-        functionCount: sim.functions.keys().length,
+        functionCount: getRegisteredFunctionCount?.() ?? sim.functions.keys().length,
       },
     }));
 
