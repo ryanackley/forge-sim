@@ -755,7 +755,26 @@ sim.ui.interactWith(type: string, options?: {
   event?: string;       // Default: 'onClick'
   args?: any[];
 }): Promise<{ result: any; updatedDoc: ForgeDoc }>
+sim.ui.fillField(moduleKey: string, name: string, value: unknown): void
 ```
+
+`fillField` fires the same onChange a user typing/selecting would: Textfield/TextArea get a synthetic input event; Select resolves the value against the component's options and emits the `{ label, value }` option object react-select emits (arrays for `isMulti`).
+
+### Quiescence — settling async UI state
+
+`sim.ui.render()` only awaits the initial reconcile; data fetched in a `useEffect` lands later. These helpers wait out the `invoke → setState → effect` chain so interactions can't be clobbered by a late effect:
+
+```typescript no-check
+sim.ui.waitForContent(moduleKey: string, text: string, timeoutMs?: number): Promise<ForgeDoc>
+sim.ui.settle(moduleKey?: string, options?: { quietMs?: number; timeoutMs?: number }): Promise<ForgeDoc | null>
+sim.pendingInvokes: number                                          // resolver invocations in flight
+sim.idle(options?: { quietMs?: number; timeoutMs?: number }): Promise<void>
+```
+
+- **`waitForContent`** waits for the text to appear **and** for the UI to settle (renders quiet + zero pending invokes), then re-verifies the text. The returned doc is the settled tree — safe to `fillField`/`interact` immediately.
+- **`settle`** waits until no render commits for `quietMs` (default 50ms) and no invokes are in flight; returns the latest doc. Use after a manual `render()` or after an interaction that kicks off async work. If the UI never goes quiet (interval re-renders, hung resolver), it resolves at `timeoutMs` (default 5s) with a warning.
+- **`sim.idle()`** resolves once no resolver invocations are in flight — drains fire-and-forget effect invokes before assertions or shutdown. Throws at `timeoutMs` naming how many invocations are stuck.
+- **`sim.stop()`** calls `idle()` internally (3s cap), so in-flight invokes finish before MySQL shuts down.
 
 ```typescript
 // Example: full integration test

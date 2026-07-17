@@ -668,7 +668,9 @@ it('debug example', async () => {
 | `render(moduleKey, options?)` | Render a UIKit module. Options: `{ issueKey?, projectKey?, contentId?, spaceKey?, context?, extension?, macroConfig? }` — see [module contexts](../reference/module-contexts.md) |
 | `getForgeDoc(moduleKey?)` | Get the current ForgeDoc tree. Omit key for most recent render. |
 | `waitForRender()` | Wait for the next render from any module. |
-| `waitForContent(moduleKey, text)` | Wait until rendered text includes the given string. |
+| `waitForContent(moduleKey, text)` | Wait until rendered text includes the given string **and** the UI settles (renders quiet + no pending invokes). The returned doc is safe to interact with immediately. |
+| `settle(moduleKey?, options?)` | Wait until the UI stops re-rendering and no resolver invokes are in flight; returns the latest doc. Use after a manual `render()` before `fillField`/`interact`. |
+| `fillField(moduleKey, name, value)` | Fire the onChange a user would: input event for Textfield/TextArea, `{ label, value }` option object for Select (arrays for `isMulti`). |
 | `findByType(doc, type)` | Find all nodes of a component type (e.g., `'Button'`, `'Text'`). |
 | `findByTypeAndText(doc, type, text?)` | Find a node by type and optional text content. |
 | `getTextContent(doc)` | Extract all text from a ForgeDoc subtree. |
@@ -870,7 +872,7 @@ The things that have eaten the most debugging time. Check here first when a test
 
 ### `useEffect` + `invoke()` returns the loading state
 
-`sim.ui.render()` only awaits the **initial** reconcile. If your component fetches data in a `useEffect` and re-renders when it lands, the rendered tree from `render()` is the pre-fetch state (`<Text>Loading…</Text>` or similar). Fix: chase it with `sim.ui.waitForContent(moduleKey, expectedText)`; that polls the tree until the substring shows up. Same applies to the MCP `forge.ui_render` tool; use `forge.ui_wait_for` to settle. See [renderer.md § Server-mode useEffect and async state](../reference/renderer.md#server-mode-useeffect-and-async-state).
+`sim.ui.render()` only awaits the **initial** reconcile. If your component fetches data in a `useEffect` and re-renders when it lands, the rendered tree from `render()` is the pre-fetch state (`<Text>Loading…</Text>` or similar). Fix: chase it with `sim.ui.waitForContent(moduleKey, expectedText)` — it waits for the text **and** for the UI to settle (renders quiet, zero pending invokes), so the doc it returns is safe to `fillField`/`interact` with immediately. If you rendered manually and don't have a text landmark, `await sim.ui.settle(moduleKey)` does the same settling without the text match. Same applies to the MCP `forge.ui_render` tool; use `forge.ui_wait_for` to settle. See [renderer.md § Server-mode useEffect and async state](../reference/renderer.md#server-mode-useeffect-and-async-state).
 
 ### Mock product APIs **before** `deploy()` if scheduled triggers run on startup
 

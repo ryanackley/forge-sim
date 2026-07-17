@@ -94,6 +94,8 @@ Features:
 - Mocks product APIs, Forge Remotes, third-party OAuth, and GraphQL by route; unmocked routes can be configured to fall through to a connected real API.
 - Mocks and records `@forge/llm` calls so tests stay offline.
 
+> **Note:** if your app uses `@forge/sql`, the first `sim.sql.start()` on a machine downloads a MySQL binary (one-time, needs network access). Everything else runs fully offline. See the [testing guide](./docs/testing/) for CI caching tips.
+
 **Full guide:** [Automated testing](./docs/testing/) — bundler configuration, every testing pattern, UIKit rendering, mocking, and the programmatic API reference.
 
 ---
@@ -119,10 +121,12 @@ Dev mode features:
 - **Local Debugging tools** — KVS browser, SQL console, log viewer, event triggers at `localhost:5173/__tools/`
 - **Persistent state** — KVS and SQL survive restarts. `--clean` to start fresh.
 
-*🎬 Demo video placeholder — `forge-sim dev`: launch, module index, UIKit panel rendering live, edit a file and watch HMR refresh.*
+<p align="center">
+  <img src="docs/media/dev-uikit-module.png" alt="forge-sim dev rendering a UIKit 2 module with real Atlaskit components" width="720">
+</p>
 
 <!--
-TODO(demo): record dev-mode demo and replace the line above.
+TODO(demo): record dev-mode demo video and add it above.
 To embed on GitHub: edit this file on github.com and drag the .mp4/.mov in;
 it uploads to user-attachments and inserts a bare URL on its own line, which
 GitHub renders as an inline player. (GIFs in the repo work too: docs/media/)

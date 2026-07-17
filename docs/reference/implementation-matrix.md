@@ -78,7 +78,7 @@ The main backend API package. Imported by resolver/trigger/consumer functions.
 | `authorize(provider)` | 🔇 | — | No-op, always resolves |
 | `invokeRemote(key, payload)` | ✅ | `remotes.test.ts` | Full — RemoteProxy with mock-first routing, real HTTP fallback with FIT auth |
 | `invokeService(key, payload)` | ✅ | `remotes.test.ts` | Same system as invokeRemote |
-| `webTrigger.getUrl(key)` | ⚠️ | — | Returns fake URL, not a real endpoint |
+| `webTrigger.getUrl(key)` | ✅ | `web-trigger.test.ts` | Dev server running: real routable local URL (`http://localhost:<port>/x1/<id>`, served). Headless: Forge-shaped synthetic URL; fire the trigger with `sim.fireWebTrigger(key)` instead. `deleteUrl`/`queryUrls` mirrored, including the real v2-URL parse quirk. |
 | `getAppContext()` | ✅ | `shims.test.ts` | Returns real values from manifest (appId, moduleKey) and connected account (cloudId). ARIs match Atlassian format. `invocationRemainingTimeInMillis()` returns 25s. |
 | `__getRuntime()` | 🔇 | — | Internal, undocumented; necessary for `@forge/api` import chain not to explode. Returns `{ isEcosystemApp: false }` |
 | `bindInvocationContext(fn)` | 🔇 | — | Internal, undocumented; necessary for `@forge/api` import chain not to explode. Returns the function unchanged |

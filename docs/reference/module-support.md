@@ -107,7 +107,7 @@ These all follow the **UI + Resolver** or **UI + Custom UI** pattern. They have 
 
 | Module Key | Level | Notes |
 |------------|-------|-------|
-| `jira:uiModifications` | 🔇 Stub | No resource/function in manifest. Host calls `uiModificationsApi.onInit/onChange` from `@forge/jira-bridge`, which we stub as no-ops. **Per Ryan: we don't care about this one.** |
+| `jira:uiModifications` | 🔇 Stub | No resource/function in manifest. Host calls `uiModificationsApi.onInit/onChange` from `@forge/jira-bridge`, which we stub as no-ops. Not planned — niche module; open an issue if you need it. |
 
 ### Full Page (New)
 
