@@ -8,18 +8,15 @@
  */
 
 import { resolve } from 'node:path';
-import { existsSync, readFileSync, writeFileSync, unlinkSync, mkdirSync } from 'node:fs';
+import { existsSync, readFileSync, unlinkSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
-const STATE_DIR = process.env.FORGE_SIM_STATE_DIR
-  ? resolve(process.env.FORGE_SIM_STATE_DIR)
-  : resolve(homedir(), '.forge-sim');
+const STATE_DIR = resolve(homedir(), '.forge-sim');
 const PID_FILE = resolve(STATE_DIR, 'daemon.pid');
 const PORT_FILE = resolve(STATE_DIR, 'daemon.port');
-const DEV_FILE = resolve(STATE_DIR, 'dev.json');
 
 export interface DaemonInfo {
   port: number;
@@ -27,82 +24,9 @@ export interface DaemonInfo {
   running: boolean;
 }
 
-export interface DevServerInfo {
-  port: number;
-  pid: number;
-  appDir: string;
-  running: boolean;
-}
-
 function cleanupStateFiles(): void {
   try { unlinkSync(PID_FILE); } catch { /* ok */ }
   try { unlinkSync(PORT_FILE); } catch { /* ok */ }
-}
-
-// ── Dev-server discovery ────────────────────────────────────────────────
-//
-// `forge-sim dev` writes ~/.forge-sim/dev.json so session CLI commands
-// (invoke, trigger, kvs, sql, ...) can target the running dev server's
-// simulator instead of silently talking to a separate daemon instance
-// (eval paper cut: `forge-sim trigger` → "No manifest loaded" while a dev
-// server with the app deployed was sitting right there).
-
-/** Record a running dev server so the CLI can find it. Called by `forge-sim dev`. */
-export function writeDevServerFile(info: { port: number; pid: number; appDir: string }): void {
-  try {
-    mkdirSync(STATE_DIR, { recursive: true });
-    writeFileSync(DEV_FILE, JSON.stringify(info));
-  } catch { /* discovery is best-effort — dev server works without it */ }
-}
-
-/**
- * Remove the dev-server discovery file — but only if it still belongs to
- * `pid`. A newer dev server may have overwritten it; its record must survive
- * this (older) process's shutdown.
- */
-export function removeDevServerFile(pid: number = process.pid): void {
-  try {
-    const info = JSON.parse(readFileSync(DEV_FILE, 'utf-8'));
-    if (info?.pid === pid) unlinkSync(DEV_FILE);
-  } catch { /* missing or unreadable — nothing to do */ }
-}
-
-/** Check if a dev server is running and healthy (mirrors getDaemonStatus). */
-export async function getDevServerStatus(): Promise<DevServerInfo | null> {
-  if (!existsSync(DEV_FILE)) return null;
-
-  let info: any;
-  try {
-    info = JSON.parse(readFileSync(DEV_FILE, 'utf-8'));
-  } catch {
-    return null;
-  }
-  const pid = Number(info?.pid);
-  const port = Number(info?.port);
-  const appDir = typeof info?.appDir === 'string' ? info.appDir : '';
-  if (!Number.isInteger(pid) || !Number.isInteger(port)) return null;
-
-  // Process alive?
-  try {
-    process.kill(pid, 0);
-  } catch {
-    // Dead process (SIGKILL/crash skipped cleanup) — remove the stale file
-    // so the CLI doesn't keep probing a ghost (same treatment as eval B5).
-    try { unlinkSync(DEV_FILE); } catch { /* ok */ }
-    return { port, pid, appDir, running: false };
-  }
-
-  // Health check via the tools API (shared createApiHandler under /__tools).
-  try {
-    const res = await fetch(`http://127.0.0.1:${port}/__tools/api/health`, {
-      signal: AbortSignal.timeout(2000),
-    });
-    if (res.ok) return { port, pid, appDir, running: true };
-  } catch {
-    return { port, pid, appDir, running: false };
-  }
-
-  return { port, pid, appDir, running: false };
 }
 
 /** Check if the daemon is running and healthy. */
@@ -215,10 +139,14 @@ export async function stopDaemon(): Promise<boolean> {
   }
 }
 
-async function httpRequest(
-  url: string,
+/** Send a request to the daemon. Auto-starts if needed. */
+export async function daemonRequest(
+  path: string,
   options: { method?: string; body?: any; timeout?: number } = {}
 ): Promise<any> {
+  const port = await ensureDaemon();
+  const url = `http://127.0.0.1:${port}${path}`;
+
   const res = await fetch(url, {
     method: options.method ?? 'GET',
     headers: options.body ? { 'Content-Type': 'application/json' } : undefined,
@@ -233,43 +161,4 @@ async function httpRequest(
   }
 
   return data;
-}
-
-/** Send a request to the daemon. Auto-starts if needed. */
-export async function daemonRequest(
-  path: string,
-  options: { method?: string; body?: any; timeout?: number } = {}
-): Promise<any> {
-  const port = await ensureDaemon();
-  return httpRequest(`http://127.0.0.1:${port}${path}`, options);
-}
-
-let announcedDevTarget = false;
-
-/**
- * Send a session request to whichever simulator the user is most likely
- * working against:
- *
- *   1. A running `forge-sim dev` server, if one is up (via ~/.forge-sim/dev.json).
- *      Its tools API exposes the same routes as the daemon under `/__tools`.
- *   2. Otherwise the background daemon (auto-started).
- *
- * Set FORGE_SIM_TARGET=daemon to skip the dev server and force the daemon.
- * Lifecycle commands (deploy, status, stop) should keep using daemonRequest.
- */
-export async function simRequest(
-  path: string,
-  options: { method?: string; body?: any; timeout?: number } = {}
-): Promise<any> {
-  if (process.env.FORGE_SIM_TARGET !== 'daemon') {
-    const dev = await getDevServerStatus();
-    if (dev?.running) {
-      if (!announcedDevTarget) {
-        announcedDevTarget = true;
-        console.error(`  ↪ targeting dev server at http://127.0.0.1:${dev.port} (set FORGE_SIM_TARGET=daemon to use the daemon instead)`);
-      }
-      return httpRequest(`http://127.0.0.1:${dev.port}/__tools${path}`, options);
-    }
-  }
-  return daemonRequest(path, options);
 }

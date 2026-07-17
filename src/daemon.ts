@@ -22,9 +22,7 @@ import { createApiHandler } from './tools/api.js';
 
 // ── Config ──────────────────────────────────────────────────────────────
 
-const STATE_DIR = process.env.FORGE_SIM_STATE_DIR
-  ? resolve(process.env.FORGE_SIM_STATE_DIR)
-  : resolve(homedir(), '.forge-sim');
+const STATE_DIR = resolve(homedir(), '.forge-sim');
 const PID_FILE = resolve(STATE_DIR, 'daemon.pid');
 const PORT_FILE = resolve(STATE_DIR, 'daemon.port');
 const LOG_FILE = resolve(STATE_DIR, 'daemon.log');

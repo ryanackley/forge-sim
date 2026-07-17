@@ -199,9 +199,7 @@ export function createApiHandler(
         }
       }
 
-      // `/api/sql` is an alias for `/api/sql/query` — evals kept guessing the
-      // shorter path and hitting a 404 (paper cut).
-      if ((path === '/api/sql/query' || path === '/api/sql') && method === 'POST') {
+      if (path === '/api/sql/query' && method === 'POST') {
         const body = await readBody(req);
         const query = body.query?.trim();
         if (!query) return json(res, { error: 'No query provided' }, 400);

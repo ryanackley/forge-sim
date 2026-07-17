@@ -79,9 +79,7 @@ Connect to `ws://localhost:5173/__tools/ws` for live updates.
 
 ## HTTP API
 
-All endpoints are under `/__tools/api/`. The [daemon](../reference/cli.md#daemon-lifecycle) serves the same API without the `/__tools` prefix (e.g. `POST http://127.0.0.1:<port>/api/trigger`).
-
-> You usually don't need raw HTTP: session CLI commands (`forge-sim invoke`, `trigger`, `kvs`, `sql`, ...) automatically target a running dev server. See [Session Commands](../reference/cli.md#session-commands).
+All endpoints are under `/__tools/api/`:
 
 | Method | Path | Description |
 |--------|------|-------------|
@@ -92,7 +90,7 @@ All endpoints are under `/__tools/api/`. The [daemon](../reference/cli.md#daemon
 | PUT | `/api/kvs/:key` | Set a KVS value |
 | DELETE | `/api/kvs/:key` | Delete a KVS entry |
 | GET | `/api/sql/tables` | List SQL tables |
-| POST | `/api/sql/query` | Execute a SQL query (`{ "query": "SELECT ..." }`) — `/api/sql` is an alias |
+| POST | `/api/sql/query` | Execute a SQL query |
 | GET | `/api/sql/schema` | Full schema dump |
 | GET | `/api/queues` | Queue statistics |
 | POST | `/api/queue/push` | Push an event to a queue |

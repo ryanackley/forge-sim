@@ -94,14 +94,9 @@ Your app's theme init should read `?theme=` from `window.location.search`; the s
 
 ---
 
-## Session Commands
+## Daemon Commands
 
-These commands operate on a running simulator session. They pick their target automatically:
-
-1. **A running `forge-sim dev` server**, if one is up — `invoke`, `trigger`, `scheduled`, `kvs`, `sql`, `ui`, `logs`, `reset`, and `mock` all hit the dev server's simulator, so you can seed and inspect the session you're looking at in the browser. The CLI prints a one-line notice when it does this.
-2. **Otherwise, the forge-sim daemon** — a background process that maintains simulator state across CLI calls. It auto-starts on first use and auto-exits after 30 minutes of inactivity.
-
-Set `FORGE_SIM_TARGET=daemon` to skip the dev server and force the daemon. `deploy`, `status`, and `stop` always target the daemon — a dev server owns its own deploy lifecycle (it redeploys on save).
+These commands interact with the forge-sim daemon, a background process that maintains simulator state across CLI calls. The daemon auto-starts on first use and auto-exits after 30 minutes of inactivity.
 
 ### `forge-sim deploy`
 
@@ -264,12 +259,9 @@ The daemon is a background HTTP server that maintains simulator state across CLI
 | `~/.forge-sim/daemon.pid` | Process ID |
 | `~/.forge-sim/daemon.port` | Port number |
 | `~/.forge-sim/daemon.log` | Stderr log |
-| `~/.forge-sim/dev.json` | Running `forge-sim dev` server (pid, port, app dir) — lets session commands target it |
 
 - **Auto-starts** on first CLI command (`deploy`, `invoke`, `kvs`, etc.)
 - **Binds to `127.0.0.1`** only (not accessible from network)
 - **Random port** — avoids collisions, written to `~/.forge-sim/daemon.port`
 - **Idle timeout** — exits after 30 minutes with no API calls
 - **`forge-sim stop`** — kills it explicitly
-
-Both the daemon and the dev server expose the same HTTP API (the dev server serves it under the `/__tools` prefix, e.g. `POST http://localhost:5173/__tools/api/trigger`). See [Dev Tools](../local-development/dev-tools.md) for the endpoint list.
