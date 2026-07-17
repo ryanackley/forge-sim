@@ -75,11 +75,6 @@
     "docs:stats": "node scripts/update-stats.mjs",
     "docs:stats:check": "node scripts/update-stats.mjs --check"
   },
-  "overrides": {
-    "mysqldump": {
-      "mysql2": "$mysql2"
-    }
-  },
   "dependencies": {
     "@forge/react": "^12.0.0",
     "@modelcontextprotocol/sdk": "^1.27.1",
@@ -87,7 +82,6 @@
     "jose": "^6.2.1",
     "mysql-memory-server": "^1.14.1",
     "mysql2": "^3.18.2",
-    "mysqldump": "^3.2.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "tsx": "^4.21.0",

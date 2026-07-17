@@ -5,7 +5,7 @@
  * State is stored in the app's .forge-sim/state/ directory:
  *   - entities.json     — KVS + Custom Entities + Secrets, with timestamps
  *   - object-store.json — Object Store objects (blobs base64-encoded)
- *   - sql.dump          — MySQL dump (via mysqldump npm package — pure JS, no binary needed)
+ *   - sql.dump          — MySQL dump (hand-rolled via sql-dump.ts — pure JS, no binary needed)
  *
  * SQL restore uses mysql-memory-server's initSQLFilePath option so state
  * is loaded during MySQL boot — before app migrations run. The dump file
@@ -20,6 +20,7 @@ import { readFile, access } from 'node:fs/promises';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { ForgeSimulator } from './simulator.js';
+import { dumpDatabase } from './sql-dump.js';
 
 const ENTITY_FILE = 'entities.json';
 const OBJECT_STORE_FILE = 'object-store.json';
@@ -61,25 +62,12 @@ export async function saveState(sim: ForgeSimulator, stateDir: string): Promise<
   const connConfig = sim.sql.getConnectionConfig();
   if (sim.sql.isRunning && connConfig) {
     try {
-      const mod = await import('mysqldump');
-      const mysqldump: any = mod.default?.default ?? mod.default;
-      const result = await mysqldump({
-        connection: {
-          host: connConfig.host,
-          port: connConfig.port,
-          user: connConfig.user,
-          password: '',
-          database: connConfig.database,
-        },
-        dump: {
-          schema: { table: { dropIfExist: true } },
-          data: { format: false },
-        },
+      const rawDump = await dumpDatabase({
+        host: connConfig.host,
+        port: connConfig.port,
+        user: connConfig.user,
+        database: connConfig.database,
       });
-
-      const rawDump = [result.dump.schema, result.dump.data]
-        .filter(Boolean)
-        .join('\n');
 
       if (rawDump.trim().length > 0) {
         // Wrap with USE database + foreign key safety for initSQLFilePath restore

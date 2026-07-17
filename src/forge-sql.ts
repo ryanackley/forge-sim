@@ -265,7 +265,7 @@ export class SimulatedForgeSQL {
   }
 
   /**
-   * Get connection config for external tools (e.g., mysqldump npm package).
+   * Get connection config for external tools (e.g., the sql-dump module).
    */
   getConnectionConfig(): { host: string; port: number; user: string; database: string } | null {
     if (!this.db?.port) return null;
