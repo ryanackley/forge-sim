@@ -874,9 +874,11 @@ The things that have eaten the most debugging time. Check here first when a test
 
 `sim.ui.render()` only awaits the **initial** reconcile. If your component fetches data in a `useEffect` and re-renders when it lands, the rendered tree from `render()` is the pre-fetch state (`<Text>Loading…</Text>` or similar). Fix: chase it with `sim.ui.waitForContent(moduleKey, expectedText)` — it waits for the text **and** for the UI to settle (renders quiet, zero pending invokes), so the doc it returns is safe to `fillField`/`interact` with immediately. If you rendered manually and don't have a text landmark, `await sim.ui.settle(moduleKey)` does the same settling without the text match. Same applies to the MCP `forge.ui_render` tool; use `forge.ui_wait_for` to settle. See [renderer.md § Server-mode useEffect and async state](../reference/renderer.md#server-mode-useeffect-and-async-state).
 
-### Mock product APIs **before** `deploy()` if scheduled triggers run on startup
+### Scheduled triggers fire during `deploy()` — mock product APIs first
 
-Scheduled triggers tagged `runOn: deployment` fire during `sim.deploy()`. If they call `requestJira()` and you haven't set up mocks yet, they hit the real API (or fail). Order matters:
+**Every** scheduled trigger fires once during `sim.deploy()`. This mirrors real Forge (each scheduled trigger starts ~5 minutes after deployment, and redeploys reset them all), and it's what runs migration triggers before your tests touch the database. Two consequences:
+
+1. If a scheduled handler calls `requestJira()`, set up mocks **before** deploy:
 
 ```ts
 sim = createSimulator();
@@ -885,9 +887,17 @@ await sim.sql.start();
 await sim.deploy('./my-app');                  // safe now
 ```
 
+2. If a scheduled job has side effects you don't want on every deploy (daily digest, outbound webhook), opt out and fire it explicitly:
+
+```ts
+await sim.deploy('./my-app', { fireScheduledTriggers: false });
+// …later, when the test wants it:
+await sim.fireScheduledTrigger('daily-digest');
+```
+
 ### `sim.sql.start()` order with migrations
 
-If your app declares migrations (typically via a `runOn: deployment` scheduled trigger), `sim.sql.start()` must run **before** `sim.deploy()`; otherwise the migration trigger fires against a non-existent database and fails. Always:
+If your app runs migrations from a scheduled trigger, `sim.sql.start()` must run **before** `sim.deploy()` — scheduled triggers fire during deploy, so otherwise the migration trigger fires against a non-existent database and fails. Always:
 
 ```ts
 await sim.sql.start();

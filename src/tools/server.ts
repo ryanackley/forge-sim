@@ -892,7 +892,7 @@ async function fireScheduled(key) {
     body: JSON.stringify({ key }),
   });
   const result = await res.json();
-  alert(result.statusCode === 204 ? '✅ Success (204)' : '⚠️ Status: ' + result.statusCode + '\\n' + JSON.stringify(result));
+  alert(result.statusCode < 400 ? '✅ Success (' + result.statusCode + ')' : '⚠️ Status: ' + result.statusCode + '\\n' + JSON.stringify(result));
 }
 
 async function pushQueue() {

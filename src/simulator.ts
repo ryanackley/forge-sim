@@ -269,10 +269,15 @@ export class ForgeSimulator {
   /**
    * Deploy a Forge app directory into this simulator.
    * Reads the manifest, imports handler modules, and wires everything up.
+   *
+   * By default each scheduled trigger fires once at deploy time (mirroring
+   * real Forge, where triggers start ~5 minutes after deployment) — pass
+   * `{ fireScheduledTriggers: false }` to skip that and fire them manually
+   * via fireScheduledTrigger().
    */
-  async deploy(appDir: string): Promise<import('./deployer.js').DeployResult> {
+  async deploy(appDir: string, options?: import('./deployer.js').DeployOptions): Promise<import('./deployer.js').DeployResult> {
     const { deploy } = await import('./deployer.js');
-    return deploy(this, appDir);
+    return deploy(this, appDir, options);
   }
 
   // ── Environment Variables ─────────────────────────────────────────────

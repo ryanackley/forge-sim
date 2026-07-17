@@ -157,6 +157,21 @@ export interface DeployWebTriggerSummary {
   function: string;
 }
 
+export interface DeployOptions {
+  /**
+   * Fire each scheduled trigger once at deploy time (default: true).
+   *
+   * Parity note: real Forge starts every scheduled trigger "shortly after it
+   * is created, about 5 minutes after app deployment" and re-creates/resets
+   * them on every redeploy that touches the module — so a deploy-time fire is
+   * the time-compressed equivalent, and it's what makes migration triggers
+   * (okr-tracker pattern) run before tests touch the database. Set to false
+   * when a side-effectful job (daily digest, outbound webhook) shouldn't run
+   * as part of deploy; fire it explicitly with sim.fireScheduledTrigger(key).
+   */
+  fireScheduledTriggers?: boolean;
+}
+
 export interface DeployResult {
   manifest: ParsedManifest;
   loadedFunctions: string[];
@@ -278,7 +293,7 @@ export async function resolveResourceFile(appDir: string, resourcePath: string):
  * 2. For each function in the manifest, resolves the handler file and imports it
  * 3. Wires up resolvers, consumers, and triggers on the simulator
  */
-export async function deploy(sim: ForgeSimulator, appDir: string): Promise<DeployResult> {
+export async function deploy(sim: ForgeSimulator, appDir: string, options: DeployOptions = {}): Promise<DeployResult> {
   const absDir = resolve(appDir);
   const manifestPath = join(absDir, 'manifest.yml');
 
@@ -544,10 +559,13 @@ export async function deploy(sim: ForgeSimulator, appDir: string): Promise<Deplo
   sim.loadManifestData(manifest);
   sim.setAppDir(absDir);
 
-  // 9. Fire scheduled triggers once on deploy
-  // In real Forge, scheduled triggers run on an interval (e.g. hourly).
-  // For simulation, we fire them once at deploy time — this handles migrations
-  // and any other startup tasks that use scheduledTrigger.
+  // 9. Fire scheduled triggers once on deploy (unless opted out)
+  // In real Forge, every scheduled trigger "starts shortly after it is
+  // created, about 5 minutes after app deployment", then repeats on its
+  // interval — so firing each one once at deploy time is the time-compressed
+  // equivalent, and it's what runs migration triggers before tests touch the
+  // database. Opt out with { fireScheduledTriggers: false } for apps whose
+  // scheduled jobs have side effects you don't want on every deploy.
   //
   // Delegates to sim.fireScheduledTrigger — the single source of truth for
   // the request shape ({ context: { cloudId, moduleKey }, contextToken }),
@@ -557,7 +575,8 @@ export async function deploy(sim: ForgeSimulator, appDir: string): Promise<Deplo
   // for those, so hiding them was an inverted parity violation (the
   // okr-tracker silent-424, 2026-07-14). Requires loadManifestData to have
   // run first — see the hoisted call above.
-  for (const st of manifest.scheduledTriggers) {
+  const fireScheduled = options.fireScheduledTriggers !== false;
+  for (const st of fireScheduled ? manifest.scheduledTriggers : []) {
     const handler = handlerExports.get(st.functionKey);
     if (handler && typeof handler === 'function') {
       console.log(` ⏰ Firing scheduled trigger: ${st.key} (${st.functionKey})`);

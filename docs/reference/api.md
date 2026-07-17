@@ -257,9 +257,15 @@ The main orchestrator. All subsystems are accessible as properties:
 ### Deploy & Lifecycle
 
 ```typescript no-check
-sim.deploy(appDir: string): Promise<DeployResult>
+sim.deploy(appDir: string, options?: DeployOptions): Promise<DeployResult>
+
+interface DeployOptions {
+  fireScheduledTriggers?: boolean;  // default: true
+}
 ```
 Deploy a Forge app. Reads `manifest.yml`, imports handlers, wires resolvers/consumers/triggers.
+
+By default, each scheduled trigger fires **once at deploy time**. This mirrors real Forge, where every scheduled trigger starts ~5 minutes after deployment (and redeploys reset/re-create them) — and it's what runs migration triggers before your tests touch the database. If a scheduled job has side effects you don't want on every deploy (daily digest, outbound webhook), pass `{ fireScheduledTriggers: false }` and fire it explicitly with `sim.fireScheduledTrigger(key)`.
 
 ```typescript no-check
 sim.reset(): void

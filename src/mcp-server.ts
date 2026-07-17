@@ -430,7 +430,9 @@ server.tool(
   async ({ triggerKey }) => {
     try {
       const result = await sim.fireScheduledTrigger(triggerKey);
-      const emoji = result.statusCode === 204 ? '✅' : result.statusCode >= 400 ? '❌' : '⚠️';
+      // Any 2xx/3xx is success — a 200 with a body is just as valid as a 204
+      // (eval paper cut: successful fires used to render with a ⚠️ prefix).
+      const emoji = result.statusCode >= 400 ? '❌' : '✅';
       return {
         content: [{
           type: 'text' as const,
