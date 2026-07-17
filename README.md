@@ -19,7 +19,7 @@ is missing or behaves differently, please [open an issue](https://github.com/rya
 
 ## Installation
 
-Requires **Node.js 22.18+** (uses native TypeScript type stripping for `.ts` loader hooks, unflagged since 22.18).
+Requires **Node.js 22.18+** (uses native TypeScript type stripping for `.ts` loader hooks, unflagged since 22.18). The package is **ESM-only** — `require('forge-sim')` throws `ERR_PACKAGE_PATH_NOT_EXPORTED`; use `import` (or dynamic `import()` from CommonJS).
 
 ```bash
 # Global install (CLI: dev server, agent commands, MCP)
@@ -167,7 +167,7 @@ The first command auto-starts a background daemon; state persists across calls a
 For AI agents that support [Model Context Protocol](https://modelcontextprotocol.io/), forge-sim exposes the same operations as MCP tools:
 
 <!-- BEGIN:STATS_COMPACT -->
-2,270 tests · 41 MCP tools · 4 MCP resources
+2,289 tests · 41 MCP tools · 4 MCP resources
 <!-- END:STATS_COMPACT -->
 
 ```bash
@@ -232,8 +232,8 @@ npm run docs:stats:check    # CI guard — fails if stats are stale
 ```
 
 <!-- BEGIN:STATS -->
-**2,270 tests** across **120** test files
-(2,123 core / 116 files
+**2,289 tests** across **121** test files
+(2,142 core / 117 files
 + 147 renderer / 4 files)
 
 **41 MCP tools** + **4 resources**

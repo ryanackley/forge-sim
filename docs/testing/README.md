@@ -64,6 +64,7 @@ export default defineConfig({
       '@forge/confluence-bridge':  'forge-sim/shims/forge-confluence-bridge',
       '@forge/dashboards-bridge':  'forge-sim/shims/forge-dashboards-bridge',
       '@forge/realtime':           'forge-sim/shims/forge-realtime',
+      '@forge/object-store':       'forge-sim/shims/forge-object-store',
     },
   },
   test: {
@@ -94,6 +95,7 @@ module.exports = {
     '^@forge/confluence-bridge$': 'forge-sim/shims/forge-confluence-bridge',
     '^@forge/dashboards-bridge$': 'forge-sim/shims/forge-dashboards-bridge',
     '^@forge/realtime$':          'forge-sim/shims/forge-realtime',
+    '^@forge/object-store$':      'forge-sim/shims/forge-object-store',
   },
 
   // Webpack (resolve.alias section)
@@ -106,6 +108,14 @@ module.exports = {
   // },
 };
 ```
+
+> **⚠️ forge-sim is ESM-only.** `require('forge-sim')` throws
+> `ERR_PACKAGE_PATH_NOT_EXPORTED` — there is no CommonJS build. Use
+> `import` (or dynamic `import()` from CJS code). For Jest specifically,
+> run in ESM mode (`"type": "module"` in package.json, or
+> `extensionsToTreatAsEsm` + `node --experimental-vm-modules`) — a default
+> CJS Jest config will fail to load forge-sim regardless of the mapper
+> entries above. Vitest is ESM-native and needs nothing extra.
 
 ### Plain Node (no bundler)
 

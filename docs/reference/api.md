@@ -192,6 +192,7 @@ Complete type signatures for every public method, grouped by subsystem.
   - [Dump & Restore](#dump--restore)
   - [Latency Simulation](#latency-simulation)
 - [sim.sql — Forge SQL](#simsql--forge-sql)
+- [sim.objectStore — Object Store](#simobjectstore--object-store)
 - [sim.queue — Async Events](#simqueue--async-events)
 - [sim.resolver — Resolver Registry](#simresolver--resolver-registry)
 - [sim.productApi — Product API](#simproductapi--product-api)
@@ -546,6 +547,42 @@ const rows = await sim.sql.query('SELECT * FROM users WHERE active = ?', [true])
 
 ---
 
+## `sim.objectStore` — Object Store
+
+Simulates `@forge/object-store` (requires a `modules.objectStore` entry in the
+manifest, same as real Forge). Backs the pre-signed upload/download URL flow
+with an ephemeral HTTP server, enforces the 1 GB object limit, 90-day max TTL,
+and CRC32/CRC32C/SHA1/SHA256 checksums.
+
+```typescript no-check
+// Backend API (mirrors @forge/object-store)
+sim.objectStore.createUploadUrl(body: UploadUrlBody): Promise<{ url: string }>
+sim.objectStore.createDownloadUrl(body: { key: string }, options?: { cdn?: boolean }): Promise<{ url: string }>
+sim.objectStore.get(key: string, options?: { cdn?: boolean }): Promise<ObjectReference | undefined>  // metadata
+sim.objectStore.delete(key: string, options?: { cdn?: boolean }): Promise<void>
+sim.objectStore.put(key, data, ttlSeconds?): Promise<void>       // deprecated in @forge/object-store, kept for parity
+sim.objectStore.download(key): Promise<Buffer | undefined>       // deprecated in @forge/object-store, kept for parity
+
+// Test setup & introspection (sim-only)
+sim.objectStore.seedObject({ key, data, contentType?, cdn?, ttlSeconds? }): ObjectReference
+sim.objectStore.listObjects(bucket?: 'default' | 'cdn'): ObjectMetadata[]
+sim.objectStore.getObjectContent(key, options?): { buffer: Buffer; contentType: string } | undefined
+sim.objectStore.dumpAll(): ObjectStoreDump
+sim.objectStore.restoreAll(dump: ObjectStoreDump): void
+sim.objectStore.reset(): void
+```
+
+```typescript no-check
+// Example: seed a file, then exercise app code that reads it
+sim.objectStore.seedObject({ key: 'reports/q3.csv', data: 'a,b\n1,2', contentType: 'text/csv' });
+const meta = await sim.objectStore.get('reports/q3.csv');   // { key, checksum, size, ... }
+```
+
+In tests, alias `@forge/object-store` to `forge-sim/shims/forge-object-store`
+(see the [testing guide](../testing/README.md)).
+
+---
+
 ## `sim.queue` — Async Events
 
 Simulates `@forge/events` queue push → consumer handler flow.
@@ -555,7 +592,7 @@ sim.queue.push(queueKey: string, events: QueueEvent | QueueEvent[]): Promise<Que
 sim.queue.registerConsumer(queueKey: string, handler: Function): void
 sim.queue.getEventLog(): Array<{ queueKey, event }>
 sim.queue.getJob(jobId: string): QueueJobStats
-sim.queue.getStats(): Record<string, QueueJobStats>
+sim.queue.getStats(): Record<string, { consumers: number; jobs: number; events: number; succeeded: number; failed: number }>
 sim.queue.setMode(mode: 'sequential' | 'concurrent'): void
 sim.queue.clear(): void
 ```
