@@ -39,6 +39,46 @@ export const CRITICAL_TS_ERROR_CODES = new Set([
   'TS1128', // Declaration or statement expected (syntax error)
 ]);
 
+/**
+ * TS diagnostics that are *advisory* in plain-JS files.
+ *
+ * These arise from strict property-access / iteration analysis against
+ * library generics (e.g. `InvokeResponse<InvokeResponse>` from
+ * @forge/bridge, `any[] | UpdateQueryResponse` unions from @forge/sql).
+ * In a .js/.jsx file the only "fix" is adding JSDoc type annotations —
+ * something a plain-JS app never opted into. Real typos still surface as
+ * TS2551 ("Property 'x' does not exist ... Did you mean 'y'?"), a separate
+ * code that stays reported. Assignability errors (TS2322/TS2345) also stay:
+ * those are actionable by changing the value being passed.
+ *
+ * Only applied when the app has NO tsconfig.json of its own (i.e. we're
+ * type-checking with the synthetic checkJs config). Apps with a tsconfig
+ * opted into type checking and get everything.
+ */
+export const JS_ADVISORY_CODES = new Set([
+  'TS2339', // Property does not exist on type
+  'TS2488', // Type must have a '[Symbol.iterator]()' method
+  'TS2349', // This expression is not callable
+]);
+
+const JS_FILE_RE = /\.(js|jsx|mjs|cjs)$/i;
+
+/**
+ * Drop advisory diagnostics from plain-JS files when the app never opted
+ * into type checking (no tsconfig.json of its own). Returns the kept
+ * errors plus how many were suppressed (for a one-line info log).
+ */
+export function filterJsAdvisoryErrors(
+  errors: TypeCheckError[],
+  hasOwnTsconfig: boolean
+): { errors: TypeCheckError[]; suppressed: number } {
+  if (hasOwnTsconfig) return { errors, suppressed: 0 };
+  const kept = errors.filter(
+    e => !(JS_ADVISORY_CODES.has(e.code) && JS_FILE_RE.test(e.file))
+  );
+  return { errors: kept, suppressed: errors.length - kept.length };
+}
+
 /** Synthetic tsconfig content for JS-only projects.
  *
  * The `module: 'esnext'` + `moduleResolution: 'bundler'` pairing matches how
@@ -155,6 +195,7 @@ export function typeCheck(appDir: string): TypeCheckError[] {
     return [];
   }
 
+  const hasOwnTsconfig = existsSync(join(appDir, 'tsconfig.json'));
   const tsconfigPath = ensureTsconfig(appDir);
 
   try {
@@ -168,7 +209,14 @@ export function typeCheck(appDir: string): TypeCheckError[] {
   } catch (err: any) {
     // tsc exits non-zero when there are errors; stdout contains the diagnostics
     const output = (err.stdout || '') + (err.stderr || '');
-    return parseTscOutput(output);
+    const { errors, suppressed } = filterJsAdvisoryErrors(parseTscOutput(output), hasOwnTsconfig);
+    if (suppressed > 0) {
+      console.log(
+        `  ℹ️  ${suppressed} type-strictness diagnostic(s) in plain-JS files suppressed ` +
+        `(only fixable with JSDoc annotations) — add a tsconfig.json to opt in`
+      );
+    }
+    return errors;
   }
 }
 
@@ -244,6 +292,7 @@ export function startTypeCheckWatch(options: TypeCheckWatchOptions): TypeCheckWa
     return null;
   }
 
+  const hasOwnTsconfig = existsSync(join(appDir, 'tsconfig.json'));
   const tsconfigPath = ensureTsconfig(appDir);
 
   // Parse the tsc command (might be "node /path/to/tsc" or just "/path/to/tsc")
@@ -254,6 +303,7 @@ export function startTypeCheckWatch(options: TypeCheckWatchOptions): TypeCheckWa
   let errors: TypeCheckError[] = [];
   let checking = true;
   let buffer = '';
+  let loggedSuppression = false;
 
   const child = spawn(cmd, [...baseArgs, '--watch', '--noEmit', '--project', tsconfigPath, '--pretty', 'false'], {
     cwd: appDir,
@@ -270,7 +320,15 @@ export function startTypeCheckWatch(options: TypeCheckWatchOptions): TypeCheckWa
     const foundMatch = buffer.match(/Found (\d+) errors?\. Watching for file changes\./);
     if (foundMatch) {
       // Parse all errors from this cycle's buffer
-      errors = parseTscOutput(buffer);
+      const filtered = filterJsAdvisoryErrors(parseTscOutput(buffer), hasOwnTsconfig);
+      errors = filtered.errors;
+      if (filtered.suppressed > 0 && !loggedSuppression) {
+        loggedSuppression = true;
+        console.log(
+          `  ℹ️  ${filtered.suppressed} type-strictness diagnostic(s) in plain-JS files suppressed ` +
+          `(only fixable with JSDoc annotations) — add a tsconfig.json to opt in`
+        );
+      }
       const critical = filterCriticalErrors(errors);
       checking = false;
       onErrors(errors, critical);

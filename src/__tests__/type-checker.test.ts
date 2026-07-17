@@ -7,9 +7,11 @@ import {
   parseTscOutput,
   typeCheck,
   filterCriticalErrors,
+  filterJsAdvisoryErrors,
   resolveTsc,
   startTypeCheckWatch,
   CRITICAL_TS_ERROR_CODES,
+  JS_ADVISORY_CODES,
   type TypeCheckError,
 } from '../type-checker.js';
 
@@ -101,6 +103,71 @@ describe('filterCriticalErrors', () => {
       { file: 'src/my-node_modules-helper.ts', line: 1, column: 1, code: 'TS2307', message: 'Cannot find module' },
     ];
     expect(filterCriticalErrors(errors)).toHaveLength(1);
+  });
+});
+
+describe('filterJsAdvisoryErrors', () => {
+  const advisory: TypeCheckError[] = [
+    { file: 'src/frontend/index.jsx', line: 71, column: 26, code: 'TS2339', message: "Property 'success' does not exist on type 'InvokeResponse<InvokeResponse>'." },
+    { file: 'src/index.js', line: 168, column: 12, code: 'TS2488', message: "Type 'any[] | UpdateQueryResponse' must have a '[Symbol.iterator]()' method that returns an iterator." },
+    { file: 'src/index.js', line: 42, column: 3, code: 'TS2349', message: 'This expression is not callable.' },
+  ];
+  const actionable: TypeCheckError[] = [
+    { file: 'src/index.js', line: 5, column: 10, code: 'TS2307', message: "Cannot find module './missing.js'" },
+    { file: 'src/index.js', line: 9, column: 1, code: 'TS2322', message: "Type 'number' is not assignable to type 'string'." },
+    { file: 'src/index.js', line: 12, column: 8, code: 'TS2551', message: "Property 'sucess' does not exist on type 'X'. Did you mean 'success'?" },
+  ];
+
+  it('suppresses advisory codes in .js/.jsx files when app has no tsconfig (sprint-pulse eval)', () => {
+    // The eval agent's plain-JS app got 4 unfixable-without-JSDoc complaints:
+    // TS2339 on InvokeResponse generics + TS2339/TS2488 on @forge/sql unions.
+    const { errors, suppressed } = filterJsAdvisoryErrors([...advisory, ...actionable], false);
+    expect(suppressed).toBe(3);
+    expect(errors).toEqual(actionable);
+  });
+
+  it('keeps actionable codes (module resolution, assignability, typo suggestions)', () => {
+    const { errors, suppressed } = filterJsAdvisoryErrors(actionable, false);
+    expect(suppressed).toBe(0);
+    expect(errors).toEqual(actionable);
+  });
+
+  it('keeps everything when the app has its own tsconfig (opted in)', () => {
+    const { errors, suppressed } = filterJsAdvisoryErrors([...advisory, ...actionable], true);
+    expect(suppressed).toBe(0);
+    expect(errors).toHaveLength(6);
+  });
+
+  it('never suppresses advisory codes in .ts/.tsx files', () => {
+    const tsErrors: TypeCheckError[] = [
+      { file: 'src/index.ts', line: 1, column: 1, code: 'TS2339', message: 'Property does not exist' },
+      { file: 'src/App.tsx', line: 2, column: 1, code: 'TS2488', message: 'Not iterable' },
+    ];
+    const { errors, suppressed } = filterJsAdvisoryErrors(tsErrors, false);
+    expect(suppressed).toBe(0);
+    expect(errors).toEqual(tsErrors);
+  });
+
+  it('covers .mjs and .cjs extensions', () => {
+    const errs: TypeCheckError[] = [
+      { file: 'src/a.mjs', line: 1, column: 1, code: 'TS2339', message: 'x' },
+      { file: 'src/b.cjs', line: 1, column: 1, code: 'TS2339', message: 'x' },
+    ];
+    const { errors, suppressed } = filterJsAdvisoryErrors(errs, false);
+    expect(suppressed).toBe(2);
+    expect(errors).toEqual([]);
+  });
+});
+
+describe('JS_ADVISORY_CODES', () => {
+  it('contains the property-access/iteration family but not assignability or resolution codes', () => {
+    expect(JS_ADVISORY_CODES.has('TS2339')).toBe(true);
+    expect(JS_ADVISORY_CODES.has('TS2488')).toBe(true);
+    expect(JS_ADVISORY_CODES.has('TS2349')).toBe(true);
+    expect(JS_ADVISORY_CODES.has('TS2307')).toBe(false); // Cannot find module — always real
+    expect(JS_ADVISORY_CODES.has('TS2322')).toBe(false); // assignability — actionable
+    expect(JS_ADVISORY_CODES.has('TS2345')).toBe(false); // argument — actionable
+    expect(JS_ADVISORY_CODES.has('TS2551')).toBe(false); // typo suggestion — keep
   });
 });
 
@@ -277,6 +344,52 @@ console.log(greeting);
     const errors = typeCheck(TEST_DIR);
     expect(errors).toEqual([]);
   });
+
+  it('suppresses union property-access noise for plain-JS apps but keeps real errors (sprint-pulse eval)', () => {
+    // No tsconfig.json → synthetic checkJs config. Union property access is
+    // the exact false-positive class the eval agent hit (InvokeResponse /
+    // UpdateQueryResponse generics) — unfixable in .js without JSDoc.
+    // A genuinely broken import must still be reported.
+    mkdirSync(join(TEST_DIR, 'src'), { recursive: true });
+    writeFileSync(join(TEST_DIR, 'src', 'index.js'), `
+import { missing } from './does-not-exist.js';
+
+/** @param {{ a: number } | { b: number }} x */
+function f(x) { return x.a; }
+console.log(f({ a: 1 }), missing);
+`);
+
+    const errors = typeCheck(TEST_DIR);
+    // TS2339 (property not on union) suppressed for plain JS
+    expect(errors.some(e => e.code === 'TS2339')).toBe(false);
+    // TS2307 (cannot find module) still reported — that's a real bug
+    expect(errors.some(e => e.code === 'TS2307')).toBe(true);
+  }, 30000);
+
+  it('keeps TS2339 in JS files when the app has its own tsconfig (opted in)', () => {
+    mkdirSync(join(TEST_DIR, 'src'), { recursive: true });
+    writeFileSync(join(TEST_DIR, 'tsconfig.json'), JSON.stringify({
+      compilerOptions: {
+        allowJs: true,
+        checkJs: true,
+        noEmit: true,
+        strict: false,
+        skipLibCheck: true,
+        module: 'esnext',
+        target: 'es2022',
+        moduleResolution: 'bundler',
+      },
+      include: ['src/**/*'],
+    }));
+    writeFileSync(join(TEST_DIR, 'src', 'index.js'), `
+/** @param {{ a: number } | { b: number }} x */
+function f(x) { return x.a; }
+console.log(f({ a: 1 }));
+`);
+
+    const errors = typeCheck(TEST_DIR);
+    expect(errors.some(e => e.code === 'TS2339')).toBe(true);
+  }, 30000);
 });
 
 describe('startTypeCheckWatch', () => {

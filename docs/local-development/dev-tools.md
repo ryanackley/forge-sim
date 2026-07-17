@@ -51,6 +51,12 @@ Manage external OAuth provider credentials (Google, GitHub, Slack, …):
 Real-time TypeScript type checking panel:
 - Integrated `tsc --watch` — shows type errors as you edit
 - Errors update live via WebSocket
+- Works for plain-JS apps too (via a synthetic `checkJs` config). Type-strictness
+  diagnostics that can only be fixed with JSDoc annotations (property access /
+  iteration on library union types — TS2339, TS2488, TS2349) are suppressed for
+  apps without their own `tsconfig.json`; add a `tsconfig.json` to opt in to the
+  full check. Real errors (missing modules, wrong argument types, typo
+  suggestions) are always reported.
 
 ## WebSocket API
 
