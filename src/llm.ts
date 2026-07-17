@@ -251,6 +251,15 @@ export class SimulatedLLM {
     return [...this.callHistory];
   }
 
+  /**
+   * Number of queued mock responses not yet consumed by chat().
+   * This is the real "queue depth" — history length is total calls ever,
+   * which is a different (and ever-growing) number (eval-4 F9).
+   */
+  getPendingMockCount(): number {
+    return this.responseQueue.length;
+  }
+
   /** Clear all state. */
   reset(): void {
     this.responseQueue = [];

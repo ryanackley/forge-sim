@@ -293,6 +293,7 @@ server.tool(
         triggers: result.triggers,
         consumers: result.consumers,
         webTriggers: result.webTriggers,
+        scheduledTriggers: result.scheduledTriggers,
         uiModules: result.uiModules,
         errors: result.errors,
       };
@@ -1660,7 +1661,7 @@ Example:
         ? `mock with ${tool_calls.length} tool call(s)`
         : `mock text response (${typeof content === 'string' ? content.slice(0, 60) : 'array'}${typeof content === 'string' && content.length > 60 ? '...' : ''})`;
       return {
-        content: [{ type: 'text' as const, text: `✅ Queued LLM ${desc}. Queue depth: ${sim.llm.getHistory().length + 1}` }],
+        content: [{ type: 'text' as const, text: `✅ Queued LLM ${desc}. Pending mocks: ${sim.llm.getPendingMockCount()}` }],
       };
     } catch (err) {
       return {
