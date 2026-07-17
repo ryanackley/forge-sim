@@ -9,6 +9,7 @@ import {
   filterCriticalErrors,
   filterJsAdvisoryErrors,
   resolveTsc,
+  looksLikeTsProject,
   startTypeCheckWatch,
   CRITICAL_TS_ERROR_CODES,
   JS_ADVISORY_CODES,
@@ -341,6 +342,44 @@ describe('resolveTsc', () => {
     expect(result).not.toBe(join(binDir, 'tsc'));
     expect(result).toBeTruthy();
     expect(result!.startsWith(TEST_DIR)).toBe(false);
+  });
+
+  it('finds bundled typescript via module resolution when app has none (eval-5 F4)', () => {
+    // Empty app dir, no node_modules anywhere near it. In the workspace
+    // checkout AND in an npm-hoisted install, typescript is a runtime dep of
+    // forge-sim and must resolve via createRequire — the old fixed
+    // `<forgeSimRoot>/node_modules/typescript` path missed hoisted installs
+    // and every npm user saw "TypeScript not found".
+    const result = resolveTsc(TEST_DIR);
+    expect(result).toBeTruthy();
+    expect(result).toMatch(/tsc/);
+  });
+});
+
+describe('looksLikeTsProject (eval-5 F4)', () => {
+  it('false for a pure-JS app', () => {
+    mkdirSync(join(TEST_DIR, 'src'), { recursive: true });
+    writeFileSync(join(TEST_DIR, 'src', 'index.js'), 'export const x = 1;');
+    writeFileSync(join(TEST_DIR, 'manifest.yml'), 'app:\n  id: test');
+    expect(looksLikeTsProject(TEST_DIR)).toBe(false);
+  });
+
+  it('true when the app has a tsconfig.json', () => {
+    writeFileSync(join(TEST_DIR, 'tsconfig.json'), '{}');
+    expect(looksLikeTsProject(TEST_DIR)).toBe(true);
+  });
+
+  it('true when the app has nested .ts sources without a tsconfig', () => {
+    mkdirSync(join(TEST_DIR, 'src', 'resolvers'), { recursive: true });
+    writeFileSync(join(TEST_DIR, 'src', 'resolvers', 'index.ts'), 'export const x = 1;');
+    expect(looksLikeTsProject(TEST_DIR)).toBe(true);
+  });
+
+  it('ignores .d.ts files and node_modules', () => {
+    mkdirSync(join(TEST_DIR, 'node_modules', 'some-pkg'), { recursive: true });
+    writeFileSync(join(TEST_DIR, 'node_modules', 'some-pkg', 'index.ts'), 'export {};');
+    writeFileSync(join(TEST_DIR, 'globals.d.ts'), 'declare const x: number;');
+    expect(looksLikeTsProject(TEST_DIR)).toBe(false);
   });
 });
 

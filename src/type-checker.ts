@@ -8,11 +8,13 @@
  */
 
 import { join, dirname } from 'node:path';
-import { existsSync, mkdirSync, writeFileSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync, readFileSync, readdirSync } from 'node:fs';
 import { execSync, spawn, type ChildProcess } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+const _require = createRequire(import.meta.url);
 
 export interface TypeCheckError {
   file: string;
@@ -196,15 +198,56 @@ export function resolveTsc(appDir: string): string | null {
     );
   }
 
-  // 2. forge-sim's own typescript (bundled as a dependency)
+  // 2. forge-sim's own typescript (a runtime dependency). Resolve with real
+  //    Node module resolution: with npm's flat installs the package is
+  //    hoisted to the CONSUMING project's node_modules, so a fixed
+  //    `<forgeSimRoot>/node_modules/typescript` path misses it and every
+  //    npm-installed forge-sim printed "TypeScript not found" (eval-5 F4).
+  //    createRequire walks the full node_modules chain from this file, which
+  //    covers nested, hoisted, and pnpm-style layouts alike.
   const forgeSimRoot = join(__dirname, '..');
   const simTsc = join(forgeSimRoot, 'node_modules', '.bin', 'tsc');
   if (existsSync(simTsc)) return simTsc;
 
-  const simTscJs = join(forgeSimRoot, 'node_modules', 'typescript', 'bin', 'tsc');
-  if (existsSync(simTscJs)) return `node ${simTscJs}`;
+  try {
+    return `node ${_require.resolve('typescript/bin/tsc')}`;
+  } catch { /* typescript genuinely not resolvable */ }
 
   return null;
+}
+
+/**
+ * Does this app look like a TypeScript project — its own tsconfig.json, or
+ * any .ts/.tsx source files (shallow bounded walk, skipping node_modules)?
+ *
+ * Used to gate the "TypeScript not found — skipping type checker" notice:
+ * for a pure-JS app that message reads like something is missing when
+ * nothing is (eval-5 F4). A TS app missing tsc is a real signal and keeps
+ * the notice.
+ */
+export function looksLikeTsProject(appDir: string, maxDepth = 4): boolean {
+  if (existsSync(join(appDir, 'tsconfig.json'))) return true;
+
+  const SKIP = new Set(['node_modules', '.git', 'dist', 'build', '.forge-sim']);
+  const walk = (dir: string, depth: number): boolean => {
+    if (depth > maxDepth) return false;
+    let entries;
+    try {
+      entries = readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return false;
+    }
+    for (const entry of entries) {
+      if (entry.isFile() && /\.(ts|tsx|mts|cts)$/i.test(entry.name) && !entry.name.endsWith('.d.ts')) {
+        return true;
+      }
+      if (entry.isDirectory() && !SKIP.has(entry.name) && !entry.name.startsWith('.')) {
+        if (walk(join(dir, entry.name), depth + 1)) return true;
+      }
+    }
+    return false;
+  };
+  return walk(appDir, 0);
 }
 
 /**
@@ -216,7 +259,11 @@ export function resolveTsc(appDir: string): string | null {
 export function typeCheck(appDir: string): TypeCheckError[] {
   const tsc = resolveTsc(appDir);
   if (!tsc) {
-    console.warn('[forge-sim] ⚠️ TypeScript not found in app node_modules — skipping type check');
+    // Only worth a warning when the app actually has TS to check — for a
+    // pure-JS app this read like something was missing (eval-5 F4).
+    if (looksLikeTsProject(appDir)) {
+      console.warn('[forge-sim] ⚠️ TypeScript not found — skipping type check');
+    }
     return [];
   }
 
@@ -319,7 +366,11 @@ export function startTypeCheckWatch(options: TypeCheckWatchOptions): TypeCheckWa
 
   const tsc = resolveTsc(appDir);
   if (!tsc) {
-    console.log('  ℹ️  TypeScript not found — skipping type checker');
+    // Silent for pure-JS apps — the notice read like a warning for apps
+    // that intentionally have no TS (eval-5 F4).
+    if (looksLikeTsProject(appDir)) {
+      console.log('  ℹ️  TypeScript not found — skipping type checker');
+    }
     return null;
   }
 
