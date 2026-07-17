@@ -1,0 +1,29 @@
+modules:
+  webtrigger:
+    - key: github-webhook
+      function: webhook
+    - key: health-check
+      function: health
+      response:
+        type: static
+        outputs:
+          - key: up
+            statusCode: 200
+            contentType: application/json
+            body: '{"status":"up"}'
+          - key: down
+            statusCode: 503
+            contentType: application/json
+            body: '{"status":"down"}'
+
+  function:
+    - key: webhook
+      handler: src/webhook.run
+    - key: health
+      handler: src/health.run
+
+app:
+  runtime:
+    name: nodejs22.x
+  id: ari:cloud:ecosystem::app/webtrigger-test
+  name: Web Trigger Test

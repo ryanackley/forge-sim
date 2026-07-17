@@ -8,7 +8,7 @@
  */
 
 import { resolve } from 'node:path';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, unlinkSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -24,6 +24,11 @@ export interface DaemonInfo {
   running: boolean;
 }
 
+function cleanupStateFiles(): void {
+  try { unlinkSync(PID_FILE); } catch { /* ok */ }
+  try { unlinkSync(PORT_FILE); } catch { /* ok */ }
+}
+
 /** Check if the daemon is running and healthy. */
 export async function getDaemonStatus(): Promise<DaemonInfo | null> {
   if (!existsSync(PID_FILE) || !existsSync(PORT_FILE)) return null;
@@ -37,6 +42,10 @@ export async function getDaemonStatus(): Promise<DaemonInfo | null> {
   try {
     process.kill(pid, 0); // Signal 0 = just check existence
   } catch {
+    // Process is definitely dead (e.g. SIGKILL/crash skipped the daemon's
+    // own cleanup) — remove the stale pid/port files so nothing else
+    // tries to talk to a dead daemon (eval B5).
+    cleanupStateFiles();
     return { port, pid, running: false };
   }
 
@@ -61,11 +70,7 @@ export async function ensureDaemon(): Promise<number> {
 
   // Clean up stale PID file if process is dead
   if (status && !status.running) {
-    try {
-      const { unlinkSync } = await import('node:fs');
-      unlinkSync(PID_FILE);
-      unlinkSync(PORT_FILE);
-    } catch { /* ok */ }
+    cleanupStateFiles();
   }
 
   // Spawn the daemon

@@ -332,6 +332,31 @@ sim.fireScheduledTrigger(triggerKey: string): Promise<{ statusCode: number }>
 ```
 Fire a scheduled trigger. Handler receives `{ context: { cloudId, moduleKey }, contextToken }`.
 
+```typescript no-check
+sim.fireWebTrigger(triggerKey: string, request?: WebTriggerRequestInit): Promise<WebTriggerResponse>
+```
+Fire a web trigger in-process — no HTTP server needed. The handler is called with the Forge `(request, context)` convention; the request is Forge-shaped (`method`, `path`, multi-value `headers`/`queryParameters`, string `body`). All init fields are optional — a bare `fireWebTrigger(key)` simulates `GET <trigger-url>`. Object bodies are JSON-stringified as a convenience.
+
+```typescript no-check
+interface WebTriggerRequestInit {
+  method?: string;                                       // default GET
+  userPath?: string;                                     // extra path after the trigger URL
+  headers?: Record<string, string | string[]>;           // normalized to lowercase string[]
+  queryParameters?: Record<string, string | string[]>;
+  body?: string | object | unknown[];                    // objects → JSON.stringify
+}
+
+interface WebTriggerResponse {
+  statusCode: number;
+  headers: Record<string, string[]>;
+  body: string;
+}
+```
+
+Parity note: handler exceptions and malformed results become **500 responses** (what the real webhook caller would see), never thrown errors. Only setup problems throw — no manifest, unknown trigger key, handler not loaded. Static-output triggers (`response.type: static`) resolve their configured output.
+
+Web trigger functions are **not** resolvers: `sim.invoke()` on one throws with a pointer here, because real Forge has no bridge-invoke path to a web trigger and the calling conventions differ (`(request, context)` vs `{ payload, context }`).
+
 ### Product API Mocking
 
 ```typescript no-check

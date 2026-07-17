@@ -128,7 +128,7 @@ In practice: credentials, secrets, and variables are set-once-and-shared; runtim
 ## Tools
 
 <!-- BEGIN:STATS_COMPACT -->
-2,139 tests · 39 MCP tools · 4 MCP resources
+2,234 tests · 40 MCP tools · 4 MCP resources
 <!-- END:STATS_COMPACT -->
 
 | Tool | Description |
@@ -138,6 +138,7 @@ In practice: credentials, secrets, and variables are set-once-and-shared; runtim
 | `forge.invoke` | Call a resolver function with payload |
 | `forge.fire_trigger` | Simulate product event triggers |
 | `forge.fire_scheduled_trigger` | Fire a scheduled trigger by key |
+| `forge.fire_web_trigger` | Fire a web trigger by key — simulated HTTP request, `(request, context)` convention, returns `{ statusCode, headers, body }` |
 | `forge.ui_render` | Render a UI module by manifest key: loads bundle, builds context, returns ForgeDoc (and MacroConfig tree for inline-config macros) |
 | `forge.ui_wait_for` | Wait for text to appear in a module's rendered tree; settles async `useEffect → invoke()` chains after `ui_render` or `ui_interact` |
 | `forge.ui_state` | Get the current ForgeDoc UI tree |

@@ -151,6 +151,12 @@ function shutdown(): void {
 
 process.on('SIGTERM', shutdown);
 process.on('SIGINT', shutdown);
+// Cover non-signal exits too (uncaught exceptions, explicit process.exit,
+// idle-timeout self-shutdown) so ~/.forge-sim/daemon.{pid,port} don't go
+// stale — a stale port file made `forge-sim trigger` hit a dead daemon
+// with a confusing ECONNREFUSED (eval B5). SIGKILL still can't be caught;
+// getDaemonStatus() handles that case by validating the PID.
+process.on('exit', cleanupPidFile);
 
 // ── Start ───────────────────────────────────────────────────────────────
 

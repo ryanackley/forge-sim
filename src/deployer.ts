@@ -151,6 +151,12 @@ export interface DeployUIModuleSummary {
   resolver?: string;
 }
 
+/** Summary entry for a web trigger, matching the MCP `forge.deploy` response shape. */
+export interface DeployWebTriggerSummary {
+  key: string;
+  function: string;
+}
+
 export interface DeployResult {
   manifest: ParsedManifest;
   loadedFunctions: string[];
@@ -169,6 +175,13 @@ export interface DeployResult {
   triggers: DeployTriggerSummary[];
   consumers: DeployConsumerSummary[];
   uiModules: DeployUIModuleSummary[];
+  /**
+   * Web trigger modules (eval B4: these used to be silently folded into
+   * `resolvers`, misrepresenting their (request, context) calling
+   * convention). Fire them with `sim.fireWebTrigger(key)` or the MCP
+   * `forge.fire_web_trigger` tool — NOT `sim.invoke()`.
+   */
+  webTriggers: DeployWebTriggerSummary[];
   errors: Array<{ functionKey: string; error: string }>;
   /**
    * Manifest validation warnings (and info-level notes). Mirrored from
@@ -497,10 +510,24 @@ export async function deploy(sim: ForgeSimulator, appDir: string): Promise<Deplo
     }
   }
 
-  // 7. Register remaining functions as generic (if not already registered)
+  // 7. Register web trigger functions
+  // Web triggers receive (request, context) — request is { method, path,
+  // headers, queryParameters, body }. Registering them with their real type
+  // (instead of letting them fall through to the generic/resolver bucket
+  // below) keeps them OUT of the resolvers list and lets sim.invoke() catch
+  // the wrong-convention call with a pointer to fireWebTrigger (eval B4).
+  for (const wt of manifest.webTriggers) {
+    const handler = handlerExports.get(wt.functionKey);
+    if (handler && typeof handler === 'function' && !sim.functions.has(wt.functionKey)) {
+      sim.registerFunction(wt.functionKey, handler, 'webTrigger');
+    }
+  }
+
+  // 8. Register remaining functions as generic (if not already registered)
   for (const [fnKey, handler] of handlerExports) {
     if (typeof handler === 'function' && !sim.functions.has(fnKey)) {
-      // Not a trigger, consumer, or scheduled trigger — register as generic
+      // Not a trigger, consumer, scheduled trigger, or web trigger —
+      // register as generic
       sim.registerFunction(fnKey, handler, 'generic');
       // Also make it available via resolver.define() for backward compat
       if (!sim.resolver.getDefinitions().includes(fnKey)) {
@@ -517,7 +544,7 @@ export async function deploy(sim: ForgeSimulator, appDir: string): Promise<Deplo
   sim.loadManifestData(manifest);
   sim.setAppDir(absDir);
 
-  // 8. Fire scheduled triggers once on deploy
+  // 9. Fire scheduled triggers once on deploy
   // In real Forge, scheduled triggers run on an interval (e.g. hourly).
   // For simulation, we fire them once at deploy time — this handles migrations
   // and any other startup tasks that use scheduledTrigger.
@@ -548,7 +575,7 @@ export async function deploy(sim: ForgeSimulator, appDir: string): Promise<Deplo
     }
   }
 
-  // 6. UI resources are NOT loaded during deploy — they're lazy-loaded by
+  // 10. UI resources are NOT loaded during deploy — they're lazy-loaded by
   //    sim.ui.render(moduleKey) for per-module ForgeDoc isolation and proper
   //    context scoping. We DO record the resource keys at deploy time so the
   //    deploy response accurately reflects what the simulator knows about,
@@ -591,6 +618,10 @@ export async function deploy(sim: ForgeSimulator, appDir: string): Promise<Deplo
       type: u.type,
       resource: u.resourceKey,
       resolver: u.resolverFunctionKey,
+    })),
+    webTriggers: manifest.webTriggers.map((wt) => ({
+      key: wt.key,
+      function: wt.functionKey,
     })),
     errors,
     warnings: manifest.warnings,

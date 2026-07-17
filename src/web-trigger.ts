@@ -88,6 +88,171 @@ function readBody(req: IncomingMessage): Promise<string> {
   });
 }
 
+// ── In-process invocation core ────────────────────────────────────────────
+// Shared by the HTTP route handler below, `sim.fireWebTrigger()`, and the
+// MCP `forge.fire_web_trigger` tool — one code path for request shaping,
+// handler invocation, response validation (WTR-009), and static outputs
+// (WTR-011), so the surfaces cannot drift (eval B4/B5).
+
+/**
+ * Friendly request init for in-process web trigger firing. Everything is
+ * optional — a bare `fireWebTrigger(key)` simulates `GET <trigger-url>`.
+ * Header/query values accept string or string[]; they're normalized to the
+ * multi-value string[] shape Forge delivers.
+ */
+export interface WebTriggerRequestInit {
+  method?: string;
+  /** Extra path appended after the trigger URL (Forge's `userPath`). */
+  userPath?: string;
+  headers?: Record<string, string | string[]>;
+  queryParameters?: Record<string, string | string[]>;
+  /** Raw body string — Forge always delivers the body as a string. An object is JSON-stringified as a convenience. */
+  body?: string | Record<string, unknown> | unknown[];
+}
+
+/** Forge web trigger response shape (multi-value headers, string body). */
+export interface WebTriggerResponse {
+  statusCode: number;
+  headers: Record<string, string[]>;
+  body: string;
+}
+
+/**
+ * Build the Forge request object from a friendly init (in-process path).
+ */
+export function buildInProcessForgeRequest(
+  triggerKey: string,
+  init: WebTriggerRequestInit = {},
+): Record<string, any> {
+  const normalizeMultiValue = (
+    input?: Record<string, string | string[]>,
+  ): Record<string, string[]> => {
+    const out: Record<string, string[]> = {};
+    for (const [key, value] of Object.entries(input ?? {})) {
+      out[key.toLowerCase()] = Array.isArray(value) ? value.map(String) : [String(value)];
+    }
+    return out;
+  };
+
+  const userPath = init.userPath ?? '';
+  const body = init.body === undefined
+    ? ''
+    : typeof init.body === 'string' ? init.body : JSON.stringify(init.body);
+
+  return {
+    method: (init.method ?? 'GET').toUpperCase(),
+    path: `/__trigger/${triggerKey}${userPath}`,
+    userPath,
+    headers: normalizeMultiValue(init.headers),
+    queryParameters: normalizeMultiValue(init.queryParameters),
+    body,
+  };
+}
+
+/**
+ * Invoke a web trigger handler with a Forge-shaped request and return the
+ * Forge-shaped response the HTTP caller would see. Mirrors real Forge:
+ * a throwing handler or a malformed result becomes a 500 *response*
+ * (never a thrown error) because that's what the webhook caller observes.
+ *
+ * Throws only for simulation-setup problems the caller can fix:
+ * unknown trigger key or a handler function that failed to load.
+ */
+export async function executeWebTrigger(
+  simulator: ForgeSimulator,
+  trigger: ManifestWebTrigger,
+  forgeRequest: Record<string, any>,
+): Promise<WebTriggerResponse> {
+  // Function registry first (deploy registers web trigger functions with
+  // type 'webTrigger'); fall back to the resolver handler map for
+  // programmatic registration in tests.
+  const handler = simulator.functions.getHandler(trigger.functionKey)
+    ?? simulator.resolver.getHandlerMap().get(trigger.functionKey);
+
+  if (!handler) {
+    throw new Error(
+      `Function "${trigger.functionKey}" not loaded for web trigger "${trigger.key}". ` +
+      `Did the deploy succeed? Check the manifest's modules.function entry for "${trigger.functionKey}".`,
+    );
+  }
+
+  const context = buildWebTriggerContext(simulator, trigger.key);
+
+  let result: any;
+  try {
+    // Forge web trigger convention: (request, context) as two args.
+    result = await (handler as Function)(forgeRequest, context);
+  } catch (err: any) {
+    return {
+      statusCode: 500,
+      headers: { 'content-type': ['application/json'] },
+      body: JSON.stringify({
+        error: 'Web trigger function threw an error',
+        message: err?.message ?? String(err),
+      }),
+    };
+  }
+
+  // ── Static response mode (WTR-011) ──────────────────────────────────────
+  if (trigger.responseType === 'static') {
+    const outputKey = result?.outputKey;
+    const output = (trigger.outputs ?? []).find((o) => o.key === outputKey);
+    if (!output) {
+      return {
+        statusCode: 500,
+        headers: { 'content-type': ['application/json'] },
+        body: JSON.stringify({
+          error: `Web trigger "${trigger.key}" returned unknown outputKey "${outputKey}"`,
+          available: (trigger.outputs ?? []).map((o) => o.key),
+        }),
+      };
+    }
+    return {
+      statusCode: output.statusCode,
+      headers: { 'content-type': [output.contentType ?? 'text/plain'] },
+      body: output.body ?? '',
+    };
+  }
+
+  // ── Dynamic response mode (WTR-009) ─────────────────────────────────────
+  if (
+    result === null ||
+    typeof result !== 'object' ||
+    Array.isArray(result) ||
+    typeof result.statusCode !== 'number'
+  ) {
+    return {
+      statusCode: 500,
+      headers: { 'content-type': ['application/json'] },
+      body: JSON.stringify({
+        error: `Web trigger "${trigger.key}" returned an invalid response: expected { statusCode: number, headers?, body? }`,
+        received: result === undefined ? 'undefined' : JSON.stringify(result)?.slice(0, 200),
+      }),
+    };
+  }
+
+  // Normalize handler headers to multi-value string[]
+  const headers: Record<string, string[]> = {};
+  if (result.headers && typeof result.headers === 'object') {
+    for (const [key, values] of Object.entries(result.headers)) {
+      if (Array.isArray(values) && values.length > 0) {
+        headers[key.toLowerCase()] = (values as unknown[]).map(String);
+      } else if (typeof values === 'string') {
+        headers[key.toLowerCase()] = [values];
+      }
+    }
+  }
+  if (!headers['content-type']) {
+    headers['content-type'] = ['text/plain'];
+  }
+
+  return {
+    statusCode: result.statusCode,
+    headers,
+    body: result.body ?? '',
+  };
+}
+
 /**
  * Create an HTTP request handler for web triggers.
  *
@@ -142,18 +307,6 @@ export function createWebTriggerHandler(config: WebTriggerConfig) {
       return true;
     }
 
-    // Look up the handler function
-    const handlerMap = simulator.resolver.getHandlerMap();
-    const handler = handlerMap.get(trigger.functionKey);
-
-    if (!handler) {
-      res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({
-        error: `Function "${trigger.functionKey}" not loaded for web trigger "${triggerKey}"`,
-      }));
-      return true;
-    }
-
     // Handle CORS preflight
     if (req.method === 'OPTIONS') {
       res.writeHead(204, {
@@ -168,100 +321,36 @@ export function createWebTriggerHandler(config: WebTriggerConfig) {
     try {
       const body = await readBody(req);
       const forgeRequest = buildForgeRequest(req, triggerKey, body, userPath);
-      const context = buildWebTriggerContext(simulator, triggerKey);
 
-      // Call with Forge web trigger convention: (request, context) as two args
-      const result = await (handler as Function)(forgeRequest, context);
+      const response = await executeWebTrigger(simulator, trigger, forgeRequest);
 
-      // ── Static response mode (WTR-011) ────────────────────────────────
-      // When the manifest declares response.type: static, the handler
-      // returns { outputKey } and the HTTP response comes from the
-      // matching configured output. Unknown outputKey → 500.
-      if (trigger.responseType === 'static') {
-        const outputKey = result?.outputKey;
-        const output = (trigger.outputs ?? []).find((o) => o.key === outputKey);
-        if (!output) {
-          res.writeHead(500, {
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*',
-          });
-          res.end(JSON.stringify({
-            error: `Web trigger "${triggerKey}" returned unknown outputKey "${outputKey}"`,
-            available: (trigger.outputs ?? []).map((o) => o.key),
-          }));
-          console.log(`[forge-sim] [webtrigger] ${req.method} ${pathname} → 500 (unknown outputKey)`);
-          return true;
-        }
-        res.writeHead(output.statusCode, {
-          'Content-Type': output.contentType ?? 'text/plain',
-          'Access-Control-Allow-Origin': '*',
-        });
-        res.end(output.body ?? '');
-        console.log(`[forge-sim] [webtrigger] ${req.method} ${pathname} → ${output.statusCode} (static output "${output.key}")`);
-        return true;
-      }
-
-      // ── Dynamic response mode (default) ───────────────────────────────
-      // WTR-009: the handler result must match the documented response
-      // shape — an object with a numeric statusCode. Anything else (bare
-      // string, undefined, missing/non-numeric statusCode) → 500, matching
-      // real Forge, which rejects malformed results rather than guessing.
-      if (
-        result === null ||
-        typeof result !== 'object' ||
-        Array.isArray(result) ||
-        typeof result.statusCode !== 'number'
-      ) {
-        res.writeHead(500, {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-        });
-        res.end(JSON.stringify({
-          error: `Web trigger "${triggerKey}" returned an invalid response: expected { statusCode: number, headers?, body? }`,
-        }));
-        console.error(
-          `[forge-sim] [webtrigger] ${req.method} ${pathname} → 500 (invalid handler response: ${
-            result === undefined ? 'undefined' : JSON.stringify(result)?.slice(0, 200)
-          })`,
-        );
-        return true;
-      }
-
-      const statusCode = result.statusCode;
+      // Map the Forge-shaped response onto HTTP: multi-value headers are
+      // joined, CORS is layered on for browser callers.
       const responseHeaders: Record<string, string> = {
         'Access-Control-Allow-Origin': '*',
       };
-
-      // Forge headers are multi-value: { 'content-type': ['text/html'] }
-      if (result?.headers) {
-        for (const [key, values] of Object.entries(result.headers)) {
-          if (Array.isArray(values) && values.length > 0) {
-            responseHeaders[key] = (values as string[]).join(', ');
-          } else if (typeof values === 'string') {
-            responseHeaders[key] = values;
-          }
-        }
+      for (const [key, values] of Object.entries(response.headers)) {
+        responseHeaders[key] = values.join(', ');
       }
 
-      // Default content-type if not set
-      if (!responseHeaders['content-type'] && !responseHeaders['Content-Type']) {
-        responseHeaders['Content-Type'] = 'text/plain';
+      res.writeHead(response.statusCode, responseHeaders);
+      res.end(response.body);
+
+      if (response.statusCode >= 500) {
+        console.error(`[forge-sim] [webtrigger] ${req.method} ${pathname} → ${response.statusCode} (${response.body.slice(0, 200)})`);
+      } else {
+        console.log(`[forge-sim] [webtrigger] ${req.method} ${pathname} → ${response.statusCode}`);
       }
-
-      res.writeHead(statusCode, responseHeaders);
-      res.end(result?.body ?? '');
-
-      console.log(`[forge-sim] [webtrigger] ${req.method} ${pathname} → ${statusCode}`);
     } catch (err: any) {
-      console.error(`[forge-sim] [webtrigger] ${triggerKey} threw: ${err.message}`);
+      // executeWebTrigger throws only for setup problems (handler not
+      // loaded). Handler exceptions and malformed results are already
+      // mapped to 500 responses inside the core.
+      console.error(`[forge-sim] [webtrigger] ${triggerKey}: ${err.message}`);
       res.writeHead(500, {
         'Content-Type': 'application/json',
         'Access-Control-Allow-Origin': '*',
       });
-      res.end(JSON.stringify({
-        error: 'Web trigger function threw an error',
-        message: err.message,
-      }));
+      res.end(JSON.stringify({ error: err.message }));
     }
 
     return true;

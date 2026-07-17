@@ -24,6 +24,7 @@ import { SimulatedLLM } from './llm.js';
 import { SimulatedRealtime } from './realtime.js';
 import { SimulatedObjectStore } from './object-store.js';
 import { WebTriggerUrlRegistry } from './web-trigger-urls.js';
+import { executeWebTrigger, buildInProcessForgeRequest, type WebTriggerRequestInit, type WebTriggerResponse } from './web-trigger.js';
 import { VariablesManager, type VariableInput, type VariableListEntry } from './variables.js';
 import type { SimulationConfig, ResolverContext, InvokeOptions, ProductApiHandler, ProductApiRequest, ProductApiResponse } from './types.js';
 import type { TriggerPayloadByEvent } from './trigger-event-types.js';
@@ -440,6 +441,18 @@ export class ForgeSimulator {
   ): Promise<any> {
     const { moduleKey, contextOverride } = parseInvokeOptions(options);
 
+    // Web trigger handlers expect (request, context) — NOT the resolver
+    // { payload, context } convention. Real Forge has no bridge-invoke path
+    // to a web trigger function, so neither do we (eval B4).
+    if (this.functions.getType(functionKey) === 'webTrigger') {
+      const triggerKey = this.manifest?.webTriggers.find(wt => wt.functionKey === functionKey)?.key;
+      throw new Error(
+        `"${functionKey}" is a web trigger handler — it expects (request, context), ` +
+        `not the resolver { payload, context } convention, so sim.invoke() would call it wrong. ` +
+        `Use sim.fireWebTrigger("${triggerKey ?? '<triggerKey>'}") (or the MCP tool forge.fire_web_trigger) instead.`
+      );
+    }
+
     this.log('invoke', `Invoking resolver: ${functionKey}${moduleKey ? ` (module: ${moduleKey})` : ''}`, payload);
 
     // Validate module → resolver access if module context is available
@@ -764,6 +777,71 @@ export class ForgeSimulator {
       }
       this.log('error', `Scheduled trigger "${triggerKey}" threw: ${err}`);
       return { statusCode: 500, error: String(err) };
+    }
+  }
+
+  /**
+   * Fire a web trigger in-process, without an HTTP server (eval B4/B5).
+   *
+   * Builds the Forge request shape ({ method, path, headers,
+   * queryParameters, body } — multi-value headers/query, string body),
+   * invokes the handler with the (request, context) web trigger
+   * convention, and returns the Forge-shaped response the HTTP caller
+   * would see. Handler exceptions and malformed results become 500
+   * *responses* (matching what a real webhook caller observes), never
+   * thrown errors. Static-output triggers (response.type: static) resolve
+   * their configured output.
+   *
+   * Example:
+   *   const res = await sim.fireWebTrigger('github-webhook', {
+   *     method: 'POST',
+   *     headers: { 'content-type': 'application/json' },
+   *     body: { action: 'opened' },   // objects are JSON-stringified
+   *   });
+   *   expect(res.statusCode).toBe(200);
+   *
+   * Throws only for setup problems: no manifest, unknown trigger key, or
+   * a handler function that failed to load.
+   */
+  async fireWebTrigger(triggerKey: string, request?: WebTriggerRequestInit): Promise<WebTriggerResponse> {
+    if (!this.manifest) {
+      throw new Error('No manifest loaded. Call deploy() first.');
+    }
+
+    const trigger = this.manifest.webTriggers.find(wt => wt.key === triggerKey);
+    if (!trigger) {
+      const available = this.manifest.webTriggers.map(wt => wt.key);
+      throw new Error(
+        `No web trigger with key "${triggerKey}". ` +
+        (available.length ? `Available: ${available.join(', ')}` : 'The manifest declares no webtrigger modules.'),
+      );
+    }
+
+    const forgeRequest = buildInProcessForgeRequest(triggerKey, request);
+    this.log('webTrigger', `Firing web trigger: ${triggerKey} (${trigger.functionKey}) ${forgeRequest.method} ${forgeRequest.path}`);
+
+    const fnMeta = this.manifest.functions.get(trigger.functionKey);
+    const startMs = Date.now();
+    this.pendingInvokeCount++;
+    try {
+      const { result, console: captured } = await withCapture(() =>
+        executeWebTrigger(this, trigger, forgeRequest)
+      );
+      this.consoleLogs.push(...captured);
+      for (const line of captured) {
+        this.log(`console.${line.level}`, line.message);
+      }
+      this.checkInvocationTime(`webTrigger:${triggerKey}`, startMs, 'webTrigger', fnMeta?.timeoutSeconds);
+      this.log('webTrigger', `Web trigger "${triggerKey}" → ${result.statusCode}`);
+      return result;
+    } catch (err) {
+      if ((err as any).capturedConsole) {
+        this.consoleLogs.push(...(err as any).capturedConsole);
+      }
+      this.log('error', `Web trigger "${triggerKey}" failed: ${err}`);
+      throw err;
+    } finally {
+      this.pendingInvokeCount--;
     }
   }
 

@@ -291,6 +291,7 @@ server.tool(
         resolvers: result.resolvers,
         triggers: result.triggers,
         consumers: result.consumers,
+        webTriggers: result.webTriggers,
         uiModules: result.uiModules,
         errors: result.errors,
       };
@@ -440,6 +441,37 @@ server.tool(
     } catch (err) {
       return {
         content: [{ type: 'text' as const, text: `❌ Scheduled trigger failed: ${err instanceof Error ? err.message : String(err)}` }],
+        isError: true,
+      };
+    }
+  }
+);
+
+server.tool(
+  'forge.fire_web_trigger',
+  'Fire a web trigger (webtrigger module) by key — simulates an HTTP request hitting its URL, exactly like the dev server\'s /__trigger/<key> endpoint. The handler is called with the Forge (request, context) convention. Returns the { statusCode, headers, body } response. Handler errors and malformed results come back as 500 responses (what a real webhook caller would see), not tool errors.',
+  {
+    triggerKey: z.string().describe('The webtrigger module key from the manifest'),
+    method: z.string().optional().describe('HTTP method (default: GET)'),
+    userPath: z.string().optional().describe('Extra path appended after the trigger URL (e.g. "/hooks/push")'),
+    headers: z.record(z.string(), z.union([z.string(), z.array(z.string())])).optional().describe('Request headers'),
+    queryParameters: z.record(z.string(), z.union([z.string(), z.array(z.string())])).optional().describe('Query parameters'),
+    body: z.any().optional().describe('Request body — objects/arrays are JSON.stringified, strings pass through raw'),
+  },
+  async ({ triggerKey, method, userPath, headers, queryParameters, body }) => {
+    try {
+      const result = await sim.fireWebTrigger(triggerKey, { method, userPath, headers, queryParameters, body });
+      const emoji = result.statusCode < 400 ? '✅' : '❌';
+      return {
+        content: [{
+          type: 'text' as const,
+          text: `${emoji} Web trigger "${triggerKey}" → ${result.statusCode}\n${JSON.stringify(result, null, 2)}`,
+        }],
+        isError: result.statusCode >= 500,
+      };
+    } catch (err) {
+      return {
+        content: [{ type: 'text' as const, text: `❌ Web trigger failed: ${err instanceof Error ? err.message : String(err)}` }],
         isError: true,
       };
     }
