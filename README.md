@@ -6,7 +6,7 @@ A local simulated runtime for [Forge](https://developer.atlassian.com/platform/f
 
 * **Local development** — think LocalStack for Forge. Skip the deploy-to-cloud step and run your app against simulated storage, product APIs, and triggers, with dev tools for inspecting Forge state as you go. Orders of magnitude faster than iterating via `forge tunnel`
 
-* **AI-assisted development (MCP)** — let an agent deploy, invoke, render, and inspect your app in a simulated Forge environment via MCP tools instead of handing it your cloud credentials or a browser pointed at your dev site. Faster feedback, zero blast radius.
+* **AI-assisted development (MCP)** — let an agent deploy, invoke, render, and inspect your app in a simulated Forge environment via MCP tools instead of handing it your cloud credentials or a browser pointed at your dev site. Faster feedback — and you control the blast radius: fully sandboxed until you connect a real account.
 
 ## Scope
 
@@ -140,7 +140,7 @@ GitHub renders as an inline player. (GIFs in the repo work too: docs/media/)
 
 ## AI-driven development
 
-forge-sim gives AI agents a local Forge runtime with no Atlassian credentials and no deploy permissions, so an agent can write code, deploy it locally, test it, and iterate without any way of touching a real site. Everything is reachable through CLI commands:
+forge-sim gives AI agents a local Forge runtime that needs no Atlassian credentials and no deploy permissions — out of the box, an agent can write code, deploy it locally, test it, and iterate without touching a real site. If you *do* connect a real account (`forge-sim auth`), unmocked product API calls pass through to it; mocked routes always win, so you control exactly which calls stay local. Everything is reachable through CLI commands:
 
 ```bash
 # Deploy the app (daemon auto-starts)
@@ -167,7 +167,7 @@ The first command auto-starts a background daemon; state persists across calls a
 For AI agents that support [Model Context Protocol](https://modelcontextprotocol.io/), forge-sim exposes the same operations as MCP tools:
 
 <!-- BEGIN:STATS_COMPACT -->
-2,263 tests · 41 MCP tools · 4 MCP resources
+2,270 tests · 41 MCP tools · 4 MCP resources
 <!-- END:STATS_COMPACT -->
 
 ```bash
@@ -232,8 +232,8 @@ npm run docs:stats:check    # CI guard — fails if stats are stale
 ```
 
 <!-- BEGIN:STATS -->
-**2,263 tests** across **119** test files
-(2,116 core / 115 files
+**2,270 tests** across **120** test files
+(2,123 core / 116 files
 + 147 renderer / 4 files)
 
 **41 MCP tools** + **4 resources**
