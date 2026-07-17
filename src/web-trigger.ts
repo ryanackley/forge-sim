@@ -231,18 +231,24 @@ export async function executeWebTrigger(
     };
   }
 
-  // Normalize handler headers to multi-value string[]
+  // Normalize handler headers to multi-value string[]. Key casing is
+  // preserved exactly as the handler wrote it (eval 3 finding #4) — request
+  // headers arrive lowercased (Node + Forge both do that), but the response
+  // is the handler's to shape.
   const headers: Record<string, string[]> = {};
   if (result.headers && typeof result.headers === 'object') {
     for (const [key, values] of Object.entries(result.headers)) {
       if (Array.isArray(values) && values.length > 0) {
-        headers[key.toLowerCase()] = (values as unknown[]).map(String);
+        headers[key] = (values as unknown[]).map(String);
       } else if (typeof values === 'string') {
-        headers[key.toLowerCase()] = [values];
+        headers[key] = [values];
       }
     }
   }
-  if (!headers['content-type']) {
+  const hasContentType = Object.keys(headers).some(
+    (k) => k.toLowerCase() === 'content-type',
+  );
+  if (!hasContentType) {
     headers['content-type'] = ['text/plain'];
   }
 

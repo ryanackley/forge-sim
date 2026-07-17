@@ -67,7 +67,9 @@ describe('B5 — sim.fireWebTrigger()', () => {
     });
 
     expect(res.statusCode).toBe(200);
-    expect(res.headers['content-type']).toEqual(['application/json']);
+    // Response header casing is the handler's — preserved verbatim (eval 3 #4)
+    expect(res.headers['Content-Type']).toEqual(['application/json']);
+    expect(res.headers['content-type']).toBeUndefined();
 
     const body = JSON.parse(res.body);
     expect(body.method).toBe('POST'); // method uppercased
