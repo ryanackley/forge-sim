@@ -88,7 +88,28 @@ export async function ensureDaemon(): Promise<number> {
     });
 
     let output = '';
+    let stderrTail = '';
     let resolved = false;
+
+    // Release the stdio pipes so this process can exit while the daemon
+    // lives on. `child.unref()` alone is NOT enough: the stdout/stderr pipe
+    // sockets are separate libuv handles that each keep the parent's event
+    // loop alive — with them ref'd, the CLI prints its result and then hangs
+    // forever after a cold daemon spawn (eval-5 F5). unref (not destroy):
+    // the pipes stay open, so the daemon never sees EPIPE while we're alive.
+    const releaseStdio = () => {
+      child.stdout!.removeAllListeners('data');
+      child.stderr!.removeAllListeners('data');
+      (child.stdout as any).unref?.();
+      (child.stderr as any).unref?.();
+      child.unref();
+    };
+
+    // Capture stderr while waiting — it's the only diagnostic we have if
+    // startup fails (the daemon logs to stderr + ~/.forge-sim/daemon.log).
+    child.stderr!.on('data', (chunk) => {
+      stderrTail = (stderrTail + chunk.toString()).slice(-2000);
+    });
 
     child.stdout!.on('data', (chunk) => {
       output += chunk.toString();
@@ -97,8 +118,7 @@ export async function ensureDaemon(): Promise<number> {
         const info = JSON.parse(output.trim());
         if (info.port) {
           resolved = true;
-          child.stdout!.removeAllListeners();
-          child.unref();
+          releaseStdio();
           resolve(info.port);
         }
       } catch {
@@ -111,18 +131,22 @@ export async function ensureDaemon(): Promise<number> {
     });
 
     child.on('exit', (code) => {
-      if (!resolved) reject(new Error(`Daemon exited with code ${code} before starting`));
+      if (!resolved) {
+        const detail = stderrTail.trim() ? `\n${stderrTail.trim()}` : '';
+        reject(new Error(`Daemon exited with code ${code} before starting${detail}`));
+      }
     });
 
     // Timeout — daemon should start within 10s
-    setTimeout(() => {
+    const startupTimer = setTimeout(() => {
       if (!resolved) {
         child.kill();
-        reject(new Error('Daemon startup timed out'));
+        const detail = stderrTail.trim() ? `\n${stderrTail.trim()}` : '';
+        reject(new Error(`Daemon startup timed out${detail}`));
       }
     }, 10_000);
-
-    child.unref();
+    // Don't let the watchdog itself hold the process open after success.
+    startupTimer.unref();
   });
 }
 

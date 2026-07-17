@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 /**
  * forge-sim Daemon — Standalone HTTP server for AI agents and CLI.
  *
@@ -51,6 +52,13 @@ function startIdleTimer(): void {
 }
 
 // ── Logging ─────────────────────────────────────────────────────────────
+
+// The daemon outlives the CLI that spawned it. Once that parent exits, the
+// stdout/stderr pipes lose their reader and further writes raise EPIPE —
+// which would crash the daemon on its next log line. Swallow stream errors;
+// LOG_FILE is the durable log.
+process.stdout.on('error', () => { /* reader gone — LOG_FILE still works */ });
+process.stderr.on('error', () => { /* reader gone — LOG_FILE still works */ });
 
 function log(msg: string): void {
   const line = `[${new Date().toISOString()}] ${msg}\n`;
