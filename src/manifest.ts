@@ -77,6 +77,14 @@ export interface ManifestConsumer {
   key: string;
   queue: string;
   functionKey: string;
+  /**
+   * Present when the consumer was declared with the deprecated @forge/events
+   * 1.x shape (`resolver: { function, method }`). Names which Resolver
+   * definition inside the function's export receives queue events. v1
+   * handlers get the resolver calling convention ({ payload, context })
+   * where payload is the event body. (Eval-4 F3.)
+   */
+  resolverMethod?: string;
 }
 
 export interface ManifestTrigger {
@@ -267,6 +275,11 @@ export const KNOWN_MODULE_TYPES = new Set([
   'endpoint', 'action',
   // Forge SQL — declares a provisioned database (key + engine), no code
   'sql',
+  // Object Store — declares provisioned object storage (key), no code.
+  // Real Forge requires this module when using @forge/object-store; the
+  // shim warns when it's absent, so the parser must not counter-warn when
+  // it's present (eval-4 F6 catch-22).
+  'objectStore',
   // Teamwork Graph (EAP) — connector apps ingest data into the org graph
   'graph:connector',
   // Jira
@@ -337,6 +350,8 @@ export function parseManifestContent(content: string): ParsedManifest {
     resources.set(res.key, { key: res.key, path: res.path });
   }
 
+  const warnings: ManifestWarning[] = [];
+
   // Parse functions
   const functions = new Map<string, ManifestFunction>();
   for (const fn of (Array.isArray(modules.function) ? modules.function : []) as any[]) {
@@ -347,14 +362,31 @@ export function parseManifestContent(content: string): ParsedManifest {
     });
   }
 
-  // Parse consumers
+  // Parse consumers.
+  // Two documented shapes (eval-4 F3 — the v1 shape used to parse to
+  // functionKey: undefined, turning the consumer into a silent event sink):
+  //   v2+ (@forge/events 2.x):  function: <functionKey>
+  //   v1 (deprecated):          resolver: { function: <functionKey>, method: <resolverMethod> }
   const consumers: ManifestConsumer[] = [];
   for (const consumer of (Array.isArray(modules.consumer) ? modules.consumer : []) as any[]) {
-    consumers.push({
+    const v1 = consumer.resolver && typeof consumer.resolver === 'object'
+      ? consumer.resolver as { function?: string; method?: string }
+      : undefined;
+    const entry: ManifestConsumer = {
       key: consumer.key,
       queue: consumer.queue,
-      functionKey: consumer.function,
-    });
+      functionKey: consumer.function ?? v1?.function,
+    };
+    if (v1?.method !== undefined) entry.resolverMethod = v1.method;
+    if (v1 && consumer.function === undefined) {
+      warnings.push({
+        level: 'warning',
+        message: `Consumer "${consumer.key}" uses the deprecated @forge/events 1.x shape ` +
+          `(resolver: { function, method }). Supported, but consider migrating to ` +
+          `\`function: ${v1.function ?? '<functionKey>'}\` with a 2.x-style handler.`,
+      });
+    }
+    consumers.push(entry);
   }
 
   // Parse triggers
@@ -404,7 +436,6 @@ export function parseManifestContent(content: string): ParsedManifest {
 
   // Parse UI modules (any module with a resolver or resource)
   const uiModules: ManifestUIModule[] = [];
-  const warnings: ManifestWarning[] = [];
 
   // Warn on unknown module types — deploy anyway (see KNOWN_MODULE_TYPES).
   for (const moduleType of Object.keys(modules)) {
@@ -420,7 +451,7 @@ export function parseManifestContent(content: string): ParsedManifest {
   // (they appear at the top level of modules: but don't render UI)
   const nonUIModuleTypes = new Set([
     'function', 'endpoint', 'consumer', 'scheduledTrigger',
-    'trigger', 'webtrigger', 'remote', 'sql',
+    'trigger', 'webtrigger', 'remote', 'sql', 'objectStore',
   ]);
 
   // Module types with nested resource patterns (view.resource / edit.resource)
@@ -881,10 +912,33 @@ export function parseManifestContent(content: string): ParsedManifest {
       } else if (Array.isArray(rawIndexes)) {
         const seenIndexNames = new Set<string>();
         for (const [iIdx, rawIndex] of rawIndexes.entries()) {
+          // String shorthand — official docs example:
+          //   indexes:
+          //     - surname
+          // creates a simple index named after the attribute, ranged on it.
+          if (typeof rawIndex === 'string' && rawIndex) {
+            if (seenIndexNames.has(rawIndex)) {
+              warnings.push({
+                level: 'error',
+                message: `Entity "${name}" has duplicate index name "${rawIndex}".`,
+              });
+              continue;
+            }
+            seenIndexNames.add(rawIndex);
+            if (!(rawIndex in attributes)) {
+              warnings.push({
+                level: 'warning',
+                message: `Entity "${name}" index "${rawIndex}" refers to attribute "${rawIndex}" ` +
+                  'but no such attribute is declared. Real Forge will reject this manifest.',
+              });
+            }
+            indexes.push({ name: rawIndex, partition: [], range: rawIndex });
+            continue;
+          }
           if (!rawIndex || typeof rawIndex !== 'object') {
             warnings.push({
               level: 'error',
-              message: `Entity "${name}" indexes[${iIdx}] must be an object.`,
+              message: `Entity "${name}" indexes[${iIdx}] must be an object or an attribute-name string.`,
             });
             continue;
           }

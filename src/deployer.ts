@@ -157,6 +157,13 @@ export interface DeployWebTriggerSummary {
   function: string;
 }
 
+/** Summary entry for a scheduled trigger, matching the MCP `forge.deploy` response shape. */
+export interface DeployScheduledTriggerSummary {
+  key: string;
+  function: string;
+  interval: string;
+}
+
 export interface DeployOptions {
   /**
    * Fire each scheduled trigger once at deploy time (default: true).
@@ -197,6 +204,12 @@ export interface DeployResult {
    * `forge.fire_web_trigger` tool — NOT `sim.invoke()`.
    */
   webTriggers: DeployWebTriggerSummary[];
+  /**
+   * Scheduled trigger modules (eval-4 F10: previously missing from the
+   * summary even though deploy fires them). Fire again with
+   * `sim.fireScheduledTrigger(key)` or MCP `forge.fire_scheduled_trigger`.
+   */
+  scheduledTriggers: DeployScheduledTriggerSummary[];
   errors: Array<{ functionKey: string; error: string }>;
   /**
    * Manifest validation warnings (and info-level notes). Mirrored from
@@ -287,8 +300,30 @@ export async function resolveResourceFile(appDir: string, resourcePath: string):
 }
 
 /**
+ * Adapt a v1 (@forge/events 1.x) consumer resolver-method handler to the
+ * queue's (event, context) calling convention.
+ *
+ * v1 consumers are declared as `resolver: { function, method }` and the
+ * method handler uses the resolver convention — a single ({ payload,
+ * context }) object where payload is the event body (retryContext rides on
+ * the payload) and jobId is available via context. (Eval-4 F3.)
+ */
+export function wrapV1ConsumerHandler(
+  methodHandler: (req: { payload: unknown; context: unknown }) => unknown
+) {
+  return async (event: any, context: any) =>
+    methodHandler({
+      payload: {
+        ...(event?.body ?? {}),
+        ...(event?.retryContext !== undefined ? { retryContext: event.retryContext } : {}),
+      },
+      context: { ...(context ?? {}), jobId: event?.jobId },
+    });
+}
+
+/**
  * Deploy a Forge app directory into a simulator instance.
- * 
+ *
  * 1. Reads manifest.yml from appDir
  * 2. For each function in the manifest, resolves the handler file and imports it
  * 3. Wires up resolvers, consumers, and triggers on the simulator
@@ -431,6 +466,38 @@ export async function deploy(sim: ForgeSimulator, appDir: string, options: Deplo
     }
   }
 
+  // ── Function reference validation (eval-4 F2) ────────────────────────────
+  // Real Forge lint rejects any module that references an undeclared function.
+  // Before this check, a trigger pointing at a missing function deployed with
+  // errors: [] and firing the event was a silent no-op — the inverted parity
+  // violation (green in forge-sim, rejected by Forge lint).
+  {
+    const declaredKeys = [...manifest.functions.keys()];
+    const available = declaredKeys.length > 0
+      ? ` Declared functions: ${declaredKeys.join(', ')}`
+      : ' No functions are declared in modules.function.';
+    const checkFunctionRef = (moduleDesc: string, fnKey: string | undefined) => {
+      if (fnKey === undefined) {
+        errors.push({
+          functionKey: moduleDesc,
+          error: `${moduleDesc} does not reference a function. Real Forge lint rejects this manifest.`,
+        });
+        return;
+      }
+      if (!manifest.functions.has(fnKey)) {
+        errors.push({
+          functionKey: fnKey,
+          error: `${moduleDesc} references function "${fnKey}" which is not declared in modules.function. ` +
+            `Real Forge lint rejects this manifest.${available}`,
+        });
+      }
+    };
+    for (const t of manifest.triggers) checkFunctionRef(`Trigger "${t.key}"`, t.functionKey);
+    for (const c of manifest.consumers) checkFunctionRef(`Consumer "${c.key}"`, c.functionKey);
+    for (const st of manifest.scheduledTriggers) checkFunctionRef(`Scheduled trigger "${st.key}"`, st.functionKey);
+    for (const wt of manifest.webTriggers) checkFunctionRef(`Web trigger "${wt.key}"`, wt.functionKey);
+  }
+
   // ── Determine function types from manifest context ──────────────────────
   // Build sets of function keys by how they're used in the manifest
   const triggerFnKeys = new Set(manifest.triggers.map(t => t.functionKey));
@@ -506,12 +573,46 @@ export async function deploy(sim: ForgeSimulator, appDir: string, options: Deplo
   }
 
   // 5. Wire up consumers
-  // Consumers receive (event, context) as two separate arguments.
+  // v2+ (@forge/events 2.x): the function IS the handler, invoked with
+  // (event, context) as two separate arguments where event is the AsyncEvent
+  // ({ body, jobId, retryContext }).
+  // v1 (deprecated `resolver: { function, method }` shape): the function
+  // exports a Resolver definitions map; `method` names which definition
+  // receives queue events, invoked with the resolver convention — a single
+  // ({ payload, context }) object where payload is the event body and jobId
+  // rides on context. (Eval-4 F3: this shape used to be a silent event sink.)
   for (const consumer of manifest.consumers) {
-    const handler = handlerExports.get(consumer.functionKey);
-    if (handler && typeof handler === 'function') {
-      sim.registerFunction(consumer.functionKey, handler, 'consumer');
-      sim.registerConsumer(consumer.queue, handler);
+    const exported = handlerExports.get(consumer.functionKey);
+    if (!exported) continue; // missing/failed function already surfaced in errors
+
+    if (consumer.resolverMethod !== undefined) {
+      const defs = typeof exported === 'object' ? exported as Record<string, unknown> : undefined;
+      const methodHandler = defs?.[consumer.resolverMethod];
+      if (typeof methodHandler !== 'function') {
+        const availableMethods = defs
+          ? Object.keys(defs).filter((k) => typeof defs[k] === 'function')
+          : [];
+        errors.push({
+          functionKey: consumer.functionKey,
+          error: `Consumer "${consumer.key}" uses the v1 resolver shape with method ` +
+            `"${consumer.resolverMethod}", but function "${consumer.functionKey}" ` +
+            (defs
+              ? `has no resolver definition with that name. Available: ${availableMethods.join(', ') || '(none)'}`
+              : `does not export a Resolver definitions map (export resolver.getDefinitions()).`),
+        });
+        continue;
+      }
+      const wrapped = wrapV1ConsumerHandler(
+        methodHandler as (req: { payload: unknown; context: unknown }) => unknown
+      );
+      sim.registerFunction(consumer.functionKey, wrapped, 'consumer');
+      sim.registerConsumer(consumer.queue, wrapped);
+      continue;
+    }
+
+    if (typeof exported === 'function') {
+      sim.registerFunction(consumer.functionKey, exported, 'consumer');
+      sim.registerConsumer(consumer.queue, exported);
     }
   }
 
@@ -641,6 +742,11 @@ export async function deploy(sim: ForgeSimulator, appDir: string, options: Deplo
     webTriggers: manifest.webTriggers.map((wt) => ({
       key: wt.key,
       function: wt.functionKey,
+    })),
+    scheduledTriggers: manifest.scheduledTriggers.map((st) => ({
+      key: st.key,
+      function: st.functionKey,
+      interval: st.interval,
     })),
     errors,
     warnings: manifest.warnings,

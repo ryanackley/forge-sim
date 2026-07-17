@@ -22,7 +22,7 @@ import { resolve, join, relative, dirname } from 'node:path';
 import { existsSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { createSimulator, ForgeSimulator } from './simulator.js';
-import { deploy, bundleHandlerToFileUrl, sweepStaleBundles, deployBundleDir } from './deployer.js';
+import { deploy, bundleHandlerToFileUrl, sweepStaleBundles, deployBundleDir, wrapV1ConsumerHandler } from './deployer.js';
 import { createDevServer } from './dev-server.js';
 import { parseManifest, type ParsedManifest, type ManifestUIModule, BACKGROUND_SCRIPT_TYPES, getCompatibleBackgroundScripts } from './manifest.js';
 import { saveState, loadState, hasPersistedState, getSQLDumpPath } from './persistence.js';
@@ -2659,9 +2659,26 @@ export async function deployResolversOnly(
     }
   }
 
-  // Wire up consumers
+  // Wire up consumers.
+  // v1 (deprecated `resolver: { function, method }` shape): the method's
+  // resolver definition receives queue events with the resolver calling
+  // convention — adapt via wrapV1ConsumerHandler. (Eval-4 F3.)
   for (const consumer of manifest.consumers) {
     const handlerMap = sim.resolver.getHandlerMap();
+    if (consumer.resolverMethod !== undefined) {
+      // The definitions-map export registered each method under its own name.
+      const methodHandler = handlerMap.get(consumer.resolverMethod);
+      if (methodHandler) {
+        sim.registerConsumer(consumer.queue, wrapV1ConsumerHandler(methodHandler as any) as any);
+      } else {
+        errors.push({
+          functionKey: consumer.functionKey,
+          error: `Consumer "${consumer.key}" uses the v1 resolver shape with method ` +
+            `"${consumer.resolverMethod}", but no resolver definition with that name was loaded.`,
+        });
+      }
+      continue;
+    }
     const handler = handlerMap.get(consumer.functionKey);
     if (handler) {
       sim.registerConsumer(consumer.queue, handler as any);
