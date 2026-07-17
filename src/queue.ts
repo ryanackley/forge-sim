@@ -213,6 +213,12 @@ export class SimulatedQueue {
       event.status = 'failed';
       event.error = err instanceof Error ? err.message : String(err);
       job.stats.failed++;
+      // Surface the failure loudly — real Forge records failed async events
+      // in the developer console. Before this, a throwing consumer was
+      // invisible outside getEventLog() (eval-4 F5).
+      console.error(
+        `[forge-sim] ❌ Consumer for queue "${job.queueKey}" failed (job ${job.jobId}): ${event.error}`
+      );
     } finally {
       job.stats.inProgress--;
       // Check consumer invocation time (55s default, up to 900s)
@@ -242,18 +248,25 @@ export class SimulatedQueue {
     return [...this.eventLog];
   }
 
-  /** Get stats for all queues. */
-  getStats(): Record<string, { consumers: number; jobs: number; events: number }> {
+  /**
+   * Get stats for all queues. Includes per-outcome counts (succeeded /
+   * failed) so a throwing consumer is visible in the aggregate view, not
+   * just buried in getEventLog()[n].event.status (eval-4 F5).
+   */
+  getStats(): Record<string, { consumers: number; jobs: number; events: number; succeeded: number; failed: number }> {
     const queueKeys = new Set<string>();
     for (const key of this.consumers.keys()) queueKeys.add(key);
     for (const { queueKey } of this.eventLog) queueKeys.add(queueKey);
 
-    const stats: Record<string, { consumers: number; jobs: number; events: number }> = {};
+    const stats: Record<string, { consumers: number; jobs: number; events: number; succeeded: number; failed: number }> = {};
     for (const key of queueKeys) {
+      const keyEvents = this.eventLog.filter(e => e.queueKey === key);
       stats[key] = {
         consumers: this.consumers.has(key) ? 1 : 0,
-        jobs: [...this.jobs.values()].filter(j => this.eventLog.some(e => e.jobId === j.jobId && e.queueKey === key)).length,
-        events: this.eventLog.filter(e => e.queueKey === key).length,
+        jobs: [...this.jobs.values()].filter(j => keyEvents.some(e => e.jobId === j.jobId)).length,
+        events: keyEvents.length,
+        succeeded: keyEvents.filter(e => e.event.status === 'success').length,
+        failed: keyEvents.filter(e => e.event.status === 'failed').length,
       };
     }
     return stats;

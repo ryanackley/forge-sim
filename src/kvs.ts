@@ -1336,6 +1336,23 @@ export class EntityQueryBuilder {
     const schema = this.schemas.get(this.entityName);
     const indexDef = schema?.indexes.find(i => i.name === this._indexName);
 
+    // Parity (eval-4 F4): real Forge rejects queries against undeclared
+    // indexes. Silently returning { results: [] } made a typo'd index name
+    // indistinguishable from "no data" — the inverted parity violation.
+    // Only enforced when a schema is registered (manifest app.storage.entities
+    // or sim.kvs.registerEntitySchema); schema-less test setups keep working.
+    if (this._indexName !== undefined && schema && !indexDef) {
+      const known = schema.indexes.map(i => i.name);
+      throw new KVSQueryError(
+        'INDEX_NOT_FOUND',
+        `Entity "${this.entityName}" has no index named "${this._indexName}". ` +
+        (known.length
+          ? `Declared indexes: ${known.join(', ')}.`
+          : 'No indexes are declared for this entity.') +
+        ' Real Forge rejects queries on undeclared indexes.'
+      );
+    }
+
     // Apply partition filter
     if (this._partition && this._partition.length > 0 && indexDef?.partition) {
       const partitionKeys = indexDef.partition;
