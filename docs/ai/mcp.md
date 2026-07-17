@@ -128,7 +128,7 @@ In practice: credentials, secrets, and variables are set-once-and-shared; runtim
 ## Tools
 
 <!-- BEGIN:STATS_COMPACT -->
-2,258 tests · 40 MCP tools · 4 MCP resources
+2,258 tests · 41 MCP tools · 4 MCP resources
 <!-- END:STATS_COMPACT -->
 
 | Tool | Description |
@@ -142,7 +142,8 @@ In practice: credentials, secrets, and variables are set-once-and-shared; runtim
 | `forge.ui_render` | Render a UI module by manifest key: loads bundle, builds context, returns ForgeDoc (and MacroConfig tree for inline-config macros) |
 | `forge.ui_wait_for` | Wait for text to appear in a module's rendered tree; settles async `useEffect → invoke()` chains after `ui_render` or `ui_interact` |
 | `forge.ui_state` | Get the current ForgeDoc UI tree |
-| `forge.ui_interact` | Click buttons, submit forms, interact with UI |
+| `forge.ui_interact` | Click buttons and fire events on components found by type/text |
+| `forge.ui_fill_form` | Fill form fields **by name** and optionally submit — fires the correct per-type event shape (Select option objects, checked booleans) and settles effects first; prefer over `ui_interact` for form input |
 | `forge.kvs_get` | Get a KVS value by key |
 | `forge.kvs_set` | Set a KVS value (for test setup) |
 | `forge.kvs_list` | List/dump KVS contents (optional prefix filter) |

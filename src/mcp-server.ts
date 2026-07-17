@@ -13,6 +13,7 @@
  *   forge:ui_wait_for   — Wait for text to appear in a module's rendered tree (handles async useEffect chains)
  *   forge:ui_state      — Get the current ForgeDoc UI tree
  *   forge:ui_interact   — Interact with UI components (click, submit, etc.)
+ *   forge:ui_fill_form  — Fill form fields by name (correct per-type event shapes) and optionally submit
  *   forge:kvs_get       — Get a value from KVS
  *   forge:kvs_list      — List/dump KVS contents
  *   forge:kvs_set       — Set a value in KVS (for test setup)
@@ -639,6 +640,87 @@ server.tool(
       if (updatedDoc) {
         output.updatedUI = sim.ui.prettyPrint(updatedDoc);
       }
+
+      return {
+        content: [{ type: 'text' as const, text: JSON.stringify(output, null, 2) }],
+      };
+    } catch (err) {
+      return {
+        content: [{ type: 'text' as const, text: `❌ ${err instanceof Error ? err.message : String(err)}` }],
+        isError: true,
+      };
+    }
+  }
+);
+
+server.tool(
+  'forge.ui_fill_form',
+  'Fill form fields BY NAME and optionally submit — the reliable way to drive UIKit forms. ' +
+  'Prefer this over `forge.ui_interact` for form input: it targets `name="..."` props directly ' +
+  '(no positional nthMatch guessing), fires the exact event shape each field type expects ' +
+  '(Select gets the react-select {label, value} option object, Checkbox/Toggle get target.checked), ' +
+  'and settles pending effects before filling so a late useEffect cannot clobber the value. ' +
+  'Handles Textfield, TextArea, Checkbox, CheckboxGroup, Radio, RadioGroup, Toggle, Select, ' +
+  'DatePicker, TimePicker, UserPicker, Range. With `submit: true`, fires the <Form> onSubmit ' +
+  'after filling (react-hook-form validation applies, same as production — a blocked submit ' +
+  'leaves validation errors visible in the returned tree). Unknown field names error with the ' +
+  'list of available fields.',
+  {
+    moduleKey: z.string().describe('UI module key — same value passed to `forge.ui_render`.'),
+    values: z.record(z.string(), z.any()).optional().describe(
+      'Map of field name → value. Select: pass the option value (or {label, value}); ' +
+      'isMulti Select: an array. Checkbox/Toggle: boolean. Omit to submit the form\'s current state.'
+    ),
+    submit: z.boolean().optional().describe(
+      'Fire the <Form> onSubmit after filling (default: false). Required if `values` is omitted.'
+    ),
+  },
+  async ({ moduleKey, values, submit }) => {
+    if (!values && !submit) {
+      return {
+        content: [{ type: 'text' as const, text: '❌ Nothing to do — provide `values` to fill, `submit: true` to submit, or both.' }],
+        isError: true,
+      };
+    }
+    const doc = sim.ui.getForgeDoc(moduleKey);
+    if (!doc) {
+      return {
+        content: [{ type: 'text' as const, text: `❌ No rendered ForgeDoc for module "${moduleKey}". Call \`forge.ui_render\` first.` }],
+        isError: true,
+      };
+    }
+
+    try {
+      // Settle pending effects first — filling mid-effect-flush simulates
+      // typing faster than a browser could paint (a pending setValue effect
+      // would clobber what we just set).
+      await sim.ui.settle(moduleKey);
+
+      const consoleBefore = sim.getConsoleLogs().length;
+      let result: unknown;
+      if (submit) {
+        // submitForm fills each value (if given), flushes, then fires onSubmit.
+        result = await sim.ui.submitForm(moduleKey, values);
+      } else {
+        for (const [name, value] of Object.entries(values!)) {
+          sim.ui.fillField(moduleKey, name, value);
+        }
+      }
+      // Let fill/submit re-renders and any kicked-off invokes flush.
+      await sim.ui.settle(moduleKey);
+
+      const newConsole = sim.getConsoleLogs().slice(consoleBefore);
+      const output: Record<string, unknown> = {
+        module: moduleKey,
+        filled: values ? Object.keys(values) : [],
+        submitted: submit === true,
+      };
+      if (submit) output.result = result;
+      if (newConsole.length > 0) {
+        output.console = newConsole.map((l) => `[${l.level}] ${l.message}`);
+      }
+      const updatedDoc = sim.ui.getForgeDoc(moduleKey);
+      if (updatedDoc) output.updatedUI = sim.ui.prettyPrint(updatedDoc);
 
       return {
         content: [{ type: 'text' as const, text: JSON.stringify(output, null, 2) }],
