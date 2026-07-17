@@ -2084,6 +2084,14 @@ export async function devCommand(options: DevCommandOptions) {
       },
     });
 
+    // Advertise this dev server so session CLI commands (invoke, trigger,
+    // kvs, sql, ...) target it instead of the background daemon.
+    {
+      const { writeDevServerFile, removeDevServerFile } = await import('./daemon-client.js');
+      writeDevServerFile({ port, pid: process.pid, appDir });
+      process.on('exit', () => removeDevServerFile());
+    }
+
     console.log('  ─────────────────────────────────────────────');
     console.log('');
     console.log(`  🔥 forge-sim dev (proxy mode)`);
@@ -2229,6 +2237,16 @@ export async function devCommand(options: DevCommandOptions) {
     const info = viteServer.resolvedUrls;
     const localUrl = info?.local?.[0] ?? `http://localhost:${port}`;
     const networkUrl = info?.network?.[0];
+
+    // Advertise this dev server so session CLI commands (invoke, trigger,
+    // kvs, sql, ...) target it instead of the background daemon. Use the
+    // *resolved* port — Vite may have bumped past a taken port.
+    {
+      const { writeDevServerFile, removeDevServerFile } = await import('./daemon-client.js');
+      const resolvedPort = Number(new URL(localUrl).port) || port;
+      writeDevServerFile({ port: resolvedPort, pid: process.pid, appDir });
+      process.on('exit', () => removeDevServerFile());
+    }
 
     console.log('  ─────────────────────────────────────────────');
     console.log('');

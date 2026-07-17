@@ -216,6 +216,8 @@ else if (command === 'auth') {
 else if (command === 'deploy') {
   const appDir = resolve(args[1] ?? '.');
   const noReset = args.includes('--no-reset');
+  // Deploy always targets the daemon — a running dev server owns its own
+  // deploy lifecycle (redeploy-on-save watches the app dir).
   const { daemonRequest } = await import('./daemon-client.js');
 
   try {
@@ -271,9 +273,9 @@ else if (command === 'invoke') {
     }
   }
 
-  const { daemonRequest } = await import('./daemon-client.js');
+  const { simRequest } = await import('./daemon-client.js');
   try {
-    const result = await daemonRequest('/api/invoke', {
+    const result = await simRequest('/api/invoke', {
       method: 'POST',
       body: { functionKey, payload },
     });
@@ -301,9 +303,9 @@ else if (command === 'trigger') {
     }
   }
 
-  const { daemonRequest } = await import('./daemon-client.js');
+  const { simRequest } = await import('./daemon-client.js');
   try {
-    const result = await daemonRequest('/api/trigger', {
+    const result = await simRequest('/api/trigger', {
       method: 'POST',
       body: { event, data },
     });
@@ -323,9 +325,9 @@ else if (command === 'scheduled') {
     process.exit(1);
   }
 
-  const { daemonRequest } = await import('./daemon-client.js');
+  const { simRequest } = await import('./daemon-client.js');
   try {
-    const result = await daemonRequest('/api/scheduled-trigger', {
+    const result = await simRequest('/api/scheduled-trigger', {
       method: 'POST',
       body: { key },
     });
@@ -340,12 +342,12 @@ else if (command === 'scheduled') {
 
 else if (command === 'kvs') {
   const sub = args[1] ?? 'list';
-  const { daemonRequest } = await import('./daemon-client.js');
+  const { simRequest } = await import('./daemon-client.js');
 
   try {
     if (sub === 'list') {
       const prefix = args.includes('--prefix') ? args[args.indexOf('--prefix') + 1] : undefined;
-      const result = await daemonRequest(`/api/kvs${prefix ? `?prefix=${encodeURIComponent(prefix)}` : ''}`);
+      const result = await simRequest(`/api/kvs${prefix ? `?prefix=${encodeURIComponent(prefix)}` : ''}`);
       if (Array.isArray(result)) {
         if (result.length === 0) {
           console.log('(empty)');
@@ -360,13 +362,13 @@ else if (command === 'kvs') {
     } else if (sub === 'get') {
       const key = args[2];
       if (!key) { console.error('Usage: forge-sim kvs get <key>'); process.exit(1); }
-      const result = await daemonRequest(`/api/kvs/${encodeURIComponent(key)}`);
+      const result = await simRequest(`/api/kvs/${encodeURIComponent(key)}`);
       console.log(JSON.stringify(result.value, null, 2));
     } else if (sub === 'set') {
       const key = args[2];
       const value = args[3];
       if (!key || !value) { console.error('Usage: forge-sim kvs set <key> <jsonValue>'); process.exit(1); }
-      await daemonRequest(`/api/kvs/${encodeURIComponent(key)}`, {
+      await simRequest(`/api/kvs/${encodeURIComponent(key)}`, {
         method: 'PUT',
         body: { value: JSON.parse(value) },
       });
@@ -390,9 +392,9 @@ else if (command === 'sql') {
     process.exit(1);
   }
 
-  const { daemonRequest } = await import('./daemon-client.js');
+  const { simRequest } = await import('./daemon-client.js');
   try {
-    const result = await daemonRequest('/api/sql/query', {
+    const result = await simRequest('/api/sql/query', {
       method: 'POST',
       body: { query },
       timeout: 30_000,
@@ -441,9 +443,9 @@ else if (command === 'render') {
     }
   }
 
-  const { daemonRequest } = await import('./daemon-client.js');
+  const { simRequest } = await import('./daemon-client.js');
   try {
-    const result = await daemonRequest('/api/ui/render', {
+    const result = await simRequest('/api/ui/render', {
       method: 'POST',
       body: { moduleKey, ...renderOpts },
       timeout: 30_000,
@@ -481,9 +483,9 @@ else if (command === 'render') {
 // ── UI State ────────────────────────────────────────────────────────────
 
 else if (command === 'ui') {
-  const { daemonRequest } = await import('./daemon-client.js');
+  const { simRequest } = await import('./daemon-client.js');
   try {
-    const result = await daemonRequest('/api/ui/state');
+    const result = await simRequest('/api/ui/state');
     if (result.rendered) {
       console.log(result.tree);
     } else {
@@ -498,9 +500,9 @@ else if (command === 'ui') {
 // ── Logs ────────────────────────────────────────────────────────────────
 
 else if (command === 'logs') {
-  const { daemonRequest } = await import('./daemon-client.js');
+  const { simRequest } = await import('./daemon-client.js');
   try {
-    const logs = await daemonRequest('/api/logs');
+    const logs = await simRequest('/api/logs');
     if (Array.isArray(logs) && logs.length === 0) {
       console.log('(no logs)');
     } else if (Array.isArray(logs)) {
@@ -521,7 +523,12 @@ else if (command === 'logs') {
 // ── Status ──────────────────────────────────────────────────────────────
 
 else if (command === 'status') {
-  const { getDaemonStatus } = await import('./daemon-client.js');
+  const { getDaemonStatus, getDevServerStatus } = await import('./daemon-client.js');
+  const dev = await getDevServerStatus();
+  if (dev?.running) {
+    console.log(`Dev server: running (PID ${dev.pid}, port ${dev.port})${dev.appDir ? ` — ${dev.appDir}` : ''}`);
+    console.log('  Session commands (invoke, trigger, kvs, sql, ...) target the dev server.');
+  }
   const status = await getDaemonStatus();
 
   if (!status) {
@@ -567,9 +574,9 @@ else if (command === 'stop') {
 // ── Reset ───────────────────────────────────────────────────────────────
 
 else if (command === 'reset') {
-  const { daemonRequest } = await import('./daemon-client.js');
+  const { simRequest } = await import('./daemon-client.js');
   try {
-    const result = await daemonRequest('/api/reset', { method: 'POST' });
+    const result = await simRequest('/api/reset', { method: 'POST' });
     console.log(`✅ ${result.message}`);
   } catch (err: any) {
     console.error(`❌ ${err.message}`);
@@ -581,7 +588,7 @@ else if (command === 'reset') {
 
 else if (command === 'mock') {
   const subCommand = args[1]; // 'routes' or 'graphql'
-  const { daemonRequest } = await import('./daemon-client.js');
+  const { simRequest } = await import('./daemon-client.js');
 
   if (subCommand === 'routes') {
     // forge-sim mock routes <product> <routesJSON>
@@ -598,7 +605,7 @@ else if (command === 'mock') {
     }
     try {
       const routes = JSON.parse(routesJson);
-      const result = await daemonRequest('/api/mock/routes', {
+      const result = await simRequest('/api/mock/routes', {
         method: 'POST',
         body: { product, routes },
       });
@@ -623,7 +630,7 @@ else if (command === 'mock') {
     }
     try {
       const operations = JSON.parse(opsJson);
-      const result = await daemonRequest('/api/mock/graphql', {
+      const result = await simRequest('/api/mock/graphql', {
         method: 'POST',
         body: { operations },
       });
