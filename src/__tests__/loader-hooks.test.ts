@@ -11,6 +11,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { resolve as pathResolve, join, sep } from 'node:path';
 import { mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { execSync } from 'node:child_process';
 
 // A no-op nextResolve that should never be called for @forge/* specifiers
 const nextResolve = vi.fn(async (specifier: string) => ({
@@ -166,6 +167,96 @@ describe('Loader Hooks — resolve()', () => {
       await resolve('lodash', {}, nextResolve);
 
       expect(warnSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('@forge/sql CJS default-export facade (eval-5 F1 parity fix)', () => {
+    // Real Forge bundles apps with __esModule-honoring interop, so
+    // `import sql from '@forge/sql'` (Atlassian's documented style) yields
+    // the sql instance. Node's native interop yields module.exports instead.
+    // The facade papers over the difference.
+
+    it('wraps @forge/sql in a facade URL with format module', async () => {
+      const cjsNext = vi.fn(async () => ({
+        url: 'file:///app/node_modules/@forge/sql/out/index.js',
+        format: 'commonjs',
+      }));
+
+      const result = await resolve('@forge/sql', {}, cjsNext);
+
+      expect(result.shortCircuit).toBe(true);
+      expect(result.format).toBe('module');
+      expect(result.url).toBe(
+        'file:///app/node_modules/@forge/sql/out/index.js?forge-sim-cjs-facade'
+      );
+    });
+
+    it('does NOT wrap if the package resolves as native ESM', async () => {
+      const esmNext = vi.fn(async () => ({
+        url: 'file:///app/node_modules/@forge/sql/out/index.js',
+        format: 'module',
+      }));
+
+      const result = await resolve('@forge/sql', {}, esmNext);
+      expect(result.url).not.toContain('forge-sim-cjs-facade');
+    });
+
+    it('does NOT wrap @forge/sql subpaths (raw passthrough preserved)', async () => {
+      nextResolve.mockClear();
+      const result = await resolve('@forge/sql/out/migration', {}, nextResolve);
+      expect(result.url).not.toContain('forge-sim-cjs-facade');
+    });
+
+    it('load() synthesizes an ESM facade with bundler default semantics', async () => {
+      const realUrl = 'file:///app/node_modules/@forge/sql/out/index.js';
+      const facadeUrl = realUrl + '?forge-sim-cjs-facade';
+      const next = vi.fn(async () => { throw new Error('nextLoad must not be called'); });
+
+      const result = await load(facadeUrl, {}, next);
+
+      expect(result.shortCircuit).toBe(true);
+      expect(result.format).toBe('module');
+      const source = String(result.source);
+      // Imports the REAL entry (query stripped), not the facade URL
+      expect(source).toContain(`import cjs from ${JSON.stringify(realUrl)}`);
+      expect(source).toContain(`export * from ${JSON.stringify(realUrl)}`);
+      // Bundler interop: honor __esModule
+      expect(source).toContain('__esModule');
+      expect(source).toContain('export default');
+    });
+
+    it('E2E: default import of @forge/sql yields the sql instance under the loader', () => {
+      // Reproduces the eval-5 F1 repro exactly: run real Node with the
+      // registered loader and import @forge/sql the way Atlassian's docs do.
+      const repoRoot = pathResolve(fileURLToPath(import.meta.url), '..', '..', '..');
+      const scriptPath = join(repoRoot, `.tmp-sql-facade-test-${process.pid}.mjs`);
+      writeFileSync(scriptPath, [
+        `import sqlDefault from '@forge/sql';`,
+        `import { sql, migrationRunner } from '@forge/sql';`,
+        `import * as ns from '@forge/sql';`,
+        `console.log(JSON.stringify({`,
+        `  defaultPrepare: typeof sqlDefault.prepare,`,
+        `  defaultIsNamedSql: sqlDefault === sql,`,
+        `  migrationRunner: typeof migrationRunner,`,
+        `  nsDefaultPrepare: typeof ns.default.prepare,`,
+        `}));`,
+      ].join('\n'));
+
+      try {
+        const out = execSync(
+          `node --import ./dist/loader/register.js ${JSON.stringify(scriptPath)}`,
+          { cwd: repoRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }
+        );
+        const parsed = JSON.parse(out.trim().split('\n').pop()!);
+        expect(parsed).toEqual({
+          defaultPrepare: 'function',      // was 'undefined' before the facade
+          defaultIsNamedSql: true,         // exports.default === exports.sql
+          migrationRunner: 'object',       // named exports untouched (it's an instance)
+          nsDefaultPrepare: 'function',    // namespace default matches too
+        });
+      } finally {
+        rmSync(scriptPath, { force: true });
+      }
     });
   });
 

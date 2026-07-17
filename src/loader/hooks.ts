@@ -51,6 +51,35 @@ const FORGE_SHIMS: Record<string, string> = Object.fromEntries(
 // the real package runs unmodified against the sim's MySQL backend.
 const PASSTHROUGH_OK = new Set(['@forge/sql']);
 
+// CJS default-export interop facade (parity fix).
+//
+// @forge/sql is TypeScript-compiled CJS: it sets `exports.__esModule = true`
+// and `exports.default = <the sql instance>`. Real Forge bundles apps with
+// tooling that HONORS `__esModule`, so `import sql from '@forge/sql'` gives
+// the sql instance — Atlassian's own docs use this default-import style.
+// Node's native ESM↔CJS interop IGNORES `__esModule` and hands back
+// `module.exports` (the namespace), so `sql.prepare` is undefined and the
+// documented import style breaks under the sim. That's an inverted parity
+// violation: works in Forge, fails here.
+//
+// Fix: resolve these packages to a synthesized ESM facade that re-exports
+// the named exports untouched and computes `default` with bundler semantics
+// (`__esModule` honored). Root specifier only — subpaths keep raw passthrough.
+const CJS_DEFAULT_FACADE = new Set(['@forge/sql']);
+const FACADE_QUERY = 'forge-sim-cjs-facade';
+
+function buildCjsFacadeSource(realUrl: string): string {
+  const spec = JSON.stringify(realUrl);
+  return [
+    `import cjs from ${spec};`,
+    `export * from ${spec};`,
+    // Bundler interop: __esModule set → default is exports.default;
+    // otherwise the whole module.exports object (Node's native behavior).
+    `export default (cjs && cjs.__esModule && 'default' in cjs) ? cjs.default : cjs;`,
+    '',
+  ].join('\n');
+}
+
 // Warn (once per specifier) when app code imports a @forge/* package that
 // forge-sim doesn't simulate. Without this, the REAL Atlassian package loads
 // silently and fails — or worse, silently misbehaves — at call time, deep in
@@ -284,6 +313,17 @@ export async function load(
   // Strip cache-busting query string for extension check
   const cleanUrl = url.split('?')[0];
 
+  // CJS default-export facade — synthesize an ESM wrapper around the real
+  // CJS module. `cleanUrl` is the real on-disk entry; the facade imports it
+  // (Node loads it as plain CJS) and re-exports with bundler interop.
+  if (url.includes(FACADE_QUERY)) {
+    return {
+      source: buildCjsFacadeSource(cleanUrl),
+      format: 'module',
+      shortCircuit: true,
+    };
+  }
+
   if (cleanUrl.endsWith('.tsx')) {
     return transpileWithEsbuild(url, 'tsx', context, nextLoad);
   }
@@ -308,6 +348,25 @@ export async function resolve(
   if (shimPath) {
     return {
       url: pathToFileURL(shimPath).href,
+      shortCircuit: true,
+    };
+  }
+
+  // 1a. CJS default-export facade — resolve the real package, then wrap it
+  // in a synthesized ESM module whose `default` follows bundler interop
+  // semantics (honors __esModule) instead of Node's. See CJS_DEFAULT_FACADE.
+  if (CJS_DEFAULT_FACADE.has(specifier)) {
+    const resolved = await nextResolve(specifier, context);
+    // Only wrap CJS. If the package ever ships native ESM (format 'module'
+    // or an .mjs entry), interop is moot — pass it through untouched.
+    const cleanResolvedUrl = resolved.url.split('?')[0];
+    if (resolved.format === 'module' || cleanResolvedUrl.endsWith('.mjs')) {
+      return resolved;
+    }
+    const sep = resolved.url.includes('?') ? '&' : '?';
+    return {
+      url: resolved.url + sep + FACADE_QUERY,
+      format: 'module',
       shortCircuit: true,
     };
   }
