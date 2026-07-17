@@ -728,7 +728,13 @@ sim.ui.getContext(moduleKey?: string): ForgeContext | null
 
 ```typescript no-check
 interface RenderContextOptions {
-  context?: Partial<ForgeContext>;  // Override context values
+  context?: Partial<ForgeContext>;      // Raw context fields (merge semantics, see below)
+  issueKey?: string;                    // Jira issue key — hydrates issue data into context
+  projectKey?: string;                  // Jira project key — hydrates project data
+  contentId?: string;                   // Confluence content ID — hydrates content data
+  spaceKey?: string;                    // Confluence space key — hydrates space data
+  extension?: Record<string, any>;      // Replace the FULL extension object (see below)
+  macroConfig?: Record<string, unknown>; // One-shot useConfig() values (macro modules only)
 }
 
 interface ForgeDoc {
@@ -737,6 +743,23 @@ interface ForgeDoc {
   children: ForgeDoc[];            // Child nodes
   key: string;                     // React key
 }
+```
+
+**`context` vs `extension`** — same split as [`sim.invoke`](#resolvers--invocation):
+
+- **`context`** *merges*: canonical `ForgeContext` fields (`accountId`, `cloudId`, `locale`, `license`, `theme`, ...) are promoted to the top level of the rendered context; anything unrecognized is merged into `extension`. Putting an `extension` key *inside* `context` is not allowed — use the top-level option.
+- **`extension`** *replaces* the extension object wholesale (placement data: `issue`, `project`, `content`, `space`, `config`, ...). It also suppresses `issueKey`/`contentId`/etc. hydration — you're declaring the exact placement shape, so nothing is fetched on top of it.
+- **`issueKey`/`projectKey`/`contentId`/`spaceKey`** hydrate placement data into `extension` for you. Lookups go through the product API, so mock routes apply; `issueKey` pulls the project from the fetched issue (falling back to the key prefix, with a warning, if the lookup fails).
+- **`macroConfig`** is a per-render `useConfig()` seed for `macro` modules — as if a previous config save had run. It does not persist; use `sim.ui.setMacroConfig` for sticky values.
+
+```typescript
+// Hydrate issue placement from a (mocked) Jira issue
+await sim.ui.render('issue-panel', { issueKey: 'PROJ-1', context: { accountId: 'alice' } });
+
+// Or declare the placement shape exactly — no hydration
+await sim.ui.render('issue-panel', {
+  extension: { type: 'jira:issuePanel', issue: { id: '10042', key: 'PROJ-1' } },
+});
 ```
 
 ### Querying the ForgeDoc Tree
