@@ -245,6 +245,19 @@ describe('ensureTsconfig', () => {
         `module=${mod}, moduleResolution=${res}. This triggers TS5110.`,
     ).toBe(true);
   });
+
+  it('synthetic tsconfig does not emit options removed in TypeScript 7 (TS5102 regression)', () => {
+    // TS5102: "Option 'baseUrl' has been removed. Please remove it from your
+    // configuration." forge-sim drives the APP's installed TypeScript, so any
+    // removed option we emit becomes a phantom error on every deploy for apps
+    // on TS 7+ (eval 3 finding #2).
+    const path = ensureTsconfig(TEST_DIR);
+    const cfg = JSON.parse(require('node:fs').readFileSync(path, 'utf-8'));
+    expect(cfg.compilerOptions).not.toHaveProperty('baseUrl');
+    // `paths` without baseUrl is fine in TS5+, but we don't emit it either —
+    // if it ever appears, make sure it's intentional.
+    expect(cfg.compilerOptions).not.toHaveProperty('paths');
+  });
 });
 
 describe('resolveTsc', () => {

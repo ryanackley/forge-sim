@@ -99,7 +99,11 @@ const SYNTHETIC_TSCONFIG = {
     module: 'esnext',
     moduleResolution: 'bundler',
     jsx: 'react-jsx',
-    baseUrl: '..',
+    // No `baseUrl`: it was removed in TypeScript 7, and since we drive the
+    // *app's* installed TypeScript, emitting it produced a phantom TS5102
+    // ("Option 'baseUrl' has been removed") on every deploy for TS7 apps
+    // (eval 3 finding #2). Nothing needed it — there are no `paths` mappings
+    // and Forge apps use relative + node_modules imports only.
   },
   include: ['../src/**/*'],
 };
