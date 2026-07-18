@@ -852,6 +852,9 @@ export class UnifiedKVS {
     let indexDef: IndexDefinition | undefined;
     try {
       indexDef = resolveIndexDefOrThrow(this.entitySchemas, body.entityName, body.indexName);
+      // Exact partition-key arity (eval-8 E8-3): partial/empty/excess
+      // partition values are rejected, matching real Forge.
+      validatePartitionArity(indexDef, body.partition, body.entityName, body.indexName);
     } catch (err) {
       if (err instanceof KVSQueryError) {
         return jsonResponse(400, { code: err.code, message: err.message });
@@ -859,11 +862,12 @@ export class UnifiedKVS {
       throw err;
     }
 
-    // Apply partition filter
-    if (body.partition && body.partition.length > 0 && indexDef?.partition) {
+    // Apply partition filter — arity is validated above, so every declared
+    // partition attribute has exactly one provided value.
+    if (indexDef?.partition && body.partition) {
       const partitionKeys = indexDef.partition;
       entries = entries.filter(entry => {
-        for (let i = 0; i < partitionKeys.length && i < body.partition!.length; i++) {
+        for (let i = 0; i < partitionKeys.length; i++) {
           const attrName = partitionKeys[i];
           const attrVal = getAttributeValue(entry, attrName);
           if (attrVal !== body.partition![i]) return false;
@@ -1225,6 +1229,47 @@ function resolveIndexDefOrThrow(
   return indexDef;
 }
 
+/**
+ * Enforce exact partition-key arity (eval-8 E8-3). Real Forge requires the
+ * FULL partition key for an index query. The sim used to prefix-match —
+ * 1 of 2 partition values on a 2-attribute partition matched BOTH
+ * categories, excess values were silently ignored, and an empty/omitted
+ * partition returned every row in the entity. All of those should error.
+ *
+ * Shared by both query surfaces (builder getMany() and the wire handler).
+ * Only enforced when the index definition is known (schema registered);
+ * schema-less test setups stay permissive.
+ */
+function validatePartitionArity(
+  indexDef: IndexDefinition | undefined,
+  partition: unknown[] | undefined,
+  entityName: string,
+  indexName: string | undefined,
+): void {
+  if (!indexDef) return;
+  const declared = indexDef.partition?.length ?? 0;
+  const provided = partition?.length ?? 0;
+  if (declared === 0) {
+    if (provided > 0) {
+      throw new KVSQueryError(
+        'QUERY_PARTITION_INVALID',
+        `Index "${indexName}" on entity "${entityName}" declares no partition ` +
+        `attributes, but ${provided} partition value(s) were provided.`
+      );
+    }
+    return;
+  }
+  if (provided !== declared) {
+    throw new KVSQueryError(
+      'QUERY_PARTITION_INVALID',
+      `Index "${indexName}" on entity "${entityName}" requires the full ` +
+      `partition key [${indexDef.partition!.join(', ')}] — expected ` +
+      `${declared} partition value(s), got ${provided}. Real Forge rejects ` +
+      `partial, empty, or excess partition keys.`
+    );
+  }
+}
+
 /** Forge KVS query page-size defaults (spec KVS-025/KVS-026, ENT-025). */
 const KVS_QUERY_DEFAULT_LIMIT = 10;
 const KVS_QUERY_MAX_LIMIT = 100;
@@ -1453,11 +1498,16 @@ export class EntityQueryBuilder {
     // when a schema is registered (shared with the wire path, eval-4 F4 / eval-7 F2).
     const indexDef = resolveIndexDefOrThrow(this.schemas, this.entityName, this._indexName);
 
-    // Apply partition filter
-    if (this._partition && this._partition.length > 0 && indexDef?.partition) {
+    // Exact partition-key arity (eval-8 E8-3): partial/empty/excess
+    // partition values are rejected, matching real Forge.
+    validatePartitionArity(indexDef, this._partition, this.entityName, this._indexName);
+
+    // Apply partition filter — arity is validated above, so every declared
+    // partition attribute has exactly one provided value.
+    if (indexDef?.partition && this._partition) {
       const partitionKeys = indexDef.partition;
       entries = entries.filter(entry => {
-        for (let i = 0; i < partitionKeys.length && i < this._partition!.length; i++) {
+        for (let i = 0; i < partitionKeys.length; i++) {
           const attrVal = entry.value?.[partitionKeys[i]];
           if (attrVal !== this._partition![i]) return false;
         }

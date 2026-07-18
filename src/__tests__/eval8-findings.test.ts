@@ -12,6 +12,14 @@
  *        resume with deterministic key tiebreak, loud CURSOR_INVALID on
  *        undecodable cursors. All four paths: entity builder, entity wire,
  *        plain-KVS builder, plain-KVS wire.
+ *
+ * E8-3 (MEDIUM) — partition keys were prefix-matched, not exact-matched.
+ *        A 1-of-2 partition value on a 2-attribute partition index matched
+ *        BOTH categories; excess values were silently ignored; an empty or
+ *        omitted partition returned every row in the entity. Real Forge
+ *        requires the full partition key. Now: exact arity enforced via
+ *        QUERY_PARTITION_INVALID whenever the index definition is known
+ *        (schema registered); schema-less setups stay permissive.
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
@@ -276,6 +284,137 @@ describe('eval-8 findings', () => {
         const res = await wireQuery({ limit: 2, after: 'item:b' });
         expect(res.status).toBe(400);
         expect(res.data.code).toBe('CURSOR_INVALID');
+      });
+    });
+  });
+
+  // ── E8-3: exact partition-key arity ────────────────────────────────
+
+  describe('E8-3: exact partition-key enforcement', () => {
+    beforeEach(async () => {
+      // The eval's exact schema: 2-attribute partition (projectKey, category)
+      kvs.registerEntitySchema('Evidence', {
+        attributes: {
+          projectKey: { type: 'string' },
+          category: { type: 'string' },
+          seq: { type: 'integer' },
+        },
+        indexes: [
+          { name: 'by-project-category', partition: ['projectKey', 'category'] },
+          { name: 'all-by-seq', partition: [], range: 'seq' },
+        ],
+      });
+      await kvs.entity('Evidence').set('P:doc:1', { projectKey: 'P', category: 'doc', seq: 1 });
+      await kvs.entity('Evidence').set('P:img:2', { projectKey: 'P', category: 'img', seq: 2 });
+      await kvs.entity('Evidence').set('Q:doc:3', { projectKey: 'Q', category: 'doc', seq: 3 });
+    });
+
+    describe('entity query builder', () => {
+      it('rejects a partial partition key (the eval repro)', async () => {
+        // Pre-fix: partition ['P'] prefix-matched BOTH P categories.
+        await expect(
+          kvs.entity('Evidence').query()
+            .index('by-project-category', { partition: ['P'] })
+            .getMany()
+        ).rejects.toThrow(/QUERY_PARTITION_INVALID/);
+      });
+
+      it('rejects an empty partition array', async () => {
+        // Pre-fix: returned every row in the entity.
+        await expect(
+          kvs.entity('Evidence').query()
+            .index('by-project-category', { partition: [] })
+            .getMany()
+        ).rejects.toThrow(/QUERY_PARTITION_INVALID/);
+      });
+
+      it('rejects an omitted partition on a partitioned index', async () => {
+        await expect(
+          kvs.entity('Evidence').query()
+            .index('by-project-category')
+            .getMany()
+        ).rejects.toThrow(/QUERY_PARTITION_INVALID/);
+      });
+
+      it('rejects excess partition values', async () => {
+        // Pre-fix: extras were silently ignored.
+        await expect(
+          kvs.entity('Evidence').query()
+            .index('by-project-category', { partition: ['P', 'doc', 'extra'] })
+            .getMany()
+        ).rejects.toThrow(/QUERY_PARTITION_INVALID/);
+      });
+
+      it('names the required partition attributes in the error', async () => {
+        await expect(
+          kvs.entity('Evidence').query()
+            .index('by-project-category', { partition: ['P'] })
+            .getMany()
+        ).rejects.toThrow(/projectKey, category/);
+      });
+
+      it('exact arity works and matches exactly (no prefix scan)', async () => {
+        const { results } = await kvs.entity('Evidence').query()
+          .index('by-project-category', { partition: ['P', 'doc'] })
+          .getMany();
+        expect(results.map(r => r.key)).toEqual(['P:doc:1']);
+      });
+
+      it('rejects partition values on a partition-less index', async () => {
+        await expect(
+          kvs.entity('Evidence').query()
+            .index('all-by-seq', { partition: ['P'] })
+            .getMany()
+        ).rejects.toThrow(/QUERY_PARTITION_INVALID/);
+      });
+
+      it('partition-less index still works with no partition', async () => {
+        const { results } = await kvs.entity('Evidence').query()
+          .index('all-by-seq')
+          .getMany();
+        expect(results.map(r => r.value.seq)).toEqual([1, 2, 3]);
+      });
+
+      it('stays permissive for schema-less entities', async () => {
+        await kvs.entity('Loose').set('x', { a: 1 });
+        const { results } = await kvs.entity('Loose').query()
+          .index('anything', { partition: ['whatever'] })
+          .getMany();
+        expect(results).toHaveLength(1);
+      });
+    });
+
+    describe('entity query wire path (/api/v1/entity/query)', () => {
+      async function wireQuery(body: Record<string, unknown>) {
+        const res = await kvs.handleRequest('/api/v1/entity/query', {
+          method: 'POST',
+          body: JSON.stringify(body),
+        });
+        return { status: res.status, data: await res.json() };
+      }
+
+      it('partial partition returns 400 QUERY_PARTITION_INVALID', async () => {
+        const res = await wireQuery({
+          entityName: 'Evidence', indexName: 'by-project-category', partition: ['P'],
+        });
+        expect(res.status).toBe(400);
+        expect(res.data.code).toBe('QUERY_PARTITION_INVALID');
+      });
+
+      it('empty partition returns 400', async () => {
+        const res = await wireQuery({
+          entityName: 'Evidence', indexName: 'by-project-category', partition: [],
+        });
+        expect(res.status).toBe(400);
+        expect(res.data.code).toBe('QUERY_PARTITION_INVALID');
+      });
+
+      it('exact arity works over the wire', async () => {
+        const res = await wireQuery({
+          entityName: 'Evidence', indexName: 'by-project-category', partition: ['P', 'img'],
+        });
+        expect(res.status).toBe(200);
+        expect(res.data.data.map((e: any) => e.key)).toEqual(['P:img:2']);
       });
     });
   });
