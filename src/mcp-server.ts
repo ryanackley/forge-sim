@@ -59,6 +59,7 @@ import { createServer } from 'node:http';
 import { statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { createSimulator } from './simulator.js';
+import { buildEntityQueryWireBody, MCP_RANGE_OPERATORS, MCP_FILTER_OPERATORS } from './mcp-entity-query.js';
 import {
   isStale,
   buildStalenessWarning,
@@ -1388,28 +1389,22 @@ server.tool(
     indexName: z.string().describe('Index to query (as defined in manifest)'),
     partition: z.array(z.any()).describe('Partition key values (must match index partition attributes in order)'),
     range: z.object({
-      operator: z.enum(['BETWEEN', 'BEGINS_WITH', 'GREATER_THAN', 'LESS_THAN', 'EQUAL_TO']).describe('Range condition operator'),
+      operator: z.enum(MCP_RANGE_OPERATORS).describe('Range condition operator'),
       value: z.any().describe('Range value (or [min, max] array for BETWEEN)'),
     }).optional().describe('Range key condition'),
     filters: z.array(z.object({
       field: z.string().describe('Attribute name to filter on'),
-      operator: z.enum(['EQUAL_TO', 'GREATER_THAN', 'LESS_THAN', 'BETWEEN', 'BEGINS_WITH', 'EXISTS', 'NOT_EXISTS', 'CONTAINS']).describe('Filter operator'),
-      value: z.any().optional().describe('Filter value'),
+      operator: z.enum(MCP_FILTER_OPERATORS).describe('Filter operator'),
+      value: z.any().optional().describe('Filter value (omit for EXISTS/NOT_EXISTS)'),
     })).optional().describe('Post-query filters'),
     filterOperator: z.enum(['AND', 'OR']).optional().describe('How to combine filters (default: AND)'),
     sort: z.enum(['ASC', 'DESC']).optional().describe('Sort direction on range key (default: ASC)'),
     cursor: z.string().optional().describe('Pagination cursor from previous query'),
-    limit: z.number().optional().describe('Max results to return (default: 25)'),
+    limit: z.number().optional().describe('Max results to return (default: 20)'),
   },
   async ({ entityName, indexName, partition, range, filters, filterOperator, sort, cursor, limit }) => {
     try {
-      const body: any = { entityName, indexName, partition };
-      if (range) body.range = { condition: range.operator, value: range.operator === 'BETWEEN' ? undefined : range.value, values: range.operator === 'BETWEEN' ? range.value : undefined };
-      if (filters) body.filters = filters.map(f => ({ field: f.field, condition: f.operator, value: f.value }));
-      if (filterOperator) body.filterOperator = filterOperator;
-      if (sort) body.sort = sort;
-      if (cursor) body.cursor = cursor;
-      if (limit) body.limit = limit;
+      const body = buildEntityQueryWireBody({ entityName, indexName, partition, range, filters, filterOperator, sort, cursor, limit });
 
       const res = await sim.kvs.handleRequest('/api/v1/entity/query', {
         method: 'POST',
