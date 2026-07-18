@@ -2676,6 +2676,22 @@ export async function deployResolversOnly(
   // .forge-sim/variables.json take effect here (Forge redeploy parity).
   await sim.variables.inject(appDir);
 
+  // Register Custom Entity Store schemas from app.storage.entities —
+  // mirrors deployer.deploy() step 1c. Eval-9 E9-3: this loop was missing
+  // from the dev-mode deploy path, so the KVS engine ran in permissive
+  // (schema-less) mode in the browser: entity queries silently dropped
+  // partition/range filtering (every partition returned every row), and
+  // ALL schema-gated enforcement — type validation, INDEX_NOT_FOUND,
+  // partition arity, ENTITY_NOT_FOUND — was inert in dev mode while
+  // working correctly in tests and via MCP. Runs on every hot-redeploy;
+  // re-registering the same schema is an idempotent overwrite.
+  for (const [entityName, entityDef] of manifest.entities) {
+    sim.kvs.registerEntitySchema(entityName, {
+      attributes: entityDef.attributes,
+      indexes: entityDef.indexes ?? [],
+    });
+  }
+
   // Find which functions are UI resource entry points — we'll skip those
   const resourceFunctionKeys = new Set<string>();
   for (const mod of manifest.uiModules) {

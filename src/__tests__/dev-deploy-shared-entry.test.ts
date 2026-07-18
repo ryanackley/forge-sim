@@ -179,4 +179,76 @@ describe('deployResolversOnly — shared entry file (F8/F3 dev path)', () => {
 
     expect(await sim.kvs.get('sticky')).toEqual({ keep: 'me' });
   });
+
+  // ── Custom Entity Store schemas (eval-9 E9-3) ───────────────────────────
+  //
+  // deployer.deploy() step 1c registers app.storage.entities schemas before
+  // loading code. The dev path skipped that step, so `forge-sim dev` ran the
+  // KVS engine in permissive (schema-less) mode: entity queries silently
+  // dropped partition/range filtering (every partition returned every row)
+  // and all schema-gated enforcement — type validation, INDEX_NOT_FOUND,
+  // ENTITY_NOT_FOUND, partition arity — was inert in dev mode while working
+  // correctly in tests and via MCP.
+
+  it('registers app.storage.entities schemas like the full deployer (E9-3)', async () => {
+    const ENTITY_FIXTURE = join(import.meta.dirname, 'fixtures/manifest-entities');
+    const manifest = await parseManifest(join(ENTITY_FIXTURE, 'manifest.yml'));
+    await deployResolversOnly(sim, ENTITY_FIXTURE, manifest);
+
+    const schemas = sim.kvs.getEntitySchemas();
+    expect(schemas.has('Task')).toBe(true);
+    expect(schemas.has('Comment')).toBe(true);
+
+    // Partition filtering must actually apply — the eval's repro was every
+    // partition returning every row in dev mode.
+    await sim.kvs.entity('Task').set('t1', {
+      title: 'Fix the thing',
+      status: 'available',
+      priority: 1,
+      projectId: 'P1',
+      createdAt: '2026-07-18',
+    });
+
+    const hit = await sim.kvs
+      .entity('Task')
+      .query()
+      .index('by-status', { partition: ['available'] })
+      .getMany();
+    expect(hit.results).toHaveLength(1);
+
+    const miss = await sim.kvs
+      .entity('Task')
+      .query()
+      .index('by-status', { partition: ['loaned'] })
+      .getMany();
+    expect(miss.results).toHaveLength(0);
+
+    // Schema-gated enforcement is live: undeclared entities throw instead of
+    // silently returning phantom-empty results.
+    expect(() => sim.kvs.entity('Ghost').query()).toThrow(/ENTITY_NOT_FOUND/);
+  });
+
+  it('re-registers schemas idempotently on hot redeploy (E9-3)', async () => {
+    const ENTITY_FIXTURE = join(import.meta.dirname, 'fixtures/manifest-entities');
+    const manifest = await parseManifest(join(ENTITY_FIXTURE, 'manifest.yml'));
+    await deployResolversOnly(sim, ENTITY_FIXTURE, manifest);
+
+    await sim.kvs.entity('Task').set('t1', {
+      title: 'Survives redeploy',
+      status: 'available',
+      priority: 2,
+      projectId: 'P1',
+      createdAt: '2026-07-18',
+    });
+
+    await deployResolversOnly(sim, ENTITY_FIXTURE, manifest, { reload: true });
+
+    expect(sim.kvs.getEntitySchemas().has('Task')).toBe(true);
+    const rows = await sim.kvs
+      .entity('Task')
+      .query()
+      .index('by-status', { partition: ['available'] })
+      .getMany();
+    expect(rows.results).toHaveLength(1);
+  });
 });
