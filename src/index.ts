@@ -14,7 +14,7 @@ export type { ForgeFunctionType, RegisteredFunction } from './function-registry.
 export { FITProvider } from './fit-provider.js';
 export { RemoteProxy } from './remote-proxy.js';
 export type { InvokeOptions } from './types.js';
-export { UnifiedKVS, WhereConditions, KVSQueryBuilder, EntityAPI, EntityQueryBuilder, TransactionBuilder } from './kvs.js';
+export { UnifiedKVS, WhereConditions, KVSQueryBuilder, EntityAPI, EntityIndexQueryBuilder, EntityQueryBuilder, TransactionBuilder } from './kvs.js';
 export type { EntitySchema, IndexDefinition, EntityStoreDump, StoredEntry } from './kvs.js';
 /** @deprecated Use UnifiedKVS instead */
 export { UnifiedKVS as SimulatedKVS } from './kvs.js';

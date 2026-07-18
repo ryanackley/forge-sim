@@ -20,10 +20,21 @@
  *        requires the full partition key. Now: exact arity enforced via
  *        QUERY_PARTITION_INVALID whenever the index definition is known
  *        (schema registered); schema-less setups stay permissive.
+ *
+ * E8-2 (MEDIUM) — `.where()` without `.index()` was silently ignored and
+ *        index-less entity queries returned the full table. The real
+ *        @forge/kvs client is two-stage: `entity('X').query()` returns a
+ *        builder whose ONLY operation is `.index(name, opts)` — where/
+ *        filters/sort/cursor/limit/getOne/getMany exist only on the
+ *        builder `.index()` returns, so an index-less entity query is
+ *        structurally unrepresentable in real Forge. Now: stage-1 builder
+ *        stubs throw QUERY_INDEX_REQUIRED (synchronously — that's what
+ *        the real client's missing methods would do, minus the useful
+ *        message), and the wire path 400s without an indexName.
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { UnifiedKVS } from '../kvs.js';
+import { UnifiedKVS, WhereConditions } from '../kvs.js';
 
 describe('eval-8 findings', () => {
   let kvs: UnifiedKVS;
@@ -415,6 +426,103 @@ describe('eval-8 findings', () => {
         });
         expect(res.status).toBe(200);
         expect(res.data.data.map((e: any) => e.key)).toEqual(['P:img:2']);
+      });
+    });
+  });
+
+  // ── E8-2: entity queries require an index ──────────────────────────
+
+  describe('E8-2: index required for entity queries', () => {
+    beforeEach(async () => {
+      kvs.registerEntitySchema('Evidence', {
+        attributes: {
+          projectKey: { type: 'string' },
+          ts: { type: 'integer' },
+        },
+        indexes: [
+          { name: 'by-project', partition: ['projectKey'], range: 'ts' },
+          { name: 'all-by-ts', partition: [], range: 'ts' },
+        ],
+      });
+      // The eval's shape: 7 rows, one with ts=100
+      for (let i = 1; i <= 6; i++) {
+        await kvs.entity('Evidence').set(`e${i}`, { projectKey: 'P', ts: i });
+      }
+      await kvs.entity('Evidence').set('e100', { projectKey: 'P', ts: 100 });
+    });
+
+    describe('entity query builder', () => {
+      it('.where() without .index() throws instead of silently ignoring (the eval repro)', () => {
+        // Pre-fix: the between(1,3) condition was dropped and all 7 rows
+        // came back. Real @forge/kvs has no .where on the stage-1 builder.
+        expect(() =>
+          (kvs.entity('Evidence').query() as any)
+            .where(WhereConditions.between(1, 3))
+        ).toThrow(/QUERY_INDEX_REQUIRED/);
+      });
+
+      it('.getMany() without .index() throws', () => {
+        expect(() => (kvs.entity('Evidence').query() as any).getMany())
+          .toThrow(/QUERY_INDEX_REQUIRED/);
+      });
+
+      it('all stage-2 methods throw on the stage-1 builder', () => {
+        for (const method of ['where', 'filters', 'sort', 'cursor', 'limit', 'getOne', 'getMany']) {
+          expect(() => (kvs.entity('Evidence').query() as any)[method]())
+            .toThrow(/QUERY_INDEX_REQUIRED/);
+        }
+      });
+
+      it('names the declared indexes in the error', () => {
+        expect(() => (kvs.entity('Evidence').query() as any).getMany())
+          .toThrow(/by-project, all-by-ts/);
+      });
+
+      it('the indexed path applies the condition correctly', async () => {
+        const { results } = await kvs.entity('Evidence').query()
+          .index('all-by-ts')
+          .where(WhereConditions.between(1, 3))
+          .getMany();
+        expect(results.map(r => r.value.ts)).toEqual([1, 2, 3]);
+      });
+
+      it('schema-less entities still work through .index()', async () => {
+        const loose = new UnifiedKVS();
+        await loose.entity('Loose').set('x', { a: 1 });
+        const { results } = await loose.entity('Loose').query()
+          .index('anything')
+          .getMany();
+        expect(results).toHaveLength(1);
+      });
+    });
+
+    describe('entity query wire path (/api/v1/entity/query)', () => {
+      async function wireQuery(body: Record<string, unknown>) {
+        const res = await kvs.handleRequest('/api/v1/entity/query', {
+          method: 'POST',
+          body: JSON.stringify(body),
+        });
+        return { status: res.status, data: await res.json() };
+      }
+
+      it('missing indexName returns 400 QUERY_INDEX_REQUIRED', async () => {
+        const res = await wireQuery({ entityName: 'Evidence' });
+        expect(res.status).toBe(400);
+        expect(res.data.code).toBe('QUERY_INDEX_REQUIRED');
+      });
+
+      it('empty indexName returns 400', async () => {
+        const res = await wireQuery({ entityName: 'Evidence', indexName: '' });
+        expect(res.status).toBe(400);
+        expect(res.data.code).toBe('QUERY_INDEX_REQUIRED');
+      });
+
+      it('indexName present works as before', async () => {
+        const res = await wireQuery({
+          entityName: 'Evidence', indexName: 'by-project', partition: ['P'], limit: 100,
+        });
+        expect(res.status).toBe(200);
+        expect(res.data.data).toHaveLength(7);
       });
     });
   });

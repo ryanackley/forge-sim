@@ -590,6 +590,7 @@ describe('UnifiedKVS', () => {
         },
         indexes: [
           { name: 'by-status', partition: ['status'], range: 'priority' },
+          { name: 'all-tasks', partition: [], range: 'priority' },
         ],
       });
 
@@ -601,7 +602,7 @@ describe('UnifiedKVS', () => {
     });
 
     it('getMany returns all entities of this type', async () => {
-      const { results } = await kvs.entity('Task').query().getMany();
+      const { results } = await kvs.entity('Task').query().index('all-tasks').getMany();
       expect(results).toHaveLength(5);
     });
 
@@ -655,7 +656,7 @@ describe('UnifiedKVS', () => {
         await kvs.entity('Task').set(`extra-${i}`, { title: `Extra ${i}`, priority: 5, status: 'open' });
       }
       // 5 from beforeEach + 10 extras = 15 entities, no limit()
-      const { results, nextCursor } = await kvs.entity('Task').query().getMany();
+      const { results, nextCursor } = await kvs.entity('Task').query().index('all-tasks').getMany();
       expect(results).toHaveLength(10);
       expect(nextCursor).toBeDefined();
     });
@@ -709,6 +710,7 @@ describe('UnifiedKVS', () => {
 
     it('filters with AND conditions', async () => {
       const { results } = await kvs.entity('Task').query()
+        .index('all-tasks')
         .filters({
           filters: () => [
             { property: 'status', condition: 'EQUAL_TO', values: ['open'] },
@@ -723,6 +725,7 @@ describe('UnifiedKVS', () => {
 
     it('filters with OR conditions', async () => {
       const { results } = await kvs.entity('Task').query()
+        .index('all-tasks')
         .filters({
           filters: () => [
             { property: 'priority', condition: 'EQUAL_TO', values: [1] },
@@ -775,6 +778,7 @@ describe('UnifiedKVS', () => {
 
     it('BEGINS_WITH on string attributes', async () => {
       const { results } = await kvs.entity('Score').query()
+        .index('by-value')
         .filters({
           filters: () => [{ property: 'name', condition: 'BEGINS_WITH', values: ['Score 1'] }],
           operator: () => 'and',
@@ -786,6 +790,7 @@ describe('UnifiedKVS', () => {
 
     it('CONTAINS on string attributes', async () => {
       const { results } = await kvs.entity('Score').query()
+        .index('by-value')
         .filters({
           filters: () => [{ property: 'name', condition: 'CONTAINS', values: ['5'] }],
           operator: () => 'and',
@@ -797,6 +802,7 @@ describe('UnifiedKVS', () => {
     it('EXISTS filters non-null values', async () => {
       await kvs.entity('Score').set('s-null', { name: 'Nullish' } as any);
       const { results } = await kvs.entity('Score').query()
+        .index('by-value')
         .filters({
           filters: () => [{ property: 'value', condition: 'EXISTS', values: [] }],
           operator: () => 'and',
@@ -807,6 +813,7 @@ describe('UnifiedKVS', () => {
 
     it('NOT_EQUAL_TO excludes matches', async () => {
       const { results } = await kvs.entity('Score').query()
+        .index('by-value')
         .filters({
           filters: () => [{ property: 'value', condition: 'NOT_EQUAL_TO', values: [50] }],
           operator: () => 'and',

@@ -428,8 +428,8 @@ export class UnifiedKVS {
     this.entities.delete(this.entityKey(entityName, key));
   }
 
-  /** @internal */ entityQuery(entityName: string): EntityQueryBuilder {
-    return new EntityQueryBuilder(entityName, this.entities, this.entitySchemas);
+  /** @internal */ entityQuery(entityName: string): EntityIndexQueryBuilder {
+    return new EntityIndexQueryBuilder(entityName, this.entities, this.entitySchemas);
   }
 
   /**
@@ -851,6 +851,15 @@ export class UnifiedKVS {
     // unscoped — worse than the builder's pre-fix empty result).
     let indexDef: IndexDefinition | undefined;
     try {
+      // Entity queries require an index (eval-8 E8-2): the real wire
+      // protocol has no index-less form.
+      if (typeof body.indexName !== 'string' || body.indexName.length === 0) {
+        throw new KVSQueryError(
+          'QUERY_INDEX_REQUIRED',
+          `Entity queries require an index — provide "indexName" (and its ` +
+          `full partition key). Real Forge has no index-less entity query.`
+        );
+      }
       indexDef = resolveIndexDefOrThrow(this.entitySchemas, body.entityName, body.indexName);
       // Exact partition-key arity (eval-8 E8-3): partial/empty/excess
       // partition values are rejected, matching real Forge.
@@ -1427,12 +1436,53 @@ export class EntityAPI {
     return this.kvs.entityDelete(this.entityName, key);
   }
 
-  query(): EntityQueryBuilder {
+  query(): EntityIndexQueryBuilder {
     return this.kvs.entityQuery(this.entityName);
   }
 }
 
 // ── Entity Query Builder ──────────────────────────────────────────────
+
+/**
+ * Stage-1 entity query builder (eval-8 E8-2). Mirrors the real @forge/kvs
+ * client, where `entity('Name').query()` returns a KvsIndexQueryBuilder
+ * whose ONLY operation is `.index(name, options)` — where/filters/sort/
+ * cursor/limit/getOne/getMany exist only on the builder returned by
+ * `.index()`. An index-less entity query is structurally unrepresentable
+ * in real Forge; the sim used to accept one, silently ignoring `.where()`
+ * and returning the full table. The stubs below throw a targeted error
+ * instead of the real client's bare `TypeError: ... is not a function`.
+ */
+export class EntityIndexQueryBuilder {
+  constructor(
+    private entityName: string,
+    private entities: Map<string, StoredEntry>,
+    private schemas: Map<string, EntitySchema>
+  ) {}
+
+  index(name: string, options?: { partition?: unknown[] }): EntityQueryBuilder {
+    return new EntityQueryBuilder(this.entityName, this.entities, this.schemas).index(name, options);
+  }
+
+  private indexRequired(method: string): never {
+    const known = this.schemas.get(this.entityName)?.indexes.map((i) => i.name) ?? [];
+    throw new KVSQueryError(
+      'QUERY_INDEX_REQUIRED',
+      `entity('${this.entityName}').query().${method}(...) requires an index — ` +
+      `call .index(name, { partition }) first. Real @forge/kvs entity queries ` +
+      `are only expressible through an index; query() exposes nothing else.` +
+      (known.length ? ` Declared indexes: ${known.join(', ')}.` : '')
+    );
+  }
+
+  where(_condition?: unknown): never { return this.indexRequired('where'); }
+  filters(_filter?: unknown): never { return this.indexRequired('filters'); }
+  sort(_direction?: unknown): never { return this.indexRequired('sort'); }
+  cursor(_cursor?: unknown): never { return this.indexRequired('cursor'); }
+  limit(_n?: unknown): never { return this.indexRequired('limit'); }
+  getOne(): never { return this.indexRequired('getOne'); }
+  getMany(): never { return this.indexRequired('getMany'); }
+}
 
 export class EntityQueryBuilder {
   private _indexName?: string;
