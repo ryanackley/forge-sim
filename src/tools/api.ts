@@ -287,6 +287,33 @@ export function createApiHandler(
         }
       }
 
+      // Fire a web trigger — simulates an HTTP request hitting its URL.
+      // CLI-only users previously had no way to exercise a webhook: the
+      // daemon 404'd on everything but /api/* while /__trigger/<key> only
+      // exists on the dev Vite server (eval-6 F6). Setup problems (unknown
+      // key, no manifest) are 404s; handler errors surface inside the
+      // returned WebTriggerResponse as 5xx statusCodes — exactly what a
+      // real webhook caller would see.
+      if (path === '/api/webtrigger' && method === 'POST') {
+        const body = await readBody(req);
+        const { key, method: reqMethod, userPath, headers, queryParameters, body: reqBody } = body;
+        if (!key) return json(res, { error: 'Missing key' }, 400);
+        try {
+          const result = await sim.fireWebTrigger(key, {
+            method: reqMethod,
+            userPath,
+            headers,
+            queryParameters,
+            body: reqBody,
+          });
+          return json(res, result);
+        } catch (err: any) {
+          const msg = err.message ?? String(err);
+          const isSetupError = msg.includes('No web trigger') || msg.includes('No manifest');
+          return json(res, { error: msg }, isSetupError ? 404 : 500);
+        }
+      }
+
       // ── UI State ──────────────────────────────────────────────────
       if (path === '/api/ui/state' && method === 'GET') {
         const doc = sim.ui.getForgeDoc();

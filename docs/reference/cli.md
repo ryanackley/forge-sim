@@ -116,23 +116,52 @@ forge-sim deploy ./my-app --no-reset
 Call a resolver function.
 
 ```bash
-forge-sim invoke <functionKey> [payloadJSON]
+forge-sim invoke <functionKey> [--payload payloadJSON]
 
 # Examples
-forge-sim invoke getIssue '{"issueKey": "PROJ-1"}'
+forge-sim invoke getIssue --payload '{"issueKey": "PROJ-1"}'
 forge-sim invoke listItems
 ```
+
+The payload may also be passed positionally (`forge-sim invoke getIssue '{...}'`).
 
 ### `forge-sim trigger`
 
 Fire a product event trigger.
 
 ```bash
-forge-sim trigger <event> [dataJSON]
+forge-sim trigger <event> [--data dataJSON]
 
 # Example
-forge-sim trigger avi:jira:created:issue '{"issue": {"key": "PROJ-1"}}'
+forge-sim trigger avi:jira:created:issue --data '{"issue": {"key": "PROJ-1"}}'
 ```
+
+The data may also be passed positionally (`forge-sim trigger <event> '{...}'`).
+
+### `forge-sim webtrigger`
+
+Fire a web trigger — simulates an HTTP request hitting the trigger's URL, the
+same as the dev server's `/__trigger/<key>` endpoint. Prints the handler's
+`WebTriggerResponse` as JSON; exits non-zero if the response is a 5xx (handler
+error or malformed response shape).
+
+```bash
+forge-sim webtrigger <key> [options]
+
+# Examples
+forge-sim webtrigger health-check
+forge-sim webtrigger github-webhook --data '{"action": "opened"}'
+forge-sim webtrigger github-webhook --method POST --path /hooks/push \
+  --header 'X-GitHub-Event: push' --query 'ref=main'
+```
+
+| Option | Description |
+|--------|-------------|
+| `--method <verb>` | HTTP method (default `GET`, or `POST` when `--data` is given) |
+| `--data <body>` | Request body — parsed as JSON if valid, otherwise sent as a raw string |
+| `--path <userPath>` | Extra path appended after the trigger URL (e.g. `/hooks/push`) |
+| `--header 'Name: value'` | Request header (repeatable) |
+| `--query 'name=value'` | Query parameter (repeatable) |
 
 ### `forge-sim scheduled`
 

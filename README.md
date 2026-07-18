@@ -188,6 +188,7 @@ The CLI surface is small enough to paste into an agent prompt:
 Deploy a Forge app:    forge-sim deploy <dir>
 Call a resolver:       forge-sim invoke <functionKey> [payloadJSON]
 Fire a trigger:        forge-sim trigger <event> [dataJSON]
+Fire a web trigger:    forge-sim webtrigger <key> [--data json]
 Check UI state:        forge-sim ui
 Read KVS:             forge-sim kvs list
 Run SQL:              forge-sim sql "SELECT * FROM ..."

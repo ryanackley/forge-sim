@@ -7,6 +7,7 @@
  *   forge-sim deploy <appDir>     Deploy app to the daemon (AI/CLI mode)
  *   forge-sim invoke <fn> [json]  Invoke a resolver function
  *   forge-sim trigger <event>     Fire a product event trigger
+ *   forge-sim webtrigger <key>    Fire a web trigger (simulated HTTP request)
  *   forge-sim kvs [get|set|list]  Key-Value Store operations
  *   forge-sim sql <query>         Execute a SQL query
  *   forge-sim ui                  Get current UI state
@@ -56,7 +57,8 @@ if (command === '--help' || command === '-h' || !command) {
     forge-sim dev [appDir]           Start dev server with live UIKit/Custom UI preview
     forge-sim deploy <appDir>        Deploy a Forge app to the simulator daemon
     forge-sim invoke <fn> [payload]  Call a resolver function (payload is JSON string)
-    forge-sim trigger <event> [data] Fire a product event trigger
+    forge-sim trigger <event> [--data json]  Fire a product event trigger
+    forge-sim webtrigger <key> [opts]  Fire a web trigger (--method/--data/--header/--query/--path)
     forge-sim scheduled <key>        Fire a scheduled trigger by key
     forge-sim kvs list [--prefix x]  List KVS entries
     forge-sim kvs get <key>          Get a KVS value
@@ -273,26 +275,32 @@ else if (command === 'deploy') {
 // ── Invoke ──────────────────────────────────────────────────────────────
 
 else if (command === 'invoke') {
-  const functionKey = args[1];
+  // Accept the payload positionally OR via --payload. Pre-fix, a bad flag
+  // value hit an unwrapped JSON.parse and crashed with a raw stack trace.
+  let functionKey: string | undefined;
+  let payloadStr: string | undefined;
+  for (let i = 1; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === '--payload' && args[i + 1] !== undefined) {
+      payloadStr = args[++i];
+    } else if (!arg.startsWith('-')) {
+      if (!functionKey) functionKey = arg;
+      else if (payloadStr === undefined) payloadStr = arg;
+    }
+  }
   if (!functionKey) {
-    console.error('Usage: forge-sim invoke <functionKey> [payloadJSON]');
+    console.error(`Usage: forge-sim invoke <functionKey> [--payload '{"json":"payload"}']`);
     process.exit(1);
   }
 
   let payload: Record<string, any> = {};
-  const payloadStr = args[2];
-  if (payloadStr) {
+  if (payloadStr !== undefined) {
     try {
       payload = JSON.parse(payloadStr);
-    } catch {
-      // Check for --payload flag
-      const payloadIdx = args.indexOf('--payload');
-      if (payloadIdx !== -1 && args[payloadIdx + 1]) {
-        payload = JSON.parse(args[payloadIdx + 1]);
-      } else {
-        console.error('Invalid JSON payload');
-        process.exit(1);
-      }
+    } catch (err: any) {
+      console.error(`Invalid JSON payload: ${err.message}`);
+      console.error(`Received: ${payloadStr}`);
+      process.exit(1);
     }
   }
 
@@ -312,16 +320,31 @@ else if (command === 'invoke') {
 // ── Trigger ─────────────────────────────────────────────────────────────
 
 else if (command === 'trigger') {
-  const event = args[1];
+  // Accept the event data positionally OR via --data. Pre-fix, data was
+  // positional-only: `forge-sim trigger <event> --data '{…}'` parsed the
+  // literal string "--data" as the payload and died with "Invalid JSON
+  // data" without echoing what it received (eval-6 F11).
+  let event: string | undefined;
+  let dataStr: string | undefined;
+  for (let i = 1; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === '--data' && args[i + 1] !== undefined) {
+      dataStr = args[++i];
+    } else if (!arg.startsWith('-')) {
+      if (!event) event = arg;
+      else if (dataStr === undefined) dataStr = arg;
+    }
+  }
   if (!event) {
-    console.error('Usage: forge-sim trigger <event> [dataJSON]');
+    console.error(`Usage: forge-sim trigger <event> [--data '{"json":"payload"}']`);
     process.exit(1);
   }
 
   let data: Record<string, any> = {};
-  if (args[2]) {
-    try { data = JSON.parse(args[2]); } catch {
-      console.error('Invalid JSON data');
+  if (dataStr !== undefined) {
+    try { data = JSON.parse(dataStr); } catch (err: any) {
+      console.error(`Invalid JSON data: ${err.message}`);
+      console.error(`Received: ${dataStr}`);
       process.exit(1);
     }
   }
@@ -333,6 +356,95 @@ else if (command === 'trigger') {
       body: { event, data },
     });
     console.log(JSON.stringify(result, null, 2));
+  } catch (err: any) {
+    console.error(`❌ ${err.message}`);
+    process.exit(1);
+  }
+}
+
+// ── Web Trigger ─────────────────────────────────────────────────────────
+
+else if (command === 'webtrigger') {
+  // CLI path for firing web triggers — previously only the dev server's
+  // /__trigger/<key> URL existed; the daemon 404'd, so a CLI-only user
+  // could not exercise their webhook at all (eval-6 F6).
+  let key: string | undefined;
+  let httpMethod: string | undefined;
+  let userPath: string | undefined;
+  let dataStr: string | undefined;
+  const headers: Record<string, string | string[]> = {};
+  const queryParameters: Record<string, string | string[]> = {};
+
+  const appendMulti = (map: Record<string, string | string[]>, name: string, value: string) => {
+    const existing = map[name];
+    map[name] = existing === undefined ? value : ([] as string[]).concat(existing, value);
+  };
+
+  for (let i = 1; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === '--method' && args[i + 1]) {
+      httpMethod = args[++i].toUpperCase();
+    } else if (arg === '--path' && args[i + 1]) {
+      userPath = args[++i];
+    } else if (arg === '--data' && args[i + 1] !== undefined) {
+      dataStr = args[++i];
+    } else if (arg === '--header' && args[i + 1]) {
+      const raw = args[++i];
+      const sep = raw.indexOf(':');
+      if (sep === -1) {
+        console.error(`Invalid --header "${raw}" — expected "Name: value"`);
+        process.exit(1);
+      }
+      appendMulti(headers, raw.slice(0, sep).trim(), raw.slice(sep + 1).trim());
+    } else if (arg === '--query' && args[i + 1]) {
+      const raw = args[++i];
+      const sep = raw.indexOf('=');
+      if (sep === -1) {
+        console.error(`Invalid --query "${raw}" — expected "name=value"`);
+        process.exit(1);
+      }
+      appendMulti(queryParameters, raw.slice(0, sep), raw.slice(sep + 1));
+    } else if (!arg.startsWith('-') && !key) {
+      key = arg;
+    }
+  }
+
+  if (!key) {
+    console.error('Usage: forge-sim webtrigger <key> [options]');
+    console.error(`  --method <M>           HTTP method (default: GET, or POST when --data is given)`);
+    console.error(`  --data '<body>'        Request body (JSON or raw string)`);
+    console.error(`  --header 'Name: value' Add a request header (repeatable)`);
+    console.error(`  --query 'name=value'   Add a query parameter (repeatable)`);
+    console.error(`  --path '/extra/path'   Extra path appended after the trigger URL`);
+    process.exit(1);
+  }
+
+  // Body: JSON if it parses, raw string otherwise (matches the MCP tool —
+  // objects are JSON.stringified downstream, strings pass through raw).
+  let body: any;
+  if (dataStr !== undefined) {
+    try { body = JSON.parse(dataStr); } catch { body = dataStr; }
+    // curl semantics: a body implies POST unless --method says otherwise.
+    if (!httpMethod) httpMethod = 'POST';
+  }
+
+  const { daemonRequest } = await import('./daemon-client.js');
+  try {
+    const result = await daemonRequest('/api/webtrigger', {
+      method: 'POST',
+      body: {
+        key,
+        method: httpMethod,
+        userPath,
+        headers: Object.keys(headers).length ? headers : undefined,
+        queryParameters: Object.keys(queryParameters).length ? queryParameters : undefined,
+        body,
+      },
+    });
+    console.log(JSON.stringify(result, null, 2));
+    // Handler failures come back as 5xx statusCodes in the response body —
+    // exit non-zero so scripts notice, same as a failed curl -f.
+    if (typeof result.statusCode === 'number' && result.statusCode >= 500) process.exit(1);
   } catch (err: any) {
     console.error(`❌ ${err.message}`);
     process.exit(1);
