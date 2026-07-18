@@ -837,7 +837,18 @@ export class UnifiedKVS {
   }): FetchLikeResponse {
     let entries = [...this.entities.values()].filter(e => e.entityName === body.entityName);
 
-    const indexDef = this.getIndexDefinition(body.entityName, body.indexName);
+    // Validate the index exactly like the builder path does (eval-7 F2: the
+    // wire path silently no-op'd a typo'd index name, returning ALL entities
+    // unscoped — worse than the builder's pre-fix empty result).
+    let indexDef: IndexDefinition | undefined;
+    try {
+      indexDef = resolveIndexDefOrThrow(this.entitySchemas, body.entityName, body.indexName);
+    } catch (err) {
+      if (err instanceof KVSQueryError) {
+        return jsonResponse(400, { code: err.code, message: err.message });
+      }
+      throw err;
+    }
 
     // Apply partition filter
     if (body.partition && body.partition.length > 0 && indexDef?.partition) {
@@ -998,12 +1009,6 @@ export class UnifiedKVS {
     return new Map(this.entitySchemas);
   }
 
-  private getIndexDefinition(entityName: string, indexName: string): IndexDefinition | undefined {
-    const schema = this.entitySchemas.get(entityName);
-    if (!schema) return undefined;
-    return schema.indexes.find(i => i.name === indexName);
-  }
-
   // ── Introspection ───────────────────────────────────────────────────
 
   /** Dump plain KVS as raw values (backward compat with SimulatedKVS.dump()) */
@@ -1110,6 +1115,41 @@ export class KVSQueryError extends Error {
     super(`${code}: ${detail}`);
     this.name = 'KVSQueryError';
   }
+}
+
+/**
+ * Resolve an index definition, enforcing INDEX_NOT_FOUND parity (eval-4 F4,
+ * eval-7 F2). Real Forge rejects queries against undeclared indexes — silently
+ * returning empty/unscoped results makes a typo'd index name indistinguishable
+ * from "no data" (or worse, returns ALL entities unscoped).
+ *
+ * Shared by BOTH query surfaces — the entity query builder (`getMany()`) and
+ * the wire handler (`/api/v1/entity/query`) — so validation cannot drift
+ * between them again. Only enforced when a schema is registered (manifest
+ * `app.storage.entities` or `registerEntitySchema`); schema-less test setups
+ * keep working.
+ */
+function resolveIndexDefOrThrow(
+  schemas: Map<string, EntitySchema>,
+  entityName: string,
+  indexName: string | undefined,
+): IndexDefinition | undefined {
+  const schema = schemas.get(entityName);
+  const indexDef = indexName !== undefined
+    ? schema?.indexes.find(i => i.name === indexName)
+    : undefined;
+  if (indexName !== undefined && schema && !indexDef) {
+    const known = schema.indexes.map(i => i.name);
+    throw new KVSQueryError(
+      'INDEX_NOT_FOUND',
+      `Entity "${entityName}" has no index named "${indexName}". ` +
+      (known.length
+        ? `Declared indexes: ${known.join(', ')}.`
+        : 'No indexes are declared for this entity.') +
+      ' Real Forge rejects queries on undeclared indexes.'
+    );
+  }
+  return indexDef;
 }
 
 /** Forge KVS query page-size defaults (spec KVS-025/KVS-026, ENT-025). */
@@ -1332,26 +1372,9 @@ export class EntityQueryBuilder {
     // Get all entities for this entity name
     let entries = [...this.entities.values()].filter(e => e.entityName === this.entityName);
 
-    // Look up index definition
-    const schema = this.schemas.get(this.entityName);
-    const indexDef = schema?.indexes.find(i => i.name === this._indexName);
-
-    // Parity (eval-4 F4): real Forge rejects queries against undeclared
-    // indexes. Silently returning { results: [] } made a typo'd index name
-    // indistinguishable from "no data" — the inverted parity violation.
-    // Only enforced when a schema is registered (manifest app.storage.entities
-    // or sim.kvs.registerEntitySchema); schema-less test setups keep working.
-    if (this._indexName !== undefined && schema && !indexDef) {
-      const known = schema.indexes.map(i => i.name);
-      throw new KVSQueryError(
-        'INDEX_NOT_FOUND',
-        `Entity "${this.entityName}" has no index named "${this._indexName}". ` +
-        (known.length
-          ? `Declared indexes: ${known.join(', ')}.`
-          : 'No indexes are declared for this entity.') +
-        ' Real Forge rejects queries on undeclared indexes.'
-      );
-    }
+    // Look up index definition — throws INDEX_NOT_FOUND on undeclared indexes
+    // when a schema is registered (shared with the wire path, eval-4 F4 / eval-7 F2).
+    const indexDef = resolveIndexDefOrThrow(this.schemas, this.entityName, this._indexName);
 
     // Apply partition filter
     if (this._partition && this._partition.length > 0 && indexDef?.partition) {

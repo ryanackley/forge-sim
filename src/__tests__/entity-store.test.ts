@@ -350,4 +350,167 @@ describe('SimulatedEntityStore', () => {
       expect(data.code).toBe('KEY_ALREADY_EXISTS');
     });
   });
+
+  // ── Eval-7 F1/F2 regressions ──────────────────────────────────────────
+  //
+  // F1: the MCP tool's inline translation put scalar range operands in a
+  //     singular `value` key (wire matcher only reads `values`) and sent
+  //     filters as a bare array with `field`/`value` keys (wire only reads
+  //     `.and`/`.or` with `property`/`values`) — both silent no-ops.
+  //     Fixed by buildEntityQueryWireBody(); these tests round-trip the
+  //     translated shapes through the real wire handler.
+  //
+  // F2: the wire path never validated indexName — a typo'd index returned
+  //     ALL entities unscoped, while the builder path threw INDEX_NOT_FOUND
+  //     (eval-4 F4 fix that didn't cover all surfaces). Now shared.
+  describe('Eval-7 F1/F2: MCP translation + wire index validation', () => {
+    const seed = async () => {
+      const rows = [
+        { key: 'e-1', value: { name: 'Alice', department: 'Eng', salary: 90000 } },
+        { key: 'e-2', value: { name: 'Bob', department: 'Eng', salary: 110000 } },
+        { key: 'e-3', value: { name: 'Cara', department: 'Eng', salary: 130000 } },
+        { key: 'e-4', value: { name: 'Dan', department: 'Eng', salary: 150000 } },
+      ];
+      for (const r of rows) {
+        await sim.entityStore.handleRequest('/api/v1/entity/set', {
+          method: 'POST',
+          body: JSON.stringify({ entityName: 'Employee', ...r }),
+        });
+      }
+    };
+
+    it('F1: scalar range operators translate to values arrays that actually match (eval Q2 repro)', async () => {
+      const { buildEntityQueryWireBody } = await import('../mcp-entity-query.js');
+      await seed();
+
+      // GREATER_THAN 100000 → 3 of 4 records (the eval's exact repro,
+      // which previously returned []).
+      const body = buildEntityQueryWireBody({
+        entityName: 'Employee',
+        indexName: 'by-department',
+        partition: ['Eng'],
+        range: { operator: 'GREATER_THAN', value: 100000 },
+      });
+      expect(body.range).toEqual({ condition: 'GREATER_THAN', values: [100000] });
+
+      const res = await sim.entityStore.handleRequest('/api/v1/entity/query', {
+        method: 'POST', body: JSON.stringify(body),
+      });
+      expect(res.ok).toBe(true);
+      const data = await res.json();
+      expect(data.data.map((d: any) => d.key)).toEqual(['e-2', 'e-3', 'e-4']);
+    });
+
+    it('F1: BETWEEN passes its [min, max] array through unchanged', async () => {
+      const { buildEntityQueryWireBody } = await import('../mcp-entity-query.js');
+      await seed();
+
+      const body = buildEntityQueryWireBody({
+        entityName: 'Employee',
+        indexName: 'by-department',
+        partition: ['Eng'],
+        range: { operator: 'BETWEEN', value: [100000, 140000] },
+      });
+      expect(body.range).toEqual({ condition: 'BETWEEN', values: [100000, 140000] });
+
+      const res = await sim.entityStore.handleRequest('/api/v1/entity/query', {
+        method: 'POST', body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      expect(data.data.map((d: any) => d.key)).toEqual(['e-2', 'e-3']);
+    });
+
+    it('F1: filters translate to {and:[{property, condition, values}]} and actually filter', async () => {
+      const { buildEntityQueryWireBody } = await import('../mcp-entity-query.js');
+      await seed();
+
+      const body = buildEntityQueryWireBody({
+        entityName: 'Employee',
+        indexName: 'by-department',
+        partition: ['Eng'],
+        filters: [
+          { field: 'salary', operator: 'GREATER_THAN_EQUAL_TO', value: 110000 },
+          { field: 'name', operator: 'BEGINS_WITH', value: 'B' },
+        ],
+        filterOperator: 'AND',
+      });
+      expect(body.filters).toEqual({
+        and: [
+          { property: 'salary', condition: 'GREATER_THAN_EQUAL_TO', values: [110000] },
+          { property: 'name', condition: 'BEGINS_WITH', values: ['B'] },
+        ],
+      });
+      expect(body.filterOperator).toBeUndefined(); // dead key removed
+
+      const res = await sim.entityStore.handleRequest('/api/v1/entity/query', {
+        method: 'POST', body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      expect(data.data.map((d: any) => d.key)).toEqual(['e-2']);
+    });
+
+    it('F1: OR filterOperator wraps items in {or:} and operand-less EXISTS gets values: []', async () => {
+      const { buildEntityQueryWireBody } = await import('../mcp-entity-query.js');
+      await seed();
+      const setRes = await sim.entityStore.handleRequest('/api/v1/entity/set', {
+        method: 'POST',
+        body: JSON.stringify({ entityName: 'Employee', key: 'e-5', value: { name: 'Eve', department: 'Eng', salary: 95000, startDate: '2024-01-01' } }),
+      });
+      expect(setRes.ok).toBe(true);
+
+      const body = buildEntityQueryWireBody({
+        entityName: 'Employee',
+        indexName: 'by-department',
+        partition: ['Eng'],
+        filters: [
+          { field: 'startDate', operator: 'EXISTS' },
+          { field: 'salary', operator: 'GREATER_THAN', value: 140000 },
+        ],
+        filterOperator: 'OR',
+      });
+      expect(body.filters).toEqual({
+        or: [
+          { property: 'startDate', condition: 'EXISTS', values: [] },
+          { property: 'salary', condition: 'GREATER_THAN', values: [140000] },
+        ],
+      });
+
+      const res = await sim.entityStore.handleRequest('/api/v1/entity/query', {
+        method: 'POST', body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      const keys = data.data.map((d: any) => d.key).sort();
+      expect(keys).toEqual(['e-4', 'e-5']);
+    });
+
+    it('F2: wire query on an undeclared index returns 400 INDEX_NOT_FOUND (not all entities)', async () => {
+      await seed();
+
+      const res = await sim.entityStore.handleRequest('/api/v1/entity/query', {
+        method: 'POST',
+        body: JSON.stringify({ entityName: 'Employee', indexName: 'by-departmnet', partition: ['Eng'] }),
+      });
+      expect(res.ok).toBe(false);
+      expect(res.status).toBe(400);
+      const data = await res.json();
+      expect(data.code).toBe('INDEX_NOT_FOUND');
+      expect(data.message).toContain('by-departmnet');
+      expect(data.message).toContain('by-department'); // lists declared indexes
+    });
+
+    it('F2: schema-less entities stay lenient on the wire (no schema registered → no throw)', async () => {
+      await sim.entityStore.handleRequest('/api/v1/entity/set', {
+        method: 'POST',
+        body: JSON.stringify({ entityName: 'AdHoc', key: 'a-1', value: { n: 1 } }),
+      });
+
+      const res = await sim.entityStore.handleRequest('/api/v1/entity/query', {
+        method: 'POST',
+        body: JSON.stringify({ entityName: 'AdHoc', indexName: 'whatever', partition: [] }),
+      });
+      expect(res.ok).toBe(true);
+      const data = await res.json();
+      expect(data.data.map((d: any) => d.key)).toEqual(['a-1']);
+    });
+  });
 });
