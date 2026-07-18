@@ -99,6 +99,7 @@ All endpoints are under `/__tools/api/`:
 | POST | `/api/invoke` | Invoke a resolver function |
 | POST | `/api/trigger` | Fire a product event trigger |
 | POST | `/api/scheduled-trigger` | Fire a scheduled trigger |
+| POST | `/api/webtrigger` | Fire a web trigger (`{ key, method?, userPath?, headers?, queryParameters?, body? }`) |
 | POST | `/api/deploy` | Deploy a Forge app |
 | POST | `/api/reset` | Reset all simulator state |
 | GET | `/api/health` | Health check |

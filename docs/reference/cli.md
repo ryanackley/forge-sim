@@ -32,6 +32,8 @@ forge-sim dev [appDir]
 
 **State persistence:** On exit (`Ctrl+C`), KVS and SQL data are saved to `<app>/.forge-sim/state/`. On next startup, state is restored. Use `--clean` to ignore persisted state.
 
+**File-based mocks:** `<app>/.forge-sim/mocks.json` is applied before the initial deploy and hot-reloaded on save — see [Local development](../local-development/README.md#file-based-mocks-forge-simmocksjson).
+
 ### Module Context
 
 UI modules like `jira:issuePanel` need product context to render properly. Use the context flags to provide it:

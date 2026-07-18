@@ -1767,11 +1767,25 @@ export async function devCommand(options: DevCommandOptions) {
   // daemon's full deployer populates `sim.functions`), so counting
   // `sim.functions` here always showed "0 registered" (eval 3.7).
   let registeredFunctionCount = 0;
+
+  // 4a.5. Apply .forge-sim/mocks.json BEFORE deploy (eval-6 F8): deploy-time
+  // scheduled triggers fire during boot, so this is the only window where a
+  // mock can exist before they run. In-process tests and MCP could always
+  // mock first; dev mode structurally couldn't until this file.
+  const { applyMockFile, watchMockFile, describeMockSummary } = await import('./mock-file.js');
   try {
-    console.log(`     Resolver before deploy: [${[...sim.resolver.getHandlerMap().keys()].join(', ')}]`);
+    const mockSummary = applyMockFile(sim, appDir);
+    if (mockSummary) {
+      console.log(`  🎭 Loaded .forge-sim/mocks.json (${describeMockSummary(mockSummary)})`);
+    }
+  } catch (err: any) {
+    console.warn(`  ⚠️  ${err.message}`);
+    console.warn(`     Continuing without file-based mocks.`);
+  }
+
+  try {
     const deployResult = await deployResolversOnly(sim, appDir, manifest);
     registeredFunctionCount = deployResult.loadedFunctions.length;
-    console.log(`     Resolver after deploy: [${[...sim.resolver.getHandlerMap().keys()].join(', ')}]`);
     if (deployResult.loadedFunctions.length > 0) {
       console.log(`     Loaded ${deployResult.loadedFunctions.length} function(s): ${deployResult.loadedFunctions.join(', ')}`);
     }
@@ -1905,6 +1919,12 @@ export async function devCommand(options: DevCommandOptions) {
   // now listening on a higher one. Everything downstream (Vite WS_URL,
   // browser bridge URL, generated entry templates) needs the real port.
   wsPort = devServer.port;
+
+  // Hot-reload .forge-sim/mocks.json on save (eval-6 F8). The app watcher
+  // above ignores dot-directories (so bundle-cache writes can't loop), so
+  // the mock file gets its own dedicated watcher. Merge semantics — edits
+  // apply on save; deleting a route needs a restart.
+  const stopMockWatch = watchMockFile(sim, appDir);
 
   // ── Proxy mode: skip Vite, create reverse proxy instead ─────────────
   if (proxy) {
@@ -2143,6 +2163,7 @@ export async function devCommand(options: DevCommandOptions) {
       console.log('\n  🛑 Shutting down...');
       try { await saveState(sim, stateDir); } catch (err: any) { console.error(`  ⚠️  Failed to save state: ${err.message}`); }
       proxyTypeCheckWatcher?.close();
+      stopMockWatch();
       for (const c of toolsClients) c.close();
       toolsWss.close();
       devServer.close();
@@ -2423,6 +2444,7 @@ export async function devCommand(options: DevCommandOptions) {
       }
 
       typeCheckWatcher?.close();
+      stopMockWatch();
       toolsServer.close();
       devServer.close();
       await viteServer.close();

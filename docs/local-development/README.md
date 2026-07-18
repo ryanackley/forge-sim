@@ -59,6 +59,34 @@ Real apps integrate with things: Atlassian's own APIs, third-party services, you
 
 Credential plumbing shared by all three (account management, storage locations, CI environment variables, the LLM key) lives in the [Credentials](./credentials.md) appendix.
 
+## File-based mocks: `.forge-sim/mocks.json`
+
+Without a connected real site, unmocked product API calls return a `501`. You can register mocks at runtime from the dev tools UI or its HTTP API — but anything that runs **during boot** (deploy-time scheduled triggers, resolver warm-up paths) executes before you get the chance. For those, put mocks in a file and they're applied *before* the initial deploy:
+
+```json
+// <your-app>/.forge-sim/mocks.json
+{
+  "jira": {
+    "GET /rest/api/3/myself": { "accountId": "abc-123" },
+    "PUT /rest/api/3/issue/FAIL-1": {
+      "__forgeSimMockResponse": true,
+      "status": 500,
+      "body": { "error": "rate limited" }
+    }
+  },
+  "graphql": {
+    "GetIssue": { "data": { "issue": { "key": "TEST-1" } } }
+  }
+}
+```
+
+- **Top-level keys** are product names (`jira`, `confluence`, `bitbucket`, or a remote key from your manifest); values are route maps in the same shape as the runtime mock APIs. Route keys are `"METHOD /path"` (method defaults to `GET`); path matching is prefix-based.
+- A **bare JSON object** value is returned as a `200` response body. Use the tagged `{ "__forgeSimMockResponse": true, "status": ..., "body": ..., "headers": ... }` shape to control status and headers.
+- The reserved key **`graphql`** maps GraphQL operation names to response bodies (`"*"` is a catch-all).
+- The file is **hot-reloaded** on save. Reloads *merge* into the live mock tables (same semantics as every other mock call), so editing a route's value takes effect immediately — but *deleting* a route from the file doesn't un-mock it until the dev server restarts.
+- JSON can't express function-valued (per-request) handlers; for dynamic responses use the [programmatic API](../testing/) in tests.
+- When a real account is connected, mocked routes always win over passthrough — the file is an easy way to pin specific calls local while everything else hits your real site.
+
 ## Debugging
 
 ### Frontend: Chrome DevTools just works
