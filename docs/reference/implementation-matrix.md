@@ -452,7 +452,7 @@ Frontend API for Custom UI apps (runs in iframe).
 
 | API | Status | Tests | Notes |
 |-----|--------|-------|-------|
-| `showFlag(options)` | ✅ | `bridge-features.test.ts` | Renders Atlaskit-styled toast in browser (stacking, auto-dismiss, actions, close handle) |
+| `showFlag(options)` | ✅ | `bridge-features.test.ts`, `eval7-f7-bridge-showflag.test.ts` | Renders Atlaskit-styled toast (stacking, auto-dismiss, actions, close handle) in both the UIKit renderer and the Custom UI dev bridge |
 | `rovo.open(payload)` | ❌ | — | Rovo AI agent sidebar |
 | `rovo.isEnabled()` | ❌ | — | |
 | `i18n.getTranslations(locale, options)` | ✅ | — | Reads from I18nStore (app's __LOCALES__ dir) |

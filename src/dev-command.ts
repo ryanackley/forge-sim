@@ -260,7 +260,7 @@ export function generateBridgeInlineScript(wsPort: number, defaultModuleKey?: st
   var S = {
     ws: null, wsReady: false, wsUrl: 'ws://localhost:${wsPort}',
     pendingRequests: {}, requestCounter: 0, reconcileListeners: [], lastForgeDoc: null,
-    eventListeners: {}
+    eventListeners: {}, flags: {}
   };
   window.__forgeSim = S;
 
@@ -355,6 +355,109 @@ export function generateBridgeInlineScript(wsPort: number, defaultModuleKey?: st
         ] }
       ] }
     ] };
+  }
+
+  // ── showFlag / closeFlag — toast notifications ────────────────────────
+  // Parity with @forge/bridge's flag module: showFlag posts
+  // callBridge('showFlag', options) (id required, enforced by the npm
+  // package itself) and Flag.close() posts callBridge('closeFlag', {id}).
+  // Rendered as an in-iframe toast, mirroring the UIKit renderer shim's
+  // look (renderer/src/bridge/forge-bridge-shim.ts showFlag).
+  var FLAG_COLORS = {
+    info:    { bg: '#DEEBFF', border: '#0052CC', icon: '\\u2139\\uFE0F' },
+    success: { bg: '#E3FCEF', border: '#00875A', icon: '\\u2705' },
+    warning: { bg: '#FFFAE6', border: '#FF8B00', icon: '\\u26A0\\uFE0F' },
+    error:   { bg: '#FFEBE6', border: '#DE350B', icon: '\\u274C' }
+  };
+
+  function applyStyles(el, styles) {
+    for (var k in styles) el.style[k] = styles[k];
+  }
+
+  function ensureFlagContainer() {
+    var c = document.getElementById('forge-sim-flag-container');
+    if (c) return c;
+    c = document.createElement('div');
+    c.id = 'forge-sim-flag-container';
+    c.setAttribute('data-testid', 'forge-sim-flag-container');
+    applyStyles(c, {
+      position: 'fixed', bottom: '24px', left: '24px',
+      display: 'flex', flexDirection: 'column-reverse', gap: '8px',
+      zIndex: '1100', maxWidth: '400px'
+    });
+    document.body.appendChild(c);
+    return c;
+  }
+
+  function removeFlag(id) {
+    var el = S.flags[id];
+    if (!el) return false;
+    delete S.flags[id];
+    el.style.opacity = '0';
+    el.style.transform = 'translateX(-20px)';
+    setTimeout(function() { if (el.parentNode) el.parentNode.removeChild(el); }, 200);
+    return true;
+  }
+
+  function renderFlag(options) {
+    var type = options.appearance || options.type || 'info';
+    var colors = FLAG_COLORS[type] || FLAG_COLORS.info;
+    // Re-showing an id replaces the existing flag (no duplicate stacking).
+    if (options.id !== undefined && S.flags[options.id]) removeFlag(options.id);
+
+    var flag = document.createElement('div');
+    flag.setAttribute('data-testid', 'forge-sim-flag');
+    applyStyles(flag, {
+      background: colors.bg, borderLeft: '3px solid ' + colors.border,
+      borderRadius: '4px', padding: '12px 16px',
+      boxShadow: '0 1px 1px rgba(9,30,66,0.25), 0 0 1px rgba(9,30,66,0.31)',
+      fontFamily: '-apple-system, BlinkMacSystemFont, Roboto, sans-serif',
+      fontSize: '14px', color: '#172B4D',
+      transition: 'opacity 0.2s, transform 0.2s'
+    });
+
+    if (options.title) {
+      var title = document.createElement('div');
+      title.style.fontWeight = '600';
+      title.textContent = colors.icon + ' ' + options.title;
+      flag.appendChild(title);
+    }
+    if (options.description) {
+      var desc = document.createElement('div');
+      applyStyles(desc, { marginTop: '4px', color: '#6B778C' });
+      desc.textContent = options.description;
+      flag.appendChild(desc);
+    }
+    if (options.actions && options.actions.length) {
+      var actions = document.createElement('div');
+      applyStyles(actions, { marginTop: '8px', display: 'flex', gap: '8px' });
+      for (var fi = 0; fi < options.actions.length; fi++) {
+        (function(action) {
+          var btn = document.createElement('button');
+          applyStyles(btn, {
+            background: 'none', border: 'none', color: colors.border,
+            cursor: 'pointer', fontWeight: '600', fontSize: '13px', padding: '0'
+          });
+          btn.textContent = action.text;
+          // Same-realm bridge: onClick arrives as a live function reference.
+          if (typeof action.onClick === 'function') btn.addEventListener('click', action.onClick);
+          actions.appendChild(btn);
+        })(options.actions[fi]);
+      }
+      flag.appendChild(actions);
+    }
+
+    ensureFlagContainer().appendChild(flag);
+    if (options.id !== undefined) S.flags[options.id] = flag;
+
+    // Auto-dismiss after 5s unless explicitly disabled (matches the
+    // renderer shim's behavior).
+    if (options.isAutoDismiss !== false) {
+      setTimeout(function() {
+        if (options.id !== undefined && S.flags[options.id] === flag) removeFlag(options.id);
+        else if (options.id === undefined && flag.parentNode) flag.parentNode.removeChild(flag);
+      }, 5000);
+    }
   }
 
   function callBridge(cmd, data) {
@@ -528,6 +631,11 @@ export function generateBridgeInlineScript(wsPort: number, defaultModuleKey?: st
         return Promise.resolve({ unsubscribe: function() {
           S.eventListeners[onPubKey] = (S.eventListeners[onPubKey] || []).filter(function(cb) { return cb !== data.callback; });
         }});
+      case 'showFlag':
+        renderFlag(data || {});
+        return Promise.resolve();
+      case 'closeFlag':
+        return Promise.resolve(removeFlag(data && data.id));
       case 'refresh':
         window.location.reload();
         return Promise.resolve();
