@@ -571,10 +571,13 @@ describe('UnifiedKVS', () => {
       expect(await kvs.entity('Item').get('i1')).toEqual({ name: 'Partial' });
     });
 
-    it('skips validation for entities without registered schema', async () => {
-      // No schema registered for 'Unregistered' — should allow anything
-      await kvs.entity('Unregistered').set('u1', { anything: 'goes', nested: { deep: true } });
-      expect(await kvs.entity('Unregistered').get('u1')).toEqual({ anything: 'goes', nested: { deep: true } });
+    it('skips validation for fully schema-less stores', async () => {
+      // Fresh store with ZERO registered schemas — should allow anything.
+      // (Eval-8 E8-4: once any schema is registered, undeclared entity
+      // names throw ENTITY_NOT_FOUND instead — see eval8-findings.test.ts.)
+      const loose = new UnifiedKVS();
+      await loose.entity('Unregistered').set('u1', { anything: 'goes', nested: { deep: true } });
+      expect(await loose.entity('Unregistered').get('u1')).toEqual({ anything: 'goes', nested: { deep: true } });
     });
   });
 

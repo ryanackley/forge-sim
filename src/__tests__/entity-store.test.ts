@@ -498,13 +498,16 @@ describe('SimulatedEntityStore', () => {
       expect(data.message).toContain('by-department'); // lists declared indexes
     });
 
-    it('F2: schema-less entities stay lenient on the wire (no schema registered → no throw)', async () => {
-      await sim.entityStore.handleRequest('/api/v1/entity/set', {
+    it('F2: schema-less stores stay lenient on the wire (zero schemas registered → no throw)', async () => {
+      // Fresh sim with NO schemas at all — eval-8 E8-4 makes undeclared
+      // entity names 400 once any schema is registered on the store.
+      const loose = createSimulator();
+      await loose.entityStore.handleRequest('/api/v1/entity/set', {
         method: 'POST',
         body: JSON.stringify({ entityName: 'AdHoc', key: 'a-1', value: { n: 1 } }),
       });
 
-      const res = await sim.entityStore.handleRequest('/api/v1/entity/query', {
+      const res = await loose.entityStore.handleRequest('/api/v1/entity/query', {
         method: 'POST',
         body: JSON.stringify({ entityName: 'AdHoc', indexName: 'whatever', partition: [] }),
       });

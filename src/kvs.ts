@@ -273,8 +273,11 @@ export class UnifiedKVS {
       const valueError = validateKvsValue(item.value);
       if (valueError) { failure(valueError); continue; }
 
-      // Entity items: schema validation when a schema is registered
+      // Entity items: unknown-entity rejection (eval-8 E8-4) + schema
+      // validation when a schema is registered
       if (item.entityName) {
+        const undeclared = this.undeclaredEntityError(item.entityName);
+        if (undeclared) { failure(undeclared); continue; }
         const schema = this.entitySchemas.get(item.entityName);
         if (schema && item.value && typeof item.value === 'object') {
           const validationError = validateEntityValue(item.value, schema, item.entityName);
@@ -399,12 +402,42 @@ export class UnifiedKVS {
 
   // ── Internal Entity Operations (used by EntityAPI + handleRequest) ──
 
+  /**
+   * Unknown-entity rejection (eval-8 E8-4). Real Forge rejects entity names
+   * not declared in the manifest; the sim used to accept them whenever no
+   * schema happened to be registered under that exact name — a typo'd
+   * entity name became an invisible data silo that read/wrote fine locally
+   * and failed on real Forge. Only enforced once at least one schema is
+   * registered (manifest `app.storage.entities` deployed, or
+   * `registerEntitySchema` called); fully schema-less setups stay
+   * permissive, consistent with INDEX_NOT_FOUND and partition-arity
+   * enforcement.
+   */
+  private undeclaredEntityError(entityName: string): { code: string; message: string } | undefined {
+    if (this.entitySchemas.size === 0) return undefined;
+    if (this.entitySchemas.has(entityName)) return undefined;
+    const known = [...this.entitySchemas.keys()];
+    return {
+      code: 'ENTITY_NOT_FOUND',
+      message:
+        `Unknown entity "${entityName}" — not declared in the manifest ` +
+        `(app.storage.entities). Declared entities: ${known.join(', ')}.`,
+    };
+  }
+
+  private assertEntityDeclared(entityName: string): void {
+    const err = this.undeclaredEntityError(entityName);
+    if (err) throw new KVSQueryError(err.code, err.message);
+  }
+
   /** @internal */ async entityGet(entityName: string, key: string): Promise<any> {
+    this.assertEntityDeclared(entityName);
     const entry = this.entities.get(this.entityKey(entityName, key));
     return detach(entry?.value ?? undefined);
   }
 
   /** @internal */ async entitySet(entityName: string, key: string, value: any): Promise<void> {
+    this.assertEntityDeclared(entityName);
     // Schema validation
     const schema = this.entitySchemas.get(entityName);
     if (schema && value && typeof value === 'object') {
@@ -425,10 +458,12 @@ export class UnifiedKVS {
   }
 
   /** @internal */ async entityDelete(entityName: string, key: string): Promise<void> {
+    this.assertEntityDeclared(entityName);
     this.entities.delete(this.entityKey(entityName, key));
   }
 
   /** @internal */ entityQuery(entityName: string): EntityIndexQueryBuilder {
+    this.assertEntityDeclared(entityName);
     return new EntityIndexQueryBuilder(entityName, this.entities, this.entitySchemas);
   }
 
@@ -484,6 +519,10 @@ export class UnifiedKVS {
     }
 
     // ── Upfront validation (atomicity: reject before applying anything) ──
+    // Unknown entity names reject the whole transaction (eval-8 E8-4).
+    for (const op of allOps) {
+      if (op.entityName) this.assertEntityDeclared(op.entityName);
+    }
     for (const item of sets) {
       if (item.value === null || item.value === undefined) {
         throw new KVSQueryError('INVALID_VALUE', `Cannot store null or undefined values (key "${item.key}")`);
@@ -759,6 +798,8 @@ export class UnifiedKVS {
   }
 
   private handleEntityGet(body: { entityName: string; key: string; options?: any }): FetchLikeResponse {
+    const undeclared = this.undeclaredEntityError(body.entityName);
+    if (undeclared) return jsonResponse(400, undeclared);
     const entry = this.entities.get(this.entityKey(body.entityName, body.key));
     if (!entry) {
       return jsonResponse(404, { code: 'KEY_NOT_FOUND', message: `Entity key not found: ${body.entityName}/${body.key}` });
@@ -773,6 +814,8 @@ export class UnifiedKVS {
   }
 
   private handleEntitySet(body: { entityName: string; key: string; value: any; options?: any }): FetchLikeResponse {
+    const undeclared = this.undeclaredEntityError(body.entityName);
+    if (undeclared) return jsonResponse(400, undeclared);
     // Schema validation
     const schema = this.entitySchemas.get(body.entityName);
     if (schema && body.value && typeof body.value === 'object') {
@@ -825,6 +868,8 @@ export class UnifiedKVS {
   }
 
   private handleEntityDelete(body: { entityName: string; key: string }): FetchLikeResponse {
+    const undeclared = this.undeclaredEntityError(body.entityName);
+    if (undeclared) return jsonResponse(400, undeclared);
     const ek = this.entityKey(body.entityName, body.key);
     if (!this.entities.has(ek)) {
       return jsonResponse(404, { code: 'KEY_NOT_FOUND', message: `Entity key not found: ${body.entityName}/${body.key}` });
@@ -851,6 +896,8 @@ export class UnifiedKVS {
     // unscoped — worse than the builder's pre-fix empty result).
     let indexDef: IndexDefinition | undefined;
     try {
+      // Unknown-entity rejection (eval-8 E8-4).
+      this.assertEntityDeclared(body.entityName);
       // Entity queries require an index (eval-8 E8-2): the real wire
       // protocol has no index-less form.
       if (typeof body.indexName !== 'string' || body.indexName.length === 0) {

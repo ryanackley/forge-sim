@@ -31,6 +31,17 @@
  *        stubs throw QUERY_INDEX_REQUIRED (synchronously — that's what
  *        the real client's missing methods would do, minus the useful
  *        message), and the wire path 400s without an indexName.
+ *
+ * E8-4 (MEDIUM) — undeclared entity names were silently accepted whenever
+ *        no schema happened to be registered under that exact name. A
+ *        typo'd entity name became an invisible data silo: reads/writes
+ *        worked fine locally and failed on real Forge (entities must be
+ *        declared in app.storage.entities). Now: once at least one schema
+ *        is registered, unknown entity names throw ENTITY_NOT_FOUND
+ *        (naming the declared entities) across get/set/delete/query,
+ *        reject whole transactions upfront, land in batchSet failedKeys
+ *        per-item, and 400 on all four wire endpoints. Fully schema-less
+ *        stores stay permissive, consistent with E8-2/E8-3 enforcement.
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
@@ -386,9 +397,12 @@ describe('eval-8 findings', () => {
         expect(results.map(r => r.value.seq)).toEqual([1, 2, 3]);
       });
 
-      it('stays permissive for schema-less entities', async () => {
-        await kvs.entity('Loose').set('x', { a: 1 });
-        const { results } = await kvs.entity('Loose').query()
+      it('stays permissive for fully schema-less stores', async () => {
+        // Fresh store with ZERO registered schemas (E8-4 makes undeclared
+        // entity names throw once any schema exists).
+        const loose = new UnifiedKVS();
+        await loose.entity('Loose').set('x', { a: 1 });
+        const { results } = await loose.entity('Loose').query()
           .index('anything', { partition: ['whatever'] })
           .getMany();
         expect(results).toHaveLength(1);
@@ -523,6 +537,114 @@ describe('eval-8 findings', () => {
         });
         expect(res.status).toBe(200);
         expect(res.data.data).toHaveLength(7);
+      });
+    });
+  });
+
+  // ── E8-4: unknown entity names rejected ────────────────────────────
+
+  describe('E8-4: undeclared entity names throw when schemas are registered', () => {
+    beforeEach(async () => {
+      kvs.registerEntitySchema('Evidence', {
+        attributes: {
+          projectKey: { type: 'string' },
+          ts: { type: 'integer' },
+        },
+        indexes: [
+          { name: 'by-project', partition: ['projectKey'], range: 'ts' },
+        ],
+      });
+      await kvs.entity('Evidence').set('e1', { projectKey: 'P', ts: 1 });
+    });
+
+    describe('entity API', () => {
+      it('set on a typo\'d entity name throws ENTITY_NOT_FOUND (the eval repro)', async () => {
+        // Pre-fix: this wrote into an invisible "Evidnce" silo that real
+        // Forge would reject (not declared in app.storage.entities).
+        await expect(kvs.entity('Evidnce').set('e2', { projectKey: 'P', ts: 2 }))
+          .rejects.toThrow(/ENTITY_NOT_FOUND/);
+      });
+
+      it('get and delete throw too', async () => {
+        await expect(kvs.entity('Ghost').get('e1')).rejects.toThrow(/ENTITY_NOT_FOUND/);
+        await expect(kvs.entity('Ghost').delete('e1')).rejects.toThrow(/ENTITY_NOT_FOUND/);
+      });
+
+      it('query() throws synchronously', () => {
+        expect(() => kvs.entity('Ghost').query()).toThrow(/ENTITY_NOT_FOUND/);
+      });
+
+      it('names the declared entities in the error', async () => {
+        await expect(kvs.entity('Ghost').get('e1')).rejects.toThrow(/Evidence/);
+      });
+
+      it('declared entities are unaffected', async () => {
+        expect(await kvs.entity('Evidence').get('e1')).toEqual({ projectKey: 'P', ts: 1 });
+      });
+    });
+
+    describe('transactions and batch', () => {
+      it('a transaction touching an unknown entity rejects wholesale (nothing applied)', async () => {
+        await expect(
+          kvs.transact()
+            .set('t1', { projectKey: 'P', ts: 10 }, { entityName: 'Evidence' })
+            .set('t2', { projectKey: 'P', ts: 11 }, { entityName: 'Ghost' })
+            .execute()
+        ).rejects.toThrow(/ENTITY_NOT_FOUND/);
+        // Atomicity: the valid op must NOT have been applied
+        await expect(kvs.entity('Evidence').get('t1')).resolves.toBeUndefined();
+      });
+
+      it('batchSet fails unknown-entity items per-item, valid items persist', async () => {
+        const result = await kvs.batchSet([
+          { key: 'b1', value: { projectKey: 'P', ts: 20 }, entityName: 'Evidence' },
+          { key: 'b2', value: { projectKey: 'P', ts: 21 }, entityName: 'Ghost' },
+        ]);
+        expect(result.successfulKeys).toHaveLength(1);
+        expect(result.failedKeys).toHaveLength(1);
+        expect(result.failedKeys[0]).toMatchObject({
+          key: 'b2',
+          error: { code: 'ENTITY_NOT_FOUND' },
+        });
+        expect(await kvs.entity('Evidence').get('b1')).toEqual({ projectKey: 'P', ts: 20 });
+      });
+    });
+
+    describe('wire paths', () => {
+      async function wire(path: string, body: Record<string, unknown>) {
+        const res = await kvs.handleRequest(path, {
+          method: 'POST',
+          body: JSON.stringify(body),
+        });
+        return { status: res.status, data: await res.json() };
+      }
+
+      it('set/get/delete return 400 ENTITY_NOT_FOUND', async () => {
+        for (const [path, body] of [
+          ['/api/v1/entity/set', { entityName: 'Ghost', key: 'k', value: { projectKey: 'P', ts: 1 } }],
+          ['/api/v1/entity/get', { entityName: 'Ghost', key: 'k' }],
+          ['/api/v1/entity/delete', { entityName: 'Ghost', key: 'k' }],
+        ] as const) {
+          const res = await wire(path, body as Record<string, unknown>);
+          expect(res.status).toBe(400);
+          expect(res.data.code).toBe('ENTITY_NOT_FOUND');
+        }
+      });
+
+      it('query returns 400 ENTITY_NOT_FOUND', async () => {
+        const res = await wire('/api/v1/entity/query', {
+          entityName: 'Ghost', indexName: 'by-project', partition: ['P'],
+        });
+        expect(res.status).toBe(400);
+        expect(res.data.code).toBe('ENTITY_NOT_FOUND');
+      });
+    });
+
+    describe('schema-less stores stay permissive', () => {
+      it('zero registered schemas → any entity name works', async () => {
+        const loose = new UnifiedKVS();
+        await loose.entity('Anything').set('a1', { whatever: true });
+        expect(await loose.entity('Anything').get('a1')).toEqual({ whatever: true });
       });
     });
   });
