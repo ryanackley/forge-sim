@@ -272,11 +272,31 @@ export class SimulatedQueue {
     return stats;
   }
 
+  /**
+   * Clear runtime queue *data* — pending jobs, the event log, and in-flight
+   * concurrency state. Registered consumers are PRESERVED.
+   *
+   * Consumers are module wiring (declared in the manifest, registered at
+   * deploy), not runtime state. Module wiring is immutable outside
+   * `sim.deploy()` and `sim.reset()` — eval-9 E9-5 found that wiping
+   * consumers here turned a natural `beforeEach(() => sim.queue.clear())`
+   * into a silent event sink: pushes resolved fine, handlers never ran,
+   * no diagnostic. Use `sim.reset()` for a full teardown.
+   */
   clear(): void {
-    this.consumers.clear();
     this.jobs.clear();
     this.eventLog.length = 0;
     this.semaphore.clear();
+  }
+
+  /**
+   * Full teardown including consumer registrations. Reserved for
+   * `sim.reset()` / deploy infrastructure — after this, pushed events have
+   * no consumers until the next deploy re-wires them.
+   */
+  clearAll(): void {
+    this.clear();
+    this.consumers.clear();
   }
 }
 

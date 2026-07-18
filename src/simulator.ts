@@ -1202,8 +1202,13 @@ export class ForgeSimulator {
   async reset(): Promise<void> {
     // Tear down UI bridge first — swallows stale React effects that fire after reset
     this.ui.reset();
-    this.kvs.clear();
-    this.queue.clear();
+    // Full teardown variants: reset() is one of only two places (with
+    // deploy) allowed to touch module WIRING — consumer registrations and
+    // entity schemas — not just runtime data. The plain clear() methods
+    // preserve wiring so user-land state hygiene can't silently unwire the
+    // app (eval-9 E9-5).
+    this.kvs.clearAll();
+    this.queue.clearAll();
     this.resolver.clear();
     this.functions.clear();
     this.productApi.clear();

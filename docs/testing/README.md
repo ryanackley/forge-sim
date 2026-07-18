@@ -998,7 +998,9 @@ Unlike `@forge/api` / `@forge/kvs` / etc., there is no `forge-sim/shims/forge-sq
 
 ### `sim.reset()` wipes mocks too
 
-`sim.reset()` is total: KVS, SQL, queues, resolvers, logs, LLM mocks, the lot. If your tests share a sim across `it()` blocks via `beforeAll`/`afterAll`, calling `reset()` between tests can wipe the mock product routes you set up in `beforeAll`. Either re-mock in `beforeEach`, or use targeted resets like `sim.llm.reset()` / `sim.kvs.clear()` that leave the rest alone.
+`sim.reset()` is total: KVS, SQL, queues, resolvers, logs, LLM mocks, the lot — including module wiring (consumer registrations, entity schemas), so you must re-`deploy()` after a reset. If your tests share a sim across `it()` blocks via `beforeAll`/`afterAll`, calling `reset()` between tests can wipe the mock product routes you set up in `beforeAll`. Either re-mock in `beforeEach`, or use targeted resets like `sim.llm.reset()` / `sim.kvs.clear()` / `sim.queue.clear()` that leave the rest alone.
+
+The targeted `clear()` methods are safe `beforeEach` hygiene by design: they wipe runtime *data* but preserve module *wiring*. `sim.queue.clear()` keeps consumers registered; `sim.kvs.clear()` keeps entity schemas. Wiring only changes at `deploy()` and `reset()`.
 
 ### Function-prop equality across renders
 

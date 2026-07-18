@@ -271,7 +271,7 @@ By default, each scheduled trigger fires **once at deploy time**. This mirrors r
 ```typescript no-check
 sim.reset(): Promise<void>
 ```
-Reset all state (KVS, queues, resolvers, UI, logs). Async — SQL table drops are FK-aware and must be awaited; an unawaited reset can race the next deploy's migrations. Does not stop the SQL server.
+Reset all state (KVS, queues, resolvers, UI, logs) **including module wiring** — consumer registrations and entity schemas are torn down, so call `deploy()` again afterwards. Async — SQL table drops are FK-aware and must be awaited; an unawaited reset can race the next deploy's migrations. Does not stop the SQL server.
 
 ```typescript no-check
 sim.stop(): Promise<void>
@@ -663,8 +663,14 @@ sim.queue.getEventLog(): Array<{ queueKey, event }>
 sim.queue.getJob(jobId: string): QueueJobStats
 sim.queue.getStats(): Record<string, { consumers: number; jobs: number; events: number; succeeded: number; failed: number }>
 sim.queue.setMode(mode: 'sequential' | 'concurrent'): void
-sim.queue.clear(): void
+sim.queue.clear(): void                            // Clears jobs/events/stats; consumers stay registered
+sim.queue.clearAll(): void                         // Full teardown incl. consumers (reset/deploy infrastructure)
 ```
+
+`clear()` is safe test hygiene (e.g. in `beforeEach`): it wipes runtime data but
+preserves consumer registrations — consumers are module wiring owned by
+`deploy()`/`reset()`, not runtime state. After `clearAll()`, pushed events have
+no consumers until the next deploy re-wires them.
 
 ```typescript
 interface QueueEvent {
@@ -691,8 +697,12 @@ sim.resolver.invoke(functionKey: string, payload?: any): Promise<any>
 sim.resolver.getDefinitions(): string[]
 sim.resolver.getHandler(functionKey: string): Function | undefined
 sim.resolver.setContext(overrides: Partial<ResolverContext>): void
-sim.resolver.clear(): void
+sim.resolver.clear(): void                         // Deploy/reset infrastructure — prefer sim.reset()
 ```
+
+`clear()` wipes all resolver definitions. It exists for deploy infrastructure
+(the dev server's hot-redeploy uses it before re-registering handlers); for
+between-test cleanup, prefer `sim.reset()` so wiring and state stay consistent.
 
 ---
 
