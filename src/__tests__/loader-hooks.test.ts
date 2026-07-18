@@ -201,10 +201,56 @@ describe('Loader Hooks — resolve()', () => {
       expect(result.url).not.toContain('forge-sim-cjs-facade');
     });
 
-    it('does NOT wrap @forge/sql subpaths (raw passthrough preserved)', async () => {
-      nextResolve.mockClear();
-      const result = await resolve('@forge/sql/out/migration', {}, nextResolve);
-      expect(result.url).not.toContain('forge-sim-cjs-facade');
+    it('wraps @forge/sql subpaths in the facade too (eval-6 F1)', async () => {
+      // The 0.1.5 fix was consciously scoped to the root specifier while its
+      // own motivating repro was the deep import. Never again: subpaths of a
+      // facade package get the same bundler-interop wrapper.
+      const cjsNext = vi.fn(async () => ({
+        url: 'file:///app/node_modules/@forge/sql/out/migration.js',
+        format: 'commonjs',
+      }));
+
+      const result = await resolve('@forge/sql/out/migration', {}, cjsNext);
+
+      expect(result.shortCircuit).toBe(true);
+      expect(result.format).toBe('module');
+      expect(result.url).toBe(
+        'file:///app/node_modules/@forge/sql/out/migration.js?forge-sim-cjs-facade'
+      );
+    });
+
+    it('resolves extensionless subpaths via CommonJS inference when ESM resolution fails (eval-6 F1)', async () => {
+      // @forge/sql has no exports map, so Node's ESM resolver rejects the
+      // extensionless `@forge/sql/out/migration` (ERR_MODULE_NOT_FOUND) while
+      // real Forge's bundler infers the `.js`. The hook falls back to
+      // require.resolve(), which shares the bundler's inference rules.
+      const strictEsmNext = vi.fn(async () => {
+        const err = new Error(
+          "Cannot find module '/x/node_modules/@forge/sql/out/migration'"
+        ) as Error & { code: string };
+        err.code = 'ERR_MODULE_NOT_FOUND';
+        throw err;
+      });
+
+      // No file:// parentURL → resolution falls back to forge-sim's own
+      // node_modules, which has @forge/sql installed.
+      const result = await resolve('@forge/sql/out/migration', {}, strictEsmNext);
+
+      expect(result.shortCircuit).toBe(true);
+      expect(result.format).toBe('module');
+      expect(result.url).toMatch(/\/out\/migration\.js\?forge-sim-cjs-facade$/);
+    });
+
+    it('re-throws the original ESM error when CJS inference also fails', async () => {
+      const strictEsmNext = vi.fn(async () => {
+        const err = new Error('Cannot find module ghost') as Error & { code: string };
+        err.code = 'ERR_MODULE_NOT_FOUND';
+        throw err;
+      });
+
+      await expect(
+        resolve('@forge/sql/out/does-not-exist', {}, strictEsmNext)
+      ).rejects.toThrow('Cannot find module ghost');
     });
 
     it('load() synthesizes an ESM facade with bundler default semantics', async () => {
@@ -253,6 +299,38 @@ describe('Loader Hooks — resolve()', () => {
           defaultIsNamedSql: true,         // exports.default === exports.sql
           migrationRunner: 'object',       // named exports untouched (it's an instance)
           nsDefaultPrepare: 'function',    // namespace default matches too
+        });
+      } finally {
+        rmSync(scriptPath, { force: true });
+      }
+    });
+
+    it('E2E: extensionless deep import of @forge/sql/out/migration works under the loader (eval-6 F1)', () => {
+      // The exact eval-6 F1 repro: Atlassian's own migration docs use
+      //   import { migrationRunner } from '@forge/sql/out/migration';
+      // Works under real Forge's bundler, threw ERR_MODULE_NOT_FOUND under
+      // the sim (no exports map + no extension = strict ESM rejection).
+      const repoRoot = pathResolve(fileURLToPath(import.meta.url), '..', '..', '..');
+      const scriptPath = join(repoRoot, `.tmp-sql-migration-test-${process.pid}.mjs`);
+      writeFileSync(scriptPath, [
+        `import { migrationRunner, MigrationRunner } from '@forge/sql/out/migration';`,
+        `console.log(JSON.stringify({`,
+        `  migrationRunner: typeof migrationRunner,`,
+        `  hasEnqueue: typeof migrationRunner.enqueue,`,
+        `  isInstance: migrationRunner instanceof MigrationRunner,`,
+        `}));`,
+      ].join('\n'));
+
+      try {
+        const out = execSync(
+          `node --import ./dist/loader/register.js ${JSON.stringify(scriptPath)}`,
+          { cwd: repoRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }
+        );
+        const parsed = JSON.parse(out.trim().split('\n').pop()!);
+        expect(parsed).toEqual({
+          migrationRunner: 'object',
+          hasEnqueue: 'function',
+          isInstance: true,
         });
       } finally {
         rmSync(scriptPath, { force: true });

@@ -64,7 +64,13 @@ const PASSTHROUGH_OK = new Set(['@forge/sql']);
 //
 // Fix: resolve these packages to a synthesized ESM facade that re-exports
 // the named exports untouched and computes `default` with bundler semantics
-// (`__esModule` honored). Root specifier only — subpaths keep raw passthrough.
+// (`__esModule` honored). Covers the root specifier AND deep subpaths
+// (`@forge/sql/out/migration`) — the 0.1.5 fix was scoped to roots only and
+// the motivating deep import slipped through raw (eval-6 F1). Subpaths also
+// get bundler-style extension inference: @forge/sql ships no exports map, so
+// Node's ESM resolver demands the literal `.js` extension while webpack
+// (real Forge) infers it. CommonJS resolution has the same inference rules
+// as the bundler, so we fall back to require.resolve() from the importer.
 const CJS_DEFAULT_FACADE = new Set(['@forge/sql']);
 const FACADE_QUERY = 'forge-sim-cjs-facade';
 
@@ -354,11 +360,39 @@ export async function resolve(
 
   // 1a. CJS default-export facade — resolve the real package, then wrap it
   // in a synthesized ESM module whose `default` follows bundler interop
-  // semantics (honors __esModule) instead of Node's. See CJS_DEFAULT_FACADE.
-  if (CJS_DEFAULT_FACADE.has(specifier)) {
-    const resolved = await nextResolve(specifier, context);
-    // Only wrap CJS. If the package ever ships native ESM (format 'module'
-    // or an .mjs entry), interop is moot — pass it through untouched.
+  // semantics (honors __esModule) instead of Node's. Applies to the root
+  // specifier and any subpath of a facade package. See CJS_DEFAULT_FACADE.
+  const facadeRoot = specifier.startsWith('@forge/')
+    ? specifier.split('/').slice(0, 2).join('/')
+    : null;
+  if (facadeRoot && CJS_DEFAULT_FACADE.has(facadeRoot)) {
+    let resolved: { url: string; format?: string; shortCircuit?: boolean };
+    try {
+      resolved = await nextResolve(specifier, context);
+    } catch (err: any) {
+      if (err?.code !== 'ERR_MODULE_NOT_FOUND' && err?.code !== 'ERR_UNSUPPORTED_DIR_IMPORT') {
+        throw err;
+      }
+      // Extensionless deep import (`@forge/sql/out/migration`, eval-6 F1).
+      // The package has no exports map, so Node's ESM resolver demands the
+      // literal `.js` while real Forge's bundler infers it. CommonJS
+      // resolution shares the bundler's inference rules — resolve from the
+      // importer's location so the app's own node_modules wins, falling
+      // back to forge-sim's copy when there's no file:// parent.
+      const requireFrom = createRequire(
+        context.parentURL?.startsWith('file://') ? context.parentURL : import.meta.url
+      );
+      try {
+        resolved = {
+          url: pathToFileURL(requireFrom.resolve(specifier)).href,
+          shortCircuit: true,
+        };
+      } catch {
+        throw err; // original ESM error — clearer message for the user
+      }
+    }
+    // Only wrap CJS. If the target is native ESM (format 'module' or an
+    // .mjs file), interop is moot — pass it through untouched.
     const cleanResolvedUrl = resolved.url.split('?')[0];
     if (resolved.format === 'module' || cleanResolvedUrl.endsWith('.mjs')) {
       return resolved;
