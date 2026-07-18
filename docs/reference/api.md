@@ -509,6 +509,57 @@ const result = await employees.query()
   .getMany();
 ```
 
+#### Manifest schema (`app.storage.entities`)
+
+Entities are declared in `manifest.yml` under `app.storage.entities` — the same
+place real Forge reads them from ([Atlassian's Custom Entities docs](https://developer.atlassian.com/platform/forge/runtime-reference/custom-entities/)).
+The simulator parses the schema at deploy time and auto-registers every entity
+with `sim.kvs`, so `entity(name).set()` validates attribute types and
+`query().index()` resolves partition/range keys exactly as declared.
+
+```yaml
+app:
+  storage:
+    entities:
+      - name: employee                # required, unique per manifest
+        attributes:                   # required — map of attribute name → type
+          surname:
+            type: string              # integer | float | string | boolean | any
+          department:
+            type: string
+          age:
+            type: integer
+        indexes:                      # optional
+          - surname                   # string shorthand: range key on that attribute
+          - name: by-department       # object form
+            partition:
+              - department            # partition key attribute(s)
+            range: age                # single range key attribute
+```
+
+Parsing rules (mirroring real Forge):
+
+- **`name`** — required string, unique across the manifest. Duplicates are a
+  deploy error.
+- **`attributes`** — required map. Each attribute needs a `type` of
+  `integer`, `float`, `string`, `boolean`, or `any`. Unknown types produce a
+  deploy warning (real Forge may reject them).
+- **`indexes`** — optional. Two forms per entry:
+  - **String shorthand** — `- surname` declares an index named `surname`
+    with that attribute as the range key (this is the form Atlassian's docs
+    use in their first example).
+  - **Object form** — `name` (required, unique), `partition` (optional list
+    of attribute names), `range` (optional single attribute name). `range`
+    also accepts a one-element list (`range: [age]`) to match the YAML shape
+    in Atlassian's docs — but an empty list or a multi-element list is a
+    deploy error, because real Forge rejects multi-attribute range keys.
+- Partition or range keys referencing attributes that aren't declared in
+  `attributes` produce deploy warnings.
+
+Querying an index that isn't declared in the manifest throws
+`INDEX_NOT_FOUND` — the same failure you'd get from real Forge, rather than a
+silent empty result.
+
 ### Secrets
 
 ```typescript no-check
