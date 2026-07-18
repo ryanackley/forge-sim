@@ -115,6 +115,68 @@ export interface WebTriggerResponse {
   statusCode: number;
   headers: Record<string, string[]>;
   body: string;
+  /**
+   * How to convert `body` back into wire bytes. Default 'utf8' (body is the
+   * text the handler returned). 'latin1' means the body has been normalized
+   * to a byte-per-char view of the wire bytes — set when a binary
+   * content-type response contained non-ASCII characters (see
+   * encodeBodyForWire / eval-7 F3).
+   */
+  bodyEncoding?: 'utf8' | 'latin1';
+}
+
+/**
+ * Content types whose bodies are text on the wire — an HTTP client decodes
+ * them back to the original string (UTF-8), so the handler's string is
+ * already the faithful in-process representation. Everything else is
+ * byte-oriented (images, octet-stream, pdf, ...).
+ */
+function isTextContentType(contentType: string): boolean {
+  const ct = contentType.split(';')[0].trim().toLowerCase();
+  return ct.startsWith('text/')
+    || ct === 'application/json'
+    || ct === 'application/javascript'
+    || ct === 'application/xml'
+    || ct === 'application/x-www-form-urlencoded'
+    || ct.endsWith('+json')
+    || ct.endsWith('+xml');
+}
+
+/**
+ * Wire-faithfulness normalization (eval-7 F3). Web trigger bodies are
+ * strings; both forge-sim's HTTP surface and real Forge UTF-8-encode them
+ * onto the wire. A handler that stuffs raw binary into a latin1 string
+ * (`buf.toString('latin1')`) gets corrupted on the wire — every byte ≥ 0x80
+ * expands to two — but the in-process surface used to hand the string back
+ * untouched, so tests could green-light an app that corrupts data over a
+ * real socket.
+ *
+ * For binary content-types with non-ASCII characters, normalize the body to
+ * the latin1 (byte-per-char) view of the actual wire bytes so every surface
+ * — in-process, MCP, and HTTP — observes the same bytes, and warn loudly
+ * with the fix (base64-encode binary bodies; real Forge requires it).
+ * Text content-types are left untouched: an HTTP client decodes them back
+ * to the original string, so the string IS the faithful representation.
+ */
+function encodeBodyForWire(
+  triggerKey: string,
+  body: string,
+  headers: Record<string, string[]>,
+): { body: string; bodyEncoding?: 'latin1' } {
+  if (!/[^\x00-\x7F]/.test(body)) return { body };
+  const ctEntry = Object.entries(headers).find(([k]) => k.toLowerCase() === 'content-type');
+  const contentType = ctEntry?.[1]?.[0] ?? 'text/plain';
+  if (isTextContentType(contentType)) return { body };
+
+  const wire = Buffer.from(body, 'utf8');
+  console.warn(
+    `[forge-sim] [webtrigger] "${triggerKey}": response body contains non-ASCII characters ` +
+    `with binary content-type "${contentType}". Web trigger bodies are strings and are ` +
+    `UTF-8 encoded on the wire (real Forge does the same), so raw binary WILL be corrupted ` +
+    `(${body.length} chars → ${wire.length} bytes). Base64-encode binary bodies instead. ` +
+    `The response body now reflects the actual wire bytes on all surfaces.`,
+  );
+  return { body: wire.toString('latin1'), bodyEncoding: 'latin1' };
 }
 
 /**
@@ -207,10 +269,11 @@ export async function executeWebTrigger(
         }),
       };
     }
+    const staticHeaders = { 'content-type': [output.contentType ?? 'text/plain'] };
     return {
       statusCode: output.statusCode,
-      headers: { 'content-type': [output.contentType ?? 'text/plain'] },
-      body: output.body ?? '',
+      headers: staticHeaders,
+      ...encodeBodyForWire(trigger.key, output.body ?? '', staticHeaders),
     };
   }
 
@@ -252,10 +315,13 @@ export async function executeWebTrigger(
     headers['content-type'] = ['text/plain'];
   }
 
+  const rawBody = result.body ?? '';
   return {
     statusCode: result.statusCode,
     headers,
-    body: result.body ?? '',
+    ...(typeof rawBody === 'string'
+      ? encodeBodyForWire(trigger.key, rawBody, headers)
+      : { body: rawBody }),
   };
 }
 
@@ -340,7 +406,14 @@ export function createWebTriggerHandler(config: WebTriggerConfig) {
       }
 
       res.writeHead(response.statusCode, responseHeaders);
-      res.end(response.body);
+      // A latin1-normalized body is a byte-per-char view of the wire bytes
+      // (eval-7 F3) — write those exact bytes rather than letting Node
+      // UTF-8-encode the normalized string (which would double-encode).
+      res.end(
+        response.bodyEncoding === 'latin1'
+          ? Buffer.from(response.body, 'latin1')
+          : response.body,
+      );
 
       if (response.statusCode >= 500) {
         console.error(`[forge-sim] [webtrigger] ${req.method} ${pathname} → ${response.statusCode} (${response.body.slice(0, 200)})`);
