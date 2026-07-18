@@ -17,6 +17,11 @@
  *      were only *printed* as warnings, never returned. They now land in
  *      `result.errors` (functionKey 'manifest') and are excluded from
  *      `result.warnings`. (Pinned in deployer.test.ts N6.)
+ * F2 — `mockRoutes()` REPLACED on every call: each call built a handler
+ *      closed over only its own routes and swapped it in, silently wiping
+ *      earlier mocks for the same product. It now MERGES — routes
+ *      accumulate as if passed in one call; re-registering the same
+ *      "METHOD /path" key updates that route in place.
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
@@ -169,6 +174,81 @@ describe('F3 fallout: age-gated bundle sweep', () => {
     const { readdirSync } = await import('node:fs');
     const remaining = readdirSync(bundleDir).sort();
     expect(remaining).toEqual(['deploy-fresh-abc123.mjs', 'not-a-bundle.txt']);
+  });
+});
+
+// ── F2: mock routes merge across calls ──────────────────────────────────
+
+describe('F2: mockRoutes merges instead of replacing', () => {
+  it('routes from sequential calls all answer', async () => {
+    const { SimulatedProductApi } = await import('../product-api.js');
+    const api = new SimulatedProductApi();
+
+    api.mockRoutes('jira', {
+      'GET /rest/api/3/issue/A-1': { key: 'A-1' },
+    });
+    // The eval-6 repro: this second call used to wipe the first.
+    api.mockRoutes('jira', {
+      'GET /rest/api/3/issue/B-2': { key: 'B-2' },
+    });
+
+    const a = await api.request('jira', '/rest/api/3/issue/A-1');
+    const b = await api.request('jira', '/rest/api/3/issue/B-2');
+    expect(a.status).toBe(200);
+    expect((await a.json()).key).toBe('A-1');
+    expect(b.status).toBe(200);
+    expect((await b.json()).key).toBe('B-2');
+  });
+
+  it('re-registering the same METHOD+path updates the route in place', async () => {
+    const { SimulatedProductApi } = await import('../product-api.js');
+    const api = new SimulatedProductApi();
+
+    // Specific route registered BEFORE a broader prefix route — the update
+    // must keep its original position so first-match-wins still prefers it.
+    api.mockRoutes('jira', {
+      'GET /rest/api/3/issue/A-1': { key: 'A-1', rev: 1 },
+      'GET /rest/api/3/issue': { key: 'FALLBACK' },
+    });
+    api.mockRoutes('jira', {
+      'GET /rest/api/3/issue/A-1': { key: 'A-1', rev: 2 },
+    });
+
+    const res = await api.request('jira', '/rest/api/3/issue/A-1');
+    const body = await res.json();
+    expect(body.rev).toBe(2);
+    expect(body.key).toBe('A-1'); // not the prefix fallback
+  });
+
+  it('merges per product independently and clear() wipes the table', async () => {
+    const { SimulatedProductApi } = await import('../product-api.js');
+    const api = new SimulatedProductApi();
+
+    api.mockRoutes('jira', { 'GET /a': { from: 'jira' } });
+    api.mockRoutes('confluence', { 'GET /a': { from: 'confluence' } });
+
+    expect((await (await api.request('jira', '/a')).json()).from).toBe('jira');
+    expect((await (await api.request('confluence', '/a')).json()).from).toBe('confluence');
+
+    api.clear();
+    // Post-clear the product is back to the unmocked 501 handler — the
+    // route table must not survive and resurrect stale mocks.
+    const after = await api.request('jira', '/a');
+    expect(after.status).toBe(501);
+    api.mockRoutes('jira', { 'GET /b': { fresh: true } });
+    expect((await api.request('jira', '/a')).status).toBe(404);
+    expect((await (await api.request('jira', '/b')).json()).fresh).toBe(true);
+  });
+
+  it('merge holds on the simulator surface (MCP forge.mock_routes path)', async () => {
+    const sim = createSimulator();
+    sim.mockProductRoutes('jira', { 'GET /rest/api/3/myself': { accountId: 'me' } });
+    sim.mockProductRoutes('jira', { 'GET /rest/api/3/serverInfo': { version: '9' } });
+
+    const r1 = await sim.productApi.request('jira', '/rest/api/3/myself');
+    const r2 = await sim.productApi.request('jira', '/rest/api/3/serverInfo');
+    expect((await r1.json()).accountId).toBe('me');
+    expect((await r2.json()).version).toBe('9');
   });
 });
 

@@ -471,6 +471,13 @@ it('handles empty search results', async () => {
 });
 ```
 
+Calls to `mockProductRoutes()` **merge**: routes accumulate across calls as if
+they'd all been passed in one call, and re-registering the same
+`"METHOD /path"` key updates that route's response in place — so the mid-test
+update above changes only the search route and leaves `GET /rest/api/3/myself`
+intact. Matching is first-match-wins in registration order with prefix path
+matching. Wipe everything with `sim.reset()`.
+
 #### Error responses with `mockResponse()`
 
 A bare object as a route value always means "200 OK with this body". To test

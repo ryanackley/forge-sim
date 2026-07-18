@@ -185,6 +185,17 @@ function extractOperationName(query: string): string | null {
 export class SimulatedProductApi {
   private handlers = new Map<string, ProductApiHandler>();
   private mockRouteHandlers = new Map<string, ProductApiHandler>();
+  /**
+   * Per-product accumulated mock routes, keyed "METHOD pathPattern".
+   * `mockRoutes()` MERGES into this table (eval-6 F2) — repeated calls add
+   * routes as if they'd all been passed in one call; re-registering the
+   * same METHOD+pattern updates the response in place (Map.set keeps the
+   * original insertion position, preserving first-match-wins ordering).
+   */
+  private mockRouteTables = new Map<
+    string,
+    Map<string, { method: string; pathPattern: string; response: any }>
+  >();
   private graphqlMocks = new Map<string, GraphQLHandler | any>();
   private realApiAccount: AtlassianAccount | null = null;
   private propertyStore: PropertyStore | null = null;
@@ -313,47 +324,73 @@ export class SimulatedProductApi {
 
   /**
    * Register a simple route-based mock.
-   * 
+   *
    * Route keys are "METHOD /path" tuples (e.g. "GET /rest/api/3/issue/TEST-1").
    * Method defaults to GET if omitted (just "/rest/api/3/issue/TEST-1").
    * Path matching is prefix-based so "/rest/api/3/issue" matches "/rest/api/3/issue/TEST-1".
+   *
+   * Repeated calls MERGE (eval-6 F2): routes accumulate across calls as if
+   * they'd all been passed in one call. Re-registering the same
+   * "METHOD /path" key updates that route's response in place. Use
+   * `sim.reset()` / `clear()` to wipe mocks; `mock(product, handler)`
+   * remains the full-replacement escape hatch.
    */
   mockRoutes(
     product: string,
     routes: Record<string, any | ((path: string, options?: ProductApiRequest) => any)>
   ): void {
-    // Parse route keys into [method, pathPattern] tuples
-    const parsed = Object.entries(routes).map(([key, response]) => {
+    // Merge parsed routes into the per-product table. Map.set on an
+    // existing key updates the value without moving its position, so
+    // first-match-wins ordering stays stable across re-registrations.
+    let table = this.mockRouteTables.get(product);
+    if (!table) {
+      table = new Map();
+      this.mockRouteTables.set(product, table);
+    }
+    for (const [key, response] of Object.entries(routes)) {
       const match = key.match(/^(GET|POST|PUT|DELETE|PATCH|HEAD|OPTIONS)\s+(.+)$/i);
       const method = match ? match[1].toUpperCase() : 'GET';
       const pathPattern = match ? match[2] : key;
-      return { method, pathPattern, response };
-    });
+      table.set(`${method} ${pathPattern}`, { method, pathPattern, response });
+    }
 
-    const routeHandler: ProductApiHandler = (path: string, options?: ProductApiRequest) => {
-      const requestMethod = (options?.method ?? 'GET').toUpperCase();
+    // One handler per product, reading the live table at request time —
+    // NOT a closure over this call's routes (that was the F2 bug: each
+    // call's handler replaced the previous one, wiping earlier routes).
+    let routeHandler = this.mockRouteHandlers.get(product);
+    if (!routeHandler) {
+      routeHandler = (path: string, options?: ProductApiRequest) => {
+        const requestMethod = (options?.method ?? 'GET').toUpperCase();
 
-      for (const { method, pathPattern, response } of parsed) {
-        if (requestMethod === method && (path === pathPattern || path.startsWith(pathPattern))) {
-          // Resolve the route value — function form OR static value.
-          const raw = typeof response === 'function' ? response(path, options) : response;
-          // Unwrap the (optional) mockResponse() shape into a status/body/headers
-          // triple. Bare values become 200 OK bodies. Throws on the `__status`
-          // footgun so the next agent finds the right helper fast.
-          const { status, body, headers } = unwrapMockResponse(raw);
-          return makeResponse(status, body, headers);
+        for (const { method, pathPattern, response } of this.mockRouteTables.get(product)?.values() ?? []) {
+          if (requestMethod === method && (path === pathPattern || path.startsWith(pathPattern))) {
+            // Resolve the route value — function form OR static value.
+            const raw = typeof response === 'function' ? response(path, options) : response;
+            // Unwrap the (optional) mockResponse() shape into a status/body/headers
+            // triple. Bare values become 200 OK bodies. Throws on the `__status`
+            // footgun so the next agent finds the right helper fast.
+            const { status, body, headers } = unwrapMockResponse(raw);
+            return makeResponse(status, body, headers);
+          }
         }
-      }
-      return makeResponse(404, { error: `No mock route matched: ${requestMethod} ${path}` });
-    };
-
-    // Store as mock route handler (real API handler checks this first)
-    this.mockRouteHandlers.set(product, routeHandler);
+        return makeResponse(404, { error: `No mock route matched: ${requestMethod} ${path}` });
+      };
+      // Store as mock route handler (real API handler checks this first)
+      this.mockRouteHandlers.set(product, routeHandler);
+    }
 
     // If not in real mode, also set as the primary handler
     if (!this.realApiAccount) {
       this.handlers.set(product, routeHandler);
     }
+  }
+
+  /**
+   * Registered mock route keys ("METHOD /path") for a product, in match
+   * order. Handy for surfacing the merged state (MCP tool response).
+   */
+  getMockRoutes(product: string): string[] {
+    return [...(this.mockRouteTables.get(product)?.keys() ?? [])];
   }
 
   /**
@@ -484,6 +521,7 @@ export class SimulatedProductApi {
   clear(): void {
     this.handlers.clear();
     this.mockRouteHandlers.clear();
+    this.mockRouteTables.clear();
     this.graphqlMocks.clear();
     this.realApiAccount = null;
     for (const product of ['jira', 'confluence', 'bitbucket']) {

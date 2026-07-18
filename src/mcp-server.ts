@@ -1553,6 +1553,10 @@ server.tool(
 Route keys are "METHOD /path" (e.g. "GET /rest/api/3/version/10001"). Method defaults to GET if omitted.
 Path matching is prefix-based, so "/rest/api/3/issue" matches "/rest/api/3/issue/TEST-1".
 
+Repeated calls MERGE: routes accumulate across calls for the same product, as if all were passed
+in one call. Re-registering the same "METHOD /path" key updates that route's response in place.
+Use forge.reset to wipe all mocks.
+
 A route value is one of:
   • A bare JSON object → returned as the response body with 200 OK (the common case).
   • A tagged response object → controls status, body, and headers explicitly. Shape:
@@ -1581,10 +1585,14 @@ data that happens to have a status field".`,
     try {
       sim.mockProductRoutes(product, routes);
       const routeKeys = Object.keys(routes);
+      const total = sim.productApi.getMockRoutes(product).length;
+      const totalNote = total > routeKeys.length
+        ? ` (${total} total for "${product}" — calls merge)`
+        : '';
       return {
         content: [{
           type: 'text' as const,
-          text: `✅ Registered ${routeKeys.length} mock route(s) for "${product}":\n${routeKeys.map(k => `  • ${k}`).join('\n')}`,
+          text: `✅ Registered ${routeKeys.length} mock route(s) for "${product}"${totalNote}:\n${routeKeys.map(k => `  • ${k}`).join('\n')}`,
         }],
       };
     } catch (err) {

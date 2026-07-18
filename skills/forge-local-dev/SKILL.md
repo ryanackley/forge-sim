@@ -202,6 +202,10 @@ mcp__forge-sim__forge_mock_routes({
 })
 ```
 
+Repeated mock calls **merge** — routes accumulate per product across calls;
+re-registering the same `"METHOD /path"` key updates that route in place.
+`forge_reset` / `sim.reset()` wipes all mocks.
+
 **Non-200 responses** — bare values mean "200 OK with this body". For anything else
 (failure paths, rate-limiting, custom headers) use the tagged shape, which the
 `mockResponse(status, body?, headers?)` factory builds in the in-process API:
