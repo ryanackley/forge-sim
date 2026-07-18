@@ -100,7 +100,9 @@ modules:
 ${APP_FOOTER}`,
     });
 
-    const result = await deploy(sim, dir);
+    // Deliberately broken manifest — opt out of the throw-by-default
+    // behavior (eval-6 F3) so we can inspect result.errors directly.
+    const result = await deploy(sim, dir, { throwOnError: false });
 
     expect(result.errors.length).toBeGreaterThanOrEqual(4);
     const text = result.errors.map((e) => e.error).join('\n');
@@ -231,7 +233,8 @@ modules:
 ${APP_FOOTER}`,
     });
 
-    const result = await deploy(sim, dir);
+    // Broken on purpose — opt out of throw-by-default (eval-6 F3).
+    const result = await deploy(sim, dir, { throwOnError: false });
 
     const err = result.errors.find((e) => /typoMethod/.test(e.error));
     expect(err, 'expected a deploy error for the missing resolver method').toBeDefined();

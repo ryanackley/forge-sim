@@ -1,6 +1,7 @@
 modules:
   jira:issuePanel:
     - key: ctx-echo
+      icon: https://example.com/icon.svg
       resource: main
       resolver:
         function: resolver
@@ -16,5 +17,7 @@ resources:
     path: src/frontend.tsx
 
 app:
+  runtime:
+    name: nodejs22.x
   id: ari:cloud:ecosystem::app/ctx-echo-test
   name: Context Echo Test

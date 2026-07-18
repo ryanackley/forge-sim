@@ -71,11 +71,12 @@ describe('Deployer', () => {
     expect(result.triggers).toEqual([]);
   });
 
-  it('exposes manifest warnings on the deploy result (N6)', async () => {
-    // Build a manifest that's missing app.runtime — that's the specific
-    // case the N6 audit called out. The in-process deploy used to
-    // console.warn this but never put it on the response, so MCP callers
-    // were blind to it.
+  it('promotes error-level manifest problems to deploy errors (N6 → eval-6 F5)', async () => {
+    // Build a manifest that's missing app.runtime. Real Forge lint REJECTS
+    // this manifest, so since the deploy-honesty pass (eval-6 F3/F5) it is
+    // a deploy ERROR: it lands in result.errors (functionKey 'manifest'),
+    // is excluded from result.warnings, and makes deploy() throw by
+    // default. Non-error-level notes still flow through result.warnings.
     const { mkdirSync, writeFileSync, rmSync } = await import('node:fs');
     const { tmpdir } = await import('node:os');
     const { join } = await import('node:path');
@@ -87,6 +88,7 @@ modules:
   jira:issuePanel:
     - key: panel
       title: Panel
+      icon: https://example.com/icon.svg
       resource: main
       render: native
 resources:
@@ -96,20 +98,21 @@ app:
   id: ari:cloud:ecosystem::app/n6-test
   name: N6 Test
 `);
-    // Note: no app.runtime section above — that's the warning we want.
+    // Note: no app.runtime section above — that's the error we want.
 
     try {
-      const result = await deploy(sim, dir);
+      // Default: a manifest real Forge would reject fails the deploy loudly.
+      await expect(deploy(sim, dir)).rejects.toThrow(/app\.runtime/);
 
-      // Warnings flow through to the deploy result, identical to manifest.warnings.
-      // (The field is named `warnings` for back-compat with the existing
-      // manifest.warnings array — it actually contains both warnings and
-      // errors, with `level` indicating severity.)
-      expect(result.warnings).toBe(result.manifest.warnings);
-      const runtimeNote = result.warnings.find((w) => /app\.runtime/.test(w.message));
-      expect(runtimeNote, 'expected the app.runtime note to appear in result.warnings').toBeDefined();
-      // app.runtime is required → level is 'error'
-      expect(runtimeNote!.level).toBe('error');
+      // Opt out to inspect the result programmatically.
+      const result = await deploy(sim, dir, { throwOnError: false });
+      const runtimeError = result.errors.find(
+        (e) => e.functionKey === 'manifest' && /app\.runtime/.test(e.error),
+      );
+      expect(runtimeError, 'expected the app.runtime problem in result.errors').toBeDefined();
+      // Error-level problems no longer masquerade as warnings (eval-6 F5).
+      expect(result.warnings.some((w) => /app\.runtime/.test(w.message))).toBe(false);
+      expect(result.warnings.every((w) => w.level !== 'error')).toBe(true);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -128,6 +131,7 @@ modules:
   jira:issuePanel:
     - key: panel
       title: Panel
+      icon: https://example.com/icon.svg
       resource: real
       render: native
 resources:
@@ -143,7 +147,9 @@ app:
 `);
 
     try {
-      const result = await deploy(sim, dir);
+      // Broken resource path = deploy error → throws by default (eval-6 F3);
+      // opt out to inspect the partial result.
+      const result = await deploy(sim, dir, { throwOnError: false });
 
       // "real" populates loadedResources; "typo" surfaces a clear error.
       expect(result.loadedResources).toContain('real');

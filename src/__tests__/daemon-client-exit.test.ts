@@ -40,7 +40,9 @@ describe.runIf(hasDist)('daemon client exits after cold spawn (eval-5 F5)', () =
       const pid = parseInt(readFileSync(join(fakeHome, '.forge-sim', 'daemon.pid'), 'utf-8').trim(), 10);
       if (!isNaN(pid)) process.kill(pid, 'SIGTERM');
     } catch { /* already gone */ }
-    rmSync(fakeHome, { recursive: true, force: true });
+    // The SIGTERM'd daemon may still be flushing files into fakeHome while
+    // we delete it — retry through the transient ENOTEMPTY window.
+    rmSync(fakeHome, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   });
 
   it('cold deploy exits promptly instead of hanging on daemon stdio pipes', async () => {

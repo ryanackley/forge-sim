@@ -9,10 +9,11 @@
  */
 
 import { resolve, join, dirname } from 'node:path';
-import { access, mkdir, writeFile, readdir, unlink } from 'node:fs/promises';
+import { access, mkdir, writeFile, readdir, unlink, stat } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 import { parseManifest, type ParsedManifest, type ManifestFunction } from './manifest.js';
 import type { ForgeSimulator } from './simulator.js';
+import type { TypeCheckError } from './type-checker.js';
 
 /** Per-app cache dir for esbuild deploy bundles. Convention follows fit-keys/
  *  and other forge-sim sidecar state. Bundles live here briefly between
@@ -49,16 +50,36 @@ export function _resetPrintedManifestWarnings(): void {
   printedManifestWarnings.clear();
 }
 
+/** Only bundles at least this old are swept. Two simulators can deploy the
+ *  same app dir concurrently (vitest runs test files in parallel workers, and
+ *  several suites share fixture dirs) — an unconditional sweep let deploy A
+ *  delete deploy B's freshly written, not-yet-imported bundle, failing B with
+ *  "Cannot find module …/bundles/deploy-….mjs". Age-gating keeps in-flight
+ *  bundles safe while still bounding growth: anything older gets cleaned on
+ *  the next deploy. */
+const BUNDLE_SWEEP_MIN_AGE_MS = 5 * 60 * 1000;
+
 /** Best-effort sweep of older deploy bundles so the dir doesn't grow without
- *  bound across many redeploys. Failures are swallowed (e.g. dir doesn't
- *  exist yet, or files are still in-use somewhere on Windows). */
+ *  bound across many redeploys. Only removes bundles older than
+ *  {@link BUNDLE_SWEEP_MIN_AGE_MS} so concurrent deploys of the same app dir
+ *  can't delete each other's in-flight bundles. Failures are swallowed (e.g.
+ *  dir doesn't exist yet, or files are still in-use somewhere on Windows). */
 export async function sweepStaleBundles(dir: string): Promise<void> {
   try {
     const names = await readdir(dir);
+    const cutoff = Date.now() - BUNDLE_SWEEP_MIN_AGE_MS;
     await Promise.all(
       names
         .filter((n) => n.startsWith('deploy-') && n.endsWith('.mjs'))
-        .map((n) => unlink(join(dir, n)).catch(() => {}))
+        .map(async (n) => {
+          const path = join(dir, n);
+          try {
+            const { mtimeMs } = await stat(path);
+            if (mtimeMs < cutoff) await unlink(path);
+          } catch {
+            // Already gone or unreadable — either way, not our problem.
+          }
+        })
     );
   } catch {
     // Dir doesn't exist yet — nothing to sweep.
@@ -177,6 +198,62 @@ export interface DeployOptions {
    * as part of deploy; fire it explicitly with sim.fireScheduledTrigger(key).
    */
   fireScheduledTriggers?: boolean;
+  /**
+   * Throw a {@link DeployError} when the deploy finishes with errors
+   * (default: true).
+   *
+   * Eval-6 F3: a broken import used to "deploy" with 0/5 functions loaded and
+   * `errors: [...]` silently ignored — every test then failed far from the
+   * cause with "No resolver defined". Real `forge deploy` fails hard on lint/
+   * build errors, so throwing is the parity-correct default for the test API.
+   * The thrown DeployError carries the full result on `.result` for
+   * inspection. Set to false to get the old return-the-errors behavior —
+   * that's what the MCP / daemon / dev surfaces do (continue-and-inform),
+   * and what tests that deliberately deploy broken apps should pass.
+   */
+  throwOnError?: boolean;
+  /**
+   * Run TypeScript type checking as part of the deploy (default: false).
+   *
+   * Opt-in for the in-process surface because it shells out to `tsc`
+   * synchronously — seconds per call, which would dominate a vitest suite
+   * that deploys in every `beforeEach`. The MCP and daemon surfaces always
+   * run it (they deploy once per iteration). When enabled, results land on
+   * `result.typeErrors`, and any errors count toward `throwOnError` — real
+   * `forge deploy` fails its build on type errors, so a CI-gating deploy
+   * should too. (Eval-6 F4: the surface you'd use for CI gating was the one
+   * that never checked.)
+   */
+  typeCheck?: boolean;
+}
+
+/**
+ * Thrown by {@link deploy} when the finished deploy has errors and
+ * `throwOnError` wasn't disabled. Carries the complete {@link DeployResult}
+ * so callers can still inspect everything the deploy learned.
+ */
+export class DeployError extends Error {
+  constructor(public readonly result: DeployResult) {
+    const parts: string[] = [];
+    if (result.errors.length > 0) {
+      parts.push(
+        `${result.errors.length} deploy error(s):\n` +
+        result.errors.map((e) => `  - ${e.functionKey}: ${e.error}`).join('\n')
+      );
+    }
+    const te = result.typeErrors ?? [];
+    if (te.length > 0) {
+      parts.push(
+        `${te.length} type error(s):\n` +
+        te.map((e) => `  - ${e.file}:${e.line}:${e.column} ${e.code}: ${e.message}`).join('\n')
+      );
+    }
+    super(
+      `Deploy failed with ${parts.join(' and ')}\n` +
+      `(Inspect the full result on error.result, or pass { throwOnError: false } to sim.deploy() to handle errors yourself.)`
+    );
+    this.name = 'DeployError';
+  }
 }
 
 export interface DeployResult {
@@ -210,15 +287,29 @@ export interface DeployResult {
    * `sim.fireScheduledTrigger(key)` or MCP `forge.fire_scheduled_trigger`.
    */
   scheduledTriggers: DeployScheduledTriggerSummary[];
+  /**
+   * Everything that makes this deploy invalid: handler load failures,
+   * function-reference lint, deploy-time scheduled trigger failures, AND
+   * error-level manifest validation problems (missing app.runtime, bad
+   * entity schemas, …). Eval-6 F5: error-level validation used to print a
+   * beautiful ❌ to the console while this array stayed `[]` — tooling
+   * built on the API couldn't see what the human saw. Manifest-level
+   * entries use `functionKey: 'manifest'`.
+   */
   errors: Array<{ functionKey: string; error: string }>;
   /**
-   * Manifest validation warnings (and info-level notes). Mirrored from
+   * Manifest validation warnings and info-level notes. Mirrored from
    * `manifest.warnings` so both the in-process API and the MCP path can
-   * surface them in the same place — previously they only reached
-   * in-process callers via `console.warn`, leaving MCP responses silent
-   * about the same issues.
+   * surface them in the same place. Error-level entries are NOT here —
+   * they're real deploy failures and live in `errors` (eval-6 F5).
    */
   warnings: ParsedManifest['warnings'];
+  /**
+   * TypeScript diagnostics, present only when the deploy ran with
+   * `{ typeCheck: true }` (always on for the MCP and daemon surfaces).
+   * `undefined` = type checking didn't run; `[]` = ran and found nothing.
+   */
+  typeErrors?: TypeCheckError[];
 }
 
 /**
@@ -378,6 +469,16 @@ export async function deploy(sim: ForgeSimulator, appDir: string, options: Deplo
   const loadedFunctions: string[] = [];
   const loadedResources: string[] = [];
   const errors: Array<{ functionKey: string; error: string }> = [];
+
+  // Error-level manifest validation problems are deploy failures, not
+  // warnings — real Forge lint rejects these manifests. They keep printing
+  // via the warnings loop above (dedupe intact) but ALSO land in `errors`
+  // so programmatic callers see what the console shows. (Eval-6 F5)
+  for (const w of manifest.warnings) {
+    if (w.level === 'error') {
+      errors.push({ functionKey: 'manifest', error: w.message });
+    }
+  }
 
   // Start a deploy epoch: existing resolver keys become "stale", so the
   // re-evaluated app code silently REPLACES them instead of tripping the
@@ -718,7 +819,15 @@ export async function deploy(sim: ForgeSimulator, appDir: string, options: Deplo
     await sim.fit.init(absDir);
   }
 
-  return {
+  // Optional TypeScript check (opt-in here; always on for MCP/daemon —
+  // see DeployOptions.typeCheck for the cost rationale). Eval-6 F4.
+  let typeErrors: TypeCheckError[] | undefined;
+  if (options.typeCheck) {
+    const { typeCheck } = await import('./type-checker.js');
+    typeErrors = typeCheck(absDir);
+  }
+
+  const result: DeployResult = {
     manifest,
     loadedFunctions,
     loadedResources,
@@ -749,6 +858,21 @@ export async function deploy(sim: ForgeSimulator, appDir: string, options: Deplo
       interval: st.interval,
     })),
     errors,
-    warnings: manifest.warnings,
+    // Error-level entries were promoted into `errors` above (eval-6 F5) —
+    // keeping them here too would double-report on every surface.
+    warnings: manifest.warnings.filter((w) => w.level !== 'error'),
+    ...(typeErrors !== undefined ? { typeErrors } : {}),
   };
+
+  // Eval-6 F3: throw by default so a broken deploy fails AT the deploy, not
+  // 19 tests later with "No resolver defined". MCP / daemon / dev pass
+  // { throwOnError: false } and inform instead.
+  if (
+    options.throwOnError !== false &&
+    (errors.length > 0 || (typeErrors?.length ?? 0) > 0)
+  ) {
+    throw new DeployError(result);
+  }
+
+  return result;
 }

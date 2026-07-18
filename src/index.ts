@@ -23,8 +23,9 @@ export { SimulatedResolver } from './resolver.js';
 export { SimulatedProductApi, route, mockResponse, MOCK_RESPONSE_MARKER } from './product-api.js';
 export type { MockResponseTag } from './product-api.js';
 export { parseManifest, parseManifestContent } from './manifest.js';
-export { deploy } from './deployer.js';
+export { deploy, DeployError } from './deployer.js';
 export type { DeployOptions, DeployResult } from './deployer.js';
+export type { TypeCheckError } from './type-checker.js';
 export { setSimulator, getSimulator } from './shims/globals.js';
 // Trigger event sample-payload registry.
 // 141 canonical templates (Confluence + Jira + Jira Software + App Lifecycle).

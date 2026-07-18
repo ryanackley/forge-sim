@@ -59,7 +59,6 @@ import { createServer } from 'node:http';
 import { statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { createSimulator } from './simulator.js';
-import { typeCheck } from './type-checker.js';
 import {
   isStale,
   buildStalenessWarning,
@@ -278,10 +277,11 @@ server.tool(
     }
 
     try {
-      // Run type checking before deploy (non-blocking — errors reported alongside results)
-      const typeErrors = typeCheck(appDir);
-
-      const result = await sim.deploy(appDir);
+      // Continue-and-inform surface: never throw on deploy errors, always
+      // run the type checker (once per MCP iteration is cheap). Errors and
+      // typeErrors are reported in the summary below. (Eval-6 F3/F4)
+      const result = await sim.deploy(appDir, { throwOnError: false, typeCheck: true });
+      const typeErrors = result.typeErrors ?? [];
       const summary: Record<string, any> = {
         app: result.manifest.raw.app,
         loadedFunctions: result.loadedFunctions,

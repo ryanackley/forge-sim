@@ -270,6 +270,17 @@ export class ForgeSimulator {
    * Deploy a Forge app directory into this simulator.
    * Reads the manifest, imports handler modules, and wires everything up.
    *
+   * **Throws `DeployError` if the deploy has errors** (failed function
+   * imports, error-level manifest validation problems, or — with
+   * `{ typeCheck: true }` — TypeScript errors). Real `forge deploy` fails
+   * hard on lint/build errors, so a broken deploy fails your test by
+   * default instead of silently returning. Pass `{ throwOnError: false }`
+   * to get the result back and inspect `result.errors` yourself.
+   *
+   * Type checking is opt-in for the in-process API (`{ typeCheck: true }`)
+   * because it shells out to `tsc` and costs seconds per call — too slow
+   * for a deploy in every `beforeEach`. Results land on `result.typeErrors`.
+   *
    * By default each scheduled trigger fires once at deploy time (mirroring
    * real Forge, where triggers start ~5 minutes after deployment) — pass
    * `{ fireScheduledTriggers: false }` to skip that and fire them manually

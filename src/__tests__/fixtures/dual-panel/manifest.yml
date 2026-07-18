@@ -1,6 +1,7 @@
 modules:
   jira:issuePanel:
     - key: issue-summary
+      icon: https://example.com/icon.svg
       resource: issue-frontend
       resolver:
         function: issue-resolver
@@ -28,5 +29,7 @@ resources:
     path: src/admin-frontend.tsx
 
 app:
+  runtime:
+    name: nodejs22.x
   id: ari:cloud:ecosystem::app/dual-panel-test
   name: Dual Panel Test

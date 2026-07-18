@@ -88,32 +88,25 @@ export function createApiHandler(
         }
 
         try {
-          const result = await sim.deploy(appDir);
+          // Continue-and-inform surface: never throw on deploy errors,
+          // always type-check (once per deploy request is cheap). Errors
+          // and typeErrors come back in the response body. (Eval-6 F3/F4/F10)
+          const result = await sim.deploy(appDir, { throwOnError: false, typeCheck: true });
           return json(res, {
-            success: true,
+            success: result.errors.length === 0,
             app: result.manifest.raw.app,
             loadedFunctions: result.loadedFunctions,
             loadedResources: result.loadedResources,
             resolvers: sim.resolver.getDefinitions(),
-            triggers: result.manifest.triggers.map((t) => ({
-              key: t.key,
-              events: t.events,
-              function: t.functionKey,
-            })),
+            triggers: result.triggers,
             triggerEventTemplates: getTriggerEventTemplateMap(result.manifest.triggers.flatMap((trigger) => trigger.events)),
-            consumers: result.manifest.consumers.map((c) => ({
-              key: c.key,
-              queue: c.queue,
-              function: c.functionKey,
-            })),
-            uiModules: result.manifest.uiModules.map((u) => ({
-              key: u.key,
-              type: u.type,
-              resource: u.resourceKey,
-              resolver: u.resolverFunctionKey,
-            })),
+            consumers: result.consumers,
+            webTriggers: result.webTriggers,
+            scheduledTriggers: result.scheduledTriggers,
+            uiModules: result.uiModules,
             errors: result.errors,
             warnings: result.warnings,
+            ...(result.typeErrors && result.typeErrors.length > 0 ? { typeErrors: result.typeErrors } : {}),
           });
         } catch (err) {
           return json(res, { error: err instanceof Error ? err.message : String(err) }, 500);

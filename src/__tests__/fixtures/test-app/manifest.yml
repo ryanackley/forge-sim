@@ -2,6 +2,7 @@ modules:
   jira:issuePanel:
     - key: hello-panel
       title: Issue Panel
+      icon: https://example.com/icon.svg
       resource: main
       resolver:
         function: resolver
@@ -20,6 +21,8 @@ resources:
 app:
   id: ari:cloud:ecosystem::app/test-forge-sim-app
   name: Test Forge App
+  runtime:
+    name: nodejs22.x
 permissions:
   scopes:
     - read:jira-work

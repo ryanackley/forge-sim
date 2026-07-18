@@ -224,24 +224,46 @@ else if (command === 'deploy') {
       body: { appDir, reset: !noReset },
     });
 
-    if (result.success) {
-      console.log(`✅ Deployed${result.app?.name ? ` "${result.app.name}"` : ''}`);
-      console.log(`   Functions: ${result.loadedFunctions?.join(', ') || 'none'}`);
-      // /api/deploy returns resolvers as a plain string[] of keys (unlike
-      // triggers/consumers/uiModules which are objects) — mapping `.key`
-      // here printed "Resolvers: , , ," (eval-5 bonus find).
-      if (result.resolvers?.length) console.log(`   Resolvers: ${result.resolvers.map((r: any) => typeof r === 'string' ? r : r.key).join(', ')}`);
-      if (result.triggers?.length) console.log(`   Triggers:  ${result.triggers.map((t: any) => t.key).join(', ')}`);
-      if (result.consumers?.length) console.log(`   Consumers: ${result.consumers.map((c: any) => c.key).join(', ')}`);
-      if (result.uiModules?.length) console.log(`   UI:        ${result.uiModules.map((u: any) => u.key).join(', ')}`);
-      if (result.errors?.length) {
-        console.log(`   ⚠️  ${result.errors.length} error(s):`);
-        result.errors.forEach((e: string) => console.log(`      - ${e}`));
-      }
-    } else {
+    if (result.error) {
       console.error(`❌ Deploy failed: ${result.error}`);
       process.exit(1);
     }
+
+    const errCount = result.errors?.length ?? 0;
+    const typeErrCount = result.typeErrors?.length ?? 0;
+    if (errCount > 0) {
+      console.log(`⚠️  Deployed${result.app?.name ? ` "${result.app.name}"` : ''} with ${errCount} error(s)`);
+    } else {
+      console.log(`✅ Deployed${result.app?.name ? ` "${result.app.name}"` : ''}`);
+    }
+    console.log(`   Functions: ${result.loadedFunctions?.join(', ') || 'none'}`);
+    // /api/deploy returns resolvers as a plain string[] of keys (unlike
+    // triggers/consumers/uiModules which are objects) — mapping `.key`
+    // here printed "Resolvers: , , ," (eval-5 bonus find).
+    if (result.resolvers?.length) console.log(`   Resolvers: ${result.resolvers.map((r: any) => typeof r === 'string' ? r : r.key).join(', ')}`);
+    if (result.triggers?.length) console.log(`   Triggers:  ${result.triggers.map((t: any) => t.key).join(', ')}`);
+    if (result.consumers?.length) console.log(`   Consumers: ${result.consumers.map((c: any) => c.key).join(', ')}`);
+    // Scheduled + web triggers were missing from the summary (eval-6 F10).
+    if (result.scheduledTriggers?.length) console.log(`   Scheduled: ${result.scheduledTriggers.map((s: any) => `${s.key} (${s.interval})`).join(', ')}`);
+    if (result.webTriggers?.length) console.log(`   Web:       ${result.webTriggers.map((w: any) => w.key).join(', ')}`);
+    if (result.uiModules?.length) console.log(`   UI:        ${result.uiModules.map((u: any) => u.key).join(', ')}`);
+    if (errCount > 0) {
+      console.log(`   ❌ ${errCount} error(s):`);
+      // Errors are { functionKey, error } objects — printing them raw gave
+      // "[object Object]" (eval-6 bonus find during the F3/F5 pass).
+      result.errors.forEach((e: any) =>
+        console.log(`      - ${typeof e === 'string' ? e : `${e.functionKey}: ${e.error}`}`)
+      );
+    }
+    if (typeErrCount > 0) {
+      console.log(`   ❌ ${typeErrCount} type error(s):`);
+      result.typeErrors.forEach((e: any) =>
+        console.log(`      - ${e.file}:${e.line}:${e.column} ${e.code}: ${e.message}`)
+      );
+    }
+    // Deploy errors mean the app is not fully wired — exit non-zero so
+    // scripts/CI notice (eval-6 F3: real `forge deploy` fails hard too).
+    if (errCount > 0 || typeErrCount > 0) process.exit(1);
   } catch (err: any) {
     console.error(`❌ ${err.message}`);
     process.exit(1);
