@@ -46,6 +46,39 @@ describe('UnifiedKVS', () => {
       await expect(kvs.set('key', undefined)).rejects.toThrow('Cannot store null or undefined');
     });
 
+    // ── Eval-9 E9-1: single-op set() enforces the same limits as batchSet ──
+    // Real Forge validates every write path identically; before this fix an
+    // invalid key or oversized value rejected by batchSet sailed through
+    // set() and became local-only data.
+
+    it('set rejects invalid key characters with INVALID_KEY (E9-1)', async () => {
+      await expect(kvs.set('bad/slash', 1)).rejects.toMatchObject({ code: 'INVALID_KEY' });
+    });
+
+    it('set rejects keys over 500 chars with KEY_TOO_LONG (E9-1)', async () => {
+      await expect(kvs.set('k'.repeat(501), 1)).rejects.toMatchObject({ code: 'KEY_TOO_LONG' });
+    });
+
+    it('set rejects values over 240 KiB with MAX_SIZE (E9-1)', async () => {
+      const huge = 'x'.repeat(240 * 1024 + 1);
+      await expect(kvs.set('huge', huge)).rejects.toMatchObject({ code: 'MAX_SIZE' });
+    });
+
+    it('set rejects values nested beyond 31 levels with MAX_DEPTH (E9-1)', async () => {
+      let deep: any = { leaf: true };
+      for (let i = 0; i < 35; i++) deep = { nested: deep };
+      await expect(kvs.set('deep', deep)).rejects.toMatchObject({ code: 'MAX_DEPTH' });
+    });
+
+    it('entity set enforces the same key/value limits (E9-1)', async () => {
+      await expect(kvs.entity('Thing').set('bad/slash', { a: 1 })).rejects.toMatchObject({
+        code: 'INVALID_KEY',
+      });
+      await expect(kvs.entity('Thing').set('null-val', null)).rejects.toMatchObject({
+        code: 'INVALID_VALUE',
+      });
+    });
+
     it('set overwrites existing value', async () => {
       await kvs.set('key', 'first');
       await kvs.set('key', 'second');

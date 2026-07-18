@@ -117,9 +117,18 @@ export class UnifiedKVS {
 
   async set(key: string, value: any): Promise<void> {
     await this.simulateDelay();
+    // Eval-9 E9-1: single-op set() must enforce the same key/value limits as
+    // batchSet — real Forge validates every write path identically. Before
+    // this, an invalid key (or an oversized value) that batchSet rejected
+    // with INVALID_KEY / MAX_SIZE sailed through set() and became data that
+    // only exists locally.
+    const keyError = validateKvsKey(key);
+    if (keyError) throw new KVSQueryError(keyError.code, keyError.message);
     if (value === null || value === undefined) {
-      throw new Error('Cannot store null or undefined values');
+      throw new KVSQueryError('INVALID_VALUE', 'Cannot store null or undefined values');
     }
+    const valueError = validateKvsValue(value);
+    if (valueError) throw new KVSQueryError(valueError.code, valueError.message);
     const now = Date.now();
     const existing = this.store.get(key);
     const serialized = JSON.parse(JSON.stringify(value));
@@ -438,6 +447,15 @@ export class UnifiedKVS {
 
   /** @internal */ async entitySet(entityName: string, key: string, value: any): Promise<void> {
     this.assertEntityDeclared(entityName);
+    // Same limits as batchSet's entity branch (eval-9 E9-1 — every single-op
+    // write path enforces what the batch path enforces).
+    const keyError = validateKvsKey(key);
+    if (keyError) throw new KVSQueryError(keyError.code, keyError.message);
+    if (value === null || value === undefined) {
+      throw new KVSQueryError('INVALID_VALUE', 'Cannot store null or undefined values');
+    }
+    const valueError = validateKvsValue(value);
+    if (valueError) throw new KVSQueryError(valueError.code, valueError.message);
     // Schema validation
     const schema = this.entitySchemas.get(entityName);
     if (schema && value && typeof value === 'object') {

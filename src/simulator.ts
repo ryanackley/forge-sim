@@ -146,7 +146,12 @@ export class ForgeSimulator {
 
     if (config?.initialStorage) {
       for (const [key, value] of Object.entries(config.initialStorage)) {
-        this.kvs.set(key, value); // fire-and-forget, sync-safe in our impl
+        // Fire-and-forget (sync-safe in our impl), but set() now validates
+        // keys/values like batchSet (eval-9 E9-1) — surface a rejected seed
+        // loudly instead of leaving an unhandled rejection.
+        this.kvs.set(key, value).catch((err) => {
+          console.error(`[forge-sim] initialStorage seed rejected for key "${key}": ${err.message}`);
+        });
       }
     }
 
