@@ -626,7 +626,7 @@ and CRC32/CRC32C/SHA1/SHA256 checksums.
 ```typescript no-check
 // Backend API (mirrors @forge/object-store)
 sim.objectStore.createUploadUrl(body: UploadUrlBody): Promise<{ url: string }>
-sim.objectStore.createDownloadUrl(body: { key: string }, options?: { cdn?: boolean }): Promise<{ url: string }>
+sim.objectStore.createDownloadUrl(key: string, options?: { cdn?: boolean }): Promise<{ url: string } | undefined>  // key string, NOT a body object; absent key → undefined
 sim.objectStore.get(key: string, options?: { cdn?: boolean }): Promise<ObjectReference | undefined>  // metadata
 sim.objectStore.delete(key: string, options?: { cdn?: boolean }): Promise<void>
 sim.objectStore.put(key, data, ttlSeconds?): Promise<void>       // deprecated in @forge/object-store, kept for parity

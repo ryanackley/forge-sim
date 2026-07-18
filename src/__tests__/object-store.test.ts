@@ -275,6 +275,16 @@ describe('SimulatedObjectStore', () => {
     ).rejects.toMatchObject({ code: 'INVALID_TTL' });
   });
 
+  it('createDownloadUrl rejects a body-object argument with a helpful TypeError (eval-8 E8-7)', async () => {
+    // Our docs used to show `createDownloadUrl({ key })` while the client
+    // takes the key string directly — the object form silently returned
+    // undefined, indistinguishable from "not found".
+    await uploadObject();
+    await expect(store.createDownloadUrl({ key: 'test-key' } as any)).rejects.toThrow(
+      /expects a string key, got object/,
+    );
+  });
+
   it('expires objects after their TTL (default 90 days)', async () => {
     await uploadObject();
     fakeNow += (DEFAULT_OBJECT_TTL_SECONDS - 60) * 1000;

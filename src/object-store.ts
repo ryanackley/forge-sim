@@ -372,6 +372,16 @@ export class SimulatedObjectStore {
     key: string,
     options?: ObjectStoreOptions,
   ): Promise<PresignedUrlResponse | undefined> {
+    // Eval-8 E8-7: our docs used to show `createDownloadUrl({ key })` while
+    // the client takes the key string directly (only createUploadUrl takes a
+    // body object). The object form silently returned undefined — the object
+    // is never a live key — indistinguishable from "not found". Fail loud.
+    if (typeof key !== 'string') {
+      throw new TypeError(
+        `createDownloadUrl(key, options?) expects a string key, got ${typeof key}. ` +
+          `Pass the key directly — createDownloadUrl('my-key') — unlike createUploadUrl, which takes a body object.`,
+      );
+    }
     const bucket = this.bucketOf(options);
     if (!this.liveObject(bucket, key)) return undefined; // OBJ-004: absent → undefined
     const base = await this.ensureBaseUrl();
