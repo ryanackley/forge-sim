@@ -90,7 +90,7 @@ function readBody(req: IncomingMessage): Promise<string> {
 
 // ── In-process invocation core ────────────────────────────────────────────
 // Shared by the HTTP route handler below, `sim.fireWebTrigger()`, and the
-// MCP `forge.fire_web_trigger` tool — one code path for request shaping,
+// MCP `forge_fire_web_trigger` tool — one code path for request shaping,
 // handler invocation, response validation (WTR-009), and static outputs
 // (WTR-011), so the surfaces cannot drift (eval B4/B5).
 

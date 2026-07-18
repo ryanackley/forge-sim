@@ -13,8 +13,8 @@
  *
  * Top-level keys are product names ("jira", "confluence", "bitbucket", or a
  * remote key from the manifest); each value is a route map identical to the
- * MCP `forge.mock_routes` shape. The reserved key `graphql` maps operation
- * names to response bodies (the `forge.mock_graphql` shape).
+ * MCP `forge_mock_routes` shape. The reserved key `graphql` maps operation
+ * names to response bodies (the `forge_mock_graphql` shape).
  *
  * ```json
  * {

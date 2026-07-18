@@ -130,7 +130,7 @@ describe('waitForContent — error messages', () => {
 });
 
 describe('waitForContent — async-effect chain (the MCP ui_wait_for premise)', () => {
-  // The `forge.ui_wait_for` MCP tool exists because `forge.ui_render` only
+  // The `forge_ui_wait_for` MCP tool exists because `forge_ui_render` only
   // awaits the INITIAL reconcile. Modules that fetch data via
   // useEffect -> invoke() show `<Text>Loading...</Text>` in the initial doc;
   // the real content only appears after the resolver resolves and React
@@ -176,7 +176,7 @@ describe('waitForContent — async-effect chain (the MCP ui_wait_for premise)', 
     sim.ui.resetAll();
   });
 
-  it('initial render shows the loading state — confirms the gap forge.ui_wait_for closes', async () => {
+  it('initial render shows the loading state — confirms the gap forge_ui_wait_for closes', async () => {
     // First render — captures whatever ForgeReconciler emits on the FIRST
     // reconcile. The useEffect kicks off invoke() calls but the render
     // returns before they resolve.

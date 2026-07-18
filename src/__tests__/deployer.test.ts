@@ -36,7 +36,7 @@ describe('Deployer', () => {
     expect(result.errors).toHaveLength(0);
   });
 
-  it('returns the same summary shapes as the MCP forge.deploy response (F3)', async () => {
+  it('returns the same summary shapes as the MCP forge_deploy response (F3)', async () => {
     // Publish-gate F3: assertions written against the MCP deploy output
     // (`{resolvers, triggers, uiModules}`) failed against the in-process
     // `sim.deploy()` result, which only exposed the raw manifest. Both

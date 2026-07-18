@@ -1,5 +1,5 @@
 /**
- * F4 — Resolver `console.log` discoverability via MCP `forge.logs`.
+ * F4 — Resolver `console.log` discoverability via MCP `forge_logs`.
  *
  * The capture mechanism itself works: every invocation path (resolver,
  * trigger, scheduledTrigger) wraps the handler in `withCapture()` and
@@ -48,7 +48,7 @@ describe('F4 — resolver console.* lines surface in getLogs', () => {
   });
 
   it('captured lines are mirrored to getLogs() under level "console.<kind>"', async () => {
-    // Verifies the filter discovery: `forge.logs level=console.log` works
+    // Verifies the filter discovery: `forge_logs level=console.log` works
     // because we copy each captured line into the main log stream with
     // level=`console.${line.level}`.
     sim.clearLogs();
@@ -74,7 +74,7 @@ describe('F4 — resolver console.* lines surface in getLogs', () => {
 });
 
 /**
- * F4 — MCP `forge.logs` response shape.
+ * F4 — MCP `forge_logs` response shape.
  *
  * The old shape teased a `consoleLinesTotal: N` count with no listing, and
  * left users to figure out the `level=console.log` filter trick to actually
@@ -83,7 +83,7 @@ describe('F4 — resolver console.* lines surface in getLogs', () => {
  * works because the simulator mirrors each captured line into `logs` under
  * `level=console.<kind>` from the capture site.
  */
-describe('F4 — sim.buildLogsResponse (MCP forge.logs shape)', () => {
+describe('F4 — sim.buildLogsResponse (MCP forge_logs shape)', () => {
   let sim: ForgeSimulator;
 
   beforeAll(async () => {

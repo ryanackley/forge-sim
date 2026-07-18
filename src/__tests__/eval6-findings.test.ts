@@ -240,7 +240,7 @@ describe('F2: mockRoutes merges instead of replacing', () => {
     expect((await (await api.request('jira', '/b')).json()).fresh).toBe(true);
   });
 
-  it('merge holds on the simulator surface (MCP forge.mock_routes path)', async () => {
+  it('merge holds on the simulator surface (MCP forge_mock_routes path)', async () => {
     const sim = createSimulator();
     sim.mockProductRoutes('jira', { 'GET /rest/api/3/myself': { accountId: 'me' } });
     sim.mockProductRoutes('jira', { 'GET /rest/api/3/serverInfo': { version: '9' } });

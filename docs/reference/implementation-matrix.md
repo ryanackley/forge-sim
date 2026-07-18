@@ -220,7 +220,7 @@ OpenAI-shaped Anthropic LLM interface. Mock-first; falls through to the real Ant
 | `reset()` | ✅ | Clears queue + history. |
 | `setApiKey(key)` / `getApiKey()` | ✅ | `process.env.ANTHROPIC_API_KEY` wins over config. |
 
-**MCP:** `forge.llm_mock`, `forge.llm_history`; see [mcp.md](../ai/mcp.md#tools).
+**MCP:** `forge_llm_mock`, `forge_llm_history`; see [mcp.md](../ai/mcp.md#tools).
 
 ---
 
@@ -434,7 +434,7 @@ Frontend API for Custom UI apps (runs in iframe).
 
 | API | Status | Tests | Notes |
 |-----|--------|-------|-------|
-| `realtime.publish(channel, payload)` | ✅ | `realtime.test.ts` | Scoped channel pub/sub. MCP: `forge.realtime_publish` |
+| `realtime.publish(channel, payload)` | ✅ | `realtime.test.ts` | Scoped channel pub/sub. MCP: `forge_realtime_publish` |
 | `realtime.subscribe(channel, callback)` | ✅ | `realtime.test.ts` | Returns unsubscribe handle |
 | `realtime.publishGlobal(channel, payload)` | ✅ | `realtime.test.ts` | Cross-experience global channel |
 | `realtime.subscribeGlobal(channel, callback)` | ✅ | `realtime.test.ts` | Returns unsubscribe handle |

@@ -150,21 +150,21 @@ export async function bundleHandlerToFileUrl(entryPath: string, appDir: string):
 }
 // Bridge is now managed by sim.ui — no direct bridge imports needed here
 
-/** Summary entry for a trigger, matching the MCP `forge.deploy` response shape. */
+/** Summary entry for a trigger, matching the MCP `forge_deploy` response shape. */
 export interface DeployTriggerSummary {
   key: string;
   events: string[];
   function: string;
 }
 
-/** Summary entry for a queue consumer, matching the MCP `forge.deploy` response shape. */
+/** Summary entry for a queue consumer, matching the MCP `forge_deploy` response shape. */
 export interface DeployConsumerSummary {
   key: string;
   queue: string;
   function: string;
 }
 
-/** Summary entry for a UI module, matching the MCP `forge.deploy` response shape. */
+/** Summary entry for a UI module, matching the MCP `forge_deploy` response shape. */
 export interface DeployUIModuleSummary {
   key: string;
   type: string;
@@ -172,13 +172,13 @@ export interface DeployUIModuleSummary {
   resolver?: string;
 }
 
-/** Summary entry for a web trigger, matching the MCP `forge.deploy` response shape. */
+/** Summary entry for a web trigger, matching the MCP `forge_deploy` response shape. */
 export interface DeployWebTriggerSummary {
   key: string;
   function: string;
 }
 
-/** Summary entry for a scheduled trigger, matching the MCP `forge.deploy` response shape. */
+/** Summary entry for a scheduled trigger, matching the MCP `forge_deploy` response shape. */
 export interface DeployScheduledTriggerSummary {
   key: string;
   function: string;
@@ -278,7 +278,7 @@ export interface DeployResult {
   loadedFunctions: string[];
   loadedResources: string[];
   /**
-   * Convenience summaries mirroring the MCP `forge.deploy` response.
+   * Convenience summaries mirroring the MCP `forge_deploy` response.
    *
    * Publish-gate F3: the MCP tool returned `{resolvers, triggers, uiModules}`
    * while the in-process `sim.deploy()` only exposed the raw manifest —
@@ -295,13 +295,13 @@ export interface DeployResult {
    * Web trigger modules (eval B4: these used to be silently folded into
    * `resolvers`, misrepresenting their (request, context) calling
    * convention). Fire them with `sim.fireWebTrigger(key)` or the MCP
-   * `forge.fire_web_trigger` tool — NOT `sim.invoke()`.
+   * `forge_fire_web_trigger` tool — NOT `sim.invoke()`.
    */
   webTriggers: DeployWebTriggerSummary[];
   /**
    * Scheduled trigger modules (eval-4 F10: previously missing from the
    * summary even though deploy fires them). Fire again with
-   * `sim.fireScheduledTrigger(key)` or MCP `forge.fire_scheduled_trigger`.
+   * `sim.fireScheduledTrigger(key)` or MCP `forge_fire_scheduled_trigger`.
    */
   scheduledTriggers: DeployScheduledTriggerSummary[];
   /**

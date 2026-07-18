@@ -302,7 +302,7 @@ describe('buildAutoRestartNotice', () => {
   });
 
   it('warns that in-memory state is gone and to re-deploy', () => {
-    expect(msg).toMatch(/re-?deploy|forge\.deploy/i);
+    expect(msg).toMatch(/re-?deploy|forge_deploy/i);
   });
 
   it('documents the opt-out env var', () => {

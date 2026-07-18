@@ -82,7 +82,7 @@ export class ForgeSimulator {
   /**
    * Number of resolver invocations currently in flight — every path funnels
    * through invoke() (direct sim.invoke calls, UI bridge invokes fired by
-   * React effects, MCP forge.invoke). Drives sim.idle() and the drain in
+   * React effects, MCP forge_invoke). Drives sim.idle() and the drain in
    * sim.stop(), and lets sim.ui.settle() know the UI can't be quiescent yet.
    */
   private pendingInvokeCount = 0;
@@ -469,7 +469,7 @@ export class ForgeSimulator {
       throw new Error(
         `"${functionKey}" is a web trigger handler — it expects (request, context), ` +
         `not the resolver { payload, context } convention, so sim.invoke() would call it wrong. ` +
-        `Use sim.fireWebTrigger("${boundWebTriggerKey ?? '<triggerKey>'}") (or the MCP tool forge.fire_web_trigger) instead.`
+        `Use sim.fireWebTrigger("${boundWebTriggerKey ?? '<triggerKey>'}") (or the MCP tool forge_fire_web_trigger) instead.`
       );
     }
 
@@ -509,7 +509,7 @@ export class ForgeSimulator {
 
   /**
    * Number of resolver invocations currently in flight (direct sim.invoke,
-   * UI bridge invokes from React effects, MCP forge.invoke — all paths).
+   * UI bridge invokes from React effects, MCP forge_invoke — all paths).
    */
   get pendingInvokes(): number {
     return this.pendingInvokeCount;
@@ -899,7 +899,7 @@ export class ForgeSimulator {
   }
 
   /**
-   * Build the response payload for the MCP `forge.logs` tool (and any other
+   * Build the response payload for the MCP `forge_logs` tool (and any other
    * caller that wants the same JSON shape). Extracted as a pure function so
    * tests can lock down the contract without spinning up the MCP server.
    *
@@ -1218,8 +1218,8 @@ export class ForgeSimulator {
     this.webTriggerUrls.reset();
     // Restores process.env; ephemeral vars deliberately SURVIVE reset —
     // real Forge variables are environment-scoped, not deployment-scoped,
-    // and MCP forge.deploy defaults to reset:true which would otherwise
-    // clobber pre-deploy forge.variables_set calls.
+    // and MCP forge_deploy defaults to reset:true which would otherwise
+    // clobber pre-deploy forge_variables_set calls.
     this.variables.reset();
     this.manifest = null;
     this.logs.length = 0;

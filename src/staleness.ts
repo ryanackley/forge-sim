@@ -173,7 +173,7 @@ export function buildAutoRestartNotice(
     `This process loaded dist/mcp-server.js at ${loadedAt}, but the file on disk was rebuilt at ${rebuiltAt}. ` +
     `THIS response was produced by the OLD code and may not match the current build. ` +
     `The daemon exits right after this response; your MCP client respawns it with fresh code on the next tool call. ` +
-    `In-memory simulator state is gone — call forge.deploy again before invoking. ` +
+    `In-memory simulator state is gone — call forge_deploy again before invoking. ` +
     `Set FORGE_SIM_STALE_AUTORESTART=off to disable auto-restart (warn-only mode).`
   );
 }

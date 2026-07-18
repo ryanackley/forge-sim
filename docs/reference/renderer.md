@@ -16,7 +16,7 @@ Node (forge-sim)
 └── WebSocket → Renderer (optional browser visualization)
 ```
 
-The reconciler runs in Node.js. The ForgeDoc (intermediate UI tree) can be inspected via CLI (`forge-sim ui`) or MCP tools (`forge.ui_state`). Optionally, a browser can connect via WebSocket to visualize the rendered components.
+The reconciler runs in Node.js. The ForgeDoc (intermediate UI tree) can be inspected via CLI (`forge-sim ui`) or MCP tools (`forge_ui_state`). Optionally, a browser can connect via WebSocket to visualize the rendered components.
 
 ### Browser Mode (CDT-debuggable)
 
@@ -129,7 +129,7 @@ const App = () => {
 };
 ```
 
-then `sim.ui.render('my-module')` resolves with the **loading** tree, because the effect hasn't run-and-resolved-and-re-rendered yet. The MCP `forge.ui_render` tool has the same behavior: it only awaits the first reconcile.
+then `sim.ui.render('my-module')` resolves with the **loading** tree, because the effect hasn't run-and-resolved-and-re-rendered yet. The MCP `forge_ui_render` tool has the same behavior: it only awaits the first reconcile.
 
 Two ways to settle:
 

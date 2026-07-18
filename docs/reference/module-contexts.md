@@ -36,7 +36,7 @@ await sim.ui.render('my-panel', {
 - `context` **merges**: canonical fields (see [the whitelist below](#how-context-is-built)) override the sim defaults and any sticky resolver context; loose fields fill extension gaps under your explicit `extension` keys.
 - The two are deliberately separate options with different semantics: nesting `extension` inside `context` is **rejected** on every surface (compile error in TypeScript, `TypeError` at runtime).
 - The only field you can't override is `moduleKey`; it always comes from the render call.
-- Both options work the same on the test library (`sim.ui.render`, `sim.invoke(fn, payload, { context, extension })`) and MCP (`forge.ui_render`, `forge.invoke`). The CLI has `--context` but no `--extension` flag yet, so pass loose fields through `--context` there (they merge into `extension`, they just don't suppress shorthand-key hydration).
+- Both options work the same on the test library (`sim.ui.render`, `sim.invoke(fn, payload, { context, extension })`) and MCP (`forge_ui_render`, `forge_invoke`). The CLI has `--context` but no `--extension` flag yet, so pass loose fields through `--context` there (they merge into `extension`, they just don't suppress shorthand-key hydration).
 
 ---
 
@@ -51,7 +51,7 @@ await sim.ui.render('byline-item', { contentId: '12345', spaceKey: 'ENG' });
 await sim.ui.render('space-page', { spaceKey: 'ENG' });
 ```
 
-The complete set of options, with the same names in the test library, MCP `forge.ui_render`, and (where noted) `forge-sim dev` flags:
+The complete set of options, with the same names in the test library, MCP `forge_ui_render`, and (where noted) `forge-sim dev` flags:
 
 - **`issueKey`** — hydrates `extension.issue` and `extension.project`, plus flat `issueKey` / `issueId` / `projectKey` / `projectId`. Live fetch: `GET /rest/api/3/issue/<key>`. Offline: the key as-is, project key from the prefix. CLI: `--issue`.
 - **`projectKey`** — hydrates `extension.project` plus flat `projectKey` / `projectId`. Live fetch: `GET /rest/api/3/project/<key>`. CLI: `--project`.
@@ -67,7 +67,7 @@ Only one hydration shortcut applies per render (`issueKey` wins over `contentId`
 
 ## How Context Is Built in forge-sim
 
-`sim.ui.render(moduleKey, options)`, `forge.ui_render` (MCP), and the [`forge-sim dev` flags](#cli-hydration-flags) resolve these options in the same order (surface availability per option is noted [above](#hydrated-contexts-the-shorthand-keys)). For the `extension` object, first match wins:
+`sim.ui.render(moduleKey, options)`, `forge_ui_render` (MCP), and the [`forge-sim dev` flags](#cli-hydration-flags) resolve these options in the same order (surface availability per option is noted [above](#hydrated-contexts-the-shorthand-keys)). For the `extension` object, first match wins:
 
 1. **`extension` override** — used as-is (merged over `{ type }`). No hydration. A `context` option passed alongside still applies: canonical fields are promoted to the top level, and loose context fields fill extension gaps under your explicit `extension` keys.
 2. **`issueKey` / `contentId` / `projectKey`** — hydrated via the product API (see the groups below). Mock-first, offline-safe: mock routes answer if registered, a connected account is used if present, and otherwise the context is built from the key itself with no network call.
@@ -82,7 +82,7 @@ Two more layers on the top-level fields:
 ```ts
 // All equivalent surfaces:
 await sim.ui.render('my-panel', { issueKey: 'PROJ-42' });          // test library
-// forge.ui_render { moduleKey: "my-panel", issueKey: "PROJ-42" }  // MCP
+// forge_ui_render { moduleKey: "my-panel", issueKey: "PROJ-42" }  // MCP
 // forge-sim dev --module my-panel --issue PROJ-42                 // dev server
 ```
 
@@ -221,7 +221,7 @@ Macros are Confluence content modules (hydration above), plus config handling: w
 
 Config can be seeded three ways:
 
-- `sim.ui.render(key, { macroConfig: {...} })` / `forge.ui_render` with `macroConfig` — one-shot, doesn't persist
+- `sim.ui.render(key, { macroConfig: {...} })` / `forge_ui_render` with `macroConfig` — one-shot, doesn't persist
 - `sim.ui.setMacroConfig(key, {...})` — sticky across renders
 - Submitting the config form in dev mode or via `renderInlineConfig().save(values)`: the saved values persist and are returned on subsequent renders
 
@@ -362,4 +362,4 @@ forge-sim dev --module my-panel --issue PROJ-42 \
 forge-sim dev --module byline --content 12345 --space ENG
 ```
 
-The MCP equivalent is `forge.ui_render`: same fields, same precedence. The MCP tool additionally accepts `extension` (full extension override, [fully mocked](#fully-mocked-contexts) path) and `macroConfig` for one-shot config injection on `macro` modules. The in-process `sim.ui.render(moduleKey, { extension, macroConfig })` shares that contract.
+The MCP equivalent is `forge_ui_render`: same fields, same precedence. The MCP tool additionally accepts `extension` (full extension override, [fully mocked](#fully-mocked-contexts) path) and `macroConfig` for one-shot config injection on `macro` modules. The in-process `sim.ui.render(moduleKey, { extension, macroConfig })` shares that contract.

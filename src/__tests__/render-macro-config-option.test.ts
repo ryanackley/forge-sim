@@ -2,7 +2,7 @@
  * sim.ui.render(moduleKey, { macroConfig }) — one-shot config injection.
  *
  * F3 from skill run #8: the in-process render accepted `macroConfig` in
- * its options shape but silently ignored it, while the MCP forge.ui_render
+ * its options shape but silently ignored it, while the MCP forge_ui_render
  * tool described it as "values useConfig() resolves to on this render."
  * Now both paths honor it one-shot per render. Sticky values still use
  * `sim.ui.setMacroConfig`.

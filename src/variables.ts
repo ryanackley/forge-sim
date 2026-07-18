@@ -16,7 +16,7 @@
  * Sim sources, in ascending precedence:
  *   1. Host env `FORGE_USER_VAR_<KEY>`   (tunnel parity)
  *   2. `<appDir>/.forge-sim/variables.json`  (dev-mode file, re-read each deploy)
- *   3. `sim.setVariables({...})` / MCP `forge.variables_set`  (ephemeral,
+ *   3. `sim.setVariables({...})` / MCP `forge_variables_set`  (ephemeral,
  *      never persisted to disk, survives reset — real Forge vars are
  *      environment-scoped, not deployment-scoped)
  *
@@ -170,9 +170,9 @@ export class VariablesManager {
   /**
    * Reset hook. Restores process.env; file vars are dropped (re-read at
    * next deploy); EPHEMERAL VARS SURVIVE — real Forge variables are
-   * environment-scoped, not deployment-scoped, and MCP `forge.deploy`
+   * environment-scoped, not deployment-scoped, and MCP `forge_deploy`
    * defaults to reset:true which would otherwise clobber pre-deploy
-   * `forge.variables_set` calls.
+   * `forge_variables_set` calls.
    */
   reset(): void {
     this.restoreEnv();

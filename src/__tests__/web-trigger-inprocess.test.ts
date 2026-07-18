@@ -9,7 +9,7 @@
  * garbage. Real Forge has no bridge-invoke path to a web trigger.
  *
  * B5: there was no way to fire a web trigger without standing up the HTTP
- * dev server. `sim.fireWebTrigger()` (and the MCP forge.fire_web_trigger
+ * dev server. `sim.fireWebTrigger()` (and the MCP forge_fire_web_trigger
  * tool) share the same executeWebTrigger core as the HTTP route, so the
  * surfaces cannot drift.
  */

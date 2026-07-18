@@ -127,7 +127,7 @@ describe('MCP Server Integration', () => {
       await sim.stop();
     }, 30_000);
 
-    it('should run migrations (forge.sql_migrate pattern)', async () => {
+    it('should run migrations (forge_sql_migrate pattern)', async () => {
       // Create migrations table
       await sqlDDL(sim, 'CREATE TABLE IF NOT EXISTS __migrations (id BIGINT PRIMARY KEY AUTO_INCREMENT, name VARCHAR(255) NOT NULL, migratedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP)');
 
@@ -141,7 +141,7 @@ describe('MCP Server Integration', () => {
       expect(migrations.rows[0].name).toBe('001_create_items');
     });
 
-    it('should execute queries (forge.sql_execute pattern)', async () => {
+    it('should execute queries (forge_sql_execute pattern)', async () => {
       await sqlExecute(sim, 'INSERT INTO items (name, price) VALUES (?, ?)', ['Widget', 9.99]);
       await sqlExecute(sim, 'INSERT INTO items (name, price) VALUES (?, ?)', ['Gadget', 24.99]);
 
@@ -151,7 +151,7 @@ describe('MCP Server Integration', () => {
       expect(result.rows[1].price).toBe('24.99'); // DECIMAL comes back as string
     });
 
-    it('should inspect schema (forge.sql_schema pattern)', async () => {
+    it('should inspect schema (forge_sql_schema pattern)', async () => {
       const tables = await sim.sql.query<Record<string, string>>('SHOW TABLES');
       const tableNames = tables.map(r => Object.values(r)[0]);
       expect(tableNames).toContain('items');

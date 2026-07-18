@@ -4,7 +4,7 @@
  * Used by both:
  * - `forge-sim dev` — spawns `tsc --watch --noEmit` as a child process,
  *   parses streaming output, broadcasts errors to the tools UI
- * - `forge.deploy` MCP tool — synchronous pre-deploy check
+ * - `forge_deploy` MCP tool — synchronous pre-deploy check
  */
 
 import { join, dirname } from 'node:path';
@@ -254,7 +254,7 @@ export function looksLikeTsProject(appDir: string, maxDepth = 4): boolean {
  * Run synchronous type checking on an app directory.
  * Returns an array of structured errors (empty = no errors).
  *
- * Used by the MCP forge.deploy tool for pre-deploy checking.
+ * Used by the MCP forge_deploy tool for pre-deploy checking.
  */
 export function typeCheck(appDir: string): TypeCheckError[] {
   const tsc = resolveTsc(appDir);

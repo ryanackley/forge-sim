@@ -3,7 +3,7 @@
  * during Forge handler execution and routes them to the simulator's log.
  *
  * Forge apps use console.* as their primary logging mechanism.
- * This captures those calls so they appear in forge:logs output.
+ * This captures those calls so they appear in forge_logs output.
  *
  * ## Reentrancy
  *

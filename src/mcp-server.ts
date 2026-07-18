@@ -6,43 +6,43 @@
  * Runs over stdio transport.
  *
  * Tools:
- *   forge:deploy        — Deploy a Forge app from a directory
- *   forge:invoke        — Call a resolver function
- *   forge:fire_trigger  — Simulate a product event trigger
- *   forge:ui_render     — Render a UI module by manifest key (loads bundle + builds context)
- *   forge:ui_wait_for   — Wait for text to appear in a module's rendered tree (handles async useEffect chains)
- *   forge:ui_state      — Get the current ForgeDoc UI tree
- *   forge:ui_interact   — Interact with UI components (click, submit, etc.)
- *   forge:ui_fill_form  — Fill form fields by name (correct per-type event shapes) and optionally submit
- *   forge:kvs_get       — Get a value from KVS
- *   forge:kvs_list      — List/dump KVS contents
- *   forge:kvs_set       — Set a value in KVS (for test setup)
- *   forge:objectstore_list   — List Object Store objects (metadata)
- *   forge:objectstore_get    — Get object metadata + content (utf-8 or base64)
- *   forge:objectstore_put    — Seed an object directly (test setup)
- *   forge:objectstore_delete — Delete an object by key
- *   forge:objectstore_create_download_url — Pre-signed download URL (curl-able, Range-capable)
- *   forge:variables_set   — Set ephemeral env variables (take effect at next deploy)
- *   forge:variables_unset — Remove an ephemeral env variable
- *   forge:variables_list  — List all env variables (encrypted values masked)
- *   forge:queue_push    — Push events to a queue
- *   forge:queue_state   — Inspect queue job state and event log
- *   forge:logs          — Get simulator + console logs
- *   forge:sql_execute   — Execute SQL queries (real MySQL)
- *   forge:sql_migrate   — Run idempotent database migrations
- *   forge:sql_schema    — Inspect database schema (tables, columns, indexes)
- *   forge:entity_get    — Get a Custom Entity by name + key
- *   forge:entity_set    — Create/update a Custom Entity
- *   forge:entity_delete — Delete a Custom Entity
- *   forge:entity_query  — Query entities with indexes, filters, sort, pagination
- *   forge:entity_list   — List all entities and schemas
- *   forge:reset         — Reset all simulator state
- *   forge:mock_routes   — Register mock HTTP responses for product APIs or remotes
- *   forge:mock_graphql  — Register mock GraphQL responses by operation name
- *   forge:llm_mock      — Register mock LLM responses for @forge/llm chat()
- *   forge:llm_history   — Get @forge/llm call history (prompts + responses)
- *   forge:realtime_publish — Publish an event to a realtime channel
- *   forge:realtime_state   — Inspect realtime subscriptions and event log
+ *   forge_deploy        — Deploy a Forge app from a directory
+ *   forge_invoke        — Call a resolver function
+ *   forge_fire_trigger  — Simulate a product event trigger
+ *   forge_ui_render     — Render a UI module by manifest key (loads bundle + builds context)
+ *   forge_ui_wait_for   — Wait for text to appear in a module's rendered tree (handles async useEffect chains)
+ *   forge_ui_state      — Get the current ForgeDoc UI tree
+ *   forge_ui_interact   — Interact with UI components (click, submit, etc.)
+ *   forge_ui_fill_form  — Fill form fields by name (correct per-type event shapes) and optionally submit
+ *   forge_kvs_get       — Get a value from KVS
+ *   forge_kvs_list      — List/dump KVS contents
+ *   forge_kvs_set       — Set a value in KVS (for test setup)
+ *   forge_objectstore_list   — List Object Store objects (metadata)
+ *   forge_objectstore_get    — Get object metadata + content (utf-8 or base64)
+ *   forge_objectstore_put    — Seed an object directly (test setup)
+ *   forge_objectstore_delete — Delete an object by key
+ *   forge_objectstore_create_download_url — Pre-signed download URL (curl-able, Range-capable)
+ *   forge_variables_set   — Set ephemeral env variables (take effect at next deploy)
+ *   forge_variables_unset — Remove an ephemeral env variable
+ *   forge_variables_list  — List all env variables (encrypted values masked)
+ *   forge_queue_push    — Push events to a queue
+ *   forge_queue_state   — Inspect queue job state and event log
+ *   forge_logs          — Get simulator + console logs
+ *   forge_sql_execute   — Execute SQL queries (real MySQL)
+ *   forge_sql_migrate   — Run idempotent database migrations
+ *   forge_sql_schema    — Inspect database schema (tables, columns, indexes)
+ *   forge_entity_get    — Get a Custom Entity by name + key
+ *   forge_entity_set    — Create/update a Custom Entity
+ *   forge_entity_delete — Delete a Custom Entity
+ *   forge_entity_query  — Query entities with indexes, filters, sort, pagination
+ *   forge_entity_list   — List all entities and schemas
+ *   forge_reset         — Reset all simulator state
+ *   forge_mock_routes   — Register mock HTTP responses for product APIs or remotes
+ *   forge_mock_graphql  — Register mock GraphQL responses by operation name
+ *   forge_llm_mock      — Register mock LLM responses for @forge/llm chat()
+ *   forge_llm_history   — Get @forge/llm call history (prompts + responses)
+ *   forge_realtime_publish — Publish an event to a realtime channel
+ *   forge_realtime_state   — Inspect realtime subscriptions and event log
  *
  * Resources:
  *   forge://manifest    — Current deployed manifest
@@ -56,7 +56,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { z } from 'zod';
 import { createServer } from 'node:http';
-import { statSync } from 'node:fs';
+import { statSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { createSimulator } from './simulator.js';
 import { buildEntityQueryWireBody, MCP_RANGE_OPERATORS, MCP_FILTER_OPERATORS } from './mcp-entity-query.js';
@@ -105,7 +105,7 @@ const sim = createSimulator();
 // (or agent) can `kill` us — the MCP client respawns automatically with
 // fresh code on the next tool call.
 //
-// Belt + suspenders: also expose a `forge.sim_info` tool returning the
+// Belt + suspenders: also expose a `forge_sim_info` tool returning the
 // current state explicitly, so agents can sanity-check before debugging
 // other classes of bug.
 
@@ -200,9 +200,24 @@ function maybeScheduleStaleExit(): string | null {
 
 // ── MCP Server Setup ────────────────────────────────────────────────────
 
+// serverInfo.version comes from package.json so the MCP handshake reports
+// the real installed version (eval-7 F5 — it was hardcoded '0.1.0' and
+// lied on every release since). package.json sits one directory above
+// both src/ (vitest/vite-node) and dist/ (published build).
+function readPackageVersion(): string {
+  try {
+    const pkg = JSON.parse(
+      readFileSync(fileURLToPath(new URL('../package.json', import.meta.url)), 'utf8'),
+    );
+    return typeof pkg.version === 'string' ? pkg.version : '0.0.0';
+  } catch {
+    return '0.0.0';
+  }
+}
+
 const server = new McpServer({
   name: 'forge-sim',
-  version: '0.1.0',
+  version: readPackageVersion(),
 });
 
 // Wrap server.tool so every handler's response carries the staleness warning
@@ -241,7 +256,7 @@ const originalServerTool = server.tool.bind(server) as any;
 // ── Tools ───────────────────────────────────────────────────────────────
 
 server.tool(
-  'forge.sim_info',
+  'forge_sim_info',
   'Return daemon-process metadata: PID, start time, loaded mcp-server.js mtime, ' +
   'and whether the daemon is stale (dist/ has been rebuilt since startup). ' +
   'Use this to sanity-check before debugging confusing tool errors — most surprising ' +
@@ -252,6 +267,7 @@ server.tool(
     const stale = onDiskMtime !== null && loadedMtimeMs !== null
       && isStale(loadedMtimeMs, onDiskMtime, STALENESS_GRACE_MS);
     const info = {
+      version: readPackageVersion(),
       pid: DAEMON_PID,
       daemonStartedAt: new Date(DAEMON_START_TIME).toISOString(),
       mcpServerPath: MCP_SERVER_PATH,
@@ -266,7 +282,7 @@ server.tool(
         : 'disabled via FORGE_SIM_STALE_AUTORESTART — stale daemons warn only; restart manually',
       restartHint: stale
         ? (AUTO_RESTART_ENABLED
-            ? 'auto-restart armed — daemon exits after this response; call forge.deploy again, then retry'
+            ? 'auto-restart armed — daemon exits after this response; call forge_deploy again, then retry'
             : `kill ${DAEMON_PID}  # MCP client respawns automatically`)
         : null,
     };
@@ -277,7 +293,7 @@ server.tool(
 );
 
 server.tool(
-  'forge.deploy',
+  'forge_deploy',
   'Deploy a Forge app directory into the simulator. Reads manifest.yml, loads handlers, wires resolvers/consumers/triggers. The app code runs unmodified.',
   {
     appDir: z.string().describe('Path to the Forge app directory (must contain manifest.yml)'),
@@ -362,7 +378,7 @@ server.tool(
       }
 
       // Everything deploy + auth printed, in-band (eval-7 F4). Same shape
-      // as forge.invoke's per-call console array.
+      // as forge_invoke's per-call console array.
       if (capturedLines.length > 0) {
         summary.console = capturedLines.map((l) => ({ level: l.level, message: l.message }));
       }
@@ -396,7 +412,7 @@ server.tool(
 );
 
 server.tool(
-  'forge.invoke',
+  'forge_invoke',
   'Invoke a resolver function by key with an optional payload. Returns the resolver result and any console output captured during execution.',
   {
     functionKey: z.string().describe('The resolver function key to invoke'),
@@ -449,7 +465,7 @@ server.tool(
 );
 
 server.tool(
-  'forge.fire_trigger',
+  'forge_fire_trigger',
   'Simulate a product event trigger (e.g. "avi:jira:created:issue"). Fires all registered trigger handlers for the event and returns their results.',
   {
     event: z.string().describe('The event name (e.g. "avi:jira:created:issue")'),
@@ -474,7 +490,7 @@ server.tool(
 );
 
 server.tool(
-  'forge.fire_scheduled_trigger',
+  'forge_fire_scheduled_trigger',
   'Fire a scheduled trigger by key. Validates the response format per Forge docs: handler must return { statusCode, body?, headers?, statusText? }. Returns 424 if response format is invalid.',
   {
     triggerKey: z.string().describe('The scheduled trigger key from the manifest'),
@@ -502,7 +518,7 @@ server.tool(
 );
 
 server.tool(
-  'forge.fire_web_trigger',
+  'forge_fire_web_trigger',
   'Fire a web trigger (webtrigger module) by key — simulates an HTTP request hitting its URL, exactly like the dev server\'s /__trigger/<key> endpoint. The handler is called with the Forge (request, context) convention. Returns the { statusCode, headers, body } response. Handler errors and malformed results come back as 500 responses (what a real webhook caller would see), not tool errors.',
   {
     triggerKey: z.string().describe('The webtrigger module key from the manifest'),
@@ -533,8 +549,8 @@ server.tool(
 );
 
 server.tool(
-  'forge.ui_render',
-  'Render a UI module by its manifest key. Loads the module bundle, builds the Forge context (with optional issue/content/space hydration), runs ForgeReconciler.render, and returns the resulting ForgeDoc. Use this when a module has no resolver to invoke (macros, custom field views) or when you want to inspect a module under a specific context. For inline-config macros, also returns the MacroConfig tree if the bundle calls ForgeReconciler.addConfig. NOTE: only the INITIAL reconcile is awaited — if the module uses `useEffect` + `invoke()` to fetch data after mount, the response will show the loading state (e.g. `<Text>Loading...</Text>`). Follow up with `forge.ui_wait_for` to settle the async chain before inspecting or interacting.',
+  'forge_ui_render',
+  'Render a UI module by its manifest key. Loads the module bundle, builds the Forge context (with optional issue/content/space hydration), runs ForgeReconciler.render, and returns the resulting ForgeDoc. Use this when a module has no resolver to invoke (macros, custom field views) or when you want to inspect a module under a specific context. For inline-config macros, also returns the MacroConfig tree if the bundle calls ForgeReconciler.addConfig. NOTE: only the INITIAL reconcile is awaited — if the module uses `useEffect` + `invoke()` to fetch data after mount, the response will show the loading state (e.g. `<Text>Loading...</Text>`). Follow up with `forge_ui_wait_for` to settle the async chain before inspecting or interacting.',
   {
     moduleKey: z.string().describe('UI module key from the manifest (e.g. "issue-panel", "pet-card"). For sub-module shapes use suffixes: "<key>--view", "<key>--edit", "<key>--config".'),
     issueKey: z.string().optional().describe('Jira issue key to hydrate context (e.g. "PROJ-1") — also sets project from prefix.'),
@@ -557,7 +573,7 @@ server.tool(
       // Pass macroConfig through as a one-shot per-render override (matches
       // both this tool's description "on this render" and the in-process
       // `sim.ui.render(key, { macroConfig })` semantics). For sticky config
-      // across multiple renders, use `forge.kvs_set` or a dedicated setter.
+      // across multiple renders, use `forge_kvs_set` or a dedicated setter.
       if (macroConfig) renderOpts.macroConfig = macroConfig;
 
       const doc = await sim.ui.render(moduleKey, renderOpts);
@@ -594,11 +610,11 @@ server.tool(
 );
 
 server.tool(
-  'forge.ui_wait_for',
-  'Wait for a text substring to appear in a UI module\'s rendered tree. Use this after `forge.ui_render` when the initial reconcile shows a loading state and the real content arrives via a `useEffect` -> `invoke()` chain (e.g. `<Text>Loading...</Text>` first, then `<Text>{data}</Text>` after the resolver resolves). Also use after `forge.ui_interact` when an interaction kicks off an async update (form submit -> reload, click -> fetch -> render). `forge.ui_render` only awaits the initial reconcile, so any state set by a post-mount effect will NOT be in its response — call this tool next to settle. Substring match only (no regex). On timeout, returns isError with the current pretty-printed tree so you can see what actually rendered.',
+  'forge_ui_wait_for',
+  'Wait for a text substring to appear in a UI module\'s rendered tree. Use this after `forge_ui_render` when the initial reconcile shows a loading state and the real content arrives via a `useEffect` -> `invoke()` chain (e.g. `<Text>Loading...</Text>` first, then `<Text>{data}</Text>` after the resolver resolves). Also use after `forge_ui_interact` when an interaction kicks off an async update (form submit -> reload, click -> fetch -> render). `forge_ui_render` only awaits the initial reconcile, so any state set by a post-mount effect will NOT be in its response — call this tool next to settle. Substring match only (no regex). On timeout, returns isError with the current pretty-printed tree so you can see what actually rendered.',
   {
-    moduleKey: z.string().describe('UI module key — same value passed to `forge.ui_render`. Required: scopes the wait to one module so a global text match on an unrelated render does not resolve early.'),
-    text: z.string().describe('Substring to wait for in the rendered tree. Matched against <String> nodes and a curated set of visible-text props (Tag.text, FormHeader.title, EmptyState.header, etc.). For composite/nested data (Select option labels, table cells), use `forge.ui_state` and inspect the props directly instead.'),
+    moduleKey: z.string().describe('UI module key — same value passed to `forge_ui_render`. Required: scopes the wait to one module so a global text match on an unrelated render does not resolve early.'),
+    text: z.string().describe('Substring to wait for in the rendered tree. Matched against <String> nodes and a curated set of visible-text props (Tag.text, FormHeader.title, EmptyState.header, etc.). For composite/nested data (Select option labels, table cells), use `forge_ui_state` and inspect the props directly instead.'),
     timeoutMs: z.number().optional().describe('Max time to wait in ms. Default: 5000.'),
   },
   async ({ moduleKey, text, timeoutMs }) => {
@@ -630,13 +646,13 @@ server.tool(
 );
 
 server.tool(
-  'forge.ui_state',
+  'forge_ui_state',
   'Get the current ForgeDoc UI tree. Shows what the Forge app UI looks like right now. Returns a pretty-printed component tree.',
   async () => {
     const doc = sim.ui.getForgeDoc();
     if (!doc) {
       return {
-        content: [{ type: 'text' as const, text: 'No UI rendered yet. Call `forge.ui_render` with a module key to render a UI module, or invoke a resolver that triggers a render.' }],
+        content: [{ type: 'text' as const, text: 'No UI rendered yet. Call `forge_ui_render` with a module key to render a UI module, or invoke a resolver that triggers a render.' }],
       };
     }
 
@@ -647,7 +663,7 @@ server.tool(
 );
 
 server.tool(
-  'forge.ui_interact',
+  'forge_ui_interact',
   'Interact with a UI component — simulate clicks, form submissions, etc. Find a component by type and optional text content, then fire an event on it.',
   {
     componentType: z.string().describe('Component type to find (e.g. "Button", "TextField", "Select")'),
@@ -660,7 +676,7 @@ server.tool(
     const doc = sim.ui.getForgeDoc();
     if (!doc) {
       return {
-        content: [{ type: 'text' as const, text: 'No UI rendered. Call `forge.ui_render` with a module key first.' }],
+        content: [{ type: 'text' as const, text: 'No UI rendered. Call `forge_ui_render` with a module key first.' }],
         isError: true,
       };
     }
@@ -705,9 +721,9 @@ server.tool(
 );
 
 server.tool(
-  'forge.ui_fill_form',
+  'forge_ui_fill_form',
   'Fill form fields BY NAME and optionally submit — the reliable way to drive UIKit forms. ' +
-  'Prefer this over `forge.ui_interact` for form input: it targets `name="..."` props directly ' +
+  'Prefer this over `forge_ui_interact` for form input: it targets `name="..."` props directly ' +
   '(no positional nthMatch guessing), fires the exact event shape each field type expects ' +
   '(Select gets the react-select {label, value} option object, Checkbox/Toggle get target.checked), ' +
   'and settles pending effects before filling so a late useEffect cannot clobber the value. ' +
@@ -717,7 +733,7 @@ server.tool(
   'leaves validation errors visible in the returned tree). Unknown field names error with the ' +
   'list of available fields.',
   {
-    moduleKey: z.string().describe('UI module key — same value passed to `forge.ui_render`.'),
+    moduleKey: z.string().describe('UI module key — same value passed to `forge_ui_render`.'),
     values: z.record(z.string(), z.any()).optional().describe(
       'Map of field name → value. Select: pass the option value (or {label, value}); ' +
       'isMulti Select: an array. Checkbox/Toggle: boolean. Omit to submit the form\'s current state.'
@@ -736,7 +752,7 @@ server.tool(
     const doc = sim.ui.getForgeDoc(moduleKey);
     if (!doc) {
       return {
-        content: [{ type: 'text' as const, text: `❌ No rendered ForgeDoc for module "${moduleKey}". Call \`forge.ui_render\` first.` }],
+        content: [{ type: 'text' as const, text: `❌ No rendered ForgeDoc for module "${moduleKey}". Call \`forge_ui_render\` first.` }],
         isError: true,
       };
     }
@@ -786,7 +802,7 @@ server.tool(
 );
 
 server.tool(
-  'forge.kvs_get',
+  'forge_kvs_get',
   'Get a value from the simulated Key-Value Store by key.',
   {
     key: z.string().describe('The storage key to retrieve'),
@@ -805,7 +821,7 @@ server.tool(
 );
 
 server.tool(
-  'forge.kvs_list',
+  'forge_kvs_list',
   'List KVS contents. Optionally filter by key prefix. Shows all stored key-value pairs.',
   {
     prefix: z.string().optional().describe('Only show keys starting with this prefix'),
@@ -840,7 +856,7 @@ server.tool(
 );
 
 server.tool(
-  'forge.kvs_set',
+  'forge_kvs_set',
   'Set a value in KVS. Useful for test setup or manually seeding data.',
   {
     key: z.string().describe('Storage key'),
@@ -863,7 +879,7 @@ function isTextualContentType(contentType: string): boolean {
 }
 
 server.tool(
-  'forge.objectstore_list',
+  'forge_objectstore_list',
   'List all Object Store objects (metadata only). Optionally filter by bucket ("default" or "cdn").',
   {
     bucket: z.enum(['default', 'cdn']).optional().describe('Only show objects in this bucket'),
@@ -893,7 +909,7 @@ server.tool(
 );
 
 server.tool(
-  'forge.objectstore_get',
+  'forge_objectstore_get',
   'Get an Object Store object — metadata plus content. Textual content types are returned as UTF-8, everything else as base64. Content is capped at 64 kB (truncated flag set if larger).',
   {
     key: z.string().describe('Object key'),
@@ -927,7 +943,7 @@ server.tool(
 );
 
 server.tool(
-  'forge.objectstore_put',
+  'forge_objectstore_put',
   'Seed an Object Store object directly (test setup). Bypasses the pre-signed URL flow.',
   {
     key: z.string().describe('Object key'),
@@ -947,7 +963,7 @@ server.tool(
 );
 
 server.tool(
-  'forge.objectstore_delete',
+  'forge_objectstore_delete',
   'Delete an Object Store object by key. Deleting an absent key succeeds (matches Forge).',
   {
     key: z.string().describe('Object key to delete'),
@@ -962,7 +978,7 @@ server.tool(
 );
 
 server.tool(
-  'forge.objectstore_create_download_url',
+  'forge_objectstore_create_download_url',
   'Create a pre-signed download URL for an object (valid 1 hour). Useful for fetching a blob with curl, including Range requests.',
   {
     key: z.string().describe('Object key'),
@@ -983,8 +999,8 @@ server.tool(
 );
 
 server.tool(
-  'forge.variables_set',
-  'Set environment variables (ephemeral — never written to disk). Like real Forge (`forge variables set`), values reach process.env at the NEXT deploy — set them before calling forge.deploy. Values: plain string, or { value, encrypt } (encrypt only masks the value in list output; the app still reads cleartext, matching Forge).',
+  'forge_variables_set',
+  'Set environment variables (ephemeral — never written to disk). Like real Forge (`forge variables set`), values reach process.env at the NEXT deploy — set them before calling forge_deploy. Values: plain string, or { value, encrypt } (encrypt only masks the value in list output; the app still reads cleartext, matching Forge).',
   {
     variables: z.record(
       z.string(),
@@ -1004,7 +1020,7 @@ server.tool(
       return {
         content: [{
           type: 'text' as const,
-          text: `✅ Set ${keys.length} variable(s): ${keys.join(', ')}\n⚠️ Like real Forge, variables take effect at the next deploy — call forge.deploy (reset:false preserves other state) if the app is already deployed.`,
+          text: `✅ Set ${keys.length} variable(s): ${keys.join(', ')}\n⚠️ Like real Forge, variables take effect at the next deploy — call forge_deploy (reset:false preserves other state) if the app is already deployed.`,
         }],
       };
     } catch (err) {
@@ -1017,7 +1033,7 @@ server.tool(
 );
 
 server.tool(
-  'forge.variables_unset',
+  'forge_variables_unset',
   'Remove an ephemeral environment variable. Takes effect at the next deploy (Forge parity).',
   {
     key: z.string().describe('Variable key to remove'),
@@ -1036,7 +1052,7 @@ server.tool(
 );
 
 server.tool(
-  'forge.variables_list',
+  'forge_variables_list',
   'List all environment variables from every source (host FORGE_USER_VAR_*, .forge-sim/variables.json, ephemeral). Encrypted values are masked, mirroring `forge variables list`.',
   {},
   async () => {
@@ -1051,7 +1067,7 @@ server.tool(
 );
 
 server.tool(
-  'forge.queue_push',
+  'forge_queue_push',
   'Push events to a queue for consumer processing.',
   {
     queueKey: z.string().describe('The queue key to push to'),
@@ -1080,7 +1096,7 @@ server.tool(
 );
 
 server.tool(
-  'forge.queue_state',
+  'forge_queue_state',
   'Inspect queue state — processed events, job stats, event log.',
   {
     jobId: z.string().optional().describe('Get stats for a specific job'),
@@ -1127,7 +1143,7 @@ server.tool(
 );
 
 server.tool(
-  'forge.logs',
+  'forge_logs',
   'Get simulator logs plus captured `console.*` output from Forge app code. ' +
   'The response has a dedicated `console` array (resolver/trigger/scheduled-trigger ' +
   'print output) and a `logs` array (simulator-level events plus the same console ' +
@@ -1152,7 +1168,7 @@ server.tool(
 // ── SQL Tools ───────────────────────────────────────────────────────────
 
 server.tool(
-  'forge.sql_execute',
+  'forge_sql_execute',
   'Execute a SQL query against the simulated Forge SQL database (real MySQL). Supports SELECT, INSERT, UPDATE, DELETE, CREATE TABLE, ALTER TABLE, etc. Uses parameterized queries when params are provided.',
   {
     query: z.string().describe('SQL query to execute'),
@@ -1191,7 +1207,7 @@ server.tool(
 );
 
 server.tool(
-  'forge.sql_migrate',
+  'forge_sql_migrate',
   'Run database migrations (idempotent). Migrations that have already been applied are skipped. Uses the same __migrations table as @forge/sql migrationRunner.',
   {
     migrations: z.array(z.object({
@@ -1277,7 +1293,7 @@ server.tool(
 );
 
 server.tool(
-  'forge.sql_schema',
+  'forge_sql_schema',
   'Inspect the database schema — list tables and their column definitions. Useful for understanding what data structures exist.',
   {
     table: z.string().optional().describe('Get detailed schema for a specific table. If omitted, lists all tables.'),
@@ -1332,7 +1348,7 @@ server.tool(
 // ── Entity Store Tools ──────────────────────────────────────────────────
 
 server.tool(
-  'forge.entity_get',
+  'forge_entity_get',
   'Get a Custom Entity by entity name and key. Returns the entity value with metadata (createdAt, updatedAt).',
   {
     entityName: z.string().describe('Entity type name (as defined in manifest)'),
@@ -1359,7 +1375,7 @@ server.tool(
 );
 
 server.tool(
-  'forge.entity_set',
+  'forge_entity_set',
   'Create or update a Custom Entity. Supports key policies (FAIL_IF_EXISTS, OVERRIDE) and TTL.',
   {
     entityName: z.string().describe('Entity type name (as defined in manifest)'),
@@ -1401,7 +1417,7 @@ server.tool(
 );
 
 server.tool(
-  'forge.entity_delete',
+  'forge_entity_delete',
   'Delete a Custom Entity by entity name and key.',
   {
     entityName: z.string().describe('Entity type name'),
@@ -1431,7 +1447,7 @@ server.tool(
 );
 
 server.tool(
-  'forge.entity_query',
+  'forge_entity_query',
   'Query Custom Entities using indexes, partition/range keys, filters, and sorting. Mirrors the @forge/kvs entity query builder.',
   {
     entityName: z.string().describe('Entity type name'),
@@ -1474,7 +1490,7 @@ server.tool(
 );
 
 server.tool(
-  'forge.entity_list',
+  'forge_entity_list',
   'List all Custom Entities, optionally filtered by entity name. Also shows registered entity schemas (from manifest).',
   {
     entityName: z.string().optional().describe('Filter to a specific entity type'),
@@ -1511,7 +1527,7 @@ server.tool(
 );
 
 server.tool(
-  'forge.auth_status',
+  'forge_auth_status',
   'Show what authentication is available: Atlassian account info, third-party provider tokens, and external auth providers from the manifest.',
   async () => {
     const output: Record<string, any> = {};
@@ -1578,7 +1594,7 @@ server.tool(
 );
 
 server.tool(
-  'forge.reset',
+  'forge_reset',
   'Reset the simulator — clears KVS, queues, resolvers, logs, UI, realtime, manifest, AND drops all SQL tables (the MySQL server itself stays running for speed). Use sim.stop() to shut down the SQL server.',
   async () => {
     await sim.reset();
@@ -1592,14 +1608,14 @@ server.tool(
 // ── Mock Tools ──────────────────────────────────────────────────────────
 
 server.tool(
-  'forge.mock_routes',
+  'forge_mock_routes',
   `Register mock HTTP responses for product APIs (Jira, Confluence, Bitbucket) or remotes.
 Route keys are "METHOD /path" (e.g. "GET /rest/api/3/version/10001"). Method defaults to GET if omitted.
 Path matching is prefix-based, so "/rest/api/3/issue" matches "/rest/api/3/issue/TEST-1".
 
 Repeated calls MERGE: routes accumulate across calls for the same product, as if all were passed
 in one call. Re-registering the same "METHOD /path" key updates that route's response in place.
-Use forge.reset to wipe all mocks.
+Use forge_reset to wipe all mocks.
 
 A route value is one of:
   • A bare JSON object → returned as the response body with 200 OK (the common case).
@@ -1649,7 +1665,7 @@ data that happens to have a status field".`,
 );
 
 server.tool(
-  'forge.mock_graphql',
+  'forge_mock_graphql',
   `Register mock responses for Atlassian GraphQL (gateway) operations, keyed by operation name.
 Values are the full response body (typically { data: { ... } }).
 Use '*' as a catch-all for anonymous or unmatched operations.
@@ -1684,7 +1700,7 @@ Example:
 // ── LLM Tools ────────────────────────────────────────────────────────────
 
 server.tool(
-  'forge.llm_mock',
+  'forge_llm_mock',
   `Register a mock response for the next @forge/llm chat() call.
 Responses are consumed in FIFO order. Queue multiple to script multi-turn agent loops.
 If no mocks are queued and no ANTHROPIC_API_KEY is set, chat() will throw.
@@ -1725,7 +1741,7 @@ Example:
 );
 
 server.tool(
-  'forge.llm_history',
+  'forge_llm_history',
   `Get @forge/llm call history — every chat() call with its prompt and response.
 Useful for verifying agent loop behavior, tool call sequences, and model interactions.`,
   {},
@@ -1757,7 +1773,7 @@ Useful for verifying agent loop behavior, tool call sequences, and model interac
 // ── Realtime Tools ───────────────────────────────────────────────────────
 
 server.tool(
-  'forge.realtime_publish',
+  'forge_realtime_publish',
   `Publish an event to a realtime channel, simulating what a resolver or bridge would do.
 Useful for testing frontend subscriptions from the MCP side.
 
@@ -1793,7 +1809,7 @@ Example:
 );
 
 server.tool(
-  'forge.realtime_state',
+  'forge_realtime_state',
   `Inspect realtime state — active subscriptions and published event log.
 Shows which channels have subscribers and the history of published events.`,
   {},
