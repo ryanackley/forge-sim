@@ -33,6 +33,41 @@ const CAPTURED_METHODS = ['log', 'warn', 'error', 'info', 'debug'] as const;
 const bufferStack: ConsoleLine[][] = [];
 const originals = new Map<string, (...args: any[]) => void>();
 
+/**
+ * JSON.stringify replacer that makes Error objects visible. Error props
+ * (name/message/stack) are non-enumerable, so plain stringify yields `{}`
+ * — the eval-6 F7 finding: `console.error(err)` captured as "{}".
+ */
+function errorReplacer(_key: string, value: any): any {
+  if (value instanceof Error) {
+    return {
+      name: value.name,
+      message: value.message,
+      stack: value.stack,
+      ...(value.cause !== undefined ? { cause: value.cause } : {}),
+    };
+  }
+  return value;
+}
+
+/** Render one console argument the way Node's console would (near enough). */
+function stringifyArg(a: any): string {
+  if (typeof a === 'string') return a;
+  // A top-level Error renders as its stack — same as `console.error(err)`
+  // on a real terminal (the stack string includes "name: message").
+  if (a instanceof Error) {
+    return a.stack ?? `${a.name}: ${a.message}`;
+  }
+  try {
+    // Nested Errors (e.g. `{ err }`) surface via the replacer.
+    return JSON.stringify(a, errorReplacer, 2) ?? String(a);
+  } catch {
+    // Circular refs / BigInt make JSON.stringify throw. The patched
+    // console must NEVER throw into app code — fall back to String().
+    return String(a);
+  }
+}
+
 function patchConsole(): void {
   for (const method of CAPTURED_METHODS) {
     // Store the raw reference (no .bind) so the restored function has the
@@ -41,9 +76,7 @@ function patchConsole(): void {
     const orig = console[method];
     originals.set(method, orig);
     console[method] = (...args: any[]) => {
-      const message = args
-        .map((a) => (typeof a === 'string' ? a : JSON.stringify(a, null, 2) ?? String(a)))
-        .join(' ');
+      const message = args.map(stringifyArg).join(' ');
       const top = bufferStack[bufferStack.length - 1];
       if (top) {
         top.push({

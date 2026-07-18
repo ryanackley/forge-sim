@@ -149,6 +149,54 @@ describe('console-capture', () => {
     });
   });
 
+  describe('argument rendering (eval-6 F7)', () => {
+    it('renders a top-level Error as its stack, not "{}"', async () => {
+      const { console: lines } = await withCapture(async () => {
+        console.error(new Error('database connection refused'));
+      });
+      // Pre-fix: JSON.stringify(err) → "{}" because Error props are
+      // non-enumerable. Now it renders like Node's console: the stack
+      // string, which starts "Error: <message>".
+      expect(lines[0].message).toContain('Error: database connection refused');
+      expect(lines[0].message).toContain('console-capture.test.ts');
+      expect(lines[0].message).not.toBe('{}');
+    });
+
+    it('surfaces Errors nested inside objects', async () => {
+      const { console: lines } = await withCapture(async () => {
+        console.error('handler failed:', { err: new Error('boom'), retries: 3 });
+      });
+      const msg = lines[0].message;
+      expect(msg).toContain('handler failed:');
+      expect(msg).toContain('"message": "boom"');
+      expect(msg).toContain('"stack"');
+      expect(msg).toContain('"retries": 3');
+    });
+
+    it('includes Error cause when present', async () => {
+      const { console: lines } = await withCapture(async () => {
+        console.error({ err: new Error('outer', { cause: 'ETIMEDOUT' }) });
+      });
+      expect(lines[0].message).toContain('"cause": "ETIMEDOUT"');
+    });
+
+    it('never throws into app code on unserializable args', async () => {
+      const circular: any = { name: 'loop' };
+      circular.self = circular;
+
+      const { console: lines } = await withCapture(async () => {
+        // Pre-fix latent bomb: JSON.stringify throws on circular refs and
+        // BigInt — inside the patched console, i.e. INTO the app's code.
+        console.log(circular);
+        console.log(123n);
+      });
+
+      expect(lines).toHaveLength(2);
+      expect(lines[0].message).toBe('[object Object]');
+      expect(lines[1].message).toBe('123');
+    });
+  });
+
   describe('passthrough to real console', () => {
     it('still calls the real (pre-patch) console.log', async () => {
       // Replace console.log with our spy BEFORE startCapture, so the spy
