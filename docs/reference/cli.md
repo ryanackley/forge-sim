@@ -193,6 +193,28 @@ forge-sim kvs set counter '42'
 forge-sim kvs set config '{"debug": true}'
 ```
 
+### `forge-sim entity`
+
+Custom Entity Store operations. Custom Entities live in their own store —
+`forge-sim kvs list` does not show them. Writes go through the
+schema-validated entity path: an undeclared entity name or a value that
+violates the manifest schema is rejected (`ENTITY_NOT_FOUND` /
+`VALIDATION_ERROR`), never stored silently.
+
+```bash
+forge-sim entity list [entityName]
+forge-sim entity get <entityName> <key>
+forge-sim entity set <entityName> <key> <jsonValue>
+forge-sim entity delete <entityName> <key>
+
+# Examples
+forge-sim entity list
+forge-sim entity list Task
+forge-sim entity get Task t1
+forge-sim entity set Task t1 '{"title": "Fix bug", "status": "open", "priority": 1}'
+forge-sim entity delete Task t1
+```
+
 ### `forge-sim sql`
 
 Execute a SQL query against the simulated Forge SQL database (real MySQL 8.4).

@@ -359,6 +359,33 @@ export function createApiHandler(
         return json(res, { schemas, entities });
       }
 
+      // Per-row entity operations (eval-9 E9-6: `forge-sim entity` CLI).
+      // Path shape: /api/entities/<entityName>/<key>. Goes through the
+      // public sim.kvs.entity() surface, so schema enforcement applies —
+      // ENTITY_NOT_FOUND / VALIDATION_ERROR surface as error responses,
+      // never silent writes.
+      if (path.startsWith('/api/entities/')) {
+        const parts = path.slice('/api/entities/'.length).split('/').map(decodeURIComponent);
+        const [entityName, key] = parts;
+        if (!entityName || !key || parts.length !== 2) {
+          return json(res, { error: 'Expected /api/entities/<entityName>/<key>' }, 400);
+        }
+        if (method === 'GET') {
+          const value = await sim.kvs.entity(entityName).get(key);
+          if (value === undefined) return json(res, { error: 'Key not found' }, 404);
+          return json(res, { entityName, key, value });
+        }
+        if (method === 'PUT') {
+          const body = await readBody(req);
+          await sim.kvs.entity(entityName).set(key, body.value);
+          return json(res, { success: true, entityName, key });
+        }
+        if (method === 'DELETE') {
+          await sim.kvs.entity(entityName).delete(key);
+          return json(res, { success: true, entityName, key });
+        }
+      }
+
       // ── Mocks ────────────────────────────────────────────────────
 
       if (path === '/api/mock/routes' && method === 'POST') {

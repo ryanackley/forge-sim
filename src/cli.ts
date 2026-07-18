@@ -9,6 +9,7 @@
  *   forge-sim trigger <event>     Fire a product event trigger
  *   forge-sim webtrigger <key>    Fire a web trigger (simulated HTTP request)
  *   forge-sim kvs [get|set|list]  Key-Value Store operations
+ *   forge-sim entity [list|get|set|delete]  Custom Entity Store operations
  *   forge-sim sql <query>         Execute a SQL query
  *   forge-sim ui                  Get current UI state
  *   forge-sim logs                Get simulator logs
@@ -63,6 +64,10 @@ if (command === '--help' || command === '-h' || !command) {
     forge-sim kvs list [--prefix x]  List KVS entries
     forge-sim kvs get <key>          Get a KVS value
     forge-sim kvs set <key> <json>   Set a KVS value
+    forge-sim entity list [name]     List Custom Entity schemas + rows
+    forge-sim entity get <name> <key>        Get an entity row
+    forge-sim entity set <name> <key> <json> Set an entity row (schema-validated)
+    forge-sim entity delete <name> <key>     Delete an entity row
     forge-sim sql <query>            Execute a SQL query
     forge-sim ui                     Get current ForgeDoc UI tree
     forge-sim logs [--level x]       Get simulator logs
@@ -510,6 +515,62 @@ else if (command === 'kvs') {
       console.log(`✅ Set "${key}"`);
     } else {
       console.error(`Unknown kvs subcommand: ${sub}. Use list, get, or set.`);
+      process.exit(1);
+    }
+  } catch (err: any) {
+    console.error(`❌ ${err.message}`);
+    process.exit(1);
+  }
+}
+
+// ── Custom Entities (eval-9 E9-6) ───────────────────────────────────────
+// Custom Entities live in their own store, not plain KVS keys — `forge-sim
+// kvs list` can never show them. Mirrors the kvs command shape; writes go
+// through the schema-validated entity path (ENTITY_NOT_FOUND /
+// VALIDATION_ERROR surface as CLI errors, never silent local-only data).
+
+else if (command === 'entity') {
+  const sub = args[1] ?? 'list';
+  const { daemonRequest } = await import('./daemon-client.js');
+
+  try {
+    if (sub === 'list') {
+      const filter = args[2];
+      const result = await daemonRequest('/api/entities');
+      const schemas = result.schemas ?? {};
+      const entities = result.entities ?? {};
+      const names = filter ? [filter] : [...new Set([...Object.keys(schemas), ...Object.keys(entities)])];
+      if (names.length === 0) {
+        console.log('(no entities — declare them under app.storage.entities and deploy)');
+      }
+      for (const name of names) {
+        const rows: Array<{ key: string; value: any }> = entities[name] ?? [];
+        const declared = schemas[name] ? '' : ' (no schema registered)';
+        console.log(`${name}${declared} — ${rows.length} row${rows.length === 1 ? '' : 's'}`);
+        for (const row of rows) {
+          console.log(`  ${row.key} = ${JSON.stringify(row.value)}`);
+        }
+      }
+    } else if (sub === 'get') {
+      const [, , name, key] = args;
+      if (!name || !key) { console.error('Usage: forge-sim entity get <entityName> <key>'); process.exit(1); }
+      const result = await daemonRequest(`/api/entities/${encodeURIComponent(name)}/${encodeURIComponent(key)}`);
+      console.log(JSON.stringify(result.value, null, 2));
+    } else if (sub === 'set') {
+      const [, , name, key, value] = args;
+      if (!name || !key || !value) { console.error('Usage: forge-sim entity set <entityName> <key> <jsonValue>'); process.exit(1); }
+      await daemonRequest(`/api/entities/${encodeURIComponent(name)}/${encodeURIComponent(key)}`, {
+        method: 'PUT',
+        body: { value: JSON.parse(value) },
+      });
+      console.log(`✅ Set ${name}/"${key}"`);
+    } else if (sub === 'delete') {
+      const [, , name, key] = args;
+      if (!name || !key) { console.error('Usage: forge-sim entity delete <entityName> <key>'); process.exit(1); }
+      await daemonRequest(`/api/entities/${encodeURIComponent(name)}/${encodeURIComponent(key)}`, { method: 'DELETE' });
+      console.log(`✅ Deleted ${name}/"${key}"`);
+    } else {
+      console.error(`Unknown entity subcommand: ${sub}. Use list, get, set, or delete.`);
       process.exit(1);
     }
   } catch (err: any) {
