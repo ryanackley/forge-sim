@@ -24,7 +24,7 @@ export { SimulatedProductApi, route, mockResponse, MOCK_RESPONSE_MARKER } from '
 export type { MockResponseTag } from './product-api.js';
 export { parseManifest, parseManifestContent } from './manifest.js';
 export { deploy, DeployError } from './deployer.js';
-export type { DeployOptions, DeployResult } from './deployer.js';
+export type { DeployOptions, DeployResult, DeployScheduledTriggerFire } from './deployer.js';
 export type { TypeCheckError } from './type-checker.js';
 export { setSimulator, getSimulator } from './shims/globals.js';
 // Trigger event sample-payload registry.

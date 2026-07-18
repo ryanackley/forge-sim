@@ -71,6 +71,18 @@ import {
   shouldAutoRestartOnStale,
 } from './staleness.js';
 // UI access is now through sim.ui.* — no direct bridge/doc-utils imports
+import { withCapture, type ConsoleLine } from './console-capture.js';
+import { redirectStdoutConsoleToStderr } from './stdio-guard.js';
+
+// ── Stdio hygiene (eval-7 F4) ───────────────────────────────────────────
+//
+// Over the stdio transport, stdout IS the JSON-RPC framing channel — any
+// stray `console.log` corrupts the stream. Rebind log/info/debug to stderr
+// before anything else runs. The HTTP transport doesn't use stdout for
+// framing — leave it alone there. See stdio-guard.ts for the full story.
+if (!process.argv.includes('--http')) {
+  redirectStdoutConsoleToStderr();
+}
 
 // ── Simulator Instance ──────────────────────────────────────────────────
 
@@ -281,7 +293,24 @@ server.tool(
       // Continue-and-inform surface: never throw on deploy errors, always
       // run the type checker (once per MCP iteration is cheap). Errors and
       // typeErrors are reported in the summary below. (Eval-6 F3/F4)
-      const result = await sim.deploy(appDir, { throwOnError: false, typeCheck: true });
+      //
+      // Eval-7 F4: capture everything deploy prints (⏰ firing banners,
+      // app handler console output, 📡 auth notices) and return it IN the
+      // response as a structured `console` array — over stdio there is no
+      // legitimate stdout side-channel, and stderr is invisible to most
+      // MCP clients. Deploy-time scheduled-trigger fires route their
+      // handler output through sim's console log (fireScheduledTrigger
+      // runs its own capture), so we merge our outer capture with the
+      // sim-log delta; capture-stack semantics guarantee no line lands in
+      // both.
+      const consoleStart = sim.getConsoleLogs().length;
+      const { result, console: deployConsole } = await withCapture(() =>
+        sim.deploy(appDir, { throwOnError: false, typeCheck: true }),
+      );
+      const capturedLines: ConsoleLine[] = [
+        ...deployConsole,
+        ...sim.getConsoleLogs().slice(consoleStart),
+      ].sort((a, b) => a.timestamp - b.timestamp);
       const typeErrors = result.typeErrors ?? [];
       const summary: Record<string, any> = {
         app: result.manifest.raw.app,
@@ -299,6 +328,14 @@ server.tool(
         errors: result.errors,
       };
 
+      // Structured record of deploy-time scheduled-trigger fires (eval-7
+      // F4) — key, function, statusCode, and error detail per fire. The
+      // ⏰ banner used to be the only evidence these ran, and it went to
+      // stdout where it corrupted the stdio framing.
+      if (result.scheduledTriggerFires.length > 0) {
+        summary.scheduledTriggerFires = result.scheduledTriggerFires;
+      }
+
       // Include type errors if any were found
       if (typeErrors.length > 0) {
         summary.typeErrors = typeErrors;
@@ -312,10 +349,22 @@ server.tool(
         summary.warnings = result.warnings;
       }
 
-      // Connect auth credentials (env vars + .forge-sim) now that manifest providers are loaded
-      const authResult = await sim.loadAuthFromEnv().catch(() => ({ atlassian: { connected: false }, providers: [] }));
+      // Connect auth credentials (env vars + .forge-sim) now that manifest
+      // providers are loaded. Captured too — the 📡 "Connected to real
+      // APIs" banner belongs in the response's console array, not on the
+      // transport (eval-7 F4). `summary.auth` carries the structured form.
+      const { result: authResult, console: authConsole } = await withCapture(() =>
+        sim.loadAuthFromEnv().catch(() => ({ atlassian: { connected: false as const }, providers: [] })),
+      );
+      capturedLines.push(...authConsole);
       if (authResult.atlassian.connected || authResult.providers.length > 0) {
         summary.auth = authResult;
+      }
+
+      // Everything deploy + auth printed, in-band (eval-7 F4). Same shape
+      // as forge.invoke's per-call console array.
+      if (capturedLines.length > 0) {
+        summary.console = capturedLines.map((l) => ({ level: l.level, message: l.message }));
       }
 
       const hasDeployErrors = result.errors.length > 0;

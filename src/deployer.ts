@@ -185,6 +185,23 @@ export interface DeployScheduledTriggerSummary {
   interval: string;
 }
 
+/**
+ * Record of one deploy-time scheduled trigger fire (eval-7 F4). The deploy
+ * step fires each scheduled trigger once (unless `fireScheduledTriggers:
+ * false`); previously the only evidence was a "⏰ Firing..." console banner
+ * — invisible to API callers, and stdout pollution on the MCP stdio
+ * transport. This structured record makes the fires first-class response
+ * data on every surface.
+ */
+export interface DeployScheduledTriggerFire {
+  key: string;
+  function: string;
+  /** HTTP-ish status from the handler's `{ statusCode }` contract. */
+  statusCode?: number;
+  /** Present when the fire failed (bad status, thrown error). */
+  error?: string;
+}
+
 export interface DeployOptions {
   /**
    * Fire each scheduled trigger once at deploy time (default: true).
@@ -287,6 +304,13 @@ export interface DeployResult {
    * `sim.fireScheduledTrigger(key)` or MCP `forge.fire_scheduled_trigger`.
    */
   scheduledTriggers: DeployScheduledTriggerSummary[];
+  /**
+   * Deploy-time scheduled trigger fires (eval-7 F4): one entry per trigger
+   * actually fired during this deploy, with the handler's statusCode and
+   * any failure detail. Empty when `fireScheduledTriggers: false` or the
+   * manifest has no scheduled triggers.
+   */
+  scheduledTriggerFires: DeployScheduledTriggerFire[];
   /**
    * Everything that makes this deploy invalid: handler load failures,
    * function-reference lint, deploy-time scheduled trigger failures, AND
@@ -778,6 +802,7 @@ export async function deploy(sim: ForgeSimulator, appDir: string, options: Deplo
   // okr-tracker silent-424, 2026-07-14). Requires loadManifestData to have
   // run first — see the hoisted call above.
   const fireScheduled = options.fireScheduledTriggers !== false;
+  const scheduledTriggerFires: DeployScheduledTriggerFire[] = [];
   for (const st of fireScheduled ? manifest.scheduledTriggers : []) {
     const handler = handlerExports.get(st.functionKey);
     if (handler && typeof handler === 'function') {
@@ -788,10 +813,27 @@ export async function deploy(sim: ForgeSimulator, appDir: string, options: Deplo
           const detail = result.error ?? `status ${result.statusCode}`;
           console.error(` ⚠️ Scheduled trigger "${st.key}" failed: ${detail}`);
           errors.push({ functionKey: st.functionKey, error: `Scheduled trigger error: ${detail}` });
+          scheduledTriggerFires.push({
+            key: st.key,
+            function: st.functionKey,
+            statusCode: result.statusCode,
+            error: detail,
+          });
+        } else {
+          scheduledTriggerFires.push({
+            key: st.key,
+            function: st.functionKey,
+            statusCode: result.statusCode,
+          });
         }
       } catch (err: any) {
         console.error(` ⚠️ Scheduled trigger "${st.key}" failed:`, err.message);
         errors.push({ functionKey: st.functionKey, error: `Scheduled trigger error: ${err.message}` });
+        scheduledTriggerFires.push({
+          key: st.key,
+          function: st.functionKey,
+          error: err.message,
+        });
       }
     }
   }
@@ -857,6 +899,7 @@ export async function deploy(sim: ForgeSimulator, appDir: string, options: Deplo
       function: st.functionKey,
       interval: st.interval,
     })),
+    scheduledTriggerFires,
     errors,
     // Error-level entries were promoted into `errors` above (eval-6 F5) —
     // keeping them here too would double-report on every surface.

@@ -1,0 +1,20 @@
+# Eval-7 F4 fixture — two scheduled triggers, one healthy and one failing,
+# so deploy-time fires produce both shapes of DeployScheduledTriggerFire.
+app:
+  id: ari:cloud:ecosystem::app/eval7-f4-sched
+  name: Eval7 F4 Sched
+  runtime:
+    name: nodejs22.x
+modules:
+  function:
+    - key: fn-ok
+      handler: index.okRun
+    - key: fn-bad
+      handler: index.badRun
+  scheduledTrigger:
+    - key: ok-tick
+      function: fn-ok
+      interval: hour
+    - key: bad-tick
+      function: fn-bad
+      interval: day
