@@ -32,7 +32,7 @@ const logs = sim.getLogs();
 const result = await sim.deploy('./my-forge-app');
 // result.manifest, result.loadedFunctions, result.errors
 
-sim.reset();
+await sim.reset();
 ```
 
 ### Resolvers
@@ -269,9 +269,9 @@ Deploy a Forge app. Reads `manifest.yml`, imports handlers, wires resolvers/cons
 By default, each scheduled trigger fires **once at deploy time**. This mirrors real Forge, where every scheduled trigger starts ~5 minutes after deployment (and redeploys reset/re-create them) — and it's what runs migration triggers before your tests touch the database. If a scheduled job has side effects you don't want on every deploy (daily digest, outbound webhook), pass `{ fireScheduledTriggers: false }` and fire it explicitly with `sim.fireScheduledTrigger(key)`.
 
 ```typescript no-check
-sim.reset(): void
+sim.reset(): Promise<void>
 ```
-Reset all state (KVS, queues, resolvers, UI, logs). Does not stop SQL server.
+Reset all state (KVS, queues, resolvers, UI, logs). Async — SQL table drops are FK-aware and must be awaited; an unawaited reset can race the next deploy's migrations. Does not stop the SQL server.
 
 ```typescript no-check
 sim.stop(): Promise<void>
@@ -282,6 +282,24 @@ Stop all background services (MySQL server). Call when done.
 sim.getManifest(): ParsedManifest | null
 ```
 Get the currently deployed manifest.
+
+### Environment Variables
+
+```typescript no-check
+sim.setVariables(vars: Record<string, string | { value: string; encrypt?: boolean }>): void
+sim.unsetVariable(key: string): boolean
+sim.listVariables(): VariableListEntry[]
+```
+
+Simulates `forge variables set`. Variables are injected into `process.env` **at deploy time, before handler modules load** — set them before calling `sim.deploy()`. Changing a variable does not take effect until the next deploy, exactly like real Forge (its #1 env-var footgun). `encrypt: true` only masks the value in `listVariables()` output; app code always reads cleartext from `process.env`, matching Forge's encrypted-at-rest-only semantics.
+
+Three sources, in ascending precedence:
+
+1. Host env vars prefixed `FORGE_USER_VAR_` — `FORGE_USER_VAR_MY_KEY=x` becomes `process.env.MY_KEY` (same convention `forge tunnel` uses)
+2. `<appDir>/.forge-sim/variables.json` — re-read at every deploy: `{ "MY_KEY": "value", "SECRET": { "value": "s3cret", "encrypt": true } }`
+3. `sim.setVariables({...})` — ephemeral, never written to disk; survives `reset()` (Forge vars are environment-scoped, not deployment-scoped)
+
+`listVariables()` returns `{ key, value, encrypt, source }` entries with encrypted values masked — the `forge variables list` view.
 
 ### Resolvers & Invocation
 
@@ -846,9 +864,17 @@ sim.ui.interactWith(type: string, options?: {
   args?: any[];
 }): Promise<{ result: any; updatedDoc: ForgeDoc }>
 sim.ui.fillField(moduleKey: string, name: string, value: unknown): void
+sim.ui.submitForm(moduleKey: string, values?: Record<string, unknown>): Promise<unknown>
 ```
 
 `fillField` fires the same onChange a user typing/selecting would: Textfield/TextArea get a synthetic input event; Select resolves the value against the component's options and emits the `{ label, value }` option object react-select emits (arrays for `isMulti`).
+
+`submitForm` finds the module's `<Form>` and fires its `onSubmit` with a synthetic event (what react-hook-form's `handleSubmit` wrapper expects). If `values` is provided, each field is filled via `fillField` first; fields not in `values` keep their current state. Returns whatever the form's onSubmit returns. If validation blocks the submit (required field missing), the user handler is never called — same as production — and the validation errors are visible in the rendered tree afterward:
+
+```typescript no-check
+await sim.ui.submitForm('settings-page');                          // submit current state
+await sim.ui.submitForm('settings-page', { name: 'Pat', age: 5 }); // fill + submit
+```
 
 ### Quiescence — settling async UI state
 

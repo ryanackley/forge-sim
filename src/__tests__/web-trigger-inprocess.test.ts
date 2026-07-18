@@ -50,6 +50,24 @@ describe('B4 — web trigger functions are not resolvers', () => {
   });
 });
 
+describe('eval-6 F13 — webtrigger hint survives a registry miss', () => {
+  it('manifest-only load (no handlers registered) still gets the fireWebTrigger hint', async () => {
+    // The eval's exact scenario: deploy loaded 0 functions, so the typed
+    // registry had no idea "webhook" was a web trigger. The manifest still
+    // knows the binding — the guard must consult it, not just the registry,
+    // otherwise the caller gets the generic "No resolver defined" error.
+    const sim = createSimulator();
+    await sim.loadManifest(join(FIXTURE, 'manifest.yml'));
+
+    // Precondition: typed registry genuinely empty for this key
+    expect(sim.functions.getType('webhook')).toBeUndefined();
+
+    await expect(sim.invoke('webhook', { some: 'payload' })).rejects.toThrow(
+      /web trigger handler.*\(request, context\).*fireWebTrigger\("github-webhook"\)/s
+    );
+  });
+});
+
 describe('B5 — sim.fireWebTrigger()', () => {
   let sim: ForgeSimulator;
 

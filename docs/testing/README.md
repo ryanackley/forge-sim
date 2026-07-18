@@ -758,6 +758,7 @@ it('debug example', async () => {
 | `waitForContent(moduleKey, text)` | Wait until rendered text includes the given string **and** the UI settles (renders quiet + no pending invokes). The returned doc is safe to interact with immediately. |
 | `settle(moduleKey?, options?)` | Wait until the UI stops re-rendering and no resolver invokes are in flight; returns the latest doc. Use after a manual `render()` before `fillField`/`interact`. |
 | `fillField(moduleKey, name, value)` | Fire the onChange a user would: input event for Textfield/TextArea, `{ label, value }` option object for Select (arrays for `isMulti`). |
+| `submitForm(moduleKey, values?)` | Fill fields by name (optional), then fire the `<Form>` onSubmit with a synthetic event. Validation applies as in production — a blocked submit leaves errors visible in the tree. Returns the onSubmit result. |
 | `findByType(doc, type)` | Find all nodes of a component type (e.g., `'Button'`, `'Text'`). |
 | `findByTypeAndText(doc, type, text?)` | Find a node by type and optional text content. |
 | `getTextContent(doc)` | Extract all text from a ForgeDoc subtree. |

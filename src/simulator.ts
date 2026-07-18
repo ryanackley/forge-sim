@@ -459,13 +459,17 @@ export class ForgeSimulator {
 
     // Web trigger handlers expect (request, context) — NOT the resolver
     // { payload, context } convention. Real Forge has no bridge-invoke path
-    // to a web trigger function, so neither do we (eval B4).
-    if (this.functions.getType(functionKey) === 'webTrigger') {
-      const triggerKey = this.manifest?.webTriggers.find(wt => wt.functionKey === functionKey)?.key;
+    // to a web trigger function, so neither do we (eval B4). Check the
+    // MANIFEST as well as the typed registry: if the handler failed to load
+    // (or deploy registered nothing), the registry misses but the manifest
+    // still knows the binding — without this the caller gets the generic
+    // "No resolver defined" error with no webtrigger hint (eval-6 F13).
+    const boundWebTriggerKey = this.manifest?.webTriggers.find(wt => wt.functionKey === functionKey)?.key;
+    if (this.functions.getType(functionKey) === 'webTrigger' || boundWebTriggerKey) {
       throw new Error(
         `"${functionKey}" is a web trigger handler — it expects (request, context), ` +
         `not the resolver { payload, context } convention, so sim.invoke() would call it wrong. ` +
-        `Use sim.fireWebTrigger("${triggerKey ?? '<triggerKey>'}") (or the MCP tool forge.fire_web_trigger) instead.`
+        `Use sim.fireWebTrigger("${boundWebTriggerKey ?? '<triggerKey>'}") (or the MCP tool forge.fire_web_trigger) instead.`
       );
     }
 

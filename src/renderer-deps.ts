@@ -280,7 +280,7 @@ export function materializeRenderer(
   }
 
   logger.log(`  📦 First run: installing the UI renderer to ${tildify(target)} (one time)...`);
-  logger.log(`     Compiling in the browser requires the Atlaskit component tree (~250 MB).`);
+  logger.log(`     Compiling in the browser requires the full Atlaskit component tree — this is a large install.`);
   logger.log('');
 
   mkdirSync(baseDir, { recursive: true });

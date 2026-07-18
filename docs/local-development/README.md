@@ -87,6 +87,25 @@ Without a connected real site, unmocked product API calls return a `501`. You ca
 - JSON can't express function-valued (per-request) handlers; for dynamic responses use the [programmatic API](../testing/) in tests.
 - When a real account is connected, mocked routes always win over passthrough — the file is an easy way to pin specific calls local while everything else hits your real site.
 
+## App environment variables
+
+Forge apps read configuration from `process.env` (set in production via `forge variables set`). forge-sim injects variables **at deploy time, before handler modules load**, from two sources:
+
+- **`<your-app>/.forge-sim/variables.json`** — re-read at every deploy (including hot-redeploys in dev mode):
+
+  ```json
+  {
+    "MY_KEY": "value",
+    "SECRET": { "value": "s3cret", "encrypt": true }
+  }
+  ```
+
+- **Host environment variables prefixed `FORGE_USER_VAR_`** — `FORGE_USER_VAR_MY_KEY=x forge-sim dev` exposes `process.env.MY_KEY` to your app. This is the same convention `forge tunnel` uses, so a tunnel-ready environment works unchanged. `variables.json` wins when both define a key.
+
+Matching real Forge: changes take effect at the **next deploy** (in dev mode, saving an app file triggers one), and `encrypt` only masks the value in list surfaces — your app always reads cleartext from `process.env`.
+
+For tests, use `sim.setVariables()` before `sim.deploy()` — see the [API reference](../reference/api.md#environment-variables).
+
 ## Debugging
 
 ### Frontend: Chrome DevTools just works
