@@ -727,10 +727,19 @@ export class UnifiedKVS {
     entries.sort((a, b) => a.key.localeCompare(b.key));
 
     if (body.after) {
-      const idx = entries.findIndex(e => e.key === body.after);
-      if (idx >= 0) {
-        entries = entries.slice(idx + 1);
+      let token: CursorToken;
+      try {
+        token = decodeCursor(body.after, 'the KVS query wire API');
+      } catch (err) {
+        if (err instanceof KVSQueryError) {
+          return jsonResponse(400, { code: err.code, message: err.message });
+        }
+        throw err;
       }
+      // Positional resume (eval-8 E8-1): first key strictly after the
+      // cursor position — survives deletion of the cursor row. Uses the
+      // same localeCompare collation as the sort above.
+      entries = entries.filter(e => e.key.localeCompare(token.k) > 0);
     }
 
     const limit = body.limit ?? 20;
@@ -739,7 +748,7 @@ export class UnifiedKVS {
 
     return jsonResponse(200, {
       data: page.map(e => ({ key: e.key, value: e.value })),
-      cursor: hasMore ? page[page.length - 1].key : undefined,
+      cursor: hasMore ? encodeCursor({ k: page[page.length - 1].key }) : undefined,
     });
   }
 
@@ -888,22 +897,38 @@ export class UnifiedKVS {
       }
     }
 
-    // Sort
+    // Sort — deterministic: range attribute first (when the index declares
+    // one), then key as tiebreak so cursor positions are total-ordered.
     const sortAttr = indexDef?.range;
     const sortDir = body.sort ?? 'ASC';
     entries.sort((a, b) => {
       const va = sortAttr ? getAttributeValue(a, sortAttr) : a.key;
       const vb = sortAttr ? getAttributeValue(b, sortAttr) : b.key;
-      const cmp = va < vb ? -1 : va > vb ? 1 : 0;
+      let cmp = compareValues(va, vb);
+      if (cmp === 0) cmp = compareValues(a.key, b.key);
       return sortDir === 'DESC' ? -cmp : cmp;
     });
 
-    // Cursor-based pagination
+    // Cursor-based pagination — positional resume (eval-8 E8-1): the next
+    // page starts strictly after the cursor's (sortValue, key) position,
+    // so deleting the cursor row between pages cannot restart pagination.
     if (body.cursor) {
-      const idx = entries.findIndex(e => e.key === body.cursor);
-      if (idx >= 0) {
-        entries = entries.slice(idx + 1);
+      let token: CursorToken;
+      try {
+        token = decodeCursor(body.cursor, 'the entity query wire API');
+      } catch (err) {
+        if (err instanceof KVSQueryError) {
+          return jsonResponse(400, { code: err.code, message: err.message });
+        }
+        throw err;
       }
+      entries = entries.filter(e => {
+        const ev = sortAttr ? getAttributeValue(e, sortAttr) : e.key;
+        const cv = sortAttr ? token.s : token.k;
+        let cmp = compareValues(ev, cv);
+        if (cmp === 0) cmp = compareValues(e.key, token.k);
+        return (sortDir === 'DESC' ? -cmp : cmp) > 0;
+      });
     }
 
     const limit = body.limit ?? 20;
@@ -920,7 +945,12 @@ export class UnifiedKVS {
           expireTime: e.expireTime,
         } : {}),
       })),
-      cursor: hasMore ? page[page.length - 1].key : undefined,
+      cursor: hasMore
+        ? encodeCursor({
+            k: page[page.length - 1].key,
+            ...(sortAttr ? { s: getAttributeValue(page[page.length - 1], sortAttr) } : {}),
+          })
+        : undefined,
     });
   }
 
@@ -1117,6 +1147,49 @@ export class KVSQueryError extends Error {
   }
 }
 
+// ── Cursor tokens (eval-8 E8-1) ───────────────────────────────────────
+//
+// Real Forge cursors are opaque tokens "derived from underlying storage
+// identifiers" (Atlassian docs: not stable, must not be persisted). The sim
+// used to hand back the raw last-row key and resume via findIndex — which
+// silently RESTARTED pagination from page 1 whenever the cursor row was
+// deleted between pages (or the cursor was garbage). A fetch→process→delete
+// worker would re-receive already-processed rows forever.
+//
+// Fix: cursors are opaque base64url tokens encoding the last row's position
+// ({k: key, s?: sortValue}); resume is POSITIONAL — the next page starts at
+// the first row strictly after that position in the query's sort order,
+// like a Dynamo exclusive-start-key. Deleted cursor rows resume correctly;
+// undecodable cursors fail loudly instead of silently restarting.
+
+interface CursorToken { k: string; s?: unknown }
+
+function encodeCursor(token: CursorToken): string {
+  return Buffer.from(JSON.stringify(token), 'utf8').toString('base64url');
+}
+
+function decodeCursor(cursor: string, source: string): CursorToken {
+  try {
+    const parsed = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8'));
+    if (parsed && typeof parsed === 'object' && typeof parsed.k === 'string') {
+      return parsed as CursorToken;
+    }
+  } catch {
+    // fall through to the error below
+  }
+  throw new KVSQueryError(
+    'CURSOR_INVALID',
+    `Unrecognized cursor passed to ${source}. Cursors are opaque tokens — ` +
+    `pass back the exact cursor/nextCursor value returned by the previous ` +
+    `page; never construct or persist one yourself.`
+  );
+}
+
+/** Comparison mirroring the query sort comparators (relational operators). */
+function compareValues(a: unknown, b: unknown): number {
+  return (a as any) < (b as any) ? -1 : (a as any) > (b as any) ? 1 : 0;
+}
+
 /**
  * Resolve an index definition, enforcing INDEX_NOT_FOUND parity (eval-4 F4,
  * eval-7 F2). Real Forge rejects queries against undeclared indexes — silently
@@ -1241,10 +1314,14 @@ export class KVSQueryBuilder {
     }
 
     if (this._cursor) {
-      const idx = keys.indexOf(this._cursor);
-      if (idx >= 0) {
-        keys = keys.slice(idx + 1);
-      }
+      // Positional resume (eval-8 E8-1): first key strictly after the
+      // cursor position in the current sort direction — survives deletion
+      // of the cursor row. Same code-unit ordering as keys.sort() above.
+      const token = decodeCursor(this._cursor, 'kvs.query()');
+      keys = keys.filter((k) => {
+        const cmp = compareValues(k, token.k);
+        return (this._sortDirection === 'DESC' ? -cmp : cmp) > 0;
+      });
     }
 
     const page = keys.slice(0, this._limit);
@@ -1255,7 +1332,7 @@ export class KVSQueryBuilder {
 
     return {
       results,
-      nextCursor: keys.length > this._limit ? page[page.length - 1] : undefined,
+      nextCursor: keys.length > this._limit ? encodeCursor({ k: page[page.length - 1] }) : undefined,
     };
   }
 
@@ -1412,19 +1489,29 @@ export class EntityQueryBuilder {
       }
     }
 
-    // Sort
+    // Sort — deterministic: range attribute first (when the index declares
+    // one), then key as tiebreak so cursor positions are total-ordered.
     const sortAttr = indexDef?.range;
     entries.sort((a, b) => {
       const va = sortAttr ? a.value?.[sortAttr] : a.key;
       const vb = sortAttr ? b.value?.[sortAttr] : b.key;
-      const cmp = va < vb ? -1 : va > vb ? 1 : 0;
+      let cmp = compareValues(va, vb);
+      if (cmp === 0) cmp = compareValues(a.key, b.key);
       return this._sort === 'DESC' ? -cmp : cmp;
     });
 
-    // Cursor
+    // Cursor — positional resume (eval-8 E8-1): the next page starts
+    // strictly after the cursor's (sortValue, key) position, so deleting
+    // the cursor row between pages cannot restart pagination from page 1.
     if (this._cursor) {
-      const idx = entries.findIndex(e => e.key === this._cursor);
-      if (idx >= 0) entries = entries.slice(idx + 1);
+      const token = decodeCursor(this._cursor, "entity('...').query()");
+      entries = entries.filter(e => {
+        const ev = sortAttr ? e.value?.[sortAttr] : e.key;
+        const cv = sortAttr ? token.s : token.k;
+        let cmp = compareValues(ev, cv);
+        if (cmp === 0) cmp = compareValues(e.key, token.k);
+        return (this._sort === 'DESC' ? -cmp : cmp) > 0;
+      });
     }
 
     // Limit
@@ -1433,7 +1520,12 @@ export class EntityQueryBuilder {
 
     return {
       results: page.map(e => ({ key: e.key, value: detach(e.value) })),
-      nextCursor: hasMore ? page[page.length - 1].key : undefined,
+      nextCursor: hasMore
+        ? encodeCursor({
+            k: page[page.length - 1].key,
+            ...(sortAttr ? { s: page[page.length - 1].value?.[sortAttr] } : {}),
+          })
+        : undefined,
     };
   }
 
