@@ -181,9 +181,16 @@ forge-sim serve  # starts on random port, writes to ~/.forge-sim/daemon.port
 
 The full tool list: `deploy`, `invoke`, `fire_trigger`, `fire_scheduled_trigger`, `ui_state`, `ui_interact`, `kvs_get`, `kvs_set`, `kvs_list`, `queue_push`, `queue_state`, `logs`, `sql_execute`, `sql_migrate`, `sql_schema`, `entity_get`, `entity_set`, `entity_delete`, `entity_query`, `entity_list`, `auth_status`, `mock_routes`, `mock_graphql`, `llm_mock`, `llm_history`, `realtime_publish`, `realtime_state`, `reset`, `objectstore_list`, `objectstore_get`, `objectstore_put`, `objectstore_delete`, `objectstore_create_download_url`, `variables_set`, `variables_unset`, `variables_list`. 143 trigger event templates with typed payloads are built-in for Confluence, Jira, Jira Software, and App Lifecycle events.
 
-### As an AI skill
+### As a Claude Code plugin
 
-A packaged skill ships in this repo: [`skills/forge-local-dev`](./skills/forge-local-dev/). It teaches an agent the full develop-and-test loop (deploy, invoke, fire triggers, drive UI, inspect state) across all three driver surfaces, and knows where it fits alongside Atlassian's own forge-skills plugin (scaffolding and review stay with their skills; the iterate loop is this one). Drop it into your agent's skills directory and it activates whenever you're working on a Forge app.
+This repo doubles as a plugin marketplace. In Claude Code:
+
+```
+/plugin marketplace add ryanackley/forge-sim
+/plugin install forge-sim@forge-sim
+```
+
+That installs the [`forge-local-dev`](./skills/forge-local-dev/) skill and wires up the MCP server in one step. The skill teaches an agent the full develop-and-test loop (deploy, invoke, fire triggers, drive UI, inspect state) across all three driver surfaces, and knows where it fits alongside Atlassian's own forge-skills plugin (scaffolding and review stay with their skills; the iterate loop is this one). Other agent harnesses can use the skill directly: drop `skills/forge-local-dev/` into the agent's skills directory and it activates whenever you're working on a Forge app.
 
 Prefer something lighter? The CLI surface is small enough to paste into an agent prompt:
 

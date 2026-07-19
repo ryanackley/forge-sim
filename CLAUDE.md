@@ -108,6 +108,7 @@ Node 22+ required (native TS type stripping). MySQL-memory-server bundles its ow
 - **Test fixtures live in `src/__tests__/fixtures/<app-name>/`.** Each fixture is a tiny self-contained Forge app (`manifest.yml` + handler files). Real-world end-to-end apps live under `~/Projects/{retro-board, okr-tracker, my-issues, ...}` and have their own e2e test files.
 - **Manifest changes go through `src/manifest-validator.ts`.** That validator is what tells the user "your manifest is missing X" before deploy fails. Keep error messages copy-pasteable (include the YAML snippet they should add).
 - **Persistence is `entities.json` + `sql.dump`.** No more `kvs.json` (removed; everything goes through the entity store). State lives under `<app>/.forge-sim/state/`.
+- **Release ritual includes the plugin manifests.** `npm version` bumps `package.json` only; the Claude Code plugin version in `.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json` must be bumped to match by hand. The plugin version pins marketplace updates, so a stale version means installed users never see new skill or MCP changes.
 - **Stats blocks** in markdown use HTML-comment marker pairs (`BEGIN:STATS` and `END:STATS`, each wrapped in `<!-- ... -->`) and are rewritten by `scripts/update-stats.mjs`. Don't hand-edit numbers inside markers; re-run the script. The known generators are `STATS`, `STATS_COMPACT`, and `MCP_TOOLS`. See the script for details.
 
 ## Forge platform quirks that bite you
