@@ -181,7 +181,7 @@ What *is* forge-sim's job is how each module type maps to the sim API that exerc
 |-----------------|---------------|---------------|
 | UI modules (`jira:issuePanel`, macros, …) | `sim.ui.render('<key>')` / `sim.invoke('<resolver fn>', …)` | [UIKit 2 Rendering](#uikit-2-rendering) |
 | `trigger` | `sim.fireTrigger('avi:jira:created:issue', payload)` | [Trigger Tests](#trigger-tests) |
-| `scheduledTrigger` | `sim.fireScheduledTrigger('<key>')` (also fires once at `deploy()` for `runOn: deployment`) | [Trigger Tests](#trigger-tests) |
+| `scheduledTrigger` | `sim.fireScheduledTrigger('<key>')` (every scheduled trigger also fires once at `deploy()` — opt out with `fireScheduledTriggers: false`) | [Trigger Tests](#trigger-tests) |
 | `consumer` | `sim.queue.push('<queue>', { body })` or `Queue.push()` in app code | [Queue / Consumer Tests](#queue--consumer-tests) |
 | `webtrigger` | `sim.fireWebTrigger('<key>', request)` | [Trigger Tests](#trigger-tests) |
 

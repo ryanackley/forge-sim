@@ -1471,6 +1471,17 @@ export class KVSQueryBuilder {
 // src/shims/forge-kvs.ts exposes the identical helpers as `@forge/kvs`
 // for app code running through the loader.
 
+/**
+ * Sort direction enum, mirroring `Sort` from `@forge/kvs`. The sim's query
+ * builders accept the raw 'ASC' | 'DESC' strings too, but the real package
+ * types `.sort()` against this enum — use `Sort.ASC` in app code so it
+ * typechecks against real `@forge/kvs`.
+ */
+export const Sort = {
+  ASC: 'ASC',
+  DESC: 'DESC',
+} as const;
+
 export const WhereConditions = {
   beginsWith: (value: string | number) => ({ condition: 'BEGINS_WITH', values: [value] }),
   between: <T extends string | number>(first: T, second: T) => ({ condition: 'BETWEEN', values: [first, second] }),

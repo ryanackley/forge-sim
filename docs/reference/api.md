@@ -501,10 +501,13 @@ await employees.set('emp-1', { name: 'Pat', department: 'Engineering' });
 const emp = await employees.get('emp-1');
 await employees.delete('emp-1');
 
-// Indexed queries — index + partition defined in the manifest entity schema
+// Indexed queries — index + partition defined in the manifest entity schema.
+// In app code, import the Sort enum: `import { Sort } from '@forge/kvs'` —
+// the real package types .sort() against the enum, so the string 'ASC'
+// fails type checking there.
 const result = await employees.query()
   .index('by-department', { partition: ['Engineering'] })
-  .sort('ASC')
+  .sort(Sort.ASC)
   .limit(25)
   .getMany();
 ```
@@ -1060,7 +1063,7 @@ forge-sim enforces the correct calling convention per Forge function type:
 | **Resolver** (UI bridge) | `({ payload, context }) => result` | Any JSON |
 | **Event Trigger** | `(event, context) => result` | Any |
 | **Scheduled Trigger** | `({ context }) => { statusCode }` | Must return `{ statusCode }` or 424 |
-| **Consumer** (async events) | `(event, context) => result` | `InvocationError` = retry |
+| **Consumer** (async events) | `(event, context) => result` | Returning `new InvocationError(retryOptions)` (or a `QueueResponse` with `.retry()` called) requests a retry — re-delivered with `event.retryContext`, capped at 4 retries. Re-delivery is immediate; forge-sim does not wait out `retryAfter`. |
 | **Web Trigger** | `(request) => { statusCode, body?, headers? }` | HTTP-like response |
 
 ### Invocation Time Limits

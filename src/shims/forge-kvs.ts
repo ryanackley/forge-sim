@@ -9,7 +9,7 @@
  */
 
 import { getSimulator } from './globals.js';
-import { ForgeKvsError, ForgeKvsAPIError } from '../kvs.js';
+import { ForgeKvsError, ForgeKvsAPIError, Sort } from '../kvs.js';
 
 /** Lazy proxy — delegates to simulator's KVS at call time */
 const kvs = {
@@ -167,10 +167,9 @@ const MetadataField = {
   EXPIRE_TIME: 'EXPIRE_TIME' as const,
 };
 
-const Sort = {
-  ASC: 'ASC' as const,
-  DESC: 'DESC' as const,
-};
+// Sort now lives in ../kvs.js (single source of truth) and is also
+// exported from 'forge-sim' for in-process test code — same pattern as
+// WhereConditions. Re-exported below for `import { Sort } from '@forge/kvs'`.
 
 // Error classes live in ../kvs.js (single source of truth, mirrored
 // byte-for-byte from real @forge/kvs errors.js — including the quirk

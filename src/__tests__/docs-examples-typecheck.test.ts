@@ -52,6 +52,7 @@ const PREAMBLE_DECLS: Array<[name: string, line: string]> = [
   ['getSimulator', `declare const getSimulator: typeof __fs.getSimulator;`],
   ['setSimulator', `declare const setSimulator: typeof __fs.setSimulator;`],
   ['WhereConditions', `declare const WhereConditions: typeof __fs.WhereConditions;`],
+  ['Sort', `declare const Sort: typeof __fs.Sort;`],
   ['route', `declare const route: typeof __fs.route;`],
   ['mockResponse', `declare const mockResponse: typeof __fs.mockResponse;`],
   ['payload', `declare const payload: Record<string, unknown>;`],
