@@ -157,7 +157,12 @@ export function createApiHandler(
       // ── KVS ────────────────────────────────────────────────────────
       if (path === '/api/kvs' && method === 'GET') {
         const dump = await sim.kvs.dump();
-        const entries = Object.entries(dump).map(([key, value]) => ({ key, value }));
+        // Eval-10 F6: the CLI sends ?prefix= but the handler never read it,
+        // so `forge-sim kvs list --prefix foo:` silently returned everything.
+        const prefix = url.searchParams.get('prefix');
+        const entries = Object.entries(dump)
+          .filter(([key]) => !prefix || key.startsWith(prefix))
+          .map(([key, value]) => ({ key, value }));
         return json(res, entries);
       }
 
