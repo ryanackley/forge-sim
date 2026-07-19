@@ -864,11 +864,20 @@ export const COMPONENT_MAP: Record<string, ComponentRenderer> = {
   ),
   Range: (props) => (
     <Range
+      id={props.id}
+      name={props.name}
       min={props.min ?? 0}
       max={props.max ?? 100}
       step={props.step ?? 1}
-      value={props.value ?? 50}
+      // eval-10 F2: only controlled when the app passes `value` — the old
+      // `props.value ?? 50` forced controlled mode at 50 for apps that never
+      // set value (e.g. useForm register()), so dragging snapped straight
+      // back. Uncontrolled + defaultValue lets the slider actually move.
+      value={props.value}
+      defaultValue={props.defaultValue}
+      isDisabled={props.isDisabled}
       onChange={props.onChange}
+      testId={props.testId}
     />
   ),
   DatePicker: (props) => (

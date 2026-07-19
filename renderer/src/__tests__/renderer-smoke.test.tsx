@@ -304,6 +304,48 @@ describe('ForgeDocRenderer smoke tests', () => {
       expect(screen.getByRole('slider')).toBeInTheDocument();
     });
 
+    it('Range forwards name and stays uncontrolled without value (eval-10 F2)', () => {
+      // No `value` prop — the old mapping forced value={props.value ?? 50},
+      // pinning the slider at 50 (controlled) so dragging snapped back.
+      renderDoc(makeDoc('Range', { name: 'volume', min: 0, max: 100 }));
+      const slider = screen.getByRole('slider') as HTMLInputElement;
+      expect(slider).toHaveAttribute('name', 'volume');
+      fireEvent.change(slider, { target: { value: '75' } });
+      // Uncontrolled: the DOM value moves and stays moved.
+      expect(slider.value).toBe('75');
+    });
+
+    it('Range honors defaultValue when uncontrolled (eval-10 F2)', () => {
+      renderDoc(
+        makeDoc('Range', { name: 'volume', min: 0, max: 100, defaultValue: 30 }),
+      );
+      const slider = screen.getByRole('slider') as HTMLInputElement;
+      expect(slider.value).toBe('30');
+    });
+
+    it('Range stays controlled when value is provided (eval-10 F2)', () => {
+      renderDoc(makeDoc('Range', { name: 'volume', min: 0, max: 100, value: 40 }));
+      const slider = screen.getByRole('slider') as HTMLInputElement;
+      expect(slider.value).toBe('40');
+      fireEvent.change(slider, { target: { value: '90' } });
+      // Controlled with no re-render from the app: React pins the value.
+      expect(slider.value).toBe('40');
+    });
+
+    it('Range fires onChange with a raw number (eval-10 F2)', () => {
+      const received: unknown[] = [];
+      renderDoc(
+        makeDoc('Range', {
+          name: 'volume',
+          min: 0,
+          max: 100,
+          onChange: (v: unknown) => received.push(v),
+        }),
+      );
+      fireEvent.change(screen.getByRole('slider'), { target: { value: '62' } });
+      expect(received).toEqual([62]);
+    });
+
     it('DatePicker renders', () => {
       const { container } = renderDoc(
         makeDoc('DatePicker', { name: 'date' }),
