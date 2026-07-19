@@ -81,21 +81,73 @@ class InvocationLimitReachedError extends Error {
   }
 }
 
-class InvocationError extends Error {
-  code: string;
-  constructor(message = 'Invocation error', code = 'UNKNOWN') {
-    super(message);
-    this.name = 'InvocationError';
-    this.code = code;
+// ── Retry / response types matching @forge/events v3.x ─────────────────
+//
+// Pinned against the real package (verified from @forge/events@3.0.1
+// compiled output, eval-11 F4). The previous shim shapes here were
+// invented and had ZERO overlap with the real API.
+
+/** Matches the real `InvocationErrorCode` enum values exactly. */
+const InvocationErrorCode = {
+  FUNCTION_OUT_OF_MEMORY: 'FUNCTION_OUT_OF_MEMORY',
+  FUNCTION_TIME_OUT: 'FUNCTION_TIME_OUT',
+  FUNCTION_PLATFORM_UNKNOWN_ERROR: 'FUNCTION_PLATFORM_UNKNOWN_ERROR',
+  FUNCTION_PLATFORM_RATE_LIMITED: 'FUNCTION_PLATFORM_RATE_LIMITED',
+  FUNCTION_UPSTREAM_RATE_LIMITED: 'FUNCTION_UPSTREAM_RATE_LIMITED',
+  FUNCTION_RETRY_REQUEST: 'FUNCTION_RETRY_REQUEST',
+} as const;
+type InvocationErrorCodeValue =
+  (typeof InvocationErrorCode)[keyof typeof InvocationErrorCode];
+
+/** Mirrors the real `RetryOptions` interface. */
+interface RetryOptions {
+  /** Seconds before the retry delivery (real platform clamps to [1, 900]). */
+  retryAfter: number;
+  retryReason: InvocationErrorCodeValue | string;
+  /** Additional data passed back on the retry via `event.retryContext.retryData`. Max 4KB in real Forge. */
+  retryData?: unknown;
+}
+
+const MIN_RETRY_AFTER = 1;
+
+const DEFAULT_RETRY_OPTIONS: RetryOptions = {
+  retryAfter: MIN_RETRY_AFTER,
+  retryReason: InvocationErrorCode.FUNCTION_RETRY_REQUEST,
+};
+
+/** Base response class, matching the real package (`protected _retry`). */
+class Response {
+  protected _retry: boolean;
+  constructor(retry: boolean) {
+    this._retry = retry;
   }
 }
 
-const InvocationErrorCode = {
-  UNKNOWN: 'UNKNOWN',
-  TIMEOUT: 'TIMEOUT',
-  OUT_OF_MEMORY: 'OUT_OF_MEMORY',
-  RUNTIME_ERROR: 'RUNTIME_ERROR',
-} as const;
+/**
+ * Returned by a consumer to request a retry of the async event.
+ *
+ * Parity quirk (matches real @forge/events exactly): the constructor
+ * RETURNS `this.toJSON()`, so `new InvocationError(...)` actually yields a
+ * plain `{ _retry: true, retryOptions }` object — `instanceof
+ * InvocationError` is false on the result, just like in production.
+ */
+class InvocationError extends Response {
+  retryOptions: RetryOptions;
+  constructor(retryOptions: RetryOptions = DEFAULT_RETRY_OPTIONS) {
+    super(true);
+    this.retryOptions = retryOptions;
+    if (this.retryOptions.retryAfter !== undefined && this.retryOptions.retryAfter <= 0) {
+      this.retryOptions.retryAfter = MIN_RETRY_AFTER;
+    }
+    return this.toJSON() as unknown as InvocationError;
+  }
+  toJSON() {
+    return {
+      _retry: this._retry,
+      retryOptions: this.retryOptions,
+    };
+  }
+}
 
 const JobProgress = {
   SUCCESS: 'SUCCESS',
@@ -132,8 +184,14 @@ class Queue {
   }
 }
 
-class QueueResponse {
-  constructor(public requestId: string, public statusCode: number) {}
+/** Matches the real `QueueResponse` (extends Response, `retry()` flips the flag). */
+class QueueResponse extends Response {
+  constructor() {
+    super(false);
+  }
+  retry(): void {
+    this._retry = true;
+  }
 }
 
 // ── App Events (custom app event pub/sub) ──────────────────────────────
@@ -260,12 +318,56 @@ export {
   InvocationError,
   InvocationErrorCode,
   JobProgress,
+  Response,
   QueueResponse,
   appEvents,
 };
+
+// ── Event payload types matching @forge/events types.d.ts ──────────────
+
+interface Concurrency {
+  key: string;
+  limit: number;
+}
+
+interface PushEvent<T extends Record<string, unknown> = Record<string, unknown>> {
+  body: T;
+  delayInSeconds?: number;
+  concurrency?: Concurrency;
+}
+
+interface PushResult {
+  jobId: string;
+}
+
+interface RetentionWindow {
+  startTime: string;
+  remainingTimeMs: number;
+}
+
+interface RetryContext {
+  retryCount: number;
+  retryReason: string;
+  retryData: any;
+  retentionWindow?: RetentionWindow;
+}
+
+interface AsyncEvent<T extends Record<string, unknown> = Record<string, unknown>> extends PushEvent<T> {
+  queueName: string;
+  jobId: string;
+  eventId: string;
+  retryContext?: RetryContext;
+}
 
 export type {
   AppEvent,
   AppEventPublishResult,
   AppEventPublishFailure,
+  RetryOptions,
+  PushEvent,
+  PushResult,
+  AsyncEvent,
+  RetryContext,
+  RetentionWindow,
+  Concurrency,
 };

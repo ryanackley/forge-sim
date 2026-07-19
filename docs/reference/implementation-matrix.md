@@ -181,8 +181,10 @@ Async events and queue processing.
 | `queue.push({ body, delayInSeconds })` | ✅ | `queue.test.ts` | Delayed delivery |
 | `queue.push({ body, concurrencyKey })` | ✅ | `concurrency.test.ts` | Controls parallel execution |
 | `queue.getJob(jobId)` | ✅ | `queue.test.ts` | |
-| `InvocationError` | ✅ | `function-contracts.test.ts` | Thrown by consumers to trigger retry |
-| `InvocationErrorCode` | ✅ | | |
+| `InvocationError` | ✅ | `eval11-findings.test.ts` | **Returned** (not thrown) by consumers to request a retry. Constructor takes `RetryOptions` and yields the serialized `{ _retry, retryOptions }` form, matching `@forge/events` v3. Queue engine re-delivers with `retryContext`, capped at 4 retries; re-delivery is immediate (forge-sim does not wait out `retryAfter` delays) |
+| `QueueResponse` / `Response` | ✅ | `eval11-findings.test.ts` | `queueResponse.retry()` also triggers a retry |
+| `event.retryContext` | ✅ | `eval11-findings.test.ts` | `{ retryCount, retryReason, retryData }` populated on retry deliveries only |
+| `InvocationErrorCode` | ✅ | `eval11-findings.test.ts` | Real `FUNCTION_*` enum values |
 | `JobProgress` | ✅ | | |
 | `InvalidQueueNameError` | ✅ | `shims.test.ts` | |
 | `TooManyEventsError` | ✅ | | |
