@@ -64,6 +64,62 @@ function wireEventHandlers(
   return wired;
 }
 
+/**
+ * Element-valued props (eval-10 F5).
+ *
+ * UIKit apps can pass JSX as a prop value — e.g.
+ * `<DynamicTable emptyView={<Text>No data</Text>} />`. In @forge/react every
+ * UIKit component is a string constant (`Text === 'Text'`), so the element is
+ * `{type: 'Text', props: {children: 'No data'}, ...}`. The reconciler passes
+ * it through untouched, and JSON serialization over the WebSocket bridge
+ * strips `$$typeof` — leaving a plain object React can't render (or, in
+ * direct mode, an element React renders as a literal `<Text>` DOM tag).
+ *
+ * Real Forge's product frontend transforms these back into ADS elements;
+ * we do the same here: detect element-shaped prop values whose type is a
+ * known UIKit component and render them through the component map.
+ *
+ * Detection is deliberately conservative — a data prop that merely happens
+ * to have `{type, props}` keys is only converted when `type` names a
+ * component we can actually render.
+ */
+function isElementLikeProp(value: any): boolean {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return false;
+  if (typeof value.type !== 'string') return false;
+  if (value.props === null || typeof value.props !== 'object') return false;
+  return value.type === 'String' || value.type in COMPONENT_MAP;
+}
+
+function elementToForgeDoc(el: any, keyHint: string): ForgeDoc {
+  const { children, ...rest } = el.props ?? {};
+  return {
+    type: el.type,
+    props: rest,
+    children: elementChildrenToForgeDocs(children, keyHint),
+    key: (typeof el.key === 'string' && el.key) || keyHint,
+  };
+}
+
+function elementChildrenToForgeDocs(children: any, keyHint: string): ForgeDoc[] {
+  if (children === null || children === undefined || children === false) return [];
+  const arr = Array.isArray(children) ? children : [children];
+  const docs: ForgeDoc[] = [];
+  arr.forEach((child, i) => {
+    if (child === null || child === undefined || child === false) return;
+    if (typeof child === 'string' || typeof child === 'number') {
+      docs.push({
+        type: 'String',
+        props: { text: String(child) },
+        children: [],
+        key: `${keyHint}-s${i}`,
+      });
+    } else if (isElementLikeProp(child)) {
+      docs.push(elementToForgeDoc(child, `${keyHint}-${i}`));
+    }
+  });
+  return docs;
+}
+
 function renderNode(
   doc: ForgeDoc,
   onEvent?: ForgeDocRendererProps['onEvent'],
@@ -84,6 +140,32 @@ function renderNode(
 
   // Wire up event handlers
   const wiredProps = wireEventHandlers(doc.props, onEvent, onBridgeEvent);
+
+  // Map element-valued props (eval-10 F5): JSX passed as a prop value
+  // (e.g. DynamicTable emptyView) arrives as an element-shaped object —
+  // render it through the component map so Atlaskit receives real React
+  // nodes instead of literal `<Text>` tags / unrenderable plain objects.
+  for (const [propKey, propValue] of Object.entries(wiredProps)) {
+    if (isElementLikeProp(propValue)) {
+      wiredProps[propKey] = renderNode(
+        elementToForgeDoc(propValue, `${doc.key}-prop-${propKey}`),
+        onEvent,
+        onBridgeEvent,
+      );
+    } else if (
+      Array.isArray(propValue) &&
+      propValue.length > 0 &&
+      propValue.every(isElementLikeProp)
+    ) {
+      wiredProps[propKey] = propValue.map((el, i) =>
+        renderNode(
+          elementToForgeDoc(el, `${doc.key}-prop-${propKey}-${i}`),
+          onEvent,
+          onBridgeEvent,
+        ),
+      );
+    }
+  }
 
   // Bound render function for components that need to render ForgeDoc sub-trees
   // (e.g. DynamicTable reconstructing head/rows from ContentWrapper children).

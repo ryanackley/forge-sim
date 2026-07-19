@@ -557,6 +557,55 @@ describe('ForgeDocRenderer smoke tests', () => {
       });
       expect(screen.getByText('30')).toBeInTheDocument();
     });
+
+    it('DynamicTable renders emptyView element-valued prop (eval-10 F5)', async () => {
+      // emptyView={<Text>No feedback yet.</Text>} — over the bridge this
+      // arrives as a plain element-shaped object (type is the string 'Text').
+      // The old behavior rendered a literal <Text> DOM tag + console errors.
+      const { container } = renderDoc(
+        makeDoc('DynamicTable', {
+          emptyView: { type: 'Text', key: null, props: { children: 'No feedback yet.' } },
+        }, [
+          makeDoc('ContentWrapper', { name: 'head' }, [
+            makeDoc('Cell', { cellKey: 'name' }, [
+              makeDoc('String', { text: 'Name' }),
+            ]),
+          ]),
+          makeDoc('ContentWrapper', { name: 'rows' }, []),
+        ]),
+      );
+      await waitFor(() => {
+        expect(screen.getByText('No feedback yet.')).toBeInTheDocument();
+      });
+      // Must be rendered through the component map, not as a literal tag.
+      expect(container.querySelector('Text')).toBeNull();
+    });
+
+    it('DynamicTable emptyView supports nested element children (eval-10 F5)', async () => {
+      const { container } = renderDoc(
+        makeDoc('DynamicTable', {
+          emptyView: {
+            type: 'Stack',
+            key: null,
+            props: {
+              children: [
+                { type: 'Text', key: null, props: { children: 'Nothing here' } },
+                { type: 'Text', key: null, props: { children: 'Add a row to begin' } },
+              ],
+            },
+          },
+        }, [
+          makeDoc('ContentWrapper', { name: 'head' }, []),
+          makeDoc('ContentWrapper', { name: 'rows' }, []),
+        ]),
+      );
+      await waitFor(() => {
+        expect(screen.getByText('Nothing here')).toBeInTheDocument();
+      });
+      expect(screen.getByText('Add a row to begin')).toBeInTheDocument();
+      expect(container.querySelector('Text')).toBeNull();
+      expect(container.querySelector('Stack')).toBeNull();
+    });
   });
 
   // ── Tabs ─────────────────────────────────────────────────────────────
