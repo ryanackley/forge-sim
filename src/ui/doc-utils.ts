@@ -207,6 +207,11 @@ export function getTextContent(doc: ForgeDoc): string {
  *
  * UserPicker is also absent for similar reasons — its `onChange` shape is
  * domain-specific (`UserPickerValue`), not a synthetic event.
+ *
+ * Range, DatePicker, and TimePicker are absent too (eval-10 F1): real
+ * Atlaskit fires `onChange(value)` with a raw number (Range) or string
+ * (DatePicker/TimePicker) — never an event. Injecting `target.type` for
+ * them would legitimize an event shape production never emits.
  */
 const FIELD_NATIVE_TYPES: Record<string, string> = {
   Textfield: 'text',
@@ -216,9 +221,6 @@ const FIELD_NATIVE_TYPES: Record<string, string> = {
   Radio: 'radio',
   RadioGroup: 'radio',
   Toggle: 'checkbox',
-  DatePicker: 'date',
-  TimePicker: 'time',
-  Range: 'range',
 };
 
 /** True if `arg` looks like a synthetic-event object (has `target`). */

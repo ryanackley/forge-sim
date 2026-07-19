@@ -1195,6 +1195,11 @@ export class SimulatorUI {
    * `options` prop (or `Option` children) and fires onChange with that option
    * object, matching production behavior. (F2)
    *
+   * Range, DatePicker, and TimePicker are raw-value cases too: real Atlaskit
+   * fires `onChange(value: number)` for Range and `onChange(value: string)`
+   * for DatePicker/TimePicker — no event object. fillField fires the raw
+   * value so handlers see the same shape sim and prod. (eval-10 F1)
+   *
    * Searches Textfield, TextArea, Checkbox, Toggle, Select, RadioGroup,
    * DatePicker, TimePicker, UserPicker, Range, CheckboxGroup. Throws if
    * no field with that name is found.
@@ -1257,6 +1262,25 @@ export class SimulatorUI {
       const isMulti = fieldNode.props.isMulti === true;
       const selected = resolveSelectValue(value, options, name, isMulti);
       simulateEvent(fieldNode, 'onChange', selected);
+      return;
+    }
+
+    // ── Range / DatePicker / TimePicker: raw-value firing (eval-10 F1) ───
+    // Real Atlaskit fires raw values for these, not events:
+    //   <Range>      → onChange(value: number)
+    //   <DatePicker> → onChange(value: string)   ('' on clear)
+    //   <TimePicker> → onChange(value: string)
+    // The renderer passes onChange straight through to Atlaskit, so firing a
+    // synthetic {target: {value}} event here was a parity violation — the
+    // same class of bug as Select pre-F2: sim-only handler code (reading
+    // e.target.value) would break in production, and production-correct
+    // handlers (reading the raw value) got an object in sim.
+    if (fieldNode.type === 'Range') {
+      simulateEvent(fieldNode, 'onChange', Number(value));
+      return;
+    }
+    if (fieldNode.type === 'DatePicker' || fieldNode.type === 'TimePicker') {
+      simulateEvent(fieldNode, 'onChange', value == null ? '' : String(value));
       return;
     }
 

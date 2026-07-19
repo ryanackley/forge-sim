@@ -465,7 +465,7 @@ describe('sim.ui.fillField — Select (F2)', () => {
       .toThrow(/Select\[name="tags"\] is isMulti — fillField expects an array/);
   });
 
-  it('preserves defaultValue typing — unfilled Select keeps useForm defaultValue verbatim', async () => {
+  it('preserves defaultValue typing — unfilled Select keeps useForm defaultValue verbatim (F2)', async () => {
     // Submit without filling role. Real Forge: defaultValue 'member' (string)
     // is kept until the user picks an option, at which point it morphs to
     // {label, value}. The existing "respects defaultValues" test asserts the
@@ -475,5 +475,76 @@ describe('sim.ui.fillField — Select (F2)', () => {
     await new Promise<void>((r) => setTimeout(r, 10));
     const text = sim.ui.getTextContent(sim.ui.getForgeDoc('form-page')!);
     expect(text).toContain('"role":"member"'); // raw string, not yet option
+  });
+});
+
+/**
+ * Eval-10 F1 — fillField on Range/DatePicker/TimePicker must fire the raw
+ * value real Atlaskit emits (number for Range, string for the pickers), NOT
+ * a synthetic {target: {value}} event. Previously the generic event fallback
+ * fired an event shape production never emits: production-correct handlers
+ * (reading the raw value) received an object in sim, and sim-only handlers
+ * (reading e.target.value) would break in production. Same parity class as
+ * the Select F2 fix above.
+ */
+describe('sim.ui.fillField — Range/DatePicker/TimePicker raw values (eval-10 F1)', () => {
+  let sim: ForgeSimulator;
+
+  beforeAll(async () => {
+    sim = createSimulator();
+    await sim.deploy(FIXTURE);
+  });
+
+  afterAll(async () => {
+    await sim.stop();
+  });
+
+  it('Range fires onChange with a raw number — handler sees typeof number', async () => {
+    await sim.ui.render('form-page');
+    sim.ui.fillField('form-page', 'brightness', 7);
+    await new Promise<void>((r) => setTimeout(r, 10));
+    const text = sim.ui.getTextContent(sim.ui.getForgeDoc('form-page')!);
+    expect(text).toContain('brightness-watch: number:7');
+  });
+
+  it('Range coerces a numeric string to number (Atlaskit never emits strings)', async () => {
+    await sim.ui.render('form-page');
+    sim.ui.fillField('form-page', 'brightness', '3');
+    await new Promise<void>((r) => setTimeout(r, 10));
+    const text = sim.ui.getTextContent(sim.ui.getForgeDoc('form-page')!);
+    expect(text).toContain('brightness-watch: number:3');
+  });
+
+  it('DatePicker fires onChange with a raw string — handler sees typeof string', async () => {
+    await sim.ui.render('form-page');
+    sim.ui.fillField('form-page', 'dueDate', '2026-07-18');
+    await new Promise<void>((r) => setTimeout(r, 10));
+    const text = sim.ui.getTextContent(sim.ui.getForgeDoc('form-page')!);
+    expect(text).toContain('dueDate-watch: string:2026-07-18');
+  });
+
+  it('DatePicker clear (null) fires the empty string, matching Atlaskit', async () => {
+    await sim.ui.render('form-page');
+    sim.ui.fillField('form-page', 'dueDate', '2026-07-18');
+    sim.ui.fillField('form-page', 'dueDate', null);
+    await new Promise<void>((r) => setTimeout(r, 10));
+    const text = sim.ui.getTextContent(sim.ui.getForgeDoc('form-page')!);
+    expect(text).toContain('dueDate-watch: string:');
+    expect(text).not.toContain('dueDate-watch: string:2026-07-18');
+  });
+
+  it('RHF-registered Range/DatePicker/TimePicker store raw values in form state', async () => {
+    await sim.ui.render('form-page');
+    sim.ui.fillField('form-page', 'name', 'Pat');
+    sim.ui.fillField('form-page', 'volume', 75);
+    sim.ui.fillField('form-page', 'startDate', '2026-07-18');
+    sim.ui.fillField('form-page', 'startTime', '14:30');
+    await sim.ui.submitForm('form-page');
+    await new Promise<void>((r) => setTimeout(r, 10));
+    const text = sim.ui.getTextContent(sim.ui.getForgeDoc('form-page')!);
+    // Parity: raw number (unquoted) and raw strings — not event objects.
+    expect(text).toContain('"volume":75');
+    expect(text).toContain('"startDate":"2026-07-18"');
+    expect(text).toContain('"startTime":"14:30"');
   });
 });

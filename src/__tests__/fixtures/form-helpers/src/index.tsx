@@ -2,13 +2,16 @@ import { useState } from 'react';
 import ForgeReconciler, {
   Button,
   Checkbox,
+  DatePicker,
   Form,
   FormSection,
   Label,
+  Range,
   Select,
   Text,
   TextArea,
   Textfield,
+  TimePicker,
   Toggle,
   useForm,
 } from '@forge/react';
@@ -21,6 +24,9 @@ type FormShape = {
   tags: Array<{ label: string; value: string }>;
   newsletter: boolean;
   premium: boolean;
+  volume: number;
+  startDate: string;
+  startTime: string;
 };
 
 const App = () => {
@@ -37,6 +43,11 @@ const App = () => {
   // pattern where the dev unwraps the option in onChange. fillField should
   // still fire the option-object shape; the handler does the unwrap.
   const [team, setTeam] = useState<string>('platform');
+  // Raw-value fields (eval-10 F1): real Atlaskit fires onChange(value) with
+  // a raw number (Range) / string (DatePicker, TimePicker) — never an event.
+  // These handlers record typeof so tests can pin the delivered shape.
+  const [brightness, setBrightness] = useState<string>('');
+  const [dueDate, setDueDate] = useState<string>('');
 
   const onSubmit = (data: FormShape) => {
     setSubmitted(JSON.stringify({ ...data, team }));
@@ -91,6 +102,36 @@ const App = () => {
 
         <Checkbox {...register('newsletter')} label="Subscribe" />
         <Toggle {...register('premium')} label="Premium" />
+
+        <Label labelFor="volume">Volume</Label>
+        <Range {...register('volume')} min={0} max={100} step={1} />
+
+        <Label labelFor="startDate">Start date</Label>
+        <DatePicker {...register('startDate')} />
+
+        <Label labelFor="startTime">Start time</Label>
+        <TimePicker {...register('startTime')} />
+
+        <Label labelFor="brightness">Brightness</Label>
+        <Range
+          name="brightness"
+          min={0}
+          max={10}
+          onChange={(v: number) => {
+            // Manual onChange — records the delivered shape for parity tests.
+            setBrightness(`${typeof v}:${v}`);
+          }}
+        />
+        <Text>{`brightness-watch: ${brightness}`}</Text>
+
+        <Label labelFor="dueDate">Due date</Label>
+        <DatePicker
+          name="dueDate"
+          onChange={(v: string) => {
+            setDueDate(`${typeof v}:${v}`);
+          }}
+        />
+        <Text>{`dueDate-watch: ${dueDate}`}</Text>
       </FormSection>
       <Button type="submit" appearance="primary">Submit</Button>
       {submitted && <Text>{`submitted: ${submitted}`}</Text>}

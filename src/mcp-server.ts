@@ -725,7 +725,8 @@ server.tool(
   'Fill form fields BY NAME and optionally submit — the reliable way to drive UIKit forms. ' +
   'Prefer this over `forge_ui_interact` for form input: it targets `name="..."` props directly ' +
   '(no positional nthMatch guessing), fires the exact event shape each field type expects ' +
-  '(Select gets the react-select {label, value} option object, Checkbox/Toggle get target.checked), ' +
+  '(Select gets the react-select {label, value} option object, Checkbox/Toggle get target.checked, ' +
+  'Range gets a raw number, DatePicker/TimePicker get raw strings — matching real Atlaskit), ' +
   'and settles pending effects before filling so a late useEffect cannot clobber the value. ' +
   'Handles Textfield, TextArea, Checkbox, CheckboxGroup, Radio, RadioGroup, Toggle, Select, ' +
   'DatePicker, TimePicker, UserPicker, Range. With `submit: true`, fires the <Form> onSubmit ' +
