@@ -365,4 +365,40 @@ describe('SimulatedLLM', () => {
       expect(logFn).toHaveBeenCalledWith('info', expect.stringContaining('mock'));
     });
   });
+
+  // ── API key resolution (eval-10 F3) ──────────────────────────────────
+
+  describe('getApiKey', () => {
+    const ORIGINAL = process.env.ANTHROPIC_API_KEY;
+
+    afterEach(() => {
+      if (ORIGINAL === undefined) delete process.env.ANTHROPIC_API_KEY;
+      else process.env.ANTHROPIC_API_KEY = ORIGINAL;
+    });
+
+    it('non-blank env var wins over config', () => {
+      llm.setApiKey('sk-config');
+      process.env.ANTHROPIC_API_KEY = 'sk-env';
+      expect(llm.getApiKey()).toBe('sk-env');
+    });
+
+    it('set-but-empty env var does NOT mask a configured key (eval-10 F3)', () => {
+      llm.setApiKey('sk-config');
+      process.env.ANTHROPIC_API_KEY = '';
+      expect(llm.getApiKey()).toBe('sk-config');
+    });
+
+    it('whitespace-only env var does NOT mask a configured key', () => {
+      llm.setApiKey('sk-config');
+      process.env.ANTHROPIC_API_KEY = '   ';
+      expect(llm.getApiKey()).toBe('sk-config');
+    });
+
+    it('empty env var with no config key still throws NO_API_KEY on chat()', async () => {
+      process.env.ANTHROPIC_API_KEY = '';
+      await expect(
+        llm.chat({ model: 'claude-sonnet-4-5-20250929', messages: [{ role: 'user', content: 'Hi' }] }),
+      ).rejects.toMatchObject({ code: 'NO_API_KEY' });
+    });
+  });
 });

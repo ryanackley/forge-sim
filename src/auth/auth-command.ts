@@ -123,7 +123,7 @@ export async function authCommand(options: AuthCommandOptions): Promise<void> {
     console.log('');
     const llmKey = await getAnthropicApiKey();
     if (llmKey) {
-      const source = process.env.ANTHROPIC_API_KEY ? 'env' : 'config';
+      const source = process.env.ANTHROPIC_API_KEY?.trim() ? 'env' : 'config';
       const masked = maskApiKey(llmKey);
       console.log(`  Anthropic API (LLM): ✅ ${masked} [${source}]`);
     } else {

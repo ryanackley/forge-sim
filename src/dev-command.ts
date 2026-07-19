@@ -1966,7 +1966,7 @@ export async function devCommand(options: DevCommandOptions) {
       const llmKey = await getAnthropicApiKey();
       if (llmKey) {
         sim.llm.setApiKey(llmKey);
-        const source = process.env.ANTHROPIC_API_KEY ? 'env' : 'config';
+        const source = process.env.ANTHROPIC_API_KEY?.trim() ? 'env' : 'config';
         console.log(`  🤖 Loaded Anthropic API key (${source})`);
       }
     } catch {}

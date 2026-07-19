@@ -162,15 +162,24 @@ export class SimulatedLLM {
 
   /**
    * Set the API key from config (loaded at deploy time).
-   * process.env.ANTHROPIC_API_KEY still takes precedence at call time.
+   * A non-blank process.env.ANTHROPIC_API_KEY still takes precedence at call time.
    */
   setApiKey(key: string): void {
     this.configApiKey = key;
   }
 
-  /** Get the active API key (env wins over config). */
+  /**
+   * Get the active API key (env wins over config).
+   *
+   * Eval-10 F3: a set-but-empty ANTHROPIC_API_KEY (common in CI and leftover
+   * shell exports) must NOT mask a configured key — `??` treated '' as
+   * present, so chat() threw NO_API_KEY while the startup banner claimed the
+   * config key was loaded. Blank/whitespace env falls through to config.
+   */
   getApiKey(): string | null {
-    return process.env.ANTHROPIC_API_KEY ?? this.configApiKey;
+    const envKey = process.env.ANTHROPIC_API_KEY?.trim();
+    if (envKey) return envKey;
+    return this.configApiKey;
   }
 
   // ── Public API ──────────────────────────────────────────────────────

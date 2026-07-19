@@ -58,7 +58,8 @@ export async function dropOAuthAppConfig(): Promise<boolean> {
  * Get Anthropic API key. Env var takes precedence over config file.
  */
 export async function getAnthropicApiKey(): Promise<string | null> {
-  const envKey = process.env.ANTHROPIC_API_KEY;
+  // Blank/whitespace env vars count as absent (eval-10 F3).
+  const envKey = process.env.ANTHROPIC_API_KEY?.trim();
   if (envKey) return envKey;
 
   const config = await loadConfig();

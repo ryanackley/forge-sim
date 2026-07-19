@@ -1584,7 +1584,7 @@ server.tool(
     const llmKey = sim.llm.getApiKey();
     output.llm = {
       configured: !!llmKey,
-      source: llmKey ? (process.env.ANTHROPIC_API_KEY ? 'env' : 'config') : null,
+      source: llmKey ? (process.env.ANTHROPIC_API_KEY?.trim() ? 'env' : 'config') : null,
     };
 
     return {

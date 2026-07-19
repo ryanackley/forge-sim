@@ -1182,7 +1182,7 @@ export class ForgeSimulator {
       const llmKey = await getAnthropicApiKey();
       if (llmKey) {
         this.llm.setApiKey(llmKey);
-        const source = process.env.ANTHROPIC_API_KEY ? 'env' : 'config';
+        const source = process.env.ANTHROPIC_API_KEY?.trim() ? 'env' : 'config';
         result.llm = { configured: true, source };
         this.log('info', `Loaded Anthropic API key (${source})`);
       }
