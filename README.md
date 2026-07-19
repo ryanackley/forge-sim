@@ -1,21 +1,22 @@
 # forge-sim
 
-A local simulated runtime for [Forge](https://developer.atlassian.com/platform/forge/), Atlassian's platform for building apps that run inside their cloud products, three ways to drive it:
+A local, simulated runtime for [Forge](https://developer.atlassian.com/platform/forge/), Atlassian's platform for building apps that run inside their cloud products, three ways to drive it:
 
-* **Automated testing** — Forge ships no test harness: today your options are mocking or shimming every `@forge/*` import by hand, or deploying to find out. forge-sim gives you a robust API: invoke resolvers, fire product events, assert on KVS/SQL state and rendered UIKit output. No network or credentials required, runs in CI.
+* **Automated testing** — Forge doesn't come with a test harness. Out of the box, your options are mocking or shimming every `@forge/*` import by hand, or deploying to find out. forge-sim gives you a robust API for automated testing. You can invoke resolvers, fire product events, assert on KVS/SQL state and rendered UIKit output. No network or credentials required, runs in CI.
 
-* **Local development** — think LocalStack for Forge. Skip the deploy-to-cloud step and run your app against simulated storage, product APIs, and triggers, with dev tools for inspecting Forge state as you go. Orders of magnitude faster than iterating via `forge tunnel`
+* **Local development** — think LocalStack for Forge. It collapses the deploy-wait-debug iteration loop by giving you an instantaneous deploy to a local runtime. Run your app against simulated storage, product APIs, and triggers, with dev tools for inspecting Forge state as you go. Orders of magnitude faster than iterating via `forge tunnel`
 
-* **AI-assisted development (MCP)** — let an agent deploy, invoke, render, and inspect your app in a simulated Forge environment via MCP tools instead of handing it your cloud credentials or a browser pointed at your dev site. Faster feedback — and you control the blast radius: fully sandboxed until you connect a real account.
+* **AI-assisted development (MCP)** — let an agent deploy, invoke, render, and inspect your app in a simulated Forge environment via MCP tools instead of handing it your cloud credentials or a browser pointed at your dev site. Faster feedback and you control the blast radius: fully sandboxed until you connect a real account.
+
+**This project is not endorsed by or affiliated with Atlassian**
 
 ## Scope
 
-forge-sim aims for behavioral parity for the most part (see [Known limitations](#known-limitations) below): if it works in forge-sim, it should
-work in Forge, and vice versa. The [implementation matrix](./docs/reference/implementation-matrix.md)
+forge-sim is a *mostly* truthful forge implementation. The goal is if it works in forge-sim, it should work in Forge, and vice versa. That said, there is a lot of real estate to cover. The [implementation matrix](./docs/reference/implementation-matrix.md)
 shows exactly what's implemented and how faithfully. If something you rely on
 is missing or behaves differently, please [open an issue](https://github.com/ryanackley/forge-sim/issues).
 
-**This is a development tool**. Iterate here, then deploy and test in-product to look for behavioral differences.
+Keep in mind, **This is a development tool**. Iterate here, then deploy and test in-product to look for behavioral differences.
 
 ## Installation
 
@@ -209,8 +210,9 @@ Reset everything:     forge-sim reset
 - **No app lifecycle triggers** — install/uninstall/enable/disable don't fire
 - **No rate or memory limits** — Forge's per-app limits aren't simulated
 - **`context.environmentType` defaults to `DEVELOPMENT`** — override per render/invoke to simulate staging/prod
+- **Other behavioral quirks** - Too many to list here. It's important to test your app in-product. 
 
-See the [implementation matrix](./docs/reference/implementation-matrix.md) for full coverage detail.
+Also see the [implementation matrix](./docs/reference/implementation-matrix.md) for full coverage detail.
 
 ## Documentation
 
