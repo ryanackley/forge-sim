@@ -1,6 +1,6 @@
 {
   "name": "forge-sim",
-  "version": "0.1.10",
+  "version": "0.1.11",
   "description": "Simulated Forge runtime for AI-driven development and testing",
   "license": "MIT",
   "repository": {
