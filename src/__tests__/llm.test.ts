@@ -146,7 +146,8 @@ describe('SimulatedLLM', () => {
         messages: [{ role: 'user', content: 'Hi' }],
       });
 
-      expect(r.usage).toEqual({ input_token: 0, output_token: 0, total_token: 0 });
+      // Plural keys — real @forge/llm Usage shape (eval-10 F9).
+      expect(r.usage).toEqual({ input_tokens: 0, output_tokens: 0, total_tokens: 0 });
     });
   });
 

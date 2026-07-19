@@ -66,7 +66,10 @@ export interface LlmChoice {
 
 export interface LlmResponse {
   choices: LlmChoice[];
-  usage?: { input_token?: number; output_token?: number; total_token?: number };
+  // Real @forge/llm Usage keys are plural (out/interfaces/internal.d.ts) —
+  // we shipped singular keys until eval-10 F9 caught the mismatch, so any
+  // prod code reading response.usage.input_tokens got undefined in the sim.
+  usage?: { input_tokens?: number; output_tokens?: number; total_tokens?: number };
 }
 
 export interface LlmStreamResponse extends AsyncIterable<LlmResponse> {
@@ -474,9 +477,9 @@ export class SimulatedLLM {
     return {
       choices: [choice],
       usage: {
-        input_token: res.usage.input_tokens,
-        output_token: res.usage.output_tokens,
-        total_token: res.usage.input_tokens + res.usage.output_tokens,
+        input_tokens: res.usage.input_tokens,
+        output_tokens: res.usage.output_tokens,
+        total_tokens: res.usage.input_tokens + res.usage.output_tokens,
       },
     };
   }
@@ -498,7 +501,7 @@ export class SimulatedLLM {
           ...(mock.tool_calls ? { tool_calls: mock.tool_calls } : {}),
         },
       }],
-      usage: { input_token: 0, output_token: 0, total_token: 0 },
+      usage: { input_tokens: 0, output_tokens: 0, total_tokens: 0 },
     };
   }
 }
