@@ -29,6 +29,34 @@ The **dev tools UI** at `http://localhost:5173/__tools/` is a window into the si
 
 See [Dev tools UI](./dev-tools.md) for the full walkthrough.
 
+## The ⚙️ gear menu: preview width and color mode
+
+Every rendered UIKit module gets a small **`⚙️ forge-sim`** button pinned to the bottom-right corner. Click it to open the render settings popover. It's dev-only chrome — it is not part of your app and never appears in a real Forge render.
+
+### Color mode
+
+Switch between **Light**, **Dark**, and **Auto**. Auto follows your OS `prefers-color-scheme` setting (the button shows which mode it currently resolves to). This drives Atlaskit's real theming machinery — the correct theme stylesheet is loaded and every design token flips — so your module renders exactly as it would in Jira or Confluence with the user's theme set to dark. Great for catching hardcoded colors that ignore design tokens.
+
+The choice persists across restarts (stored in browser `localStorage`) and applies to all modules.
+
+> Custom UI modules theme differently: real Forge passes `?theme=dark|light` on the iframe URL, and forge-sim matches that contract — see [Theme in the CLI reference](../reference/cli.md#theme-dark--light).
+
+### Preview width
+
+Forge modules render at very different widths depending on where they live in the product — an issue panel gets a narrow column while a global page gets most of the viewport. The width presets mirror the real surface widths:
+
+| Preset | Width | Matches |
+|--------|-------|---------|
+| **Narrow** | ~700px | Issue panels, modals |
+| **Standard** | ~900px | Full-page apps |
+| **Wide** | ~1280px | Global / project pages |
+| **Full width** | 100% | Dashboards, edge cases |
+| **Custom** | your call | Pixel input (200–4000) |
+
+forge-sim picks a sensible default from the module's type — `jira:issuePanel` starts narrow, `jira:globalPage` starts wide, `jira:dashboardGadget` starts full — and marks that preset with a **• module default** badge in the menu. Override it freely; your choice is remembered **per module**, so your issue panel and your admin page each keep their own width.
+
+The popover footer shows the detected module type so you can confirm which default applied.
+
 ## Custom UI and proxy mode
 
 Custom UI pages that are already bundled and referenced in your manifest work out of the box; forge-sim serves them and injects the `@forge/bridge` shim.
