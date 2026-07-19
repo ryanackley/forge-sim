@@ -155,7 +155,7 @@ The primary key-value storage package.
 
 ## @forge/sql
 
-Forge SQL — relational data with real MySQL.
+Forge SQL: relational data with real MySQL.
 
 | API | Status | Tests | Notes |
 |-----|--------|-------|-------|
@@ -242,7 +242,7 @@ Range requests.
 | `objectStore.createCDNUrl(key, options?)` | ✅ | `object-store.test.ts` | CDN URL with cache options |
 | `objectStore.get(key, options?)` | ✅ | `object-store.test.ts` | Returns `ObjectReference` metadata or `undefined` |
 | `objectStore.delete(key, options?)` | ✅ | `object-store.test.ts` | Deleting an absent key succeeds (Forge parity) |
-| `errorCodes` | ✅ | — | `UNKNOWN_ERROR`, `APP_NOT_ENABLED`, `RATE_LIMIT_EXCEEDED` — matches real @forge/object-store 2.0.0 exports |
+| `errorCodes` | ✅ | — | `UNKNOWN_ERROR`, `APP_NOT_ENABLED`, `RATE_LIMIT_EXCEEDED` (matches real @forge/object-store 2.0.0 exports) |
 | `objectStore.put(key, data, ttl?)` / `.download(key)` | ⚠️ | `object-store.test.ts` | Sim-only conveniences, marked `@deprecated` — real package requires the pre-signed URL flow |
 
 **MCP:** `forge_objectstore_put`, `forge_objectstore_get`, `forge_objectstore_list`, `forge_objectstore_delete`, `forge_objectstore_create_download_url`.
@@ -377,7 +377,7 @@ UIKit components and hooks. The reconciler produces ForgeDoc.
 | `InlineEdit` | ✅ | — | Re-exported from @forge/react, rendered via @atlaskit/inline-edit |
 | `Popup` | ⚠️ | — | Portal flickers under React.StrictMode, same @atlaskit/portal bug as Tooltip. Works with StrictMode off. |
 | `Comment` | ✅ | — | Re-exported + styled comment block with author/time |
-| `AdfRenderer` | ✅ | — | Real `@atlaskit/renderer` (ReactRenderer) — pixel-perfect ADF rendering |
+| `AdfRenderer` | ✅ | — | Real `@atlaskit/renderer` (ReactRenderer), pixel-perfect ADF rendering |
 | `Global` | ✅ | — | Re-exported, renders sidebar + main layout |
 | `User` | ✅ | — | Re-exported, renders avatar + accountId badge |
 | `UserGroup` | ✅ | — | Re-exported, renders grouped user avatars |

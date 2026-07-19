@@ -31,19 +31,19 @@ See [Dev tools UI](./dev-tools.md) for the full walkthrough.
 
 ## The ⚙️ gear menu: preview width and color mode
 
-Every rendered UIKit module gets a small **`⚙️ forge-sim`** button pinned to the bottom-right corner. Click it to open the render settings popover. It's dev-only chrome — it is not part of your app and never appears in a real Forge render.
+Every rendered UIKit module gets a small **`⚙️ forge-sim`** button pinned to the bottom-right corner. Click it to open the render settings popover. It's dev-only chrome: not part of your app, and it never appears in a real Forge render.
 
 ### Color mode
 
-Switch between **Light**, **Dark**, and **Auto**. Auto follows your OS `prefers-color-scheme` setting (the button shows which mode it currently resolves to). This drives Atlaskit's real theming machinery — the correct theme stylesheet is loaded and every design token flips — so your module renders exactly as it would in Jira or Confluence with the user's theme set to dark. Great for catching hardcoded colors that ignore design tokens.
+Switch between **Light**, **Dark**, and **Auto**. Auto follows your OS `prefers-color-scheme` setting (the button shows which mode it currently resolves to). This drives Atlaskit's real theming machinery (the correct theme stylesheet is loaded and every design token flips), so your module renders exactly as it would in Jira or Confluence with the user's theme set to dark. Great for catching hardcoded colors that ignore design tokens.
 
 The choice persists across restarts (stored in browser `localStorage`) and applies to all modules.
 
-> Custom UI modules theme differently: real Forge passes `?theme=dark|light` on the iframe URL, and forge-sim matches that contract — see [Theme in the CLI reference](../reference/cli.md#theme-dark--light).
+> Custom UI modules theme differently: real Forge passes `?theme=dark|light` on the iframe URL, and forge-sim matches that contract; see [Theme in the CLI reference](../reference/cli.md#theme-dark--light).
 
 ### Preview width
 
-Forge modules render at very different widths depending on where they live in the product — an issue panel gets a narrow column while a global page gets most of the viewport. The width presets mirror the real surface widths:
+Forge modules render at very different widths depending on where they live in the product: an issue panel gets a narrow column while a global page gets most of the viewport. The width presets mirror the real surface widths:
 
 | Preset | Width | Matches |
 |--------|-------|---------|
@@ -53,7 +53,7 @@ Forge modules render at very different widths depending on where they live in th
 | **Full width** | 100% | Dashboards, edge cases |
 | **Custom** | your call | Pixel input (200–4000) |
 
-forge-sim picks a sensible default from the module's type — `jira:issuePanel` starts narrow, `jira:globalPage` starts wide, `jira:dashboardGadget` starts full — and marks that preset with a **• module default** badge in the menu. Override it freely; your choice is remembered **per module**, so your issue panel and your admin page each keep their own width.
+forge-sim picks a sensible default from the module's type (`jira:issuePanel` starts narrow, `jira:globalPage` starts wide, `jira:dashboardGadget` starts full) and marks that preset with a **• module default** badge in the menu. Override it freely; your choice is remembered **per module**, so your issue panel and your admin page each keep their own width.
 
 The popover footer shows the detected module type so you can confirm which default applied.
 
@@ -89,7 +89,7 @@ Credential plumbing shared by all three (account management, storage locations, 
 
 ## File-based mocks: `.forge-sim/mocks.json`
 
-Without a connected real site, unmocked product API calls return a `501`. You can register mocks at runtime from the dev tools UI or its HTTP API — but anything that runs **during boot** (deploy-time scheduled triggers, resolver warm-up paths) executes before you get the chance. For those, put mocks in a file and they're applied *before* the initial deploy:
+Without a connected real site, unmocked product API calls return a `501`. You can register mocks at runtime from the dev tools UI or its HTTP API, but anything that runs **during boot** (deploy-time scheduled triggers, resolver warm-up paths) executes before you get the chance. For those, put mocks in a file and they're applied *before* the initial deploy:
 
 ```json
 // <your-app>/.forge-sim/mocks.json
@@ -130,9 +130,9 @@ Forge apps read configuration from `process.env` (set in production via `forge v
 
 - **Host environment variables prefixed `FORGE_USER_VAR_`** — `FORGE_USER_VAR_MY_KEY=x forge-sim dev` exposes `process.env.MY_KEY` to your app. This is the same convention `forge tunnel` uses, so a tunnel-ready environment works unchanged. `variables.json` wins when both define a key.
 
-Matching real Forge: changes take effect at the **next deploy** (in dev mode, saving an app file triggers one), and `encrypt` only masks the value in list surfaces — your app always reads cleartext from `process.env`.
+Matching real Forge: changes take effect at the **next deploy** (in dev mode, saving an app file triggers one), and `encrypt` only masks the value in list surfaces; your app always reads cleartext from `process.env`.
 
-For tests, use `sim.setVariables()` before `sim.deploy()` — see the [API reference](../reference/api.md#environment-variables).
+For tests, use `sim.setVariables()` before `sim.deploy()`; see the [API reference](../reference/api.md#environment-variables).
 
 ## Debugging
 

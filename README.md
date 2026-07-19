@@ -2,7 +2,7 @@
 
 A local, simulated runtime for [Forge](https://developer.atlassian.com/platform/forge/), Atlassian's platform for building apps that run inside their cloud products, three ways to drive it:
 
-* **Automated testing** — Forge doesn't come with a test harness. Out of the box, your options are mocking or shimming every `@forge/*` import by hand, or deploying to find out. forge-sim gives you a robust API for automated testing. You can invoke resolvers, fire product events, assert on KVS/SQL state and rendered UIKit output. No network or credentials required, runs in CI.
+* **Automated testing** — Ihis is the missing test harness for Forge. Out of the box, your options are mocking or shimming every `@forge/*` import by hand, or deploying to find out. forge-sim gives you a robust API for automated testing. You can invoke resolvers, fire product events, assert on KVS/SQL state and rendered UIKit output. No network or credentials required, runs in CI.
 
 * **Local development** — think LocalStack for Forge. It collapses the deploy-wait-debug iteration loop by giving you an instantaneous deploy to a local runtime. Run your app against simulated storage, product APIs, and triggers, with dev tools for inspecting Forge state as you go. Orders of magnitude faster than iterating via `forge tunnel`
 
@@ -16,11 +16,11 @@ forge-sim is a *mostly* truthful forge implementation. The goal is if it works i
 shows exactly what's implemented and how faithfully. If something you rely on
 is missing or behaves differently, please [open an issue](https://github.com/ryanackley/forge-sim/issues).
 
-Keep in mind, **This is a development tool**. Iterate here, then deploy and test in-product to look for behavioral differences.
+Keep in mind, **This is a development tool**. Iterate here, then a full deploy to the Atlassian products for final testing.
 
 ## Installation
 
-Requires **Node.js 22.18+** (uses native TypeScript type stripping for `.ts` loader hooks, unflagged since 22.18). The package is **ESM-only** — `require('forge-sim')` throws `ERR_PACKAGE_PATH_NOT_EXPORTED`; use `import` (or dynamic `import()` from CommonJS).
+Requires **Node.js 22.18+** (uses native TypeScript type stripping for `.ts` loader hooks, unflagged since 22.18). The package is **ESM-only**: `require('forge-sim')` throws `ERR_PACKAGE_PATH_NOT_EXPORTED`; use `import` (or dynamic `import()` from CommonJS).
 
 ```bash
 # Global install (CLI: dev server, agent commands, MCP)
@@ -141,7 +141,7 @@ GitHub renders as an inline player. (GIFs in the repo work too: docs/media/)
 
 ## AI-driven development
 
-forge-sim gives AI agents a local Forge runtime that needs no Atlassian credentials and no deploy permissions — out of the box, an agent can write code, deploy it locally, test it, and iterate without touching a real site. If you *do* connect a real account (`forge-sim auth`), unmocked product API calls pass through to it; mocked routes always win, so you control exactly which calls stay local. Everything is reachable through CLI commands:
+forge-sim gives AI agents a local Forge runtime that needs no Atlassian credentials and no deploy permissions. Out of the box, an agent can write code, deploy it locally, test it, and iterate without touching a real site. If you *do* connect a real account (`forge-sim auth`), unmocked product API calls pass through to it; mocked routes always win, so you control exactly which calls stay local. Everything is reachable through CLI commands:
 
 ```bash
 # Deploy the app (daemon auto-starts)
@@ -183,7 +183,9 @@ The full tool list: `deploy`, `invoke`, `fire_trigger`, `fire_scheduled_trigger`
 
 ### As an AI skill
 
-The CLI surface is small enough to paste into an agent prompt:
+A packaged skill ships in this repo: [`skills/forge-local-dev`](./skills/forge-local-dev/). It teaches an agent the full develop-and-test loop (deploy, invoke, fire triggers, drive UI, inspect state) across all three driver surfaces, and knows where it fits alongside Atlassian's own forge-skills plugin (scaffolding and review stay with their skills; the iterate loop is this one). Drop it into your agent's skills directory and it activates whenever you're working on a Forge app.
+
+Prefer something lighter? The CLI surface is small enough to paste into an agent prompt:
 
 ```
 Deploy a Forge app:    forge-sim deploy <dir>

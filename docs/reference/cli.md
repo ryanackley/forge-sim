@@ -142,7 +142,7 @@ The data may also be passed positionally (`forge-sim trigger <event> '{...}'`).
 
 ### `forge-sim webtrigger`
 
-Fire a web trigger — simulates an HTTP request hitting the trigger's URL, the
+Fire a web trigger: simulates an HTTP request hitting the trigger's URL, the
 same as the dev server's `/__trigger/<key>` endpoint. Prints the handler's
 `WebTriggerResponse` as JSON; exits non-zero if the response is a 5xx (handler
 error or malformed response shape).
@@ -195,7 +195,7 @@ forge-sim kvs set config '{"debug": true}'
 
 ### `forge-sim entity`
 
-Custom Entity Store operations. Custom Entities live in their own store —
+Custom Entity Store operations. Custom Entities live in their own store;
 `forge-sim kvs list` does not show them. Writes go through the
 schema-validated entity path: an undeclared entity name or a value that
 violates the manifest schema is rejected (`ENTITY_NOT_FOUND` /

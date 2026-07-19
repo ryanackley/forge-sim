@@ -110,10 +110,10 @@ module.exports = {
 ```
 
 > **⚠️ forge-sim is ESM-only.** `require('forge-sim')` throws
-> `ERR_PACKAGE_PATH_NOT_EXPORTED` — there is no CommonJS build. Use
+> `ERR_PACKAGE_PATH_NOT_EXPORTED`; there is no CommonJS build. Use
 > `import` (or dynamic `import()` from CJS code). For Jest specifically,
 > run in ESM mode (`"type": "module"` in package.json, or
-> `extensionsToTreatAsEsm` + `node --experimental-vm-modules`) — a default
+> `extensionsToTreatAsEsm` + `node --experimental-vm-modules`); a default
 > CJS Jest config will fail to load forge-sim regardless of the mapper
 > entries above. Vitest is ESM-native and needs nothing extra.
 
@@ -173,7 +173,7 @@ describe('My Forge App', () => {
 
 ### Anatomy of a Manifest
 
-forge-sim reads your standard, unmodified `manifest.yml` — the format is Atlassian's, and the authoritative documentation is the [Forge manifest reference](https://developer.atlassian.com/platform/forge/manifest-reference/). If you're new to Forge manifests, start there.
+forge-sim reads your standard, unmodified `manifest.yml`. The format is Atlassian's, and the authoritative documentation is the [Forge manifest reference](https://developer.atlassian.com/platform/forge/manifest-reference/). If you're new to Forge manifests, start there.
 
 What *is* forge-sim's job is how each module type maps to the sim API that exercises it:
 
@@ -473,7 +473,7 @@ it('handles empty search results', async () => {
 
 Calls to `mockProductRoutes()` **merge**: routes accumulate across calls as if
 they'd all been passed in one call, and re-registering the same
-`"METHOD /path"` key updates that route's response in place — so the mid-test
+`"METHOD /path"` key updates that route's response in place, so the mid-test
 update above changes only the search route and leaves `GET /rest/api/3/myself`
 intact. Matching is first-match-wins in registration order with prefix path
 matching. Wipe everything with `sim.reset()`.
@@ -481,7 +481,7 @@ matching. Wipe everything with `sim.reset()`.
 #### Error responses with `mockResponse()`
 
 A bare object as a route value always means "200 OK with this body". To test
-failure handling — rate limits, 404s, permission errors — wrap the route value
+failure handling (rate limits, 404s, permission errors), wrap the route value
 with `mockResponse(status, body?, headers?)`:
 
 ```ts
@@ -498,7 +498,7 @@ sim.mockProductRoutes('jira', {
 });
 ```
 
-Just like real Forge, `requestJira()` does **not** throw on non-2xx — your app
+Just like real Forge, `requestJira()` does **not** throw on non-2xx; your app
 code sees `res.ok === false` and `res.status === 429`, so you're testing the
 error path your resolver actually has (or is missing):
 
@@ -520,7 +520,7 @@ sim.mockProductRoutes('jira', {
 ```
 
 `mockResponse()` returns a plain tagged object, so it survives JSON
-serialization — over the MCP boundary (where you can't import the factory)
+serialization. Over the MCP boundary (where you can't import the factory),
 construct the literal shape directly:
 
 ```json
@@ -960,7 +960,7 @@ The things that have eaten the most debugging time. Check here first when a test
 
 ### `useEffect` + `invoke()` returns the loading state
 
-`sim.ui.render()` only awaits the **initial** reconcile. If your component fetches data in a `useEffect` and re-renders when it lands, the rendered tree from `render()` is the pre-fetch state (`<Text>Loading…</Text>` or similar). Fix: chase it with `sim.ui.waitForContent(moduleKey, expectedText)` — it waits for the text **and** for the UI to settle (renders quiet, zero pending invokes), so the doc it returns is safe to `fillField`/`interact` with immediately. If you rendered manually and don't have a text landmark, `await sim.ui.settle(moduleKey)` does the same settling without the text match. Same applies to the MCP `forge_ui_render` tool; use `forge_ui_wait_for` to settle. See [renderer.md § Server-mode useEffect and async state](../reference/renderer.md#server-mode-useeffect-and-async-state).
+`sim.ui.render()` only awaits the **initial** reconcile. If your component fetches data in a `useEffect` and re-renders when it lands, the rendered tree from `render()` is the pre-fetch state (`<Text>Loading…</Text>` or similar). Fix: chase it with `sim.ui.waitForContent(moduleKey, expectedText)`, which waits for the text **and** for the UI to settle (renders quiet, zero pending invokes), so the doc it returns is safe to `fillField`/`interact` with immediately. If you rendered manually and don't have a text landmark, `await sim.ui.settle(moduleKey)` does the same settling without the text match. Same applies to the MCP `forge_ui_render` tool; use `forge_ui_wait_for` to settle. See [renderer.md § Server-mode useEffect and async state](../reference/renderer.md#server-mode-useeffect-and-async-state).
 
 ### Scheduled triggers fire during `deploy()` — mock product APIs first
 
@@ -985,7 +985,7 @@ await sim.fireScheduledTrigger('daily-digest');
 
 ### `sim.sql.start()` order with migrations
 
-If your app runs migrations from a scheduled trigger, `sim.sql.start()` must run **before** `sim.deploy()` — scheduled triggers fire during deploy, so otherwise the migration trigger fires against a non-existent database and fails. Always:
+If your app runs migrations from a scheduled trigger, `sim.sql.start()` must run **before** `sim.deploy()`: scheduled triggers fire during deploy, so otherwise the migration trigger fires against a non-existent database and fails. Always:
 
 ```ts
 await sim.sql.start();
@@ -998,7 +998,7 @@ Unlike `@forge/api` / `@forge/kvs` / etc., there is no `forge-sim/shims/forge-sq
 
 ### `sim.reset()` wipes mocks too
 
-`sim.reset()` is total: KVS, SQL, queues, resolvers, logs, LLM mocks, the lot — including module wiring (consumer registrations, entity schemas), so you must re-`deploy()` after a reset. If your tests share a sim across `it()` blocks via `beforeAll`/`afterAll`, calling `reset()` between tests can wipe the mock product routes you set up in `beforeAll`. Either re-mock in `beforeEach`, or use targeted resets like `sim.llm.reset()` / `sim.kvs.clear()` / `sim.queue.clear()` that leave the rest alone.
+`sim.reset()` is total: KVS, SQL, queues, resolvers, logs, LLM mocks, the lot, including module wiring (consumer registrations, entity schemas), so you must re-`deploy()` after a reset. If your tests share a sim across `it()` blocks via `beforeAll`/`afterAll`, calling `reset()` between tests can wipe the mock product routes you set up in `beforeAll`. Either re-mock in `beforeEach`, or use targeted resets like `sim.llm.reset()` / `sim.kvs.clear()` / `sim.queue.clear()` that leave the rest alone.
 
 The targeted `clear()` methods are safe `beforeEach` hygiene by design: they wipe runtime *data* but preserve module *wiring*. `sim.queue.clear()` keeps consumers registered; `sim.kvs.clear()` keeps entity schemas. Wiring only changes at `deploy()` and `reset()`.
 

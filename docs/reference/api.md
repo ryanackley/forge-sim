@@ -266,12 +266,12 @@ interface DeployOptions {
 ```
 Deploy a Forge app. Reads `manifest.yml`, imports handlers, wires resolvers/consumers/triggers.
 
-By default, each scheduled trigger fires **once at deploy time**. This mirrors real Forge, where every scheduled trigger starts ~5 minutes after deployment (and redeploys reset/re-create them) — and it's what runs migration triggers before your tests touch the database. If a scheduled job has side effects you don't want on every deploy (daily digest, outbound webhook), pass `{ fireScheduledTriggers: false }` and fire it explicitly with `sim.fireScheduledTrigger(key)`.
+By default, each scheduled trigger fires **once at deploy time**. This mirrors real Forge, where every scheduled trigger starts ~5 minutes after deployment (and redeploys reset/re-create them). It's also what runs migration triggers before your tests touch the database. If a scheduled job has side effects you don't want on every deploy (daily digest, outbound webhook), pass `{ fireScheduledTriggers: false }` and fire it explicitly with `sim.fireScheduledTrigger(key)`.
 
 ```typescript no-check
 sim.reset(): Promise<void>
 ```
-Reset all state (KVS, queues, resolvers, UI, logs) **including module wiring** — consumer registrations and entity schemas are torn down, so call `deploy()` again afterwards. Async — SQL table drops are FK-aware and must be awaited; an unawaited reset can race the next deploy's migrations. Does not stop the SQL server.
+Reset all state (KVS, queues, resolvers, UI, logs) **including module wiring**: consumer registrations and entity schemas are torn down, so call `deploy()` again afterwards. It's async (SQL table drops are FK-aware and must be awaited); an unawaited reset can race the next deploy's migrations. Does not stop the SQL server.
 
 ```typescript no-check
 sim.stop(): Promise<void>
@@ -291,7 +291,7 @@ sim.unsetVariable(key: string): boolean
 sim.listVariables(): VariableListEntry[]
 ```
 
-Simulates `forge variables set`. Variables are injected into `process.env` **at deploy time, before handler modules load** — set them before calling `sim.deploy()`. Changing a variable does not take effect until the next deploy, exactly like real Forge (its #1 env-var footgun). `encrypt: true` only masks the value in `listVariables()` output; app code always reads cleartext from `process.env`, matching Forge's encrypted-at-rest-only semantics.
+Simulates `forge variables set`. Variables are injected into `process.env` **at deploy time, before handler modules load**; set them before calling `sim.deploy()`. Changing a variable does not take effect until the next deploy, exactly like real Forge (its #1 env-var footgun). `encrypt: true` only masks the value in `listVariables()` output; app code always reads cleartext from `process.env`, matching Forge's encrypted-at-rest-only semantics.
 
 Three sources, in ascending precedence:
 
@@ -299,7 +299,7 @@ Three sources, in ascending precedence:
 2. `<appDir>/.forge-sim/variables.json` — re-read at every deploy: `{ "MY_KEY": "value", "SECRET": { "value": "s3cret", "encrypt": true } }`
 3. `sim.setVariables({...})` — ephemeral, never written to disk; survives `reset()` (Forge vars are environment-scoped, not deployment-scoped)
 
-`listVariables()` returns `{ key, value, encrypt, source }` entries with encrypted values masked — the `forge variables list` view.
+`listVariables()` returns `{ key, value, encrypt, source }` entries with encrypted values masked: the `forge variables list` view.
 
 ### Resolvers & Invocation
 
@@ -360,7 +360,7 @@ Fire a scheduled trigger. Handler receives `{ context: { cloudId, moduleKey }, c
 ```typescript no-check
 sim.fireWebTrigger(triggerKey: string, request?: WebTriggerRequestInit): Promise<WebTriggerResponse>
 ```
-Fire a web trigger in-process — no HTTP server needed. The handler is called with the Forge `(request, context)` convention; the request is Forge-shaped (`method`, `path`, multi-value `headers`/`queryParameters`, string `body`). All init fields are optional — a bare `fireWebTrigger(key)` simulates `GET <trigger-url>`. Object bodies are JSON-stringified as a convenience.
+Fire a web trigger in-process, no HTTP server needed. The handler is called with the Forge `(request, context)` convention; the request is Forge-shaped (`method`, `path`, multi-value `headers`/`queryParameters`, string `body`). All init fields are optional: a bare `fireWebTrigger(key)` simulates `GET <trigger-url>`. Object bodies are JSON-stringified as a convenience.
 
 ```typescript no-check
 interface WebTriggerRequestInit {
@@ -378,7 +378,7 @@ interface WebTriggerResponse {
 }
 ```
 
-Parity note: handler exceptions and malformed results become **500 responses** (what the real webhook caller would see), never thrown errors. Only setup problems throw — no manifest, unknown trigger key, handler not loaded. Static-output triggers (`response.type: static`) resolve their configured output.
+Parity note: handler exceptions and malformed results become **500 responses** (what the real webhook caller would see), never thrown errors. Only setup problems throw: no manifest, unknown trigger key, handler not loaded. Static-output triggers (`response.type: static`) resolve their configured output.
 
 Web trigger functions are **not** resolvers: `sim.invoke()` on one throws with a pointer here, because real Forge has no bridge-invoke path to a web trigger and the calling conventions differ (`(request, context)` vs `{ payload, context }`).
 
@@ -514,7 +514,7 @@ const result = await employees.query()
 
 #### Manifest schema (`app.storage.entities`)
 
-Entities are declared in `manifest.yml` under `app.storage.entities` — the same
+Entities are declared in `manifest.yml` under `app.storage.entities`, the same
 place real Forge reads them from ([Atlassian's Custom Entities docs](https://developer.atlassian.com/platform/forge/runtime-reference/custom-entities/)).
 The simulator parses the schema at deploy time and auto-registers every entity
 with `sim.kvs`, so `entity(name).set()` validates attribute types and
@@ -554,13 +554,13 @@ Parsing rules (mirroring real Forge):
   - **Object form** — `name` (required, unique), `partition` (optional list
     of attribute names), `range` (optional single attribute name). `range`
     also accepts a one-element list (`range: [age]`) to match the YAML shape
-    in Atlassian's docs — but an empty list or a multi-element list is a
+    in Atlassian's docs, but an empty list or a multi-element list is a
     deploy error, because real Forge rejects multi-attribute range keys.
 - Partition or range keys referencing attributes that aren't declared in
   `attributes` produce deploy warnings.
 
 Querying an index that isn't declared in the manifest throws
-`INDEX_NOT_FOUND` — the same failure you'd get from real Forge, rather than a
+`INDEX_NOT_FOUND`, the same failure you'd get from real Forge, rather than a
 silent empty result.
 
 ### Secrets
@@ -671,7 +671,7 @@ sim.queue.clearAll(): void                         // Full teardown incl. consum
 ```
 
 `clear()` is safe test hygiene (e.g. in `beforeEach`): it wipes runtime data but
-preserves consumer registrations — consumers are module wiring owned by
+preserves consumer registrations: consumers are module wiring owned by
 `deploy()`/`reset()`, not runtime state. After `clearAll()`, pushed events have
 no consumers until the next deploy re-wires them.
 
@@ -758,7 +758,7 @@ sim.mockProductRoutes('jira', {
 });
 ```
 
-Matches real Forge semantics: `requestJira()` does not throw on non-2xx — app code sees `res.ok === false` / `res.status`. Function handlers may also return a `mockResponse(...)` for per-request control. The return value is a plain tagged object (`{ __forgeSimMockResponse: true, status, body?, headers? }`), so it survives JSON serialization — over MCP, construct the literal directly. See [Testing → Error responses with mockResponse()](../testing/README.md#error-responses-with-mockresponse) for full examples.
+Matches real Forge semantics: `requestJira()` does not throw on non-2xx; app code sees `res.ok === false` / `res.status`. Function handlers may also return a `mockResponse(...)` for per-request control. The return value is a plain tagged object (`{ __forgeSimMockResponse: true, status, body?, headers? }`), so it survives JSON serialization; over MCP, construct the literal directly. See [Testing → Error responses with mockResponse()](../testing/README.md#error-responses-with-mockresponse) for full examples.
 
 ---
 
@@ -933,7 +933,7 @@ sim.ui.submitForm(moduleKey: string, values?: Record<string, unknown>): Promise<
 
 `fillField` fires the same onChange a user typing/selecting would: Textfield/TextArea get a synthetic input event; Select resolves the value against the component's options and emits the `{ label, value }` option object react-select emits (arrays for `isMulti`).
 
-`submitForm` finds the module's `<Form>` and fires its `onSubmit` with a synthetic event (what react-hook-form's `handleSubmit` wrapper expects). If `values` is provided, each field is filled via `fillField` first; fields not in `values` keep their current state. Returns whatever the form's onSubmit returns. If validation blocks the submit (required field missing), the user handler is never called — same as production — and the validation errors are visible in the rendered tree afterward:
+`submitForm` finds the module's `<Form>` and fires its `onSubmit` with a synthetic event (what react-hook-form's `handleSubmit` wrapper expects). If `values` is provided, each field is filled via `fillField` first; fields not in `values` keep their current state. Returns whatever the form's onSubmit returns. If validation blocks the submit (required field missing), the user handler is never called (same as production) and the validation errors are visible in the rendered tree afterward:
 
 ```typescript no-check
 await sim.ui.submitForm('settings-page');                          // submit current state
