@@ -2,7 +2,7 @@
 
 Complete mapping of every Forge API, hook, component, and platform feature against forge-sim's implementation status.
 
-**Last updated:** 2026-05-03
+**Last updated:** 2026-07-19
 
 <!-- BEGIN:STATS -->
 **2,460 tests** across **132** test files
@@ -226,6 +226,29 @@ OpenAI-shaped Anthropic LLM interface. Mock-first; falls through to the real Ant
 
 ---
 
+## @forge/object-store
+
+Backend Object Store (file storage). Shimmed via loader hooks; pre-signed URLs
+point at the dev server or a lazily-started ephemeral HTTP server so app code
+can `fetch()` them for real. Default and CDN buckets, TTL, checksums, HTTP
+Range requests.
+
+| API | Status | Tests | Notes |
+|-----|--------|-------|-------|
+| `objectStore.createUploadUrl(body)` | ✅ | `object-store.test.ts` | Pre-signed PUT URL; checksum (`sha256`/`md5`) verified on upload |
+| `objectStore.createDownloadUrl(key, options?)` | ✅ | `object-store.test.ts` | Pre-signed GET URL; supports HTTP Range / 206 responses. Throws a helpful TypeError on non-string key |
+| `objectStore.createPublicUploadUrl(body)` | ✅ | `object-store.test.ts` | CDN bucket variant |
+| `objectStore.createPublicDownloadUrl(key, options?)` | ✅ | `object-store.test.ts` | CDN bucket variant |
+| `objectStore.createCDNUrl(key, options?)` | ✅ | `object-store.test.ts` | CDN URL with cache options |
+| `objectStore.get(key, options?)` | ✅ | `object-store.test.ts` | Returns `ObjectReference` metadata or `undefined` |
+| `objectStore.delete(key, options?)` | ✅ | `object-store.test.ts` | Deleting an absent key succeeds (Forge parity) |
+| `errorCodes` | ✅ | — | `UNKNOWN_ERROR`, `APP_NOT_ENABLED`, `RATE_LIMIT_EXCEEDED` — matches real @forge/object-store 2.0.0 exports |
+| `objectStore.put(key, data, ttl?)` / `.download(key)` | ⚠️ | `object-store.test.ts` | Sim-only conveniences, marked `@deprecated` — real package requires the pre-signed URL flow |
+
+**MCP:** `forge_objectstore_put`, `forge_objectstore_get`, `forge_objectstore_list`, `forge_objectstore_delete`, `forge_objectstore_create_download_url`.
+
+---
+
 ## @forge/resolver
 
 Resolver function registration.
@@ -263,7 +286,7 @@ UIKit components and hooks. The reconciler produces ForgeDoc.
 | `useTranslation()` | ✅ | — | Re-exported from real package; reads from I18nProvider context → bridge i18n → I18nStore |
 | `I18nProvider` | ✅ | — | Re-exported from real package; calls bridge.i18n.createTranslationFunction() |
 | `useForm()` | ✅ | — | Re-exported from real package (wraps react-hook-form) |
-| `useObjectStore()` | ❌ | — | File upload/download. Needs Object Store backend (EAP) |
+| `useObjectStore()` | ✅ | `object-store-bridge.test.ts` | Re-exported from real package; routes through bridge `objectStore.*` → SimulatedObjectStore |
 | `replaceUnsupportedDocumentNodes()` | ❌ | — | ADF utility |
 
 ### UIKit Components (from ui-kit-components.d.ts)
@@ -445,10 +468,10 @@ Frontend API for Custom UI apps (runs in iframe).
 
 | API | Status | Tests | Notes |
 |-----|--------|-------|-------|
-| `objectStore.upload(params)` | ❌ | — | File upload from Custom UI |
-| `objectStore.download(params)` | ❌ | — | File download |
-| `objectStore.getMetadata(params)` | ❌ | — | File metadata |
-| `objectStore.delete(params)` | ❌ | — | File deletion |
+| `objectStore.upload(params)` | ✅ | `object-store-bridge.test.ts` | Upload from Custom UI / UIKit — resolver mints pre-signed PUT URLs, blobs mapped back via checksum |
+| `objectStore.download(params)` | ✅ | `object-store-bridge.test.ts` | Pre-signed GET round-trip; absent keys filtered from results |
+| `objectStore.getMetadata(params)` | ✅ | `object-store-bridge.test.ts` | Per-key metadata objects |
+| `objectStore.delete(params)` | ✅ | `object-store-bridge.test.ts` | Removes objects from the store |
 
 ### Other
 
@@ -634,7 +657,7 @@ Features beyond individual APIs.
 | Dev server (HMR + WebSocket) | ✅ | — | `forge-sim dev` |
 | Dev server proxy mode | ✅ | `proxy-server.test.ts` | `forge-sim dev --proxy <url>` — reverse-proxy with bridge injection, WS passthrough |
 | Stateful daemon (CLI) | ✅ | — | Auto-start, idle timeout, PID management |
-| MCP server (stdio) | ✅ | `mcp-server.test.ts` | 31 tools, 4 resources |
+| MCP server (stdio) | ✅ | `mcp-server.test.ts` | 41 tools, 4 resources (see auto-generated stats block above) |
 | MCP server (HTTP) | ✅ | — | StreamableHTTP transport |
 | Egress filtering | ❌ | — | No enforcement of `permissions.external` |
 | Content Security Policy | ❌ | — | No CSP enforcement |
@@ -651,23 +674,25 @@ Features beyond individual APIs.
 
 ## Summary
 
+Counts below are per package section (all sub-tables included), recounted
+2026-07-19 directly from the row markers in this file.
+
 | Category | Implemented | Partial/Stub | Not Implemented | Total |
 |----------|-------------|-------------|-----------------|-------|
-| @forge/api | 26 | 5 | 4 | 35 |
-| @forge/kvs | 18 | 0 | 0 | 18 |
-| @forge/sql | 6 | 0 | 1 | 7 |
-| @forge/events | 13 | 0 | 0 | 13 |
-| @forge/llm | 6 | 1 | 0 | 7 |
-| @forge/resolver | 3 | 0 | 0 | 3 |
-| @forge/react hooks | 11 | 0 | 2 | 13 |
-| @forge/react components (UIKit) | 70 | 0 | 0 | 70 |
-| @forge/react components (other) | 18 | 0 | 0 | 18 |
-| @forge/bridge | 37 | 2 | 6 | 45 |
+| @forge/api | 50 | 14 | 2 | 66 |
+| @forge/kvs | 22 | 0 | 0 | 22 |
+| @forge/sql | 7 | 0 | 1 | 8 |
+| @forge/events | 19 | 0 | 0 | 19 |
+| @forge/llm | 11 | 1 | 0 | 12 |
+| @forge/object-store | 8 | 1 | 0 | 9 |
+| @forge/resolver | 6 | 0 | 0 | 6 |
+| @forge/react | 104 | 2 | 1 | 107 |
+| @forge/bridge | 40 | 2 | 3 | 45 |
 | @forge/jira-bridge | 1 | 7 | 0 | 8 |
 | @forge/confluence-bridge | 0 | 5 | 0 | 5 |
 | @forge/dashboards-bridge | 0 | 5 | 0 | 5 |
 | Manifest modules | 23 | 19 | 2 | 44 |
-| Platform features | 19 | 2 | 5 | 26 |
-| **Total** | **251** | **46** | **20** | **317** |
+| Platform features | 20 | 2 | 5 | 27 |
+| **Total** | **311** | **58** | **14** | **383** |
 
-**Coverage: 79% implemented, 15% stubbed/partial, 6% missing**
+**Coverage: 81% implemented, 15% stubbed/partial, 4% missing**
