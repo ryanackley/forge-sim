@@ -686,6 +686,13 @@ export class ForgeSimulator {
     const context = this.buildContext();
     const event = { event: eventName, ...data };
 
+    // Eval-10 F10: real custom app-event deliveries carry per-subscriber
+    // `context` (cloudId + the RECEIVING trigger's moduleKey + userAccess)
+    // and a `contextToken` inside the event payload itself — unlike product
+    // events, which only get context as the second handler argument.
+    // https://developer.atlassian.com/platform/forge/events-reference/app-events/
+    const isAppEvent = eventName.startsWith('avi:cloud:ecosystem::event/');
+
     const results: any[] = [];
     for (const trigger of matchingTriggers) {
       this.log('trigger', `Firing trigger "${trigger.key}" for event: ${eventName}`);
@@ -697,10 +704,22 @@ export class ForgeSimulator {
         continue;
       }
 
+      const deliveredEvent = isAppEvent
+        ? {
+            ...event,
+            context: data.context ?? {
+              cloudId: (context as any).cloudId,
+              moduleKey: trigger.key,
+              userAccess: { enabled: false },
+            },
+            contextToken: data.contextToken ?? 'sim-context-token',
+          }
+        : event;
+
       const triggerStartMs = Date.now();
       try {
         const { result, console: captured } = await withCapture(() =>
-          handler(event, context)
+          handler(deliveredEvent, context)
         );
         this.consoleLogs.push(...captured);
         for (const line of captured) {

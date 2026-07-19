@@ -273,6 +273,10 @@ export const KNOWN_MODULE_TYPES = new Set([
   // Platform (product-agnostic)
   'function', 'consumer', 'scheduledTrigger', 'trigger', 'webtrigger',
   'endpoint', 'action',
+  // App Events (Preview) — declares publishable custom events (key + name +
+  // allowedRecipients), no code. Required by real Forge for appEvents.publish;
+  // the delivered payload's `name` comes from this module (eval-10 F10).
+  'event',
   // Forge SQL — declares a provisioned database (key + engine), no code
   'sql',
   // Object Store — declares provisioned object storage (key), no code.

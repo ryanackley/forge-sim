@@ -208,13 +208,24 @@ const appEvents = {
 
       // Platform-generated payload shape that the trigger handler receives.
       // Per Forge docs, publishing apps can't add custom payload.
-      // TODO: when forge-sim parses the `event` module from the manifest, set
-      // `name` to the event module's human-readable `name` field. For now we
-      // fall back to the key.
+      //
+      // Eval-10 F10: `name` is the event module's human-readable `name` from
+      // `modules.event` in the manifest — not the raw key. Fall back to the
+      // key when the module (or its name) is undeclared. The per-subscriber
+      // `context`/`contextToken` fields are injected by sim.fireTrigger,
+      // which knows each receiving trigger's module key.
+      const eventModules = (manifest?.raw.modules as Record<string, unknown> | undefined)?.event;
+      const eventModule = Array.isArray(eventModules)
+        ? (eventModules as Array<Record<string, unknown>>).find((m) => m?.key === evt.key)
+        : undefined;
+      const eventName = typeof eventModule?.name === 'string' && eventModule.name
+        ? eventModule.name
+        : evt.key;
+
       const eventPayload: Record<string, unknown> = {
         workspaceId: `ari:cloud:jira::site/${cloudId}`,
         eventType: fullEventName,
-        name: evt.key,
+        name: eventName,
         environmentId: 'sim-environment-001',
         environmentType: 'DEVELOPMENT',
         environmentKey: 'default',
