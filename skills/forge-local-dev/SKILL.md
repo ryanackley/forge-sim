@@ -91,9 +91,13 @@ Critical rule: **state from one surface is invisible to the others.**
 
 ### Surface-by-phase
 
-- **You're iterating with the user in chat right now**: MCP. Skip ahead to Step 3.
-- **You're writing automated tests for the user's app**: in-process API. Skip ahead to Step 4. 
-- **You're building or debugging Custom UI iframes**: full stack mode. Run `forge-sim dev`, point Playwright at it. (Out of scope for this skill in most cases — only invoke when the user is explicitly working on Custom UI.)
+Surface picks your iterate *tooling* (Step 3 vs Step 4), not your starting point.
+**Every app still passes through Steps 1–2 first** (a valid appId, then a deploy),
+no matter which surface you land on. Only once you're deployed does surface matter:
+
+- **Iterating with the user in chat**: drive Step 3 (MCP tools). Fastest feedback.
+- **Writing automated tests for the user's app**: drive Step 4 (in-process API).
+- **Building or debugging Custom UI iframes**: full-stack `forge-sim dev`, point Playwright at it. (Out of scope in most cases; only when the user is explicitly working on Custom UI.)
 
 ## Workflow
 
@@ -101,25 +105,48 @@ Complete steps 1–6 in order. Stop after step 5 unless the user has explicitly 
 
 ### Step 1: Make sure the app has a valid appId
 
-Before deploying to forge-sim, the app needs to have been created via `forge create`. This is non-negotiable for any app that will eventually ship — without a real appId, the manifest can't be installed in real Forge later, and forge-sim's parity guarantee is meaningless.
+**Do not skip this step, even when you're eager to start iterating in chat.** Before deploying to forge-sim, the app needs a real appId from Atlassian. Without one, the manifest can't be installed in real Forge later, and forge-sim's whole parity guarantee is meaningless. How you get that appId depends on where the app came from (Case A vs Case B below).
 
-**If the `forge-app-builder` skill is available**, delegate to it for scaffolding. It handles `forge create`, dev-space selection, `forge login`, and template choice properly.
+> **Doctrine: Forge CLI prompts don't work in agent context.** There's no TTY, so a bare interactive command hangs on an arrow-key menu you can't see or drive. Never run one. The pattern is always: **discover options with a `--json` command, ask the user in chat, then pass their choice back as flags.** The only command you hand to the user's own terminal is `forge login`, because it takes a secret API token that must never enter the chat.
 
-**If `forge-app-builder` is NOT available**, fall back to the minimal recipe:
+Non-interactive flags for the commands that otherwise prompt:
+
+| Command | Flags | Purpose |
+|---|---|---|
+| `forge developer-spaces list` | `--json` | Machine-readable space discovery, no TTY |
+| `forge create [name]` | `-t <template>` `-s <space-id>` `-y` | Scaffold a brand-new app |
+| `forge register [name]` | `-s <space-id>` `-y` | Give a real appId to an app you already have source for |
+| `forge login` | (none; user's terminal) | Auth. Secret token, never automate |
+
+#### Case A — brand-new app (scaffold from a template)
+
+**If the `forge-app-builder` skill is available**, delegate to it. Its `create_forge_app.py` already does the discover, ask, flag dance for `forge create`.
+
+**If it's NOT available**, run the create path yourself, fully non-interactively:
 
 ```bash
-# Once per machine: install the Forge CLI and log in
-npm install -g @forge/cli
-forge login   # Run in the user's terminal — NEVER accept Atlassian API tokens in chat
+npm install -g @forge/cli          # once per machine
+forge login                        # user's terminal ONLY: secret token, never in chat
 
-# Per app: scaffold
-forge create my-app
-# Pick a template. forge create produces a manifest with a real app.id.
-cd my-app
-npm install
+forge developer-spaces list --json # discover spaces, then ask the user which one
+forge create -t <template> -s <space-id> -y my-app   # -t and -s prevent the interactive pickers
+cd my-app && npm install
 ```
 
-Verify the manifest has a real app.id:
+Never run bare `forge create my-app`. With no `-t`/`-s` it drops into the arrow-key template and space menus and hangs with no visible prompt.
+
+#### Case B — existing / forge-sim-first app that needs a real appId
+
+This is the sim-first flow: you built and iterated the app against forge-sim (or copied an existing source tree) and now need to make it installable. The command is `forge register`, NOT `forge create` (register initializes existing source; create scaffolds new). **forge-app-builder does not script this path** (its register recipe punts to an interactive prompt), so drive it here:
+
+```bash
+forge developer-spaces list --json             # discover spaces, then ask the user
+forge register "My App Name" -y -s <space-id>  # writes a real app.id into manifest.yml
+```
+
+Caution: run `forge register` **once**. Running it again mints a new appId and disconnects the app from its existing environments, variables, and storage.
+
+#### Verify (either case)
 
 ```bash
 grep "^app:" -A 1 manifest.yml
@@ -127,7 +154,7 @@ grep "^app:" -A 1 manifest.yml
 # NOT: id: sim-app  ← that's a forge-sim placeholder, not a real appId
 ```
 
-If the user has an existing app with a placeholder appId (e.g. `sim-app`), warn them: forge-sim works fine for local testing, but the app will not be installable in real Forge until they run `forge create` and merge the resulting `app.id` back in.
+If the user has an existing app with a placeholder appId (e.g. `sim-app`), warn them: forge-sim works fine for local testing, but the app will not be installable in real Forge until they run `forge register` (Case B) and the real `app.id` lands in the manifest.
 
 ### Step 2: Deploy to forge-sim
 
@@ -481,7 +508,7 @@ To match real-Forge async timing for a specific test, pass `{ queueMode: 'concur
 
 ## What this skill does NOT cover
 
-- **Forge CLI commands** (`forge create`, `forge deploy`, `forge install`, `forge logs --tail`) — see `forge-app-builder` skill
+- **Most Forge CLI commands** (`forge create`, `forge deploy`, `forge install`, `forge logs --tail`) — see `forge-app-builder` skill. Exception: `forge register` for the sim-first appId on-ramp is scripted in Step 1 above, because forge-app-builder doesn't cover it.
 - **Pre-deploy audit** (security, cost, perf review) — see `forge-app-review` skill
 - **Debugging deployed apps** (real cloud failures, scope issues, install errors) — see `forge-debugger` skill
 - **Custom UI app dev with Atlaskit imports** — forge-sim's dev mode supports it, but Atlaskit lookup is the `ads-mcp` server's job
