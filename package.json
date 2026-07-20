@@ -79,6 +79,7 @@
     "@forge/react": "^12.0.0",
     "@modelcontextprotocol/sdk": "^1.27.1",
     "@vitejs/plugin-react": "^4.3.0",
+    "esbuild": "^0.25.0",
     "jose": "^6.2.1",
     "mysql-memory-server": "^1.14.1",
     "mysql2": "^3.18.2",
