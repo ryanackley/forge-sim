@@ -11,6 +11,7 @@
 import { resolve, join, dirname } from 'node:path';
 import { access, mkdir, writeFile, readdir, unlink, stat } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
+import { createRequire } from 'node:module';
 import { parseManifest, type ParsedManifest, type ManifestFunction } from './manifest.js';
 import type { ForgeSimulator } from './simulator.js';
 import type { TypeCheckError } from './type-checker.js';
@@ -48,6 +49,62 @@ const printedManifestWarnings = new Set<string>();
  */
 export function _resetPrintedManifestWarnings(): void {
   printedManifestWarnings.clear();
+}
+
+/**
+ * Clear the `@forge/sql` migrationRunner singleton before re-importing app code.
+ *
+ * `@forge/sql`'s `migrationRunner` is a process-level module singleton, and its
+ * `enqueue(name, ddl)` dedups by name: a second `enqueue('v001', <newDDL>)` is
+ * IGNORED and the ORIGINAL ddl is retained. Real Forge runs every invocation in
+ * a fresh process, so the singleton is always empty at enqueue time and edited
+ * migration DDL applies. forge-sim's long-lived process accumulates the stale
+ * registry instead: edit a migration's DDL, redeploy, and the app's top-level
+ * `enqueue` silently keeps the old DDL, so the new schema never lands. Killing
+ * the daemon only "fixed" it because a fresh process gets a fresh singleton.
+ *
+ * We resolve `@forge/sql` from the APP's own directory (not forge-sim's) so we
+ * clear the exact module instance the app bundle touches at runtime. The two
+ * share Node's CommonJS require.cache (keyed by absolute path) regardless of
+ * which node_modules the package resolves from, so this reaches a real user
+ * app's own copy, not just the shared-node_modules case. Only acts when the app
+ * has already loaded `@forge/sql` in this process (i.e. a prior deploy); a cold
+ * first deploy has an empty registry and nothing to clear. Apps that don't
+ * depend on `@forge/sql` are a silent no-op.
+ *
+ * Effect: restores cold-process parity AND enables a local-first workflow win.
+ * Iterate a migration's DDL in place and redeploy until it lands correctly,
+ * without bumping version numbers (you never ship to the cloud from here).
+ * Called at the top of deploy(), before any app top-level code (where `enqueue`
+ * runs) is imported.
+ */
+function clearMigrationRegistry(appDir: string): void {
+  let appRequire: ReturnType<typeof createRequire>;
+  try {
+    appRequire = createRequire(join(appDir, '<forge-sim>'));
+  } catch {
+    return;
+  }
+  // Cover both import styles: the documented root export and the deep subpath.
+  // Both point at the same singleton (root re-exports migration's), so clearing
+  // via whichever is cached reaches the same live array.
+  for (const spec of ['@forge/sql', '@forge/sql/out/migration']) {
+    let resolved: string;
+    try {
+      resolved = appRequire.resolve(spec);
+    } catch {
+      continue; // app doesn't depend on @forge/sql (or this subpath)
+    }
+    const cached = appRequire.cache?.[resolved];
+    if (!cached) continue; // not loaded yet — registry is empty, nothing stale
+    try {
+      const runner: any = (cached.exports as any)?.migrationRunner;
+      const enqueued = runner?.getEnqueued?.();
+      if (Array.isArray(enqueued)) enqueued.length = 0;
+    } catch {
+      // Unexpected @forge/sql shape (version drift) — never break deploy over it.
+    }
+  }
 }
 
 /** Only bundles at least this old are swept. Two simulators can deploy the
@@ -516,6 +573,12 @@ export async function deploy(sim: ForgeSimulator, appDir: string, options: Deplo
   // from previous deploys are no longer needed once their modules are cached
   // by Node — we generate a fresh one per deploy anyway.
   await sweepStaleBundles(deployBundleDir(absDir));
+
+  // Reset the @forge/sql migrationRunner singleton BEFORE re-importing app code
+  // (the app's top-level `enqueue` runs at bundle-import time in the loop below).
+  // Without this, an edited migration DDL is silently discarded across redeploys
+  // in the long-lived process — see clearMigrationRegistry for the full rationale.
+  clearMigrationRegistry(absDir);
 
   // 2. Register @forge/* loader hooks (redirects @forge/api etc. to our shims).
   //    Called lazily so users don't need --import. Hooks apply to all subsequent
