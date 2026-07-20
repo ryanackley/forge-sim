@@ -11,6 +11,8 @@ forge-sim dev
 
 For the full command and its flags (module selection, context injection, ports, `--clean`, theme), see the [CLI reference](../reference/cli.md#forge-sim-dev).
 
+> **Install warnings are safe to ignore.** On `npm install -g forge-sim`, npm prints Atlaskit peer-dependency conflicts (`@atlaskit/analytics-next-stable-react-context` and `react-scrolllock` still declare React 16) and, on npm 11.6+, skips two postinstall scripts. Neither script needs to run: esbuild ships its native binary as an optional dependency resolved at runtime, and iframe-resizer's script is only a funding notice.
+
 ## Running the dev server
 
 Starting `forge-sim dev` opens a browser tab with the **module index**, every UI module declared in your manifest, with its type and title:

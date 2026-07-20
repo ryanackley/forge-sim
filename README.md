@@ -32,6 +32,8 @@ npm install --save-dev forge-sim
 
 The docs assume the global install. Prefer not to install globally? Substitute `npx forge-sim` anywhere you see `forge-sim`.
 
+> **Install warnings are safe to ignore.** npm prints Atlaskit peer-dependency conflicts (`@atlaskit/analytics-next-stable-react-context` and `react-scrolllock` still declare React 16) and, on npm 11.6+, skips two postinstall scripts. Neither script needs to run: esbuild ships its native binary as an optional dependency resolved at runtime, and iframe-resizer's script is only a funding notice.
+
 ## Automated testing
 
 Test your app against a headless local runtime. The test API creates a simulated deployment of your unmodified app and exposes its storage, queues, triggers, and a rendered UIKit2 tree for assertions.
