@@ -29,8 +29,18 @@ const SQL_FILE = 'sql.dump';
 /**
  * Save simulator state to disk.
  * Wraps the SQL dump with USE + SET foreign_key_checks for safe restore.
+ *
+ * Succeeds silently by default — the periodic autosave should not spam the
+ * dev-server terminal. Errors are always logged. Pass `{ verbose: true }`
+ * (e.g. on shutdown) to log a one-line summary of what was persisted.
  */
-export async function saveState(sim: ForgeSimulator, stateDir: string): Promise<void> {
+export async function saveState(
+  sim: ForgeSimulator,
+  stateDir: string,
+  opts: { verbose?: boolean } = {},
+): Promise<void> {
+  const { verbose = false } = opts;
+
   // Use sync writes — this runs during SIGINT cleanup and async writes
   // can get lost if process.exit() fires before the event loop drains
   mkdirSync(stateDir, { recursive: true });
@@ -43,19 +53,29 @@ export async function saveState(sim: ForgeSimulator, stateDir: string): Promise<
   const total = kvsCount + entityCount + secretCount;
 
   if (total > 0) {
-    writeFileSync(join(stateDir, ENTITY_FILE), JSON.stringify(dump, null, 2));
-    const parts: string[] = [];
-    if (kvsCount > 0) parts.push(`${kvsCount} KVS`);
-    if (entityCount > 0) parts.push(`${entityCount} entities`);
-    if (secretCount > 0) parts.push(`${secretCount} secrets`);
-    console.log(`  💾 Saved ${parts.join(', ')}`);
+    try {
+      writeFileSync(join(stateDir, ENTITY_FILE), JSON.stringify(dump, null, 2));
+      if (verbose) {
+        const parts: string[] = [];
+        if (kvsCount > 0) parts.push(`${kvsCount} KVS`);
+        if (entityCount > 0) parts.push(`${entityCount} entities`);
+        if (secretCount > 0) parts.push(`${secretCount} secrets`);
+        console.log(`  💾 Saved ${parts.join(', ')}`);
+      }
+    } catch (err: any) {
+      console.error(`  ⚠️  Failed to save KVS state: ${err.message}`);
+    }
   }
 
   // ── Object Store ─────────────────────────────────────────────────────
   const osDump = sim.objectStore.dumpAll();
   if (osDump.objects.length > 0) {
-    writeFileSync(join(stateDir, OBJECT_STORE_FILE), JSON.stringify(osDump, null, 2));
-    console.log(`  💾 Saved ${osDump.objects.length} objects`);
+    try {
+      writeFileSync(join(stateDir, OBJECT_STORE_FILE), JSON.stringify(osDump, null, 2));
+      if (verbose) console.log(`  💾 Saved ${osDump.objects.length} objects`);
+    } catch (err: any) {
+      console.error(`  ⚠️  Failed to save object store state: ${err.message}`);
+    }
   }
 
   // ── SQL ──────────────────────────────────────────────────────────────
@@ -79,8 +99,10 @@ export async function saveState(sim: ForgeSimulator, stateDir: string): Promise<
         ].join('\n');
 
         writeFileSync(join(stateDir, SQL_FILE), wrappedDump);
-        const tableCount = (rawDump.match(/CREATE TABLE/gi) || []).length;
-        console.log(`  💾 Saved SQL dump (${tableCount} tables)`);
+        if (verbose) {
+          const tableCount = (rawDump.match(/CREATE TABLE/gi) || []).length;
+          console.log(`  💾 Saved SQL dump (${tableCount} tables)`);
+        }
       }
     } catch (err: any) {
       console.error(`  ⚠️  Failed to save SQL state: ${err.message}`);

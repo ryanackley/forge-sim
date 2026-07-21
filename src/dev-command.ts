@@ -2269,7 +2269,7 @@ export async function devCommand(options: DevCommandOptions) {
       cleaningUp = true;
       clearInterval(autosaveInterval);
       console.log('\n  🛑 Shutting down...');
-      try { await saveState(sim, stateDir); } catch (err: any) { console.error(`  ⚠️  Failed to save state: ${err.message}`); }
+      try { await saveState(sim, stateDir, { verbose: true }); } catch (err: any) { console.error(`  ⚠️  Failed to save state: ${err.message}`); }
       proxyTypeCheckWatcher?.close();
       stopMockWatch();
       for (const c of toolsClients) c.close();
@@ -2546,7 +2546,7 @@ export async function devCommand(options: DevCommandOptions) {
 
       // Save state before teardown
       try {
-        await saveState(sim, stateDir);
+        await saveState(sim, stateDir, { verbose: true });
       } catch (err: any) {
         console.error(`  ⚠️  Failed to save state: ${err.message}`);
       }

@@ -743,7 +743,9 @@ export async function createDevServer(options: DevServerOptions = {}): Promise<D
     // ── RPC from browser bridge shim ────────────────────────────────
     if (event.type === 'rpc') {
       const { requestId, method, params } = event;
-      console.log(`[dev-server] RPC: ${method}`);
+      // Per-RPC logging is noisy (fires on every getContext/invoke/reconcile).
+      // Silent by default; set FORGE_SIM_DEBUG=1 to trace. Errors still log below.
+      if (process.env.FORGE_SIM_DEBUG) console.log(`[dev-server] RPC: ${method}`);
 
       // Track which module this client is viewing
       const isNewClient = !clientModuleKeys.has(ws);
