@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@atlaskit/app-provider": "^4.1.0",
+    "@atlaskit/avatar": "^25.15.1",
     "@atlaskit/avatar-group": "^12.4.10",
     "@atlaskit/badge": "^18.4.0",
     "@atlaskit/breadcrumbs": "^17.2.0",

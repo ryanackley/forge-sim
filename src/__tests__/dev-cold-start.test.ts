@@ -19,6 +19,7 @@
  *     dying on a transient race.
  */
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
 import { generateUIKitEntry, buildViteConfig, generateRootIndexHtml } from '../dev-command.js';
 
 describe('generateUIKitEntry — boot resilience', () => {
@@ -85,6 +86,14 @@ describe('buildViteConfig — dep scanner seeding', () => {
     expect(config.optimizeDeps.include).toEqual(
       expect.arrayContaining(['react', 'react-dom/client'])
     );
+    // ForgeSimShell-exclusive deps must be force-pre-bundled too. The shell is
+    // served from outside the Vite root (@fs escape), so the entries scan does
+    // not reliably discover its imports. @atlaskit/avatar (acting-user switcher,
+    // 0.1.13) is shell-exclusive and was discovered at request time, 504'ing
+    // the in-flight ForgeSimShell import until a manual refresh.
+    expect(config.optimizeDeps.include).toEqual(
+      expect.arrayContaining(['@atlaskit/avatar', '@atlaskit/select', '@atlaskit/app-provider'])
+    );
   });
 
   it('skips react pre-bundling for Custom-UI-only apps', async () => {
@@ -96,6 +105,32 @@ describe('buildViteConfig — dep scanner seeding', () => {
 
     expect(config.optimizeDeps.include).toEqual([]);
     expect(config.optimizeDeps.entries).toEqual([]);
+  });
+});
+
+describe('renderer manifest — no undeclared shell deps', () => {
+  // 0.1.13 regression: ForgeSimShell imported @atlaskit/avatar for the
+  // acting-user switcher, but renderer/package.json only declared
+  // @atlaskit/avatar-group. It resolved on git checkouts via transitive
+  // hoisting, but on published installs (materialized via `npm ci`) and under
+  // strict layouts (pnpm) that hoist is not guaranteed. Every @atlaskit/*
+  // ForgeSimShell imports directly must be a declared dependency.
+  it('declares every @atlaskit package ForgeSimShell imports directly', () => {
+    const shellSrc = readFileSync(
+      new URL('../../renderer/src/ForgeSimShell.tsx', import.meta.url),
+      'utf8',
+    );
+    const pkg = JSON.parse(
+      readFileSync(new URL('../../renderer/package.json', import.meta.url), 'utf8'),
+    );
+    const declared = new Set(Object.keys(pkg.dependencies ?? {}));
+    const imported = new Set<string>();
+    const re = /from ['"](@atlaskit\/[^'"/]+)/g;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(shellSrc)) !== null) imported.add(m[1]);
+
+    const missing = [...imported].filter((p) => !declared.has(p));
+    expect(missing).toEqual([]);
   });
 });
 

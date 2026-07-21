@@ -1750,8 +1750,27 @@ export async function buildViteConfig(opts: {
       // these includes point at packages the app never installed at its
       // root — Vite spams "Failed to resolve dependency: react" for deps
       // that no page will ever import.
+      //
+      // ForgeSimShell lives OUTSIDE the Vite root (it's served from
+      // ~/.forge-sim/renderer/<version>/src via an @fs escape), so the dep
+      // scanner does not reliably crawl into it. Deps that ONLY the shell
+      // imports — @atlaskit/avatar (acting-user switcher), and to a lesser
+      // extent app-provider/select — therefore escape the startup scan and
+      // get discovered at request time, triggering the same mid-flight
+      // re-optimization 504 the entries seed was meant to prevent. The
+      // switcher's @atlaskit/avatar import (shell-exclusive, added in 0.1.13)
+      // is what surfaced this. Pin the shell's direct deps here so Vite
+      // force-pre-bundles them at server startup regardless of scan coverage.
       include: hasUikitModules
-        ? ['react', 'react-dom', 'react-dom/client', 'react/jsx-runtime']
+        ? [
+            'react',
+            'react-dom',
+            'react-dom/client',
+            'react/jsx-runtime',
+            '@atlaskit/app-provider',
+            '@atlaskit/avatar',
+            '@atlaskit/select',
+          ]
         : [],
       // Vite's dep scanner only crawls <root>/index.html by default. Our
       // module pages live in per-module subdirectories (<key>/entry.tsx), so
