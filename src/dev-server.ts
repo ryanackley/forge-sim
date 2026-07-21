@@ -264,7 +264,10 @@ export async function createDevServer(options: DevServerOptions = {}): Promise<D
 
   wss.on('connection', (ws) => {
     clients.add(ws);
-    console.log(`[dev-server] Renderer connected (${clients.size} client${clients.size > 1 ? 's' : ''})`);
+    // Connect/disconnect churn is routine noise (HMR reloads, tab switches).
+    // Silent by default; set FORGE_SIM_DEBUG=1 to trace client lifecycle.
+    if (process.env.FORGE_SIM_DEBUG)
+      console.log(`[dev-server] Renderer connected (${clients.size} client${clients.size > 1 ? 's' : ''})`);
 
     // Note: we DON'T send lastDoc on connect anymore.
     // The client will identify its module via getContext RPC,
@@ -284,7 +287,8 @@ export async function createDevServer(options: DevServerOptions = {}): Promise<D
     ws.on('close', () => {
       clients.delete(ws);
       clientModuleKeys.delete(ws);
-      console.log(`[dev-server] Renderer disconnected (${clients.size} client${clients.size > 1 ? 's' : ''})`);
+      if (process.env.FORGE_SIM_DEBUG)
+        console.log(`[dev-server] Renderer disconnected (${clients.size} client${clients.size > 1 ? 's' : ''})`);
     });
 
     ws.on('error', (err) => {
