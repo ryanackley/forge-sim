@@ -5,8 +5,8 @@ Complete mapping of every Forge API, hook, component, and platform feature again
 **Last updated:** 2026-07-19
 
 <!-- BEGIN:STATS -->
-**2,512 tests** across **137** test files
-(2,356 core / 132 files
+**2,513 tests** across **137** test files
+(2,357 core / 132 files
 + 156 renderer / 5 files)
 
 **41 MCP tools** + **4 resources**
