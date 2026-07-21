@@ -14,9 +14,11 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import AppProvider, { useSetColorMode } from '@atlaskit/app-provider';
+import Avatar from '@atlaskit/avatar';
+import { AsyncSelect } from '@atlaskit/select';
 import '@atlaskit/css-reset';
 import { ForgeDocRenderer } from './ForgeDocRenderer';
-import { onReconcile, onMacroConfigReconcile, setActiveSubmitTree, view } from './bridge/forge-bridge-shim';
+import { onReconcile, onMacroConfigReconcile, setActiveSubmitTree, view, rpc } from './bridge/forge-bridge-shim';
 
 // ---------------------------------------------------------------------------
 // Width presets — mirror the real widths Forge uses across product surfaces.
@@ -150,6 +152,103 @@ function resolveColorMode(mode: ColorMode): ResolvedColorMode {
 }
 
 // ---------------------------------------------------------------------------
+// Acting user ("Acting as" gear switcher)
+//
+// The renderer is a separate Vite package, so it never imports the seeded
+// roster from forge-sim's src. Everything flows over RPC:
+//   - `getActingUserState` → { mode, current, users, site } on mount
+//   - `searchUsers` → mode-aware live search (real /user/picker vs seeded filter)
+//   - `setActingUser` → echoes the pick back; the dev server is the single
+//     source of truth for who's acting.
+//
+// Two modes (`forge-sim dev`'s default is connecting to a live instance):
+//   - connected: search REAL users off the instance; roster is empty.
+//   - offline:   the seeded roster is the always-no-cloud fallback.
+// localStorage only drives the pre-RPC highlight; the server wins.
+// ---------------------------------------------------------------------------
+
+/** The thin "who am I" option the switcher works with (mirrors ActingUser). */
+interface ActingUserOption {
+  accountId: string;
+  displayName: string;
+  emailAddress?: string;
+  avatarUrl?: string;
+  /** Seeded-roster only; absent for real picked users. */
+  role?: string;
+}
+
+/** The `getActingUserState` RPC payload. */
+interface ActingUserState {
+  mode: 'connected' | 'offline';
+  current: ActingUserOption | null;
+  /** Seeded roster (offline) or [] (connected — search is live). */
+  users: ActingUserOption[];
+  /** The site backing the live search (connected only). */
+  site: string | null;
+}
+
+const ACTING_AS_STORAGE_KEY = 'forge-sim:actingAs';
+
+function readStoredActingAs(): string | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    return window.localStorage.getItem(ACTING_AS_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredActingAs(accountId: string) {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(ACTING_AS_STORAGE_KEY, accountId);
+  } catch {
+    /* ignore */
+  }
+}
+
+function clearStoredActingAs() {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.removeItem(ACTING_AS_STORAGE_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Map an acting-user to the `{ label, value, user }` shape AsyncSelect wants. */
+function toUserOption(u: ActingUserOption) {
+  return { label: u.displayName, value: u.accountId, user: u };
+}
+
+/** Avatar + name + subtitle (role or email) for a select option / value. */
+function formatUserOption(option: { label: string; user?: ActingUserOption }) {
+  const u = option.user;
+  const subtitle = u?.role ?? u?.emailAddress ?? '';
+  return (
+    <span style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+      <Avatar name={option.label} src={u?.avatarUrl} size="small" />
+      <span style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+        <span
+          style={{
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}
+        >
+          {option.label}
+        </span>
+        {subtitle && (
+          <span style={{ color: 'var(--ds-text-subtle, #6b778c)', fontSize: '11px' }}>
+            {subtitle}
+          </span>
+        )}
+      </span>
+    </span>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Persistence — width
 // ---------------------------------------------------------------------------
 
@@ -217,8 +316,11 @@ interface GearPopoverProps {
   moduleType: string | undefined;
   colorMode: ColorMode;
   resolvedColorMode: ResolvedColorMode;
+  switcher: ActingUserState | null;
   onWidthChange: (next: WidthPref) => void;
   onColorModeChange: (next: ColorMode) => void;
+  onSearchUsers: (query: string) => Promise<ActingUserOption[]>;
+  onActingUserChange: (user: ActingUserOption | null) => void;
 }
 
 function GearPopover({
@@ -226,8 +328,11 @@ function GearPopover({
   moduleType,
   colorMode,
   resolvedColorMode,
+  switcher,
   onWidthChange,
   onColorModeChange,
+  onSearchUsers,
+  onActingUserChange,
 }: GearPopoverProps) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -273,6 +378,92 @@ function GearPopover({
             color: 'var(--ds-text, #172b4d)',
           }}
         >
+          {/* ───────────── Acting as ─────────────
+              Only rendered when the dev server answered `getActingUserState`.
+              The headless / MCP render path has no dev server, so `switcher`
+              stays null and this whole section is a graceful no-op.
+
+              Searchable picker (Atlaskit AsyncSelect):
+                - connected: `searchUsers` proxies the instance's /user/picker
+                  (real accountIds — no fake-id leak into a live session).
+                - offline:   `searchUsers` filters the seeded roster; the roster
+                  is preloaded as defaultOptions so the menu is populated on open.
+              A pick overrides the current user (beats the real API) and reloads
+              so the app's mount-effect invoke() calls re-run as the new user. */}
+          {switcher && (
+            <>
+              <div
+                style={{
+                  padding: '6px 8px 8px',
+                  fontSize: '11px',
+                  color: 'var(--ds-text-subtle, #6b778c)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px',
+                  fontWeight: 600,
+                }}
+              >
+                Acting as
+              </div>
+              <div style={{ padding: '0 4px 4px' }}>
+                <AsyncSelect
+                  inputId="forge-sim-acting-as"
+                  aria-label="Acting as user"
+                  cacheOptions
+                  defaultOptions={
+                    switcher.mode === 'offline'
+                      ? switcher.users.map(toUserOption)
+                      : true
+                  }
+                  value={switcher.current ? toUserOption(switcher.current) : null}
+                  loadOptions={async (input: string) =>
+                    (await onSearchUsers(input)).map(toUserOption)
+                  }
+                  onChange={(opt: unknown) =>
+                    onActingUserChange(
+                      (opt as { user?: ActingUserOption } | null)?.user ?? null,
+                    )
+                  }
+                  formatOptionLabel={formatUserOption}
+                  placeholder={
+                    switcher.mode === 'connected' ? 'Search users…' : 'Pick a user…'
+                  }
+                  noOptionsMessage={() =>
+                    switcher.mode === 'connected'
+                      ? 'Type to search users'
+                      : 'No matching users'
+                  }
+                  isClearable={switcher.mode === 'connected'}
+                  spacing="compact"
+                  menuPlacement="top"
+                  maxMenuHeight={220}
+                  styles={{
+                    menu: (base: Record<string, unknown>) => ({ ...base, zIndex: 10000 }),
+                    menuPortal: (base: Record<string, unknown>) => ({ ...base, zIndex: 10000 }),
+                  }}
+                />
+              </div>
+              {switcher.mode === 'connected' && switcher.site && (
+                <div
+                  style={{
+                    padding: '0 8px 6px',
+                    fontSize: '11px',
+                    color: 'var(--ds-text-subtle, #6b778c)',
+                  }}
+                >
+                  Live users from {switcher.site}
+                </div>
+              )}
+
+              <div
+                style={{
+                  height: '1px',
+                  background: 'var(--ds-border, #f4f5f7)',
+                  margin: '4px 0 8px',
+                }}
+              />
+            </>
+          )}
+
           {/* ───────────── Color mode ───────────── */}
           <div
             style={{
@@ -744,6 +935,51 @@ function ShellInner({ initialColorMode }: ShellInnerProps) {
   });
   const prefIsExplicit = useRef<boolean>(!!readStoredPref(moduleKey));
 
+  // Acting-as user switcher — mode + who's currently acting. Fetched once from
+  // the dev server over RPC; a null `switcher` (headless/MCP path, no dev
+  // server) hides the whole gear section.
+  const [switcher, setSwitcher] = useState<ActingUserState | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    rpc('getActingUserState')
+      .then((res: ActingUserState) => {
+        if (cancelled || !res) return;
+        setSwitcher(res);
+      })
+      .catch(() => {
+        /* no dev server (headless/MCP) — leave switcher null */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const handleSearchUsers = async (query: string): Promise<ActingUserOption[]> => {
+    try {
+      const res: { users?: ActingUserOption[] } = await rpc('searchUsers', { query });
+      return res?.users ?? [];
+    } catch {
+      return [];
+    }
+  };
+
+  const handleActingUserChange = async (user: ActingUserOption | null) => {
+    const nextId = user?.accountId;
+    if (nextId === switcher?.current?.accountId) return;
+    if (nextId) writeStoredActingAs(nextId);
+    else clearStoredActingAs();
+    // Optimistic — the reload below resyncs from the server regardless.
+    setSwitcher((prev) => (prev ? { ...prev, current: user } : prev));
+    try {
+      await rpc('setActingUser', user ? { user } : {});
+    } catch {
+      /* ignore — reload resyncs from the server anyway */
+    }
+    // Reload so the app's mount-effect invoke() calls re-run as the new user.
+    if (typeof window !== 'undefined') window.location.reload();
+  };
+
   // Color mode — Atlaskit's setter loads the right theme stylesheet and sets
   // <html data-color-mode>, including handling 'auto' via prefers-color-scheme.
   const setAtlaskitColorMode = useSetColorMode();
@@ -999,8 +1235,11 @@ function ShellInner({ initialColorMode }: ShellInnerProps) {
         moduleType={moduleType}
         colorMode={colorMode}
         resolvedColorMode={resolvedColorMode}
+        switcher={switcher}
         onWidthChange={handlePrefChange}
         onColorModeChange={handleColorModeChange}
+        onSearchUsers={handleSearchUsers}
+        onActingUserChange={handleActingUserChange}
       />
 
       <div

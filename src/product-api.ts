@@ -8,6 +8,7 @@
 import type { ProductApiHandler, ProductApiRequest, ProductApiResponse } from './types.js';
 import type { AtlassianAccount } from './auth/credentials.js';
 import type { PropertyStore } from './property-store.js';
+import type { ActingUser } from './seeded-users.js';
 
 function makeResponse(
   status: number,
@@ -199,6 +200,18 @@ export class SimulatedProductApi {
   private graphqlMocks = new Map<string, GraphQLHandler | any>();
   private realApiAccount: AtlassianAccount | null = null;
   private propertyStore: PropertyStore | null = null;
+  /**
+   * The acting "current user", or null. Single source of truth for the
+   * dev-server "Acting as" switch: the current-user route override below reads
+   * it for identity, and the dev server reads its accountId to stamp the
+   * resolver context. It's an `ActingUser` (not `SeededUser`) because in
+   * connected mode the picked person is a REAL user off the site — full
+   * accountId + displayName, but maybe no email/avatar. Defaults to null so
+   * the override is inert for a raw createSimulator() (unmocked-/myself 501
+   * contract preserved) and for a fresh connected dev server (the real PAT
+   * owner is the default identity until someone picks another user).
+   */
+  private currentUser: ActingUser | null = null;
 
   constructor() {
     // Set up defaults that return helpful errors
@@ -251,6 +264,26 @@ export class SimulatedProductApi {
 
   get connectedAccount(): AtlassianAccount | null {
     return this.realApiAccount;
+  }
+
+  /**
+   * Set (or clear) the seeded current user. This is the primary "who am I"
+   * write for the dev-server switcher: it drives BOTH the /myself fallback
+   * (identity) and — via `getCurrentUser()` — the resolver context accountId
+   * the dev server stamps. Pass `null` to revert to no seeded identity.
+   *
+   * Note the direction is one-way (rich → thin): setting a thin context
+   * accountId via `setContext(...)` does NOT back-populate this. A bare
+   * accountId can't reconstruct a person, `setContext` accepts arbitrary ids,
+   * and auto-deriving would break the unmocked-/myself contract.
+   */
+  setCurrentUser(user: ActingUser | null): void {
+    this.currentUser = user;
+  }
+
+  /** The acting current user, or null if none is set. */
+  getCurrentUser(): ActingUser | null {
+    return this.currentUser;
   }
 
   private createRealHandler(product: string): ProductApiHandler {
@@ -418,7 +451,95 @@ export class SimulatedProductApi {
         error: `Unknown product: ${product}`,
       });
     }
-    return handler(path, options);
+    const result = await handler(path, options);
+
+    // Current-user route override. When an acting user is set, the switcher's
+    // pick is the authority on "who am I" — it must beat the REAL API too,
+    // because a connected site's /myself returns the authenticated PAT owner
+    // (always the same person), so the acting name could never flip otherwise.
+    //
+    // Precedence for the current-user route:
+    //   app's own /myself mock  >  acting-user override  >  real API / seeded miss
+    //
+    // The app author's explicit mock still wins: `hasMockRoute` distinguishes
+    // "the app deliberately mocked this route" (let the handler's 2xx through)
+    // from "the real API / unmocked handler answered it" (override). Inert
+    // unless setCurrentUser() was called, so raw createSimulator() and a fresh
+    // connected dev server (real PAT owner = default) are unchanged.
+    if (this.currentUser && this.isCurrentUserRoute(product, path, options)) {
+      if (this.hasMockRoute(product, path, options)) return result;
+      return this.currentUserResponse(product);
+    }
+    return result;
+  }
+
+  /**
+   * Did the app author explicitly register a mock for this route? Mirrors the
+   * matching in `mockRoutes`' routeHandler exactly (method + prefix). Used to
+   * let an app's own /myself mock win over the acting-user override, while a
+   * plain real-API answer (no mock table entry) still loses to it.
+   */
+  private hasMockRoute(product: string, path: string, options?: ProductApiRequest): boolean {
+    const table = this.mockRouteTables.get(product);
+    if (!table) return false;
+    const requestMethod = (options?.method ?? 'GET').toUpperCase();
+    const cleanPath = path.split('?')[0];
+    for (const { method, pathPattern } of table.values()) {
+      if (requestMethod === method && (cleanPath === pathPattern || cleanPath.startsWith(pathPattern))) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /** Does this request target the product's "current user" endpoint? */
+  private isCurrentUserRoute(
+    product: string,
+    path: string,
+    options?: ProductApiRequest,
+  ): boolean {
+    const method = (options?.method ?? 'GET').toUpperCase();
+    if (method !== 'GET') return false;
+    const clean = path.split('?')[0].replace(/\/+$/, '');
+    if (product === 'jira') {
+      return clean === '/rest/api/3/myself' || clean === '/rest/api/2/myself';
+    }
+    if (product === 'confluence') {
+      // Match both the /wiki-prefixed real path and the bare form forge-sim's
+      // own helpers use (see authorize.ts).
+      return clean.endsWith('/rest/api/user/current');
+    }
+    return false;
+  }
+
+  /**
+   * Build the acting current-user response for a product. `emailAddress` and
+   * `avatarUrl` are only present on seeded fakes (and some real picks), so
+   * they're included conditionally — a real user picked off a site may have
+   * neither, and we never invent them.
+   */
+  private currentUserResponse(product: string): ProductApiResponse {
+    const u = this.currentUser!;
+    if (product === 'confluence') {
+      return makeResponse(200, {
+        type: 'known',
+        accountId: u.accountId,
+        accountType: 'atlassian',
+        ...(u.emailAddress ? { email: u.emailAddress } : {}),
+        publicName: u.displayName,
+        displayName: u.displayName,
+        ...(u.avatarUrl ? { profilePicture: { path: u.avatarUrl } } : {}),
+      });
+    }
+    // Jira (default) — /rest/api/3/myself shape.
+    return makeResponse(200, {
+      accountId: u.accountId,
+      displayName: u.displayName,
+      ...(u.emailAddress ? { emailAddress: u.emailAddress } : {}),
+      active: true,
+      accountType: 'atlassian',
+      ...(u.avatarUrl ? { avatarUrls: { '48x48': u.avatarUrl } } : {}),
+    });
   }
 
   // ── GraphQL (Atlassian Gateway) ───────────────────────────────────────
@@ -524,6 +645,7 @@ export class SimulatedProductApi {
     this.mockRouteTables.clear();
     this.graphqlMocks.clear();
     this.realApiAccount = null;
+    this.currentUser = null;
     for (const product of ['jira', 'confluence', 'bitbucket']) {
       this.handlers.set(product, unmockedHandler(product));
     }

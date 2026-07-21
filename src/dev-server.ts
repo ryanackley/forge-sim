@@ -17,6 +17,12 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { watch } from 'node:fs';
 import { resolve, relative } from 'node:path';
 import type { ForgeDoc } from './ui/bridge.js';
+import {
+  getSeededUsers,
+  getSeededUserByAccountId,
+  getDefaultSeededUser,
+} from './seeded-users.js';
+import type { ActingUser } from './seeded-users.js';
 
 // ── Types ───────────────────────────────────────────────────────────────
 
@@ -235,6 +241,25 @@ export async function createDevServer(options: DevServerOptions = {}): Promise<D
     });
   }
 
+  // ── "Acting as" default (mode-aware) ────────────────────────────────
+  // OFFLINE ONLY: seed the acting user to the default lead so the resolver
+  // context accountId and the current-user route fallback are consistent
+  // before any switch (matching the default row in the gear menu).
+  //
+  // CONNECTED: do NOT seed a fake. The authenticated PAT owner is the real
+  // default identity — the base context already carries their accountId
+  // (buildDefaultContext uses connectedAccount.accountId) and their /myself
+  // is the live real one. Seeding sim-user-001 here was the "schizo" bug: it
+  // stamped a fake accountId into a live session. currentUser stays null until
+  // the dev explicitly picks someone from the (real user-search) dropdown.
+  if (
+    simulator &&
+    !simulator.productApi.isRealMode &&
+    !simulator.productApi.getCurrentUser()
+  ) {
+    simulator.productApi.setCurrentUser(getDefaultSeededUser());
+  }
+
   // ── WebSocket handling ──────────────────────────────────────────────
 
   wss.on('connection', (ws) => {
@@ -287,6 +312,34 @@ export async function createDevServer(options: DevServerOptions = {}): Promise<D
    * silently null in every resolver called through the UI bridge.)
    */
   async function resolveModuleContext(
+    reqModuleKey: string | undefined,
+    contextOptions: Record<string, any> | undefined,
+  ): Promise<any> {
+    const ctx = await buildBaseModuleContext(reqModuleKey, contextOptions);
+    // Acting-user override. `productApi.currentUser` is the single source of
+    // truth for "who am I" (see seeded-users.ts). Its accountId drives the
+    // resolver context unless the caller supplied an explicit accountId via
+    // URL/CLI context options — precedence: explicit contextOptions.accountId
+    // > currentUser.accountId > whatever the base builder produced. Only
+    // `accountId` is overridden: the real-Forge resolver context carries
+    // nothing else about the user (name/email come from /rest/api/3/myself).
+    if (ctx && typeof ctx === 'object') {
+      const explicitAccountId = contextOptions?.accountId;
+      if (explicitAccountId) {
+        // An explicit accountId (URL `?context`/per-invoke) is the top of the
+        // precedence chain — stamp it. The browser sends this flat (see
+        // getContextFromURL), so buildForgeContext (which only promotes a
+        // *nested* context.accountId) never applies it; do it here.
+        ctx.accountId = explicitAccountId;
+      } else {
+        const currentUserId = simulator?.productApi.getCurrentUser()?.accountId;
+        if (currentUserId) ctx.accountId = currentUserId;
+      }
+    }
+    return ctx;
+  }
+
+  async function buildBaseModuleContext(
     reqModuleKey: string | undefined,
     contextOptions: Record<string, any> | undefined,
   ): Promise<any> {
@@ -489,6 +542,126 @@ export async function createDevServer(options: DevServerOptions = {}): Promise<D
         } else {
           return simulator.realtime.publishFromBridge(channel, payload, moduleKey ?? null, options);
         }
+      }
+
+      // ── "Acting as" user switcher (gear menu) ─────────────────────────
+      // Mode-aware. OFFLINE the dropdown works off the seeded roster
+      // (forge-sim's no-cloud differentiator). CONNECTED it searches REAL
+      // users off the site so a live session never carries a fake accountId.
+      // Roster + search live server-side only; the renderer drives everything
+      // through these RPCs (no cross-package coupling, no duplicated roster).
+      case 'getActingUserState': {
+        const isReal = simulator.productApi.isRealMode;
+        const current = simulator.productApi.getCurrentUser();
+        // "current" for the menu highlight. If nobody's been picked yet in
+        // connected mode, that's the authenticated PAT owner, derived from
+        // the account (no network call). Offline, startup seeding guarantees
+        // a current, but fall back to the default lead defensively.
+        let effectiveCurrent: ActingUser | null = current;
+        if (!effectiveCurrent) {
+          if (isReal) {
+            const acct = simulator.productApi.connectedAccount;
+            if (acct) {
+              effectiveCurrent = {
+                accountId: acct.accountId,
+                displayName: acct.name,
+                emailAddress: acct.email,
+              };
+            }
+          } else {
+            effectiveCurrent = getDefaultSeededUser();
+          }
+        }
+        return {
+          mode: isReal ? 'connected' : 'offline',
+          current: effectiveCurrent,
+          // Offline: seed the dropdown with the whole roster so it's useful
+          // before the dev types. Connected: empty — you search live.
+          users: isReal ? [] : getSeededUsers(),
+          // The site backing the live search (connected only) — powers the
+          // "Live users from <site>" hint in the gear menu.
+          site: isReal ? (simulator.productApi.connectedAccount?.site ?? null) : null,
+        };
+      }
+
+      case 'searchUsers': {
+        const query: string = (params?.query ?? '').toString();
+        if (simulator.productApi.isRealMode) {
+          // Proxy the real Jira user picker. accountIds are site-wide (same
+          // in Jira and Confluence), so this supplies valid ids for any app.
+          const q = encodeURIComponent(query);
+          const res = await simulator.productApi.request(
+            'jira',
+            `/rest/api/3/user/picker?query=${q}&maxResults=20`,
+          );
+          if (!res.ok) {
+            return { mode: 'connected', users: [], error: `user picker failed (${res.status})` };
+          }
+          const body = await res.json().catch(() => null);
+          const users: ActingUser[] = (body?.users ?? []).map((u: any) => ({
+            accountId: u.accountId,
+            displayName: u.displayName,
+            ...(u.avatarUrl ? { avatarUrl: u.avatarUrl } : {}),
+          }));
+          return { mode: 'connected', users };
+        }
+        // Offline: filter the seeded roster on name / role / email.
+        const needle = query.trim().toLowerCase();
+        const roster = getSeededUsers();
+        const users = needle
+          ? roster.filter(
+              (u) =>
+                u.displayName.toLowerCase().includes(needle) ||
+                u.role.toLowerCase().includes(needle) ||
+                u.emailAddress.toLowerCase().includes(needle),
+            )
+          : roster;
+        return { mode: 'offline', users };
+      }
+
+      case 'setActingUser': {
+        // Accept a bare accountId (offline convenience) or a full picked user
+        // object (connected — a real accountId can't reconstruct a person, so
+        // the renderer sends the whole picked object it got from searchUsers).
+        const isReal = simulator.productApi.isRealMode;
+        const rawUser = params?.user;
+        const accountId: string | undefined = params?.accountId ?? rawUser?.accountId;
+
+        // Clearing the override → revert to the mode default: the real PAT
+        // owner when connected (currentUser null), the seeded lead offline.
+        if (!accountId) {
+          simulator.productApi.setCurrentUser(isReal ? null : getDefaultSeededUser());
+          return { ok: true };
+        }
+
+        if (isReal) {
+          // The picked object came from our own searchUsers proxy of the real
+          // picker, so trust it — just require an accountId + displayName.
+          if (!rawUser?.displayName) {
+            throw new Error(
+              `setActingUser (connected mode) requires a full user object with a displayName`,
+            );
+          }
+          const user: ActingUser = {
+            accountId,
+            displayName: rawUser.displayName,
+            ...(rawUser.emailAddress ? { emailAddress: rawUser.emailAddress } : {}),
+            ...(rawUser.avatarUrl ? { avatarUrl: rawUser.avatarUrl } : {}),
+          };
+          simulator.productApi.setCurrentUser(user);
+          return { ok: true };
+        }
+
+        // Offline: validate against the seeded roster.
+        const seeded = getSeededUserByAccountId(accountId);
+        if (!seeded) {
+          throw new Error(
+            `Unknown seeded user accountId: ${JSON.stringify(accountId)}. ` +
+              `Valid ids: ${getSeededUsers().map((u) => u.accountId).join(', ')}`,
+          );
+        }
+        simulator.productApi.setCurrentUser(seeded);
+        return { ok: true };
       }
 
       default:

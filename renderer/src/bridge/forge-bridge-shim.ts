@@ -165,8 +165,13 @@ function ensureConnection(): Promise<void> {
   });
 }
 
-/** Send a request to forge-sim and wait for the response */
-async function rpc(method: string, params: any = {}): Promise<any> {
+/**
+ * Send a request to forge-sim and wait for the response.
+ * Exported so the dev-server shell (gear menu) can issue tooling RPCs
+ * (`getSeededUsers`, `setActingUser`) over the same WebSocket channel the
+ * Forge bridge uses.
+ */
+export async function rpc(method: string, params: any = {}): Promise<any> {
   await ensureConnection();
 
   const S = G.__forgeSim;

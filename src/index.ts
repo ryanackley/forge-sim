@@ -41,6 +41,17 @@ export {
 } from './trigger-event-templates.js';
 export type { TriggerEventTemplate } from './trigger-event-templates.js';
 
+// Seeded fake-user roster for the dev-server "Acting as" switcher.
+// Public so tests/agents pull the canonical roster instead of hand-rolling
+// one that drifts from the dev server.
+export {
+  getSeededUsers,
+  getSeededUserByAccountId,
+  getDefaultSeededUser,
+  DEFAULT_SEEDED_ACCOUNT_ID,
+} from './seeded-users.js';
+export type { SeededUser, SeededUserRole } from './seeded-users.js';
+
 export type {
   TriggerPayloadByEvent,
   KnownTriggerEvent,
