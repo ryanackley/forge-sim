@@ -31,7 +31,7 @@ The **dev tools UI** at `http://localhost:5173/__tools/` is a window into the si
 
 See [Dev tools UI](./dev-tools.md) for the full walkthrough.
 
-## The ⚙️ gear menu: preview width and color mode
+## The ⚙️ gear menu: preview width, color mode, and acting user
 
 Every rendered UIKit module gets a small **`⚙️ forge-sim`** button pinned to the bottom-right corner. Click it to open the render settings popover. It's dev-only chrome: not part of your app, and it never appears in a real Forge render.
 
@@ -58,6 +58,19 @@ Forge modules render at very different widths depending on where they live in th
 forge-sim picks a sensible default from the module's type (`jira:issuePanel` starts narrow, `jira:globalPage` starts wide, `jira:dashboardGadget` starts full) and marks that preset with a **• module default** badge in the menu. Override it freely; your choice is remembered **per module**, so your issue panel and your admin page each keep their own width.
 
 The popover footer shows the detected module type so you can confirm which default applied.
+
+### Acting user
+
+The **Acting as** dropdown changes who your app thinks is looking at it. Pick a user and forge-sim overrides two things at once: the `accountId` in your resolver's `context`, and the current-user identity route (`requestJira('/myself')` and the Confluence current-user endpoint). So both ways an app can ask "who am I", the resolver context and a `/myself` call, agree on the same person. This is how you exercise per-user state (a "you already voted" flag, permission-gated UI, assignee filters) without deploying or juggling logins.
+
+The dropdown is mode-aware:
+
+- **Offline** (no site connected): you get a seeded roster of five people (a lead, two engineers, a designer, a PM) with stable fake `accountId`s. This is forge-sim's no-cloud path: real identities to switch between with nothing to connect to.
+- **Connected** (a PAT-linked site, see [Talking to Atlassian APIs](./atlassian-apis.md)): the dropdown searches **real users** on your site live, so you switch between real people with real `accountId`s and never leak a fake id into a call that hits the real API.
+
+Precedence, highest first: an app's own `/myself` mock always wins, then the acting-user override, then the real API, then the seeded default. That ordering means switching users visibly changes identity even in connected mode, while a mock you set on purpose is never clobbered.
+
+Switching triggers a page reload (your app owns its own `invoke` calls in mount effects, so a reload is the clean way to re-run them as the new user). The choice lasts for the life of the dev server; a restart resets to the default user.
 
 ## Custom UI and proxy mode
 
