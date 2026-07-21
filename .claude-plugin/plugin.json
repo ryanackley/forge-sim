@@ -1,6 +1,6 @@
 {
   "name": "forge-sim",
-  "version": "0.1.12",
+  "version": "0.1.13",
   "description": "Local-first Forge app development workflow. Bundles the forge-local-dev skill (the iterate-and-test phase of Forge dev) with forge-sim's MCP server. Complements Atlassian's forge-skills plugin: forge-app-builder owns scaffolding, forge-app-review owns pre-deploy audit, and this plugin owns the develop-and-test loop in between.",
   "author": {
     "name": "Ryan Ackley"
