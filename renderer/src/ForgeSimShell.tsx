@@ -12,7 +12,7 @@
  *   - Dev-only color mode toggle (light / dark / auto)
  */
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import AppProvider, { useSetColorMode } from '@atlaskit/app-provider';
 import Avatar from '@atlaskit/avatar';
 import { AsyncSelect } from '@atlaskit/select';
@@ -321,6 +321,11 @@ interface GearPopoverProps {
   onColorModeChange: (next: ColorMode) => void;
   onSearchUsers: (query: string) => Promise<ActingUserOption[]>;
   onActingUserChange: (user: ActingUserOption | null) => void;
+  // Reports how many vertical pixels the popover needs (measured from the
+  // iframe bottom) while it's open, or null when closed. The shell floors the
+  // auto-resize height to this so the upward-opening popup + user-search menu
+  // aren't clipped inside a content-sized iframe.
+  onChromeHeightChange: (needed: number | null) => void;
 }
 
 function GearPopover({
@@ -333,9 +338,11 @@ function GearPopover({
   onColorModeChange,
   onSearchUsers,
   onActingUserChange,
+  onChromeHeightChange,
 }: GearPopoverProps) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -347,6 +354,32 @@ function GearPopover({
     document.addEventListener('mousedown', onDocClick);
     return () => document.removeEventListener('mousedown', onDocClick);
   }, [open]);
+
+  // Report the room the popover needs so the shell can grow the iframe to fit.
+  // Geometry (all measured from the iframe bottom):
+  //   gear root      bottom: 12px
+  //   popup panel    bottom: 36px (relative to root) → 48px from iframe bottom
+  //   panel height   measured live (varies with sections / custom-width input)
+  //   user search    AsyncSelect menuPlacement="top", maxMenuHeight 220 →
+  //                  reserve ~240px ABOVE the panel, but only when a switcher
+  //                  is present (that's the only upward-opening menu).
+  // Re-measures on the inputs that change the panel's height. Closing reports
+  // null, which drops the floor back to the content height.
+  useEffect(() => {
+    if (!open) {
+      onChromeHeightChange(null);
+      return;
+    }
+    const panelHeight = panelRef.current
+      ? Math.ceil(panelRef.current.getBoundingClientRect().height)
+      : 0;
+    const menuReserve = switcher ? 240 : 0;
+    const needed = 12 + 36 + panelHeight + menuReserve + 12;
+    onChromeHeightChange(needed);
+  }, [open, switcher, pref.preset, colorMode, onChromeHeightChange]);
+
+  // Drop the floor if this popover unmounts while open.
+  useEffect(() => () => onChromeHeightChange(null), [onChromeHeightChange]);
 
   const suggestedKey = defaultPresetForModuleType(moduleType);
   const active = pref.preset;
@@ -365,6 +398,7 @@ function GearPopover({
     >
       {open && (
         <div
+          ref={panelRef}
           style={{
             position: 'absolute',
             bottom: '36px',
@@ -1031,6 +1065,78 @@ function ShellInner({ initialColorMode }: ShellInnerProps) {
     setActiveSubmitTree(macroTab === 'config' ? 'macroConfig' : 'view');
   }, [macroTab]);
 
+  // Auto-resize when embedded in a parent iframe (macro / custom-field /
+  // workflow dev pages nest the renderer in a child iframe pinned at
+  // min-height: 200px). Those pages listen for a { type: 'resize', height }
+  // postMessage to grow the iframe to fit — but nothing ever emitted it, so
+  // config/view/field/validator sub-iframes were stuck at 200px regardless of
+  // content. Measure the content card and post its height to the parent.
+  //
+  // A callback ref (not a mount-time useEffect) is required because the loading
+  // gate returns different DOM before the first ForgeDoc arrives — the card
+  // this observes doesn't exist yet at mount. React re-invokes the ref as the
+  // card attaches/detaches, so the observer always tracks the live node.
+  const resizeObserverRef = useRef<ResizeObserver | null>(null);
+  const contentNodeRef = useRef<HTMLDivElement | null>(null);
+  // Floor for the posted height, in px, driven by the gear popover while it's
+  // open (see GearPopover.onChromeHeightChange). A ref mirror lets the
+  // ResizeObserver callback read the latest value without re-subscribing.
+  const [gearChromeHeight, setGearChromeHeight] = useState<number | null>(null);
+  const gearChromeHeightRef = useRef<number | null>(null);
+
+  const postHeight = useCallback(() => {
+    const node = contentNodeRef.current;
+    // Only emit when actually embedded — top-level module pages (100vh) grow
+    // on their own, and posting to self is pointless.
+    const embedded =
+      typeof window !== 'undefined' && window.parent && window.parent !== window;
+    if (!node || !embedded) return;
+    // + 48 covers the card's 24px top+bottom margins so the parent iframe
+    // isn't clipped at the seam. Math.ceil avoids fractional-pixel jitter.
+    const contentHeight = Math.ceil(node.getBoundingClientRect().height) + 48;
+    // Floor to the open gear popover's needed height so its upward-opening
+    // popup + user-search menu aren't clipped inside a short (content-sized)
+    // iframe. Reverts to content height when the popover closes.
+    const height = Math.max(contentHeight, gearChromeHeightRef.current ?? 0);
+    try {
+      window.parent.postMessage({ type: 'resize', height }, '*');
+    } catch {
+      /* cross-origin parent — ignore */
+    }
+  }, []);
+
+  const contentCardRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      contentNodeRef.current = node;
+      const embedded =
+        typeof window !== 'undefined' && window.parent && window.parent !== window;
+
+      if (resizeObserverRef.current) {
+        resizeObserverRef.current.disconnect();
+        resizeObserverRef.current = null;
+      }
+      if (!node || !embedded) return;
+
+      if (typeof ResizeObserver !== 'undefined') {
+        const ro = new ResizeObserver(() => postHeight());
+        ro.observe(node);
+        resizeObserverRef.current = ro;
+      }
+      // Emit once immediately so the parent sizes correctly even if the content
+      // never resizes again after attach.
+      postHeight();
+    },
+    [postHeight],
+  );
+
+  // Re-post whenever the gear popover's needed height changes so the iframe
+  // grows to fit the open popover (and shrinks back on close). Keep the ref
+  // mirror in sync for the ResizeObserver callback's benefit.
+  useEffect(() => {
+    gearChromeHeightRef.current = gearChromeHeight;
+    postHeight();
+  }, [gearChromeHeight, postHeight]);
+
   // Form ref + parity bookkeeping for the inline config Save button.
   const configFormRef = useRef<HTMLFormElement | null>(null);
   const [configParityHint, setConfigParityHint] = useState<string | undefined>(undefined);
@@ -1193,6 +1299,7 @@ function ShellInner({ initialColorMode }: ShellInnerProps) {
       >
         <div
           data-forge-sim-content
+          ref={contentCardRef}
           style={{
             maxWidth: effectiveMaxWidth,
             margin: '24px auto',
@@ -1240,6 +1347,7 @@ function ShellInner({ initialColorMode }: ShellInnerProps) {
         onColorModeChange={handleColorModeChange}
         onSearchUsers={handleSearchUsers}
         onActingUserChange={handleActingUserChange}
+        onChromeHeightChange={setGearChromeHeight}
       />
 
       <div

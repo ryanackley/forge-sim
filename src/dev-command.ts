@@ -1145,6 +1145,20 @@ export function generateWorkflowPageHtml(
         if (frame) frame.style.display = m === mode ? '' : 'none';
       });
     }
+
+    // Auto-resize iframes — the embedded renderer posts its content height so
+    // each validator/condition/post-function frame grows to fit instead of
+    // sitting at min-height: 200px. Map the message back to its sender frame.
+    window.addEventListener('message', function(e) {
+      if (!e.data || e.data.type !== 'resize' || !e.data.height) return;
+      for (var i = 0; i < tabs.length; i++) {
+        var frame = document.getElementById('wf-' + tabs[i]);
+        if (frame && frame.contentWindow === e.source) {
+          frame.style.height = e.data.height + 'px';
+          break;
+        }
+      }
+    });
   </script>
 </body>
 </html>`;
