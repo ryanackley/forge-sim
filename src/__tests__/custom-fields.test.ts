@@ -7,7 +7,13 @@ import {
   parseManifestContent,
   type ManifestUIModule,
 } from '../manifest.js';
-import { generateModulePickerHtml, generateCustomFieldPageHtml, detectModuleType, type DetectedModule } from '../dev-command.js';
+import {
+  generateModulePickerHtml,
+  computeModulePageGroups,
+  generateModulePageEntry,
+  detectModuleType,
+  type DetectedModule,
+} from '../dev-command.js';
 import { buildDefaultContext } from '../context.js';
 
 // ── Manifest Parsing ──────────────────────────────────────────────────
@@ -460,65 +466,89 @@ describe('custom field context', () => {
 });
 
 // ── Combined Custom Field Page ────────────────────────────────────────
+//
+// The combined custom-field page is now a top-level Atlaskit React document
+// (ForgeSimModulePage), not hand-rolled HTML. The dev server groups the
+// `--view`/`--edit` split modules into one ModulePageGroup and generates a
+// Vite entry that mounts ForgeSimModulePage. These tests assert that grouping
+// + entry contract; the parent-page UI is covered by module-page.test.tsx.
 
 describe('custom field combined page', () => {
-  it('should generate page with View and Edit tabs', () => {
-    const html = generateCustomFieldPageHtml('priority-score', 'Priority Score', true, true, 'number', 5174);
+  function cfModule(key: string, title: string, fieldType: string): DetectedModule {
+    return {
+      module: {
+        key,
+        type: 'jira:customField',
+        title,
+        resourceKey: 'main',
+        fieldType,
+      } as ManifestUIModule,
+      resourcePath: '/fake/path',
+      mode: 'uikit',
+    };
+  }
 
-    // Should have both tabs
-    expect(html).toContain('data-mode="view"');
-    expect(html).toContain('data-mode="edit"');
-    // Should have both iframes
-    expect(html).toContain('src="/module/priority-score--view/"');
-    expect(html).toContain('src="/module/priority-score--edit/"');
-    // Edit iframe should be hidden initially
-    expect(html).toContain('id="cf-edit"');
-    expect(html).toContain('display:none');
-    // Should have WS connection for fieldValueUpdate
-    expect(html).toContain('fieldValueUpdate');
-    expect(html).toContain('ws://localhost:5174');
-    // Should have field badges
-    expect(html).toContain('Custom Field');
-    expect(html).toContain('number');
-    // Should have back link
-    expect(html).toContain('Back to modules');
+  it('groups view and edit into a single custom-field page group', () => {
+    const groups = computeModulePageGroups([
+      cfModule('priority-score--view', 'Priority Score (View)', 'number'),
+      cfModule('priority-score--edit', 'Priority Score (Edit)', 'number'),
+    ]);
+
+    expect(groups).toHaveLength(1);
+    const g = groups[0];
+    expect(g.baseKey).toBe('priority-score');
+    expect(g.surface).toBe('customField');
+    expect(g.title).toBe('Priority Score');
+    expect(g.fieldType).toBe('number');
+    expect(g.modes.map((m) => m.mode)).toEqual(['view', 'edit']);
+    expect(g.modes.map((m) => m.label)).toEqual(['View', 'Edit']);
   });
 
-  it('should generate view-only page without tab toggle', () => {
-    const html = generateCustomFieldPageHtml('computed', 'Computed', true, false, 'number', 5174);
-
-    // Should have view iframe
-    expect(html).toContain('src="/module/computed--view/"');
-    // Should NOT have edit iframe
-    expect(html).not.toContain('src="/module/computed--edit/"');
-    // Should NOT have tab toggle buttons
-    expect(html).not.toContain('onclick="switchTab');
+  it('orders view before edit regardless of manifest order', () => {
+    const groups = computeModulePageGroups([
+      cfModule('f--edit', 'F (Edit)', 'string'),
+      cfModule('f--view', 'F (View)', 'string'),
+    ]);
+    expect(groups[0].modes.map((m) => m.mode)).toEqual(['view', 'edit']);
   });
 
-  it('should generate edit-only page without tab toggle', () => {
-    const html = generateCustomFieldPageHtml('manual', 'Manual', false, true, 'string', 5174);
-
-    expect(html).not.toContain('src="/module/manual--view/"');
-    expect(html).toContain('src="/module/manual--edit/"');
-    expect(html).not.toContain('onclick="switchTab');
+  it('supports a view-only custom-field group', () => {
+    const groups = computeModulePageGroups([cfModule('computed--view', 'Computed (View)', 'number')]);
+    expect(groups).toHaveLength(1);
+    expect(groups[0].modes.map((m) => m.mode)).toEqual(['view']);
   });
 
-  it('should include switchTab function', () => {
-    const html = generateCustomFieldPageHtml('test', 'Test', true, true, 'string', 5174);
-    expect(html).toContain('function switchTab');
+  it('supports an edit-only custom-field group', () => {
+    const groups = computeModulePageGroups([cfModule('manual--edit', 'Manual (Edit)', 'string')]);
+    expect(groups).toHaveLength(1);
+    expect(groups[0].modes.map((m) => m.mode)).toEqual(['edit']);
   });
 
-  it('should show parity warning banner when warnings provided', () => {
-    const html = generateCustomFieldPageHtml('test', 'Test', true, true, 'string', 5174, [
+  it('generates an entry that mounts ForgeSimModulePage with the field type in props', () => {
+    const [group] = computeModulePageGroups([
+      cfModule('priority-score--view', 'Priority Score (View)', 'number'),
+      cfModule('priority-score--edit', 'Priority Score (Edit)', 'number'),
+    ]);
+    const entry = generateModulePageEntry(group, 5174, []);
+
+    expect(entry).toContain('ForgeSimModulePage');
+    expect(entry).toContain('ws://localhost:5174');
+    expect(entry).toContain('"baseKey":"priority-score"');
+    expect(entry).toContain('"surface":"customField"');
+    expect(entry).toContain('"fieldType":"number"');
+    // The parent realm never runs the dev app.
+    expect(entry).not.toContain('ForgeSimShell');
+  });
+
+  it('threads parity warnings into the entry props', () => {
+    const [group] = computeModulePageGroups([
+      cfModule('test--view', 'Test (View)', 'string'),
+      cfModule('test--edit', 'Test (Edit)', 'string'),
+    ]);
+    const entry = generateModulePageEntry(group, 5174, [
       'Custom field "test" has a view resource but no view.experience.',
     ]);
-    expect(html).toContain('Parity Warning');
-    expect(html).toContain('no view.experience');
-  });
-
-  it('should not show banner when no warnings', () => {
-    const html = generateCustomFieldPageHtml('test', 'Test', true, true, 'string', 5174, []);
-    expect(html).not.toContain('Parity Warning');
+    expect(entry).toContain('no view.experience');
   });
 });
 

@@ -6,7 +6,8 @@ import { describe, it, expect } from 'vitest';
 import { parseManifestContent, type ManifestUIModule } from '../manifest.js';
 import {
   generateModulePickerHtml,
-  generateMacroPageHtml,
+  computeModulePageGroups,
+  generateModulePageEntry,
   type DetectedModule,
 } from '../dev-command.js';
 import { buildDefaultContext } from '../context.js';
@@ -332,62 +333,85 @@ describe('macro context', () => {
 });
 
 // ── Combined Macro Page ───────────────────────────────────────────────
+//
+// The combined macro page is now a top-level Atlaskit React document
+// (ForgeSimModulePage). The dev server no longer emits hand-rolled HTML; it
+// (a) groups the `--view`/`--config` split modules back into a single
+// ModulePageGroup and (b) generates a Vite entry that mounts
+// ForgeSimModulePage with that group's props. These tests assert that
+// grouping + entry contract; the parent-page UI itself is covered by the
+// renderer's module-page.test.tsx.
 
 describe('macro combined page', () => {
-  it('should generate page with View and Config tabs', () => {
-    const html = generateMacroPageHtml('pet-info', 'Pet Info', true, true, 5174);
+  function macroModule(key: string, title: string): DetectedModule {
+    return {
+      module: { key, type: 'macro', title, resourceKey: 'main' } as ManifestUIModule,
+      resourcePath: '/fake/path',
+      mode: 'uikit',
+    };
+  }
 
-    expect(html).toContain('data-mode="view"');
-    expect(html).toContain('data-mode="config"');
-    expect(html).toContain('src="/module/pet-info--view/"');
-    expect(html).toContain('data-src="/module/pet-info--config/"');
-    expect(html).toContain('id="cf-config"');
-    expect(html).toContain('display:none');
-    expect(html).toContain('macroConfigUpdate');
-    expect(html).toContain('ws://localhost:5174');
-    expect(html).toContain('Macro');
-    expect(html).toContain('Back to modules');
+  it('groups view and config into a single macro page group', () => {
+    const groups = computeModulePageGroups([
+      macroModule('pet-info--view', 'Pet Info (View)'),
+      macroModule('pet-info--config', 'Pet Info (Config)'),
+    ]);
+
+    expect(groups).toHaveLength(1);
+    const g = groups[0];
+    expect(g.baseKey).toBe('pet-info');
+    expect(g.surface).toBe('macro');
+    expect(g.title).toBe('Pet Info');
+    expect(g.modes.map((m) => m.mode)).toEqual(['view', 'config']);
+    expect(g.modes.map((m) => m.label)).toEqual(['View', 'Config']);
   });
 
-  it('should generate view-only page without tab toggle', () => {
-    const html = generateMacroPageHtml('view-only', 'View Only', true, false, 5174);
-
-    expect(html).toContain('src="/module/view-only--view/"');
-    expect(html).not.toContain('src="/module/view-only--config/"');
-    expect(html).not.toContain('data-src="/module/view-only--config/"');
-    expect(html).not.toContain('onclick="switchTab');
+  it('orders view before config regardless of manifest order', () => {
+    const groups = computeModulePageGroups([
+      macroModule('m--config', 'M (Config)'),
+      macroModule('m--view', 'M (View)'),
+    ]);
+    expect(groups[0].modes.map((m) => m.mode)).toEqual(['view', 'config']);
   });
 
-  it('should generate config-only page without tab toggle', () => {
-    const html = generateMacroPageHtml('cfg-only', 'Config Only', false, true, 5174);
-
-    expect(html).not.toContain('src="/module/cfg-only--view/"');
-    expect(html).toContain('src="/module/cfg-only--config/"');
-    expect(html).not.toContain('onclick="switchTab');
+  it('supports a view-only macro group (single mode)', () => {
+    const groups = computeModulePageGroups([macroModule('view-only--view', 'View Only (View)')]);
+    expect(groups).toHaveLength(1);
+    expect(groups[0].modes.map((m) => m.mode)).toEqual(['view']);
   });
 
-  it('should include switchTab function when both tabs present', () => {
-    const html = generateMacroPageHtml('m', 'M', true, true, 5174);
-    expect(html).toContain('function switchTab');
-    expect(html).toContain('triggerSubmit');
+  it('supports a config-only macro group (single mode)', () => {
+    const groups = computeModulePageGroups([macroModule('cfg-only--config', 'Config Only (Config)')]);
+    expect(groups).toHaveLength(1);
+    expect(groups[0].modes.map((m) => m.mode)).toEqual(['config']);
   });
 
-  it('should show parity note banner when warnings provided', () => {
-    const html = generateMacroPageHtml('m', 'M', true, true, 5174, [
+  it('generates an entry that mounts ForgeSimModulePage without importing the dev app', () => {
+    const [group] = computeModulePageGroups([
+      macroModule('pet-info--view', 'Pet Info (View)'),
+      macroModule('pet-info--config', 'Pet Info (Config)'),
+    ]);
+    const entry = generateModulePageEntry(group, 5174, []);
+
+    // Mounts the top-level parent page, wired to the WS port.
+    expect(entry).toContain('ForgeSimModulePage');
+    expect(entry).toContain('ws://localhost:5174');
+    // Props are baked into the entry as JSON.
+    expect(entry).toContain('"baseKey":"pet-info"');
+    expect(entry).toContain('"surface":"macro"');
+    // No dev-app code runs in the parent realm — the app runs in the content
+    // iframes, so the entry must NOT import the app or the per-mode shell.
+    expect(entry).not.toContain('ForgeSimShell');
+  });
+
+  it('threads parity warnings into the entry props', () => {
+    const [group] = computeModulePageGroups([
+      macroModule('m--view', 'M (View)'),
+      macroModule('m--config', 'M (Config)'),
+    ]);
+    const entry = generateModulePageEntry(group, 5174, [
       'Macro "m" uses inline config (config: true).',
     ]);
-    expect(html).toContain('Parity Note');
-    expect(html).toContain('inline config');
-  });
-
-  it('should not show banner when no warnings', () => {
-    const html = generateMacroPageHtml('m', 'M', true, true, 5174, []);
-    expect(html).not.toContain('Parity Note');
-  });
-
-  it('should wire the Save button to postMessage the config iframe', () => {
-    const html = generateMacroPageHtml('m', 'M', true, true, 5174);
-    expect(html).toContain('forge-sim-trigger-submit');
-    expect(html).toContain('configFrame.contentWindow.postMessage');
+    expect(entry).toContain('inline config');
   });
 });

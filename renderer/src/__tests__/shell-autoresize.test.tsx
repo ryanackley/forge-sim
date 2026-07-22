@@ -1,20 +1,24 @@
 /**
- * ForgeSimShell — iframe auto-resize emitter.
+ * ForgeSimShell — embedded dev-chrome + iframe auto-resize emitter.
  *
  * Macro / custom-field / workflow dev pages nest the renderer in a child
- * iframe pinned at `min-height: 200px` and listen for a
- * `{ type: 'resize', height }` postMessage to grow the frame to fit. Nothing
- * ever emitted that message, so config/view/field sub-iframes were stuck at
- * 200px regardless of content. The shell now measures its content card and
- * posts the height to the parent — but ONLY when actually embedded
- * (`window.parent !== window`); top-level module pages grow on their own.
+ * iframe. The dev chrome (gear popover + render badge) now lives on the
+ * TOP-LEVEL parent page (ForgeSimModulePage) so `position:fixed` pins to the
+ * real browser viewport instead of a child iframe's viewport. Inside a content
+ * iframe the shell therefore renders content ONLY — no gear, no badge — and:
+ *   - posts `{ type:'resize', height }` (pure content height) so the parent
+ *     grows the frame to fit (no internal scrollbar),
+ *   - mirrors its render count up via `{ type:'forge-sim:renderCount', count }`
+ *     so the parent badge reflects the visible iframe.
+ * Top-level (standard) surfaces are unchanged: the shell renders the gear +
+ * badge itself, and never posts (posting to self is pointless).
  *
  * jsdom's ResizeObserver is a no-op stub (see setup.ts), so the observed
  * resize callback never fires here — but the emitter also posts once
- * immediately on attach, which is what these tests assert.
+ * immediately on attach, which is what the resize tests assert.
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { render, act, fireEvent } from '@testing-library/react';
+import { render, act } from '@testing-library/react';
 import React from 'react';
 import { ForgeSimShell } from '../ForgeSimShell';
 import * as bridgeShim from '../bridge/forge-bridge-shim';
@@ -51,16 +55,11 @@ function resetShimState() {
   G.__forgeSim.activeSubmitTree = 'view';
 }
 
-function resizeMessages(calls: any[][]): any[] {
-  return calls.map((c) => c[0]).filter((m) => m && m.type === 'resize');
+function messagesOfType(calls: any[][], type: string): any[] {
+  return calls.map((c) => c[0]).filter((m) => m && m.type === type);
 }
 
-function lastResizeHeight(calls: any[][]): number {
-  const msgs = resizeMessages(calls);
-  return msgs[msgs.length - 1].height;
-}
-
-describe('ForgeSimShell — iframe auto-resize emitter', () => {
+describe('ForgeSimShell — embedded chrome + auto-resize', () => {
   let originalParent: PropertyDescriptor | undefined;
 
   beforeEach(() => {
@@ -75,13 +74,22 @@ describe('ForgeSimShell — iframe auto-resize emitter', () => {
     if (originalParent) Object.defineProperty(window, 'parent', originalParent);
   });
 
-  it('posts a resize height to the parent when embedded in an iframe', async () => {
-    const postMessage = vi.fn();
+  function embed(postMessage = vi.fn()) {
     // Fake a distinct parent window → embedded (window.parent !== window).
     Object.defineProperty(window, 'parent', {
       configurable: true,
       value: { postMessage },
     });
+    return postMessage;
+  }
+
+  function topLevel() {
+    // window.parent === window → not embedded.
+    Object.defineProperty(window, 'parent', { configurable: true, value: window });
+  }
+
+  it('posts a resize height to the parent when embedded in an iframe', async () => {
+    const postMessage = embed();
 
     await act(async () => {
       render(<ForgeSimShell />);
@@ -90,7 +98,7 @@ describe('ForgeSimShell — iframe auto-resize emitter', () => {
       reconcileMinimalDoc();
     });
 
-    const resizes = resizeMessages(postMessage.mock.calls);
+    const resizes = messagesOfType(postMessage.mock.calls, 'resize');
     expect(resizes.length).toBeGreaterThan(0);
     expect(typeof resizes[0].height).toBe('number');
     // Includes the +48 card-margin allowance, so always positive even when
@@ -99,8 +107,7 @@ describe('ForgeSimShell — iframe auto-resize emitter', () => {
   });
 
   it('does NOT post when running as a top-level page (not embedded)', async () => {
-    // window.parent === window → the guard suppresses the emit.
-    Object.defineProperty(window, 'parent', { configurable: true, value: window });
+    topLevel();
     const spy = vi.spyOn(window, 'postMessage').mockImplementation(() => {});
 
     await act(async () => {
@@ -110,15 +117,11 @@ describe('ForgeSimShell — iframe auto-resize emitter', () => {
       reconcileMinimalDoc();
     });
 
-    expect(resizeMessages(spy.mock.calls).length).toBe(0);
+    expect(messagesOfType(spy.mock.calls, 'resize').length).toBe(0);
   });
 
-  it('floors the posted height to make room for the open gear popover', async () => {
-    const postMessage = vi.fn();
-    Object.defineProperty(window, 'parent', {
-      configurable: true,
-      value: { postMessage },
-    });
+  it('renders neither gear nor badge when embedded (parent owns the chrome)', async () => {
+    embed();
 
     await act(async () => {
       render(<ForgeSimShell />);
@@ -127,45 +130,12 @@ describe('ForgeSimShell — iframe auto-resize emitter', () => {
       reconcileMinimalDoc();
     });
 
-    // Baseline: closed popover posts the (short) content height.
-    const closedHeight = lastResizeHeight(postMessage.mock.calls);
-
-    // Open the gear popover — it opens UPWARD from a fixed-bottom anchor, so
-    // the shell must grow the iframe to keep it from clipping at the top.
-    const gear = document.querySelector(
-      '[aria-label="forge-sim settings"]',
-    ) as HTMLButtonElement;
-    await act(async () => {
-      fireEvent.click(gear);
-    });
-
-    const openHeight = lastResizeHeight(postMessage.mock.calls);
-    // Popover geometry floor: 12 (gear offset) + 36 (panel offset) + panel
-    // height + 12 breathing room — strictly taller than the short content.
-    expect(openHeight).toBeGreaterThan(closedHeight);
-    expect(openHeight).toBeGreaterThanOrEqual(60);
+    expect(document.querySelector('[aria-label="forge-sim settings"]')).toBeNull();
+    expect(document.body.textContent).not.toContain('🔥 renders:');
   });
 
-  it('reserves extra upward room for the user-search menu when a switcher is present', async () => {
-    const postMessage = vi.fn();
-    Object.defineProperty(window, 'parent', {
-      configurable: true,
-      value: { postMessage },
-    });
-    // A dev-server switcher makes the "Acting as" AsyncSelect render; its menu
-    // opens upward (menuPlacement="top", maxMenuHeight 220), so the floor must
-    // reserve ~240px above the panel.
-    (bridgeShim.rpc as any).mockImplementation((method: string) => {
-      if (method === 'getActingUserState') {
-        return Promise.resolve({
-          mode: 'offline',
-          current: { accountId: 'sim-user-001', displayName: 'Ryan Ackley' },
-          users: [{ accountId: 'sim-user-001', displayName: 'Ryan Ackley' }],
-          site: null,
-        });
-      }
-      return Promise.resolve({});
-    });
+  it('renders both gear and badge when top-level (standard surface)', async () => {
+    topLevel();
 
     await act(async () => {
       render(<ForgeSimShell />);
@@ -174,15 +144,22 @@ describe('ForgeSimShell — iframe auto-resize emitter', () => {
       reconcileMinimalDoc();
     });
 
-    const gear = document.querySelector(
-      '[aria-label="forge-sim settings"]',
-    ) as HTMLButtonElement;
+    expect(document.querySelector('[aria-label="forge-sim settings"]')).not.toBeNull();
+    expect(document.body.textContent).toContain('🔥 renders:');
+  });
+
+  it('mirrors its render count to the parent when embedded', async () => {
+    const postMessage = embed();
+
     await act(async () => {
-      fireEvent.click(gear);
+      render(<ForgeSimShell />);
+    });
+    await act(async () => {
+      reconcileMinimalDoc();
     });
 
-    const openHeight = lastResizeHeight(postMessage.mock.calls);
-    // 12 + 36 + panelHeight (>=0) + 240 (menu reserve) + 12 ≥ 300.
-    expect(openHeight).toBeGreaterThanOrEqual(300);
+    const counts = messagesOfType(postMessage.mock.calls, 'forge-sim:renderCount');
+    expect(counts.length).toBeGreaterThan(0);
+    expect(typeof counts[counts.length - 1].count).toBe('number');
   });
 });

@@ -249,6 +249,199 @@ boot().catch((err) => {
 `;
 }
 
+// ── Combined Module Page (nested surfaces) ────────────────────────────────
+//
+// Macros, custom fields, and workflow config modules all share the same
+// shape: one PARENT page hosting per-mode content iframes. The parent is now
+// a top-level Atlaskit React document (ForgeSimModulePage) so the gear popover
+// + render badge pin to the real browser viewport instead of a child iframe's.
+// These three surfaces are unified into a single "module page group" model.
+
+export interface ModulePageMode {
+  /** URL/key suffix: 'view' | 'config' | 'edit' | 'create'. */
+  mode: string;
+  /** Human tab label: 'View' | 'Config' | 'Edit' | 'Create'. */
+  label: string;
+}
+
+export type ModulePageSurface = 'macro' | 'customField' | 'workflow';
+
+export interface ModulePageGroup {
+  /** The combined-page module key (no `--mode` suffix). */
+  baseKey: string;
+  title: string;
+  surface: ModulePageSurface;
+  /** Ordered modes; modes[0] loads immediately, the rest are deferred. */
+  modes: ModulePageMode[];
+  /** Custom-field data type (custom fields only). */
+  fieldType?: string;
+  /** Workflow badge label override (e.g. "Workflow Validator"). */
+  badgeLabel?: string;
+}
+
+/**
+ * Collapse the `--<mode>` split UI modules back into combined-page groups,
+ * one per nested surface. Mirrors the grouping the three retired vanilla-HTML
+ * generators used to do inline, but produces a single unified model consumed
+ * by both routing (base-key rewrite) and generation (temp-dir entry).
+ */
+export function computeModulePageGroups(modules: DetectedModule[]): ModulePageGroup[] {
+  const groups = new Map<string, ModulePageGroup>();
+
+  const ensure = (
+    baseKey: string,
+    surface: ModulePageSurface,
+    title: string,
+    extras?: { fieldType?: string; badgeLabel?: string },
+  ): ModulePageGroup => {
+    let g = groups.get(baseKey);
+    if (!g) {
+      g = { baseKey, title, surface, modes: [], ...extras };
+      groups.set(baseKey, g);
+    }
+    return g;
+  };
+
+  for (const dm of modules) {
+    const mod = dm.module;
+    const key = mod.key;
+    const type = mod.type;
+
+    // ── Custom fields: <base>--view / <base>--edit ──────────────────────
+    if (type === 'jira:customField' || type === 'jira:customFieldType') {
+      const m = key.match(/^(.*)--(view|edit)$/);
+      if (!m) continue;
+      const baseKey = m[1];
+      const mode = m[2];
+      const title = (mod.title || baseKey).replace(/ \((View|Edit)\)$/, '');
+      const g = ensure(baseKey, 'customField', title, {
+        fieldType: mod.fieldType,
+      });
+      if (mod.fieldType && !g.fieldType) g.fieldType = mod.fieldType;
+      g.modes.push({ mode, label: mode === 'view' ? 'View' : 'Edit' });
+      continue;
+    }
+
+    // ── Workflow modules: <base>--create / --edit / --view ──────────────
+    if (
+      type === 'jira:workflowValidator' ||
+      type === 'jira:workflowCondition' ||
+      type === 'jira:workflowPostFunction'
+    ) {
+      const m = key.match(/^(.*)--(create|edit|view)$/);
+      if (!m) continue;
+      const baseKey = m[1];
+      const mode = m[2];
+      const title = (mod.title || baseKey).replace(/ \((Create|Edit|View)\)$/, '');
+      const typeLabel = type.split(':')[1]?.replace(/^workflow/, '') || 'Module';
+      const g = ensure(baseKey, 'workflow', title, {
+        badgeLabel: `Workflow ${typeLabel}`,
+      });
+      const label = mode === 'create' ? 'Create' : mode === 'edit' ? 'Edit' : 'View';
+      g.modes.push({ mode, label });
+      continue;
+    }
+
+    // ── Macros: <base>--view / <base>--config ───────────────────────────
+    if (type === 'macro') {
+      const m = key.match(/^(.*)--(view|config)$/);
+      if (!m) continue;
+      const baseKey = m[1];
+      const mode = m[2];
+      const title = (mod.title || baseKey).replace(/ \((View|Config)\)$/, '');
+      const g = ensure(baseKey, 'macro', title);
+      g.modes.push({ mode, label: mode === 'view' ? 'View' : 'Config' });
+      continue;
+    }
+  }
+
+  // Stable mode ordering per surface so modes[0] (the immediate-load frame)
+  // is deterministic: view first for macros/fields, create→edit→view for wf.
+  const order: Record<ModulePageSurface, string[]> = {
+    macro: ['view', 'config'],
+    customField: ['view', 'edit'],
+    workflow: ['create', 'edit', 'view'],
+  };
+  for (const g of groups.values()) {
+    const rank = order[g.surface];
+    g.modes.sort((a, b) => rank.indexOf(a.mode) - rank.indexOf(b.mode));
+  }
+
+  return Array.from(groups.values());
+}
+
+/**
+ * Generate the Vite entry for a combined module page. Parallel to
+ * generateUIKitEntry, but mounts ForgeSimModulePage (the top-level parent)
+ * and — critically — does NOT `await import(app)`. No dev-app code runs in
+ * the parent realm; the app runs inside each per-mode content iframe.
+ */
+export function generateModulePageEntry(
+  group: ModulePageGroup,
+  wsPort: number,
+  warnings: string[],
+): string {
+  const props = {
+    baseKey: group.baseKey,
+    title: group.title,
+    surface: group.surface,
+    modes: group.modes,
+    wsPort,
+    fieldType: group.fieldType,
+    badgeLabel: group.badgeLabel,
+    warnings,
+  };
+
+  return `
+/**
+ * Auto-generated by forge-sim dev
+ * DO NOT EDIT — this file is regenerated on every run
+ *
+ * Combined module page for a nested surface (${group.surface}). Top-level
+ * Atlaskit React document; per-mode content renders in child iframes.
+ */
+
+async function boot() {
+  // 1. Install bridge shim (drives the gear switcher's RPCs). No dev-app
+  //    import here — the app runs inside each content iframe, not the parent.
+  const bridge = await import('forge-sim/renderer/bridge');
+  bridge.configure({ wsUrl: 'ws://localhost:${wsPort}' });
+
+  // 2. Mount the combined parent page.
+  const React = await import('react');
+  const ReactDOM = await import('react-dom/client');
+  const { ForgeSimModulePage } = await import('forge-sim/renderer/ForgeSimModulePage');
+
+  ReactDOM.createRoot(document.getElementById('root')!).render(
+    React.createElement(ForgeSimModulePage, ${JSON.stringify(props)})
+  );
+
+  try { sessionStorage.removeItem('forge-sim-boot-retried'); } catch {}
+}
+
+boot().catch((err) => {
+  const msg = String((err && (err.message || err)) || '');
+  const isImportFetchFailure = err instanceof TypeError &&
+    /Failed to fetch dynamically imported module|error loading dynamically imported module|Importing a module script failed/i.test(msg);
+  let retried = false;
+  try { retried = sessionStorage.getItem('forge-sim-boot-retried') === '1'; } catch {}
+  if (isImportFetchFailure && !retried) {
+    try { sessionStorage.setItem('forge-sim-boot-retried', '1'); } catch {}
+    console.warn('[forge-sim] Boot import failed (likely Vite dep re-optimization) — reloading once...');
+    location.reload();
+    return;
+  }
+  try { sessionStorage.removeItem('forge-sim-boot-retried'); } catch {}
+
+  console.error('[forge-sim] Boot failed:', err);
+  document.getElementById('root')!.innerHTML =
+    '<div style="padding:40px;font-family:monospace;color:#de350b">' +
+    '<h2>⚠️ forge-sim failed to start</h2>' +
+    '<pre>' + (err.stack || err.message || err) + '</pre></div>';
+});
+`;
+}
+
 /**
  * Generate a self-contained inline script that installs window.__bridge
  * for pre-built Custom UI apps. This runs before any bundled app code,
@@ -782,394 +975,6 @@ function generateIndexHtml(title: string): string {
 </html>`;
 }
 
-/**
- * Generate a combined custom field page with View/Edit tabs.
- * Both modes are loaded as iframes; tab switching is instant.
- * When the edit iframe calls view.submit(), a WS message triggers
- * the parent to switch to the view tab and reload it.
- */
-export function generateCustomFieldPageHtml(
-  baseKey: string,
-  title: string,
-  hasView: boolean,
-  hasEdit: boolean,
-  fieldType: string,
-  wsPort: number,
-  warnings?: string[],
-): string {
-  const warningBanner = warnings && warnings.length > 0
-    ? `<div style="background:#FFFAE6;border:1px solid #FF991F;border-radius:4px;padding:12px 16px;margin-bottom:16px">
-        <div style="font-weight:600;color:#172B4D;font-size:13px;margin-bottom:4px">⚠️ Parity Warning</div>
-        ${warnings.map((w) => `<div style="font-size:13px;color:#505F79;margin-top:4px">${w}</div>`).join('')}
-      </div>`
-    : '';
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>${title} — forge-sim</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; }
-    body { background: #f4f5f7; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-    .cf-header { background: #fff; border-bottom: 1px solid #DFE1E6; padding: 16px 24px; }
-    .cf-title { font-size: 18px; font-weight: 600; color: #172B4D; }
-    .cf-subtitle { font-size: 13px; color: #6B778C; margin-top: 4px; }
-    .cf-tabs { display: flex; gap: 0; margin-top: 12px; }
-    .cf-tab { padding: 8px 20px; font-size: 14px; font-weight: 600; border: 1px solid #DFE1E6; cursor: pointer; background: #FAFBFC; color: #505F79; transition: all 0.15s; }
-    .cf-tab:first-child { border-radius: 4px 0 0 4px; }
-    .cf-tab:last-child { border-radius: 0 4px 4px 0; }
-    .cf-tab.active { background: #0052CC; color: #fff; border-color: #0052CC; }
-    .cf-tab:hover:not(.active) { background: #EBECF0; }
-    .cf-frame { width: 100%; border: none; min-height: 200px; }
-    .cf-container { padding: 24px; }
-    .cf-badge { display: inline-block; background: #6554C0; color: #fff; padding: 2px 8px; border-radius: 3px; font-size: 12px; margin-left: 8px; }
-    .cf-type-badge { display: inline-block; background: #EBECF0; color: #505F79; padding: 2px 8px; border-radius: 3px; font-size: 12px; margin-left: 4px; }
-    .cf-back { font-size: 13px; color: #0052CC; text-decoration: none; margin-bottom: 12px; display: inline-block; }
-    .cf-back:hover { text-decoration: underline; }
-    .cf-save { margin-left: auto; padding: 6px 16px; font-size: 13px; font-weight: 600; background: #00875A; color: #fff; border: none; border-radius: 4px; cursor: pointer; transition: background 0.15s; }
-    .cf-save:hover { background: #006644; }
-  </style>
-</head>
-<body>
-  <div class="cf-header">
-    <a href="/" class="cf-back">← Back to modules</a>
-    <div>
-      <span class="cf-title">${baseKey}</span>
-      <span class="cf-badge">Custom Field</span>
-      ${fieldType ? `<span class="cf-type-badge">${fieldType}</span>` : ''}
-    </div>
-    <div class="cf-subtitle">${title}</div>
-    ${hasView && hasEdit ? `
-    <div class="cf-tabs">
-      <button class="cf-tab active" data-mode="view" onclick="switchTab('view')">View</button>
-      <button class="cf-tab" data-mode="edit" onclick="switchTab('edit')">Edit</button>
-      <button id="cf-save-btn" class="cf-save" style="display:none" onclick="triggerSubmit()">💾 Save</button>
-    </div>` : ''}
-  </div>
-  <div class="cf-container">
-    ${warningBanner}
-    ${hasView ? `<iframe id="cf-view" class="cf-frame" src="/module/${baseKey}--view/"></iframe>` : ''}
-    ${hasEdit ? `<iframe id="cf-edit" class="cf-frame" data-src="/module/${baseKey}--edit/" ${hasView ? 'src="about:blank" style="display:none"' : `src="/module/${baseKey}--edit/"`}></iframe>` : ''}
-  </div>
-  <script>
-    // Defer edit iframe loading until view finishes — prevents Vite's
-    // dep optimizer from racing when two iframes load simultaneously
-    var viewFrame = document.getElementById('cf-view');
-    var editFrame = document.getElementById('cf-edit');
-    if (viewFrame && editFrame && editFrame.src === 'about:blank') {
-      viewFrame.addEventListener('load', function() {
-        var realSrc = editFrame.getAttribute('data-src');
-        if (realSrc) editFrame.src = realSrc;
-      });
-    }
-
-    var currentTab = '${hasView ? 'view' : 'edit'}';
-
-    function switchTab(mode) {
-      currentTab = mode;
-      var viewFrame = document.getElementById('cf-view');
-      var editFrame = document.getElementById('cf-edit');
-      var tabs = document.querySelectorAll('.cf-tab');
-      tabs.forEach(function(t) {
-        t.classList.toggle('active', t.getAttribute('data-mode') === mode);
-      });
-      if (viewFrame) viewFrame.style.display = mode === 'view' ? '' : 'none';
-      if (editFrame) editFrame.style.display = mode === 'edit' ? '' : 'none';
-      var saveBtn = document.getElementById('cf-save-btn');
-      if (saveBtn) saveBtn.style.display = mode === 'edit' ? '' : 'none';
-    }
-
-    function triggerSubmit() {
-      var editFrame = document.getElementById('cf-edit');
-      if (editFrame && editFrame.contentWindow) {
-        editFrame.contentWindow.postMessage({ type: 'forge-sim-trigger-submit' }, '*');
-      }
-    }
-
-    // Listen for fieldValueUpdate from dev server via WS
-    var ws = new WebSocket('ws://localhost:${wsPort}');
-    ws.onmessage = function(event) {
-      try {
-        var msg = JSON.parse(event.data);
-        if (msg.type === 'fieldValueUpdate' && msg.fieldKey === '${baseKey}') {
-          // Switch to view tab and reload view iframe to pick up new value
-          switchTab('view');
-          var viewFrame = document.getElementById('cf-view');
-          if (viewFrame) viewFrame.src = viewFrame.src; // reload
-        }
-      } catch(e) {}
-    };
-
-    // Auto-resize iframes
-    window.addEventListener('message', function(e) {
-      if (e.data && e.data.type === 'resize') {
-        var frame = e.source === document.getElementById('cf-view')?.contentWindow
-          ? document.getElementById('cf-view')
-          : document.getElementById('cf-edit');
-        if (frame && e.data.height) frame.style.height = e.data.height + 'px';
-      }
-    });
-  </script>
-</body>
-</html>`;
-}
-
-/**
- * Generate a combined macro page with View/Config tabs.
- * View tab shows the rendered macro; Config tab shows the editable form.
- * When the config iframe calls view.submit(), the dev server captures the
- * payload, stores it as the macro's config, and broadcasts a macroConfigUpdate
- * WS message that triggers the parent to switch back to the view tab and
- * reload it (so useConfig() picks up the new values).
- */
-export function generateMacroPageHtml(
-  baseKey: string,
-  title: string,
-  hasView: boolean,
-  hasConfig: boolean,
-  wsPort: number,
-  warnings?: string[],
-): string {
-  const warningBanner = warnings && warnings.length > 0
-    ? `<div style="background:#FFFAE6;border:1px solid #FF991F;border-radius:4px;padding:12px 16px;margin-bottom:16px">
-        <div style="font-weight:600;color:#172B4D;font-size:13px;margin-bottom:4px">⚠️ Parity Note</div>
-        ${warnings.map((w) => `<div style="font-size:13px;color:#505F79;margin-top:4px">${w}</div>`).join('')}
-      </div>`
-    : '';
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>${title} — forge-sim</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; }
-    body { background: #f4f5f7; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-    .cf-header { background: #fff; border-bottom: 1px solid #DFE1E6; padding: 16px 24px; }
-    .cf-title { font-size: 18px; font-weight: 600; color: #172B4D; }
-    .cf-subtitle { font-size: 13px; color: #6B778C; margin-top: 4px; }
-    .cf-tabs { display: flex; gap: 0; margin-top: 12px; }
-    .cf-tab { padding: 8px 20px; font-size: 14px; font-weight: 600; border: 1px solid #DFE1E6; cursor: pointer; background: #FAFBFC; color: #505F79; transition: all 0.15s; }
-    .cf-tab:first-child { border-radius: 4px 0 0 4px; }
-    .cf-tab:last-child { border-radius: 0 4px 4px 0; }
-    .cf-tab.active { background: #0052CC; color: #fff; border-color: #0052CC; }
-    .cf-tab:hover:not(.active) { background: #EBECF0; }
-    .cf-frame { width: 100%; border: none; min-height: 200px; }
-    .cf-container { padding: 24px; }
-    .cf-badge { display: inline-block; background: #36B37E; color: #fff; padding: 2px 8px; border-radius: 3px; font-size: 12px; margin-left: 8px; }
-    .cf-back { font-size: 13px; color: #0052CC; text-decoration: none; margin-bottom: 12px; display: inline-block; }
-    .cf-back:hover { text-decoration: underline; }
-    .cf-save { margin-left: auto; padding: 6px 16px; font-size: 13px; font-weight: 600; background: #00875A; color: #fff; border: none; border-radius: 4px; cursor: pointer; transition: background 0.15s; }
-    .cf-save:hover { background: #006644; }
-  </style>
-</head>
-<body>
-  <div class="cf-header">
-    <a href="/" class="cf-back">← Back to modules</a>
-    <div>
-      <span class="cf-title">${baseKey}</span>
-      <span class="cf-badge">Macro</span>
-    </div>
-    <div class="cf-subtitle">${title}</div>
-    ${hasView && hasConfig ? `
-    <div class="cf-tabs">
-      <button class="cf-tab active" data-mode="view" onclick="switchTab('view')">View</button>
-      <button class="cf-tab" data-mode="config" onclick="switchTab('config')">Config</button>
-      <button id="cf-save-btn" class="cf-save" style="display:none" onclick="triggerSubmit()">💾 Save</button>
-    </div>` : ''}
-  </div>
-  <div class="cf-container">
-    ${warningBanner}
-    ${hasView ? `<iframe id="cf-view" class="cf-frame" src="/module/${baseKey}--view/"></iframe>` : ''}
-    ${hasConfig ? `<iframe id="cf-config" class="cf-frame" data-src="/module/${baseKey}--config/" ${hasView ? 'src="about:blank" style="display:none"' : `src="/module/${baseKey}--config/"`}></iframe>` : ''}
-  </div>
-  <script>
-    // Defer config iframe loading until view finishes — prevents Vite's
-    // dep optimizer from racing when two iframes load simultaneously
-    var viewFrame = document.getElementById('cf-view');
-    var configFrame = document.getElementById('cf-config');
-    if (viewFrame && configFrame && configFrame.src === 'about:blank') {
-      viewFrame.addEventListener('load', function() {
-        var realSrc = configFrame.getAttribute('data-src');
-        if (realSrc) configFrame.src = realSrc;
-      });
-    }
-
-    var currentTab = '${hasView ? 'view' : 'config'}';
-
-    function switchTab(mode) {
-      currentTab = mode;
-      var viewFrame = document.getElementById('cf-view');
-      var configFrame = document.getElementById('cf-config');
-      var tabs = document.querySelectorAll('.cf-tab');
-      tabs.forEach(function(t) {
-        t.classList.toggle('active', t.getAttribute('data-mode') === mode);
-      });
-      if (viewFrame) viewFrame.style.display = mode === 'view' ? '' : 'none';
-      if (configFrame) configFrame.style.display = mode === 'config' ? '' : 'none';
-      var saveBtn = document.getElementById('cf-save-btn');
-      if (saveBtn) saveBtn.style.display = mode === 'config' ? '' : 'none';
-    }
-
-    function triggerSubmit() {
-      var configFrame = document.getElementById('cf-config');
-      if (configFrame && configFrame.contentWindow) {
-        configFrame.contentWindow.postMessage({ type: 'forge-sim-trigger-submit' }, '*');
-      }
-    }
-
-    // Listen for macroConfigUpdate from dev server via WS
-    var ws = new WebSocket('ws://localhost:${wsPort}');
-    ws.onmessage = function(event) {
-      try {
-        var msg = JSON.parse(event.data);
-        if (msg.type === 'macroConfigUpdate' && msg.macroKey === '${baseKey}') {
-          // Switch to view tab and reload view iframe to pick up new config
-          switchTab('view');
-          var viewFrame = document.getElementById('cf-view');
-          if (viewFrame) viewFrame.src = viewFrame.src; // reload
-        }
-      } catch(e) {}
-    };
-
-    // Auto-resize iframes
-    window.addEventListener('message', function(e) {
-      if (e.data && e.data.type === 'resize') {
-        var frame = e.source === document.getElementById('cf-view')?.contentWindow
-          ? document.getElementById('cf-view')
-          : document.getElementById('cf-config');
-        if (frame && e.data.height) frame.style.height = e.data.height + 'px';
-      }
-    });
-  </script>
-</body>
-</html>`;
-}
-
-/**
- * Generate a combined workflow module page with Create/Edit/View tabs.
- * Similar to custom field combined page but with three config views.
- */
-export function generateWorkflowPageHtml(
-  baseKey: string,
-  title: string,
-  moduleType: string,
-  hasCreate: boolean,
-  hasEdit: boolean,
-  hasView: boolean,
-  wsPort: number,
-): string {
-  const typeLabel = moduleType.split(':')[1]?.replace(/^workflow/, '') || 'Module';
-  const tabs = [
-    hasCreate ? { mode: 'create', label: 'Create' } : null,
-    hasEdit ? { mode: 'edit', label: 'Edit' } : null,
-    hasView ? { mode: 'view', label: 'View' } : null,
-  ].filter(Boolean) as Array<{ mode: string; label: string }>;
-
-  const defaultTab = tabs[0]?.mode || 'create';
-  const tabButtons = tabs.map((t, i) =>
-    `<button class="cf-tab${i === 0 ? ' active' : ''}" data-mode="${t.mode}" onclick="switchTab('${t.mode}')">${t.label}</button>`
-  ).join('\n      ');
-
-  // First tab's iframe loads immediately, rest are deferred
-  const iframes = tabs.map((t, i) => {
-    if (i === 0) {
-      return `<iframe id="wf-${t.mode}" class="cf-frame" src="/module/${baseKey}--${t.mode}/"></iframe>`;
-    }
-    return `<iframe id="wf-${t.mode}" class="cf-frame" data-src="/module/${baseKey}--${t.mode}/" src="about:blank" style="display:none"></iframe>`;
-  }).join('\n    ');
-
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>${baseKey} — Workflow ${typeLabel} — forge-sim</title>
-  <style>
-    body { margin:0; background:#f4f5f7; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
-    .cf-header { padding:16px 24px; background:#fff; border-bottom:1px solid #DFE1E6; }
-    .cf-header a { color:#0052CC; text-decoration:none; font-size:13px; }
-    .cf-title { font-size:20px; font-weight:600; color:#172B4D; margin-top:8px; }
-    .cf-badge { background:#FF5630; color:#fff; padding:2px 8px; border-radius:3px; font-size:12px; margin-left:8px; vertical-align:middle; }
-    .cf-subtitle { font-size:14px; color:#6B778C; margin-top:4px; }
-    .cf-tabs { display:flex; gap:0; margin-top:12px; border-bottom:2px solid #DFE1E6; }
-    .cf-tab { padding:8px 16px; cursor:pointer; border:none; background:none; font-size:14px; color:#6B778C; border-bottom:2px solid transparent; margin-bottom:-2px; }
-    .cf-tab:hover { color:#172B4D; }
-    .cf-tab.active { color:#0052CC; border-bottom-color:#0052CC; font-weight:600; }
-    .cf-container { padding:24px; }
-    .cf-frame { width:100%; border:1px solid #DFE1E6; border-radius:8px; min-height:200px; background:#fff; }
-  </style>
-</head>
-<body>
-  <div class="cf-header">
-    <a href="/">← Back to modules</a>
-    <div>
-      <span class="cf-title">${baseKey}</span>
-      <span class="cf-badge">Workflow ${typeLabel}</span>
-    </div>
-    <div class="cf-subtitle">${title}</div>
-    <div class="cf-tabs">
-      ${tabButtons}
-    </div>
-  </div>
-  <div class="cf-container">
-    ${iframes}
-  </div>
-  <script>
-    var currentTab = '${defaultTab}';
-    var tabs = ${JSON.stringify(tabs.map(t => t.mode))};
-
-    // Deferred loading: load next iframe after current finishes
-    var firstFrame = document.getElementById('wf-' + tabs[0]);
-    if (firstFrame) {
-      firstFrame.addEventListener('load', function() {
-        tabs.forEach(function(mode, i) {
-          if (i === 0) return;
-          var frame = document.getElementById('wf-' + mode);
-          if (frame && frame.src === 'about:blank') {
-            var realSrc = frame.getAttribute('data-src');
-            if (realSrc) frame.src = realSrc;
-          }
-        });
-      });
-    }
-
-    function switchTab(mode) {
-      currentTab = mode;
-      document.querySelectorAll('.cf-tab').forEach(function(t) {
-        t.classList.toggle('active', t.getAttribute('data-mode') === mode);
-      });
-      tabs.forEach(function(m) {
-        var frame = document.getElementById('wf-' + m);
-        if (frame) frame.style.display = m === mode ? '' : 'none';
-      });
-    }
-
-    // Auto-resize iframes — the embedded renderer posts its content height so
-    // each validator/condition/post-function frame grows to fit instead of
-    // sitting at min-height: 200px. Map the message back to its sender frame.
-    window.addEventListener('message', function(e) {
-      if (!e.data || e.data.type !== 'resize' || !e.data.height) return;
-      for (var i = 0; i < tabs.length; i++) {
-        var frame = document.getElementById('wf-' + tabs[i]);
-        if (frame && frame.contentWindow === e.source) {
-          frame.style.height = e.data.height + 'px';
-          break;
-        }
-      }
-    });
-  </script>
-</body>
-</html>`;
-}
-
-/**
- * Inline script that reads ?bg=key1,key2 from the URL and injects
- * hidden iframes for each background script module.
- * Also acts as the postMessage broker for cross-module Forge events —
- * mirroring how the real Forge host page relays events between iframes.
- */
 const BACKGROUND_SCRIPT_IFRAME_INJECTOR = `<script>
 (function() {
   var params = new URLSearchParams(window.location.search);
@@ -1441,51 +1246,14 @@ export function installModuleRouting(
 ): void {
   const modulesByKey = new Map(modules.map((m) => [m.module.key, m]));
 
-  // Build custom field groups for combined page routing
-  const CUSTOM_FIELD_TYPES = new Set(['jira:customField', 'jira:customFieldType']);
-  const cfGroups = new Map<string, { view?: DetectedModule; edit?: DetectedModule; title: string; fieldType?: string }>();
-  for (const m of modules) {
-    if (!CUSTOM_FIELD_TYPES.has(m.module.type) || !m.module.viewMode) continue;
-    const baseKey = m.module.key.replace(/--(?:view|edit)$/, '');
-    if (!cfGroups.has(baseKey)) {
-      const baseTitle = (m.module.title || baseKey).replace(/ \((?:View|Edit)\)$/, '');
-      cfGroups.set(baseKey, { title: baseTitle, fieldType: m.module.fieldType });
-    }
-    const group = cfGroups.get(baseKey)!;
-    if (m.module.viewMode === 'view') group.view = m;
-    else if (m.module.viewMode === 'edit') group.edit = m;
-  }
-
-  // Build workflow groups for combined page routing
-  const WORKFLOW_TYPES = new Set(['jira:workflowCondition', 'jira:workflowValidator', 'jira:workflowPostFunction']);
-  const wfGroups = new Map<string, { create?: DetectedModule; edit?: DetectedModule; view?: DetectedModule; type: string; title: string }>();
-  for (const m of modules) {
-    if (!WORKFLOW_TYPES.has(m.module.type) || !m.module.viewMode) continue;
-    const baseKey = m.module.key.replace(/--(?:create|edit|view)$/, '');
-    if (!wfGroups.has(baseKey)) {
-      const baseTitle = (m.module.title || baseKey).replace(/ \((?:Create|Edit|View)\)$/, '');
-      wfGroups.set(baseKey, { type: m.module.type, title: baseTitle });
-    }
-    const group = wfGroups.get(baseKey)!;
-    if (m.module.viewMode === 'create') group.create = m;
-    else if (m.module.viewMode === 'edit') group.edit = m;
-    else if (m.module.viewMode === 'view') group.view = m;
-  }
-
-  // Build macro groups for combined view/config page routing
-  const macroGroups = new Map<string, { view?: DetectedModule; config?: DetectedModule; title: string }>();
-  for (const m of modules) {
-    if (m.module.type !== 'macro') continue;
-    if (m.module.viewMode !== 'view' && m.module.viewMode !== 'config') continue;
-    const baseKey = m.module.key.replace(/--(?:view|config)$/, '');
-    if (!macroGroups.has(baseKey)) {
-      const baseTitle = (m.module.title || baseKey).replace(/ \((?:View|Config)\)$/, '');
-      macroGroups.set(baseKey, { title: baseTitle });
-    }
-    const group = macroGroups.get(baseKey)!;
-    if (m.module.viewMode === 'view') group.view = m;
-    else if (m.module.viewMode === 'config') group.config = m;
-  }
+  // Combined nested-surface pages (macro / custom field / workflow) are now
+  // top-level Atlaskit React documents served through Vite from their own
+  // temp dir, exactly like uikit modules. Their base keys are virtual (the
+  // `--<mode>` module keys route separately, unchanged). A request for a base
+  // key is rewritten to `/<baseKey>/index.html` so Vite serves the React entry.
+  const modulePageBaseKeys = new Set(
+    computeModulePageGroups(modules).map((g) => g.baseKey),
+  );
 
   const middleware = (req: any, res: any, next: any) => {
     const url = new URL(req.url ?? '/', 'http://localhost');
@@ -1503,58 +1271,18 @@ export function installModuleRouting(
       const key = match[1];
       const rest = match[2] || '/';
 
-      // Check if this is a custom field base key (combined view/edit page)
-      const cfGroup = cfGroups.get(key);
-      if (cfGroup && (rest === '/' || rest === '/index.html')) {
-        res.writeHead(200, { 'Content-Type': 'text/html', 'Content-Language': 'en', 'Cache-Control': 'no-cache' });
-        // Filter manifest warnings relevant to this custom field
-        const cfWarnings = (manifestWarnings || [])
-          .filter((w) => w.message.includes(`"${key}"`))
-          .map((w) => w.message);
-        res.end(generateCustomFieldPageHtml(
-          key,
-          cfGroup.title,
-          !!cfGroup.view,
-          !!cfGroup.edit,
-          cfGroup.fieldType || '',
-          wsPort || 5174,
-          cfWarnings,
-        ));
-        return;
-      }
-
-      // Check if this is a workflow base key (combined create/edit/view page)
-      const wfGroup = wfGroups.get(key);
-      if (wfGroup && (rest === '/' || rest === '/index.html')) {
-        res.writeHead(200, { 'Content-Type': 'text/html', 'Content-Language': 'en', 'Cache-Control': 'no-cache' });
-        res.end(generateWorkflowPageHtml(
-          key,
-          wfGroup.title,
-          wfGroup.type,
-          !!wfGroup.create,
-          !!wfGroup.edit,
-          !!wfGroup.view,
-          wsPort || 5174,
-        ));
-        return;
-      }
-
-      // Check if this is a macro base key (combined view/config page)
-      const macroGroup = macroGroups.get(key);
-      if (macroGroup && (rest === '/' || rest === '/index.html')) {
-        res.writeHead(200, { 'Content-Type': 'text/html', 'Content-Language': 'en', 'Cache-Control': 'no-cache' });
-        const macroWarnings = (manifestWarnings || [])
-          .filter((w) => w.message.includes(`"${key}"`))
-          .map((w) => w.message);
-        res.end(generateMacroPageHtml(
-          key,
-          macroGroup.title,
-          !!macroGroup.view,
-          !!macroGroup.config,
-          wsPort || 5174,
-          macroWarnings,
-        ));
-        return;
+      // Combined nested-surface parent page (macro / custom field / workflow).
+      // Served like a uikit module: rewrite to its temp-dir React entry so the
+      // gear + badge chrome pins to the real browser viewport (top-level doc).
+      if (modulePageBaseKeys.has(key)) {
+        const lastSegment = rest.split('/').pop() ?? '';
+        const isFileRequest = lastSegment.includes('.');
+        if (rest === '/' || !isFileRequest) {
+          req.url = `/${key}/index.html`;
+        } else {
+          req.url = `/${key}${rest}`;
+        }
+        return next();
       }
 
       const mod = modulesByKey.get(key);
@@ -1654,6 +1382,7 @@ export async function buildViteConfig(opts: {
     'forge-sim/renderer/bridge-shim': shimPath,
     'forge-sim/renderer/ForgeDocRenderer': join(rendererRoot, 'src', 'ForgeDocRenderer.tsx'),
     'forge-sim/renderer/ForgeSimShell': join(rendererRoot, 'src', 'ForgeSimShell.tsx'),
+    'forge-sim/renderer/ForgeSimModulePage': join(rendererRoot, 'src', 'ForgeSimModulePage.tsx'),
   };
 
   // Collect all directories Vite needs fs access to
@@ -1775,6 +1504,10 @@ export async function buildViteConfig(opts: {
       // switcher's @atlaskit/avatar import (shell-exclusive, added in 0.1.13)
       // is what surfaced this. Pin the shell's direct deps here so Vite
       // force-pre-bundles them at server startup regardless of scan coverage.
+      // The combined nested-surface parent page (ForgeSimModulePage) is also
+      // served from OUTSIDE the Vite root and adds its own shell-exclusive
+      // direct deps (@atlaskit/lozenge, button, section-message) — pin those
+      // too so they don't get discovered at request time.
       include: hasUikitModules
         ? [
             'react',
@@ -1784,6 +1517,9 @@ export async function buildViteConfig(opts: {
             '@atlaskit/app-provider',
             '@atlaskit/avatar',
             '@atlaskit/select',
+            '@atlaskit/lozenge',
+            '@atlaskit/button',
+            '@atlaskit/section-message',
           ]
         : [],
       // Vite's dep scanner only crawls <root>/index.html by default. Our
@@ -2361,6 +2097,25 @@ export async function devCommand(options: DevCommandOptions) {
       ));
     }
     // Custom UI modules don't need temp files — served from resource dir via middleware
+  }
+
+  // Generate the combined parent page for nested surfaces (macro / custom-field /
+  // workflow). Each group is a top-level Atlaskit React document served at
+  // /module/<baseKey>/ that hosts the dev chrome (gear + badge) and embeds the
+  // per-mode content iframes. Same temp-dir mechanism as the uikit modules above.
+  const modulePageGroups = computeModulePageGroups(detectedModules);
+  for (const group of modulePageGroups) {
+    const groupDir = join(tempDir, group.baseKey);
+    mkdirSync(groupDir, { recursive: true });
+
+    const groupWarnings = (manifest.warnings || [])
+      .filter((w) => w.message.includes(`"${group.baseKey}"`))
+      .map((w) => w.message);
+
+    writeFileSync(join(groupDir, 'entry.tsx'), generateModulePageEntry(group, wsPort, groupWarnings));
+    writeFileSync(join(groupDir, 'index.html'), generateIndexHtml(
+      `${group.title} — ${manifest.raw.app?.name ?? 'Forge App'}`
+    ));
   }
 
   // Write a minimal root index.html (Vite needs one at root; also served by

@@ -14,274 +14,27 @@
 
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import AppProvider, { useSetColorMode } from '@atlaskit/app-provider';
-import Avatar from '@atlaskit/avatar';
-import { AsyncSelect } from '@atlaskit/select';
 import '@atlaskit/css-reset';
 import { ForgeDocRenderer } from './ForgeDocRenderer';
 import { onReconcile, onMacroConfigReconcile, setActiveSubmitTree, view, rpc } from './bridge/forge-bridge-shim';
-
-// ---------------------------------------------------------------------------
-// Width presets — mirror the real widths Forge uses across product surfaces.
-// Numbers are informed by actual Jira/Confluence page chrome observations.
-// ---------------------------------------------------------------------------
-
-type WidthPresetKey = 'narrow' | 'standard' | 'wide' | 'full' | 'custom';
-
-interface WidthPreset {
-  key: WidthPresetKey;
-  label: string;
-  description: string;
-  /** Pixel width; null means 100% (minus page padding) */
-  px: number | null;
-}
-
-const WIDTH_PRESETS: Record<WidthPresetKey, WidthPreset> = {
-  narrow: {
-    key: 'narrow',
-    label: 'Narrow',
-    description: 'Issue panel, modals (~700px)',
-    px: 700,
-  },
-  standard: {
-    key: 'standard',
-    label: 'Standard',
-    description: 'Full-page apps (~900px)',
-    px: 900,
-  },
-  wide: {
-    key: 'wide',
-    label: 'Wide',
-    description: 'Global / project pages (~1280px)',
-    px: 1280,
-  },
-  full: {
-    key: 'full',
-    label: 'Full width',
-    description: 'Dashboards, edge cases',
-    px: null,
-  },
-  custom: {
-    key: 'custom',
-    label: 'Custom',
-    description: 'Specify a pixel value',
-    px: null, // driven by customPx state
-  },
-};
-
-// ---------------------------------------------------------------------------
-// Module-type → default width preset.
-// Based on how these modules actually render in Jira / Confluence.
-// ---------------------------------------------------------------------------
-
-const MODULE_TYPE_DEFAULTS: Record<string, WidthPresetKey> = {
-  // Global / project pages → wide
-  'jira:globalPage': 'wide',
-  'jira:projectPage': 'wide',
-  'jira:projectSettingsPage': 'wide',
-  'jira:dashboardBackgroundScript': 'wide',
-  'confluence:globalPage': 'wide',
-  'confluence:spacePage': 'wide',
-  'confluence:spaceSettingsPage': 'wide',
-
-  // Issue / content panels and fields → narrow
-  'jira:issuePanel': 'narrow',
-  'jira:issueContext': 'narrow',
-  'jira:issueActivity': 'narrow',
-  'jira:customField': 'narrow',
-  'jira:customFieldType': 'narrow',
-  'confluence:contentBylineItem': 'narrow',
-  'confluence:contextMenu': 'narrow',
-
-  // Full-page admin / dashboard surfaces
-  'jira:adminPage': 'wide',
-  'confluence:homepageFeed': 'wide',
-  'jira:dashboardGadget': 'full',
-
-  // Default / fall-through stays 'standard' below
-};
-
-function defaultPresetForModuleType(moduleType: string | undefined): WidthPresetKey {
-  if (!moduleType) return 'standard';
-  return MODULE_TYPE_DEFAULTS[moduleType] ?? 'standard';
-}
-
-// ---------------------------------------------------------------------------
-// Color mode — light / dark / auto
-//
-// We store the user's preference ourselves and drive Atlaskit via
-// `useSetColorMode` (from @atlaskit/app-provider). Atlaskit handles all of:
-//   - Loading the right theme stylesheet (<style data-theme="dark">)
-//   - Setting <html data-color-mode="...">
-//   - Reacting to prefers-color-scheme for 'auto' mode
-// so our job is just persistence + wiring the toggle UI.
-// ---------------------------------------------------------------------------
-
-type ColorMode = 'light' | 'dark' | 'auto';
-type ResolvedColorMode = 'light' | 'dark';
-
-const COLOR_MODE_STORAGE_KEY = 'forge-sim:colorMode';
-
-function readStoredColorMode(): ColorMode {
-  if (typeof window === 'undefined') return 'light';
-  try {
-    const raw = window.localStorage.getItem(COLOR_MODE_STORAGE_KEY);
-    if (raw === 'light' || raw === 'dark' || raw === 'auto') return raw;
-  } catch {
-    /* ignore */
-  }
-  return 'light';
-}
-
-function writeStoredColorMode(mode: ColorMode) {
-  if (typeof window === 'undefined') return;
-  try {
-    window.localStorage.setItem(COLOR_MODE_STORAGE_KEY, mode);
-  } catch {
-    /* ignore */
-  }
-}
-
-function prefersDark(): boolean {
-  if (typeof window === 'undefined' || !window.matchMedia) return false;
-  return window.matchMedia('(prefers-color-scheme: dark)').matches;
-}
-
-function resolveColorMode(mode: ColorMode): ResolvedColorMode {
-  if (mode === 'auto') return prefersDark() ? 'dark' : 'light';
-  return mode;
-}
-
-// ---------------------------------------------------------------------------
-// Acting user ("Acting as" gear switcher)
-//
-// The renderer is a separate Vite package, so it never imports the seeded
-// roster from forge-sim's src. Everything flows over RPC:
-//   - `getActingUserState` → { mode, current, users, site } on mount
-//   - `searchUsers` → mode-aware live search (real /user/picker vs seeded filter)
-//   - `setActingUser` → echoes the pick back; the dev server is the single
-//     source of truth for who's acting.
-//
-// Two modes (`forge-sim dev`'s default is connecting to a live instance):
-//   - connected: search REAL users off the instance; roster is empty.
-//   - offline:   the seeded roster is the always-no-cloud fallback.
-// localStorage only drives the pre-RPC highlight; the server wins.
-// ---------------------------------------------------------------------------
-
-/** The thin "who am I" option the switcher works with (mirrors ActingUser). */
-interface ActingUserOption {
-  accountId: string;
-  displayName: string;
-  emailAddress?: string;
-  avatarUrl?: string;
-  /** Seeded-roster only; absent for real picked users. */
-  role?: string;
-}
-
-/** The `getActingUserState` RPC payload. */
-interface ActingUserState {
-  mode: 'connected' | 'offline';
-  current: ActingUserOption | null;
-  /** Seeded roster (offline) or [] (connected — search is live). */
-  users: ActingUserOption[];
-  /** The site backing the live search (connected only). */
-  site: string | null;
-}
-
-const ACTING_AS_STORAGE_KEY = 'forge-sim:actingAs';
-
-function readStoredActingAs(): string | null {
-  if (typeof window === 'undefined') return null;
-  try {
-    return window.localStorage.getItem(ACTING_AS_STORAGE_KEY);
-  } catch {
-    return null;
-  }
-}
-
-function writeStoredActingAs(accountId: string) {
-  if (typeof window === 'undefined') return;
-  try {
-    window.localStorage.setItem(ACTING_AS_STORAGE_KEY, accountId);
-  } catch {
-    /* ignore */
-  }
-}
-
-function clearStoredActingAs() {
-  if (typeof window === 'undefined') return;
-  try {
-    window.localStorage.removeItem(ACTING_AS_STORAGE_KEY);
-  } catch {
-    /* ignore */
-  }
-}
-
-/** Map an acting-user to the `{ label, value, user }` shape AsyncSelect wants. */
-function toUserOption(u: ActingUserOption) {
-  return { label: u.displayName, value: u.accountId, user: u };
-}
-
-/** Avatar + name + subtitle (role or email) for a select option / value. */
-function formatUserOption(option: { label: string; user?: ActingUserOption }) {
-  const u = option.user;
-  const subtitle = u?.role ?? u?.emailAddress ?? '';
-  return (
-    <span style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
-      <Avatar name={option.label} src={u?.avatarUrl} size="small" />
-      <span style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-        <span
-          style={{
-            whiteSpace: 'nowrap',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-          }}
-        >
-          {option.label}
-        </span>
-        {subtitle && (
-          <span style={{ color: 'var(--ds-text-subtle, #6b778c)', fontSize: '11px' }}>
-            {subtitle}
-          </span>
-        )}
-      </span>
-    </span>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Persistence — width
-// ---------------------------------------------------------------------------
-
-interface WidthPref {
-  preset: WidthPresetKey;
-  customPx?: number;
-}
-
-const STORAGE_KEY_PREFIX = 'forge-sim:width:';
-
-function readStoredPref(moduleKey: string | undefined): WidthPref | null {
-  if (typeof window === 'undefined') return null;
-  try {
-    const key = STORAGE_KEY_PREFIX + (moduleKey ?? '__default__');
-    const raw = window.localStorage.getItem(key);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    if (parsed && typeof parsed.preset === 'string') return parsed as WidthPref;
-  } catch {
-    /* ignore */
-  }
-  return null;
-}
-
-function writeStoredPref(moduleKey: string | undefined, pref: WidthPref) {
-  if (typeof window === 'undefined') return;
-  try {
-    const key = STORAGE_KEY_PREFIX + (moduleKey ?? '__default__');
-    window.localStorage.setItem(key, JSON.stringify(pref));
-  } catch {
-    /* ignore */
-  }
-}
+import { GearPopover } from './chrome/GearPopover';
+import {
+  WidthPref,
+  ColorMode,
+  ResolvedColorMode,
+  ActingUserOption,
+  ActingUserState,
+  WIDTH_PRESETS,
+  COLOR_MODE_STORAGE_KEY,
+  defaultPresetForModuleType,
+  readStoredColorMode,
+  writeStoredColorMode,
+  resolveColorMode,
+  writeStoredActingAs,
+  clearStoredActingAs,
+  readStoredPref,
+  writeStoredPref,
+} from './chrome/prefs';
 
 // ---------------------------------------------------------------------------
 // Module info — pulled from URL + bridge context.
@@ -301,431 +54,6 @@ async function fetchModuleType(_moduleKey: string | undefined): Promise<string |
   } catch {
     return undefined;
   }
-}
-
-// ---------------------------------------------------------------------------
-// Gear popover UI — width + color mode
-//
-// Colors use Atlassian design tokens via CSS custom properties so the chrome
-// itself responds to the selected color mode (the same mechanism Atlaskit
-// components use under the hood).
-// ---------------------------------------------------------------------------
-
-interface GearPopoverProps {
-  pref: WidthPref;
-  moduleType: string | undefined;
-  colorMode: ColorMode;
-  resolvedColorMode: ResolvedColorMode;
-  switcher: ActingUserState | null;
-  onWidthChange: (next: WidthPref) => void;
-  onColorModeChange: (next: ColorMode) => void;
-  onSearchUsers: (query: string) => Promise<ActingUserOption[]>;
-  onActingUserChange: (user: ActingUserOption | null) => void;
-  // Reports how many vertical pixels the popover needs (measured from the
-  // iframe bottom) while it's open, or null when closed. The shell floors the
-  // auto-resize height to this so the upward-opening popup + user-search menu
-  // aren't clipped inside a content-sized iframe.
-  onChromeHeightChange: (needed: number | null) => void;
-}
-
-function GearPopover({
-  pref,
-  moduleType,
-  colorMode,
-  resolvedColorMode,
-  switcher,
-  onWidthChange,
-  onColorModeChange,
-  onSearchUsers,
-  onActingUserChange,
-  onChromeHeightChange,
-}: GearPopoverProps) {
-  const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
-  const panelRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const onDocClick = (e: MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', onDocClick);
-    return () => document.removeEventListener('mousedown', onDocClick);
-  }, [open]);
-
-  // Report the room the popover needs so the shell can grow the iframe to fit.
-  // Geometry (all measured from the iframe bottom):
-  //   gear root      bottom: 12px
-  //   popup panel    bottom: 36px (relative to root) → 48px from iframe bottom
-  //   panel height   measured live (varies with sections / custom-width input)
-  //   user search    AsyncSelect menuPlacement="top", maxMenuHeight 220 →
-  //                  reserve ~240px ABOVE the panel, but only when a switcher
-  //                  is present (that's the only upward-opening menu).
-  // Re-measures on the inputs that change the panel's height. Closing reports
-  // null, which drops the floor back to the content height.
-  useEffect(() => {
-    if (!open) {
-      onChromeHeightChange(null);
-      return;
-    }
-    const panelHeight = panelRef.current
-      ? Math.ceil(panelRef.current.getBoundingClientRect().height)
-      : 0;
-    const menuReserve = switcher ? 240 : 0;
-    const needed = 12 + 36 + panelHeight + menuReserve + 12;
-    onChromeHeightChange(needed);
-  }, [open, switcher, pref.preset, colorMode, onChromeHeightChange]);
-
-  // Drop the floor if this popover unmounts while open.
-  useEffect(() => () => onChromeHeightChange(null), [onChromeHeightChange]);
-
-  const suggestedKey = defaultPresetForModuleType(moduleType);
-  const active = pref.preset;
-
-  return (
-    <div
-      ref={rootRef}
-      style={{
-        position: 'fixed',
-        bottom: '12px',
-        right: '12px',
-        fontFamily: 'system-ui, -apple-system, sans-serif',
-        fontSize: '12px',
-        zIndex: 9999,
-      }}
-    >
-      {open && (
-        <div
-          ref={panelRef}
-          style={{
-            position: 'absolute',
-            bottom: '36px',
-            right: 0,
-            width: '260px',
-            background: 'var(--ds-surface-overlay, #fff)',
-            border: '1px solid var(--ds-border, #dfe1e6)',
-            borderRadius: '6px',
-            boxShadow: 'var(--ds-shadow-overlay, 0 4px 12px rgba(9,30,66,0.15))',
-            padding: '8px',
-            color: 'var(--ds-text, #172b4d)',
-          }}
-        >
-          {/* ───────────── Acting as ─────────────
-              Only rendered when the dev server answered `getActingUserState`.
-              The headless / MCP render path has no dev server, so `switcher`
-              stays null and this whole section is a graceful no-op.
-
-              Searchable picker (Atlaskit AsyncSelect):
-                - connected: `searchUsers` proxies the instance's /user/picker
-                  (real accountIds — no fake-id leak into a live session).
-                - offline:   `searchUsers` filters the seeded roster; the roster
-                  is preloaded as defaultOptions so the menu is populated on open.
-              A pick overrides the current user (beats the real API) and reloads
-              so the app's mount-effect invoke() calls re-run as the new user. */}
-          {switcher && (
-            <>
-              <div
-                style={{
-                  padding: '6px 8px 8px',
-                  fontSize: '11px',
-                  color: 'var(--ds-text-subtle, #6b778c)',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.5px',
-                  fontWeight: 600,
-                }}
-              >
-                Acting as
-              </div>
-              <div style={{ padding: '0 4px 4px' }}>
-                <AsyncSelect
-                  inputId="forge-sim-acting-as"
-                  aria-label="Acting as user"
-                  cacheOptions
-                  defaultOptions={
-                    switcher.mode === 'offline'
-                      ? switcher.users.map(toUserOption)
-                      : true
-                  }
-                  value={switcher.current ? toUserOption(switcher.current) : null}
-                  loadOptions={async (input: string) =>
-                    (await onSearchUsers(input)).map(toUserOption)
-                  }
-                  onChange={(opt: unknown) =>
-                    onActingUserChange(
-                      (opt as { user?: ActingUserOption } | null)?.user ?? null,
-                    )
-                  }
-                  formatOptionLabel={formatUserOption}
-                  placeholder={
-                    switcher.mode === 'connected' ? 'Search users…' : 'Pick a user…'
-                  }
-                  noOptionsMessage={() =>
-                    switcher.mode === 'connected'
-                      ? 'Type to search users'
-                      : 'No matching users'
-                  }
-                  isClearable={switcher.mode === 'connected'}
-                  spacing="compact"
-                  menuPlacement="top"
-                  maxMenuHeight={220}
-                  styles={{
-                    menu: (base: Record<string, unknown>) => ({ ...base, zIndex: 10000 }),
-                    menuPortal: (base: Record<string, unknown>) => ({ ...base, zIndex: 10000 }),
-                  }}
-                />
-              </div>
-              {switcher.mode === 'connected' && switcher.site && (
-                <div
-                  style={{
-                    padding: '0 8px 6px',
-                    fontSize: '11px',
-                    color: 'var(--ds-text-subtle, #6b778c)',
-                  }}
-                >
-                  Live users from {switcher.site}
-                </div>
-              )}
-
-              <div
-                style={{
-                  height: '1px',
-                  background: 'var(--ds-border, #f4f5f7)',
-                  margin: '4px 0 8px',
-                }}
-              />
-            </>
-          )}
-
-          {/* ───────────── Color mode ───────────── */}
-          <div
-            style={{
-              padding: '6px 8px 8px',
-              fontSize: '11px',
-              color: 'var(--ds-text-subtle, #6b778c)',
-              textTransform: 'uppercase',
-              letterSpacing: '0.5px',
-              fontWeight: 600,
-            }}
-          >
-            Color mode
-          </div>
-          <div
-            style={{
-              display: 'flex',
-              gap: '4px',
-              padding: '0 4px 8px',
-            }}
-          >
-            {(['light', 'dark', 'auto'] as ColorMode[]).map((m) => {
-              const isActive = colorMode === m;
-              return (
-                <button
-                  key={m}
-                  onClick={() => onColorModeChange(m)}
-                  style={{
-                    flex: 1,
-                    padding: '6px 4px',
-                    background: isActive
-                      ? 'var(--ds-background-selected, #e9f2ff)'
-                      : 'var(--ds-background-neutral-subtle, transparent)',
-                    color: isActive
-                      ? 'var(--ds-text-selected, #0c66e4)'
-                      : 'var(--ds-text, #172b4d)',
-                    border: '1px solid',
-                    borderColor: isActive
-                      ? 'var(--ds-border-selected, #388bff)'
-                      : 'var(--ds-border, #dfe1e6)',
-                    borderRadius: '3px',
-                    cursor: 'pointer',
-                    fontFamily: 'inherit',
-                    fontSize: '12px',
-                    fontWeight: isActive ? 600 : 400,
-                    textTransform: 'capitalize',
-                  }}
-                >
-                  {m}
-                  {m === 'auto' && colorMode === 'auto' && (
-                    <span
-                      style={{
-                        marginLeft: '4px',
-                        fontSize: '10px',
-                        opacity: 0.7,
-                      }}
-                    >
-                      ({resolvedColorMode})
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-
-          <div
-            style={{
-              height: '1px',
-              background: 'var(--ds-border, #f4f5f7)',
-              margin: '4px 0 8px',
-            }}
-          />
-
-          {/* ───────────── Preview width ───────────── */}
-          <div
-            style={{
-              padding: '6px 8px 8px',
-              fontSize: '11px',
-              color: 'var(--ds-text-subtle, #6b778c)',
-              textTransform: 'uppercase',
-              letterSpacing: '0.5px',
-              fontWeight: 600,
-            }}
-          >
-            Preview width
-          </div>
-
-          {(Object.keys(WIDTH_PRESETS) as WidthPresetKey[]).map((k) => {
-            const preset = WIDTH_PRESETS[k];
-            const isActive = active === k;
-            const isSuggested = suggestedKey === k;
-            return (
-              <button
-                key={k}
-                onClick={() =>
-                  onWidthChange({ preset: k, customPx: pref.customPx })
-                }
-                style={{
-                  display: 'block',
-                  width: '100%',
-                  textAlign: 'left',
-                  padding: '8px',
-                  marginBottom: '2px',
-                  background: isActive
-                    ? 'var(--ds-background-selected, #e9f2ff)'
-                    : 'transparent',
-                  border: '1px solid',
-                  borderColor: isActive
-                    ? 'var(--ds-border-selected, #388bff)'
-                    : 'transparent',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                  fontFamily: 'inherit',
-                  fontSize: '12px',
-                }}
-              >
-                <div
-                  style={{
-                    fontWeight: 600,
-                    color: isActive
-                      ? 'var(--ds-text-selected, #0c66e4)'
-                      : 'var(--ds-text, #172b4d)',
-                  }}
-                >
-                  {preset.label}
-                  {isSuggested && (
-                    <span
-                      style={{
-                        marginLeft: '6px',
-                        fontSize: '10px',
-                        color: 'var(--ds-text-success, #00875a)',
-                        fontWeight: 600,
-                      }}
-                    >
-                      • module default
-                    </span>
-                  )}
-                </div>
-                <div
-                  style={{
-                    color: 'var(--ds-text-subtle, #6b778c)',
-                    fontSize: '11px',
-                    marginTop: '2px',
-                  }}
-                >
-                  {preset.description}
-                </div>
-              </button>
-            );
-          })}
-
-          {active === 'custom' && (
-            <div style={{ padding: '4px 8px 8px' }}>
-              <label
-                style={{
-                  fontSize: '11px',
-                  color: 'var(--ds-text-subtle, #6b778c)',
-                  display: 'block',
-                  marginBottom: '4px',
-                }}
-              >
-                Custom width (px)
-              </label>
-              <input
-                type="number"
-                min={200}
-                max={4000}
-                value={pref.customPx ?? 900}
-                onChange={(e) => {
-                  const n = Number(e.target.value);
-                  if (Number.isFinite(n)) {
-                    onWidthChange({ preset: 'custom', customPx: n });
-                  }
-                }}
-                style={{
-                  width: '100%',
-                  padding: '6px 8px',
-                  border: '1px solid var(--ds-border, #dfe1e6)',
-                  borderRadius: '3px',
-                  fontSize: '12px',
-                  fontFamily: 'inherit',
-                  background: 'var(--ds-background-input, #fff)',
-                  color: 'var(--ds-text, #172b4d)',
-                }}
-              />
-            </div>
-          )}
-
-          {moduleType && (
-            <div
-              style={{
-                padding: '8px',
-                marginTop: '4px',
-                borderTop: '1px solid var(--ds-border, #f4f5f7)',
-                color: 'var(--ds-text-subtle, #6b778c)',
-                fontSize: '11px',
-              }}
-            >
-              Module:{' '}
-              <code style={{ color: 'var(--ds-text, #172b4d)' }}>{moduleType}</code>
-            </div>
-          )}
-        </div>
-      )}
-
-      <button
-        onClick={() => setOpen((v) => !v)}
-        aria-label="forge-sim settings"
-        title="forge-sim settings"
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '6px',
-          background: 'var(--ds-background-neutral-bold, #172b4d)',
-          color: 'var(--ds-text-inverse, #fff)',
-          border: 'none',
-          padding: '6px 10px',
-          borderRadius: '4px',
-          fontSize: '12px',
-          fontFamily: 'monospace',
-          cursor: 'pointer',
-          opacity: 0.9,
-        }}
-      >
-        <span>⚙️</span>
-        <span>forge-sim</span>
-      </button>
-    </div>
-  );
 }
 
 // ---------------------------------------------------------------------------
@@ -953,6 +281,14 @@ function MacroInlineConfigFooter({
 }
 
 function ShellInner({ initialColorMode }: ShellInnerProps) {
+  // Are we running inside a parent iframe (a nested surface — macro /
+  // custom-field / workflow content iframe)? On those surfaces the top-level
+  // ForgeSimModulePage owns the gear + badge chrome, so the embedded shell
+  // renders ONLY the module content. On standard top-level surfaces
+  // (jira:issuePanel, jira:globalPage, ...) the shell IS the document, so it
+  // renders its own chrome as before.
+  const embedded = typeof window !== 'undefined' && window.parent !== window;
+
   const [doc, setDoc] = useState<any>(null);
   // Macro inline config: a separate ForgeDoc tree emitted by
   // ForgeReconciler.addConfig(<Config />). Null until the app calls addConfig.
@@ -1078,38 +414,28 @@ function ShellInner({ initialColorMode }: ShellInnerProps) {
   // card attaches/detaches, so the observer always tracks the live node.
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
   const contentNodeRef = useRef<HTMLDivElement | null>(null);
-  // Floor for the posted height, in px, driven by the gear popover while it's
-  // open (see GearPopover.onChromeHeightChange). A ref mirror lets the
-  // ResizeObserver callback read the latest value without re-subscribing.
-  const [gearChromeHeight, setGearChromeHeight] = useState<number | null>(null);
-  const gearChromeHeightRef = useRef<number | null>(null);
 
   const postHeight = useCallback(() => {
     const node = contentNodeRef.current;
     // Only emit when actually embedded — top-level module pages (100vh) grow
     // on their own, and posting to self is pointless.
-    const embedded =
-      typeof window !== 'undefined' && window.parent && window.parent !== window;
     if (!node || !embedded) return;
     // + 48 covers the card's 24px top+bottom margins so the parent iframe
     // isn't clipped at the seam. Math.ceil avoids fractional-pixel jitter.
-    const contentHeight = Math.ceil(node.getBoundingClientRect().height) + 48;
-    // Floor to the open gear popover's needed height so its upward-opening
-    // popup + user-search menu aren't clipped inside a short (content-sized)
-    // iframe. Reverts to content height when the popover closes.
-    const height = Math.max(contentHeight, gearChromeHeightRef.current ?? 0);
+    // Pure content height — the gear + its upward-opening popover now live on
+    // the top-level parent page (ForgeSimModulePage), so there's nothing inside
+    // this iframe to reserve room for. The iframe sizes to content only.
+    const height = Math.ceil(node.getBoundingClientRect().height) + 48;
     try {
       window.parent.postMessage({ type: 'resize', height }, '*');
     } catch {
       /* cross-origin parent — ignore */
     }
-  }, []);
+  }, [embedded]);
 
   const contentCardRef = useCallback(
     (node: HTMLDivElement | null) => {
       contentNodeRef.current = node;
-      const embedded =
-        typeof window !== 'undefined' && window.parent && window.parent !== window;
 
       if (resizeObserverRef.current) {
         resizeObserverRef.current.disconnect();
@@ -1126,16 +452,34 @@ function ShellInner({ initialColorMode }: ShellInnerProps) {
       // never resizes again after attach.
       postHeight();
     },
-    [postHeight],
+    [postHeight, embedded],
   );
 
-  // Re-post whenever the gear popover's needed height changes so the iframe
-  // grows to fit the open popover (and shrinks back on close). Keep the ref
-  // mirror in sync for the ResizeObserver callback's benefit.
+  // When embedded, mirror the render count up to the parent page so its
+  // top-level badge (🔥 renders: N) reflects the visible content iframe.
   useEffect(() => {
-    gearChromeHeightRef.current = gearChromeHeight;
-    postHeight();
-  }, [gearChromeHeight, postHeight]);
+    if (!embedded) return;
+    try {
+      window.parent.postMessage({ type: 'forge-sim:renderCount', count: renderCount }, '*');
+    } catch {
+      /* cross-origin parent — ignore */
+    }
+  }, [embedded, renderCount]);
+
+  // When embedded, the parent page's gear owns color mode. It writes the shared
+  // localStorage key and we react to the cross-frame `storage` event so the
+  // content theme flips live without a reload.
+  useEffect(() => {
+    if (!embedded || typeof window === 'undefined') return;
+    const onStorage = (e: StorageEvent) => {
+      if (e.key !== COLOR_MODE_STORAGE_KEY) return;
+      const next = readStoredColorMode();
+      setColorMode(next);
+      setAtlaskitColorMode(next);
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, [embedded, setAtlaskitColorMode]);
 
   // Form ref + parity bookkeeping for the inline config Save button.
   const configFormRef = useRef<HTMLFormElement | null>(null);
@@ -1246,6 +590,9 @@ function ShellInner({ initialColorMode }: ShellInnerProps) {
 
   // Compute effective width
   const effectiveMaxWidth = useMemo<string>(() => {
+    // Embedded content fills its iframe — the parent page owns the width preset
+    // and sizes the iframe itself, so the inner card must not double-constrain.
+    if (embedded) return '100%';
     const preset = WIDTH_PRESETS[pref.preset];
     if (pref.preset === 'full') return '100%';
     if (pref.preset === 'custom') {
@@ -1253,7 +600,7 @@ function ShellInner({ initialColorMode }: ShellInnerProps) {
       return `${n}px`;
     }
     return preset.px ? `${preset.px}px` : '100%';
-  }, [pref]);
+  }, [pref, embedded]);
 
   if (!doc) {
     return (
@@ -1292,7 +639,18 @@ function ShellInner({ initialColorMode }: ShellInnerProps) {
       <div
         data-forge-sim-page
         style={{
-          minHeight: '100vh',
+          // Top-level surfaces fill the viewport (100vh). When embedded in a
+          // content iframe (macro/field/workflow), the iframe is sized to
+          // content by the resize emitter, so 100vh would force it to the
+          // iframe's own height. Worse, the content card's 24px top/bottom
+          // margins collapse THROUGH this wrapper + <body> to <html>,
+          // overflowing the content-sized iframe by one margin (24px) and
+          // producing an internal scrollbar. `display: flow-root` establishes
+          // a block formatting context that contains those margins so the
+          // document height matches the posted content height exactly.
+          ...(embedded
+            ? { display: 'flow-root', minHeight: 0 }
+            : { minHeight: '100vh' }),
           background: 'var(--ds-surface, #fafbfc)',
           transition: 'background 120ms ease',
         }}
@@ -1337,35 +695,41 @@ function ShellInner({ initialColorMode }: ShellInnerProps) {
         </div>
       </div>
 
-      <GearPopover
-        pref={pref}
-        moduleType={moduleType}
-        colorMode={colorMode}
-        resolvedColorMode={resolvedColorMode}
-        switcher={switcher}
-        onWidthChange={handlePrefChange}
-        onColorModeChange={handleColorModeChange}
-        onSearchUsers={handleSearchUsers}
-        onActingUserChange={handleActingUserChange}
-        onChromeHeightChange={setGearChromeHeight}
-      />
+      {/* Dev chrome — only when top-level. On nested surfaces the parent
+          ForgeSimModulePage renders the gear + badge so they pin to the real
+          browser viewport instead of this content iframe's viewport. */}
+      {!embedded && (
+        <>
+          <GearPopover
+            pref={pref}
+            moduleType={moduleType}
+            colorMode={colorMode}
+            resolvedColorMode={resolvedColorMode}
+            switcher={switcher}
+            onWidthChange={handlePrefChange}
+            onColorModeChange={handleColorModeChange}
+            onSearchUsers={handleSearchUsers}
+            onActingUserChange={handleActingUserChange}
+          />
 
-      <div
-        style={{
-          position: 'fixed',
-          bottom: '12px',
-          left: '12px',
-          background: 'var(--ds-background-neutral-bold, #172b4d)',
-          color: 'var(--ds-text-inverse, #fff)',
-          padding: '4px 10px',
-          borderRadius: '4px',
-          fontSize: '11px',
-          fontFamily: 'monospace',
-          opacity: 0.6,
-        }}
-      >
-        🔥 renders: {renderCount}
-      </div>
+          <div
+            style={{
+              position: 'fixed',
+              bottom: '12px',
+              left: '12px',
+              background: 'var(--ds-background-neutral-bold, #172b4d)',
+              color: 'var(--ds-text-inverse, #fff)',
+              padding: '4px 10px',
+              borderRadius: '4px',
+              fontSize: '11px',
+              fontFamily: 'monospace',
+              opacity: 0.6,
+            }}
+          >
+            🔥 renders: {renderCount}
+          </div>
+        </>
+      )}
     </>
   );
 }

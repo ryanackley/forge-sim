@@ -4,7 +4,13 @@
  */
 import { describe, it, expect } from 'vitest';
 import { parseManifestContent } from '../manifest.js';
-import { generateModulePickerHtml, generateWorkflowPageHtml, type DetectedModule } from '../dev-command.js';
+import {
+  generateModulePickerHtml,
+  computeModulePageGroups,
+  generateModulePageEntry,
+  type DetectedModule,
+} from '../dev-command.js';
+import type { ManifestUIModule } from '../manifest.js';
 
 const BASE_MANIFEST = `
 app:
@@ -214,41 +220,78 @@ describe('workflow module picker', () => {
   });
 });
 
-describe('generateWorkflowPageHtml', () => {
-  it('generates combined page with all three tabs', () => {
-    const html = generateWorkflowPageHtml('my-cond', 'My Condition', 'jira:workflowCondition', true, true, true, 5174);
-    expect(html).toContain('my-cond');
-    expect(html).toContain('Workflow Condition');
-    expect(html).toContain('Create');
-    expect(html).toContain('Edit');
-    expect(html).toContain('View');
-    expect(html).toContain('wf-create');
-    expect(html).toContain('wf-edit');
-    expect(html).toContain('wf-view');
+// The combined workflow page is now a top-level Atlaskit React document
+// (ForgeSimModulePage). The dev server groups the `--create`/`--edit`/`--view`
+// split modules into one ModulePageGroup and generates a Vite entry that
+// mounts ForgeSimModulePage. These tests assert that grouping + entry
+// contract; the parent-page UI is covered by module-page.test.tsx.
+
+describe('workflow combined page group', () => {
+  function wfModule(type: string, key: string, title: string): DetectedModule {
+    return {
+      module: { type, key, title, resourceKey: 'main' } as ManifestUIModule,
+      mode: 'uikit',
+      resourcePath: '/fake/path',
+    };
+  }
+
+  it('groups create/edit/view into a single workflow page group', () => {
+    const groups = computeModulePageGroups([
+      wfModule('jira:workflowCondition', 'my-cond--create', 'My Condition (Create)'),
+      wfModule('jira:workflowCondition', 'my-cond--edit', 'My Condition (Edit)'),
+      wfModule('jira:workflowCondition', 'my-cond--view', 'My Condition (View)'),
+    ]);
+
+    expect(groups).toHaveLength(1);
+    const g = groups[0];
+    expect(g.baseKey).toBe('my-cond');
+    expect(g.surface).toBe('workflow');
+    expect(g.title).toBe('My Condition');
+    expect(g.badgeLabel).toBe('Workflow Condition');
+    expect(g.modes.map((m) => m.mode)).toEqual(['create', 'edit', 'view']);
+    expect(g.modes.map((m) => m.label)).toEqual(['Create', 'Edit', 'View']);
   });
 
-  it('generates page with only create and edit', () => {
-    const html = generateWorkflowPageHtml('my-fn', 'My Post Function', 'jira:workflowPostFunction', true, true, false, 5174);
-    expect(html).toContain('Create');
-    expect(html).toContain('Edit');
-    expect(html).not.toContain('wf-view');
-    expect(html).toContain('Workflow PostFunction');
+  it('orders create → edit → view regardless of manifest order', () => {
+    const groups = computeModulePageGroups([
+      wfModule('jira:workflowCondition', 'c--view', 'C (View)'),
+      wfModule('jira:workflowCondition', 'c--create', 'C (Create)'),
+      wfModule('jira:workflowCondition', 'c--edit', 'C (Edit)'),
+    ]);
+    expect(groups[0].modes.map((m) => m.mode)).toEqual(['create', 'edit', 'view']);
   });
 
-  it('defers non-first iframe loading', () => {
-    const html = generateWorkflowPageHtml('my-cond', 'My Condition', 'jira:workflowCondition', true, true, true, 5174);
-    // First iframe loads immediately
-    expect(html).toContain('id="wf-create" class="cf-frame" src="/module/my-cond--create/"');
-    // Others are deferred
-    expect(html).toContain('id="wf-edit" class="cf-frame" data-src="/module/my-cond--edit/" src="about:blank"');
-    expect(html).toContain('id="wf-view" class="cf-frame" data-src="/module/my-cond--view/" src="about:blank"');
+  it('derives the badge label from the workflow module type', () => {
+    const groups = computeModulePageGroups([
+      wfModule('jira:workflowPostFunction', 'my-fn--create', 'My Post Function (Create)'),
+      wfModule('jira:workflowPostFunction', 'my-fn--edit', 'My Post Function (Edit)'),
+    ]);
+    expect(groups[0].badgeLabel).toBe('Workflow PostFunction');
+    expect(groups[0].modes.map((m) => m.mode)).toEqual(['create', 'edit']);
   });
 
-  it('single tab does not need switching', () => {
-    const html = generateWorkflowPageHtml('my-cond', 'Cond', 'jira:workflowCondition', false, true, false, 5174);
-    // Only edit tab
-    expect(html).toContain('Edit');
-    expect(html).not.toContain('Create');
-    expect(html).not.toContain('wf-view');
+  it('supports a single-mode workflow group', () => {
+    const groups = computeModulePageGroups([
+      wfModule('jira:workflowCondition', 'my-cond--edit', 'Cond (Edit)'),
+    ]);
+    expect(groups).toHaveLength(1);
+    expect(groups[0].modes.map((m) => m.mode)).toEqual(['edit']);
+  });
+
+  it('generates an entry that mounts ForgeSimModulePage with the workflow badge label', () => {
+    const [group] = computeModulePageGroups([
+      wfModule('jira:workflowCondition', 'my-cond--create', 'My Condition (Create)'),
+      wfModule('jira:workflowCondition', 'my-cond--edit', 'My Condition (Edit)'),
+      wfModule('jira:workflowCondition', 'my-cond--view', 'My Condition (View)'),
+    ]);
+    const entry = generateModulePageEntry(group, 5174, []);
+
+    expect(entry).toContain('ForgeSimModulePage');
+    expect(entry).toContain('ws://localhost:5174');
+    expect(entry).toContain('"baseKey":"my-cond"');
+    expect(entry).toContain('"surface":"workflow"');
+    expect(entry).toContain('Workflow Condition');
+    // The parent realm never runs the dev app.
+    expect(entry).not.toContain('ForgeSimShell');
   });
 });
