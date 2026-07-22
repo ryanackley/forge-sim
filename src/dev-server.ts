@@ -500,9 +500,22 @@ export async function createDevServer(options: DevServerOptions = {}): Promise<D
         }
 
         if (macroBaseKey) {
-          const submittedConfig = (params?.payload && typeof params.payload === 'object')
-            ? params.payload
+          // Two macro-config submit shapes, per the Forge macro config API:
+          //   1. Custom-config sub-module: the app calls
+          //      view.submit({ config: {...}, body?, keepEditing? }). The macro
+          //      config VALUE is payload.config — the top-level `config` key is
+          //      the documented wrapper. Storing the whole payload double-nests
+          //      it, so useConfig() / context.extension.config reads back
+          //      { config: {...} } instead of the fields. Unwrap it.
+          //   2. Inline config (our platform Save button): submits the harvested
+          //      flat field-value map directly — no wrapper to unwrap.
+          const rawPayload = (params?.payload && typeof params.payload === 'object')
+            ? (params.payload as Record<string, any>)
             : {};
+          const isCustomConfigSubmodule = !!submitModuleKey?.endsWith('--config');
+          const submittedConfig = isCustomConfigSubmodule
+            ? (rawPayload.config && typeof rawPayload.config === 'object' ? rawPayload.config : {})
+            : rawPayload;
           macroConfigs.set(macroBaseKey, submittedConfig);
           console.log(`[dev-server] Macro "${macroBaseKey}" config updated:`, submittedConfig);
           // Broadcast to clients viewing this macro (view/config sub-modules,
