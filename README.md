@@ -2,7 +2,7 @@
 
 A local, simulated runtime for [Forge](https://developer.atlassian.com/platform/forge/), Atlassian's platform for building apps that run inside their cloud products, three ways to drive it:
 
-* **Automated testing** — Ihis is the missing test harness for Forge. Out of the box, your options are mocking or shimming every `@forge/*` import by hand, or deploying to find out. forge-sim gives you a robust API for automated testing. You can invoke resolvers, fire product events, assert on KVS/SQL state and rendered UIKit output. No network or credentials required, runs in CI.
+* **Automated testing** — End to end testing api. Out of the box, your options are mocking `@forge/*` import by hand, or isolating parts of functionality completely from forge apis to make it testable. With forge-sim, you can invoke resolvers, fire product events, assert on KVS/SQL state and rendered UIKit output. No network or credentials required, runs in CI.
 
 * **Local development** — think LocalStack for Forge. It collapses the deploy-wait-debug iteration loop by giving you an instantaneous deploy to a local runtime. Run your app against simulated storage, product APIs, and triggers, with dev tools for inspecting Forge state as you go. Orders of magnitude faster than iterating via `forge tunnel`
 
@@ -12,9 +12,9 @@ A local, simulated runtime for [Forge](https://developer.atlassian.com/platform/
 
 ## Scope
 
-forge-sim is a *mostly* truthful forge implementation. The goal is if it works in forge-sim, it should work in Forge, and vice versa. That said, there is a lot of real estate to cover. The [implementation matrix](./docs/reference/implementation-matrix.md)
-shows exactly what's implemented and how faithfully. If something you rely on
-is missing or behaves differently, please [open an issue](https://github.com/ryanackley/forge-sim/issues).
+forge-sim is a *mostly* truthful forge implementation. There is a lot of real estate to cover though. The [implementation matrix](./docs/reference/implementation-matrix.md) shows exactly what's implemented and how faithfully. 
+
+If something you rely on is missing or behaves differently, please [open an issue](https://github.com/ryanackley/forge-sim/issues).
 
 Keep in mind, **This is a development tool**. Iterate here, then a full deploy to the Atlassian products for final testing.
 
@@ -90,12 +90,12 @@ describe('my forge app', () => {
 
 Features:
 
-- Runs your real handler code through the actual `@forge/*` packages, not hand-written mocks.
+- Runs your code unmodified.
 - Invokes resolvers, triggers, scheduled triggers, queues, and consumers directly.
 - Gives direct read/write access to KVS, the Custom Entity Store, and Forge SQL (embedded MySQL) for setup and assertions.
 - Renders UIKit 2 modules to a ForgeDoc tree you can query and interact with; no browser.
-- Mocks product APIs, Forge Remotes, third-party OAuth, and GraphQL by route; unmocked routes can be configured to fall through to a connected real API.
-- Mocks and records `@forge/llm` calls so tests stay offline.
+- Mock product APIs, Forge Remotes, third-party OAuth, and GraphQL by route; unmocked routes can be configured to fall through to a connected real API.
+- Mocks and records `@forge/llm` calls so tests can stay offline.
 
 > **Note:** if your app uses `@forge/sql`, the first `sim.sql.start()` on a machine downloads a MySQL binary (one-time, needs network access). Everything else runs fully offline. See the [testing guide](./docs/testing/) for CI caching tips.
 
@@ -143,7 +143,7 @@ GitHub renders as an inline player. (GIFs in the repo work too: docs/media/)
 
 ## AI-driven development
 
-forge-sim gives AI agents a local Forge runtime that needs no Atlassian credentials and no deploy permissions. Out of the box, an agent can write code, deploy it locally, test it, and iterate without touching a real site. If you *do* connect a real account (`forge-sim auth`), unmocked product API calls pass through to it; mocked routes always win, so you control exactly which calls stay local. Everything is reachable through CLI commands:
+forge-sim gives AI agents a local Forge runtime that needs no Atlassian credentials and no deploy permissions. An agent can write code, deploy it locally, test it, and iterate without touching a real site. If you *do* connect a real account (`forge-sim auth`), unmocked product API calls pass through to it; mocked routes always win, so you control exactly which calls stay local. Everything is reachable through CLI commands:
 
 ```bash
 # Deploy the app (daemon auto-starts)
@@ -221,7 +221,7 @@ Reset everything:     forge-sim reset
 - **No app lifecycle triggers** — install/uninstall/enable/disable don't fire
 - **No rate or memory limits** — Forge's per-app limits aren't simulated
 - **`context.environmentType` defaults to `DEVELOPMENT`** — override per render/invoke to simulate staging/prod
-- **Other behavioral quirks** - Too many to list here. It's important to test your app in-product. 
+- **Other behavioral quirks** - Too many to list here. It's important to test your app in-product after you're happy with how it runs in forge-sim. File an issue if there are unreasonable behavior differences. 
 
 Also see the [implementation matrix](./docs/reference/implementation-matrix.md) for full coverage detail.
 
