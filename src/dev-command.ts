@@ -1494,20 +1494,26 @@ export async function buildViteConfig(opts: {
       // root — Vite spams "Failed to resolve dependency: react" for deps
       // that no page will ever import.
       //
-      // ForgeSimShell lives OUTSIDE the Vite root (it's served from
-      // ~/.forge-sim/renderer/<version>/src via an @fs escape), so the dep
-      // scanner does not reliably crawl into it. Deps that ONLY the shell
-      // imports — @atlaskit/avatar (acting-user switcher), and to a lesser
-      // extent app-provider/select — therefore escape the startup scan and
-      // get discovered at request time, triggering the same mid-flight
-      // re-optimization 504 the entries seed was meant to prevent. The
-      // switcher's @atlaskit/avatar import (shell-exclusive, added in 0.1.13)
-      // is what surfaced this. Pin the shell's direct deps here so Vite
-      // force-pre-bundles them at server startup regardless of scan coverage.
-      // The combined nested-surface parent page (ForgeSimModulePage) is also
-      // served from OUTSIDE the Vite root and adds its own shell-exclusive
-      // direct deps (@atlaskit/lozenge, button, section-message) — pin those
-      // too so they don't get discovered at request time.
+      // ForgeSimShell / ForgeSimModulePage live OUTSIDE the Vite root (served
+      // from ~/.forge-sim/renderer/<version>/src via an @fs escape), so the
+      // dep scanner does not reliably crawl into them. Deps that ONLY those
+      // files import — @atlaskit/avatar (acting-user switcher), select,
+      // app-provider, lozenge, button (+ the button/new SUBPATH), and
+      // section-message — therefore escape the startup scan and get discovered
+      // at request time, triggering the mid-flight re-optimization 504 the
+      // entries seed was meant to prevent. Pin them here so Vite
+      // force-pre-bundles them at server startup, keeping the shell's cold
+      // optimize a single wave (which boot()'s one retry can absorb).
+      //
+      // IMPORTANT: optimizeDeps.include is resolved against the APP root, not
+      // the renderer's node_modules. Only list packages the app can actually
+      // resolve — a renderer-only dep here (e.g. @atlaskit/empty-state) makes
+      // Vite spam "Failed to resolve dependency … present in optimizeDeps
+      // .include". These six all resolve (they hoist through @forge/react's
+      // tree); keep the list to the shell-exclusive deps that genuinely do.
+      // 0.1.15 lesson: @atlaskit/button/new is a SEPARATE optimizer entry from
+      // bare @atlaskit/button — the bare include does NOT cover the subpath, so
+      // pin it explicitly.
       include: hasUikitModules
         ? [
             'react',
@@ -1519,6 +1525,7 @@ export async function buildViteConfig(opts: {
             '@atlaskit/select',
             '@atlaskit/lozenge',
             '@atlaskit/button',
+            '@atlaskit/button/new',
             '@atlaskit/section-message',
           ]
         : [],

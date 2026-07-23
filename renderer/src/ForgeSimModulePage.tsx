@@ -200,23 +200,44 @@ function ModulePageInner({
     const firstFrame = frames[firstMode];
     if (firstFrame && !firstFrame.src) firstFrame.src = srcFor(firstMode);
 
-    // 2. Deferred load of the remaining modes once the first frame is up, so
-    //    the initial Atlaskit dep-optimize isn't racing multiple parallel
-    //    imports of the same ~1200-module tree.
+    // 2. Deferred load of the remaining modes — but NOT on the first frame's
+    //    `load` event. That fires when the view iframe's DOM finishes, which
+    //    is BEFORE its async ForgeSimShell dynamic import resolves. On a cold
+    //    dep cache the shell import triggers Vite's ~1200-module Atlaskit
+    //    optimize; loading config into that still-settling window makes its
+    //    own shell import 504 ("Failed to fetch dynamically imported module")
+    //    and burns boot()'s single retry → death screen. View survives because
+    //    it gets the first, successful retry; config raced the tail of the
+    //    same wave. This was the thrice-shipped cold-boot bug (0.1.13-0.1.15),
+    //    and it only ever hit the deferred config frame.
+    //
+    //    Instead, wait for the view frame to signal it has FULLY booted: the
+    //    shell posts a `resize`/`renderCount` message the moment its content
+    //    card mounts, by which point the dep cache is warm. Config then boots
+    //    into a settled optimizer. A generous fallback timer still loads the
+    //    deferred modes if the app renders nothing and never posts.
+    let deferredDone = false;
     const loadDeferred = () => {
+      if (deferredDone) return;
+      deferredDone = true;
+      window.clearTimeout(fallbackTimer);
       for (const m of modes.slice(1)) {
         const f = frames[m.mode];
         if (f && !f.src) f.src = srcFor(m.mode);
       }
     };
-    if (firstFrame) {
-      firstFrame.addEventListener('load', loadDeferred, { once: true });
-    }
+    // Fallback: cold optimize of the full Atlaskit tree can take several
+    // seconds on a fresh install; 12s comfortably clears it while still
+    // guaranteeing config eventually loads for apps that never post a message.
+    const fallbackTimer = window.setTimeout(loadDeferred, 12000);
 
-    // 3. Content iframe messages: resize (grow the frame to fit) + render count.
+    // 3. Content iframe messages: resize (grow the frame to fit) + render
+    //    count. Any message from the view frame also proves it has booted, so
+    //    it releases the deferred-load gate (see #2).
     const onMessage = (e: MessageEvent) => {
       const data = e.data;
       if (!data || typeof data !== 'object') return;
+      if (modeForSource(e.source) === firstMode) loadDeferred();
       if (data.type === 'resize' && typeof data.height === 'number') {
         const mode = modeForSource(e.source);
         if (mode) {
@@ -263,7 +284,7 @@ function ModulePageInner({
 
     return () => {
       window.removeEventListener('message', onMessage);
-      if (firstFrame) firstFrame.removeEventListener('load', loadDeferred);
+      window.clearTimeout(fallbackTimer);
       if (ws) {
         ws.onmessage = null;
         try {

@@ -94,6 +94,12 @@ describe('buildViteConfig — dep scanner seeding', () => {
     expect(config.optimizeDeps.include).toEqual(
       expect.arrayContaining(['@atlaskit/avatar', '@atlaskit/select', '@atlaskit/app-provider'])
     );
+    // 0.1.15 regression: ForgeSimModulePage imports the `@atlaskit/button/new`
+    // SUBPATH. The old hand-maintained include only pinned bare
+    // `@atlaskit/button`, which does NOT cover `/new` in Vite's optimizer, so
+    // it was discovered at request time and 504'd the macro parent page on
+    // cold boot. The include must pin the exact subpath.
+    expect(config.optimizeDeps.include).toContain('@atlaskit/button/new');
   });
 
   it('skips react pre-bundling for Custom-UI-only apps', async () => {
