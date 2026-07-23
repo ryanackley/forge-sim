@@ -4,9 +4,9 @@ A local, simulated runtime for [Forge](https://developer.atlassian.com/platform/
 
 * **Automated testing** — End to end testing api. Out of the box, your options are mocking `@forge/*` import by hand, or isolating parts of functionality completely from forge apis to make it testable. With forge-sim, you can invoke resolvers, fire product events, assert on KVS/SQL state and rendered UIKit output. No network or credentials required, runs in CI.
 
-* **Local development** — think LocalStack for Forge. It collapses the deploy-wait-debug iteration loop by giving you an instantaneous deploy to a local runtime. Run your app against simulated storage, product APIs, and triggers, with dev tools for inspecting Forge state as you go. Orders of magnitude faster than iterating via `forge tunnel`
-
 * **AI-assisted development (MCP)** — let an agent deploy, invoke, render, and inspect your app in a simulated Forge environment via MCP tools instead of handing it your cloud credentials or a browser pointed at your dev site. Faster feedback and you control the blast radius: fully sandboxed until you connect a real account.
+
+* **Local development** — think LocalStack for Forge. It collapses the deploy-wait-debug iteration loop by giving you an instantaneous deploy to a local runtime. Run your app against simulated storage, product APIs, and triggers, with dev tools for inspecting Forge state as you go. Orders of magnitude faster than iterating via `forge tunnel`
 
 **This project is not endorsed by or affiliated with Atlassian**
 
@@ -103,44 +103,6 @@ Features:
 
 ---
 
-## Local development loop
-
-Run your Forge app locally by using the `forge-sim dev` command. This is the end-to-end app experience being driven by a browser. 
-
-### Quick start
-
-Navigate to your forge app directory and run forge-sim in dev mode. This will launch a browser tab that shows a navigable index of all of your UI modules. Click on one to run outside of Atlassian products. 
-
-```bash
-cd /path/to/forge/app
-forge-sim dev
-```
-
-Dev mode features:
-
-- **UIKit 2 and Custom UI** — uses Atlaskit to render UIKit 2 components. Supports Hot Module Reload (HMR) and Chrome Devtools. 
-- **Simulates Forge services locally** — Functions, queues, consumers, SQL, KVS, etc.
-- **Real API access** — connect your Atlassian account and `requestJira()` hits your real site
-- **Local Debugging tools** — KVS browser, SQL console, log viewer, event triggers at `localhost:5173/__tools/`
-- **Persistent state** — KVS and SQL survive restarts. `--clean` to start fresh.
-
-<p align="center">
-  <img src="docs/media/dev-uikit-module.png" alt="forge-sim dev rendering a UIKit 2 module with real Atlaskit components" width="720">
-</p>
-
-<!--
-TODO(demo): record dev-mode demo video and add it above.
-To embed on GitHub: edit this file on github.com and drag the .mp4/.mov in;
-it uploads to user-attachments and inserts a bare URL on its own line, which
-GitHub renders as an inline player. (GIFs in the repo work too: docs/media/)
--->
-
-**Full guide:** [Local development](./docs/local-development/) — Custom UI and proxy mode, the dev tools UI, and the integration stories: talking to Atlassian APIs, third-party APIs, and your own remote backend.
-
----
-
-
-
 ## AI-driven development
 
 forge-sim gives AI agents a local Forge runtime that needs no Atlassian credentials and no deploy permissions. An agent can write code, deploy it locally, test it, and iterate without touching a real site. If you *do* connect a real account (`forge-sim auth`), unmocked product API calls pass through to it; mocked routes always win, so you control exactly which calls stay local. Everything is reachable through CLI commands:
@@ -212,7 +174,34 @@ Reset everything:     forge-sim reset
 
 ---
 
+## Local development loop
 
+Run your Forge app locally by using the `forge-sim dev` command. This is the end-to-end app experience being driven by a browser. 
+
+### Quick start
+
+Navigate to your forge app directory and run forge-sim in dev mode. This will launch a browser tab that shows a navigable index of all of your UI modules. Click on one to run outside of Atlassian products. 
+
+```bash
+cd /path/to/forge/app
+forge-sim dev
+```
+
+Dev mode features:
+
+- **UIKit 2 and Custom UI** — uses Atlaskit to render UIKit 2 components. Supports Hot Module Reload (HMR) and Chrome Devtools. 
+- **Simulates Forge services locally** — Functions, queues, consumers, SQL, KVS, etc.
+- **Real API access** — connect your Atlassian account and `requestJira()` hits your real site
+- **Local Debugging tools** — KVS browser, SQL console, log viewer, event triggers at `localhost:5173/__tools/`
+- **Persistent state** — KVS and SQL survive restarts. `--clean` to start fresh.
+
+<p align="center">
+  <img src="docs/media/devmode-demo.gif" alt="forge-sim dev mode: instant local deploy, UIKit 2 rendering, and dev tools" width="720">
+</p>
+
+**Full guide:** [Local development](./docs/local-development/) — Custom UI and proxy mode, the dev tools UI, and the integration stories: talking to Atlassian APIs, third-party APIs, and your own remote backend.
+
+---
 
 ## Known limitations
 
@@ -229,9 +218,9 @@ Also see the [implementation matrix](./docs/reference/implementation-matrix.md) 
 
 The docs are organized around the three ways to use forge-sim, with a shared reference section:
 
-- **[Local development](./docs/local-development/)** — the `forge-sim dev` server, connecting to Atlassian, Custom UI and proxy mode, Forge Remotes, external auth, and the dev tools UI.
 - **[Automated Testing](./docs/testing/)** — the test API, bundler config, testing patterns, UIKit rendering, mocking, and the programmatic `sim.*` reference.
 - **[AI-driven development](./docs/ai/)** — the MCP server and agent CLI.
+- **[Local development](./docs/local-development/)** — the `forge-sim dev` server, connecting to Atlassian, Custom UI and proxy mode, Forge Remotes, external auth, and the dev tools UI.
 - **[Reference](./docs/reference/)** — architecture, full CLI reference, implementation matrix, module support, and module contexts.
 
 ## Development
