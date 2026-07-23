@@ -38,7 +38,8 @@
     "!renderer/src/portal-stress.tsx",
     "renderer/package.json",
     "renderer/package-lock.json",
-    "docs"
+    "docs",
+    "!docs/media/devmode-demo.gif"
   ],
   "type": "module",
   "main": "./dist/index.js",
