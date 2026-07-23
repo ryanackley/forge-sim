@@ -54,13 +54,13 @@ Three integration paths into the sim, depending on which surface the app uses:
 
 | Area | Files |
 |---|---|
-| Orchestrator + lifecycle | `src/simulator.ts`, `src/deployer.ts`, `src/manifest.ts`, `src/manifest-validator.ts` |
-| State | `src/storage.ts` (KVS), `src/queue.ts`, `src/entity-store.ts`, `src/forge-sql.ts`, `src/persistence.ts` |
-| Backend | `src/resolver.ts`, `src/product-api.ts`, `src/web-trigger.ts`, `src/scheduled-triggers.ts`, `src/remotes.ts`, `src/llm.ts`, `src/realtime.ts` |
+| Orchestrator + lifecycle | `src/simulator.ts`, `src/deployer.ts`, `src/manifest.ts` (parsing + validation) |
+| State | `src/kvs.ts` (KVS + Custom Entity Store, unified), `src/queue.ts`, `src/forge-sql.ts`, `src/persistence.ts` |
+| Backend | `src/resolver.ts`, `src/product-api.ts`, `src/web-trigger.ts`, `src/remote-proxy.ts`, `src/llm.ts`, `src/realtime.ts` (scheduled triggers wired in `src/deployer.ts`) |
 | Shims | `src/shims/` — drop-in replacements for `@forge/*` |
 | Loader | `src/loader/` — Node `--import` hooks (note: native TS type stripping is used now; tsx loader is a fallback) |
 | UIKit bridge | `src/ui/bridge.ts`, `src/ui/simulator-ui.ts`, `src/ui/doc-utils.ts` |
-| CLI | `src/cli.ts`, `src/dev-command.ts`, `src/auth-command.ts`, `src/proxy-server.ts` |
+| CLI | `src/cli.ts`, `src/dev-command.ts`, `src/auth/auth-command.ts`, `src/proxy-server.ts` |
 | Dev tools UI | `src/tools/api.ts`, `src/tools/server.ts` (`/__tools/` routes) |
 | MCP server | `src/mcp-server.ts` |
 | Renderer | `renderer/` — separate package, ForgeDoc → Atlaskit, runs in browser or jsdom |

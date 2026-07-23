@@ -76,7 +76,7 @@ export function findByProps(doc: ForgeDoc, props: Record<string, any>): ForgeDoc
  *   expect(comment.props.author.text).toBe('Pat Lee');
  *
  * Audited against forge-mcp UI Kit docs and cross-checked against the
- * forge-sim renderer's component-map (see VISIBLE_TEXT_PROPS_AUDIT.md).
+ * forge-sim renderer's component-map.
  */
 export const VISIBLE_TEXT_PROPS: Record<string, readonly string[]> = {
   Tag: ['text'],

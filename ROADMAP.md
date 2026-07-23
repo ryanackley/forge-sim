@@ -73,7 +73,6 @@ For the full history, see `git log`. Highlights of the last few weeks:
 - **Per-function-type invocation timeouts** (resolver 25s, trigger 55s, scheduled/consumer up to 900s)
 - **TypeScript type checking** integrated into dev workflow
 - **General hardening pass** — silent-failure audit, manifest edge cases, error handling, e2e dev server tests, renderer integration tests
-- **Universal Dev Server Proxy** ([proposal](proposals/universal-dev-server-proxy.md))
 
 ## Completed (foundational)
 
