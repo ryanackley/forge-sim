@@ -15,13 +15,21 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { SimulatedRealtime } from '../realtime.js';
+import { SimulatedRealtime, type RealtimeInvocationContext } from '../realtime.js';
 
 describe('SimulatedRealtime', () => {
   let rt: SimulatedRealtime;
+  /** Ambient invocation context — what the simulator's AsyncLocalStorage would provide. */
+  let invocationContext: RealtimeInvocationContext | null;
+
+  /** Simulate publishing from a frontend-originated resolver invocation for a module. */
+  const asResolver = (moduleKey: string) => {
+    invocationContext = { kind: 'resolver', moduleKey };
+  };
 
   beforeEach(() => {
-    rt = new SimulatedRealtime();
+    invocationContext = null;
+    rt = new SimulatedRealtime(undefined, () => invocationContext);
   });
 
   // ── Scoped publish/subscribe ─────────────────────────────────────────
@@ -29,7 +37,7 @@ describe('SimulatedRealtime', () => {
   describe('scoped channels', () => {
     it('delivers events to subscribers on the same scoped channel', async () => {
       const received: any[] = [];
-      rt.setModuleContext('jira:issuePanel:panel1');
+      asResolver('jira:issuePanel:panel1');
       rt.subscribe('updates', (p) => received.push(p), 'jira:issuePanel:panel1');
 
       await rt.publish('updates', { status: 'done' });
@@ -43,7 +51,7 @@ describe('SimulatedRealtime', () => {
       rt.subscribe('updates', (p) => received.push(p), 'moduleA');
 
       // Publish from module B
-      rt.setModuleContext('moduleB');
+      asResolver('moduleB');
       await rt.publish('updates', 'hello');
 
       expect(received).toHaveLength(0);
@@ -53,10 +61,87 @@ describe('SimulatedRealtime', () => {
       const received: any[] = [];
       rt.subscribeGlobal('updates', (p) => received.push(p));
 
-      rt.setModuleContext('myModule');
+      asResolver('myModule');
       await rt.publish('updates', 'scoped event');
 
       expect(received).toHaveLength(0);
+    });
+  });
+
+  // ── Invocation-context gate (Forge parity) ───────────────────────────
+  //
+  // Forge only allows scoped publish() from frontend invocation context
+  // (a resolver invoked from the frontend). Everywhere else it returns an
+  // "Unauthorized request" error result — it never throws, never delivers,
+  // and never falls back to the global plane.
+
+  describe('publish invocation-context gate', () => {
+    it('returns Unauthorized request outside any invocation context', async () => {
+      const result = await rt.publish('ch', 'payload');
+
+      expect(result.eventId).toBeNull();
+      expect(result.eventTimestamp).toBeNull();
+      expect(result.errors).toEqual([{ message: 'Unauthorized request' }]);
+    });
+
+    it.each(['trigger', 'scheduledTrigger', 'webTrigger', 'consumer', 'action', 'workflow'] as const)(
+      'returns Unauthorized request from a %s invocation',
+      async (kind) => {
+        invocationContext = { kind, moduleKey: null };
+        const result = await rt.publish('ch', 'payload');
+
+        expect(result.eventId).toBeNull();
+        expect(result.errors).toEqual([{ message: 'Unauthorized request' }]);
+      },
+    );
+
+    it('does NOT deliver to global subscribers (no silent fallback)', async () => {
+      const received: any[] = [];
+      rt.subscribeGlobal('ch', (p) => received.push(p));
+
+      await rt.publish('ch', 'should not arrive');
+
+      expect(received).toHaveLength(0);
+    });
+
+    it('does NOT deliver to scoped subscribers when unauthorized', async () => {
+      const received: any[] = [];
+      rt.subscribe('ch', (p) => received.push(p), 'mod');
+
+      invocationContext = { kind: 'consumer', moduleKey: null };
+      await rt.publish('ch', 'should not arrive');
+
+      expect(received).toHaveLength(0);
+    });
+
+    it('does NOT record unauthorized publishes in the event log', async () => {
+      await rt.publish('ch', 'denied');
+
+      expect(rt.getEventLog()).toHaveLength(0);
+    });
+
+    it('resolver context without a moduleKey is also unauthorized', async () => {
+      invocationContext = { kind: 'resolver', moduleKey: null };
+      const result = await rt.publish('ch', 'payload');
+
+      expect(result.errors).toEqual([{ message: 'Unauthorized request' }]);
+    });
+
+    it('publishGlobal works from any invocation context', async () => {
+      const received: any[] = [];
+      rt.subscribeGlobal('ch', (p) => received.push(p));
+
+      invocationContext = { kind: 'consumer', moduleKey: null };
+      const r1 = await rt.publishGlobal('ch', 'from-consumer');
+      invocationContext = { kind: 'scheduledTrigger', moduleKey: null };
+      const r2 = await rt.publishGlobal('ch', 'from-scheduled');
+      invocationContext = null;
+      const r3 = await rt.publishGlobal('ch', 'from-nowhere');
+
+      expect(received).toEqual(['from-consumer', 'from-scheduled', 'from-nowhere']);
+      expect(r1.errors).toEqual([]);
+      expect(r2.errors).toEqual([]);
+      expect(r3.errors).toEqual([]);
     });
   });
 
@@ -215,7 +300,7 @@ describe('SimulatedRealtime', () => {
   describe('event log', () => {
     it('records all published events', async () => {
       await rt.publishGlobal('ch1', 'a');
-      rt.setModuleContext('mod');
+      asResolver('mod');
       await rt.publish('ch2', 'b');
 
       const log = rt.getEventLog();
@@ -263,16 +348,14 @@ describe('SimulatedRealtime', () => {
   // ── Reset ─────────────────────────────────────────────────────────────
 
   describe('reset', () => {
-    it('clears subscribers, event log, and module context', async () => {
+    it('clears subscribers and event log', async () => {
       rt.subscribeGlobal('ch', () => {});
       await rt.publishGlobal('ch', 'test');
-      rt.setModuleContext('mod');
 
       rt.reset();
 
       expect(rt.getSubscriptions()).toHaveLength(0);
       expect(rt.getEventLog()).toHaveLength(0);
-      expect(rt.getModuleContext()).toBeNull();
     });
   });
 
@@ -310,7 +393,7 @@ describe('SimulatedRealtime', () => {
       const events: any[] = [];
       rt.onPublish((e) => events.push(e));
 
-      rt.setModuleContext('mod');
+      asResolver('mod');
       await rt.publish('progress', { percent: 50 });
 
       expect(events).toHaveLength(1);

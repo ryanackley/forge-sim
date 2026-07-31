@@ -5,6 +5,7 @@
  * into a unified simulated Forge environment.
  */
 
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { setSimulator } from './shims/globals.js';
 import { UnifiedKVS } from './kvs.js';
 import { SimulatedQueue } from './queue.js';
@@ -26,7 +27,7 @@ import { ExternalAuthStore } from './external-auth-store.js';
 import { FITProvider } from './fit-provider.js';
 import { RemoteProxy } from './remote-proxy.js';
 import { SimulatedLLM } from './llm.js';
-import { SimulatedRealtime } from './realtime.js';
+import { SimulatedRealtime, type RealtimeInvocationContext } from './realtime.js';
 import { SimulatedObjectStore } from './object-store.js';
 import { WebTriggerUrlRegistry } from './web-trigger-urls.js';
 import { executeWebTrigger, buildInProcessForgeRequest, type WebTriggerRequestInit, type WebTriggerResponse } from './web-trigger.js';
@@ -110,6 +111,27 @@ export class ForgeSimulator {
    */
   private resolverOwnership = new Map<string, string>();
 
+  /**
+   * Ambient invocation context — what kind of invocation is currently
+   * executing (resolver, trigger, consumer, ...) and, for resolver
+   * invocations, which frontend module originated it. Propagates through
+   * async continuations via AsyncLocalStorage, so shims (notably
+   * @forge/realtime) can enforce Forge's invocation-context rules:
+   * scoped realtime.publish() is only available from frontend invocation
+   * context; everything else must use publishGlobal().
+   */
+  private invocationContextStorage = new AsyncLocalStorage<RealtimeInvocationContext>();
+
+  /** The invocation context of the currently executing handler, or null outside any invocation. */
+  getInvocationContext(): RealtimeInvocationContext | null {
+    return this.invocationContextStorage.getStore() ?? null;
+  }
+
+  /** Run fn inside an invocation context (all handler entry paths funnel through this). */
+  private runInInvocationContext<T>(ctx: RealtimeInvocationContext, fn: () => T): T {
+    return this.invocationContextStorage.run(ctx, fn);
+  }
+
   constructor(config?: SimulationConfig) {
     this.kvs = new UnifiedKVS();
     this.queue = new SimulatedQueue({ mode: config?.queueMode ?? 'sequential' });
@@ -129,7 +151,10 @@ export class ForgeSimulator {
     this.remotes = new RemoteProxy(this.productApi, this.fit);
     this.remotes.onLog((level, message, detail) => this.log(level, message, detail));
     this.llm = new SimulatedLLM((level, message, detail) => this.log(level, message, detail));
-    this.realtime = new SimulatedRealtime((level, message, detail) => this.log(level, message, detail));
+    this.realtime = new SimulatedRealtime(
+      (level, message, detail) => this.log(level, message, detail),
+      () => this.getInvocationContext(),
+    );
     this.objectStore = new SimulatedObjectStore();
     this.webTriggerUrls = new WebTriggerUrlRegistry();
     this.variables = new VariablesManager((level, message, detail) => {
@@ -420,6 +445,34 @@ export class ForgeSimulator {
   }
 
   /**
+   * Resolve which frontend module a resolver invocation belongs to, for
+   * invocation-context purposes (realtime scoped-publish channel keys).
+   *
+   * Precedence:
+   *   1. Explicit moduleKey from InvokeOptions (dev server passes this).
+   *   2. Unambiguous derivation: the function's owning resolver is routed
+   *      by exactly one module.
+   *   3. The actively rendered UI module (in-process render path).
+   *
+   * Returns null when no module can be determined — a scoped
+   * realtime.publish() from such an invocation returns Unauthorized,
+   * matching Forge (publish requires frontend invocation context).
+   */
+  private resolveInvocationModuleKey(functionKey: string, explicitModuleKey?: string): string | null {
+    if (explicitModuleKey) return explicitModuleKey;
+
+    const owner = this.resolverOwnership.get(functionKey);
+    if (owner) {
+      const modules = [...this.moduleRouting.entries()]
+        .filter(([, r]) => r.resolverFunctionKey === owner)
+        .map(([k]) => k);
+      if (modules.length === 1) return modules[0];
+    }
+
+    return this.ui.getActiveModule();
+  }
+
+  /**
    * Validate and resolve the endpoint for a remote invoke from a module.
    * Returns the endpoint key. Throws if module has no endpoint.
    */
@@ -518,11 +571,21 @@ export class ForgeSimulator {
     const fnMeta = this.manifest?.functions.get(functionKey);
     const fnType = fnMeta?.type || 'resolver';
 
+    // Invocation context for shims (realtime scoped-publish gate).
+    // Rovo actions and workflow functions are NOT frontend invocation
+    // contexts in Forge, so they don't get scoped realtime.publish().
+    const invocationCtx: RealtimeInvocationContext = {
+      kind: fnType === 'action' ? 'action' : fnType === 'workflow' ? 'workflow' : 'resolver',
+      moduleKey: this.resolveInvocationModuleKey(functionKey, moduleKey),
+    };
+
     const startMs = Date.now();
     this.pendingInvokeCount++;
     try {
-      const { result, console: captured } = await withCapture(() =>
-        this.resolver.invoke(functionKey, payload, contextOverride)
+      const { result, console: captured } = await this.runInInvocationContext(invocationCtx, () =>
+        withCapture(() =>
+          this.resolver.invoke(functionKey, payload, contextOverride)
+        )
       );
       this.consoleLogs.push(...captured);
       for (const line of captured) {
@@ -638,9 +701,17 @@ export class ForgeSimulator {
 
   /**
    * Register a consumer handler for a queue.
+   *
+   * The handler runs inside a 'consumer' invocation context — like real
+   * Forge, queue consumers are async (non-frontend) invocations, so scoped
+   * realtime.publish() is unavailable there (use publishGlobal()).
    */
   registerConsumer(queueKey: string, handler: (event: any, context: any) => Promise<any>): void {
-    this.queue.registerConsumer(queueKey, handler);
+    this.queue.registerConsumer(queueKey, (event: any, context: any) =>
+      this.runInInvocationContext({ kind: 'consumer', moduleKey: null }, () =>
+        handler(event, context)
+      )
+    );
   }
 
   // ── Trigger Simulation ──────────────────────────────────────────────────
@@ -749,8 +820,9 @@ export class ForgeSimulator {
 
       const triggerStartMs = Date.now();
       try {
-        const { result, console: captured } = await withCapture(() =>
-          handler(deliveredEvent, context)
+        const { result, console: captured } = await this.runInInvocationContext(
+          { kind: 'trigger', moduleKey: null },
+          () => withCapture(() => handler(deliveredEvent, context))
         );
         this.consoleLogs.push(...captured);
         for (const line of captured) {
@@ -816,8 +888,9 @@ export class ForgeSimulator {
 
     const schedStartMs = Date.now();
     try {
-      const { result, console: captured } = await withCapture(() =>
-        handler(request, context)
+      const { result, console: captured } = await this.runInInvocationContext(
+        { kind: 'scheduledTrigger', moduleKey: null },
+        () => withCapture(() => handler(request, context))
       );
       this.consoleLogs.push(...captured);
       for (const line of captured) {
@@ -899,8 +972,9 @@ export class ForgeSimulator {
     const startMs = Date.now();
     this.pendingInvokeCount++;
     try {
-      const { result, console: captured } = await withCapture(() =>
-        executeWebTrigger(this, trigger, forgeRequest)
+      const { result, console: captured } = await this.runInInvocationContext(
+        { kind: 'webTrigger', moduleKey: null },
+        () => withCapture(() => executeWebTrigger(this, trigger, forgeRequest))
       );
       this.consoleLogs.push(...captured);
       for (const line of captured) {

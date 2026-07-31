@@ -292,6 +292,16 @@ export class SimulatorUI {
     this.activeModuleKey = moduleKey;
   }
 
+  /**
+   * The most recently rendered UI module's key, or null if nothing has
+   * been rendered. Used to attribute frontend-originated work (bridge
+   * invokes, realtime channel scoping) to a module when no explicit
+   * module key is available.
+   */
+  getActiveModule(): string | null {
+    return this.activeModuleKey;
+  }
+
   // ── ForgeDoc Access ───────────────────────────────────────────────────
 
   /**

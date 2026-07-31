@@ -545,7 +545,10 @@ function getRealtimeBackend(): import('../realtime.js').SimulatedRealtime | null
 function getCurrentModuleKeyForBridge(): string | null {
   try {
     const sim = (globalThis as any)[Symbol.for('forge-sim.instance')];
-    return sim?.currentModuleKey ?? null;
+    // Explicit override first (tests / dev-command), then the actively
+    // rendered UI module — in-process renders track the module key in
+    // SimulatorUI, and the bridge in a real iframe always knows its module.
+    return sim?.currentModuleKey ?? sim?.ui?.getActiveModule?.() ?? null;
   } catch {
     return null;
   }
@@ -583,11 +586,11 @@ export const realtime = {
     channel: string,
     payload: string | Record<string, unknown>,
     options?: { token?: string; contextOverrides?: string[] },
-  ): Promise<{ eventId: string | null; eventTimestamp: string | null; errors?: string[] }> {
+  ): Promise<{ eventId: string | null; eventTimestamp: string | null; errors?: Array<{ message: string }> }> {
     const rt = getRealtimeBackend();
     if (!rt) {
       console.warn('[forge-sim] realtime.publish — no simulator connected');
-      return { eventId: null, eventTimestamp: null, errors: ['No simulator connected'] };
+      return { eventId: null, eventTimestamp: null, errors: [{ message: 'No simulator connected' }] };
     }
     const moduleKey = getCurrentModuleKeyForBridge();
     return rt.publishFromBridge(channel, payload, moduleKey, options);
@@ -597,11 +600,11 @@ export const realtime = {
     channel: string,
     payload: string | Record<string, unknown>,
     options?: { token?: string; contextOverrides?: string[] },
-  ): Promise<{ eventId: string | null; eventTimestamp: string | null; errors?: string[] }> {
+  ): Promise<{ eventId: string | null; eventTimestamp: string | null; errors?: Array<{ message: string }> }> {
     const rt = getRealtimeBackend();
     if (!rt) {
       console.warn('[forge-sim] realtime.publishGlobal — no simulator connected');
-      return { eventId: null, eventTimestamp: null, errors: ['No simulator connected'] };
+      return { eventId: null, eventTimestamp: null, errors: [{ message: 'No simulator connected' }] };
     }
     return rt.publishGlobalFromBridge(channel, payload, options);
   },

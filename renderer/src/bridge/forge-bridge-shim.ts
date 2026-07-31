@@ -1077,7 +1077,7 @@ export const realtime = {
     channel: string,
     payload: string | Record<string, unknown>,
     options?: { token?: string; contextOverrides?: string[] },
-  ): Promise<{ eventId: string | null; eventTimestamp: string | null; errors?: string[] }> {
+  ): Promise<{ eventId: string | null; eventTimestamp: string | null; errors?: Array<{ message: string }> }> {
     return rpc('realtimePublish', {
       channel,
       payload,
@@ -1091,7 +1091,7 @@ export const realtime = {
     channel: string,
     payload: string | Record<string, unknown>,
     options?: { token?: string; contextOverrides?: string[] },
-  ): Promise<{ eventId: string | null; eventTimestamp: string | null; errors?: string[] }> {
+  ): Promise<{ eventId: string | null; eventTimestamp: string | null; errors?: Array<{ message: string }> }> {
     return rpc('realtimePublish', {
       channel,
       payload,

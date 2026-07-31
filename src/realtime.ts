@@ -23,10 +23,37 @@ export interface PublishOptions {
   contextOverrides?: string[];  // ProductContext enum values
 }
 
+/** Error object in PublishResult.errors — matches Forge docs shape. */
+export interface RealtimeError {
+  message: string;
+}
+
 export interface PublishResult {
   eventId: string | null;
   eventTimestamp: string | null;
-  errors: string[];
+  errors: RealtimeError[];
+}
+
+/**
+ * What kind of invocation is currently executing.
+ * Only 'resolver' invocations (frontend-originated) may use scoped publish() —
+ * matching real Forge, where publish is only available from frontend
+ * invocation context. Everything else must use publishGlobal().
+ */
+export type InvocationKind =
+  | 'resolver'
+  | 'action'
+  | 'workflow'
+  | 'trigger'
+  | 'scheduledTrigger'
+  | 'webTrigger'
+  | 'consumer';
+
+/** Ambient invocation context, provided by the simulator via AsyncLocalStorage. */
+export interface RealtimeInvocationContext {
+  kind: InvocationKind;
+  /** Module key of the frontend module that originated the invocation (resolver only). */
+  moduleKey: string | null;
 }
 
 export interface SubscriptionOptions {
@@ -44,7 +71,7 @@ export type RealtimeCallback = (payload: RealtimePayload) => void;
 export interface TokenResult {
   token: string | null;
   expiresAt: number | null;
-  errors?: string[];
+  errors?: RealtimeError[];
 }
 
 // ── Internal event record ───────────────────────────────────────────────
@@ -75,14 +102,18 @@ export class SimulatedRealtime {
   private eventLog: RealtimeEvent[] = [];
   /** Counter for event IDs */
   private eventCounter = 0;
-  /** Current module key for scoped channels (set by simulator before resolver invocation) */
-  private currentModuleKey: string | null = null;
   private logFn: (level: string, message: string, detail?: unknown) => void;
+  /** Provider for the ambient invocation context (wired by the simulator via AsyncLocalStorage). */
+  private getInvocationContext: () => RealtimeInvocationContext | null;
   /** External listeners notified on every publish (used by dev server for WS push) */
   private publishListeners: PublishListener[] = [];
 
-  constructor(logFn?: (level: string, message: string, detail?: unknown) => void) {
+  constructor(
+    logFn?: (level: string, message: string, detail?: unknown) => void,
+    getInvocationContext?: () => RealtimeInvocationContext | null,
+  ) {
     this.logFn = logFn ?? (() => {});
+    this.getInvocationContext = getInvocationContext ?? (() => null);
   }
 
   /**
@@ -97,33 +128,37 @@ export class SimulatedRealtime {
     };
   }
 
-  // ── Module context ──────────────────────────────────────────────────
-
-  /** Set the current module key (called by simulator before invoking resolvers) */
-  setModuleContext(moduleKey: string | null): void {
-    this.currentModuleKey = moduleKey;
-  }
-
-  getModuleContext(): string | null {
-    return this.currentModuleKey;
-  }
-
   // ── Backend API (@forge/realtime) ─────────────────────────────────
 
   /**
-   * Publish to a scoped channel (requires module context).
-   * Events only reach subscribers on the same module+context channel.
+   * Publish to a scoped channel.
+   *
+   * Forge parity: scoped publish is ONLY available from frontend invocation
+   * context (a resolver invoked from the frontend). Triggers, scheduled jobs,
+   * web triggers, and queue consumers must use publishGlobal(). Outside a
+   * frontend invocation context this returns an "Unauthorized request" error
+   * result — it never throws, never delivers, and never falls back to global.
    */
   async publish(
     channel: string,
     payload: RealtimePayload,
     options?: PublishOptions,
   ): Promise<PublishResult> {
-    const moduleKey = this.currentModuleKey;
-    if (!moduleKey) {
-      this.logFn('warn', 'realtime.publish() called without module context — treating as global');
+    const ctx = this.getInvocationContext();
+    if (!ctx || ctx.kind !== 'resolver' || !ctx.moduleKey) {
+      const from = ctx ? `a ${ctx.kind} invocation` : 'outside any invocation context';
+      this.logFn(
+        'warn',
+        `realtime.publish("${channel}") called from ${from} — Forge only allows scoped publish from frontend invocation context. ` +
+        `Use publishGlobal() (with subscribeGlobal() on the frontend) from async contexts. Returning Unauthorized request.`,
+      );
+      return {
+        eventId: null,
+        eventTimestamp: null,
+        errors: [{ message: 'Unauthorized request' }],
+      };
     }
-    const channelKey = moduleKey ? `scoped:${moduleKey}:${channel}` : `global:${channel}`;
+    const channelKey = `scoped:${ctx.moduleKey}:${channel}`;
     return this.publishToChannel(channel, channelKey, payload, false);
   }
 
@@ -234,7 +269,6 @@ export class SimulatedRealtime {
     this.subscribers.clear();
     this.eventLog = [];
     this.eventCounter = 0;
-    this.currentModuleKey = null;
   }
 
   // ── Internal ──────────────────────────────────────────────────────

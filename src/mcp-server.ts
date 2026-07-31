@@ -1786,18 +1786,44 @@ Example:
     channel: z.string().describe('Channel name to publish to'),
     payload: z.union([z.string(), z.record(z.string(), z.any())]).describe('Event payload — string or JSON object'),
     global: z.boolean().optional().describe('If true, publish to global channel (publishGlobal). Default: false (scoped).'),
+    moduleKey: z.string().optional().describe('For scoped publishes: the frontend module whose channel to publish on. Defaults to the most recently rendered UI module.'),
   },
-  async ({ channel, payload, global: isGlobal }) => {
+  async ({ channel, payload, global: isGlobal, moduleKey }) => {
     try {
-      const result = isGlobal
-        ? await sim.realtime.publishGlobal(channel, payload)
-        : await sim.realtime.publish(channel, payload);
+      if (isGlobal) {
+        const result = await sim.realtime.publishGlobal(channel, payload);
+        return {
+          content: [{
+            type: 'text' as const,
+            text: result.eventId
+              ? `✅ Published to "${channel}" (global). eventId=${result.eventId}`
+              : `⚠️ Published to "${channel}" but no subscribers. Event logged but not delivered.`,
+          }],
+        };
+      }
+
+      // Scoped publish simulates the FRONTEND (bridge) side, which always
+      // carries a module key. Backend scoped publish requires frontend
+      // invocation context (Forge parity) — that path is exercised via
+      // forge_invoke, not this tool.
+      const resolvedModuleKey = moduleKey ?? sim.ui.getActiveModule();
+      if (!resolvedModuleKey) {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: `❌ Scoped publish needs a module context and none is available. ` +
+              `Pass moduleKey, render a UI module first (forge_ui_render), or use global: true.`,
+          }],
+          isError: true,
+        };
+      }
+      const result = await sim.realtime.publishFromBridge(channel, payload, resolvedModuleKey);
       return {
         content: [{
           type: 'text' as const,
           text: result.eventId
-            ? `✅ Published to "${channel}" (${isGlobal ? 'global' : 'scoped'}). eventId=${result.eventId}`
-            : `⚠️ Published to "${channel}" but no subscribers. Event logged but not delivered.`,
+            ? `✅ Published to "${channel}" (scoped to module "${resolvedModuleKey}"). eventId=${result.eventId}`
+            : `⚠️ Published to "${channel}" (scoped to module "${resolvedModuleKey}") but no subscribers. Event logged but not delivered.`,
         }],
       };
     } catch (err) {
