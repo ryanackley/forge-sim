@@ -42,11 +42,11 @@ describe('P1 — manifest.app.storage.entities auto-registration', () => {
   describe('schema registration', () => {
     it('registers every entity declared in app.storage.entities', () => {
       const schemas = sim.kvs.getEntitySchemas();
-      expect([...schemas.keys()].sort()).toEqual(['Comment', 'Task']);
+      expect([...schemas.keys()].sort()).toEqual(['comment', 'task']);
     });
 
     it('captures attribute definitions verbatim', () => {
-      const schema = sim.kvs.getEntitySchemas().get('Task');
+      const schema = sim.kvs.getEntitySchemas().get('task');
       expect(schema).toBeDefined();
       expect(schema!.attributes).toEqual({
         title: { type: 'string' },
@@ -58,17 +58,17 @@ describe('P1 — manifest.app.storage.entities auto-registration', () => {
     });
 
     it('captures index definitions verbatim', () => {
-      const schema = sim.kvs.getEntitySchemas().get('Task');
+      const schema = sim.kvs.getEntitySchemas().get('task');
       expect(schema!.indexes).toEqual([
         { name: 'by-project', partition: ['projectId'], range: 'priority' },
         { name: 'by-status', partition: ['status'], range: 'createdAt' },
       ]);
     });
 
-    it('handles an index with no range key', () => {
-      const schema = sim.kvs.getEntitySchemas().get('Comment');
+    it('captures the comment index (range is required on object indexes per the Forge schema)', () => {
+      const schema = sim.kvs.getEntitySchemas().get('comment');
       expect(schema!.indexes).toEqual([
-        { name: 'by-task', partition: ['taskKey'], range: undefined },
+        { name: 'by-task', partition: ['taskKey'], range: 'createdAt' },
       ]);
     });
   });
@@ -78,7 +78,7 @@ describe('P1 — manifest.app.storage.entities auto-registration', () => {
       // Real Forge: 400 with "Type mismatch ..." message.
       // Without P1 fix, this silently succeeds.
       await expect(
-        sim.kvs.entity('Task').set('t1', {
+        sim.kvs.entity('task').set('t1', {
           title: 'Wire up auth',
           status: 'todo',
           priority: 'high', // ← string, not integer
@@ -90,7 +90,7 @@ describe('P1 — manifest.app.storage.entities auto-registration', () => {
 
     it('rejects unknown attributes', async () => {
       await expect(
-        sim.kvs.entity('Task').set('t2', {
+        sim.kvs.entity('task').set('t2', {
           title: 'Bad attribute',
           mysteryField: 42, // ← not in the schema
         }),
@@ -98,14 +98,14 @@ describe('P1 — manifest.app.storage.entities auto-registration', () => {
     });
 
     it('accepts a well-typed entity', async () => {
-      await sim.kvs.entity('Task').set('t-ok', {
+      await sim.kvs.entity('task').set('t-ok', {
         title: 'Valid one',
         status: 'todo',
         priority: 3,
         projectId: 'P1',
         createdAt: '2026-05-13T10:00:00Z',
       });
-      const got = await sim.kvs.entity('Task').get('t-ok');
+      const got = await sim.kvs.entity('task').get('t-ok');
       expect(got?.title).toBe('Valid one');
     });
   });
@@ -113,19 +113,19 @@ describe('P1 — manifest.app.storage.entities auto-registration', () => {
   describe('indexed queries (parity with real Forge)', () => {
     beforeAll(async () => {
       // Seed three tasks across two projects.
-      await sim.kvs.entity('Task').set('seed-a1', {
+      await sim.kvs.entity('task').set('seed-a1', {
         title: 'A1', status: 'todo', priority: 1, projectId: 'PROJ-A', createdAt: '2026-05-10',
       });
-      await sim.kvs.entity('Task').set('seed-a2', {
+      await sim.kvs.entity('task').set('seed-a2', {
         title: 'A2', status: 'todo', priority: 5, projectId: 'PROJ-A', createdAt: '2026-05-11',
       });
-      await sim.kvs.entity('Task').set('seed-b1', {
+      await sim.kvs.entity('task').set('seed-b1', {
         title: 'B1', status: 'done', priority: 3, projectId: 'PROJ-B', createdAt: '2026-05-12',
       });
     });
 
     it('partition filter actually filters (was a silent full-table scan before fix)', async () => {
-      const res = await sim.kvs.entity('Task')
+      const res = await sim.kvs.entity('task')
         .query()
         .index('by-project', { partition: ['PROJ-A'] })
         .getMany();
@@ -135,7 +135,7 @@ describe('P1 — manifest.app.storage.entities auto-registration', () => {
     });
 
     it('partition filter on a different partition value returns only that partition', async () => {
-      const res = await sim.kvs.entity('Task')
+      const res = await sim.kvs.entity('task')
         .query()
         .index('by-project', { partition: ['PROJ-B'] })
         .getMany();

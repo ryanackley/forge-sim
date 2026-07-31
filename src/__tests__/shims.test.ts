@@ -117,10 +117,13 @@ describe('Forge Shims', () => {
         await sim.loadManifest(`
 app:
   id: ari:cloud:ecosystem::app/real-app-123
+  runtime:
+    name: nodejs22.x
 modules:
   jira:issuePanel:
     - key: my-panel
       title: Test Panel
+      icon: https://example.com/icon.svg
       resource: main
       render: native
       resolver:

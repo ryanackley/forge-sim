@@ -27,6 +27,8 @@ import { decodeJwt, decodeProtectedHeader } from 'jose';
 const BASIC_MANIFEST = `
 app:
   id: ari:cloud:ecosystem::app/test-remotes
+  runtime:
+    name: nodejs22.x
 modules:
   jira:issuePanel:
     - key: main
@@ -34,6 +36,7 @@ modules:
       resolver:
         function: resolver
       title: Test Panel
+      icon: https://example.com/icon.svg
   function:
     - key: resolver
       handler: index.handler
@@ -50,6 +53,8 @@ remotes:
 const FULL_MANIFEST = `
 app:
   id: ari:cloud:ecosystem::app/full-remotes-test
+  runtime:
+    name: nodejs22.x
 modules:
   jira:issuePanel:
     - key: panel
@@ -57,6 +62,7 @@ modules:
       resolver:
         endpoint: my-endpoint
       title: Remote Panel
+      icon: https://example.com/icon.svg
   endpoint:
     - key: my-endpoint
       remote: my-backend
@@ -79,6 +85,8 @@ remotes:
     operations:
       - storage
       - compute
+    storage:
+      inScopeEUD: false
     auth:
       appSystemToken:
         enabled: true
@@ -88,6 +96,9 @@ remotes:
     baseUrl: https://analytics.example.com
     operations:
       - fetch
+permissions:
+  scopes:
+    - read:jira-work
 `;
 
 // ── Manifest Parsing ────────────────────────────────────────────────────

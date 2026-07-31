@@ -13,6 +13,7 @@ import { access, mkdir, writeFile, readdir, unlink, stat } from 'node:fs/promise
 import { pathToFileURL } from 'node:url';
 import { createRequire } from 'node:module';
 import { parseManifest, type ParsedManifest, type ManifestFunction } from './manifest.js';
+import { validateManifestFile, printManifestWarnings } from './manifest-validation.js';
 import type { ForgeSimulator } from './simulator.js';
 import type { TypeCheckError } from './type-checker.js';
 
@@ -38,18 +39,11 @@ export function deployBundleDir(appDir: string): string {
  * in vitest workers AND in long-running dev servers. The `result.warnings`
  * array still carries every warning on every deploy for programmatic callers
  * (MCP responses, in-process inspection), which is the real contract.
+ *
+ * The Set + print helper live in manifest-validation.ts so loadManifest()
+ * shares the same dedupe; re-exported here for back-compat.
  */
-const printedManifestWarnings = new Set<string>();
-
-/**
- * Test-only escape hatch for resetting the module-scope dedupe Set.
- * Used by `warning-noise.test.ts` so each F7 case starts from a clean slate
- * and can assert the dedupe behavior independently of test execution order.
- * Underscore prefix signals "do not call from production code."
- */
-export function _resetPrintedManifestWarnings(): void {
-  printedManifestWarnings.clear();
-}
+export { _resetPrintedManifestWarnings } from './manifest-validation.js';
 
 /**
  * Clear the `@forge/sql` migrationRunner singleton before re-importing app code.
@@ -507,19 +501,15 @@ export async function deploy(sim: ForgeSimulator, appDir: string, options: Deplo
   // 1. Parse manifest
   const manifest = await parseManifest(manifestPath);
 
-  // Surface manifest validation warnings.
-  // Module-scope dedupe: vitest test files commonly create a fresh sim in
-  // `beforeEach`, so dedupe must span the worker process to be useful — the
-  // alternative is the runtime-mismatch warning printing N times in an N-test
-  // file (skill run #14). The result.warnings array still carries every
-  // warning on every deploy for programmatic callers (MCP responses,
-  // in-process inspection). See `printedManifestWarnings` above. (F7)
-  for (const w of manifest.warnings) {
-    if (printedManifestWarnings.has(w.message)) continue;
-    printedManifestWarnings.add(w.message);
-    const prefix = w.level === 'error' ? '❌' : '⚠️';
-    console.warn(`[forge-sim] ${prefix} ${w.message}`);
-  }
+  // 1a. Run the official @forge/manifest validator (same FullValidationProcessor
+  // that `forge lint` / `forge deploy` use). Error-level findings become deploy
+  // failures via the existing warnings→errors plumbing below — manifests that
+  // real Forge rejects must not deploy here. Core parity principle.
+  manifest.warnings.push(...(await validateManifestFile(manifestPath)));
+
+  // Surface manifest validation warnings (deduped per process — see
+  // printManifestWarnings in manifest-validation.ts, F7).
+  printManifestWarnings(manifest.warnings);
 
   // 1b. If there are UI resources, install the bridge and connect to sim
   if (manifest.resources.size > 0) {

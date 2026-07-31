@@ -14,10 +14,11 @@ modules:
   # used without it.
   objectStore:
     - key: object-store
+      storageClass: standard
 
   function:
     - key: resolver
-      handler: src/resolvers.handler
+      handler: resolvers.handler
 
 resources:
   - key: main

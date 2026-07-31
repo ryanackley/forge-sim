@@ -1,5 +1,5 @@
 app:
-  id: sim-app
+  id: ari:cloud:ecosystem::app/react-dedup-test
   runtime:
     name: nodejs22.x
 modules:
@@ -12,7 +12,7 @@ modules:
         function: resolver
   function:
     - key: resolver
-      handler: src/resolver.handler
+      handler: resolver.handler
 resources:
   - key: main
     path: src/index.tsx

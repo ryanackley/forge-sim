@@ -72,6 +72,8 @@ describe('eval-10 F10: app-event delivered payload shape', () => {
 app:
   id: ari:cloud:ecosystem::app/${APP_UUID}
   name: Test
+  runtime:
+    name: nodejs22.x
 modules:
   event:
     - key: thing-created
@@ -119,6 +121,8 @@ modules:
 app:
   id: ari:cloud:ecosystem::app/${APP_UUID}
   name: Test
+  runtime:
+    name: nodejs22.x
 modules:
   function:
     - key: onThing
@@ -148,6 +152,8 @@ modules:
 app:
   id: ari:cloud:ecosystem::app/${APP_UUID}
   name: Test
+  runtime:
+    name: nodejs22.x
 modules:
   function:
     - key: onIssue

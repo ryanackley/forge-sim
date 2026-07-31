@@ -27,7 +27,7 @@ modules:
 
   function:
     - key: resolver
-      handler: src/resolvers.handler
+      handler: resolvers.handler
 
 resources:
   - key: score-view

@@ -196,12 +196,12 @@ describe('deployResolversOnly — shared entry file (F8/F3 dev path)', () => {
     await deployResolversOnly(sim, ENTITY_FIXTURE, manifest);
 
     const schemas = sim.kvs.getEntitySchemas();
-    expect(schemas.has('Task')).toBe(true);
-    expect(schemas.has('Comment')).toBe(true);
+    expect(schemas.has('task')).toBe(true);
+    expect(schemas.has('comment')).toBe(true);
 
     // Partition filtering must actually apply — the eval's repro was every
     // partition returning every row in dev mode.
-    await sim.kvs.entity('Task').set('t1', {
+    await sim.kvs.entity('task').set('t1', {
       title: 'Fix the thing',
       status: 'available',
       priority: 1,
@@ -210,14 +210,14 @@ describe('deployResolversOnly — shared entry file (F8/F3 dev path)', () => {
     });
 
     const hit = await sim.kvs
-      .entity('Task')
+      .entity('task')
       .query()
       .index('by-status', { partition: ['available'] })
       .getMany();
     expect(hit.results).toHaveLength(1);
 
     const miss = await sim.kvs
-      .entity('Task')
+      .entity('task')
       .query()
       .index('by-status', { partition: ['loaned'] })
       .getMany();
@@ -233,7 +233,7 @@ describe('deployResolversOnly — shared entry file (F8/F3 dev path)', () => {
     const manifest = await parseManifest(join(ENTITY_FIXTURE, 'manifest.yml'));
     await deployResolversOnly(sim, ENTITY_FIXTURE, manifest);
 
-    await sim.kvs.entity('Task').set('t1', {
+    await sim.kvs.entity('task').set('t1', {
       title: 'Survives redeploy',
       status: 'available',
       priority: 2,
@@ -243,9 +243,9 @@ describe('deployResolversOnly — shared entry file (F8/F3 dev path)', () => {
 
     await deployResolversOnly(sim, ENTITY_FIXTURE, manifest, { reload: true });
 
-    expect(sim.kvs.getEntitySchemas().has('Task')).toBe(true);
+    expect(sim.kvs.getEntitySchemas().has('task')).toBe(true);
     const rows = await sim.kvs
-      .entity('Task')
+      .entity('task')
       .query()
       .index('by-status', { partition: ['available'] })
       .getMany();

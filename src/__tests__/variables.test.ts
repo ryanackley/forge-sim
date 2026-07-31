@@ -31,6 +31,9 @@ const MANIFEST = `app:
     name: nodejs22.x
 
 modules:
+  webtrigger:
+    - key: noop-hook
+      function: read-env
   function:
     - key: read-env
       handler: index.handler

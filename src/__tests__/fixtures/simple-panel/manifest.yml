@@ -10,7 +10,7 @@ modules:
 
   function:
     - key: resolver
-      handler: src/resolver.handler
+      handler: resolver.handler
 
 resources:
   - key: main

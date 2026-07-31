@@ -5,6 +5,9 @@ app:
     name: nodejs22.x
 
 modules:
+  webtrigger:
+    - key: noop-hook
+      function: ping-fn
   function:
     - key: ping-fn
       handler: index.handler

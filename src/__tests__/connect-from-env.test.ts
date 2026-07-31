@@ -37,6 +37,7 @@ modules:
       resource: main
       render: native
       title: Test
+      icon: https://example.com/icon.svg
   function:
     - key: resolver-test-panel
       handler: index.handler

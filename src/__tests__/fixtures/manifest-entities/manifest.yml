@@ -1,11 +1,10 @@
 app:
   id: ari:cloud:ecosystem::app/manifest-entities-test
-  name: Manifest Entities Test
   runtime:
     name: nodejs22.x
   storage:
     entities:
-      - name: Task
+      - name: task
         attributes:
           title:
             type: string
@@ -21,23 +20,32 @@ app:
           - name: by-project
             partition:
               - projectId
-            range: priority
+            range:
+              - priority
           - name: by-status
             partition:
               - status
-            range: createdAt
-      - name: Comment
+            range:
+              - createdAt
+      - name: comment
         attributes:
           body:
             type: string
           taskKey:
             type: string
+          createdAt:
+            type: string
         indexes:
           - name: by-task
             partition:
               - taskKey
+            range:
+              - createdAt
 
 modules:
+  webtrigger:
+    - key: noop-hook
+      function: noop
   function:
     - key: noop
       handler: index.handler

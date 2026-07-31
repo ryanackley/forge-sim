@@ -1,10 +1,12 @@
 app:
   id: ari:cloud:ecosystem::app/e2e-uikit-events
-  name: E2E UIKit Events
+  runtime:
+    name: nodejs22.x
 
 modules:
   jira:issuePanel:
     - key: events-panel
+      icon: https://example.com/icon.svg
       resource: main
       resolver:
         function: resolver
@@ -13,7 +15,7 @@ modules:
 
   function:
     - key: resolver
-      handler: src/resolvers.handler
+      handler: resolvers.handler
 
 resources:
   - key: main

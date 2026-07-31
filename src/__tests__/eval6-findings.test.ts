@@ -76,6 +76,9 @@ export const handler = resolver.getDefinitions();
 `,
   'manifest.yml': `
 modules:
+  webtrigger:
+    - key: noop-hook
+      function: main
   function:
     - key: main
       handler: index.handler

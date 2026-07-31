@@ -18,9 +18,9 @@ modules:
 
   function:
     - key: webhook
-      handler: src/webhook.run
+      handler: webhook.run
     - key: health
-      handler: src/health.run
+      handler: health.run
 
 app:
   runtime:

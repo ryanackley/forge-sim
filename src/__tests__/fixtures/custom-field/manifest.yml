@@ -2,21 +2,24 @@ modules:
   jira:customFieldType:
     - key: priority-score
       name: Priority Score
+      description: Weighted priority score for the issue
       type: number
       value:
         function: value-fn
       view:
         resource: view-resource
+        render: native
       edit:
         resource: edit-resource
+        render: native
       resolver:
         function: resolver
 
   function:
     - key: resolver
-      handler: src/resolver.handler
+      handler: resolver.handler
     - key: value-fn
-      handler: src/value.handler
+      handler: value.handler
 
 resources:
   - key: view-resource

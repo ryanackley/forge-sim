@@ -2,16 +2,18 @@ modules:
   jira:issuePanel:
     - key: kitchen-sink
       title: Kitchen Sink
+      icon: https://example.com/icon.svg
       resource: main
       resolver:
         function: resolver
       render: native
   function:
     - key: resolver
-      handler: src/resolver.handler
+      handler: resolver.handler
 resources:
   - key: main
     path: src/frontend.tsx
 app:
-  id: kitchen-sink-test
-  name: Kitchen Sink Visual Test
+  id: ari:cloud:ecosystem::app/kitchen-sink-test
+  runtime:
+    name: nodejs22.x

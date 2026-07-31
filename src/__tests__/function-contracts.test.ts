@@ -84,7 +84,7 @@ describe('Function Invocation Contracts', () => {
       }, 'trigger');
 
       // Load manifest with trigger definition
-      sim.loadManifest(`
+      await sim.loadManifest(`
 modules:
   function:
     - key: onIssueCreated
@@ -96,7 +96,8 @@ modules:
         - avi:jira:created:issue
 app:
   id: ari:cloud:ecosystem::app/test
-  name: Test
+  runtime:
+    name: nodejs22.x
 `);
 
       const results = await sim.fireTrigger('avi:jira:created:issue', {
@@ -126,7 +127,7 @@ app:
         return { ok: true };
       });
 
-      sim.loadManifest(`
+      await sim.loadManifest(`
 modules:
   function:
     - key: legacyTrigger
@@ -138,7 +139,8 @@ modules:
         - avi:jira:updated:issue
 app:
   id: ari:cloud:ecosystem::app/test
-  name: Test
+  runtime:
+    name: nodejs22.x
 `);
 
       await sim.fireTrigger('avi:jira:updated:issue', { issue: { key: 'X-1' } });
@@ -151,8 +153,8 @@ app:
   // ── Scheduled Trigger Contract ─────────────────────────────────────
 
   describe('Scheduled trigger contract', () => {
-    beforeEach(() => {
-      sim.loadManifest(`
+    beforeEach(async () => {
+      await sim.loadManifest(`
 modules:
   function:
     - key: migrationFn
@@ -164,19 +166,17 @@ modules:
   scheduledTrigger:
     - key: run-migrations
       function: migrationFn
-      schedule:
-        interval: hour
+      interval: hour
     - key: run-cleanup
       function: cleanupFn
-      schedule:
-        interval: day
+      interval: day
     - key: bad-trigger
       function: badFn
-      schedule:
-        interval: hour
+      interval: hour
 app:
   id: ari:cloud:ecosystem::app/test
-  name: Test
+  runtime:
+    name: nodejs22.x
 `);
     });
 

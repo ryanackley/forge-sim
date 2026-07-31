@@ -13,6 +13,11 @@ import { SimulatedProductApi, route } from './product-api.js';
 import { SimulatedForgeSQL, type ForgeSQLOptions } from './forge-sql.js';
 import { FunctionRegistry, type ForgeFunctionType } from './function-registry.js';
 import { parseManifest, parseManifestContent, type ParsedManifest } from './manifest.js';
+import {
+  validateManifestContent,
+  validateManifestFile,
+  printManifestWarnings,
+} from './manifest-validation.js';
 import { withCapture, type ConsoleLine } from './console-capture.js';
 import { SimulatorUI } from './ui/simulator-ui.js';
 import { PropertyStore } from './property-store.js';
@@ -167,11 +172,37 @@ export class ForgeSimulator {
 
   // ── Manifest Loading ────────────────────────────────────────────────────
 
-  async loadManifest(pathOrContent: string): Promise<ParsedManifest> {
-    if (pathOrContent.includes('\n') || pathOrContent.includes('modules:')) {
+  async loadManifest(
+    pathOrContent: string,
+    options: { validate?: boolean } = {}
+  ): Promise<ParsedManifest> {
+    const isContent = pathOrContent.includes('\n') || pathOrContent.includes('modules:');
+    if (isContent) {
       this.manifest = parseManifestContent(pathOrContent);
     } else {
       this.manifest = await parseManifest(pathOrContent);
+    }
+
+    // Run the official @forge/manifest validator (same one `forge lint` uses).
+    // Inline-content mode filters file-existence errors (there is no app dir);
+    // schema/shape errors still hard-fail. A manifest real Forge rejects must
+    // not load here — core parity principle. Opt out with { validate: false }
+    // (e.g. tests exercising forge-sim's own tolerance of odd shapes).
+    if (options.validate !== false) {
+      const validationWarnings = isContent
+        ? await validateManifestContent(pathOrContent)
+        : await validateManifestFile(pathOrContent);
+      this.manifest.warnings.push(...validationWarnings);
+      printManifestWarnings(this.manifest.warnings);
+      const errorMessages = this.manifest.warnings
+        .filter((w) => w.level === 'error')
+        .map((w) => w.message);
+      if (errorMessages.length > 0) {
+        throw new Error(
+          `Manifest validation failed (real Forge would reject this manifest):\n` +
+            errorMessages.map((m) => `  - ${m}`).join('\n')
+        );
+      }
     }
 
     // Clear previous routing state

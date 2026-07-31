@@ -75,10 +75,13 @@ describe('ForgeSimulator', () => {
 app:
   id: ari:cloud:ecosystem::app/test-app
   name: Test App
+  runtime:
+    name: nodejs22.x
 modules:
   jira:issuePanel:
     - key: my-panel
       title: My Panel
+      icon: https://example.com/icon.svg
       resolver:
         function: resolver
       resource: main

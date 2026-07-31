@@ -18,14 +18,17 @@ function createSim() {
 // Minimal manifest YAML for testing
 const MINIMAL_MANIFEST = `
 app:
-  id: test-app
-  name: Test App
+  id: ari:cloud:ecosystem::app/test-app
+  runtime:
+    name: nodejs22.x
 modules:
   function:
     - key: resolver
       handler: src/resolver.handler
   jira:issuePanel:
     - key: test-panel
+      title: Test Panel
+      icon: https://example.com/icon.svg
       resource: main
       resolver:
         function: resolver
@@ -38,22 +41,29 @@ permissions:
     - read:jira-work
 `;
 
+// NOTE: real Forge's schema forbids resolver.function + resolver.endpoint on
+// the same module (anyOf: exactly one). Panels that exercise endpoint routing
+// declare only the endpoint.
 const REMOTE_MANIFEST = `
 app:
-  id: test-app
-  name: Test App
+  id: ari:cloud:ecosystem::app/test-app
+  runtime:
+    name: nodejs22.x
 modules:
   function:
     - key: resolver
       handler: src/resolver.handler
   jira:issuePanel:
     - key: panel-with-endpoint
+      title: Panel With Endpoint
+      icon: https://example.com/icon.svg
       resource: main
       resolver:
-        function: resolver
         endpoint: my-endpoint
       render: native
     - key: panel-no-endpoint
+      title: Panel Without Endpoint
+      icon: https://example.com/icon.svg
       resource: main
       resolver:
         function: resolver
@@ -74,23 +84,26 @@ permissions:
 
 const MULTI_ENDPOINT_MANIFEST = `
 app:
-  id: test-app
-  name: Test App
+  id: ari:cloud:ecosystem::app/test-app
+  runtime:
+    name: nodejs22.x
 modules:
   function:
     - key: resolver
       handler: src/resolver.handler
   jira:issuePanel:
     - key: panel-a
+      title: Panel A
+      icon: https://example.com/icon.svg
       resource: main
       resolver:
-        function: resolver
         endpoint: endpoint-a
       render: native
     - key: panel-b
+      title: Panel B
+      icon: https://example.com/icon.svg
       resource: main
       resolver:
-        function: resolver
         endpoint: endpoint-b
       render: native
   endpoint:
@@ -274,11 +287,14 @@ describe('Negative Cases', () => {
       const sim = createSim();
       const manifest = await sim.loadManifest(`
 app:
-  id: test-app
-  name: Test
+  id: ari:cloud:ecosystem::app/test-app
+  runtime:
+    name: nodejs22.x
 modules:
   jira:issuePanel:
     - key: no-resource-panel
+      title: No Resource Panel
+      icon: https://example.com/icon.svg
       function: resolver
   function:
     - key: resolver
@@ -293,16 +309,21 @@ modules:
 
     it('endpoint referencing nonexistent remote errors on invoke', async () => {
       const sim = createSim();
+      // NOTE: this manifest is deliberately broken (endpoint → nonexistent
+      // remote) to exercise the runtime invoke error path, so validation is
+      // disabled — real Forge would reject it at deploy time.
       await sim.loadManifest(`
 app:
-  id: test-app
-  name: Test
+  id: ari:cloud:ecosystem::app/test-app
+  runtime:
+    name: nodejs22.x
 modules:
   jira:issuePanel:
     - key: panel
+      title: Ghost Panel
+      icon: https://example.com/icon.svg
       resource: main
       resolver:
-        function: resolver
         endpoint: ghost-endpoint
       render: native
   endpoint:
@@ -314,7 +335,7 @@ modules:
 resources:
   - key: main
     path: src/index.tsx
-`);
+`, { validate: false });
 
       // The endpoint exists but references a remote that doesn't exist
       const endpointKey = sim.resolveModuleEndpoint('panel');

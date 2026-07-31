@@ -18,9 +18,9 @@ modules:
 
   function:
     - key: issue-resolver
-      handler: src/issue-resolver.handler
+      handler: issue-resolver.handler
     - key: admin-resolver
-      handler: src/admin-resolver.handler
+      handler: admin-resolver.handler
 
 resources:
   - key: issue-frontend

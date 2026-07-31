@@ -51,9 +51,9 @@ app:
   runtime: { name: nodejs22.x }
 modules:
   scheduledTrigger:
-    - { key: migrate, function: migrate, interval: hour }
+    - { key: migrate, function: run-migrations, interval: hour }
   function:
-    - { key: migrate, handler: index.migrate }
+    - { key: run-migrations, handler: index.migrate }
   sql:
     - { key: main, engine: mysql }
 permissions: { scopes: [storage:app] }

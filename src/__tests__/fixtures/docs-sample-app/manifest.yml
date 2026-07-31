@@ -4,6 +4,7 @@ modules:
       title: Items
       icon: https://example.com/icon.svg
       resource: main
+      render: native
       resolver:
         function: resolver
   function:

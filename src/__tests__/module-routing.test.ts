@@ -24,6 +24,8 @@ import { createSimulator, ForgeSimulator } from '../simulator.js';
 const MULTI_RESOLVER_MANIFEST = `
 app:
   id: ari:cloud:ecosystem::app/multi-resolver-test
+  runtime:
+    name: nodejs22.x
 modules:
   jira:issuePanel:
     - key: panel-a
@@ -31,11 +33,13 @@ modules:
       resolver:
         function: resolver-a
       title: Panel A
+      icon: https://example.com/icon.svg
     - key: panel-b
       resource: main
       resolver:
         function: resolver-b
       title: Panel B
+      icon: https://example.com/icon.svg
   function:
     - key: resolver-a
       handler: resolverA.handler
@@ -50,6 +54,8 @@ resources:
 const ENDPOINT_ONLY_MANIFEST = `
 app:
   id: ari:cloud:ecosystem::app/endpoint-only-test
+  runtime:
+    name: nodejs22.x
 modules:
   jira:issuePanel:
     - key: remote-panel
@@ -57,6 +63,7 @@ modules:
       resolver:
         endpoint: my-endpoint
       title: Remote Panel
+      icon: https://example.com/icon.svg
   endpoint:
     - key: my-endpoint
       remote: my-backend
@@ -77,6 +84,8 @@ remotes:
 const RESOLVER_ONLY_MANIFEST = `
 app:
   id: ari:cloud:ecosystem::app/resolver-only-test
+  runtime:
+    name: nodejs22.x
 modules:
   jira:issuePanel:
     - key: local-panel
@@ -84,6 +93,7 @@ modules:
       resolver:
         function: my-resolver
       title: Local Panel
+      icon: https://example.com/icon.svg
   function:
     - key: my-resolver
       handler: resolver.handler
@@ -96,6 +106,8 @@ resources:
 const MIXED_MANIFEST = `
 app:
   id: ari:cloud:ecosystem::app/mixed-test
+  runtime:
+    name: nodejs22.x
 modules:
   jira:issuePanel:
     - key: local-panel
@@ -103,11 +115,13 @@ modules:
       resolver:
         function: my-resolver
       title: Local Panel
+      icon: https://example.com/icon.svg
     - key: remote-panel
       resource: main
       resolver:
         endpoint: my-endpoint
       title: Remote Panel
+      icon: https://example.com/icon.svg
   endpoint:
     - key: my-endpoint
       remote: my-backend
@@ -128,6 +142,8 @@ remotes:
 const FULLPAGE_MANIFEST = `
 app:
   id: ari:cloud:ecosystem::app/fullpage-test
+  runtime:
+    name: nodejs22.x
 modules:
   jira:fullPage:
     - key: my-fullpage
@@ -135,6 +151,7 @@ modules:
       resolver:
         endpoint: my-endpoint
       title: Full Page
+      routePrefix: fullpage
   endpoint:
     - key: my-endpoint
       remote: my-backend

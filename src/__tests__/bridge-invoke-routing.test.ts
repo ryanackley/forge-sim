@@ -23,6 +23,8 @@ import { WebSocket } from 'ws';
 const REMOTES_MANIFEST = `
 app:
   id: ari:cloud:ecosystem::app/invoke-routing-test
+  runtime:
+    name: nodejs22.x
 modules:
   jira:issuePanel:
     - key: panel
@@ -30,6 +32,7 @@ modules:
       resolver:
         endpoint: forge-proxy
       title: Test Panel
+      icon: https://example.com/icon.svg
   endpoint:
     - key: forge-proxy
       remote: my-backend
@@ -47,6 +50,9 @@ resources:
 remotes:
   - key: my-backend
     baseUrl: https://api.example.com
+permissions:
+  scopes:
+    - read:jira-work
 `;
 
 const FIXTURE_DIR = resolve(import.meta.dirname, 'fixtures/custom-ui-test');

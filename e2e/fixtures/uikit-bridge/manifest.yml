@@ -1,18 +1,21 @@
 app:
   id: ari:cloud:ecosystem::app/e2e-uikit-bridge
-  name: E2E UIKit Bridge Test
+  runtime:
+    name: nodejs22.x
 
 modules:
   jira:issuePanel:
     - key: test-panel
       title: UIKit Bridge Test
+      icon: https://example.com/icon.svg
       resource: main
+      render: native
       resolver:
         function: resolver
 
   function:
     - key: resolver
-      handler: src/resolvers.handler
+      handler: resolvers.handler
 
 resources:
   - key: main

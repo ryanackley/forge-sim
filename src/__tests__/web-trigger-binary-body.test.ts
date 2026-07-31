@@ -41,6 +41,8 @@ modules:
       handler: src/index.handler
 app:
   id: ari:cloud:ecosystem::app/test
+  runtime:
+    name: nodejs22.x
 `;
 
 async function simWithHandler(handler: (req: any, ctx: any) => any): Promise<ForgeSimulator> {

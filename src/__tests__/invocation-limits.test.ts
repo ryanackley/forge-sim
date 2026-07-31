@@ -32,10 +32,12 @@ modules:
           title: Limit
           type: integer
           required: false
+          description: Max results
         enabled:
           title: Enabled
           type: boolean
           required: true
+          description: Whether enabled
   function:
     - key: fetcher
       handler: src/fetcher.handler
@@ -127,6 +129,9 @@ app:
   runtime:
     name: nodejs22.x
 modules:
+  webtrigger:
+    - key: noop-hook
+      function: fast-fn
   function:
     - key: fast-fn
       handler: src/fast.handler

@@ -68,6 +68,8 @@ const PROVIDERS = new Map<string, ManifestAuthProvider>([
 const MANIFEST_YAML = `
 app:
   id: ari:cloud:ecosystem::app/test
+  runtime:
+    name: nodejs22.x
 modules:
   jira:issuePanel:
     - key: main
@@ -75,6 +77,7 @@ modules:
       resolver:
         function: resolver
       title: Test
+      icon: https://example.com/icon.svg
   function:
     - key: resolver
       handler: index.handler
@@ -92,6 +95,12 @@ remotes:
     baseUrl: https://api.github.com
   - key: github-auth
     baseUrl: https://github.com
+permissions:
+  external:
+    fetch:
+      backend:
+        - remote: google-apis
+        - remote: github-api
 providers:
   auth:
     - key: google
@@ -141,6 +150,12 @@ providers:
         exchange:
           remote: github-auth
           path: /login/oauth/access_token
+        retrieveProfile:
+          remote: github-api
+          path: /user
+          resolvers:
+            id: id
+            displayName: login
 `;
 
 // ── ExternalAuthStore Unit Tests ────────────────────────────────────────
