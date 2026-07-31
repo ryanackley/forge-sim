@@ -21,14 +21,21 @@ import type { PublishResult } from '../realtime.js';
 const MANIFEST = `
 modules:
   function:
-    - key: publishFn
+    - key: main-resolver
+      handler: index.handler
     - key: onIssueCreated
+      handler: index.onIssueCreated
     - key: nightlyJob
+      handler: index.nightlyJob
     - key: hookFn
+      handler: index.hookFn
+    - key: consumerFn
+      handler: index.consumerHandler
   jira:issuePanel:
     - key: my-panel
       resource: main
       render: native
+      title: Realtime Panel
       resolver:
         function: main-resolver
   trigger:
@@ -46,9 +53,7 @@ modules:
   consumer:
     - key: work-consumer
       queue: work-queue
-      resolver:
-        function: consumerFn
-        method: handle
+      function: consumerFn
 resources:
   - key: main
     path: src/frontend/index.tsx
