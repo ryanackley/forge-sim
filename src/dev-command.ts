@@ -25,7 +25,7 @@ import { createSimulator, ForgeSimulator } from './simulator.js';
 import { deploy, bundleHandlerToFileUrl, sweepStaleBundles, deployBundleDir, wrapV1ConsumerHandler } from './deployer.js';
 import { createDevServer } from './dev-server.js';
 import { parseManifest, type ParsedManifest, type ManifestUIModule, BACKGROUND_SCRIPT_TYPES, getCompatibleBackgroundScripts } from './manifest.js';
-import { saveState, loadState, hasPersistedState, getSQLDumpPath } from './persistence.js';
+import { saveState, loadState, hasPersistedState, getSQLDumpPath, claimStateLock, ownsStateLock, releaseStateLock } from './persistence.js';
 import { buildDefaultContext, buildForgeContext, contextFlagForModuleType, type RenderContextOptions } from './context.js';
 import { createWebTriggerHandler } from './web-trigger.js';
 import { startTypeCheckWatch, type TypeCheckWatcher } from './type-checker.js';
@@ -1559,6 +1559,35 @@ export async function devCommand(options: DevCommandOptions) {
   console.log('  ─────────────────');
   console.log('');
 
+  // Claim state-writer ownership. If an older instance is still running
+  // against this app dir, it stops persisting on its next autosave tick —
+  // this instance's state is the one that survives.
+  const stolenFrom = claimStateLock(stateDir);
+  if (stolenFrom) {
+    console.log(
+      `  ⚠️  Another forge-sim dev instance (pid ${stolenFrom.pid}) is running for this app.\n` +
+      `      This instance now owns state persistence; the other will stop saving.\n` +
+      `      Consider stopping the old instance: kill ${stolenFrom.pid}`,
+    );
+    console.log('');
+  }
+
+  // Skip state writes once another instance has claimed ownership.
+  let lockLossWarned = false;
+  const guardedSave = async (opts: { verbose?: boolean } = {}): Promise<void> => {
+    if (!ownsStateLock(stateDir)) {
+      if (!lockLossWarned) {
+        lockLossWarned = true;
+        console.warn(
+          '  ⚠️  A newer forge-sim dev instance took over state persistence for this app.\n' +
+          '      This instance will no longer save state (to avoid clobbering the newer one).',
+        );
+      }
+      return;
+    }
+    await saveState(sim, stateDir, opts);
+  };
+
   // 1. Validate app directory
   const manifestPath = join(appDir, 'manifest.yml');
   if (!existsSync(manifestPath)) {
@@ -2035,7 +2064,7 @@ export async function devCommand(options: DevCommandOptions) {
     // Autosave state periodically — protects against hard kills (e.g. VS Code stop button
     // sends SIGKILL which can't be trapped). Saves every 30s so at most 30s of state is lost.
     const autosaveInterval = setInterval(async () => {
-      try { await saveState(sim, stateDir); } catch {}
+      try { await guardedSave(); } catch {}
     }, 30_000);
 
     // Graceful shutdown
@@ -2045,7 +2074,8 @@ export async function devCommand(options: DevCommandOptions) {
       cleaningUp = true;
       clearInterval(autosaveInterval);
       console.log('\n  🛑 Shutting down...');
-      try { await saveState(sim, stateDir, { verbose: true }); } catch (err: any) { console.error(`  ⚠️  Failed to save state: ${err.message}`); }
+      try { await guardedSave({ verbose: true }); } catch (err: any) { console.error(`  ⚠️  Failed to save state: ${err.message}`); }
+      releaseStateLock(stateDir);
       proxyTypeCheckWatcher?.close();
       stopMockWatch();
       for (const c of toolsClients) c.close();
@@ -2328,7 +2358,7 @@ export async function devCommand(options: DevCommandOptions) {
     // Autosave state periodically — protects against hard kills (e.g. VS Code stop button
     // sends SIGKILL which can't be trapped). Saves every 30s so at most 30s of state is lost.
     const autosaveInterval = setInterval(async () => {
-      try { await saveState(sim, stateDir); } catch {}
+      try { await guardedSave(); } catch {}
     }, 30_000);
 
     // Graceful shutdown
@@ -2341,10 +2371,11 @@ export async function devCommand(options: DevCommandOptions) {
 
       // Save state before teardown
       try {
-        await saveState(sim, stateDir, { verbose: true });
+        await guardedSave({ verbose: true });
       } catch (err: any) {
         console.error(`  ⚠️  Failed to save state: ${err.message}`);
       }
+      releaseStateLock(stateDir);
 
       typeCheckWatcher?.close();
       stopMockWatch();

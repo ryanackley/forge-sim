@@ -7,7 +7,7 @@ import { mkdtemp, rm, readFile, access } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createSimulator, ForgeSimulator } from '../simulator.js';
-import { saveState, loadState, hasPersistedState, getSQLDumpPath } from '../persistence.js';
+import { saveState, loadState, hasPersistedState, getSQLDumpPath, claimStateLock, ownsStateLock, releaseStateLock } from '../persistence.js';
 
 describe('Persistence', () => {
   let sim: ForgeSimulator;
@@ -274,6 +274,80 @@ describe('Persistence', () => {
 
     it('returns false for nonexistent directory', async () => {
       expect(await hasPersistedState('/tmp/no-such-dir-12345')).toBe(false);
+    });
+  });
+
+  // ── State-writer lock ──────────────────────────────────────────────
+
+  describe('state lock', () => {
+    it('claims the lock and reports ownership', () => {
+      expect(ownsStateLock(stateDir)).toBe(false); // never claimed
+      const previous = claimStateLock(stateDir);
+      expect(previous).toBeNull();
+      expect(ownsStateLock(stateDir)).toBe(true);
+    });
+
+    it('reports a live previous holder when stealing', async () => {
+      // Simulate another live instance holding the lock (use our own pid
+      // spoofed as a different one via a hand-written lock file, pointing at
+      // a process guaranteed alive: pid 1).
+      const { writeFile } = await import('node:fs/promises');
+      await writeFile(
+        join(stateDir, 'dev.lock'),
+        JSON.stringify({ pid: 1, startedAt: new Date().toISOString() }),
+      );
+      const previous = claimStateLock(stateDir);
+      expect(previous?.pid).toBe(1);
+      expect(ownsStateLock(stateDir)).toBe(true);
+    });
+
+    it('does not report a dead previous holder', async () => {
+      const { writeFile } = await import('node:fs/promises');
+      // Pid 999999999 is far above macOS/Linux pid ranges — guaranteed dead.
+      await writeFile(
+        join(stateDir, 'dev.lock'),
+        JSON.stringify({ pid: 999999999, startedAt: new Date().toISOString() }),
+      );
+      const previous = claimStateLock(stateDir);
+      expect(previous).toBeNull();
+      expect(ownsStateLock(stateDir)).toBe(true);
+    });
+
+    it('loses ownership when another instance claims the lock', async () => {
+      claimStateLock(stateDir);
+      expect(ownsStateLock(stateDir)).toBe(true);
+      // A newer instance (different pid) steals the lock.
+      const { writeFile } = await import('node:fs/promises');
+      await writeFile(
+        join(stateDir, 'dev.lock'),
+        JSON.stringify({ pid: 1, startedAt: new Date().toISOString() }),
+      );
+      expect(ownsStateLock(stateDir)).toBe(false);
+    });
+
+    it('release removes the lock only when owned', async () => {
+      claimStateLock(stateDir);
+      releaseStateLock(stateDir);
+      expect(ownsStateLock(stateDir)).toBe(false);
+      await expect(access(join(stateDir, 'dev.lock'))).rejects.toThrow();
+
+      // Foreign lock stays put on release.
+      const { writeFile } = await import('node:fs/promises');
+      await writeFile(
+        join(stateDir, 'dev.lock'),
+        JSON.stringify({ pid: 1, startedAt: new Date().toISOString() }),
+      );
+      releaseStateLock(stateDir);
+      await expect(access(join(stateDir, 'dev.lock'))).resolves.toBeUndefined();
+    });
+
+    it('handles a corrupt lock file by claiming cleanly', async () => {
+      const { writeFile } = await import('node:fs/promises');
+      await writeFile(join(stateDir, 'dev.lock'), 'not json{{{');
+      expect(ownsStateLock(stateDir)).toBe(false);
+      const previous = claimStateLock(stateDir);
+      expect(previous).toBeNull();
+      expect(ownsStateLock(stateDir)).toBe(true);
     });
   });
 });

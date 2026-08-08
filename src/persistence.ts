@@ -17,7 +17,7 @@
  */
 
 import { readFile, access } from 'node:fs/promises';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import type { ForgeSimulator } from './simulator.js';
 import { dumpDatabase } from './sql-dump.js';
@@ -25,6 +25,86 @@ import { dumpDatabase } from './sql-dump.js';
 const ENTITY_FILE = 'entities.json';
 const OBJECT_STORE_FILE = 'object-store.json';
 const SQL_FILE = 'sql.dump';
+const LOCK_FILE = 'dev.lock';
+
+/**
+ * State-writer lock.
+ *
+ * Multiple `forge-sim dev` instances against the same app dir each run their
+ * own in-memory simulator but share ONE state directory. Without coordination,
+ * every instance autosaves every 30s and the last writer wins — a stale
+ * orphaned instance can silently clobber state written by the instance the
+ * user is actually using.
+ *
+ * Policy: the NEWEST instance owns persistence. claimStateLock() always takes
+ * the lock (stealing from any prior holder, alive or dead); before every save,
+ * the caller checks ownsStateLock() and skips the write if another instance
+ * has since claimed it. Orphans therefore stop persisting on their next
+ * autosave tick instead of corrupting fresh state.
+ */
+
+interface StateLock {
+  pid: number;
+  startedAt: string;
+}
+
+/**
+ * Claim the state-writer lock for this process.
+ * Returns the previous holder's info if the lock was stolen from a live process.
+ */
+export function claimStateLock(stateDir: string): StateLock | null {
+  mkdirSync(stateDir, { recursive: true });
+  const lockPath = join(stateDir, LOCK_FILE);
+  let previous: StateLock | null = null;
+  try {
+    const raw = readFileSync(lockPath, 'utf-8');
+    const parsed = JSON.parse(raw) as StateLock;
+    if (
+      typeof parsed?.pid === 'number' &&
+      parsed.pid !== process.pid &&
+      isProcessAlive(parsed.pid)
+    ) {
+      previous = parsed;
+    }
+  } catch {
+    // No lock or unreadable — nothing to report.
+  }
+  writeFileSync(
+    lockPath,
+    JSON.stringify({ pid: process.pid, startedAt: new Date().toISOString() }, null, 2),
+  );
+  return previous;
+}
+
+/** True if this process still owns the state-writer lock. */
+export function ownsStateLock(stateDir: string): boolean {
+  try {
+    const parsed = JSON.parse(readFileSync(join(stateDir, LOCK_FILE), 'utf-8')) as StateLock;
+    return parsed?.pid === process.pid;
+  } catch {
+    // Lock file missing/corrupt — claim-on-boot is required, so treat as not owned.
+    return false;
+  }
+}
+
+/** Release the lock if (and only if) this process owns it. */
+export function releaseStateLock(stateDir: string): void {
+  try {
+    if (ownsStateLock(stateDir)) rmSync(join(stateDir, LOCK_FILE), { force: true });
+  } catch {
+    // Best effort — a leftover lock is harmless (next boot steals it).
+  }
+}
+
+function isProcessAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (err: any) {
+    // EPERM means it exists but we can't signal it — still alive.
+    return err?.code === 'EPERM';
+  }
+}
 
 /**
  * Save simulator state to disk.
