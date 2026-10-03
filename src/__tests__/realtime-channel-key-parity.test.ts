@@ -837,3 +837,54 @@ describe('Realtime parity through the @forge/realtime shim (end-to-end)', () => 
     expect(result.errors!.map((e) => e.message)).toEqual([ERR.missingPermission]);
   });
 });
+
+// ── Context VALUES in channel identity (D1: "same module in the same Jira
+// issue"; D3: overrides "only include those properties in the channel
+// context"). Pure key-builder checks; the end-to-end behaviour is driven in
+// realtime-doc-parity-round2.test.ts (B3, E5).
+describe('channel identity carries product-context VALUES, not just names', () => {
+  const { scopedChannelKey, channelKeyFor, productContextIds } = canonical;
+  const issue1 = { type: 'jira:issuePanel', issue: { key: 'RT-1', id: '10001' }, project: { key: 'P1', id: '100' } };
+  const issue2 = { type: 'jira:issuePanel', issue: { key: 'RT-2', id: '10002' }, project: { key: 'P1', id: '100' } };
+  const otherProject = { issue: { id: '20007' }, project: { id: '200' } };
+
+  it('default context: same module, different issue → different keys', () => {
+    expect(scopedChannelKey('jira:issuePanel', 'ch', undefined, null, issue1))
+      .not.toBe(scopedChannelKey('jira:issuePanel', 'ch', undefined, null, issue2));
+  });
+
+  it('default context: same module, same issue → same key, and the ids are visible in it', () => {
+    const a = scopedChannelKey('jira:issuePanel', 'ch', undefined, null, issue1);
+    expect(a).toBe(scopedChannelKey('jira:issuePanel', 'ch', undefined, null, { ...issue1 }));
+    expect(a).toBe('scoped:jira\\:issuePanel:ctx(issue=10001,project=100):ch');
+  });
+
+  it('default context with no product-context ids keeps the historical three-segment shape', () => {
+    expect(scopedChannelKey('mod', 'ch', undefined, null, { type: 'jira:issuePanel' })).toBe('scoped:mod:ch');
+    expect(scopedChannelKey('mod', 'ch', undefined, null, undefined)).toBe('scoped:mod:ch');
+  });
+
+  it('[Jira.Project] overrides: same project across modules meet; different projects never do', () => {
+    const a = channelKeyFor('jira:issuePanel', 'ch', ['project'], null, issue1);
+    const b = channelKeyFor('jira:issueContext', 'ch', ['project'], null, issue2);
+    const q = channelKeyFor('jira:issuePanel', 'ch', ['project'], null, otherProject);
+    expect(a).toBe(b);
+    expect(a).toBe('scoped:ctx(project=100):ch');
+    expect(q).toBe('scoped:ctx(project=200):ch');
+  });
+
+  it('an override naming a property the extension lacks keys on an empty value (both sides agree)', () => {
+    expect(channelKeyFor('m', 'ch', ['board'], null, issue1)).toBe('scoped:ctx(board=):ch');
+    expect(channelKeyFor('m', 'ch', ['board'], null, issue1)).toBe(channelKeyFor('m', 'ch', ['board'], null, {}));
+  });
+
+  it('productContextIds reads id, then uuid (repository), then key; ignores non-object entries', () => {
+    expect(productContextIds({
+      issue: { key: 'K-1', id: 7 },
+      repository: { uuid: '{abc}' },
+      space: { key: 'SP' },
+      board: 'not-an-object',
+      content: null,
+    })).toEqual({ issue: '7', repository: '{abc}', space: 'SP' });
+  });
+});

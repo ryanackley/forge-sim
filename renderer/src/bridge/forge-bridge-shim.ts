@@ -1043,7 +1043,10 @@ export const realtime = {
       ?? (options?.token !== undefined ? validateRealtimeToken(options.token, channel, 'subscribe') : null);
     if (invalid) throw new Error(invalid);
     const claims = options?.token !== undefined ? parseRealtimeToken(options.token)?.claims ?? null : null;
-    const channelKey = channelKeyFor(moduleKey, channel, options?.contextOverrides, claims);
+    // The iframe's own placement data (what view.getContext() returns) is
+    // part of scoped channel identity, mirroring the Node bridge shim.
+    const ctx = await rpc('getContext', { moduleKey, contextOptions: getContextFromURL() });
+    const channelKey = channelKeyFor(moduleKey, channel, options?.contextOverrides, claims, ctx?.extension ?? null);
     if (channelKey === null) throw new Error('Unauthorized request');
 
     const subs = S.realtimeSubscribers as Map<string, Set<(payload: any) => void>>;
@@ -1097,6 +1100,7 @@ export const realtime = {
       payload,
       global: false,
       moduleKey: getModuleKeyFromURL(),
+      contextOptions: getContextFromURL(),
       options,
     });
   },

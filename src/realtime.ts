@@ -90,6 +90,11 @@ export interface RealtimeInvocationContext {
   kind: InvocationKind;
   /** Module key of the frontend module that originated the invocation (resolver only). */
   moduleKey: string | null;
+  /**
+   * The invoking resolver's `req.context.extension` (the frontend's placement
+   * data). Its product-context ids are part of scoped channel identity.
+   */
+  extension?: Record<string, unknown> | null;
 }
 
 export interface SubscriptionOptions {
@@ -211,7 +216,7 @@ export class SimulatedRealtime {
     const claims = this.claimsOf(options);
     const channelKey = asGlobal
       ? globalChannelKey(channel, claims)
-      : scopedChannelKey(ctx.moduleKey, channel, options?.contextOverrides, claims);
+      : scopedChannelKey(ctx.moduleKey, channel, options?.contextOverrides, claims, ctx.extension);
     return this.publishToChannel(channel, channelKey, payload, asGlobal);
   }
 
@@ -310,6 +315,7 @@ export class SimulatedRealtime {
     callback: RealtimeCallback,
     moduleKey: string | null,
     options?: SubscriptionOptions,
+    extension?: Record<string, unknown> | null,
   ): Subscription {
     // Docs: subscribe "returns a rejected Promise on error". The bridge
     // shim's subscribe() is async, so a throw here surfaces as that rejection.
@@ -318,7 +324,7 @@ export class SimulatedRealtime {
       this.logFn('warn', `realtime.subscribe("${channel}") rejected: ${invalid}`);
       throw new Error(invalid);
     }
-    const key = channelKeyFor(moduleKey, channel, options?.contextOverrides, this.claimsOf(options));
+    const key = channelKeyFor(moduleKey, channel, options?.contextOverrides, this.claimsOf(options), extension);
     if (key === null) {
       // No module context and no overrides: a scoped subscribe cannot be
       // keyed. Never widen it onto the global plane (that would let it hear
@@ -361,11 +367,12 @@ export class SimulatedRealtime {
     payload: RealtimePayload,
     moduleKey: string | null,
     options?: PublishOptions,
+    extension?: Record<string, unknown> | null,
   ): Promise<PublishResult> {
     const invalid = this.prevalidate(channel, options, 'publish');
     if (invalid) return this.errorResult(channel, invalid);
     const asGlobal = isGlobalByEmptyOverrides(options?.contextOverrides);
-    const channelKey = channelKeyFor(moduleKey, channel, options?.contextOverrides, this.claimsOf(options));
+    const channelKey = channelKeyFor(moduleKey, channel, options?.contextOverrides, this.claimsOf(options), extension);
     if (channelKey === null) {
       return this.errorResult(channel, 'Unauthorized request');
     }

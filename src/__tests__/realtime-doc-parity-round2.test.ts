@@ -202,15 +202,22 @@ async function sign(channel: string, claims: unknown, permissions?: unknown) {
   return sim.invoke('sign', { channel, claims, permissions }, { moduleKey: 'panel-a', extension: ISSUE_1 });
 }
 
-/** Frontend subscribe via @forge/bridge, attributed to `moduleKey`. */
-async function subscribeAs(moduleKey: string | null, channel: string, options?: any) {
+/**
+ * Frontend subscribe via @forge/bridge, attributed to `moduleKey` on the
+ * placement `extension` (default: issue RT-1 in project P1). A real frontend
+ * always has placement data; scoped channel identity includes its
+ * product-context ids, so the direct-bridge driver must supply them too.
+ */
+async function subscribeAs(moduleKey: string | null, channel: string, options?: any, extension: Record<string, unknown> = ISSUE_1) {
   const received: unknown[] = [];
   sim.currentModuleKey = moduleKey ?? undefined;
+  sim.currentExtension = extension;
   try {
     const sub = await rt.subscribe(channel, (p) => { received.push(p); }, options);
     return { received, sub };
   } finally {
     sim.currentModuleKey = undefined;
+    sim.currentExtension = undefined;
   }
 }
 async function subscribeGlobalAs(channel: string, options?: any) {
@@ -219,12 +226,14 @@ async function subscribeGlobalAs(channel: string, options?: any) {
   return { received, sub };
 }
 /** Frontend publish via @forge/bridge, attributed to `moduleKey`. */
-async function bridgePubAs(moduleKey: string, channel: string, body: any, options?: any) {
+async function bridgePubAs(moduleKey: string, channel: string, body: any, options?: any, extension: Record<string, unknown> = ISSUE_1) {
   sim.currentModuleKey = moduleKey;
+  sim.currentExtension = extension;
   try {
     return await rt.publish(channel, body, options);
   } finally {
     sim.currentModuleKey = undefined;
+    sim.currentExtension = undefined;
   }
 }
 
@@ -251,6 +260,7 @@ afterAll(async () => {
 afterEach(() => {
   vi.useRealTimers();
   sim.currentModuleKey = undefined;
+  sim.currentExtension = undefined;
   sim.realtime.reset();
   sim.ui.resetAll();
 });
@@ -344,8 +354,8 @@ describe('B. default (module-scoped) channel context', () => {
     expect(bText).not.toContain('only-for-panel-a');
   });
 
-  it.fails('B3 the same module on a DIFFERENT issue does NOT receive the publish', async () => {
-    // CONFIRMED DIVERGENCE: forge-sim keys the default context by module only; issue is ignored.
+  it('B3 the same module on a DIFFERENT issue does NOT receive the publish', async () => {
+    // (Was a divergence: the default context was keyed by module only. Fixed 2026-10-03.)
     // [D1] "... or the jira:issuePanel on a different issue, even if they share
     //       the same channel name."
     const { received } = await subscribeAs('panel-a', CHANNEL);
@@ -613,8 +623,8 @@ describe('E. contextOverrides', () => {
     expect(b.received).toEqual(['unsecured']);
   });
 
-  it.fails('E5 [Jira.Project] on both sides but DIFFERENT projects: not delivered', async () => {
-    // CONFIRMED DIVERGENCE: forge-sim keys overrides by property NAME, not by the project's value.
+  it('E5 [Jira.Project] on both sides but DIFFERENT projects: not delivered', async () => {
+    // (Was a divergence: overrides were keyed by property name, not value. Fixed 2026-10-03.)
     // [D3] overrides "only include those properties in the channel context" —
     //      the channel is "scoped to the current Jira project", so another
     //      project's publisher is a different channel context.

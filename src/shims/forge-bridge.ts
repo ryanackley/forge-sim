@@ -560,6 +560,21 @@ function getCurrentModuleKeyForBridge(): string | null {
 }
 
 /**
+ * Placement data for a frontend realtime call: the explicit test knob first,
+ * then the rendered module's own context.
+ */
+function getCurrentExtensionForBridge(moduleKey: string | null): Record<string, unknown> | null {
+  try {
+    const sim = (globalThis as any)[Symbol.for('forge-sim.instance')];
+    if (sim?.currentExtension) return sim.currentExtension;
+    if (moduleKey) return sim?.ui?.getContext?.(moduleKey)?.extension ?? null;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Bind a subscriber callback to the module that subscribed. The callback
  * runs later, from a publish on the resolver side, where no render scope is
  * active; without this the re-render it causes is attributed to whichever
@@ -584,7 +599,8 @@ export const realtime = {
       return { unsubscribe: () => {} };
     }
     const moduleKey = getCurrentModuleKeyForBridge();
-    return rt.subscribe(channel, bindCallbackToModule(callback, moduleKey) as any, moduleKey, options);
+    const extension = getCurrentExtensionForBridge(moduleKey);
+    return rt.subscribe(channel, bindCallbackToModule(callback, moduleKey) as any, moduleKey, options, extension);
   },
 
   async subscribeGlobal(
@@ -614,7 +630,7 @@ export const realtime = {
       return { eventId: null, eventTimestamp: null, errors: [{ message: 'No simulator connected' }] };
     }
     const moduleKey = getCurrentModuleKeyForBridge();
-    return rt.publishFromBridge(channel, payload, moduleKey, options);
+    return rt.publishFromBridge(channel, payload, moduleKey, options, getCurrentExtensionForBridge(moduleKey));
   },
 
   async publishGlobal(

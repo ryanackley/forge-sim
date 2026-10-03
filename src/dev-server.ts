@@ -553,11 +553,14 @@ export async function createDevServer(options: DevServerOptions = {}): Promise<D
         return;
 
       case 'realtimePublish': {
-        const { channel, payload, global: isGlobal, moduleKey, options } = params;
+        const { channel, payload, global: isGlobal, moduleKey, options, contextOptions } = params;
         if (isGlobal) {
           return simulator.realtime.publishGlobalFromBridge(channel, payload, options);
         } else {
-          return simulator.realtime.publishFromBridge(channel, payload, moduleKey ?? null, options);
+          // Same context the iframe's getContext() sees, so publish and
+          // subscribe derive identical product-context ids.
+          const ctx = await resolveModuleContext(moduleKey, contextOptions);
+          return simulator.realtime.publishFromBridge(channel, payload, moduleKey ?? null, options, ctx?.extension ?? null);
         }
       }
 

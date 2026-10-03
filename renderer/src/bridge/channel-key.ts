@@ -64,6 +64,29 @@ export function isProductContextName(value: unknown): value is ProductContextNam
 }
 
 /**
+ * The product-context ids present on an extension object, keyed by
+ * ProductContext name. Forge's extension shapes carry `id` for issue /
+ * project / content / space / board / pullRequest and `uuid` for repository;
+ * `key` is the last resort. Only properties that are present AND carry an
+ * identifier count.
+ */
+export function productContextIds(
+  extension: Record<string, unknown> | null | undefined,
+): Partial<Record<ProductContextName, string>> {
+  const ids: Partial<Record<ProductContextName, string>> = {};
+  if (!extension || typeof extension !== 'object') return ids;
+  for (const name of PRODUCT_CONTEXTS) {
+    const entry = (extension as Record<string, unknown>)[name];
+    if (!entry || typeof entry !== 'object') continue;
+    const e = entry as Record<string, unknown>;
+    const id = e.id ?? e.uuid ?? e.key;
+    if (id === undefined || id === null) continue;
+    ids[name] = String(id);
+  }
+  return ids;
+}
+
+/**
  * Validate a `contextOverrides` array. Returns an error message when any
  * entry is not a `ProductContext`, otherwise null. The real `@forge/bridge`
  * rejects this at the type level (`ProductContext[]`); at runtime we must not
@@ -99,9 +122,29 @@ export function invalidContextOverrides(contextOverrides?: readonly unknown[]): 
  * direction is a parity bug (too lax = we deliver where Forge drops; too
  * strict = we drop where Forge delivers).
  */
-function overridesSegment(contextOverrides: readonly string[]): string {
-  const signature = [...new Set(contextOverrides)].sort().join(',');
+function overridesSegment(
+  contextOverrides: readonly string[],
+  extension?: Record<string, unknown> | null,
+): string {
+  const ids = productContextIds(extension);
+  const signature = [...new Set(contextOverrides)]
+    .sort()
+    .map((name) => `${name}=${ids[name as ProductContextName] ?? ''}`)
+    .join(',');
   return `ctx(${escapeSegment(signature)})`;
+}
+
+/**
+ * The default-context segment: every product-context id the extension
+ * carries, sorted by name. Empty string (segment omitted) when there are
+ * none, which keeps the historical `scoped:<module>:<channel>` shape for
+ * context-free callers.
+ */
+function defaultContextSegment(extension?: Record<string, unknown> | null): string {
+  const ids = productContextIds(extension);
+  const names = Object.keys(ids).sort() as ProductContextName[];
+  if (names.length === 0) return '';
+  return `ctx(${escapeSegment(names.map((n) => `${n}=${ids[n]}`).join(','))})`;
 }
 
 /** True when overrides were supplied as an explicitly empty array. */
@@ -254,12 +297,15 @@ export function scopedChannelKey(
   channel: string,
   contextOverrides?: readonly string[],
   tokenClaims?: Record<string, unknown> | null,
+  extension?: Record<string, unknown> | null,
 ): string {
   const parts = ['scoped'];
   if (contextOverrides && contextOverrides.length > 0) {
-    parts.push(overridesSegment(contextOverrides));
+    parts.push(overridesSegment(contextOverrides, extension));
   } else {
     parts.push(escapeSegment(moduleKey));
+    const ctx = defaultContextSegment(extension);
+    if (ctx) parts.push(ctx);
   }
   if (tokenClaims) parts.push(tokenSegment(tokenClaims));
   parts.push(escapeSegment(channel));
@@ -293,12 +339,13 @@ export function channelKeyFor(
   channel: string,
   contextOverrides?: readonly string[],
   tokenClaims?: Record<string, unknown> | null,
+  extension?: Record<string, unknown> | null,
 ): string | null {
   if (isGlobalByEmptyOverrides(contextOverrides)) {
     return globalChannelKey(channel, tokenClaims);
   }
   if (contextOverrides && contextOverrides.length > 0) {
-    return scopedChannelKey(moduleKey ?? '', channel, contextOverrides, tokenClaims);
+    return scopedChannelKey(moduleKey ?? '', channel, contextOverrides, tokenClaims, extension);
   }
-  return moduleKey ? scopedChannelKey(moduleKey, channel, undefined, tokenClaims) : null;
+  return moduleKey ? scopedChannelKey(moduleKey, channel, undefined, tokenClaims, extension) : null;
 }

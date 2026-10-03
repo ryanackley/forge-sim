@@ -106,6 +106,14 @@ export class ForgeSimulator {
   currentModuleKey: string | undefined;
 
   /**
+   * Test knob paired with `currentModuleKey`: the placement data a direct
+   * `@forge/bridge` call (no rendered module) should be attributed to. Scoped
+   * realtime channels key on the product-context ids in here. Rendered
+   * modules never need it; their context comes from `sim.ui.getContext()`.
+   */
+  currentExtension: Record<string, unknown> | undefined;
+
+  /**
    * Resolver ownership: maps define()'d function key → manifest resolver function key (which module's resolver owns it)
    * Used to scope function lookups to the correct module's resolver.
    */
@@ -153,7 +161,14 @@ export class ForgeSimulator {
     this.llm = new SimulatedLLM((level, message, detail) => this.log(level, message, detail));
     this.realtime = new SimulatedRealtime(
       (level, message, detail) => this.log(level, message, detail),
-      () => this.getInvocationContext(),
+      () => {
+        const ctx = this.getInvocationContext();
+        if (!ctx) return null;
+        // The merged resolver context (defaults + sticky + render overlay +
+        // per-call) is only known once the handler is running, so read the
+        // extension live rather than snapshotting it at invoke() time.
+        return { ...ctx, extension: (this.resolver.getActiveContext()?.extension as Record<string, unknown> | undefined) ?? null };
+      },
     );
     this.objectStore = new SimulatedObjectStore();
     this.webTriggerUrls = new WebTriggerUrlRegistry();

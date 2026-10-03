@@ -1817,7 +1817,9 @@ Example:
           isError: true,
         };
       }
-      const result = await sim.realtime.publishFromBridge(channel, payload, resolvedModuleKey);
+      const result = await sim.realtime.publishFromBridge(
+        channel, payload, resolvedModuleKey, undefined, sim.ui.getContext(resolvedModuleKey)?.extension ?? null,
+      );
       return {
         content: [{
           type: 'text' as const,
