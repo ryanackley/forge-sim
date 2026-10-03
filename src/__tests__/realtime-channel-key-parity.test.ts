@@ -175,7 +175,7 @@ describe('Realtime channel-key parity (docs + real typings vs forge-sim)', () =>
         asResolver('jira:issuePanel');
         const result = await rt.publish('ch', { ctx }, { contextOverrides: [ctx] });
 
-        expect(result.errors).toEqual([]);
+        expect(result.errors).toBeUndefined();
         expect(received).toEqual([{ ctx }]);
       },
     );
@@ -200,7 +200,7 @@ describe('Realtime channel-key parity (docs + real typings vs forge-sim)', () =>
       asResolver('jira:issuePanel');
       const result = await rt.publish('ch', 'x', { contextOverrides: ['bogus'] });
 
-      const publishRejected = result.errors.length > 0 && result.eventId === null;
+      const publishRejected = (result.errors?.length ?? 0) > 0 && result.eventId === null;
       expect(subscribeThrew || publishRejected).toBe(true);
       expect(received).toHaveLength(0);
     });
@@ -535,7 +535,7 @@ describe('Realtime channel-key parity (docs + real typings vs forge-sim)', () =>
 
       const result = await rt.publishGlobal('ch', 'same-room', { token: pub! });
 
-      expect(result.errors).toEqual([]);
+      expect(result.errors).toBeUndefined();
       expect(received).toEqual(['same-room']);
     });
 
@@ -554,7 +554,7 @@ describe('Realtime channel-key parity (docs + real typings vs forge-sim)', () =>
 
       expect(result.eventId).toBeNull();
       expect(result.eventTimestamp).toBeNull();
-      expect(result.errors.map((e) => e.message)).toEqual([ERR.missingPermission]);
+      expect(result.errors!.map((e) => e.message)).toEqual([ERR.missingPermission]);
       expect(received).toHaveLength(0);
     });
 
@@ -577,7 +577,7 @@ describe('Realtime channel-key parity (docs + real typings vs forge-sim)', () =>
 
       const result = await rt.publishGlobal('ch', 'both', { token });
 
-      expect(result.errors).toEqual([]);
+      expect(result.errors).toBeUndefined();
       expect(received).toEqual(['both']);
     });
 
@@ -591,7 +591,7 @@ describe('Realtime channel-key parity (docs + real typings vs forge-sim)', () =>
       const result = await rt.publishGlobal('ch', 'wrong-channel', { token: token! });
 
       expect(result.eventId).toBeNull();
-      expect(result.errors.map((e) => e.message)).toEqual([ERR.channelMismatch]);
+      expect(result.errors!.map((e) => e.message)).toEqual([ERR.channelMismatch]);
     });
   });
 
@@ -607,7 +607,7 @@ describe('Realtime channel-key parity (docs + real typings vs forge-sim)', () =>
       asResolver('jira:issuePanel');
       const result = await rt.publish('ch', 'from-resolver', { contextOverrides: [Jira.Project] });
 
-      expect(result.errors).toEqual([]);
+      expect(result.errors).toBeUndefined();
       expect(received).toEqual(['from-resolver']);
     });
 
@@ -621,7 +621,7 @@ describe('Realtime channel-key parity (docs + real typings vs forge-sim)', () =>
         const result = await rt.publish('ch', 'async-ctx', { contextOverrides: [Jira.Project] });
 
         expect(result.eventId).toBeNull();
-        expect(result.errors.map((e) => e.message)).toEqual([ERR.unauthorized]);
+        expect(result.errors!.map((e) => e.message)).toEqual([ERR.unauthorized]);
         expect(received).toHaveLength(0);
       },
     );
@@ -636,7 +636,7 @@ describe('Realtime channel-key parity (docs + real typings vs forge-sim)', () =>
 
         const result = await rt.publish('ch', 'loophole?', { contextOverrides: [] });
 
-        expect(result.errors.map((e) => e.message)).toEqual([ERR.unauthorized]);
+        expect(result.errors!.map((e) => e.message)).toEqual([ERR.unauthorized]);
         expect(received).toHaveLength(0);
       },
     );
@@ -654,44 +654,44 @@ describe('Realtime channel-key parity (docs + real typings vs forge-sim)', () =>
       errorsIsArray: Array.isArray(r.errors),
     });
 
-    it('with a subscriber: eventId is a string, eventTimestamp is a STRING of epoch milliseconds, errors is []', async () => {
+    it('with a subscriber: eventId is a string, eventTimestamp is a STRING of epoch milliseconds, no errors key (real package omits it on success)', async () => {
       rt.subscribeGlobal('ch', () => {});
       const before = Date.now();
       const result = await rt.publishGlobal('ch', 'x');
       const after = Date.now();
 
       expect(shapeOf(result)).toEqual({
-        keys: ['errors', 'eventId', 'eventTimestamp'],
+        keys: ['eventId', 'eventTimestamp'],
         eventIdType: 'string',
         eventTimestampType: 'string',
-        errorsIsArray: true,
+        errorsIsArray: false,
       });
       expect(result.eventTimestamp).toMatch(/^\d+$/);
       const ms = Number(result.eventTimestamp);
       expect(ms).toBeGreaterThanOrEqual(before);
       expect(ms).toBeLessThanOrEqual(after);
-      expect(result.errors).toEqual([]);
+      expect(result.errors).toBeUndefined();
     });
 
-    it('with NO subscriber: eventId and eventTimestamp are null and errors is [] (D3 — not an error)', async () => {
+    it('with NO subscriber: eventId and eventTimestamp are null and there is no errors key (D3 — not an error)', async () => {
       const result = await rt.publishGlobal('nobody-home', 'x');
 
-      expect(result).toEqual({ eventId: null, eventTimestamp: null, errors: [] });
+      expect(result).toEqual({ eventId: null, eventTimestamp: null });
     });
 
-    it('on error: eventId and eventTimestamp are null and errors is a non-empty list of { message } (D4; C1 pins D4 over T2)', async () => {
+    it('on error: eventId and eventTimestamp are null and errors is a non-empty list of { message } (D4 shape; success omits the key per the real package)', async () => {
       invocationContext = { kind: 'consumer', moduleKey: null };
       const result = await rt.publish('ch', 'x');
 
       expect(result.eventId).toBeNull();
       expect(result.eventTimestamp).toBeNull();
-      expect(result.errors.length).toBeGreaterThan(0);
-      for (const e of result.errors) {
+      expect(result.errors!.length).toBeGreaterThan(0);
+      for (const e of result.errors!) {
         expect(typeof e).toBe('object');
         expect(typeof e.message).toBe('string');
       }
       // D4 example code: result.errors.map(e => e.message)
-      expect(result.errors.map((e) => e.message)).toEqual([ERR.unauthorized]);
+      expect(result.errors!.map((e) => e.message)).toEqual([ERR.unauthorized]);
     });
 
     it('scoped publish and publishGlobal return the same shape (D4: "This is the same for publishGlobal")', async () => {
@@ -800,7 +800,7 @@ describe('Realtime parity through the @forge/realtime shim (end-to-end)', () => 
     );
     const result: PublishResult = await sim.invoke('pub', {}, { moduleKey: 'my-panel' });
 
-    expect(result.errors).toEqual([]);
+    expect(result.errors).toBeUndefined();
     expect(received).toEqual(['e2e']);
   });
 
@@ -834,6 +834,6 @@ describe('Realtime parity through the @forge/realtime shim (end-to-end)', () => 
     const result: PublishResult = await sim.invoke('pub', {}, { moduleKey: 'my-panel' });
 
     expect(result.eventId).toBeNull();
-    expect(result.errors.map((e) => e.message)).toEqual([ERR.missingPermission]);
+    expect(result.errors!.map((e) => e.message)).toEqual([ERR.missingPermission]);
   });
 });

@@ -92,7 +92,7 @@ describe('Realtime invocation context (end-to-end)', () => {
 
       const result: PublishResult = await sim.invoke('publishUpdate', {}, { moduleKey: 'my-panel' });
 
-      expect(result.errors).toEqual([]);
+      expect(result.errors).toBeUndefined();
       expect(result.eventId).toMatch(/^rt-evt-/);
       expect(received).toEqual([{ percent: 50 }]);
     });
@@ -108,7 +108,7 @@ describe('Realtime invocation context (end-to-end)', () => {
       // No explicit moduleKey — derivation via resolverOwnership + moduleRouting.
       const result: PublishResult = await sim.invoke('publishUpdate', {});
 
-      expect(result.errors).toEqual([]);
+      expect(result.errors).toBeUndefined();
       expect(received).toEqual(['derived']);
     });
 
@@ -139,7 +139,7 @@ describe('Realtime invocation context (end-to-end)', () => {
 
       const result: PublishResult = await sim.invoke('publishUpdate', {}, { moduleKey: 'my-panel' });
 
-      expect(result.errors).toEqual([]);
+      expect(result.errors).toBeUndefined();
       expect(received).toEqual(['still-scoped']);
     });
   });
@@ -187,7 +187,7 @@ describe('Realtime invocation context (end-to-end)', () => {
 
       const results = await sim.fireTrigger('avi:jira:created:issue', { issue: { id: '1' } });
 
-      expect((results[0] as PublishResult).errors).toEqual([]);
+      expect((results[0] as PublishResult).errors).toBeUndefined();
       expect(received).toEqual([{ issue: 'created' }]);
     });
   });

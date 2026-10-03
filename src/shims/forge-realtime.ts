@@ -1,8 +1,10 @@
 /**
  * @forge/realtime shim — backend (resolver-side) API.
  *
- * Exports: publish, publishGlobal, signRealtimeToken
- * These are used in Forge functions (resolvers, triggers, consumers).
+ * Exports: publish, publishGlobal, signRealtimeToken, and the ProductContext
+ * enums (Jira, Confluence, Bitbucket). The real package's index.d.ts is
+ * exactly those three re-exports. These are used in Forge functions
+ * (resolvers, triggers, consumers); there is no subscribe on the backend.
  */
 
 import { getSimulator } from './globals.js';
@@ -37,3 +39,4 @@ async function signRealtimeToken(
 }
 
 export { publish, publishGlobal, signRealtimeToken };
+export { Jira, Confluence, Bitbucket, type ProductContext } from './product-context.js';

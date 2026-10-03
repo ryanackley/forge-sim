@@ -559,6 +559,19 @@ function getCurrentModuleKeyForBridge(): string | null {
   }
 }
 
+/**
+ * Bind a subscriber callback to the module that subscribed. The callback
+ * runs later, from a publish on the resolver side, where no render scope is
+ * active; without this the re-render it causes is attributed to whichever
+ * module rendered most recently (ForgeDoc filed under the wrong key).
+ */
+function bindCallbackToModule<F extends (...args: any[]) => any>(callback: F, moduleKey: string | null): F {
+  const sim = (globalThis as any)[Symbol.for('forge-sim.instance')];
+  const ui = sim?.ui;
+  if (!ui?.runInModuleScope || moduleKey === null) return callback;
+  return ((...args: any[]) => ui.runInModuleScope(moduleKey, () => callback(...args))) as F;
+}
+
 export const realtime = {
   async subscribe(
     channel: string,
@@ -571,7 +584,7 @@ export const realtime = {
       return { unsubscribe: () => {} };
     }
     const moduleKey = getCurrentModuleKeyForBridge();
-    return rt.subscribe(channel, callback as any, moduleKey, options);
+    return rt.subscribe(channel, bindCallbackToModule(callback, moduleKey) as any, moduleKey, options);
   },
 
   async subscribeGlobal(
@@ -584,7 +597,10 @@ export const realtime = {
       console.warn('[forge-sim] realtime.subscribeGlobal — no simulator connected');
       return { unsubscribe: () => {} };
     }
-    return rt.subscribeGlobal(channel, callback as any, options);
+    // Global channels have no module in their key, but the re-render a
+    // delivery triggers still belongs to the subscribing module.
+    const moduleKey = getCurrentModuleKeyForBridge();
+    return rt.subscribeGlobal(channel, bindCallbackToModule(callback, moduleKey) as any, options);
   },
 
   async publish(

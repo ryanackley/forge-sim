@@ -49,6 +49,10 @@ export interface PublishOptions {
   contextOverrides?: ContextOverride[];
 }
 
+/** Verbatim from @forge/realtime publish.js (thrown, not returned). */
+export const INVALID_CONTEXT_OVERRIDES_VALUE =
+  'Invalid value for contextOverrides. Please provide an array of valid context properties.';
+
 /** Error object in PublishResult.errors — matches Forge docs shape. */
 export interface RealtimeError {
   message: string;
@@ -57,7 +61,13 @@ export interface RealtimeError {
 export interface PublishResult {
   eventId: string | null;
   eventTimestamp: string | null;
-  errors: RealtimeError[];
+  /**
+   * Present only on failure. The real @forge/realtime publish() returns
+   * `{ eventId, eventTimestamp }` with NO errors key on success (its d.ts
+   * success branch is `errors?: undefined`), so `if (result.errors)` is the
+   * documented check and must stay falsy locally when it would be in Forge.
+   */
+  errors?: RealtimeError[];
 }
 
 /**
@@ -170,6 +180,11 @@ export class SimulatedRealtime {
     payload: RealtimePayload,
     options?: PublishOptions,
   ): Promise<PublishResult> {
+    // The real package throws (rejects) here before any network call, with
+    // this exact message. Falsy values pass, same as its `contextOverrides &&`.
+    if (options?.contextOverrides && !Array.isArray(options.contextOverrides)) {
+      throw new Error(INVALID_CONTEXT_OVERRIDES_VALUE);
+    }
     const invalid = this.prevalidate(channel, options, 'publish');
     if (invalid) return this.errorResult(channel, invalid);
     const ctx = this.getInvocationContext();
@@ -209,7 +224,9 @@ export class SimulatedRealtime {
     payload: RealtimePayload,
     options?: PublishOptions,
   ): Promise<PublishResult> {
-    const invalid = this.prevalidate(channel, options, 'publish');
+    // The real publishGlobal() never reads contextOverrides (it only forwards
+    // the token), so they are neither validated nor part of channel identity.
+    const invalid = this.prevalidate(channel, { token: options?.token }, 'publish');
     if (invalid) return this.errorResult(channel, invalid);
     const channelKey = globalChannelKey(channel, this.claimsOf(options));
     return this.publishToChannel(channel, channelKey, payload, true);
@@ -445,11 +462,8 @@ export class SimulatedRealtime {
       }
     }
 
-    return {
-      eventId,
-      eventTimestamp,
-      errors: [],
-    };
+    // No `errors` key on success: see PublishResult.
+    return { eventId, eventTimestamp };
   }
 
   private addSubscriber(

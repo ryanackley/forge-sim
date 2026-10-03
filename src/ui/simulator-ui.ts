@@ -327,6 +327,20 @@ export class SimulatorUI {
     return this.renderScope.getStore() ?? this.activeModuleKey;
   }
 
+  /**
+   * Run `fn` with `moduleKey` as the active module for the duration of its
+   * async continuation. Used by the bridge realtime shim: a subscriber
+   * callback fires from a resolver publish, outside any render scope, and
+   * the setState re-render it triggers must still be filed under the module
+   * that subscribed, not whichever module rendered last. Propagates through
+   * React's setImmediate scheduler the same way render() does.
+   * @internal
+   */
+  runInModuleScope<T>(moduleKey: string | null, fn: () => T): T {
+    if (moduleKey === null) return fn();
+    return this.renderScope.run(moduleKey, fn);
+  }
+
   // ── ForgeDoc Access ───────────────────────────────────────────────────
 
   /**

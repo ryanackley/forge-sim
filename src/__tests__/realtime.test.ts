@@ -139,9 +139,9 @@ describe('SimulatedRealtime', () => {
       const r3 = await rt.publishGlobal('ch', 'from-nowhere');
 
       expect(received).toEqual(['from-consumer', 'from-scheduled', 'from-nowhere']);
-      expect(r1.errors).toEqual([]);
-      expect(r2.errors).toEqual([]);
-      expect(r3.errors).toEqual([]);
+      expect(r1.errors).toBeUndefined();
+      expect(r2.errors).toBeUndefined();
+      expect(r3.errors).toBeUndefined();
     });
   });
 
@@ -216,7 +216,7 @@ describe('SimulatedRealtime', () => {
 
       expect(result.eventId).toMatch(/^rt-evt-\d+$/);
       expect(result.eventTimestamp).toBeTruthy();
-      expect(result.errors).toEqual([]);
+      expect(result.errors).toBeUndefined();
     });
 
     it('returns null eventId when no subscribers', async () => {

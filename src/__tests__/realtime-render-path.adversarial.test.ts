@@ -277,7 +277,7 @@ describe('realtime through the UIKit render path (adversarial)', () => {
     expect(subscriptionKeys(sim)).toEqual(['scoped:panel-a:progress']);
 
     const result = await sim.invoke('publishFromA', { message: 'tick-1' });
-    expect(result.errors).toEqual([]);
+    expect(result.errors).toBeUndefined();
     expect(result.eventId).toMatch(/^rt-evt-/);
 
     // Callback fired…
@@ -366,12 +366,12 @@ describe('realtime through the UIKit render path (adversarial)', () => {
 
       // Forge quote (1): panel-a's subscription must receive panel-a's publish…
       const fromA = await sim.invoke('publishFromA', { channel: 'chan-a', message: 'own-module' }, { moduleKey: 'panel-a' });
-      expect(fromA.errors).toEqual([]);
+      expect(fromA.errors).toBeUndefined();
       expect(sink('event-a')).toEqual(['own-module']);
 
       // …and must NOT receive a same-channel-name publish from a different module.
       const fromB = await sim.invoke('publishFromB', { channel: 'chan-a', message: 'other-module' }, { moduleKey: 'panel-b' });
-      expect(fromB.errors).toEqual([]);
+      expect(fromB.errors).toBeUndefined();
       expect(sink('event-a')).toEqual(['own-module']);
     });
 
@@ -399,7 +399,7 @@ describe('realtime through the UIKit render path (adversarial)', () => {
 
       expect(keysForChannels(sim, ['chan-a'])).toEqual(['scoped:panel-a:chan-a']);
       const r = await sim.invoke('publishFromA', { channel: 'chan-a', message: 'unpinned' });
-      expect(r.errors).toEqual([]);
+      expect(r.errors).toBeUndefined();
       // Publish-side key derived from ownership, not from the active slot
       // (which is panel-b at this point).
       expect(sim.ui.getActiveModule()).toBe('panel-b');
