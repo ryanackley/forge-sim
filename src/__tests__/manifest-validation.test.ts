@@ -228,3 +228,63 @@ describe('validateManifestFile + deploy gate (file mode)', () => {
     await rm(appDir, { recursive: true, force: true }).catch(() => undefined);
   });
 });
+
+/**
+ * Regression guard for the pinned @forge/manifest schema version.
+ *
+ * Parity principle, reverse direction: throwing where real Forge succeeds is
+ * just as much a bug as silently succeeding where Forge fails. These manifest
+ * shapes are accepted by real Forge, so forge-sim must accept them too. Each
+ * one requires a schema newer than the version forge-sim previously pinned, so
+ * a downgrade of @forge/manifest fails here instead of silently rejecting
+ * valid user apps at deploy time.
+ */
+describe('pinned schema accepts current Forge manifest shapes', () => {
+  const withBody = (extra: string) => `
+app:
+  id: ${PLACEHOLDER_APP_ID}
+  runtime:
+    name: nodejs22.x
+modules:
+  webtrigger:
+    - key: hook
+      function: main
+  function:
+    - key: main
+      handler: index.run
+${extra}`;
+
+  it('accepts permissions.sandbox (browser storage access)', async () => {
+    const findings = await validateManifestContent(
+      withBody(`permissions:
+  scopes:
+    - storage:app
+  sandbox:
+    - allow-storage-access-by-user-activation
+`)
+    );
+    expect(hasValidationErrors(findings)).toBe(false);
+  });
+
+  it.each(['dashboards:filter', 'global:fullPage', 'jira:entityPropertySet'])(
+    'accepts the %s module key',
+    async (moduleKey) => {
+      const findings = await validateManifestContent(
+        withBody(`  ${moduleKey}:
+    - key: mod-under-test
+      resource: main
+      render: native
+      title: Mod
+resources:
+  - key: main
+    path: src/frontend/index.tsx
+`)
+      );
+      const errors = findings.filter((f) => f.level === 'error');
+      // The module key itself must not be the thing that fails.
+      expect(
+        errors.filter((e) => /must NOT have additional propert|unknown module|is not allowed/i.test(e.message))
+      ).toEqual([]);
+    }
+  );
+});
