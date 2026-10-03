@@ -11,6 +11,8 @@
  * Usage: Vite aliases @forge/bridge → this file
  */
 
+import { globalChannelKey, channelKeyFor, invalidContextOverrides, validateRealtimeToken, parseRealtimeToken } from './channel-key.js';
+
 // ── Shared State (survives Vite module duplication) ────────────────────
 //
 // Vite may create multiple copies of this module (pre-bundled deps vs source).
@@ -1034,7 +1036,15 @@ export const realtime = {
     await ensureConnection();
     const S = G.__forgeSim;
     const moduleKey = getModuleKeyFromURL();
-    const channelKey = moduleKey ? `scoped:${moduleKey}:${channel}` : `global:${channel}`;
+    // Same pre-validation and identity rules as the Node backend (shared via
+    // the channel-key mirror): bad overrides / bad token → rejected Promise,
+    // and a token's claims become part of the channel key.
+    const invalid = invalidContextOverrides(options?.contextOverrides)
+      ?? (options?.token !== undefined ? validateRealtimeToken(options.token, channel, 'subscribe') : null);
+    if (invalid) throw new Error(invalid);
+    const claims = options?.token !== undefined ? parseRealtimeToken(options.token)?.claims ?? null : null;
+    const channelKey = channelKeyFor(moduleKey, channel, options?.contextOverrides, claims);
+    if (channelKey === null) throw new Error('Unauthorized request');
 
     const subs = S.realtimeSubscribers as Map<string, Set<(payload: any) => void>>;
     if (!subs.has(channelKey)) subs.set(channelKey, new Set());
@@ -1057,7 +1067,11 @@ export const realtime = {
   ): Promise<{ unsubscribe: () => void }> {
     await ensureConnection();
     const S = G.__forgeSim;
-    const channelKey = `global:${channel}`;
+    const invalid = invalidContextOverrides(options?.contextOverrides)
+      ?? (options?.token !== undefined ? validateRealtimeToken(options.token, channel, 'subscribe') : null);
+    if (invalid) throw new Error(invalid);
+    const claims = options?.token !== undefined ? parseRealtimeToken(options.token)?.claims ?? null : null;
+    const channelKey = globalChannelKey(channel, claims);
 
     const subs = S.realtimeSubscribers as Map<string, Set<(payload: any) => void>>;
     if (!subs.has(channelKey)) subs.set(channelKey, new Set());

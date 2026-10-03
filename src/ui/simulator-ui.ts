@@ -56,6 +56,7 @@ import type { ForgeSimulator } from '../simulator.js';
 import { setSimulator } from '../shims/globals.js';
 import { onViewEvent, resetViewEvents, type ViewEventType } from '../shims/forge-bridge.js';
 import { pathToFileURL } from 'node:url';
+import { AsyncLocalStorage } from 'node:async_hooks';
 
 /**
  * Heuristic: is this arg likely a user-supplied data object rather than a
@@ -209,6 +210,25 @@ export class SimulatorUI {
 
   /** Which module is currently rendering (set before invoke, cleared after) */
   private activeModuleKey: string | null = null;
+  /**
+   * Async scope of the module currently being rendered. `render()` runs its
+   * whole body inside this scope, and React's scheduler in Node is built on
+   * `setImmediate` (which propagates AsyncLocalStorage), so the module's
+   * mount effects, and every continuation they spawn (`await invoke(...)`
+   * then `realtime.subscribe(...)`), stay attributed to THIS module even
+   * after another module has rendered and moved `activeModuleKey` on.
+   * `activeModuleKey` remains the fallback for callers outside any scope.
+   * See the attribution race in realtime-render-path.adversarial.test.ts.
+   *
+   * We deliberately do NOT settle the passive-effect flush before render()
+   * returns: the documented contract is that render() yields the INITIAL
+   * reconcile (loading state) and effects land afterwards (see
+   * wait-for-content.test.ts and the MCP ui_render docs). The scope still
+   * holds because the mount effects are flushed from the same scheduler
+   * task that committed this module, and that task must finish before
+   * render()'s own continuation can run.
+   */
+  private renderScope = new AsyncLocalStorage<string>();
 
   /** Last render config per module (for refresh) */
   private moduleRenderConfig = new Map<string, RenderContextOptions>();
@@ -248,10 +268,14 @@ export class SimulatorUI {
       installBridge();
       // Listen to every render and tag it with the active module key
       onRender((doc) => {
-        if (this.activeModuleKey) {
-          this.moduleDocs.set(this.activeModuleKey, doc);
+        // Scoped lookup: a late re-render (setState after an awaited
+        // invoke) must file under the module that owns the effect, not
+        // whichever module rendered most recently.
+        const activeKey = this.getActiveModule();
+        if (activeKey) {
+          this.moduleDocs.set(activeKey, doc);
           // Fire module-scoped listeners
-          const listeners = this.moduleListeners.get(this.activeModuleKey);
+          const listeners = this.moduleListeners.get(activeKey);
           if (listeners) {
             for (const fn of listeners) {
               try { fn(doc); } catch {}
@@ -263,13 +287,14 @@ export class SimulatorUI {
       // Tag to the same active module key — inline config lives on the
       // flat macro module, not a sub-module.
       this.macroConfigRenderUnbind = onMacroConfigRender((doc) => {
-        if (this.activeModuleKey) {
-          this.macroConfigDocs.set(this.activeModuleKey, doc);
+        const activeKey = this.getActiveModule();
+        if (activeKey) {
+          this.macroConfigDocs.set(activeKey, doc);
         }
       });
       // Listen for view.submit()/close()/refresh() from app code
       this.viewEventUnbind = onViewEvent((event, payload) => {
-        const moduleKey = this.activeModuleKey ?? '(unknown)';
+        const moduleKey = this.getActiveModule() ?? '(unknown)';
         const listeners = this.viewEventListeners.get(event);
         if (listeners) {
           for (const fn of listeners) {
@@ -299,7 +324,7 @@ export class SimulatorUI {
    * module key is available.
    */
   getActiveModule(): string | null {
-    return this.activeModuleKey;
+    return this.renderScope.getStore() ?? this.activeModuleKey;
   }
 
   // ── ForgeDoc Access ───────────────────────────────────────────────────
@@ -684,6 +709,10 @@ export class SimulatorUI {
    *   const doc = sim.ui.getForgeDoc('my-panel');
    */
   async render(moduleKey: string, options?: RenderContextOptions): Promise<ForgeDoc | null> {
+    return this.renderScope.run(moduleKey, () => this.renderInScope(moduleKey, options));
+  }
+
+  private async renderInScope(moduleKey: string, options?: RenderContextOptions): Promise<ForgeDoc | null> {
     const manifest = this.sim.getManifest();
     if (!manifest) {
       throw new Error('No manifest loaded. Deploy an app first.');
@@ -899,6 +928,7 @@ export class SimulatorUI {
       if (rawHtmlError) {
         throw rawHtmlError;
       }
+
     } finally {
       // Stop attributing further render() captures to this module — protects
       // against unrelated ForgeReconciler.render calls (background scripts,

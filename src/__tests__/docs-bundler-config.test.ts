@@ -25,6 +25,7 @@
 import { describe, it, expect } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { SHIM_NAMES, shimFileBase } from '../shims/shim-registry.js';
 
 const SHIMS = [
   'forge-resolver',
@@ -102,6 +103,31 @@ describe('docs/testing/README.md — bundler snippet drift', () => {
   it('does not compute a SHIMS dir variable with path math anymore', () => {
     // Catches both `const SHIMS = resolve(...)` and `const SHIMS = path.resolve(...)`
     expect(content).not.toMatch(/const\s+SHIMS\s*=\s*(?:path\.)?resolve\(/);
+  });
+
+  /**
+   * Completeness guard.
+   *
+   * This doc presents its alias table as "the full list ... for reference", so
+   * every shimmed package must appear in it. Nothing enforced that before, and
+   * it drifted: `@forge/react/router` was missing, which is the worst entry to
+   * omit because Vite and Webpack match alias keys as PREFIXES, so a bare
+   * `@forge/react` silently rewrites the subpath into
+   * `forge-sim/shims/forge-react/router`. Under Jest the anchored
+   * `^@forge/react$` simply fails to match and the subpath falls through to the
+   * real package instead. Two different wrong answers from one missing line.
+   *
+   * Deliberately NOT applied to SKILL.md: that snippet is an abbreviated
+   * example, labelled "add any other @forge/* the app actually imports" and
+   * linking here for the full table. Do not pad it to satisfy a test.
+   */
+  it.each([...SHIM_NAMES])('documents an alias for %s', (pkg) => {
+    expect(
+      content.includes(`forge-sim/shims/${shimFileBase(pkg)}`),
+      `docs/testing/README.md has no alias for ${pkg}. ` +
+        `Add it to BOTH the Vitest and Jest snippets ` +
+        `(subpaths must precede their parent package in the Vitest one).`,
+    ).toBe(true);
   });
 });
 

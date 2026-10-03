@@ -533,6 +533,11 @@ export function invokeService(serviceKey: string, options?: any): Promise<any> {
 
 // ── Realtime (Preview) ──────────────────────────────────────────────────
 
+// The real @forge/bridge index does `export * from './realtime'`, which
+// includes the ProductContext enums.
+export { Jira, Confluence, Bitbucket, type ProductContext } from './product-context.js';
+import type { ContextOverride } from '../realtime.js';
+
 function getRealtimeBackend(): import('../realtime.js').SimulatedRealtime | null {
   try {
     const sim = (globalThis as any)[Symbol.for('forge-sim.instance')];
@@ -558,7 +563,7 @@ export const realtime = {
   async subscribe(
     channel: string,
     callback: (payload?: string | Record<string, unknown>) => any,
-    options?: { replaySeconds?: number; token?: string; contextOverrides?: string[] },
+    options?: { replaySeconds?: number; token?: string; contextOverrides?: ContextOverride[] },
   ): Promise<{ unsubscribe: () => void }> {
     const rt = getRealtimeBackend();
     if (!rt) {
@@ -572,7 +577,7 @@ export const realtime = {
   async subscribeGlobal(
     channel: string,
     callback: (payload?: string | Record<string, unknown>) => any,
-    options?: { replaySeconds?: number; token?: string; contextOverrides?: string[] },
+    options?: { replaySeconds?: number; token?: string; contextOverrides?: ContextOverride[] },
   ): Promise<{ unsubscribe: () => void }> {
     const rt = getRealtimeBackend();
     if (!rt) {
@@ -585,7 +590,7 @@ export const realtime = {
   async publish(
     channel: string,
     payload: string | Record<string, unknown>,
-    options?: { token?: string; contextOverrides?: string[] },
+    options?: { token?: string; contextOverrides?: ContextOverride[] },
   ): Promise<{ eventId: string | null; eventTimestamp: string | null; errors?: Array<{ message: string }> }> {
     const rt = getRealtimeBackend();
     if (!rt) {
@@ -599,7 +604,7 @@ export const realtime = {
   async publishGlobal(
     channel: string,
     payload: string | Record<string, unknown>,
-    options?: { token?: string; contextOverrides?: string[] },
+    options?: { token?: string; contextOverrides?: ContextOverride[] },
   ): Promise<{ eventId: string | null; eventTimestamp: string | null; errors?: Array<{ message: string }> }> {
     const rt = getRealtimeBackend();
     if (!rt) {

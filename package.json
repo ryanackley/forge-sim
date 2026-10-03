@@ -74,7 +74,9 @@
     "test:e2e:debug": "playwright test --debug",
     "docs": "typedoc",
     "docs:stats": "node scripts/update-stats.mjs",
-    "docs:stats:check": "node scripts/update-stats.mjs --check"
+    "docs:stats:check": "node scripts/update-stats.mjs --check",
+    "sync:channel-key": "node scripts/sync-channel-key-mirror.mjs",
+    "sync:channel-key:check": "node scripts/sync-channel-key-mirror.mjs --check"
   },
   "dependencies": {
     "@forge/manifest": "^13.5.0",

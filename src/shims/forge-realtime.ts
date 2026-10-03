@@ -6,7 +6,7 @@
  */
 
 import { getSimulator } from './globals.js';
-import type { RealtimePayload, PublishOptions, PublishResult, TokenResult } from '../realtime.js';
+import type { RealtimePayload, PublishOptions, PublishResult, TokenResult, RealtimeTokenPermission } from '../realtime.js';
 
 async function publish(
   channel: string,
@@ -24,11 +24,16 @@ async function publishGlobal(
   return getSimulator().realtime.publishGlobal(channel, payload, options);
 }
 
+/**
+ * Docs signature: `signRealtimeToken(channelName, claims, permissions?)`.
+ * `permissions` is `['subscribe']`, `['publish']` or both; omitted grants both.
+ */
 async function signRealtimeToken(
   channel: string,
   claims: Record<string, unknown>,
+  permissions?: RealtimeTokenPermission[],
 ): Promise<TokenResult> {
-  return getSimulator().realtime.signRealtimeToken(channel, claims);
+  return getSimulator().realtime.signRealtimeToken(channel, claims, permissions);
 }
 
 export { publish, publishGlobal, signRealtimeToken };

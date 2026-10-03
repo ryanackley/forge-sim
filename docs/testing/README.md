@@ -58,7 +58,12 @@ export default defineConfig({
       '@forge/kvs':                'forge-sim/shims/forge-kvs',
       '@forge/events':             'forge-sim/shims/forge-events',
       '@forge/llm':                'forge-sim/shims/forge-llm',
+      // Subpath first: Vite and Webpack match alias keys as prefixes, so a bare
+      // '@forge/react' listed above this line would rewrite
+      // '@forge/react/router' into 'forge-sim/shims/forge-react/router'.
+      '@forge/react/router':       'forge-sim/shims/forge-react-router',
       '@forge/react':              'forge-sim/shims/forge-react',
+      '@forge/bridge/realtime':       'forge-sim/shims/forge-bridge-realtime',
       '@forge/bridge':             'forge-sim/shims/forge-bridge',
       '@forge/jira-bridge':        'forge-sim/shims/forge-jira-bridge',
       '@forge/confluence-bridge':  'forge-sim/shims/forge-confluence-bridge',
@@ -89,7 +94,9 @@ module.exports = {
     '^@forge/kvs$':               'forge-sim/shims/forge-kvs',
     '^@forge/events$':            'forge-sim/shims/forge-events',
     '^@forge/llm$':               'forge-sim/shims/forge-llm',
+    '^@forge/react/router$':      'forge-sim/shims/forge-react-router',
     '^@forge/react$':             'forge-sim/shims/forge-react',
+    '^@forge/bridge/realtime$':      'forge-sim/shims/forge-bridge-realtime',
     '^@forge/bridge$':            'forge-sim/shims/forge-bridge',
     '^@forge/jira-bridge$':       'forge-sim/shims/forge-jira-bridge',
     '^@forge/confluence-bridge$': 'forge-sim/shims/forge-confluence-bridge',

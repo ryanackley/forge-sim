@@ -36,6 +36,7 @@ modules:
       resource: main
       render: native
       title: Realtime Panel
+      icon: https://example.com/icon.png
       resolver:
         function: main-resolver
   trigger:
@@ -60,6 +61,8 @@ resources:
 app:
   id: ari:cloud:ecosystem::app/test
   name: Realtime Context Test
+  runtime:
+    name: nodejs22.x
 `;
 
 describe('Realtime invocation context (end-to-end)', () => {

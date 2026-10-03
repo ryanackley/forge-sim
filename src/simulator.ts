@@ -294,7 +294,12 @@ export class ForgeSimulator {
   loadManifestData(manifest: ParsedManifest): void {
     this.manifest = manifest;
     this.moduleRouting.clear();
-    this.resolverOwnership.clear();
+    // Do NOT clear resolverOwnership here. Ownership is populated from the
+    // loaded handler code (deployer step 3), which this method never touches,
+    // and deploy() calls loadManifestData AFTER registering ownership. Clearing
+    // it here silently disabled validateResolverAccess and the ownership-based
+    // step of resolveInvocationModuleKey for every deployed app (#11 follow-up,
+    // 2026-10-02). Ownership lifecycle belongs to reset().
 
     for (const consumer of manifest.consumers) {
       this.log('info', `Registered consumer "${consumer.key}" for queue "${consumer.queue}"`);

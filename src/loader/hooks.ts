@@ -8,6 +8,11 @@
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, resolve as pathResolve } from 'node:path';
 import { createRequire } from 'node:module';
+import {
+  SHIM_NAMES,
+  PASSTHROUGH_OK as REGISTRY_PASSTHROUGH_OK,
+  shimFileBase,
+} from '../shims/shim-registry.js';
 
 // Always resolve shims to compiled dist/*.js — the loader hooks run in a
 // separate Node worker thread where tsx's TypeScript support isn't available,
@@ -20,36 +25,14 @@ const SHIM_DIR = thisFile.endsWith('.ts')
   ? pathResolve(thisDir, '..', '..', 'dist', 'shims')
   : pathResolve(thisDir, '..', 'shims');
 
-const SHIM_NAMES = [
-  '@forge/api',
-  '@forge/kvs',
-  '@forge/events',
-  '@forge/resolver',
-  '@forge/react',
-  '@forge/react/router',
-  '@forge/bridge',
-  '@forge/jira-bridge',
-  '@forge/confluence-bridge',
-  '@forge/dashboards-bridge',
-  '@forge/llm',
-  '@forge/realtime',
-  '@forge/object-store',
-];
-
 // '@forge/react' → 'forge-react.js'; subpaths flatten slashes:
 // '@forge/react/router' → 'forge-react-router.js'
 const FORGE_SHIMS: Record<string, string> = Object.fromEntries(
-  SHIM_NAMES.map(pkg => [
-    pkg,
-    pathResolve(SHIM_DIR, pkg.replace('@forge/', 'forge-').replaceAll('/', '-') + '.js'),
-  ])
+  SHIM_NAMES.map(pkg => [pkg, pathResolve(SHIM_DIR, shimFileBase(pkg) + '.js')])
 );
 
-// @forge/* packages that deliberately pass through to the REAL Atlassian
-// package with no shim and no warning. @forge/sql ships CJS and routes all
-// its I/O through global.__forge_fetch__, which the simulator installs —
-// the real package runs unmodified against the sim's MySQL backend.
-const PASSTHROUGH_OK = new Set(['@forge/sql']);
+// Deliberate real-package passthroughs (see shim-registry for the why).
+const PASSTHROUGH_OK = new Set(REGISTRY_PASSTHROUGH_OK);
 
 // CJS default-export interop facade (parity fix).
 //

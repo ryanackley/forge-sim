@@ -6,13 +6,39 @@
  *
  * No actual WebSocket transport — everything is in-process.
  *
- * Two channel namespaces:
- *   - Scoped (publish/subscribe): keyed by `${moduleKey}:${channel}`
- *   - Global (publishGlobal/subscribeGlobal): keyed by `global:${channel}`
+ * Channel identity (plane, module or context overrides, token claims, channel
+ * name) is defined in ONE place, `realtime-channel-key.ts`; this file only
+ * decides which identity a call gets and validates inputs first.
  *
- * Token-based channel authorization is accepted but not enforced
- * (simulation simplification — scoping works, but we don't validate JWT claims).
+ * Realtime tokens are enforced per the docs: pre-validation (INVALID_TOKEN,
+ * TOKEN_EXPIRED, CHANNEL_NAME_MISMATCH, MISSING_PERMISSION) happens before
+ * the operation, and a token's claims become part of channel identity so a
+ * token-less subscriber never hears a token-secured publish.
  */
+
+import {
+  scopedChannelKey,
+  globalChannelKey,
+  channelKeyFor,
+  isGlobalByEmptyOverrides,
+  invalidContextOverrides,
+  validateRealtimeToken,
+  parseRealtimeToken,
+  encodeRealtimeToken,
+  REALTIME_TOKEN_PERMISSIONS,
+  type ProductContextName,
+  type RealtimeTokenPermission,
+} from './realtime-channel-key.js';
+import type { ProductContext } from './shims/product-context.js';
+
+export type { ProductContextName, RealtimeTokenPermission };
+
+/**
+ * A `contextOverrides` entry: the enum form apps use (`Jira.Project`) or its
+ * string value (`'project'`). String enum members and string literals are
+ * not mutually assignable in TypeScript, so the option type accepts both.
+ */
+export type ContextOverride = ProductContext | ProductContextName;
 
 // ── Public types ────────────────────────────────────────────────────────
 
@@ -20,7 +46,7 @@ export type RealtimePayload = string | Record<string, unknown>;
 
 export interface PublishOptions {
   token?: string;
-  contextOverrides?: string[];  // ProductContext enum values
+  contextOverrides?: ContextOverride[];
 }
 
 /** Error object in PublishResult.errors — matches Forge docs shape. */
@@ -59,7 +85,7 @@ export interface RealtimeInvocationContext {
 export interface SubscriptionOptions {
   replaySeconds?: number;
   token?: string;
-  contextOverrides?: string[];
+  contextOverrides?: ContextOverride[];
 }
 
 export interface Subscription {
@@ -144,6 +170,8 @@ export class SimulatedRealtime {
     payload: RealtimePayload,
     options?: PublishOptions,
   ): Promise<PublishResult> {
+    const invalid = this.prevalidate(channel, options, 'publish');
+    if (invalid) return this.errorResult(channel, invalid);
     const ctx = this.getInvocationContext();
     if (!ctx || ctx.kind !== 'resolver' || !ctx.moduleKey) {
       const from = ctx ? `a ${ctx.kind} invocation` : 'outside any invocation context';
@@ -158,8 +186,18 @@ export class SimulatedRealtime {
         errors: [{ message: 'Unauthorized request' }],
       };
     }
-    const channelKey = `scoped:${ctx.moduleKey}:${channel}`;
-    return this.publishToChannel(channel, channelKey, payload, false);
+    // `contextOverrides` participates in channel identity (see
+    // realtime-channel-key.ts): a publisher whose overrides differ from a
+    // subscriber's produces a different key and therefore never reaches it,
+    // which is the matching rule Forge documents. An explicitly empty array
+    // means "equivalent to a global channel", so it crosses to the global
+    // plane and is flagged as such.
+    const asGlobal = isGlobalByEmptyOverrides(options?.contextOverrides);
+    const claims = this.claimsOf(options);
+    const channelKey = asGlobal
+      ? globalChannelKey(channel, claims)
+      : scopedChannelKey(ctx.moduleKey, channel, options?.contextOverrides, claims);
+    return this.publishToChannel(channel, channelKey, payload, asGlobal);
   }
 
   /**
@@ -171,24 +209,77 @@ export class SimulatedRealtime {
     payload: RealtimePayload,
     options?: PublishOptions,
   ): Promise<PublishResult> {
-    const channelKey = `global:${channel}`;
+    const invalid = this.prevalidate(channel, options, 'publish');
+    if (invalid) return this.errorResult(channel, invalid);
+    const channelKey = globalChannelKey(channel, this.claimsOf(options));
     return this.publishToChannel(channel, channelKey, payload, true);
   }
 
   /**
-   * Sign a realtime token (simulated — returns a fake JWT).
+   * Sign a realtime token (simulated).
+   *
+   * Real Forge returns a JWT; we return a self-describing fake token (see
+   * realtime-channel-key.ts) that both the backend and the browser bridge
+   * can validate. `permissions` follows the docs: omitted means both
+   * subscribe and publish; `['subscribe']` is read-only, `['publish']` is
+   * write-only. `expiresAt` is epoch SECONDS, per the JWT `exp` convention
+   * the docs call out.
    */
   async signRealtimeToken(
     channel: string,
     claims: Record<string, unknown>,
+    permissions?: RealtimeTokenPermission[],
   ): Promise<TokenResult> {
-    // In simulation, we generate a fake token. Real Forge creates a JWT
-    // with channel+claims baked in. We just return a predictable string
-    // so app code that passes tokens around still works.
-    const token = `sim-rt-token:${channel}:${JSON.stringify(claims)}`;
+    const badPermissions =
+      permissions !== undefined &&
+      (!Array.isArray(permissions) || permissions.length === 0 ||
+        !permissions.every((p) => REALTIME_TOKEN_PERMISSIONS.includes(p)));
+    if (typeof channel !== 'string' || channel.length === 0 ||
+        !claims || typeof claims !== 'object' || Array.isArray(claims) || badPermissions) {
+      this.logFn('warn', `realtime.signRealtimeToken("${channel}") rejected`, { claims, permissions });
+      return { token: null, expiresAt: null, errors: [{ message: 'Error signing realtime token' }] };
+    }
     const expiresAt = Math.floor(Date.now() / 1000) + 3600; // 1 hour
-    this.logFn('info', `realtime.signRealtimeToken("${channel}")`, { claims });
+    const token = encodeRealtimeToken({
+      channel,
+      claims,
+      permissions: permissions ?? [...REALTIME_TOKEN_PERMISSIONS],
+      exp: expiresAt,
+    });
+    this.logFn('info', `realtime.signRealtimeToken("${channel}")`, { claims, permissions });
     return { token, expiresAt };
+  }
+
+  // ── Input validation shared by every entry point ──────────────────
+
+  /**
+   * Documented pre-validation, in order: contextOverrides must be real
+   * ProductContext values, then the token (if any) must parse, be unexpired,
+   * match the channel, and carry the permission for this operation. Returns
+   * the error message or null.
+   */
+  private prevalidate(
+    channel: string,
+    options: { token?: string; contextOverrides?: readonly unknown[] } | undefined,
+    operation: RealtimeTokenPermission,
+  ): string | null {
+    const badOverrides = invalidContextOverrides(options?.contextOverrides);
+    if (badOverrides) return badOverrides;
+    if (options?.token !== undefined) {
+      return validateRealtimeToken(options.token, channel, operation);
+    }
+    return null;
+  }
+
+  /** Claims from a (pre-validated) token, or null when no token was given. */
+  private claimsOf(options?: { token?: string }): Record<string, unknown> | null {
+    if (options?.token === undefined) return null;
+    return parseRealtimeToken(options.token)?.claims ?? null;
+  }
+
+  private errorResult(channel: string, message: string): PublishResult {
+    this.logFn('warn', `realtime.publish("${channel}") rejected: ${message}`);
+    return { eventId: null, eventTimestamp: null, errors: [{ message }] };
   }
 
   // ── Frontend/bridge API (subscribe) ───────────────────────────────
@@ -203,7 +294,26 @@ export class SimulatedRealtime {
     moduleKey: string | null,
     options?: SubscriptionOptions,
   ): Subscription {
-    const key = moduleKey ? `scoped:${moduleKey}:${channel}` : `global:${channel}`;
+    // Docs: subscribe "returns a rejected Promise on error". The bridge
+    // shim's subscribe() is async, so a throw here surfaces as that rejection.
+    const invalid = this.prevalidate(channel, options, 'subscribe');
+    if (invalid) {
+      this.logFn('warn', `realtime.subscribe("${channel}") rejected: ${invalid}`);
+      throw new Error(invalid);
+    }
+    const key = channelKeyFor(moduleKey, channel, options?.contextOverrides, this.claimsOf(options));
+    if (key === null) {
+      // No module context and no overrides: a scoped subscribe cannot be
+      // keyed. Never widen it onto the global plane (that would let it hear
+      // publishGlobal events, which the docs rule out); fail like Forge does
+      // for an operation outside a valid app context.
+      this.logFn(
+        'warn',
+        `realtime.subscribe("${channel}") called with no module context — scoped subscriptions need a rendered module. ` +
+        `Render the module first (sim.ui.render) or use subscribeGlobal(). Returning Unauthorized request.`,
+      );
+      throw new Error('Unauthorized request');
+    }
     return this.addSubscriber(channel, key, callback, options);
   }
 
@@ -216,7 +326,12 @@ export class SimulatedRealtime {
     callback: RealtimeCallback,
     options?: SubscriptionOptions,
   ): Subscription {
-    const key = `global:${channel}`;
+    const invalid = this.prevalidate(channel, options, 'subscribe');
+    if (invalid) {
+      this.logFn('warn', `realtime.subscribeGlobal("${channel}") rejected: ${invalid}`);
+      throw new Error(invalid);
+    }
+    const key = globalChannelKey(channel, this.claimsOf(options));
     return this.addSubscriber(channel, key, callback, options);
   }
 
@@ -230,8 +345,14 @@ export class SimulatedRealtime {
     moduleKey: string | null,
     options?: PublishOptions,
   ): Promise<PublishResult> {
-    const channelKey = moduleKey ? `scoped:${moduleKey}:${channel}` : `global:${channel}`;
-    return this.publishToChannel(channel, channelKey, payload, false);
+    const invalid = this.prevalidate(channel, options, 'publish');
+    if (invalid) return this.errorResult(channel, invalid);
+    const asGlobal = isGlobalByEmptyOverrides(options?.contextOverrides);
+    const channelKey = channelKeyFor(moduleKey, channel, options?.contextOverrides, this.claimsOf(options));
+    if (channelKey === null) {
+      return this.errorResult(channel, 'Unauthorized request');
+    }
+    return this.publishToChannel(channel, channelKey, payload, asGlobal);
   }
 
   /**
@@ -242,7 +363,9 @@ export class SimulatedRealtime {
     payload: RealtimePayload,
     options?: PublishOptions,
   ): Promise<PublishResult> {
-    const channelKey = `global:${channel}`;
+    const invalid = this.prevalidate(channel, options, 'publish');
+    if (invalid) return this.errorResult(channel, invalid);
+    const channelKey = globalChannelKey(channel, this.claimsOf(options));
     return this.publishToChannel(channel, channelKey, payload, true);
   }
 
