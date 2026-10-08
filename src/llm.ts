@@ -122,8 +122,13 @@ interface AnthropicResponse {
 
 /** Map @forge/llm model strings to Anthropic model IDs */
 const MODEL_MAP: Record<string, string> = {
-  // Exact Forge model IDs → Anthropic
+  // Exact Forge model IDs → Anthropic. Source of truth:
+  // https://developer.atlassian.com/platform/forge/runtime-reference/forge-llms-models/
+  'claude-opus-5': 'claude-opus-5',
+  'claude-opus-4-8': 'claude-opus-4-8',
+  'claude-opus-4-7': 'claude-opus-4-7',
   'claude-opus-4-6': 'claude-opus-4-6',
+  'claude-sonnet-5': 'claude-sonnet-5',
   'claude-sonnet-4-6': 'claude-sonnet-4-6',
   'claude-sonnet-4-5-20250929': 'claude-sonnet-4-5-20250929',
   'claude-haiku-4-5-20251001': 'claude-haiku-4-5-20251001',
@@ -132,12 +137,14 @@ const MODEL_MAP: Record<string, string> = {
 };
 
 const AVAILABLE_MODELS: ModelInfo[] = [
+  { model: 'claude-opus-5', status: 'active' },
+  { model: 'claude-opus-4-8', status: 'active' },
+  { model: 'claude-opus-4-7', status: 'active' },
   { model: 'claude-opus-4-6', status: 'active' },
+  { model: 'claude-sonnet-5', status: 'active' },
   { model: 'claude-sonnet-4-6', status: 'active' },
   { model: 'claude-sonnet-4-5-20250929', status: 'active' },
   { model: 'claude-haiku-4-5-20251001', status: 'active' },
-  { model: 'claude-3-7-sonnet-20250219', status: 'active' },
-  { model: 'claude-3-5-haiku-20241022', status: 'active' },
 ];
 
 // ── Mock support ────────────────────────────────────────────────────────

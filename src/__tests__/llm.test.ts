@@ -240,6 +240,23 @@ describe('SimulatedLLM', () => {
       const r2 = await llm.list();
       expect(r1.models).not.toBe(r2.models);
     });
+
+    it('matches the Forge supported-models doc exactly (parity pin)', async () => {
+      // Source: https://developer.atlassian.com/platform/forge/runtime-reference/forge-llms-models/#supported-models
+      // Checked 2026-10-08. If this fails, Atlassian changed the list: update
+      // AVAILABLE_MODELS and this pin together.
+      const result = await llm.list();
+      expect(result.models.map(m => m.model).sort()).toEqual([
+        'claude-haiku-4-5-20251001',
+        'claude-opus-4-6',
+        'claude-opus-4-7',
+        'claude-opus-4-8',
+        'claude-opus-5',
+        'claude-sonnet-4-5-20250929',
+        'claude-sonnet-4-6',
+        'claude-sonnet-5',
+      ]);
+    });
   });
 
   // ── Reset ─────────────────────────────────────────────────────────────
