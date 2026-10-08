@@ -34,22 +34,41 @@
 
 ## Current focus
 
-### NPM publishing — first public release
+Status as of 2026-10-07: v0.1.18 on npm, 2,526 tests, 41 MCP tools. The simulator is in maintenance plus planned feature releases. The changelog watcher (`forge-changelog-watch` cron) files an `upstream-changelog` issue for every Atlassian Forge changelog entry that touches a simulated surface; those issues are the parity backlog and are triaged into the releases below.
 
-Get forge-sim onto npm so it installs with `npm install -g forge-sim`.
+Guiding property for every release: **determinism**. Same inputs, same outputs, no credentials and no Docker required for the common case.
 
-- Decide license (MIT recommended for adoption)
-- Add `files` allowlist, `keywords`, `repository`, `homepage`, `bugs`, `author`, `engines.node` to `package.json`
-- Add `LICENSE` + `CHANGELOG.md`
-- Add `prepublishOnly` to prevent stale-dist publishes
-- Verify `npm pack` tarball contents
-- Tag and publish as `0.1.0-beta.1`
+### 0.2 Platform catch-up (4 to 6 weeks)
 
-**Status:** All engineering work done; this is packaging.
+Close the gap between what Forge shipped since July and what the simulator accepts. Gate: the contract test suite (#10) runs every shim against the real `@forge/*` typings, so drift is caught automatically instead of by memory.
 
-### Forge Realtime (deferred)
+- Contract tests against real `@forge/*` package typings (#10). First, because it gates everything else.
+- Manual packaging: `bundler: manual@2026` and `app.package` (#40). Loader resolves entry points from the package path; `.wasm` imports and data-file requires must load (apps that work in Forge must not fail in the simulator).
+- `rovo:mcp` (#46, #25) and `rovo:skill` (#44) modules: parse, validate references, invoke an action as an external MCP client.
+- New dashboard modules GA and legacy dashboard deprecation (#37, #38); global full page (#20); `jira:fullPage` and `confluence:fullPage` deprecation (#23); Confluence static macros (#48); Jira page display conditions (#42).
+- Small parity items: invocation limits (#31), LLM TPM limit (#45), Opus 5 in the `@forge/llm` shim (#21), bridge invoke metadata (#24), browser storage manifest key (#22), Object Store `currentVersion` deprecation (#17), Bitbucket PR `changes` field (#35), bulk-edit custom field context (#32), `migratedFrom` (#34), regional remote URLs (#49), refreshed labelling (#50).
+- `@forge/react` component sync automation (#3).
+- Maintenance: stale-daemon self-detection in the MCP server, runtime-mismatch warning dedupe, `resolver.define` overwrite warning noise on reset+deploy.
+- Watch only: Container services developer preview (#19), User Impersonation RFC-149 (#43), dashboard filters EAP.
 
-Real-time pub/sub channels. The shim is shipped (`@forge/realtime` shim with channel pub/sub), but the production wire format is in Atlassian's preview. **Waiting for Atlassian GA** before chasing parity on the network layer.
+### 0.3 Graph and agents (3 to 4 weeks)
+
+Forge apps are becoming agent surfaces. The simulator should be the place you test that before deploying.
+
+- Teamwork Graph shim (#47): `requestTeamworkGraph` on `@forge/bridge` and `@forge/api`, `read:graph:jira` / `read:graph:confluence` scope validation, a canned fixture graph (work items, sprints, pages, teams, external PRs and deployments) routed through `forge_mock_graphql`. Note: the API is EAP as of 2026-10-07; the shim is built against the documented Cypher-in-GraphQL shape and must be re-verified when Atlassian publishes Preview.
+- Local MCP bridge: expose an app's declared `rovo:mcp` tools as a real MCP server on localhost so Claude Desktop, Cursor, or Codex can call a Forge app before it is deployed. Tool invocations run through the same simulator the Tools UI inspects.
+- `@forge/llm` shim: current model list, 500k TPM limit, rate-limit error shapes.
+
+### 0.4 Interop and determinism (3 to 4 weeks)
+
+- **Record/replay (cassettes).** Priority chain becomes: property routes, mock routes, cassette, real API, record. Record mode captures every request that falls through the mocks while connected with a PAT into `.forge-sim/cassettes/<name>.json`; replay mode answers from the cassette with no credentials and returns the existing 501 contract (naming the cassette and key) on a miss; auto mode replays when present and records when not (never the CI default). Matching key is method plus path plus query, with a body hash for non-GET and a per-cassette `matchOn` to ignore cache-buster params. A cassette is an ordered sequence, not a map: repeated keys are consumed in order so GET, PUT, GET replays honestly. Redaction is mandatory: strip auth headers and cookies at record time; tokenize account IDs, emails, display names, and site hostnames consistently across the cassette; `cassette scrub` re-cleans old files. Kept response headers are an allowlist (`content-type`, `x-ratelimit-*`, `retry-after`, `link`). Cassette bodies are validated against the OpenAPI spec per route so neither mocks nor the spec can drift unnoticed. `cassette diff` re-records to a temp file and reports shape changes. Surfaces: CLI flags on `dev`, `createSimulator({ cassette })`, MCP tools (`forge_cassette_record`, `forge_cassette_replay`, `forge_cassette_list`, `forge_cassette_scrub`), and a record button in the Tools UI mock panel. The docs sample app and fixture tests move to cassettes so a fresh clone runs without an Atlassian account.
+- **RFC-148 alignment.** Atlassian's Docker-backed local storage prototype becomes the reference for KVS, Custom Entity, Secret Store, and SQL semantics. Build a differential suite that runs the same operations against both, fix the simulator where it disagrees, file upstream where the emulator is wrong. Adopt the `seed --kvs <json>` and `seed --sql <sql>` file formats so seed data moves between `forge tunnel --local-storage` and `forge-sim dev`. Stretch: a `--storage=atlassian-emulator` backend so the simulator can run on their storage while owning modules, renderer, triggers, product API, and cassettes.
+- **Playwright story for Custom UI (#8).** A `forge-sim/test` helper boots the dev server in-process on a free port, opens a module with context (`openModule('issue-panel', { issueKey })`), routes bridge `invoke` calls to the same simulator instance the test can inspect, and tears down cleanly. Resolve or properly document the headless Atlaskit-in-iframe `ERR_INSUFFICIENT_RESOURCES` failure instead of tagging tests `@headed`.
+- Consumer-install e2e (#2) and richer context mocking (#7) ride along.
+
+### Forge Realtime
+
+Shim shipped and scoping fixed in v0.1.19 (#11). Production wire format is still Atlassian preview; network-layer parity waits for GA.
 
 ## Recently shipped
 
@@ -105,8 +124,8 @@ For the full history, see `git log`. Highlights of the last few weeks:
 ## Test suite
 
 <!-- BEGIN:STATS -->
-**2,526 tests** across **140** test files
-(2,360 core / 133 files
+**2,732 tests** across **146** test files
+(2,566 core / 139 files
 + 166 renderer / 7 files)
 
 **41 MCP tools** + **4 resources**
