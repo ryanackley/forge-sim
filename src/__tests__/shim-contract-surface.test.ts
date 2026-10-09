@@ -36,27 +36,7 @@ const isContractKey = (key: string) => key !== 'default' && !key.startsWith('__'
  * Real exports the shim intentionally does not provide (yet). Key: specifier,
  * value: symbol → reason.
  */
-const KNOWN_MISSING: Record<string, Record<string, string>> = {
-  '@forge/react': {
-    replaceUnsupportedDocumentNodes:
-      'TODO(#10): new upstream ADF utility; add a passthrough to the real package',
-  },
-  '@forge/bridge': {
-    FeatureFlags:
-      'TODO(#10): real export is PascalCase FeatureFlags; shim ships lowercase featureFlags — casing-trap fix needed on the shim',
-    checkPermissions: 'TODO(#10): not implemented; should throw a clear not-implemented error',
-    createPermissionUtils: 'TODO(#10): not implemented; should throw a clear not-implemented error',
-    fetchUserRecommendations: 'TODO(#10): not implemented; should throw a clear not-implemented error',
-    frontendCustomMetrics: 'TODO(#10): not implemented; should throw a clear not-implemented error',
-    makeInvoke: 'TODO(#10): factory behind invoke(); shim exports only the bound invoke',
-    requestTeamworkGraph: 'Planned for 0.3 Teamwork Graph shim (#47); until then it must throw not-implemented, not be absent',
-    rovo: 'Planned alongside rovo:mcp / rovo:skill modules (#46, #44) in 0.2',
-  },
-  '@forge/llm': {
-    ForgeLlmError: 'TODO(#10): upstream error base class; export so instanceof checks work in forge-sim',
-    PromptValidationError: 'TODO(#10): upstream validation error; export so instanceof checks work in forge-sim',
-  },
-};
+const KNOWN_MISSING: Record<string, Record<string, string>> = {};
 
 /**
  * Shim exports that don't exist upstream, on purpose. Same shape as
@@ -70,30 +50,13 @@ const SIM_ONLY_EXPORTS: Record<string, Record<string, string>> = {
     FilterConditions: 'Query helper for the legacy storage API (see storage)',
     SortOrder: 'Query helper for the legacy storage API (see storage)',
     startsWith: 'Query helper for the legacy storage API (see storage)',
-    createTranslationFunction:
-      'TODO(#10): sim exports i18n helpers top-level; real @forge/api only exposes them via the i18n namespace — candidate removal',
-    getTranslations: 'TODO(#10): see createTranslationFunction',
-    resetTranslationsCache: 'TODO(#10): see createTranslationFunction',
-  },
-  '@forge/events': {
-    Response: 'TODO(#10): internal base of QueueResponse/InvocationError leaked as an export — candidate removal',
-    extractAppIdUuid: 'TODO(#10): sim-internal helper exported from the shim — move it out of the shim surface',
-  },
-  '@forge/react': {
-    Global:
-      'TODO(#10): re-exported as realModule.Global, which no longer exists on the main entry (moved to @forge/react/global subpath) — currently exports undefined; fix or remove',
   },
   '@forge/bridge': {
-    featureFlags:
-      'TODO(#10): lowercase variant of real FeatureFlags — casing trap; rename to match upstream (see KNOWN_MISSING)',
     BridgeAPIError:
       'Matches the error class real @forge/bridge throws; upstream does not export it but apps catch it by behavior, and the sim exporting it aids tests',
     createMemoryHistory: 'Sim-internal router history factory used by view.createHistory()',
     onViewEvent: 'Sim-only test hook for observing view events',
     resetViewEvents: 'Sim-only test hook (see onViewEvent)',
-  },
-  '@forge/object-store': {
-    fos: 'TODO(#10): convenience named export of the default fos singleton; real package has default-only — candidate removal',
   },
 };
 

@@ -12,7 +12,8 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { createSimulator, ForgeSimulator } from '../simulator.js';
 
 // Import the shim directly to test appEvents.publish()
-import { appEvents, extractAppIdUuid } from '../shims/forge-events.js';
+import { appEvents } from '../shims/forge-events.js';
+import { extractAppIdUuid } from '../app-ari.js';
 
 const TEST_APP_UUID = 'd9022ad7-c220-4836-b1d1-7f9f2c633d3a';
 const TEST_APP_ARI = `ari:cloud:ecosystem::app/${TEST_APP_UUID}`;

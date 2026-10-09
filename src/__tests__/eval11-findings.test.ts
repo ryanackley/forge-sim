@@ -23,7 +23,6 @@ import {
   InvocationError,
   InvocationErrorCode,
   QueueResponse,
-  Response,
 } from '../shims/forge-events.js';
 
 describe('F4: InvocationError shim parity with @forge/events v3', () => {
@@ -78,7 +77,10 @@ describe('F4: InvocationError shim parity with @forge/events v3', () => {
 
   it('QueueResponse extends Response and retry() flips the _retry flag', () => {
     const resp = new QueueResponse();
-    expect(resp).toBeInstanceOf(Response);
+    // Response itself is module-internal (real @forge/events does not export
+    // it — enforced by shim-contract-surface.test.ts), so assert the
+    // inheritance through the prototype chain instead of instanceof.
+    expect(Object.getPrototypeOf(QueueResponse.prototype).constructor.name).toBe('Response');
     expect((resp as unknown as { _retry: boolean })._retry).toBe(false);
     resp.retry();
     expect((resp as unknown as { _retry: boolean })._retry).toBe(true);

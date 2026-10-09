@@ -8,6 +8,9 @@
  */
 
 import { getSimulator } from './globals.js';
+// Lives outside the shim: real @forge/events has no such export, and shim
+// exports are the package's public surface (see shim-contract-surface.test.ts)
+import { extractAppIdUuid } from '../app-ari.js';
 
 // ── Error classes matching @forge/events ────────────────────────────────
 
@@ -209,24 +212,6 @@ type AppEventPublishResult =
   | { type: 'success'; failedEvents: AppEventPublishFailure[] }
   | { type: 'error'; errorType: string; errorMessage: string };
 
-/**
- * Extract the UUID portion from a full app ARI.
- *
- * Real Forge `app.id` in the manifest is the full ARI string:
- *   ari:cloud:ecosystem::app/d9022ad7-c220-4836-b1d1-7f9f2c633d3a
- *
- * Custom app event AVIs require just the UUID portion. Returns the substring
- * after the last `/`. If the input has no `/`, returns the whole string —
- * tolerant of legacy/test fixtures that use a short id.
- *
- * @internal Exported for tests. Do not use from app code.
- */
-export function extractAppIdUuid(appAri: string | undefined): string {
-  if (!appAri) return 'unknown';
-  const slash = appAri.lastIndexOf('/');
-  return slash >= 0 ? appAri.slice(slash + 1) : appAri;
-}
-
 const appEvents = {
   /**
    * Publish custom app events. In forge-sim, this fires matching triggers
@@ -318,7 +303,6 @@ export {
   InvocationError,
   InvocationErrorCode,
   JobProgress,
-  Response,
   QueueResponse,
   appEvents,
 };

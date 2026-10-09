@@ -336,10 +336,13 @@ resources:
       expect(sim.i18n.hasTranslations).toBe(false);
     });
 
-    it('named exports match i18n object methods', () => {
-      expect(forgeApi.resetTranslationsCache).toBe(forgeApi.i18n.resetTranslationsCache);
-      expect(forgeApi.getTranslations).toBe(forgeApi.i18n.getTranslations);
-      expect(forgeApi.createTranslationFunction).toBe(forgeApi.i18n.createTranslationFunction);
+    it('i18n helpers are NOT exported top-level (real @forge/api only has the i18n namespace)', () => {
+      expect('resetTranslationsCache' in forgeApi).toBe(false);
+      expect('getTranslations' in forgeApi).toBe(false);
+      expect('createTranslationFunction' in forgeApi).toBe(false);
+      expect(typeof forgeApi.i18n.resetTranslationsCache).toBe('function');
+      expect(typeof forgeApi.i18n.getTranslations).toBe('function');
+      expect(typeof forgeApi.i18n.createTranslationFunction).toBe('function');
     });
   });
 

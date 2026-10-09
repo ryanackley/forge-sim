@@ -166,6 +166,9 @@ export const xcss = realModule.xcss;
 export const useTranslation = realModule.useTranslation;
 export const I18nProvider = realModule.I18nProvider;
 
+// Pure ADF utility — passes through to the real implementation
+export const replaceUnsupportedDocumentNodes = realModule.replaceUnsupportedDocumentNodes;
+
 // Additional components from @forge/react/components
 // These produce ForgeDoc nodes that the renderer maps to Atlaskit equivalents
 export const InlineEdit = realModule.InlineEdit;
@@ -174,7 +177,6 @@ export const Comment = realModule.Comment;
 export const CommentEditor = realModule.CommentEditor;
 export const ChromelessEditor = realModule.ChromelessEditor;
 export const AdfRenderer = realModule.AdfRenderer;
-export const Global = realModule.Global;
 export const User = realModule.User;
 export const UserGroup = realModule.UserGroup;
 export const Em = realModule.Em;

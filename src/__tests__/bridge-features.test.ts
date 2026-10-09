@@ -347,7 +347,7 @@ describe('permissions', () => {
 
 // ── featureFlags ────────────────────────────────────────────────────────
 
-describe('featureFlags', () => {
+describe('FeatureFlags', () => {
   let shimModule: Awaited<ReturnType<typeof loadShim>>;
 
   beforeEach(async () => {
@@ -355,19 +355,25 @@ describe('featureFlags', () => {
     shimModule = await loadShim();
   });
 
-  it('evaluate returns undefined', async () => {
-    const result = await shimModule.featureFlags.evaluate('my-flag');
-    expect(result).toBeUndefined();
+  it('checkFlag throws before initialize(), like real @forge/bridge', () => {
+    const flags = new shimModule.FeatureFlags();
+    expect(() => flags.checkFlag('my-flag')).toThrow(/not initialized/i);
   });
 
-  it('checkBooleanFlag returns false', async () => {
-    const result = await shimModule.featureFlags.checkBooleanFlag('bool-flag');
-    expect(result).toBe(false);
+  it('checkFlag returns the defaultValue after initialize()', async () => {
+    const flags = new shimModule.FeatureFlags();
+    await flags.initialize({ identifier: 'user-1' });
+    expect(flags.isInitialized()).toBe(true);
+    expect(flags.checkFlag('my-flag')).toBe(false);
+    expect(flags.checkFlag('my-flag', true)).toBe(true);
   });
 
-  it('checkStringFlag returns empty string', async () => {
-    const result = await shimModule.featureFlags.checkStringFlag('str-flag');
-    expect(result).toBe('');
+  it('shutdown() resets the initialized state', async () => {
+    const flags = new shimModule.FeatureFlags();
+    await flags.initialize({ identifier: 'user-1' });
+    flags.shutdown();
+    expect(flags.isInitialized()).toBe(false);
+    expect(() => flags.checkFlag('my-flag')).toThrow(/not initialized/i);
   });
 });
 

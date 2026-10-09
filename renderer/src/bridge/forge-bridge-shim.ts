@@ -1017,13 +1017,150 @@ export const i18n = {
   },
 };
 
-// ── Feature flags (stub) ────────────────────────────────────────────────
+// ── Feature flags ───────────────────────────────────────────────────────
 
-export const featureFlags = {
-  evaluate: (_flag: string, _defaultValue?: any): Promise<any> => Promise.resolve(undefined),
-  checkBooleanFlag: (_flag: string): Promise<boolean> => Promise.resolve(false),
-  checkStringFlag: (_flag: string): Promise<string> => Promise.resolve(''),
+/**
+ * Matches real @forge/bridge's FeatureFlags class (the old lowercase
+ * `featureFlags` object with evaluate/checkBooleanFlag/checkStringFlag never
+ * existed upstream). The simulator has no flag definitions, so every flag
+ * evaluates to its defaultValue — the same result a real app gets for a flag
+ * that doesn't exist.
+ */
+export class FeatureFlags {
+  private initialized = false;
+
+  async initialize(_user: { identifier: string }, _config?: { environment?: string }): Promise<void> {
+    this.initialized = true;
+  }
+
+  checkFlag(_flagName: string, defaultValue = false): boolean {
+    if (!this.initialized) {
+      throw new Error('FeatureFlags not initialized. Call initialize() first.');
+    }
+    return defaultValue;
+  }
+
+  shutdown(): void {
+    this.initialized = false;
+  }
+
+  isInitialized(): boolean {
+    return this.initialized;
+  }
+}
+
+// ── Rovo / Teamwork Graph / misc parity exports ─────────────────────────
+// Mirrors src/shims/forge-bridge.ts — keep behavior in sync between the Node
+// shim and this browser shim until the contract suite covers both.
+
+export const rovo = {
+  open(_openRovoPayload: unknown): Promise<void> {
+    return Promise.reject(
+      new Error(
+        'rovo.open is not yet implemented in forge-sim (planned alongside the ' +
+          'rovo:mcp / rovo:skill modules). Gate calls behind rovo.isEnabled(), ' +
+          'which returns false in the simulator.',
+      ),
+    );
+  },
+  isEnabled(): Promise<boolean> {
+    return Promise.resolve(false);
+  },
 };
+
+export function requestTeamworkGraph(_query: string, _variables?: Record<string, unknown>): Promise<never> {
+  return Promise.reject(
+    new Error(
+      'requestTeamworkGraph is not yet implemented in forge-sim (planned for the ' +
+        'Teamwork Graph shim, roadmap 0.3 / issue #47). It works in real Forge — ' +
+        'this is a simulator gap, not an app bug.',
+    ),
+  );
+}
+
+export function fetchUserRecommendations(_input: { query?: string }): Promise<never> {
+  return Promise.reject(
+    new Error(
+      'fetchUserRecommendations is not yet implemented in forge-sim. It works in ' +
+        'real Forge — this is a simulator gap, not an app bug.',
+    ),
+  );
+}
+
+/** Counters resolve like production's fire-and-forget; nothing is aggregated. */
+export const frontendCustomMetrics = {
+  counter(name: string) {
+    return {
+      incr(): Promise<void> {
+        return Promise.resolve();
+      },
+      incrBy(value: number): Promise<void> {
+        if (!(value > 0)) {
+          return Promise.reject(new Error(`Counter '${name}' incrBy value must be a positive number, got ${value}`));
+        }
+        return Promise.resolve();
+      },
+    };
+  },
+};
+
+type RuntimePermissions = {
+  scopes?: string[] | Record<string, unknown>;
+  external?: Record<string, unknown[]>;
+};
+
+export function createPermissionUtils(runtimePermissions: RuntimePermissions | undefined) {
+  if (!runtimePermissions) return null;
+  const { scopes, external = {} } = runtimePermissions;
+  const scopeArray = Array.isArray(scopes) ? scopes : Object.keys(scopes ?? {});
+  const egressNotImplemented = (method: string) => {
+    throw new Error(
+      `${method} is not yet implemented in forge-sim (real @forge/bridge matches ` +
+        `URLs with @forge/egress CSP rules). Scope checks (hasScope, getScopes, ` +
+        `checkPermissions scopes) are fully supported.`,
+    );
+  };
+  return {
+    hasScope: (scope: string) => scopeArray.includes(scope),
+    canFetchFrom: (_type: string, _url: string): boolean => egressNotImplemented('canFetchFrom'),
+    canLoadResource: (_type: string, _url: string): boolean => egressNotImplemented('canLoadResource'),
+    getScopes: () => scopeArray,
+    getExternalPermissions: () => external,
+    hasAnyPermissions: () => scopeArray.length > 0 || Object.keys(external).length > 0,
+  };
+}
+
+export async function checkPermissions(
+  requiredPermissions: { scopes?: string[]; external?: Record<string, unknown>; content?: Record<string, unknown> },
+  runtimePermissions?: RuntimePermissions,
+): Promise<{ granted: boolean; missing: { scopes?: string[] } | null }> {
+  if (!requiredPermissions) {
+    return { granted: false, missing: null };
+  }
+  if (requiredPermissions.external && Object.keys(requiredPermissions.external).length > 0) {
+    throw new Error(
+      'checkPermissions with external requirements is not yet implemented in ' +
+        'forge-sim (needs the @forge/egress URL matcher). Scope-only checks are ' +
+        'fully supported.',
+    );
+  }
+  if (!requiredPermissions.scopes?.length) {
+    return { granted: true, missing: null };
+  }
+  let permissionsToCheck = runtimePermissions;
+  if (!permissionsToCheck) {
+    const context = await view.getContext();
+    permissionsToCheck = (context as any)?.permissions;
+  }
+  const utils = createPermissionUtils(permissionsToCheck);
+  if (!utils) {
+    return { granted: false, missing: null };
+  }
+  const missingScopes = requiredPermissions.scopes.filter(scope => !utils.hasScope(scope));
+  return missingScopes.length > 0
+    ? { granted: false, missing: { scopes: missingScopes } }
+    : { granted: true, missing: null };
+}
 
 // ── Realtime (Preview) ──────────────────────────────────────────────────
 

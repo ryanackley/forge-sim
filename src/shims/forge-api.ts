@@ -580,10 +580,6 @@ export {
   permissions,
 };
 
-// Named re-exports matching real @forge/api
-const { resetTranslationsCache, getTranslations, createTranslationFunction } = i18n;
-export { resetTranslationsCache, getTranslations, createTranslationFunction };
-
 export default {
   asApp,
   asUser,

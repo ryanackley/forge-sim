@@ -42,7 +42,7 @@ Guiding property for every release: **determinism**. Same inputs, same outputs, 
 
 Close the gap between what Forge shipped since July and what the simulator accepts. Gate: the contract test suite (#10) runs every shim against the real `@forge/*` typings, so drift is caught automatically instead of by memory.
 
-- Contract tests against real `@forge/*` package typings (#10). First, because it gates everything else.
+- Contract tests against real `@forge/*` package typings (#10). First, because it gates everything else. Working rule: drift the suite flags is fixed as soon as the step that surfaced it completes (not mid-step, not deferred to a later batch) — allowlist entries are for deliberate deviations only.
 - Manual packaging: `bundler: manual@2026` and `app.package` (#40). Loader resolves entry points from the package path; `.wasm` imports and data-file requires must load (apps that work in Forge must not fail in the simulator).
 - `rovo:mcp` (#46, #25) and `rovo:skill` (#44) modules: parse, validate references, invoke an action as an external MCP client.
 - New dashboard modules GA and legacy dashboard deprecation (#37, #38); global full page (#20); `jira:fullPage` and `confluence:fullPage` deprecation (#23); Confluence static macros (#48); Jira page display conditions (#42).

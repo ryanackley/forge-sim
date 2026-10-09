@@ -21,6 +21,12 @@ async function list(): Promise<ModelListResponse> {
   return getSimulator().llm.list();
 }
 
+// Error classes matching real @forge/llm's public exports, implemented
+// locally because the real package is only a devDependency of forge-sim
+// (shims run inside user projects and can't require it there).
+export class ForgeLlmError extends Error {}
+export class PromptValidationError extends ForgeLlmError {}
+
 export { chat, stream, list };
 
 export type {

@@ -478,13 +478,19 @@ Frontend API for Custom UI apps (runs in iframe).
 | API | Status | Tests | Notes |
 |-----|--------|-------|-------|
 | `showFlag(options)` | ✅ | `bridge-features.test.ts`, `eval7-f7-bridge-showflag.test.ts` | Renders Atlaskit-styled toast (stacking, auto-dismiss, actions, close handle) in both the UIKit renderer and the Custom UI dev bridge |
-| `rovo.open(payload)` | ❌ | — | Rovo AI agent sidebar |
-| `rovo.isEnabled()` | ❌ | — | |
+| `rovo.open(payload)` | ❌ | `shim-contract-surface.test.ts` | Exported, throws not-implemented (Rovo AI agent sidebar) |
+| `rovo.isEnabled()` | ✅ | — | Returns `false` — same answer as a site without Rovo |
 | `i18n.getTranslations(locale, options)` | ✅ | — | Reads from I18nStore (app's __LOCALES__ dir) |
 | `i18n.createTranslationFunction(locale)` | ✅ | — | Returns t(key, defaultValue) backed by I18nStore |
 | `i18n.resetTranslationsCache()` | ✅ | — | Clears translation cache and store |
 | `permissions.check()` | ✅ | `bridge-features.test.ts` | Always returns `{ hasPermission: true }` |
-| `featureFlags.evaluate()` | 🔇 | `bridge-features.test.ts` | Returns undefined (stub; no feature flag backend) |
+| `FeatureFlags` class | ✅ | `bridge-features.test.ts` | Matches real shape (initialize/checkFlag/shutdown); every flag evaluates to its defaultValue — no flag backend in the sim. (The old lowercase `featureFlags` object never existed in real @forge/bridge and was removed.) |
+| `checkPermissions(required, runtime?)` | ✅ | `shim-contract-surface.test.ts` | Scope checks in full; external (egress URL) requirements throw not-implemented |
+| `createPermissionUtils(runtime)` | ✅ | — | hasScope/getScopes/etc. in full; canFetchFrom/canLoadResource throw not-implemented (need @forge/egress) |
+| `makeInvoke()` | ✅ | — | Typed factory over the same invoke function, like upstream |
+| `requestTeamworkGraph(query, vars?)` | ❌ | — | Exported, throws not-implemented — planned for 0.3 Teamwork Graph shim (#47) |
+| `fetchUserRecommendations(input)` | ❌ | — | Exported, throws not-implemented |
+| `frontendCustomMetrics.counter(name)` | 🔇 | — | Real shape (incr/incrBy with validation); metrics are not aggregated anywhere |
 | `invokeRemote(key, options)` | ✅ | `remotes.test.ts`, `bridge-invoke-routing.test.ts` | Endpoint resolution, route prefix, FIT auth, mock-first |
 | `invokeService(key, options)` | ✅ | `remotes.test.ts` | Same system as invokeRemote |
 

@@ -395,11 +395,194 @@ export const permissions = {
 
 // ── Feature Flags ───────────────────────────────────────────────────────
 
-export const featureFlags = {
-  evaluate(flagKey: string, defaultValue: any): Promise<any> {
-    return Promise.resolve(defaultValue);
+/**
+ * Matches real @forge/bridge's FeatureFlags class: initialize() before use,
+ * checkFlag() throws when uninitialized, shutdown() resets. The simulator has
+ * no flag definitions, so every flag evaluates to its defaultValue — the same
+ * result a real app gets for a flag that doesn't exist.
+ */
+export class FeatureFlags {
+  private initialized = false;
+
+  async initialize(_user: { identifier: string }, _config?: { environment?: string }): Promise<void> {
+    this.initialized = true;
+  }
+
+  checkFlag(_flagName: string, defaultValue = false): boolean {
+    if (!this.initialized) {
+      throw new Error('FeatureFlags not initialized. Call initialize() first.');
+    }
+    return defaultValue;
+  }
+
+  shutdown(): void {
+    this.initialized = false;
+  }
+
+  isInitialized(): boolean {
+    return this.initialized;
+  }
+}
+
+// ── Invoke factory ──────────────────────────────────────────────────────
+
+/** Real makeInvoke() is a typed factory over the same invoke function. */
+export function makeInvoke(): typeof invoke {
+  return invoke;
+}
+
+// ── Teamwork Graph ──────────────────────────────────────────────────────
+
+export function requestTeamworkGraph(_query: string, _variables?: Record<string, unknown>): Promise<never> {
+  return Promise.reject(
+    new Error(
+      'requestTeamworkGraph is not yet implemented in forge-sim (planned for the ' +
+        'Teamwork Graph shim, roadmap 0.3 / issue #47). It works in real Forge — ' +
+        'this is a simulator gap, not an app bug.',
+    ),
+  );
+}
+
+// ── Rovo ────────────────────────────────────────────────────────────────
+
+/**
+ * Real shape: { open(payload), isEnabled() }. The simulator has no Rovo chat
+ * surface, so isEnabled() honestly reports false — the same answer a real app
+ * gets on a site without Rovo — and open() fails loudly.
+ */
+export const rovo = {
+  open(_openRovoPayload: unknown): Promise<void> {
+    return Promise.reject(
+      new Error(
+        'rovo.open is not yet implemented in forge-sim (planned alongside the ' +
+          'rovo:mcp / rovo:skill modules). Gate calls behind rovo.isEnabled(), ' +
+          'which returns false in the simulator.',
+      ),
+    );
+  },
+  isEnabled(): Promise<boolean> {
+    return Promise.resolve(false);
   },
 };
+
+// ── User recommendations ────────────────────────────────────────────────
+
+export function fetchUserRecommendations(_input: { query?: string }): Promise<never> {
+  return Promise.reject(
+    new Error(
+      'fetchUserRecommendations is not yet implemented in forge-sim. It works in ' +
+        'real Forge — this is a simulator gap, not an app bug.',
+    ),
+  );
+}
+
+// ── Frontend custom metrics ─────────────────────────────────────────────
+
+/**
+ * Matches real @forge/bridge's frontendCustomMetrics: counter(name) returns a
+ * Counter whose increments resolve (fire-and-forget in production) and whose
+ * incrBy rejects on non-positive values, exactly like the real validation.
+ * The simulator does not aggregate metrics anywhere yet.
+ */
+export const frontendCustomMetrics = {
+  counter(name: string) {
+    return {
+      incr(): Promise<void> {
+        return Promise.resolve();
+      },
+      incrBy(value: number): Promise<void> {
+        if (!(value > 0)) {
+          return Promise.reject(new Error(`Counter '${name}' incrBy value must be a positive number, got ${value}`));
+        }
+        return Promise.resolve();
+      },
+    };
+  },
+};
+
+// ── Permission utilities ────────────────────────────────────────────────
+
+type RuntimePermissions = {
+  scopes?: string[] | Record<string, unknown>;
+  external?: Record<string, unknown[]>;
+};
+
+/**
+ * Matches real createPermissionUtils: null without runtimePermissions; scope
+ * checks are implemented in full. The external-URL checks (canFetchFrom /
+ * canLoadResource) use Atlassian's @forge/egress CSP matcher in the real
+ * package — until the sim vendors that, they throw instead of guessing.
+ */
+export function createPermissionUtils(runtimePermissions: RuntimePermissions | undefined) {
+  if (!runtimePermissions) return null;
+  const { scopes, external = {} } = runtimePermissions;
+  const scopeArray = Array.isArray(scopes) ? scopes : Object.keys(scopes ?? {});
+  const egressNotImplemented = (method: string) => {
+    throw new Error(
+      `${method} is not yet implemented in forge-sim (real @forge/bridge matches ` +
+        `URLs with @forge/egress CSP rules). Scope checks (hasScope, getScopes, ` +
+        `checkPermissions scopes) are fully supported.`,
+    );
+  };
+  return {
+    hasScope: (scope: string) => scopeArray.includes(scope),
+    canFetchFrom: (_type: string, _url: string): boolean => egressNotImplemented('canFetchFrom'),
+    canLoadResource: (_type: string, _url: string): boolean => egressNotImplemented('canLoadResource'),
+    getScopes: () => scopeArray,
+    getExternalPermissions: () => external,
+    hasAnyPermissions: () => scopeArray.length > 0 || Object.keys(external).length > 0,
+  };
+}
+
+export interface PermissionRequirements {
+  scopes?: string[];
+  external?: Record<string, unknown>;
+  content?: Record<string, unknown>;
+}
+
+export interface PermissionCheckResult {
+  granted: boolean;
+  missing: PermissionRequirements | null;
+}
+
+/**
+ * Matches real checkPermissions semantics: falsy requirements → not granted;
+ * no requirements → granted; runtimePermissions default to the view context's
+ * permissions; scope checks are implemented in full. External fetch/resource
+ * requirements hit the same egress gap as createPermissionUtils and throw
+ * until implemented.
+ */
+export async function checkPermissions(
+  requiredPermissions: PermissionRequirements,
+  runtimePermissions?: RuntimePermissions,
+): Promise<PermissionCheckResult> {
+  if (!requiredPermissions) {
+    return { granted: false, missing: null };
+  }
+  if (requiredPermissions.external && Object.keys(requiredPermissions.external).length > 0) {
+    throw new Error(
+      'checkPermissions with external requirements is not yet implemented in ' +
+        'forge-sim (needs the @forge/egress URL matcher). Scope-only checks are ' +
+        'fully supported.',
+    );
+  }
+  if (!requiredPermissions.scopes?.length) {
+    return { granted: true, missing: null };
+  }
+  let permissionsToCheck = runtimePermissions;
+  if (!permissionsToCheck) {
+    const context = await view.getContext();
+    permissionsToCheck = (context as any)?.permissions;
+  }
+  const utils = createPermissionUtils(permissionsToCheck);
+  if (!utils) {
+    return { granted: false, missing: null };
+  }
+  const missingScopes = requiredPermissions.scopes.filter(scope => !utils.hasScope(scope));
+  return missingScopes.length > 0
+    ? { granted: false, missing: { scopes: missingScopes } }
+    : { granted: true, missing: null };
+}
 
 // ── i18n ────────────────────────────────────────────────────────────────
 

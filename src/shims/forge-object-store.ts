@@ -90,7 +90,6 @@ export const errorCodes = {
   RATE_LIMIT_EXCEEDED: 'RATE_LIMIT_EXCEEDED',
 } as const;
 
-export { fos };
 export type {
   UploadUrlBody,
   PresignedUrlResponse,
