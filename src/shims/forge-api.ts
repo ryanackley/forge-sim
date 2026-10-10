@@ -9,6 +9,7 @@
 import { getSimulator } from './globals.js';
 import { WhereConditions as KvsWhereConditions, FilterConditions as KvsFilterConditions } from './forge-kvs.js';
 import { buildAuthorizeApi, AUTHORIZE_NO_ACCOUNT_ERROR, type AuthorizeFetch } from '../authorize.js';
+import { extractAppIdUuid } from '../app-ari.js';
 
 // ── Route template tag ──────────────────────────────────────────────────
 
@@ -422,13 +423,15 @@ const bindInvocationContext = (fn: Function) => fn;
 function getAppContext() {
   const sim = getSimulator();
   const manifest = sim.getManifest?.();
-  const appId = manifest?.raw?.app?.id ?? 'sim-app';
+  // Real runtime appContext.appId is the bare UUID; manifest app.id is the
+  // full ARI. Using the ARI here double-prefixed every ARI below.
+  const appId = manifest?.raw?.app?.id ? extractAppIdUuid(manifest.raw.app.id) : 'sim-app';
   const moduleKey = sim.currentModuleKey ?? 'sim-module';
   const environmentId = `sim-env-${appId}`;
   const installationId = `sim-install-${appId}`;
   const cloudId = sim.productApi.connectedAccount?.cloudId ?? 'sim-cloud-001';
 
-  // Build ARIs matching Atlassian's format
+  // Build ARIs matching real @forge/api's out/api/ari.js builders
   const appAri = {
     appId,
     toString: () => `ari:cloud:ecosystem::app/${appId}`,
@@ -436,13 +439,13 @@ function getAppContext() {
   };
   const environmentAri = {
     environmentId,
-    toString: () => `ari:cloud:ecosystem::app/${appId}/environment/${environmentId}`,
-    toJSON: () => `ari:cloud:ecosystem::app/${appId}/environment/${environmentId}`,
+    toString: () => `ari:cloud:ecosystem::environment/${appId}/${environmentId}`,
+    toJSON: () => `ari:cloud:ecosystem::environment/${appId}/${environmentId}`,
   };
   const installationAri = {
     installationId,
-    toString: () => `ari:cloud:ecosystem::app/${appId}/installation/${installationId}`,
-    toJSON: () => `ari:cloud:ecosystem::app/${appId}/installation/${installationId}`,
+    toString: () => `ari:cloud:ecosystem::installation/${installationId}`,
+    toJSON: () => `ari:cloud:ecosystem::installation/${installationId}`,
   };
 
   return {

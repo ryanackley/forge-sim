@@ -138,8 +138,10 @@ resources:
         sim.currentModuleKey = 'my-panel';
 
         const ctx = forgeApi.getAppContext();
-        expect(ctx.appAri.appId).toBe('ari:cloud:ecosystem::app/real-app-123');
-        expect(ctx.appAri.toString()).toContain('real-app-123');
+        // appId is the bare UUID portion of the manifest ARI, like the real
+        // runtime context — the full-ARI value double-prefixed every ARI
+        expect(ctx.appAri.appId).toBe('real-app-123');
+        expect(ctx.appAri.toString()).toBe('ari:cloud:ecosystem::app/real-app-123');
         expect(ctx.moduleKey).toBe('my-panel');
         expect(ctx.environmentAri.toString()).toContain('real-app-123');
         expect(ctx.installationAri.toString()).toContain('real-app-123');

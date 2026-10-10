@@ -13,24 +13,11 @@ import { createSimulator, ForgeSimulator } from '../simulator.js';
 
 // Import the shim directly to test appEvents.publish()
 import { appEvents } from '../shims/forge-events.js';
-import { extractAppIdUuid } from '../app-ari.js';
 
 const TEST_APP_UUID = 'd9022ad7-c220-4836-b1d1-7f9f2c633d3a';
 const TEST_APP_ARI = `ari:cloud:ecosystem::app/${TEST_APP_UUID}`;
 
-describe('extractAppIdUuid', () => {
-  it('extracts the UUID from a full app ARI', () => {
-    expect(extractAppIdUuid(TEST_APP_ARI)).toBe(TEST_APP_UUID);
-  });
-
-  it('handles app.id without a slash (legacy/short id)', () => {
-    expect(extractAppIdUuid('my-test-app')).toBe('my-test-app');
-  });
-
-  it('returns "unknown" for missing app.id', () => {
-    expect(extractAppIdUuid(undefined)).toBe('unknown');
-  });
-});
+// extractAppIdUuid itself is covered in app-ari.test.ts
 
 describe('appEvents.publish()', () => {
   let sim: ForgeSimulator;
