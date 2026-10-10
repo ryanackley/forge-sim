@@ -50,9 +50,20 @@ class RateLimitError extends Error {
 }
 
 class PartialSuccessError extends Error {
-  constructor(message = 'Some events failed to push') {
+  // Real shape: the successful push result plus the events that failed
+  // (event is any to stay assignable to the real PushEvent<Body>)
+  result: { jobId: string };
+  failedEvents: Array<{ errorMessage: string; event: any }>;
+
+  constructor(
+    message = 'Some events failed to push',
+    result: { jobId: string } = { jobId: '' },
+    failedEvents: Array<{ errorMessage: string; event: any }> = [],
+  ) {
     super(message);
     this.name = 'PartialSuccessError';
+    this.result = result;
+    this.failedEvents = failedEvents;
   }
 }
 
@@ -163,7 +174,9 @@ const JobProgress = {
 class Queue {
   private key: string;
 
-  constructor(options: { key: string }) {
+  // Real signature is (queueParams, apiClient?) — the apiClient is how the
+  // real package reaches Atlassian's queue service; the sim has its own.
+  constructor(options: { key: string }, _apiClient?: unknown) {
     if (!options.key || typeof options.key !== 'string') {
       throw new InvalidQueueNameError();
     }
@@ -184,6 +197,22 @@ class Queue {
       getStats: async () => ({ ...job.stats }),
       cancel: async () => sim.queue.cancelJob(jobId),
     };
+  }
+
+  // Real Queue also exposes jobId-taking variants directly (in addition to
+  // JobProgress via getJob)
+  async getStats(jobId: string): Promise<{ success: number; inProgress: number; failed: number }> {
+    const sim = getSimulator();
+    const job = sim.queue.getJob(jobId);
+    if (!job) throw new JobDoesNotExistError();
+    return { ...job.stats };
+  }
+
+  async cancel(jobId: string): Promise<void> {
+    const sim = getSimulator();
+    const job = sim.queue.getJob(jobId);
+    if (!job) throw new JobDoesNotExistError();
+    sim.queue.cancelJob(jobId);
   }
 }
 
@@ -208,9 +237,19 @@ interface AppEventPublishFailure {
   errorMessage: string;
 }
 
+// Matches real @forge/events AppEventErrorType
+type AppEventErrorType =
+  | 'VALIDATION_ERROR'
+  | 'AUTHENTICATION_ERROR'
+  | 'AUTHORIZATION_ERROR'
+  | 'RATE_LIMIT'
+  | 'SERVICE_ERROR'
+  | 'SERVICE_UNAVAILABLE'
+  | 'OTHER';
+
 type AppEventPublishResult =
   | { type: 'success'; failedEvents: AppEventPublishFailure[] }
-  | { type: 'error'; errorType: string; errorMessage: string };
+  | { type: 'error'; errorType: AppEventErrorType; errorMessage: string };
 
 const appEvents = {
   /**

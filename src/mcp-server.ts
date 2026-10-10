@@ -1725,7 +1725,16 @@ Example:
   },
   async ({ content, tool_calls, finish_reason }) => {
     try {
-      sim.llm.mockResponse({ content, tool_calls, finish_reason });
+      // LlmToolCall.function.arguments is `object` (real @forge/llm typing);
+      // accept JSON strings at the MCP boundary and parse them here
+      const normalizedToolCalls = tool_calls?.map(tc => ({
+        ...tc,
+        function: {
+          ...tc.function,
+          arguments: typeof tc.function.arguments === 'string' ? JSON.parse(tc.function.arguments) : tc.function.arguments,
+        },
+      }));
+      sim.llm.mockResponse({ content, tool_calls: normalizedToolCalls, finish_reason });
       const desc = tool_calls?.length
         ? `mock with ${tool_calls.length} tool call(s)`
         : `mock text response (${typeof content === 'string' ? content.slice(0, 60) : 'array'}${typeof content === 'string' && content.length > 60 ? '...' : ''})`;

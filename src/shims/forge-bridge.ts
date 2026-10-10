@@ -150,36 +150,11 @@ export { createMemoryHistory };
 // ── Response wrapper ────────────────────────────────────────────────────
 
 /**
- * Wraps product API responses to match the Response-like interface
- * that @forge/react hooks expect (.ok, .status, .json(), .text(), .headers).
+ * Full fetch Response over product API results — real @forge/bridge types
+ * requestJira/requestConfluence/requestBitbucket as Promise<Response>.
+ * See fetch-response.ts for the single-read body semantics.
  */
-class BridgeResponse {
-  private _body: any;
-  public ok: boolean;
-  public status: number;
-  public statusText: string;
-  public headers: Map<string, string>;
-
-  constructor(body: any, status = 200) {
-    this._body = body;
-    this.status = status;
-    this.ok = status >= 200 && status < 300;
-    this.statusText = this.ok ? 'OK' : 'Error';
-    this.headers = new Map([['content-type', 'application/json']]);
-  }
-
-  async json(): Promise<any> {
-    if (typeof this._body === 'string') {
-      return JSON.parse(this._body);
-    }
-    return this._body;
-  }
-
-  async text(): Promise<string> {
-    if (typeof this._body === 'string') return this._body;
-    return JSON.stringify(this._body);
-  }
-}
+class BridgeResponse extends ValueFetchResponse {}
 
 // ── invoke ──────────────────────────────────────────────────────────────
 
@@ -238,8 +213,10 @@ export const view = {
     emitViewEvent('close', payload);
     return Promise.resolve();
   },
-  onClose(callback: () => void): void {
+  // Real signature returns a Promise (the registration ack)
+  onClose(_callback: () => void | Promise<void>): Promise<void> {
     // Registered but won't fire in sim
+    return Promise.resolve();
   },
   open(): Promise<void> {
     return Promise.resolve();
@@ -252,15 +229,32 @@ export const view = {
     return Promise.resolve(createMemoryHistory());
   },
   theme: {
-    enable(): void {
+    enable(): Promise<void> {
       console.log('[forge-sim] view.theme.enable()');
+      return Promise.resolve();
     },
   },
-  changeWindowTitle(title: string): void {
+  changeWindowTitle(title: string): Promise<void> {
     console.log(`[forge-sim] view.changeWindowTitle("${title}")`);
+    return Promise.resolve();
   },
-  emitReadyEvent(): void {
+  emitReadyEvent(): Promise<void> {
     // No-op
+    return Promise.resolve();
+  },
+  // Real view API: fetches a dispatch function the host frame registered.
+  // Nothing registers one in the sim, which matches real Forge's "no
+  // dispatcher" answer of undefined.
+  getFrameDispatch<T extends (...args: any[]) => any>(): Promise<T | undefined> {
+    return Promise.resolve(undefined);
+  },
+  createAdfRendererIframeProps(_context: any, _iframeId?: string): Promise<{ id: string; src: string; onLoad: () => void }> {
+    return Promise.reject(
+      new Error(
+        'view.createAdfRendererIframeProps is not yet implemented in forge-sim. ' +
+          'It works in real Forge — this is a simulator gap, not an app bug.',
+      ),
+    );
   },
 };
 
@@ -303,28 +297,42 @@ export function requestBitbucket(path: string, options?: any): Promise<BridgeRes
 
 // ── router ──────────────────────────────────────────────────────────────
 
+/** NavigationLocation = { target: NavigationTarget value, context: {...} } */
+type NavigationLocation = { target: string; context?: Record<string, any> };
+
 export const router = {
-  navigate(location: string): Promise<void> {
-    console.log(`[forge-sim] router.navigate("${location}")`);
+  navigate(location: string | NavigationLocation): Promise<void> {
+    console.log(`[forge-sim] router.navigate(${JSON.stringify(location)})`);
     return Promise.resolve();
   },
-  open(location: string): Promise<void> {
-    console.log(`[forge-sim] router.open("${location}")`);
+  open(location: string | NavigationLocation): Promise<void> {
+    console.log(`[forge-sim] router.open(${JSON.stringify(location)})`);
     return Promise.resolve();
   },
-  getUrl(location: string): Promise<string | null> {
+  // Real getUrl resolves the host URL for a navigation target; the sim has no
+  // host site, and null is real Forge's answer for an unresolvable location
+  getUrl(_location: NavigationLocation): Promise<URL | null> {
     return Promise.resolve(null);
   },
-  reload(): void {
+  reload(): Promise<void> {
     console.log('[forge-sim] router.reload()');
+    return Promise.resolve();
   },
 };
 
+// Matches real @forge/bridge router targets (the old sim-invented
+// JIRA/CONFLUENCE/BITBUCKET values never existed upstream)
 export const NavigationTarget = {
-  JIRA: 'jira',
-  CONFLUENCE: 'confluence',
-  BITBUCKET: 'bitbucket',
-};
+  ContentView: 'contentView',
+  ContentEdit: 'contentEdit',
+  ContentList: 'contentList',
+  SpaceView: 'spaceView',
+  Module: 'module',
+  UserProfile: 'userProfile',
+  Dashboard: 'dashboard',
+  Issue: 'issue',
+  ProjectSettingsDetails: 'projectSettingsDetails',
+} as const;
 
 // ── events (cross-module) ───────────────────────────────────────────────
 
@@ -361,35 +369,90 @@ export const events = {
 
 // ── Modal ───────────────────────────────────────────────────────────────
 
+/** Matches real @forge/bridge Modal's public fields and defaults. */
 export class Modal {
-  private options: any;
-  constructor(options?: any) {
-    this.options = options;
+  resource: string | null;
+  onClose: (payload?: any) => void;
+  // Real type is ModalSizes (named sizes | custom size object); kept any so
+  // the field stays assignable without vendoring the union
+  size: any;
+  context: any;
+  closeOnEscape: boolean;
+  closeOnOverlayClick: boolean;
+  title: string;
+  icon: string;
+
+  constructor(options?: {
+    resource?: string | null;
+    onClose?: (payload?: any) => void;
+    size?: any;
+    context?: any;
+    closeOnEscape?: boolean;
+    closeOnOverlayClick?: boolean;
+    title?: string;
+    icon?: string;
+  }) {
+    this.resource = options?.resource ?? null;
+    this.onClose = options?.onClose ?? (() => {});
+    this.size = options?.size ?? 'medium';
+    this.context = options?.context;
+    this.closeOnEscape = options?.closeOnEscape ?? true;
+    this.closeOnOverlayClick = options?.closeOnOverlayClick ?? true;
+    this.title = options?.title ?? '';
+    this.icon = options?.icon ?? '';
   }
-  open(): void {
-    console.log('[forge-sim] Modal.open()', this.options);
+
+  async open(): Promise<void> {
+    console.log('[forge-sim] Modal.open()', { resource: this.resource, size: this.size });
   }
 }
 
 // ── showFlag ────────────────────────────────────────────────────────────
 
+// Matches real FlagOptions (id is the only required field there; the sim stays
+// permissive and accepts its absence) and the real Flag result, whose close()
+// resolves a Promise
 export function showFlag(options: {
-  id?: string;
-  title: string;
-  type: 'info' | 'success' | 'warning' | 'error';
+  id?: number | string;
+  title?: string;
+  type?: 'info' | 'success' | 'warning' | 'error';
+  appearance?: 'info' | 'success' | 'warning' | 'error';
   description?: string;
   isAutoDismiss?: boolean;
   actions?: Array<{ text: string; onClick?: () => void }>;
-}): { close: () => void } {
-  console.log(`[forge-sim] showFlag("${options.title}", type=${options.type})`);
-  return { close: () => {} };
+}): { close: () => Promise<boolean | void> } {
+  console.log(`[forge-sim] showFlag("${options.title ?? options.id}", type=${options.appearance ?? options.type})`);
+  return { close: () => Promise.resolve() };
 }
 
 // ── permissions ─────────────────────────────────────────────────────────
 
+/**
+ * Matches real @forge/bridge's permissions export: an egress/remote
+ * permission ADMIN api ({ egress: { get/set/deleteDomain/deleteGroup },
+ * remote: { get/set } }), not a checker. (The old sim-invented
+ * permissions.check()/request() never existed upstream and were removed —
+ * scope checks live in checkPermissions/createPermissionUtils.) Managing
+ * runtime egress rules is not simulated yet, so every call fails loudly.
+ */
+const permissionsNotImplemented = (name: string) => () =>
+  Promise.reject(
+    new Error(
+      `permissions.${name} is not yet implemented in forge-sim (runtime egress/remote ` +
+        'permission management). It works in real Forge — this is a simulator gap, not an app bug.',
+    ),
+  );
+
 export const permissions = {
-  check(): Promise<{ hasPermission: boolean }> {
-    return Promise.resolve({ hasPermission: true });
+  egress: {
+    get: permissionsNotImplemented('egress.get') as (payload: any) => Promise<any>,
+    set: permissionsNotImplemented('egress.set') as (payload: any) => Promise<any>,
+    deleteDomain: permissionsNotImplemented('egress.deleteDomain') as (payload: any) => Promise<void>,
+    deleteGroup: permissionsNotImplemented('egress.deleteGroup') as (payload: any) => Promise<void>,
+  },
+  remote: {
+    get: permissionsNotImplemented('remote.get') as (payload: any) => Promise<any>,
+    set: permissionsNotImplemented('remote.set') as (payload: any) => Promise<void>,
   },
 };
 
@@ -504,7 +567,8 @@ export const frontendCustomMetrics = {
 
 type RuntimePermissions = {
   scopes?: string[] | Record<string, unknown>;
-  external?: Record<string, unknown[]>;
+  // Real type is @forge/manifest's External shape — kept loose here
+  external?: any;
 };
 
 /**
@@ -601,8 +665,11 @@ function getI18nStore(): import('../i18n-store.js').I18nStore | null {
 
 export type TranslationFunction = (i18nKey: string, defaultValue?: string) => string;
 
+import type { ForgeSupportedLocaleCode } from './i18n-locales.js';
+export type { ForgeSupportedLocaleCode };
+
 export interface GetTranslationsResult {
-  locale: string;
+  locale: ForgeSupportedLocaleCode;
   translations: Record<string, any> | null;
 }
 
@@ -633,11 +700,13 @@ export const i18n = {
 
     const store = getI18nStore();
     if (store?.hasTranslations) {
-      return store.getTranslations(targetLocale, options);
+      // The store works in plain strings; the locale passed in came from the
+      // supported set (or the context default), so the cast is sound
+      return store.getTranslations(targetLocale, options) as Promise<GetTranslationsResult>;
     }
 
     // No store or no translations loaded — return empty
-    return { locale: targetLocale, translations: null };
+    return { locale: targetLocale as ForgeSupportedLocaleCode, translations: null };
   },
 
   async createTranslationFunction(locale?: string | null): Promise<TranslationFunction> {
@@ -700,18 +769,35 @@ export async function invokeRemote(input: { path: string; method?: string; heade
  * Bridge requestRemote — direct fetch to a remote, returns Response-like object.
  * Takes (remoteKey, { path, ...requestInit }).
  */
-export function requestRemote(remoteKey: string, options?: { path: string; method?: string; headers?: Record<string, string>; body?: string }): Promise<any> {
+// Real fetchOptions is ForgeRequestInit (fetch RequestInit minus signal) + path
+export function requestRemote(remoteKey: string, options?: { path?: string; method?: string; headers?: any; body?: any }): Promise<any> {
   const proxy = getRemoteProxy();
   if (!proxy) {
     console.warn('[forge-sim] requestRemote — no simulator connected');
     return Promise.resolve(null);
   }
-  return proxy.request(remoteKey, options);
+  // The proxy requires a path; real requestRemote defaults to the remote root
+  return proxy.request(remoteKey, { ...options, path: options?.path ?? '/' });
 }
 
-export function invokeService(serviceKey: string, options?: any): Promise<any> {
-  console.warn(`[forge-sim] invokeService("${serviceKey}") — not implemented`);
-  return Promise.resolve(null);
+/**
+ * Real signature (since @forge/bridge 7.x): a single InvokeEndpointInput, not
+ * (serviceKey, options). Container services are an Atlassian developer
+ * preview (roadmap: watch-only, #19) — fail loudly instead of silently
+ * resolving null.
+ */
+export function invokeService(_input: {
+  path: string;
+  method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+  headers?: Record<string, string>;
+  body?: unknown;
+}): Promise<any> {
+  return Promise.reject(
+    new Error(
+      'invokeService is not yet implemented in forge-sim (Container services are ' +
+        'an Atlassian developer preview, tracked as roadmap watch item #19).',
+    ),
+  );
 }
 
 // ── Realtime (Preview) ──────────────────────────────────────────────────
@@ -720,6 +806,7 @@ export function invokeService(serviceKey: string, options?: any): Promise<any> {
 // includes the ProductContext enums.
 export { Jira, Confluence, Bitbucket, type ProductContext } from './product-context.js';
 import type { ContextOverride } from '../realtime.js';
+import { ValueFetchResponse } from './fetch-response.js';
 
 function getRealtimeBackend(): import('../realtime.js').SimulatedRealtime | null {
   try {
@@ -1052,13 +1139,16 @@ async function objectStoreDownload({
   );
 }
 
+// Matches real GetMetadataResult ({ key, checksum?, size?, createdAt?, error? })
+type GetMetadataResult = { key: string; checksum?: string; size?: number; createdAt?: string; error?: string } & Record<string, unknown>;
+
 async function objectStoreGetMetadata({
   functionKey,
   keys,
 }: {
   functionKey: string;
   keys: string[];
-}): Promise<Array<Record<string, unknown>>> {
+}): Promise<GetMetadataResult[]> {
   await checkRestrictedEnvironment();
   trackObjectStoreAction('getMetadata');
   if (!functionKey || functionKey.length === 0) {
@@ -1073,7 +1163,7 @@ async function objectStoreGetMetadata({
       if (!result || typeof result !== 'object') {
         return { key, error: 'Invalid response from functionKey' };
       }
-      return result as Record<string, unknown>;
+      return { key, ...result } as GetMetadataResult;
     }),
   );
 }

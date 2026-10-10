@@ -991,11 +991,31 @@ if (typeof window !== 'undefined') {
 
 // ── Permissions ─────────────────────────────────────────────────────────
 
+/**
+ * Matches real @forge/bridge's permissions export: an egress/remote
+ * permission ADMIN api, not a checker. (The old sim-invented check()/request()
+ * never existed upstream — scope checks live in checkPermissions /
+ * createPermissionUtils above.) Managing runtime egress rules is not
+ * simulated yet, so every call fails loudly. Mirrors src/shims/forge-bridge.ts.
+ */
+const permissionsNotImplemented = (name: string) => () =>
+  Promise.reject(
+    new Error(
+      `permissions.${name} is not yet implemented in forge-sim (runtime egress/remote ` +
+        'permission management). It works in real Forge — this is a simulator gap, not an app bug.',
+    ),
+  );
+
 export const permissions = {
-  check: (): Promise<{ hasPermission: boolean }> => Promise.resolve({ hasPermission: true }),
-  request: (scopes: string[]): Promise<{ granted: boolean }> => {
-    console.log('[forge-bridge-shim] permissions.request:', scopes);
-    return Promise.resolve({ granted: true });
+  egress: {
+    get: permissionsNotImplemented('egress.get') as (payload: any) => Promise<any>,
+    set: permissionsNotImplemented('egress.set') as (payload: any) => Promise<any>,
+    deleteDomain: permissionsNotImplemented('egress.deleteDomain') as (payload: any) => Promise<void>,
+    deleteGroup: permissionsNotImplemented('egress.deleteGroup') as (payload: any) => Promise<void>,
+  },
+  remote: {
+    get: permissionsNotImplemented('remote.get') as (payload: any) => Promise<any>,
+    set: permissionsNotImplemented('remote.set') as (payload: any) => Promise<void>,
   },
 };
 
@@ -1106,7 +1126,8 @@ export const frontendCustomMetrics = {
 
 type RuntimePermissions = {
   scopes?: string[] | Record<string, unknown>;
-  external?: Record<string, unknown[]>;
+  // Real type is @forge/manifest's External shape — kept loose here
+  external?: any;
 };
 
 export function createPermissionUtils(runtimePermissions: RuntimePermissions | undefined) {

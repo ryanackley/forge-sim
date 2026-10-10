@@ -10,43 +10,102 @@ import { getSimulator } from './globals.js';
 import { WhereConditions as KvsWhereConditions, FilterConditions as KvsFilterConditions } from './forge-kvs.js';
 import { buildAuthorizeApi, AUTHORIZE_NO_ACCOUNT_ERROR, type AuthorizeFetch } from '../authorize.js';
 import { extractAppIdUuid } from '../app-ari.js';
+import { ProductFetchResponse } from './fetch-response.js';
+import type { ForgeSupportedLocaleCode } from './i18n-locales.js';
 
 // ── Route template tag ──────────────────────────────────────────────────
 
-function route(strings: TemplateStringsArray, ...values: any[]): string {
+/**
+ * Real @forge/api's route() returns a Route OBJECT ({ readonly value }), not
+ * a string — `route\`/x\`.value` is legal app code. The simulator used to
+ * return the built string, which diverged (found by shim-contract-types).
+ */
+export type Route = { readonly value: string };
+
+function route(strings: TemplateStringsArray, ...values: any[]): Route {
   let result = '';
   for (let i = 0; i < strings.length; i++) {
     result += strings[i];
     if (i < values.length) {
-      result += encodeURIComponent(String(values[i]));
+      const v = values[i];
+      // Real route(): Route and URLSearchParams params embed verbatim;
+      // strings/numbers are encoded.
+      if (v && typeof v === 'object' && typeof (v as Route).value === 'string') {
+        result += (v as Route).value;
+      } else if (v instanceof URLSearchParams) {
+        result += v.toString();
+      } else {
+        result += encodeURIComponent(String(v));
+      }
     }
   }
-  return result;
+  return { value: result };
 }
 
-function routeFromAbsolute(path: string): string {
-  return path;
+function routeFromAbsolute(path: string): Route {
+  return { value: path };
 }
 
-function assumeTrustedRoute(path: string): string {
-  return path;
+function assumeTrustedRoute(path: string): Route {
+  return { value: path };
+}
+
+/**
+ * Accept both real Route objects and plain strings (older app code and the
+ * sim's own string-returning `route` helper from 'forge-sim').
+ */
+function routePath(path: Route | string): string {
+  return typeof path === 'string' ? path : path.value;
 }
 
 // ── API client builders ─────────────────────────────────────────────────
 
+/**
+ * Real APIResponse = the full fetch Response, so wrap the simulator's smaller
+ * ProductApiResponse at the shim boundary (see fetch-response.ts). Single-read
+ * body semantics included, exactly like Forge.
+ */
+async function productResponse(product: string, path: Route | string, options?: any): Promise<Response> {
+  const inner = await getSimulator().productApi.request(product, routePath(path), options);
+  return new ProductFetchResponse(inner);
+}
+
+function notImplemented(name: string, extra = ''): Promise<never> {
+  return Promise.reject(
+    new Error(`${name} is not yet implemented in forge-sim.${extra ? ` ${extra}` : ''} It works in real Forge — this is a simulator gap, not an app bug.`),
+  );
+}
+
 function makeApiClient() {
   return {
-    requestJira(path: string, options?: any) {
-      return getSimulator().productApi.request('jira', path, options);
+    requestJira(path: Route | string, options?: any) {
+      return productResponse('jira', path, options);
     },
-    requestConfluence(path: string, options?: any) {
-      return getSimulator().productApi.request('confluence', path, options);
+    requestConfluence(path: Route | string, options?: any) {
+      return productResponse('confluence', path, options);
     },
-    requestBitbucket(path: string, options?: any) {
-      return getSimulator().productApi.request('bitbucket', path, options);
+    requestBitbucket(path: Route | string, options?: any) {
+      return productResponse('bitbucket', path, options);
     },
-    requestGraph(query: string, variables?: any, headers?: Record<string, string>) {
-      return getSimulator().productApi.requestGraph(query, variables, headers);
+    async requestGraph(query: string, variables?: any, headers?: Record<string, string>) {
+      return new ProductFetchResponse(await getSimulator().productApi.requestGraph(query, variables, headers));
+    },
+    requestConnectedData(_path: Route | string, _options?: any): Promise<Response> {
+      return notImplemented('requestConnectedData');
+    },
+    requestAtlassian(_path: Route | string, _options?: any): Promise<Response> {
+      return notImplemented('requestAtlassian', '(the api.atlassian.com gateway is not simulated; use requestJira/requestConfluence)');
+    },
+    withContext(_contextAri: string) {
+      // Returns context-scoped request methods in real Forge; scoping is not
+      // simulated, so fail loudly rather than silently ignore the context.
+      const scoped = (name: string) => (_path: Route | string, _options?: any): Promise<Response> =>
+        notImplemented(`withContext().${name}`);
+      return {
+        requestJira: scoped('requestJira'),
+        requestConfluence: scoped('requestConfluence'),
+        requestBitbucket: scoped('requestBitbucket'),
+      };
     },
   };
 }
@@ -76,7 +135,8 @@ function makeExternalAuthAccountMethods(providerKey: string, _remoteName?: strin
       return token !== null;
     },
 
-    async fetch(url: string, options?: any): Promise<any> {
+    async fetch(rawUrl: Route | string, options?: any): Promise<any> {
+      const url = routePath(rawUrl);
       const remoteName = resolveRemote();
 
       // Always try mock routes first (same pattern as product API)
@@ -126,6 +186,13 @@ function makeExternalAuthClient(providerKey: string, remoteName?: string) {
       return getSimulator().externalAuth.listAccounts(providerKey);
     },
 
+    // Real Forge returns the credential (token) ids the user has granted for
+    // this provider; the sim's account ids serve the same role
+    async listCredentials(): Promise<string[]> {
+      const accounts = await getSimulator().externalAuth.listAccounts(providerKey);
+      return accounts.map((a: any) => a.id ?? a.externalAccountId ?? String(a));
+    },
+
     asAccount(externalAccountId: string) {
       return makeExternalAuthAccountMethods(providerKey, remoteName, externalAccountId);
     },
@@ -139,20 +206,23 @@ function asUser() {
     withProvider(provider: string, remoteName?: string) {
       return makeExternalAuthClient(provider, remoteName);
     },
+    requestTeamworkGraph(_query: string, _variables?: any, _operationName?: string, _extensions?: any, _headers?: Record<string, any>): Promise<Response> {
+      return notImplemented('requestTeamworkGraph', '(planned for the Teamwork Graph shim, roadmap 0.3 / issue #47.)');
+    },
   };
 }
 
 function asApp() { return makeApiClient(); }
 
 // Top-level convenience (these use asUser by default in real Forge)
-function requestJira(path: string, options?: any) {
-  return getSimulator().productApi.request('jira', path, options);
+function requestJira(path: Route | string, options?: any) {
+  return productResponse('jira', path, options);
 }
-function requestConfluence(path: string, options?: any) {
-  return getSimulator().productApi.request('confluence', path, options);
+function requestConfluence(path: Route | string, options?: any) {
+  return productResponse('confluence', path, options);
 }
-function requestBitbucket(path: string, options?: any) {
-  return getSimulator().productApi.request('bitbucket', path, options);
+function requestBitbucket(path: Route | string, options?: any) {
+  return productResponse('bitbucket', path, options);
 }
 
 // ── Legacy storage (@forge/api storage — deprecated in favor of @forge/kvs) ──
@@ -183,7 +253,8 @@ const storage = {
 
 // ── Simulated fetch (external HTTP) ─────────────────────────────────────
 
-async function forgeFetch(url: string, options?: any) {
+async function forgeFetch(rawUrl: Route | string, options?: any) {
+  const url = routePath(rawUrl);
   // In simulation, we can either use real fetch or mock it.
   // Default: use real fetch but log it.
   console.warn(`[forge-sim] External fetch: ${options?.method || 'GET'} ${url}`);
@@ -212,43 +283,79 @@ function startsWith(prefix: string) {
 
 // ── Error classes ───────────────────────────────────────────────────────
 
-class FetchError extends Error {
-  constructor(message: string) { super(message); this.name = 'FetchError'; }
-}
-
+// Error hierarchy mirroring real @forge/api out/api/errors.js — same base
+// classes, names (the *_ERR codes), statuses, and message templates, so both
+// instanceof checks and err.name/err.status dispatch behave as in Forge.
 class HttpError extends Error {
-  status: number;
-  constructor(status: number, message: string) {
-    super(message); this.name = 'HttpError'; this.status = status;
+  status: number | undefined;
+  constructor(message: string) {
+    super(message);
   }
 }
 
-class NotAllowedError extends Error {
-  constructor(message = 'Not allowed') { super(message); this.name = 'NotAllowedError'; }
+class FetchError extends Error {
+  constructor(cause: string) {
+    super(cause);
+    this.stack = undefined;
+    this.name = 'FUNCTION_FETCH_ERR';
+  }
+}
+
+class NotAllowedError extends HttpError {
+  constructor(message: string) {
+    super(message);
+    this.stack = undefined;
+    this.name = 'REQUEST_EGRESS_ALLOWLIST_ERR';
+    this.status = 403;
+  }
 }
 
 class ExternalEndpointNotAllowedError extends NotAllowedError {
-  constructor(url?: string) { super(`External endpoint not allowed: ${url}`); }
+  constructor(failedURL: string) {
+    super(`URL not included in the external fetch backend permissions: ${failedURL}. Visit go.atlassian.com/forge-egress for more information.`);
+  }
 }
 
 class ProductEndpointNotAllowedError extends NotAllowedError {
-  constructor(path?: string) { super(`Product endpoint not allowed: ${path}`); }
+  constructor(failedURL: string) {
+    super(`URL not allowed: ${failedURL}.`);
+  }
 }
 
 class RequestProductNotAllowedError extends NotAllowedError {
-  constructor(product?: string) { super(`Request product not allowed: ${product}`); }
+  constructor(requestedProduct: string, invocationProduct: string) {
+    super(`Request ${requestedProduct} is not allowed from ${invocationProduct} context.`);
+  }
 }
 
-class NeedsAuthenticationError extends Error {
-  constructor(message = 'Needs authentication') { super(message); this.name = 'NeedsAuthenticationError'; }
+class InvalidWorkspaceRequestedError extends NotAllowedError {
+  constructor(failedURL: string) {
+    super(`Invalid workspace requested in URL: ${failedURL}.`);
+  }
 }
 
-class InvalidWorkspaceRequestedError extends Error {
-  constructor(message = 'Invalid workspace') { super(message); this.name = 'InvalidWorkspaceRequestedError'; }
+class NeedsAuthenticationError extends HttpError {
+  constructor(
+    error: string,
+    readonly serviceKey: string,
+    readonly options?: { scopes?: string[]; isExpectedError?: boolean },
+  ) {
+    super(error);
+    this.stack = undefined;
+    this.name = 'NEEDS_AUTHENTICATION_ERR';
+    this.status = 401;
+  }
 }
 
-class ProxyRequestError extends Error {
-  constructor(message = 'Proxy request error') { super(message); this.name = 'ProxyRequestError'; }
+class ProxyRequestError extends HttpError {
+  status: number;
+  errorCode: string;
+  constructor(status: number, errorCode: string) {
+    super(`Forge platform failed to process runtime HTTP request - ${status} - ${errorCode}`);
+    this.status = status;
+    this.errorCode = errorCode;
+    this.name = 'PROXY_ERR';
+  }
 }
 
 const FUNCTION_ERR = 'FUNCTION_ERR';
@@ -303,7 +410,7 @@ function authorize() {
   // builders can tell "mocked answer" from "unmocked → permissive true".
   const wrapFetch = (product: 'jira' | 'confluence'): AuthorizeFetch =>
     async (path, opts) => {
-      const res = await sim.productApi.request(product, assumeTrustedRoute(path), opts);
+      const res = await sim.productApi.request(product, routePath(assumeTrustedRoute(path)), opts);
       let json: any;
       try { json = await res.json(); } catch { json = undefined; }
       return { status: res.status, json };
@@ -315,12 +422,26 @@ function authorize() {
 
 async function invokeRemote(
   remoteKey: string,
-  options: { path: string; method?: string; headers?: Record<string, string>; body?: string } & Record<string, any> = { path: '/' }
+  // body union matches real RequestInit (ArrayBuffer | string | URLSearchParams)
+  options: { path: string; method?: string; headers?: Record<string, string>; body?: ArrayBuffer | string | URLSearchParams } & Record<string, any> = { path: '/' }
 ): Promise<any> {
-  return getSimulator().remotes.invoke(remoteKey, options);
+  // The remote proxy sends string bodies; serialize the other RequestInit forms
+  const body =
+    options.body instanceof URLSearchParams
+      ? options.body.toString()
+      : options.body instanceof ArrayBuffer
+        ? Buffer.from(options.body).toString()
+        : options.body;
+  return getSimulator().remotes.invoke(remoteKey, { ...options, body });
 }
 
-function invokeService(_key: string, _payload?: any) { return Promise.resolve(null); }
+/** Container services are an Atlassian developer preview (roadmap watch item #19). */
+function invokeService(
+  _serviceKey: string,
+  _options: { path: string; method?: string; headers?: Record<string, string>; body?: ArrayBuffer | string | URLSearchParams },
+): Promise<any> {
+  return notImplemented('invokeService', '(Container services are an Atlassian developer preview, roadmap watch item #19.)');
+}
 
 // Mirrors real @forge/api's webTrigger surface (out/webTrigger.js):
 //   getUrl(moduleKey, forceCreate = false), deleteUrl(url), queryUrls(moduleKey?)
@@ -328,15 +449,23 @@ function invokeService(_key: string, _payload?: any) { return Promise.resolve(nu
 // invokable localhost URLs when the dev server is running and mirrors real
 // Forge's URL formats, ID parsing, and error strings otherwise.
 const webTrigger = {
-  getUrl: (webTriggerModuleKey: string, forceCreate = false): Promise<string> =>
-    getSimulator().webTriggerUrls.getUrl(webTriggerModuleKey, forceCreate),
+  // Real second param is boolean | GetUrlOptions ({ forceCreate?, secretKeyConfig? })
+  getUrl: (webTriggerModuleKey: string, optionsOrForceCreate: boolean | { forceCreate?: boolean; secretKeyConfig?: unknown } = false): Promise<string> => {
+    const forceCreate =
+      typeof optionsOrForceCreate === 'boolean' ? optionsOrForceCreate : optionsOrForceCreate.forceCreate ?? false;
+    return getSimulator().webTriggerUrls.getUrl(webTriggerModuleKey, forceCreate);
+  },
   deleteUrl: (webTriggerUrl: string): Promise<void> =>
     getSimulator().webTriggerUrls.deleteUrl(webTriggerUrl),
   queryUrls: (moduleKey?: string): Promise<Array<{ moduleKey: string; url: string }>> =>
     getSimulator().webTriggerUrls.queryUrls(moduleKey),
 };
 
-function createRequestStargateAsApp() { return makeApiClient(); }
+/** Real (deprecated) API returns a FetchMethod, not a client object. */
+function createRequestStargateAsApp(): (url: string, init?: any) => Promise<Response> {
+  return (_url: string, _init?: any) =>
+    notImplemented('createRequestStargateAsApp()', '(the api.atlassian.com Stargate gateway is not simulated; it is deprecated upstream — use asApp().requestJira/requestConfluence)');
+}
 
 // ── Privacy (GDPR personal data reporting) ──────────────────────────────
 
@@ -347,7 +476,8 @@ interface PrivacyAccount {
 
 interface PrivacyAccountUpdate {
   accountId: string;
-  status: string;
+  // Real @forge/api narrows this to the two legal values
+  status: 'updated' | 'closed';
   [key: string]: any;
 }
 
@@ -414,7 +544,9 @@ const __getRuntime = () => ({
     }
   },
 });
-const bindInvocationContext = (fn: Function) => fn;
+// Real impl is AsyncLocalStorage.bind(fn); the sim has no per-invocation ALS,
+// so identity preserves behavior. Generic signature matches upstream.
+const bindInvocationContext = <Func extends (...args: never[]) => unknown>(fn: Func): Func => fn;
 /**
  * getAppContext() — returns app-level metadata for the current invocation.
  * Pulls real values from the simulator's manifest and current module context.
@@ -492,13 +624,14 @@ const i18n = {
 
   async getTranslations(
     locale: string,
-    options: { fallback: boolean } = { fallback: true }
-  ): Promise<{ locale: string; translations: Record<string, any> | null }> {
+    options: { fallback?: boolean } = { fallback: true }
+  ): Promise<{ locale: ForgeSupportedLocaleCode; translations: Record<string, any> | null }> {
     const store = getI18nStore();
     if (store?.hasTranslations) {
-      return store.getTranslations(locale, options);
+      // Store works in plain strings; inputs come from the supported set
+      return store.getTranslations(locale, { fallback: options.fallback ?? true }) as Promise<{ locale: ForgeSupportedLocaleCode; translations: Record<string, any> | null }>;
     }
-    return { locale, translations: null };
+    return { locale: locale as ForgeSupportedLocaleCode, translations: null };
   },
 
   async createTranslationFunction(locale: string): Promise<TranslationFunction> {

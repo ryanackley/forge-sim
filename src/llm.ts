@@ -32,7 +32,10 @@ export interface LlmToolCall {
   id: string;
   type: 'function';
   index: number;
-  function: { name: string; arguments: Record<string, unknown> | string };
+  // Real @forge/llm types this `object` (requests and responses share the
+  // ToolCall interface). We additionally tolerate a JSON string at runtime —
+  // models emit that — but the declared type must match upstream.
+  function: { name: string; arguments: object };
 }
 
 export interface LlmTool {

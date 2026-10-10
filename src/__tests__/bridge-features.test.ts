@@ -334,14 +334,20 @@ describe('permissions', () => {
     shimModule = await loadShim();
   });
 
-  it('check always returns hasPermission: true', async () => {
-    const result = await shimModule.permissions.check();
-    expect(result).toEqual({ hasPermission: true });
+  it('has the real egress/remote admin shape (the invented check()/request() are gone)', () => {
+    expect(typeof shimModule.permissions.egress.get).toBe('function');
+    expect(typeof shimModule.permissions.egress.set).toBe('function');
+    expect(typeof shimModule.permissions.egress.deleteDomain).toBe('function');
+    expect(typeof shimModule.permissions.egress.deleteGroup).toBe('function');
+    expect(typeof shimModule.permissions.remote.get).toBe('function');
+    expect(typeof shimModule.permissions.remote.set).toBe('function');
+    expect('check' in shimModule.permissions).toBe(false);
+    expect('request' in shimModule.permissions).toBe(false);
   });
 
-  it('request always returns granted: true', async () => {
-    const result = await shimModule.permissions.request(['read:jira-work']);
-    expect(result).toEqual({ granted: true });
+  it('egress/remote calls fail loudly (not simulated yet)', async () => {
+    await expect(shimModule.permissions.egress.get({})).rejects.toThrow(/not yet implemented/);
+    await expect(shimModule.permissions.remote.set({})).rejects.toThrow(/not yet implemented/);
   });
 });
 

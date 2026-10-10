@@ -1716,9 +1716,14 @@ export class EntityQueryBuilder {
 
 /** Base error class matching real @forge/kvs `ForgeKvsError`. */
 export class ForgeKvsError extends Error {
-  constructor(message: string) {
+  // Real errors carry the @forge/kvs package version for Atlassian support
+  // triage; the sim marks itself instead
+  packageVersion: string;
+
+  constructor(message: string, packageVersion = 'forge-sim') {
     super(message);
     this.name = 'ForgeKvsError';
+    this.packageVersion = packageVersion;
   }
 }
 

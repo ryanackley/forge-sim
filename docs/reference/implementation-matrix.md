@@ -5,8 +5,8 @@ Complete mapping of every Forge API, hook, component, and platform feature again
 **Last updated:** 2026-07-19
 
 <!-- BEGIN:STATS -->
-**2,764 tests** across **148** test files
-(2,598 core / 141 files
+**2,780 tests** across **149** test files
+(2,614 core / 142 files
 + 166 renderer / 7 files)
 
 **41 MCP tools** + **4 resources**
@@ -77,7 +77,7 @@ The main backend API package. Imported by resolver/trigger/consumer functions.
 |-----|--------|-------|-------|
 | `authorize(provider)` | 🔇 | — | No-op, always resolves |
 | `invokeRemote(key, payload)` | ✅ | `remotes.test.ts` | Full — RemoteProxy with mock-first routing, real HTTP fallback with FIT auth |
-| `invokeService(key, payload)` | ✅ | `remotes.test.ts` | Same system as invokeRemote |
+| `invokeService(key, options)` | ❌ | `shim-contract-types.test.ts` | Exported with the real signature, throws not-implemented — Container services are an Atlassian developer preview (#19) |
 | `webTrigger.getUrl(key)` | ✅ | `web-trigger.test.ts` | Dev server running: real routable local URL (`http://localhost:<port>/x1/<id>`, served). Headless: Forge-shaped synthetic URL; fire the trigger with `sim.fireWebTrigger(key)` instead. `deleteUrl`/`queryUrls` mirrored, including the real v2-URL parse quirk. |
 | `getAppContext()` | ✅ | `shims.test.ts` | Returns real values from manifest (appId, moduleKey) and connected account (cloudId). ARIs match Atlassian format. `invocationRemainingTimeInMillis()` returns 25s. |
 | `__getRuntime()` | 🔇 | — | Internal, undocumented; necessary for `@forge/api` import chain not to explode. Returns `{ isEcosystemApp: false }` |
@@ -483,7 +483,7 @@ Frontend API for Custom UI apps (runs in iframe).
 | `i18n.getTranslations(locale, options)` | ✅ | — | Reads from I18nStore (app's __LOCALES__ dir) |
 | `i18n.createTranslationFunction(locale)` | ✅ | — | Returns t(key, defaultValue) backed by I18nStore |
 | `i18n.resetTranslationsCache()` | ✅ | — | Clears translation cache and store |
-| `permissions.check()` | ✅ | `bridge-features.test.ts` | Always returns `{ hasPermission: true }` |
+| `permissions` (egress/remote admin) | ❌ | — | Real shape ({ egress: get/set/deleteDomain/deleteGroup, remote: get/set }); all throw not-implemented. (The old sim-invented `permissions.check()` never existed upstream and was removed.) |
 | `FeatureFlags` class | ✅ | `bridge-features.test.ts` | Matches real shape (initialize/checkFlag/shutdown); every flag evaluates to its defaultValue — no flag backend in the sim. (The old lowercase `featureFlags` object never existed in real @forge/bridge and was removed.) |
 | `checkPermissions(required, runtime?)` | ✅ | `shim-contract-surface.test.ts` | Scope checks in full; external (egress URL) requirements throw not-implemented |
 | `createPermissionUtils(runtime)` | ✅ | — | hasScope/getScopes/etc. in full; canFetchFrom/canLoadResource throw not-implemented (need @forge/egress) |
@@ -492,7 +492,7 @@ Frontend API for Custom UI apps (runs in iframe).
 | `fetchUserRecommendations(input)` | ❌ | — | Exported, throws not-implemented |
 | `frontendCustomMetrics.counter(name)` | 🔇 | — | Real shape (incr/incrBy with validation); metrics are not aggregated anywhere |
 | `invokeRemote(key, options)` | ✅ | `remotes.test.ts`, `bridge-invoke-routing.test.ts` | Endpoint resolution, route prefix, FIT auth, mock-first |
-| `invokeService(key, options)` | ✅ | `remotes.test.ts` | Same system as invokeRemote |
+| `invokeService(input)` | ❌ | `shim-contract-types.test.ts` | Real signature is a single InvokeEndpointInput (since @forge/bridge 7.x); throws not-implemented — Container services are an Atlassian developer preview (#19) |
 
 ---
 

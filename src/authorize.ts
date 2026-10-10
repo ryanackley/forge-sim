@@ -65,11 +65,14 @@ export type Id = string | number;
 
 export interface ProjectPermission {
   permissions: string[];
-  issues?: number[];
-  projects?: number[];
+  // Real @forge/auth types these Id[] (string | number)
+  issues?: Id[];
+  projects?: Id[];
 }
 
 export interface ProjectPermissionResponse {
+  // Real @forge/auth accepts Id (string | number) on input but returns
+  // numeric ids in responses, matching the Jira permissions-check API
   permission: string;
   issues?: number[];
   projects?: number[];
@@ -152,8 +155,9 @@ function grantAllRequested(input: ProjectPermission[]): ProjectPermissionRespons
   return input.flatMap((entry) =>
     (entry.permissions ?? []).map((permission) => ({
       permission,
-      ...(entry.issues !== undefined ? { issues: entry.issues } : {}),
-      ...(entry.projects !== undefined ? { projects: entry.projects } : {}),
+      // Inputs may use string ids; responses are numeric like the real API
+      ...(entry.issues !== undefined ? { issues: entry.issues.map(Number) } : {}),
+      ...(entry.projects !== undefined ? { projects: entry.projects.map(Number) } : {}),
     }))
   );
 }

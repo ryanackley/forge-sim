@@ -83,28 +83,28 @@ const kvs = {
 //                       contains, notContains, exists, notExists, notEqualTo.
 
 const WhereConditions = {
-  beginsWith: (value: string | number) => ({ condition: 'BEGINS_WITH', values: [value] }),
-  between: <T extends string | number>(first: T, second: T) => ({ condition: 'BETWEEN', values: [first, second] }),
-  equalTo: (value: string | number | boolean) => ({ condition: 'EQUAL_TO', values: [value] }),
-  greaterThan: (value: string | number) => ({ condition: 'GREATER_THAN', values: [value] }),
-  greaterThanEqualTo: (value: string | number) => ({ condition: 'GREATER_THAN_EQUAL_TO', values: [value] }),
-  lessThan: (value: string | number) => ({ condition: 'LESS_THAN', values: [value] }),
-  lessThanEqualTo: (value: string | number) => ({ condition: 'LESS_THAN_EQUAL_TO', values: [value] }),
+  beginsWith: (value: string | number) => ({ condition: 'BEGINS_WITH' as const, values: [value] as [typeof value] }),
+  between: <T extends string | number>(first: T, second: T) => ({ condition: 'BETWEEN' as const, values: [first, second] as [T, T] }),
+  equalTo: (value: string | number | boolean) => ({ condition: 'EQUAL_TO' as const, values: [value] as [typeof value] }),
+  greaterThan: (value: string | number) => ({ condition: 'GREATER_THAN' as const, values: [value] as [typeof value] }),
+  greaterThanEqualTo: (value: string | number) => ({ condition: 'GREATER_THAN_EQUAL_TO' as const, values: [value] as [typeof value] }),
+  lessThan: (value: string | number) => ({ condition: 'LESS_THAN' as const, values: [value] as [typeof value] }),
+  lessThanEqualTo: (value: string | number) => ({ condition: 'LESS_THAN_EQUAL_TO' as const, values: [value] as [typeof value] }),
 };
 
 const FilterConditions = {
-  beginsWith: (value: string | number) => ({ condition: 'BEGINS_WITH', values: [value] }),
-  between: <T extends string | number>(first: T, second: T) => ({ condition: 'BETWEEN', values: [first, second] }),
-  contains: (value: string) => ({ condition: 'CONTAINS', values: [value] }),
-  notContains: (value: string) => ({ condition: 'NOT_CONTAINS', values: [value] }),
-  equalTo: (value: string | number | boolean) => ({ condition: 'EQUAL_TO', values: [value] }),
-  notEqualTo: (value: string | number | boolean) => ({ condition: 'NOT_EQUAL_TO', values: [value] }),
-  exists: () => ({ condition: 'EXISTS', values: [true] }),
-  notExists: () => ({ condition: 'NOT_EXISTS', values: [true] }),
-  greaterThan: (value: string | number) => ({ condition: 'GREATER_THAN', values: [value] }),
-  greaterThanEqualTo: (value: string | number) => ({ condition: 'GREATER_THAN_EQUAL_TO', values: [value] }),
-  lessThan: (value: string | number) => ({ condition: 'LESS_THAN', values: [value] }),
-  lessThanEqualTo: (value: string | number) => ({ condition: 'LESS_THAN_EQUAL_TO', values: [value] }),
+  beginsWith: (value: string | number) => ({ condition: 'BEGINS_WITH' as const, values: [value] as [typeof value] }),
+  between: <T extends string | number>(first: T, second: T) => ({ condition: 'BETWEEN' as const, values: [first, second] as [T, T] }),
+  contains: (value: string) => ({ condition: 'CONTAINS' as const, values: [value] as [typeof value] }),
+  notContains: (value: string) => ({ condition: 'NOT_CONTAINS' as const, values: [value] as [typeof value] }),
+  equalTo: (value: string | number | boolean) => ({ condition: 'EQUAL_TO' as const, values: [value] as [typeof value] }),
+  notEqualTo: (value: string | number | boolean) => ({ condition: 'NOT_EQUAL_TO' as const, values: [value] as [typeof value] }),
+  exists: () => ({ condition: 'EXISTS' as const, values: [true] as [true] }),
+  notExists: () => ({ condition: 'NOT_EXISTS' as const, values: [true] as [true] }),
+  greaterThan: (value: string | number) => ({ condition: 'GREATER_THAN' as const, values: [value] as [typeof value] }),
+  greaterThanEqualTo: (value: string | number) => ({ condition: 'GREATER_THAN_EQUAL_TO' as const, values: [value] as [typeof value] }),
+  lessThan: (value: string | number) => ({ condition: 'LESS_THAN' as const, values: [value] as [typeof value] }),
+  lessThanEqualTo: (value: string | number) => ({ condition: 'LESS_THAN_EQUAL_TO' as const, values: [value] as [typeof value] }),
 };
 
 // ── Filter builder (parity with real @forge/kvs entity-query.js) ───────
@@ -177,8 +177,27 @@ const MetadataField = {
 // The old local classes here had the WRONG constructor signature
 // (message, statusCode?) and wrongly set name to 'ForgeKvsAPIError'.
 
-function isOverrideAndReturnOptions(options: any): boolean {
-  return options && typeof options === 'object' && 'ifRevisionIs' in options;
+// Mirrors real @forge/kvs types for the set-options type guard. ttl is any:
+// the real Ttl.unit is a TtlUnit enum (nominal, unmatchable from outside).
+interface KvsSetOptions {
+  ttl?: any;
+}
+export interface PolicySetOptions extends KvsSetOptions {
+  keyPolicy: 'OVERRIDE' | 'FAIL_IF_EXISTS';
+}
+export interface OverrideAndReturnSetOptions extends KvsSetOptions {
+  keyPolicy: 'OVERRIDE';
+  returnValue: 'PREVIOUS' | 'LATEST';
+  // any[]: the real type is MetadataField[], a TS enum we mirror as a const
+  // object (enum member types are nominal and unmatchable from outside)
+  returnMetadataFields?: any[];
+}
+export type ExtendedSetOptions = PolicySetOptions | OverrideAndReturnSetOptions;
+
+// Byte-for-byte the real implementation (out/interfaces/types.js): the old
+// sim version checked 'ifRevisionIs', which is not what this guard means.
+function isOverrideAndReturnOptions(options?: ExtendedSetOptions): options is OverrideAndReturnSetOptions {
+  return options !== undefined && 'returnValue' in options;
 }
 
 export {

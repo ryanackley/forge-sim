@@ -61,16 +61,23 @@ describe('Forge Shims', () => {
   });
 
   describe('@forge/api shim', () => {
-    it('route() should build paths with encoded values', () => {
+    it('route() returns a Route OBJECT with the built path in .value, like real @forge/api', () => {
       const issueKey = 'TEST-1';
       const path = forgeApi.route`/rest/api/3/issue/${issueKey}`;
-      expect(path).toBe('/rest/api/3/issue/TEST-1');
+      expect(path).toEqual({ value: '/rest/api/3/issue/TEST-1' });
     });
 
     it('route() should encode special characters', () => {
       const name = 'hello world/test';
       const path = forgeApi.route`/search?name=${name}`;
-      expect(path).toBe('/search?name=hello%20world%2Ftest');
+      expect(path.value).toBe('/search?name=hello%20world%2Ftest');
+    });
+
+    it('route() embeds Route and URLSearchParams params verbatim (real behavior)', () => {
+      const sub = forgeApi.routeFromAbsolute('/rest/api/3');
+      const params = new URLSearchParams({ q: 'a b' });
+      const path = forgeApi.route`${sub}/search?${params}`;
+      expect(path.value).toBe('/rest/api/3/search?q=a+b');
     });
 
     it('asUser().requestJira() should hit simulator product API', async () => {
