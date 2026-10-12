@@ -47,6 +47,9 @@ function runVitest(cwd) {
     cwd,
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
+    // The full suite's output exceeds execSync's 1 MiB default, which kills
+    // the child mid-run and surfaces as a bogus "Command failed".
+    maxBuffer: 64 * 1024 * 1024,
     env: { ...process.env, FORCE_COLOR: '0', NO_COLOR: '1' },
   });
   // Strip ANSI colors in case FORCE_COLOR is ignored

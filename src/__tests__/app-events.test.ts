@@ -29,7 +29,7 @@ describe('appEvents.publish()', () => {
   it('fires a matching trigger using canonical AVI format with realistic app ARI', async () => {
     let receivedEvent: any;
 
-    sim.loadManifest(`
+    await sim.loadManifest(`
 app:
   id: ${TEST_APP_ARI}
   name: Test
@@ -42,7 +42,7 @@ modules:
       function: onCustomEvent
       events:
         - avi:cloud:ecosystem::event/${TEST_APP_UUID}/issue-processed
-`);
+`, { validate: false });
 
     sim.registerFunction('onCustomEvent', async (event: any, _context: any) => {
       receivedEvent = event;
@@ -73,7 +73,7 @@ modules:
     // `avi:cloud:ecosystem::event/<uuid>/<key>` per the Forge docs.
     let receivedEvent: any;
 
-    sim.loadManifest(`
+    await sim.loadManifest(`
 app:
   id: ${TEST_APP_ARI}
   name: Test
@@ -91,7 +91,7 @@ modules:
       function: handler
       events:
         - avi:forge:${TEST_APP_ARI}:my-event
-`);
+`, { validate: false });
 
     let capturedEvents: any[] = [];
     sim.registerFunction('handler', async (event: any) => {
@@ -114,7 +114,7 @@ modules:
     const multiAppUuid = '1623e379-f942-4517-9a20-830c24b54ec1';
     const receivedEvents: string[] = [];
 
-    sim.loadManifest(`
+    await sim.loadManifest(`
 app:
   id: ari:cloud:ecosystem::app/${multiAppUuid}
   name: Test
@@ -131,7 +131,7 @@ modules:
       function: handler
       events:
         - avi:cloud:ecosystem::event/${multiAppUuid}/event-b
-`);
+`, { validate: false });
 
     sim.registerFunction('handler', async (event: any) => {
       receivedEvents.push(event.event);
@@ -149,7 +149,7 @@ modules:
   });
 
   it('succeeds silently when no trigger matches the event key', async () => {
-    sim.loadManifest(`
+    await sim.loadManifest(`
 app:
   id: ari:cloud:ecosystem::app/no-match-uuid
   name: Test
@@ -157,7 +157,7 @@ modules:
   function:
     - key: handler
       handler: index.handler
-`);
+`, { validate: false });
 
     const result = await appEvents.publish({ key: 'unregistered-event' });
 
@@ -168,7 +168,7 @@ modules:
   it('uses "unknown" as appId when manifest has no app.id', async () => {
     let receivedEvent: any;
 
-    sim.loadManifest(`
+    await sim.loadManifest(`
 app:
   name: NoId
 modules:
@@ -180,7 +180,7 @@ modules:
       function: handler
       events:
         - avi:cloud:ecosystem::event/unknown/my-event
-`);
+`, { validate: false });
 
     sim.registerFunction('handler', async (event: any) => {
       receivedEvent = event;
@@ -195,7 +195,7 @@ modules:
   it('tolerates a short app.id without slash (legacy fixtures)', async () => {
     let receivedEvent: any;
 
-    sim.loadManifest(`
+    await sim.loadManifest(`
 app:
   id: my-short-app
   name: Test
@@ -208,7 +208,7 @@ modules:
       function: handler
       events:
         - avi:cloud:ecosystem::event/my-short-app/my-event
-`);
+`, { validate: false });
 
     sim.registerFunction('handler', async (event: any) => {
       receivedEvent = event;
@@ -220,7 +220,7 @@ modules:
   });
 
   it('reports invalid events in failedEvents', async () => {
-    sim.loadManifest(`
+    await sim.loadManifest(`
 app:
   id: ${TEST_APP_ARI}
   name: Test
@@ -228,7 +228,7 @@ modules:
   function:
     - key: handler
       handler: index.handler
-`);
+`, { validate: false });
 
     const result = await appEvents.publish([
       { key: '' },

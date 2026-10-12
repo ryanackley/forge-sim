@@ -55,7 +55,7 @@ async function getBoardFromStorage(sim: ForgeSimulator, sprintId: string): Promi
 describe('Retro Board E2E', () => {
   let sim: ForgeSimulator;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     idCounter = 0;
     sim = createSimulator();
 
@@ -174,8 +174,11 @@ describe('Retro Board E2E', () => {
       return { triggered: true, sprintId };
     });
 
-    // Load manifest so fireTrigger works
-    sim.loadManifest(`
+    // Load manifest so fireTrigger works. Awaited with validate:false — the
+    // minimal manifest here fails real validation (no runtime, fake app id),
+    // and a fire-and-forget rejection surfaces as an unhandled-rejection
+    // flake under load.
+    await sim.loadManifest(`
 modules:
   function:
     - key: onSprintCompleteFn
@@ -188,7 +191,7 @@ modules:
 app:
   id: ari:cloud:ecosystem::app/retro-board-test
   name: Sprint Retro Board
-`);
+`, { validate: false });
   });
 
   // ── 1. Board CRUD ───────────────────────────────────────────────────────
