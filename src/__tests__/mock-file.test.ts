@@ -189,6 +189,10 @@ describe('watchMockFile', () => {
       jira: { 'GET /rest/api/3/myself': { accountId: 'late' } },
     }));
 
+    // Poll budget must stay well under the test timeout (vitest.config.ts), or
+    // the test dies on its own timeout before the poll can report what it
+    // actually saw — turning "the watcher never fired" into a bare "timed out
+    // in 5000ms" with no diagnosis. 5s is plenty for a 300ms debounce.
     await expect.poll(async () => {
       const resp = await sim.productApi.request('jira', '/rest/api/3/myself');
       return resp.status;
