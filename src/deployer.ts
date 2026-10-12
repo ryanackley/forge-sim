@@ -14,6 +14,7 @@ import { pathToFileURL } from 'node:url';
 import { createRequire } from 'node:module';
 import { parseManifest, type ParsedManifest, type ManifestFunction } from './manifest.js';
 import { validateManifestFile, printManifestWarnings } from './manifest-validation.js';
+import { checkAppForgeVersions, readAppForgeDeps } from './forge-package-versions.js';
 import type { ForgeSimulator } from './simulator.js';
 import type { TypeCheckError } from './type-checker.js';
 
@@ -506,6 +507,12 @@ export async function deploy(sim: ForgeSimulator, appDir: string, options: Deplo
   // failures via the existing warnings→errors plumbing below — manifests that
   // real Forge rejects must not deploy here. Core parity principle.
   manifest.warnings.push(...(await validateManifestFile(manifestPath)));
+
+  // 1a-ii. Compare the app's own @forge/* versions against the versions our
+  // shims are verified against (#10 step 4). Warning-level only, major
+  // mismatches only — see forge-package-versions.ts for why. Never throws, so
+  // a version advisory can't be what breaks a deploy.
+  manifest.warnings.push(...checkAppForgeVersions(absDir, await readAppForgeDeps(absDir)));
 
   // Surface manifest validation warnings (deduped per process — see
   // printManifestWarnings in manifest-validation.ts, F7).
