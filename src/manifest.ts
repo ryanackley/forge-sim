@@ -7,9 +7,10 @@
 
 import { parse as parseYaml } from 'yaml';
 import { readFile } from 'fs/promises';
+import { getHandlersDirectory } from '@forge/manifest';
+import type { Resources } from '@forge/manifest';
 import type {
   ForgeManifest,
-  ManifestModule,
   ManifestRemote,
   ManifestEndpoint,
   ManifestAuthProvider,
@@ -47,6 +48,13 @@ export interface ParsedManifest {
    * validation and indexed queries match real Forge behavior.
    */
   entities: Map<string, ManifestEntityDef>;
+  /**
+   * Directory function handlers resolve from, relative to the app root:
+   * app.package.path under manual packaging (bundler: manual@2026), else
+   * 'src'. Computed with upstream @forge/manifest's getHandlersDirectory so
+   * the rule can't drift from what `forge lint`/`forge deploy` use.
+   */
+  handlersDirectory: string;
 }
 
 export interface ManifestAction {
@@ -60,10 +68,14 @@ export interface ManifestAction {
   configResourceKey?: string;
 }
 
-export interface ManifestResource {
-  key: string;
-  path: string; // e.g. "src/frontend/index.tsx"
-}
+/**
+ * A top-level manifest resource — exactly upstream's shape. `path` is a source
+ * file or directory (e.g. "src/frontend/index.tsx"); under manual packaging
+ * (`bundler: manual@2026`) it's a prebuilt output directory, with `entry`
+ * optionally naming multiple entry points (referenced by modules as
+ * `resource: <key>/<entryKey>`).
+ */
+export type ManifestResource = Resources[number];
 
 export interface ManifestFunction {
   key: string;
@@ -124,6 +136,12 @@ export interface ManifestUIModule {
   resolverFunctionKey?: string;
   endpointKey?: string;
   resourceKey?: string;
+  /**
+   * Entry key within a multi-entry resource, when the module references one
+   * with the slash syntax (`resource: <resource-key>/<entry-key>`). The file
+   * is `resources.get(resourceKey).entry[entryKey]` inside the resource path.
+   */
+  entryKey?: string;
   /** Icon URL or resource reference (e.g. "resource:main;icons/icon.svg" or absolute URL) */
   icon?: string;
   /** For jira:globalBackgroundScript — which experiences this script runs on */
@@ -346,12 +364,20 @@ export async function parseManifest(manifestPath: string): Promise<ParsedManifes
  */
 export function parseManifestContent(content: string): ParsedManifest {
   const raw = (parseYaml(content) ?? {}) as ForgeManifest;
-  const modules = raw.modules ?? {};
+  const modules: NonNullable<ForgeManifest['modules']> = raw.modules ?? {};
 
-  // Parse resources (top-level, not under modules)
+  // Parse resources (top-level, not under modules). Conditional spreads keep
+  // the historical minimal `{ key, path }` shape for resources that don't use
+  // the manual-packaging / multi-entry fields (some tests deep-equal it).
   const resources = new Map<string, ManifestResource>();
-  for (const res of (Array.isArray((raw as any).resources) ? (raw as any).resources : []) as any[]) {
-    resources.set(res.key, { key: res.key, path: res.path });
+  for (const res of (Array.isArray(raw.resources) ? raw.resources : []) as any[]) {
+    resources.set(res.key, {
+      key: res.key,
+      path: res.path,
+      ...(res.bundler !== undefined ? { bundler: res.bundler } : {}),
+      ...(res.entry !== undefined ? { entry: res.entry } : {}),
+      ...(res.tunnel !== undefined ? { tunnel: res.tunnel } : {}),
+    });
   }
 
   const warnings: ManifestWarning[] = [];
@@ -807,6 +833,28 @@ export function parseManifestContent(content: string): ParsedManifest {
     }
   }
 
+  // Multi-entry resource references use the slash syntax
+  // (`resource: <resource-key>/<entry-key>`). Resource keys themselves can't
+  // contain '/' (schema pattern ^[a-zA-Z0-9_-]+$), so a slash always marks an
+  // entry reference. Split here, after every module branch above, so all of
+  // them get it uniformly.
+  for (const mod of uiModules) {
+    const ref = mod.resourceKey;
+    if (ref === undefined) continue;
+    const slash = ref.indexOf('/');
+    if (slash === -1) continue;
+    mod.resourceKey = ref.slice(0, slash);
+    mod.entryKey = ref.slice(slash + 1);
+  }
+  for (const action of actions) {
+    const ref = action.configResourceKey;
+    if (ref !== undefined && ref.includes('/')) {
+      // Entry selection for action config UIs rides on the uiModules entry
+      // above; the action record only needs the resource lookup key.
+      action.configResourceKey = ref.slice(0, ref.indexOf('/'));
+    }
+  }
+
   // Parse remotes
   const remotes = new Map<string, ManifestRemote>();
   for (const remote of (Array.isArray(raw.remotes) ? raw.remotes : []) as any[]) {
@@ -1107,6 +1155,22 @@ export function parseManifestContent(content: string): ParsedManifest {
     }
   }
 
+  // Manual packaging (app.package). The @forge/manifest 13.6 schema still
+  // accepts bundler: typescript, but Atlassian removed the TypeScript bundler
+  // when manual packaging hit Preview (schema 13.7 dropped it from the enum),
+  // so a manifest using it is rejected by the current platform. Erroring here
+  // keeps parity without waiting on the package bump.
+  if (raw.app?.package?.bundler === 'typescript') {
+    warnings.push({
+      level: 'error',
+      message: `app.package.bundler "typescript" was removed from Forge ` +
+        `(the TypeScript bundler EAP ended when manual packaging reached Preview). ` +
+        `Compile your code yourself and use manual packaging instead:\n` +
+        `  app:\n    package:\n      bundler: manual@2026\n      path: dist\n` +
+        `See https://developer.atlassian.com/platform/forge/manifest-reference/packaging/`,
+    });
+  }
+
   // Check for runtime version mismatch with local Node
   if (raw.app?.runtime?.name && VALID_RUNTIME_NAMES.includes(raw.app.runtime.name)) {
     const manifestMajor = parseInt(raw.app.runtime.name.replace('nodejs', '').replace('.x', ''), 10);
@@ -1135,7 +1199,14 @@ export function parseManifestContent(content: string): ParsedManifest {
     scheduledTriggers,
     uiModules,
     webTriggers,
-    permissions: raw.permissions?.scopes ?? [],
+    // Scopes come in two schema shapes: the classic string array, and a map
+    // of scope name → { allowImpersonation } (RFC-149 user impersonation).
+    // Either way the scope names are what the sim consumes.
+    permissions: Array.isArray(raw.permissions?.scopes)
+      ? raw.permissions.scopes.filter((s): s is string => typeof s === 'string')
+      : raw.permissions?.scopes && typeof raw.permissions.scopes === 'object'
+        ? Object.keys(raw.permissions.scopes)
+        : [],
     remotes,
     endpoints,
     authProviders,
@@ -1143,5 +1214,8 @@ export function parseManifestContent(content: string): ParsedManifest {
     commandPageTargets,
     actions,
     entities,
+    // Tolerates partial manifests: getHandlersDirectory only reads
+    // app?.package and falls back to 'src'.
+    handlersDirectory: getHandlersDirectory(raw),
   };
 }

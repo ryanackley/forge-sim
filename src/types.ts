@@ -4,29 +4,26 @@
 
 // ── Manifest Types ──────────────────────────────────────────────────────────
 
-export interface ForgeManifest {
-  app: {
-    id?: string;
-    name?: string;
-    runtime?: {
-      name?: string;       // nodejs24.x | nodejs22.x | nodejs20.x
-      architecture?: string; // arm64 | x86_64
-      memoryMB?: number;     // 128-1024, default 512
-    };
-    storage?: {
-      entities?: ManifestEntityDef[];
-    };
-  };
-  modules: Record<string, ManifestModule[]>;
-  permissions?: {
-    scopes?: string[];
-    external?: { fetch?: { backend?: string[] } };
-  };
-  remotes?: ManifestRemote[];
-  providers?: {
-    auth?: ManifestAuthProvider[];
-  };
-}
+import type { ManifestSchema } from '@forge/manifest';
+
+/**
+ * The raw manifest.yml shape — Atlassian's own generated type, re-exported
+ * under the historical forge-sim name. Using the upstream type means every
+ * `@forge/manifest` bump surfaces manifest-shape drift as compile errors
+ * (the type-level analogue of the shim → real package fallthrough).
+ *
+ * Note: ManifestSchema is strict (required app.id/runtime, non-empty tuple
+ * types). The parser casts unvalidated YAML to it and reads defensively;
+ * tests constructing partial manifests may need an `as` cast.
+ *
+ * `app.name` is widened back in: it was removed from the schema (app names
+ * are managed in the Developer Console now, and upstream's validator emits a
+ * deprecation info for it) but older manifests still carry it and forge-sim
+ * uses it for display.
+ */
+export type ForgeManifest = Omit<ManifestSchema, 'app'> & {
+  app: ManifestSchema['app'] & { name?: string };
+};
 
 /**
  * Custom Entity Store schema (manifest-declared).
@@ -87,6 +84,13 @@ export interface ManifestAuthProvider {
   };
 }
 
+/**
+ * Loose structural view of a single module entry, for generic iteration over
+ * `manifest.modules`. Upstream's `Modules` type is per-module-type tuple
+ * unions with a `[k: string]: unknown` index signature, which makes
+ * `Object.entries(modules)` values untypable — this view is the shape the
+ * parser actually reads. NOT a validation contract; the upstream schema is.
+ */
 export interface ManifestModule {
   key: string;
   function?: string;

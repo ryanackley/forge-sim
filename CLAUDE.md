@@ -17,8 +17,8 @@ Apps run **completely unmodified**. `@forge/*` imports are intercepted by Node l
 ## Quick stats
 
 <!-- BEGIN:STATS -->
-**2,817 tests** across **151** test files
-(2,651 core / 144 files
+**2,832 tests** across **152** test files
+(2,666 core / 145 files
 + 166 renderer / 7 files)
 
 **41 MCP tools** + **4 resources**
@@ -106,7 +106,7 @@ Node 22+ required (native TS type stripping). MySQL-memory-server bundles its ow
 - **No silent stubs.** If a Forge API returns data in production, our shim returns shaped data, not undefined. If we don't implement it, throw a clear "not yet implemented" error so the parity violation is visible.
 - **Shim → real package fallthrough.** Where possible, the shim imports the real CJS `@forge/*` package and only intercepts the bits that hit Atlassian's cloud. This keeps behavior aligned automatically when Atlassian ships a patch release.
 - **Test fixtures live in `src/__tests__/fixtures/<app-name>/`.** Each fixture is a tiny self-contained Forge app (`manifest.yml` + handler files). Real-world end-to-end apps live under `~/Projects/{retro-board, okr-tracker, my-issues, ...}` and have their own e2e test files.
-- **Manifest changes go through `src/manifest-validator.ts`.** That validator is what tells the user "your manifest is missing X" before deploy fails. Keep error messages copy-pasteable (include the YAML snippet they should add).
+- **Manifest changes go through `src/manifest.ts` (parser + sim-side checks) and `src/manifest-validation.ts` (upstream `@forge/manifest` validator wrapper).** Those checks are what tell the user "your manifest is missing X" before deploy fails. Keep error messages copy-pasteable (include the YAML snippet they should add).
 - **Persistence is `entities.json` + `sql.dump`.** No more `kvs.json` (removed; everything goes through the entity store). State lives under `<app>/.forge-sim/state/`.
 - **Release ritual includes the plugin manifests.** `npm version` bumps `package.json` only; the Claude Code plugin version in `.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json` must be bumped to match by hand. The plugin version pins marketplace updates, so a stale version means installed users never see new skill or MCP changes.
 - **Bumping a real `@forge/*` dependency is a three-step ritual.** The contract suite (#10) pins our shims to specific upstream versions, so a version bump is never just a `package.json` edit:

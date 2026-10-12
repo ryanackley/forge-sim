@@ -15,7 +15,7 @@
 import { createHash } from 'crypto';
 import { mkdtemp, writeFile, rm } from 'fs/promises';
 import { tmpdir } from 'os';
-import { join } from 'path';
+import { dirname, join } from 'path';
 import { validate } from '@forge/manifest';
 import type { ManifestWarning } from './manifest.js';
 
@@ -31,6 +31,14 @@ export const PLACEHOLDER_APP_ID =
 const FILE_EXISTENCE_PATTERNS: RegExp[] = [
   /cannot find associated file/i,
   /missing resource '.*' is being referenced/i,
+  // Manual packaging / multi-entry resources (exact upstream texts live in
+  // @forge/manifest out/text/errors.js — resources.* and app.package.*):
+  /Extra files specification '.*' does not match any files/i,
+  /missing resource entry file '.*' referenced by/i,
+  /resource entry '.*' referenced by .* must be a file/i,
+  /missing index\.html file in directory/i,
+  /empty directory '.*' is being referenced/i,
+  /Custom UI resource must be a directory/i,
 ];
 
 /** Remediation hints appended to specific validator errors. */
@@ -56,6 +64,20 @@ const REMEDIATION_HINTS: Array<{ pattern: RegExp; hint: string }> = [
   {
     pattern: /must have at least 1 module/i,
     hint: `Hint: "function:" entries alone don't count as modules; declare at least one real module (e.g. webtrigger, jira:issuePanel, macro).`,
+  },
+  {
+    pattern: /cannot find associated file/i,
+    hint:
+      `Hint: handler files resolve relative to src/ by default, or relative to app.package.path ` +
+      `under manual packaging (app.package.bundler: manual@2026). The handler format is "<file>.<export>" ` +
+      `with the file path given without extension.`,
+  },
+  {
+    pattern: /package\/bundler must be equal to one of the allowed values/i,
+    hint:
+      `Hint: supported bundlers are "webpack" (the default) and "manual@2026". For manual packaging add:\n` +
+      `    app:\n      package:\n        bundler: manual@2026\n        path: dist  # directory with your built code\n` +
+      `  See https://developer.atlassian.com/platform/forge/manifest-reference/packaging/`,
   },
 ];
 
@@ -103,8 +125,20 @@ function formatWarning(err: RawValidationError): ManifestWarning {
 
 async function runValidator(manifestPath: string): Promise<RawValidationError[]> {
   return serialized(async () => {
-    const result = await validate(false, manifestPath);
-    return (result.errors ?? []) as RawValidationError[];
+    // Upstream's PackageValidator globs app.package.extraFiles patterns
+    // relative to process.cwd(), not the manifest directory — validating an
+    // app from anywhere else gives false "does not match any files" errors
+    // (or false passes). Pin cwd to the app dir for the duration of the call;
+    // the serialized() chain already guarantees no concurrent validate() sees
+    // the temporary cwd.
+    const previousCwd = process.cwd();
+    process.chdir(dirname(manifestPath));
+    try {
+      const result = await validate(false, manifestPath);
+      return (result.errors ?? []) as RawValidationError[];
+    } finally {
+      process.chdir(previousCwd);
+    }
   });
 }
 
