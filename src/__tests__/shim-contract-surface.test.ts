@@ -19,6 +19,10 @@
  * suite first ran — burn them down (implement or throw a clear
  * "not implemented in forge-sim" error per the no-silent-stubs convention),
  * don't let the list grow.
+ *
+ * This layer only sees export NAMES. Undocumented behavioral quirks — real
+ * package behavior no name-or-type comparison can catch — are indexed in
+ * shim-contract-quirks.test.ts (layer 3).
  */
 import { describe, it, expect } from 'vitest';
 import { SHIM_NAMES } from '../shims/shim-registry.js';

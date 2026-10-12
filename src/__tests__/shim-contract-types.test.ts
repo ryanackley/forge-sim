@@ -79,14 +79,16 @@ const TYPE_DEVIATIONS: Record<string, Record<string, string>> = {
     QueueResponse:
       'Real QueueResponse extends an unexported Response base with a protected ' +
       '_retry field — nominal. Runtime behavior (retry() flipping the flag) is ' +
-      'covered by eval11-findings tests.',
+      'pinned as quirk events-queue-response-retry-flag; see the index in ' +
+      'shim-contract-quirks.test.ts.',
     InvocationError:
       'Same nominal-typing problem as QueueResponse (protected _retry on the ' +
       'unexported Response base).',
     InvocationErrorCode:
       'Real is a TS enum (enum member types are nominal); the shim ships a ' +
-      'frozen object with the identical runtime values, asserted exactly by ' +
-      'eval11-findings tests.',
+      'frozen object with the identical runtime values, pinned as quirk ' +
+      'events-invocation-error-code-values; see the index in ' +
+      'shim-contract-quirks.test.ts.',
   },
   '@forge/llm': {
     stream:

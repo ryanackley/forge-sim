@@ -17,8 +17,8 @@ Apps run **completely unmodified**. `@forge/*` imports are intercepted by Node l
 ## Quick stats
 
 <!-- BEGIN:STATS -->
-**2,813 tests** across **150** test files
-(2,647 core / 143 files
+**2,817 tests** across **151** test files
+(2,651 core / 144 files
 + 166 renderer / 7 files)
 
 **41 MCP tools** + **4 resources**
