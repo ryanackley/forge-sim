@@ -28,7 +28,7 @@
 import { createRequire } from 'node:module';
 import { readFile } from 'node:fs/promises';
 import { readFileSync } from 'node:fs';
-import { join, dirname } from 'node:path';
+import { join, dirname, relative, resolve, isAbsolute } from 'node:path';
 import type { ManifestWarning } from './manifest.js';
 
 /**
@@ -82,17 +82,28 @@ export function majorFromRange(range: string): number | null {
  *
  * Preferred over the package.json range when available: the range is what the
  * app ASKED for, the installed version is what its code will actually run
- * against, and `^8.0.0` can resolve to anything up to 9.0.0. Resolved from the
- * APP's directory, not ours — same `createRequire(appDir)` trick
- * `clearMigrationRegistry()` uses in deployer.ts, so a user app with its own
- * node_modules reports its own copy rather than forge-sim's.
+ * against, and `^8.0.0` can resolve to anything up to 9.0.0 (and `latest`
+ * says nothing at all). Resolved from the APP's directory, not ours — the
+ * same `createRequire(appDir)` trick `clearMigrationRegistry()` uses.
+ *
+ * CONTAINMENT IS LOAD-BEARING. Node resolution walks *up* the directory tree,
+ * so an app without its own node_modules happily resolves `@forge/api` to
+ * whatever a parent directory has — and when the app sits inside this repo
+ * (every test fixture does), that parent is forge-sim's own node_modules. We
+ * would then be reading OUR pinned version, comparing it to OUR table, and
+ * concluding "no drift" no matter what the app declared. That's how the
+ * retro-board fixture (which pins @forge/api ^6.4.2, two majors back) sailed
+ * through silently. So: only trust a resolution that lands INSIDE appDir;
+ * otherwise the app has nothing installed of its own and the declared range
+ * is the honest answer.
  */
-function installedVersion(appRequire: NodeRequire, specifier: string): string | null {
+function installedVersion(appDir: string, appRequire: NodeRequire, specifier: string): string | null {
   // Can't just require(`${specifier}/package.json`): several @forge packages
   // (e.g. @forge/resolver) declare an `exports` map that doesn't expose the
   // './package.json' subpath, so Node refuses it. Resolve the package's real
   // directory and read the file off disk instead, which `exports` can't block.
   for (const dir of candidateDirs(appRequire, specifier)) {
+    if (!isInside(appDir, dir)) continue;
     try {
       const pkg = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8')) as {
         name?: string;
@@ -104,6 +115,12 @@ function installedVersion(appRequire: NodeRequire, specifier: string): string | 
     }
   }
   return null;
+}
+
+/** True when `child` is `parent` or sits beneath it. */
+function isInside(parent: string, child: string): boolean {
+  const rel = relative(resolve(parent), resolve(child));
+  return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel));
 }
 
 /**
@@ -146,7 +163,7 @@ function candidateDirs(appRequire: NodeRequire, specifier: string): string[] {
  */
 export function installedForgeVersion(dir: string, specifier: string): string | null {
   try {
-    return installedVersion(createRequire(join(dir, '<forge-sim>')), specifier);
+    return installedVersion(dir, createRequire(join(dir, '<forge-sim>')), specifier);
   } catch {
     return null;
   }
@@ -177,20 +194,27 @@ export function checkAppForgeVersions(appDir: string, deps: Record<string, strin
     const declared = deps[specifier];
     if (!declared) continue; // app doesn't use this package
 
-    const resolved = appRequire ? installedVersion(appRequire, specifier) : null;
+    const resolved = appRequire ? installedVersion(appDir, appRequire, specifier) : null;
     const appMajor = majorFromRange(resolved ?? declared);
     const verifiedMajor = majorFromRange(verified);
     if (appMajor === null || verifiedMajor === null || appMajor === verifiedMajor) continue;
 
     const actual = resolved ? `${resolved} installed` : `${declared} declared`;
-    const direction = appMajor > verifiedMajor ? 'A newer' : 'An older';
+    // No "report a bug" here: a given forge-sim release is verified against
+    // one major per package and cannot support every Forge version at once.
+    // A mismatch is an expected, actionable state, so the message says how to
+    // get back in sync rather than implying something is broken.
+    const fix =
+      appMajor > verifiedMajor
+        ? `upgrade forge-sim (a later release may be verified against v${appMajor})`
+        : `check for a forge-sim release verified against v${appMajor}`;
     warnings.push({
       level: 'warning',
       message:
-        `${specifier}: your app uses v${appMajor} (${actual}), but forge-sim's shim is verified ` +
-        `against ${verified}. ${direction} major may have a different API surface, so forge-sim's ` +
-        `behavior here may not match real Forge — in either direction. If you hit a difference, ` +
-        `it's a forge-sim bug worth reporting; pinning ${specifier}@${verifiedMajor}.x is the workaround.`,
+        `${specifier}: your app uses v${appMajor} (${actual}), but this forge-sim release is ` +
+        `verified against ${verified}. Across a major the API surface can differ, so forge-sim's ` +
+        `behavior may not match real Forge for this package. To get an exact match, either pin ` +
+        `${specifier} to ${verifiedMajor}.x in your app, or ${fix}.`,
     });
   }
   return warnings;

@@ -17,8 +17,8 @@ Apps run **completely unmodified**. `@forge/*` imports are intercepted by Node l
 ## Quick stats
 
 <!-- BEGIN:STATS -->
-**2,809 tests** across **150** test files
-(2,643 core / 143 files
+**2,813 tests** across **150** test files
+(2,647 core / 143 files
 + 166 renderer / 7 files)
 
 **41 MCP tools** + **4 resources**
@@ -109,6 +109,12 @@ Node 22+ required (native TS type stripping). MySQL-memory-server bundles its ow
 - **Manifest changes go through `src/manifest-validator.ts`.** That validator is what tells the user "your manifest is missing X" before deploy fails. Keep error messages copy-pasteable (include the YAML snippet they should add).
 - **Persistence is `entities.json` + `sql.dump`.** No more `kvs.json` (removed; everything goes through the entity store). State lives under `<app>/.forge-sim/state/`.
 - **Release ritual includes the plugin manifests.** `npm version` bumps `package.json` only; the Claude Code plugin version in `.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json` must be bumped to match by hand. The plugin version pins marketplace updates, so a stale version means installed users never see new skill or MCP changes.
+- **Bumping a real `@forge/*` dependency is a three-step ritual.** The contract suite (#10) pins our shims to specific upstream versions, so a version bump is never just a `package.json` edit:
+  1. `npm install @forge/<pkg>@<version>`.
+  2. Run `npx vitest run src/__tests__/shim-contract-{surface,types}.test.ts`. Failures are real drift — fix the shim (or record a deliberate deviation in `KNOWN_MISSING` / `SIM_ONLY_EXPORTS` with a reason), don't paper over them.
+  3. Update that package's entry in `VERIFIED_FORGE_VERSIONS` (`src/forge-package-versions.ts`) **in the same commit**. `forge-package-versions.test.ts` fails if the table disagrees with what's installed, so skipping this breaks CI.
+
+  That table also drives the deploy-time advisory: apps whose own `@forge/*` **major** differs from ours get a warning at deploy. Majors only — intra-major drift is what steps 1–2 already catch, and warning on every patch bump would be noise the user can't act on. Changing a pinned major is a user-visible compatibility change; call it out in the release notes.
 - **Stats blocks** in markdown use HTML-comment marker pairs (`BEGIN:STATS` and `END:STATS`, each wrapped in `<!-- ... -->`) and are rewritten by `scripts/update-stats.mjs`. Don't hand-edit numbers inside markers; re-run the script. The known generators are `STATS`, `STATS_COMPACT`, and `MCP_TOOLS`. See the script for details.
 
 ## Forge platform quirks that bite you

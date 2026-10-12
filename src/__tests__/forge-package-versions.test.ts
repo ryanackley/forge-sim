@@ -31,6 +31,16 @@ async function appDirWith(packageJson: string | null): Promise<string> {
   return dir;
 }
 
+/** Plant a package inside the app's own node_modules at a given version. */
+async function writeInstalled(appDir: string, specifier: string, version: string): Promise<void> {
+  const pkgDir = join(appDir, 'node_modules', ...specifier.split('/'));
+  await mkdir(pkgDir, { recursive: true });
+  await writeFile(join(pkgDir, 'package.json'), JSON.stringify({ name: specifier, version }));
+  // A resolvable entry point: candidateDirs() walks up from require.resolve(),
+  // and the bare-path fallback should not be the only thing under test.
+  await writeFile(join(pkgDir, 'index.js'), 'module.exports = {};');
+}
+
 describe('verified @forge/* version manifest (#10)', () => {
   it('records the version actually installed for every entry', () => {
     const drifted: string[] = [];
@@ -86,13 +96,13 @@ describe('deploy-time version advisory', () => {
     expect(warnings[0].message).toContain('@forge/api');
     expect(warnings[0].message).toContain('v7');
     expect(warnings[0].message).toContain(VERIFIED_FORGE_VERSIONS['@forge/api']);
-    expect(warnings[0].message).toContain('An older major');
+    expect(warnings[0].message).toContain('check for a forge-sim release verified against v7');
   });
 
   it('warns when the app is a major ahead of the verified version', () => {
     const warnings = checkAppForgeVersions(appDir, { '@forge/api': '^9.0.0' });
     expect(warnings).toHaveLength(1);
-    expect(warnings[0].message).toContain('A newer major');
+    expect(warnings[0].message).toContain('upgrade forge-sim');
   });
 
   it('stays quiet on patch and minor drift within the verified major', () => {
@@ -120,13 +130,62 @@ describe('deploy-time version advisory', () => {
     expect(warnings.map(w => w.message.split(':')[0]).sort()).toEqual(['@forge/api', '@forge/kvs']);
   });
 
+  it('resolves a floating range like "latest" or "*" via the installed copy', async () => {
+    // The payoff of reading node_modules: a range that carries no major at
+    // all still gets checked, because the installed copy is concrete.
+    const dir = await appDirWith('{}');
+    await writeInstalled(dir, '@forge/api', '6.1.0');
+
+    for (const floating of ['latest', '*']) {
+      const warnings = checkAppForgeVersions(dir, { '@forge/api': floating });
+      expect(warnings, `floating range ${floating} should still be checked`).toHaveLength(1);
+      expect(warnings[0].message).toContain('6.1.0 installed');
+    }
+  });
+
+  it('ignores a resolution that escapes the app directory', async () => {
+    // Node resolution walks up, so an app with no node_modules of its own
+    // resolves to whatever a parent has — inside this repo, that's forge-sim's
+    // own @forge/api. Trusting it would compare our tree to our table and
+    // always report "no drift". The declared range must win instead.
+    const dir = await appDirWith('{}'); // tmpdir, no node_modules
+    expect(installedForgeVersion(dir, '@forge/api')).toBeNull();
+
+    const warnings = checkAppForgeVersions(dir, { '@forge/api': '^6.4.2' });
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0].message).toContain('^6.4.2 declared');
+  });
+
+  it('warns for an in-repo fixture that pins stale majors', async () => {
+    // Regression guard for the bug above: this fixture declares @forge/api
+    // ^6.4.2 and friends, and sits inside the repo, so the escaping
+    // resolution used to mask every one of these.
+    const fixture = join(REPO_ROOT, 'src/__tests__/fixtures/retro-board');
+    const warnings = checkAppForgeVersions(fixture, await readAppForgeDeps(fixture));
+    expect(warnings.map(w => w.message.split(':')[0]).sort()).toEqual([
+      '@forge/api',
+      '@forge/bridge',
+      '@forge/events',
+      '@forge/react',
+      '@forge/resolver',
+    ]);
+  });
+
+  it('tells the user how to resync instead of calling it a bug', () => {
+    // The mismatch is expected — one forge-sim release can't cover every
+    // Forge major — so the copy must be actionable, not alarming.
+    const [behind] = checkAppForgeVersions(appDir, { '@forge/api': '^7.0.0' });
+    expect(behind.message).not.toMatch(/bug/i);
+    expect(behind.message).toContain('pin @forge/api to 8.x');
+    const [ahead] = checkAppForgeVersions(appDir, { '@forge/api': '^9.0.0' });
+    expect(ahead.message).toContain('upgrade forge-sim');
+  });
+
   it('prefers the installed version over the declared range', async () => {
     // Range says v8 (matches the table), but what's installed is v6 — the
     // installed copy is what the app's code actually runs against.
     const dir = await appDirWith('{}');
-    const pkgDir = join(dir, 'node_modules', '@forge', 'api');
-    await mkdir(pkgDir, { recursive: true });
-    await writeFile(join(pkgDir, 'package.json'), JSON.stringify({ name: '@forge/api', version: '6.1.0' }));
+    await writeInstalled(dir, '@forge/api', '6.1.0');
 
     const warnings = checkAppForgeVersions(dir, { '@forge/api': '^8.2.0' });
     expect(warnings).toHaveLength(1);
