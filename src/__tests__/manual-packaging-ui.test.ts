@@ -16,7 +16,7 @@ import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'os';
 import { createSimulator, type ForgeSimulator } from '../simulator.js';
 import { extractEntryScript } from '../deployer.js';
-import { detectModuleType } from '../dev-command.js';
+import { detectModuleType, refreshPrebuiltModules } from '../dev-command.js';
 import { parseManifestContent } from '../manifest.js';
 import { warnOnForgeReactMajorMismatch, VERIFIED_FORGE_REACT_DOC_MAJOR } from '../forge-package-versions.js';
 import { vi } from 'vitest';
@@ -223,6 +223,46 @@ ${resources}
     expect(detected?.mode).toBe('customui');
     expect(detected?.entryHtml).toBe('settings.html');
     expect(detected?.resourcePath).toBe(join(appDir, 'dist'));
+  });
+
+  it('refreshPrebuiltModules re-resolves a renamed hashed bundle (adversarial #3)', async () => {
+    const manifest = manifestFor(
+      `  jira:issuePanel:
+    - key: p
+      resource: main
+      render: native
+      title: P
+      icon: https://example.com/i.svg`,
+      `  - key: main
+    bundler: manual@2026
+    path: dist`
+    );
+    const detected = detectModuleType(appDir, manifest, manifest.uiModules[0])!;
+    expect(detected.resourcePath).toBe(join(appDir, 'dist', 'app-abc123.js'));
+
+    // Simulate `vite build`: new hash, old asset deleted, HTML rewritten.
+    await writeFile(join(appDir, 'dist', 'app-def456.js'), 'export {};', 'utf8');
+    await writeFile(
+      join(appDir, 'dist', 'index.html'),
+      '<!doctype html><html><body><script type="module" src="./app-def456.js"></script></body></html>',
+      'utf8'
+    );
+    await rm(join(appDir, 'dist', 'app-abc123.js'));
+
+    const changed = refreshPrebuiltModules(appDir, manifest, [detected]);
+    expect(changed).toHaveLength(1);
+    expect(detected.resourcePath).toBe(join(appDir, 'dist', 'app-def456.js'));
+
+    // Unchanged on a second pass — no spurious regeneration.
+    expect(refreshPrebuiltModules(appDir, manifest, [detected])).toHaveLength(0);
+
+    // Restore fixture state for sibling tests.
+    await writeFile(join(appDir, 'dist', 'app-abc123.js'), 'export {};', 'utf8');
+    await writeFile(
+      join(appDir, 'dist', 'index.html'),
+      '<!doctype html><html><body><script type="module" src="./app-abc123.js"></script></body></html>',
+      'utf8'
+    );
   });
 
   it('entry map + render native picks the per-entry script', () => {

@@ -220,6 +220,35 @@ export function detectModuleType(appDir: string, manifest: ParsedManifest, mod: 
   return null;
 }
 
+/**
+ * Re-resolve prebuilt (manual-packaged) UIKit modules against the current
+ * state of their entry HTML, mutating `resourcePath` in place. Returns the
+ * modules whose bundle path moved (adversarial finding #3: `vite build`
+ * renames hashed assets, and a pinned path left the browser importing a
+ * deleted file). Detect errors from mid-build states (half-written HTML)
+ * are skipped — the next change event wins.
+ */
+export function refreshPrebuiltModules(
+  appDir: string,
+  freshManifest: ParsedManifest,
+  detectedModules: DetectedModule[],
+): DetectedModule[] {
+  const changed: DetectedModule[] = [];
+  for (const mod of detectedModules) {
+    if (mod.mode !== 'uikit' || !mod.prebuilt) continue;
+    let fresh: DetectedModule | null = null;
+    try {
+      fresh = detectModuleType(appDir, freshManifest, mod.module);
+    } catch {
+      continue;
+    }
+    if (!fresh?.prebuilt || fresh.resourcePath === mod.resourcePath) continue;
+    mod.resourcePath = fresh.resourcePath;
+    changed.push(mod);
+  }
+  return changed;
+}
+
 // ── Entry Point Generation ────────────────────────────────────────────────
 
 export function generateUIKitEntry(appResourcePath: string, wsPort: number, strictMode: boolean): string {
@@ -1635,16 +1664,25 @@ export async function devCommand(options: DevCommandOptions) {
   console.log(`  📋 Reading manifest.yml...`);
   const manifest = await parseManifest(manifestPath);
 
-  // Manual packaging (#40): app.package.path holds prebuilt output. Two dev
-  // consequences wired below: the file watcher must NOT ignore that directory
-  // (it's what redeploys — forge tunnel watches the target dir too), and the
-  // tsc watcher is skipped entirely (the real CLI does no processing under
-  // manual packaging; the user runs their own compiler, typically in watch
-  // mode alongside us).
+  // Manual packaging (#40): app.package.path (and manual resource paths like
+  // frontend/dist) hold prebuilt output. Three dev consequences wired below:
+  // the file watcher must NOT ignore those directories (they're what
+  // redeploys — forge tunnel watches the target dir too; and a `vite build`
+  // that renames a hashed bundle must emit a change event or the browser
+  // keeps importing the deleted file), and the tsc watcher is skipped
+  // entirely (the real CLI does no processing under manual packaging; the
+  // user runs their own compiler, typically in watch mode alongside us).
   const devManualPackaging = manifest.raw.app?.package?.bundler === 'manual@2026';
-  const devWatchIgnoreDirs = ['node_modules', 'dist'].filter(
-    (d) => !(devManualPackaging && manifest.handlersDirectory.split(/[\\/]/).includes(d))
-  );
+  const manualOutputSegments = new Set<string>();
+  if (devManualPackaging) {
+    for (const seg of manifest.handlersDirectory.split(/[\\/]/)) manualOutputSegments.add(seg);
+  }
+  for (const res of manifest.resources.values()) {
+    if (res.bundler === 'manual@2026') {
+      for (const seg of res.path.split(/[\\/]/)) manualOutputSegments.add(seg);
+    }
+  }
+  const devWatchIgnoreDirs = ['node_modules', 'dist'].filter((d) => !manualOutputSegments.has(d));
   console.log(`     App: ${manifest.raw.app?.name ?? manifest.raw.app?.id ?? 'unnamed'}`);
   console.log(`     Functions: ${manifest.functions.size}`);
   console.log(`     UI modules: ${manifest.uiModules.length}`);
@@ -1843,10 +1881,17 @@ export async function devCommand(options: DevCommandOptions) {
   // state (KVS/SQL/queues) survives the pass. Serialized so rapid saves
   // can't interleave two deploy passes.
   let redeployChain: Promise<unknown> = Promise.resolve();
+  // Assigned after the Vite temp dir exists (never in proxy mode). Re-resolves
+  // prebuilt (manual-packaged) frontend bundles on change: the generated
+  // entry.tsx pins the HASHED bundle filename, so a `vite build` that renames
+  // the asset left the browser importing a deleted file forever (adversarial
+  // finding #3) — the only "fix" was an undocumented server restart.
+  let regeneratePrebuiltEntries: ((freshManifest: ParsedManifest) => void) | null = null;
   const redeployOnChange = (changedFile: string) => {
     const pass = redeployChain.then(async () => {
       const freshManifest = await parseManifest(manifestPath);
       const result = await deployResolversOnly(sim, appDir, freshManifest, { reload: true });
+      regeneratePrebuiltEntries?.(freshManifest);
       registeredFunctionCount = result.loadedFunctions.length;
       if (result.errors.length > 0) {
         for (const err of result.errors) {
@@ -2167,22 +2212,40 @@ export async function devCommand(options: DevCommandOptions) {
   writeFileSync(join(appDir, '.forge-sim', '.gitignore'), '*\n');
 
   // Generate per-module entry points
+  const writeUIKitModuleEntry = (mod: DetectedModule) => {
+    const moduleDir = join(tempDir, mod.module.key);
+    mkdirSync(moduleDir, { recursive: true });
+
+    const appResourceRelative = relative(moduleDir, mod.resourcePath).replace(/\\/g, '/');
+    const appResourceImportPath = appResourceRelative.startsWith('.') ? appResourceRelative : './' + appResourceRelative;
+    const entryContent = generateUIKitEntry(appResourceImportPath, wsPort, !!strictMode);
+
+    writeFileSync(join(moduleDir, 'entry.tsx'), entryContent);
+    writeFileSync(join(moduleDir, 'index.html'), generateIndexHtml(
+      `${mod.module.key} — ${manifest.raw.app?.name ?? 'Forge App'}`
+    ));
+  };
   for (const mod of detectedModules) {
     if (mod.mode === 'uikit') {
-      const moduleDir = join(tempDir, mod.module.key);
-      mkdirSync(moduleDir, { recursive: true });
-
-      const appResourceRelative = relative(moduleDir, mod.resourcePath).replace(/\\/g, '/');
-      const appResourceImportPath = appResourceRelative.startsWith('.') ? appResourceRelative : './' + appResourceRelative;
-      const entryContent = generateUIKitEntry(appResourceImportPath, wsPort, !!strictMode);
-
-      writeFileSync(join(moduleDir, 'entry.tsx'), entryContent);
-      writeFileSync(join(moduleDir, 'index.html'), generateIndexHtml(
-        `${mod.module.key} — ${manifest.raw.app?.name ?? 'Forge App'}`
-      ));
+      writeUIKitModuleEntry(mod);
     }
     // Custom UI modules don't need temp files — served from resource dir via middleware
   }
+
+  // Frontend rebuilds of manual-packaged resources rename hashed bundles;
+  // re-extract each prebuilt module's entry script from its (re-read) entry
+  // HTML and regenerate the Vite entry when the path moved. Rewriting
+  // entry.tsx invalidates it in Vite's module graph, so connected browsers
+  // full-reload onto the new bundle.
+  regeneratePrebuiltEntries = (freshManifest: ParsedManifest) => {
+    for (const mod of refreshPrebuiltModules(appDir, freshManifest, detectedModules)) {
+      writeUIKitModuleEntry(mod);
+      console.log(
+        `  🔁 Frontend bundle changed — regenerated entry for "${mod.module.key}" ` +
+        `(now ${relative(appDir, mod.resourcePath)})`
+      );
+    }
+  };
 
   // Generate the combined parent page for nested surfaces (macro / custom-field /
   // workflow). Each group is a top-level Atlaskit React document served at
