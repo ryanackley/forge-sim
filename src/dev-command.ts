@@ -22,7 +22,7 @@ import { resolve, join, relative, dirname } from 'node:path';
 import { existsSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createSimulator, ForgeSimulator } from './simulator.js';
-import { deploy, bundleHandlerToFileUrl, sweepStaleBundles, deployBundleDir, wrapV1ConsumerHandler, parseHandlerString, resolveHandlerFile, clearAppRequireCache } from './deployer.js';
+import { deploy, bundleHandlerToFileUrl, sweepStaleBundles, deployBundleDir, wrapV1ConsumerHandler, parseHandlerString, resolveHandlerFile, clearAppRequireCache, extractEntryScript } from './deployer.js';
 import { interceptCjsForgeRequires } from './loader/cjs-interception.js';
 import { createDevServer } from './dev-server.js';
 import { parseManifest, type ParsedManifest, type ManifestUIModule, BACKGROUND_SCRIPT_TYPES, getCompatibleBackgroundScripts } from './manifest.js';
@@ -64,6 +64,15 @@ export interface DetectedModule {
   module: ManifestUIModule;
   resourcePath: string;
   mode: 'uikit' | 'customui';
+  /**
+   * Manual packaging (#40): resourcePath points at the PREBUILT entry script
+   * extracted from the resource's entry HTML, not a source file. Downstream
+   * the module flows through the exact same uikit pipeline (generated entry →
+   * Vite serve → renderer shell); only the imported file differs.
+   */
+  prebuilt?: boolean;
+  /** Custom UI: HTML page to serve as the module's index (multi-entry maps). */
+  entryHtml?: string;
 }
 
 /**
@@ -147,22 +156,47 @@ export function detectModuleType(appDir: string, manifest: ParsedManifest, mod: 
 
   const resourcePath = resolve(appDir, resource.path);
 
+  // Manual packaging (#40): the resource dir is prebuilt output. UI Kit vs
+  // Custom UI cannot be sniffed from a bundle — the manifest decides:
+  // `render: native` is the UIKit 2 contract. (Mirror of the async
+  // resolveUiResourceEntry in deployer.ts, kept sync for this call path.)
+  if (resource.bundler === 'manual@2026') {
+    const entryHtml = mod.entryKey ? resource.entry?.[mod.entryKey] : 'index.html';
+    if (!entryHtml) return null; // bad entry ref — upstream validation reports it
+    const htmlPath = join(resourcePath, entryHtml);
+    if (!existsSync(htmlPath)) return null; // missing build output — validation reports it
+    if (mod.render === 'native') {
+      const script = extractEntryScript(readFileSync(htmlPath, 'utf-8'));
+      if (!script) return null;
+      return { module: mod, resourcePath: join(resourcePath, script), mode: 'uikit', prebuilt: true };
+    }
+    return { module: mod, resourcePath, mode: 'customui', entryHtml };
+  }
+
+  // Multi-entry map without manual packaging: the entry value is a source
+  // file directly inside the resource dir — resolve it and fall through to
+  // the normal sniffing below.
+  const entrySourcePath = mod.entryKey
+    ? resource.entry?.[mod.entryKey] && join(resourcePath, resource.entry[mod.entryKey])
+    : undefined;
+
   // Check if it's a directory with index.html (Custom UI)
-  if (existsSync(join(resourcePath, 'index.html'))) {
+  if (!entrySourcePath && existsSync(join(resourcePath, 'index.html'))) {
     return { module: mod, resourcePath, mode: 'customui' };
   }
 
   // Check if the resource points to a file
+  const base = entrySourcePath ?? resourcePath;
   const possibleFiles = [
-    resourcePath,
-    resourcePath + '.tsx',
-    resourcePath + '.ts',
-    resourcePath + '.jsx',
-    resourcePath + '.js',
-    join(resourcePath, 'index.tsx'),
-    join(resourcePath, 'index.ts'),
-    join(resourcePath, 'index.jsx'),
-    join(resourcePath, 'index.js'),
+    base,
+    base + '.tsx',
+    base + '.ts',
+    base + '.jsx',
+    base + '.js',
+    join(base, 'index.tsx'),
+    join(base, 'index.ts'),
+    join(base, 'index.jsx'),
+    join(base, 'index.js'),
   ];
 
   for (const filePath of possibleFiles) {
@@ -1314,10 +1348,11 @@ export function installModuleRouting(
           req.url = `/${key}${rest}`;
         }
       } else {
-        // Custom UI — rewrite to serve from /_customui_<key>/ virtual prefix
-        // The Vite alias handles mapping this to the actual resource directory
+        // Custom UI — rewrite to serve from /_customui_<key>/ virtual prefix.
+        // Multi-entry manual resources serve the module's own entry HTML as
+        // the index page (entryHtml); classic resources keep index.html.
         if (rest === '/' || !isFileRequest) {
-          req.url = `/_customui_${key}/index.html`;
+          req.url = `/_customui_${key}/${mod.entryHtml ?? 'index.html'}`;
         } else {
           req.url = `/_customui_${key}${rest}`;
         }
@@ -1405,9 +1440,10 @@ export async function buildViteConfig(opts: {
         const match = req.url.match(/^\/_customui_([^/]+)(\/.*)?$/);
         if (!match) return next();
         const key = match[1];
-        const rest = match[2] || '/index.html';
         const mod = modules.find((m) => m.module.key === key && m.mode === 'customui');
         if (!mod) return next();
+        const indexHtml = mod.entryHtml ?? 'index.html';
+        const rest = match[2] || '/' + indexHtml;
         // Rewrite to serve from the resource directory
         // For directory-based Custom UI (with index.html), resourcePath is the dir
         const resourceDir = existsSync(join(mod.resourcePath, 'index.html'))
@@ -1422,8 +1458,8 @@ export async function buildViteConfig(opts: {
           // are client-side routes — serve the module's index.html (with
           // bridge injection), matching real Forge's fullPage route serving.
           const lastSegment = rest.split('/').pop() ?? '';
-          if (!lastSegment.includes('.') && existsSync(join(resourceDir, 'index.html'))) {
-            filePath = join(resourceDir, 'index.html');
+          if (!lastSegment.includes('.') && existsSync(join(resourceDir, indexHtml))) {
+            filePath = join(resourceDir, indexHtml);
           }
         }
         if (existsSync(filePath)) {

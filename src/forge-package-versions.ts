@@ -225,6 +225,41 @@ export function checkAppForgeVersions(appDir: string, deps: Record<string, strin
  * Returns `{}` when there's no readable package.json — see the totality note
  * on checkAppForgeVersions().
  */
+// ── Runtime UI Kit major check (#40) ────────────────────────────────────────
+//
+// Manual-packaged resources inline the APP'S OWN @forge/react into the
+// bundle, so neither we nor real Forge can verify it before it runs ("Forge
+// CLI does not process the code to upload"). The runtime signal is the
+// reconcile payload itself: every ForgeDoc root carries
+// forgeReactMajorVersion. Warn (once per major seen) when it differs from
+// the version this forge-sim release is verified against.
+
+/**
+ * The reconcile-protocol major our verified @forge/react stamps on ForgeDoc
+ * roots. NOT the npm package major: @forge/react 12.0.1 emits 11 — the
+ * protocol version lags the package version upstream. Pinned by
+ * manual-packaging-ui.test.ts (a real render through the verified package
+ * must produce exactly this value); revisit on every @forge/react bump as
+ * part of the three-step ritual.
+ */
+export const VERIFIED_FORGE_REACT_DOC_MAJOR = 11;
+
+const warnedReconcileMajors = new Set<number>();
+
+export function warnOnForgeReactMajorMismatch(docMajor: number | undefined): void {
+  if (docMajor == null || docMajor === VERIFIED_FORGE_REACT_DOC_MAJOR) return;
+  if (warnedReconcileMajors.has(docMajor)) return;
+  warnedReconcileMajors.add(docMajor);
+  const pkg = VERIFIED_FORGE_VERSIONS['@forge/react'];
+  console.warn(
+    `[forge-sim] ⚠️ UI Kit render reports reconcile protocol v${docMajor} (from the @forge/react ` +
+    `bundled into the app), but this forge-sim release is verified against protocol ` +
+    `v${VERIFIED_FORGE_REACT_DOC_MAJOR} (@forge/react ${pkg}). Across protocol majors the ` +
+    `ForgeDoc shape can differ, so rendering may not match real Forge. Rebuild the app ` +
+    `against @forge/react ${pkg} for an exact match.`
+  );
+}
+
 export async function readAppForgeDeps(appDir: string): Promise<Record<string, string>> {
   let raw: string;
   try {

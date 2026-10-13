@@ -132,7 +132,12 @@ export function createApiHandler(
           triggers: manifest.triggers.map(t => ({ key: t.key, functionKey: t.functionKey, events: t.events })),
           triggerEventTemplates,
           scheduledTriggers: manifest.scheduledTriggers.map(s => ({ key: s.key, functionKey: s.functionKey, interval: s.interval })),
-          resources: [...manifest.resources.entries()].map(([key, r]) => ({ key, path: r.path })),
+          resources: [...manifest.resources.entries()].map(([key, r]) => ({
+            key,
+            path: r.path,
+            ...(r.bundler !== undefined ? { bundler: r.bundler } : {}),
+            ...(r.entry !== undefined ? { entry: r.entry } : {}),
+          })),
           actions: manifest.actions.map(a => ({
             key: a.key,
             name: a.name,

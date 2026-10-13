@@ -121,6 +121,11 @@ function collectRawHtmlTypes(doc: ForgeDoc, found: Set<string> = new Set()): Set
 async function handleReconcile(data: any): Promise<void> {
   if (!data?.forgeDoc) return;
 
+  // Manual-packaged bundles ship their own @forge/react; the payload is the
+  // only place its version is visible. One-time warning per mismatched major.
+  const { warnOnForgeReactMajorMismatch } = await import('../forge-package-versions.js');
+  warnOnForgeReactMajorMismatch(data.forgeDoc.forgeReactMajorVersion);
+
   const isMacroConfig = data.forgeDoc.type === 'MacroConfig';
 
   // Parity (UIK-003): HARD FAIL on raw HTML host elements. The doc is not

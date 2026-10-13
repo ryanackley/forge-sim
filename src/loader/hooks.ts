@@ -291,6 +291,15 @@ async function transpileWithEsbuild(
   }
 }
 
+// Manual-packaged UI resources (#40): browsers load the entry via
+// <script type="module"> — unconditionally ESM — while Node infers a .js
+// file's format from the nearest package.json. An app without
+// "type": "module" would have its prebuilt ESM bundle misparsed as CJS here
+// while working fine in real Forge. simulator-ui appends this marker to the
+// entry import; resolve() propagates it to the bundle's relative chunk
+// imports so multi-chunk Vite output stays ESM throughout.
+const ESM_MARKER = 'forge-sim-esm=1';
+
 export async function load(
   url: string,
   context: { format?: string; conditions?: string[] },
@@ -301,6 +310,13 @@ export async function load(
 
   // Strip cache-busting query string for extension check
   const cleanUrl = url.split('?')[0];
+
+  // Forced-ESM manual resource bundles (see ESM_MARKER above).
+  if (url.includes(ESM_MARKER) && cleanUrl.endsWith('.js')) {
+    const { readFile } = await import('node:fs/promises');
+    const source = await readFile(fileURLToPath(cleanUrl), 'utf-8');
+    return { source, format: 'module', shortCircuit: true };
+  }
 
   // CJS default-export facade — synthesize an ESM wrapper around the real
   // CJS module. `cleanUrl` is the real on-disk entry; the facade imports it
@@ -417,6 +433,19 @@ export async function resolve(
       url: pathToFileURL(reactDedupePath).href,
       shortCircuit: true,
     };
+  }
+
+  // 2b. Propagate the forced-ESM marker to relative imports: a marked entry's
+  // chunk imports (./chunk-abc.js) must also load as ESM, and the query on
+  // the parent URL doesn't flow through Node's resolution by itself.
+  if (
+    specifier.startsWith('.') &&
+    context.parentURL?.includes(ESM_MARKER) &&
+    !specifier.includes(ESM_MARKER)
+  ) {
+    const resolved = await nextResolve(specifier, context);
+    const sep = resolved.url.includes('?') ? '&' : '?';
+    return { url: resolved.url + sep + ESM_MARKER, shortCircuit: true };
   }
 
   // 3. Try native resolution first

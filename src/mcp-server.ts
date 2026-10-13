@@ -1907,7 +1907,12 @@ server.resource(
           consumers: manifest.consumers,
           triggers: manifest.triggers,
           scheduledTriggers: manifest.scheduledTriggers,
-          resources: [...manifest.resources.entries()].map(([k, v]) => ({ key: k, path: v.path })),
+          resources: [...manifest.resources.entries()].map(([k, v]) => ({
+            key: k,
+            path: v.path,
+            ...(v.bundler !== undefined ? { bundler: v.bundler } : {}),
+            ...(v.entry !== undefined ? { entry: v.entry } : {}),
+          })),
         }, null, 2),
       }],
     };

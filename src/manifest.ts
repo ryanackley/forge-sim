@@ -142,6 +142,12 @@ export interface ManifestUIModule {
    * is `resources.get(resourceKey).entry[entryKey]` inside the resource path.
    */
   entryKey?: string;
+  /**
+   * The module's `render` value ('native' marks UIKit 2). Load-bearing for
+   * manual-packaged resources: a prebuilt bundle can't be sniffed for
+   * @forge/react, so UI Kit vs Custom UI is decided by this manifest flag.
+   */
+  render?: string;
   /** Icon URL or resource reference (e.g. "resource:main;icons/icon.svg" or absolute URL) */
   icon?: string;
   /** For jira:globalBackgroundScript — which experiences this script runs on */
@@ -820,6 +826,7 @@ export function parseManifestContent(content: string): ParsedManifest {
         resolverFunctionKey: mod.resolver?.function,
         endpointKey: mod.resolver?.endpoint,
         resourceKey: mod.resource,
+        ...(typeof mod.render === 'string' ? { render: mod.render } : {}),
       };
       // Parse icon
       if (mod.icon) {

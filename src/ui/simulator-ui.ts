@@ -238,6 +238,8 @@ export class SimulatorUI {
 
   /** Cached resource file paths (so we don't re-resolve on refresh) */
   private resolvedResources = new Map<string, string>();
+  /** Modules whose resolved resource is a manual-packaged (prebuilt) bundle. */
+  private prebuiltResources = new Set<string>();
 
   /** Render listeners scoped per module */
   private moduleListeners = new Map<string, Array<(doc: ForgeDoc) => void>>();
@@ -755,38 +757,51 @@ export class SimulatorUI {
       );
     }
 
-    // Resolve the resource file path (cache it for refresh)
+    // Resolve the resource reference to a concrete entry (cache for refresh).
+    // One shared resolver covers plain resources, entry maps, and manual
+    // packaging — see resolveUiResourceEntry in deployer.ts. A prebuilt
+    // (manual-packaged) UI Kit entry imports through the exact same flow as
+    // source below: the bundle's inlined @forge/bridge finds the SAME
+    // window.__bridge that installBridge() provides for the shims, so
+    // reconcile capture, invoke routing, and function props all behave
+    // identically — only the imported file differs.
     let resourcePath = this.resolvedResources.get(moduleKey);
+    let prebuilt = this.prebuiltResources.has(moduleKey);
     if (!resourcePath) {
-      const { resolveResourceFile } = await import('../deployer.js');
-      resourcePath = await resolveResourceFile(appDir, resource.path) ?? undefined;
-      if (!resourcePath) {
+      const { resolveUiResourceEntry } = await import('../deployer.js');
+      const resolved = await resolveUiResourceEntry(appDir, resource, uiModule);
+      if (!resolved) {
         throw new Error(`Resource file not found: "${resource.path}" (resolved from ${appDir})`);
       }
+      resourcePath = resolved.filePath;
+      prebuilt = resolved.kind === 'uikit-prebuilt';
 
       // Check if this is a Custom UI module (directory with index.html)
       // Custom UI modules use @forge/bridge in the browser, not @forge/react.
       // sim.ui.render() only works with UIKit modules.
-      const { statSync, existsSync: existsSyncCheck } = await import('node:fs');
-      const { join } = await import('node:path');
-      try {
-        const stat = statSync(resourcePath);
-        if (stat.isDirectory()) {
-          const hasIndexHtml = existsSyncCheck(join(resourcePath, 'index.html'));
-          throw new Error(
-            `UI module "${moduleKey}" is a Custom UI module` +
-            `${hasIndexHtml ? ' (has index.html)' : ''} — ` +
-            `sim.ui.render() only works with UIKit modules that use @forge/react. ` +
-            `Custom UI modules run in an iframe with @forge/bridge and need ` +
-            `\`forge-sim dev\` for browser-based rendering.`
-          );
+      if (!prebuilt) {
+        const { statSync, existsSync: existsSyncCheck } = await import('node:fs');
+        const { join } = await import('node:path');
+        try {
+          const stat = statSync(resourcePath);
+          if (stat.isDirectory()) {
+            const hasIndexHtml = existsSyncCheck(join(resourcePath, 'index.html'));
+            throw new Error(
+              `UI module "${moduleKey}" is a Custom UI module` +
+              `${hasIndexHtml ? ' (has index.html)' : ''} — ` +
+              `sim.ui.render() only works with UIKit modules that use @forge/react. ` +
+              `Custom UI modules run in an iframe with @forge/bridge and need ` +
+              `\`forge-sim dev\` for browser-based rendering.`
+            );
+          }
+        } catch (e) {
+          if (e instanceof Error && e.message.includes('Custom UI module')) throw e;
+          // stat failed — let it continue and fail naturally
         }
-      } catch (e) {
-        if (e instanceof Error && e.message.includes('Custom UI module')) throw e;
-        // stat failed — let it continue and fail naturally
       }
 
       this.resolvedResources.set(moduleKey, resourcePath);
+      if (prebuilt) this.prebuiltResources.add(moduleKey);
     }
 
     this.ensureBridge();
@@ -883,8 +898,16 @@ export class SimulatorUI {
       // Import the frontend module — this triggers ForgeReconciler.render()
       // which produces a ForgeDoc via the bridge.
       // Cache-bust so refresh gets a fresh execution.
+      //
+      // Prebuilt (manual-packaged) bundles additionally carry the
+      // forge-sim-esm marker: browsers load entry scripts as
+      // <script type="module"> — always ESM — while Node infers .js format
+      // from the app's package.json. The loader hooks force ESM for marked
+      // URLs (and propagate the marker to the bundle's relative chunk
+      // imports) so both environments agree. See hooks.ts.
       const fileUrl = pathToFileURL(resourcePath).href;
-      await import(fileUrl + '?t=' + Date.now());
+      const marker = prebuilt ? '&forge-sim-esm=1' : '';
+      await import(fileUrl + '?t=' + Date.now() + marker);
 
       // If the reconcile hasn't landed yet, wait for it — with a timeout
       // safety net in case React's reconciler bails out on a tree it
@@ -1444,6 +1467,7 @@ export class SimulatorUI {
     // sequence that changes a resource path (e.g. renaming foo.jsx → foo.tsx
     // in the manifest) keeps serving the stale path. Tracked as N1.
     this.resolvedResources.clear();
+    this.prebuiltResources.clear();
     this.viewEventListeners.clear();
     this.activeModuleKey = null;
     // Clear the per-render resolver context overlay — UI is gone, so post-
@@ -1462,6 +1486,7 @@ export class SimulatorUI {
     this.moduleRenderConfig.clear();
     this.moduleContexts.clear();
     this.resolvedResources.clear();
+    this.prebuiltResources.clear();
     this.moduleListeners.clear();
     this.viewEventListeners.clear();
     if (this.viewEventUnbind) {

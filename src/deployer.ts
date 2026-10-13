@@ -9,12 +9,12 @@
  */
 
 import { resolve, join, dirname, sep as pathSep } from 'node:path';
-import { access, mkdir, writeFile, readdir, unlink, stat } from 'node:fs/promises';
+import { access, mkdir, writeFile, readFile, readdir, unlink, stat } from 'node:fs/promises';
 import { realpathSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { createRequire } from 'node:module';
 import { interceptCjsForgeRequires } from './loader/cjs-interception.js';
-import { parseManifest, type ParsedManifest, type ManifestFunction } from './manifest.js';
+import { parseManifest, type ParsedManifest, type ManifestFunction, type ManifestResource, type ManifestUIModule } from './manifest.js';
 import { validateManifestFile, printManifestWarnings } from './manifest-validation.js';
 import { checkAppForgeVersions, readAppForgeDeps } from './forge-package-versions.js';
 import type { ForgeSimulator } from './simulator.js';
@@ -531,6 +531,116 @@ export async function resolveResourceFile(appDir: string, resourcePath: string):
   }
 
   return null;
+}
+
+// ── UI resource entry resolution (manual packaging + entry maps, #40) ─────
+
+export interface ResolvedUiResource {
+  /**
+   * 'uikit-source'    — a source file; consumers compile/import it as today.
+   * 'uikit-prebuilt'  — manual packaging + render:native; `filePath` is the
+   *                     built ESM entry script extracted from the entry HTML.
+   * 'customui'        — a static directory; `entryHtml` names the page to
+   *                     serve (index.html unless a multi-entry map says else).
+   */
+  kind: 'uikit-source' | 'uikit-prebuilt' | 'customui';
+  /** Absolute path: entry file for uikit kinds, resource directory for customui. */
+  filePath: string;
+  /** Custom UI only: HTML filename (relative to the dir) to serve as the page. */
+  entryHtml?: string;
+}
+
+/**
+ * Extract the script src from a manual-packaged UI Kit entry HTML. Per the
+ * packaging standard, the HTML "must contain only the script references
+ * needed for the particular resource … using relative paths", so a straight
+ * scan is faithful; the first module script is the app entry.
+ */
+export function extractEntryScript(html: string): string | null {
+  const match = html.match(/<script\b[^>]*\bsrc\s*=\s*["']([^"']+)["'][^>]*>/i);
+  if (!match) return null;
+  // './index.js' → 'index.js'
+  return match[1].replace(/^\.\//, '');
+}
+
+/**
+ * Resolve a UI module's resource reference to a concrete entry, covering all
+ * four manifest shapes with ONE code path shared by headless render
+ * (simulator-ui) and the dev server (detectModuleType):
+ *
+ *   1. plain resource, source file          → uikit-source / customui (sniffed by caller)
+ *   2. plain resource, dir with index.html  → customui
+ *   3. entry map without manual packaging   → entry value is a SOURCE file in the dir
+ *   4. bundler: manual@2026                 → entry value (or index.html) is an HTML
+ *      page; UI Kit vs Custom UI comes from the module's `render: native` flag
+ *      (the manifest contract — prebuilt bundles can't be sniffed).
+ */
+export async function resolveUiResourceEntry(
+  appDir: string,
+  resource: ManifestResource,
+  uiModule: Pick<ManifestUIModule, 'key' | 'entryKey'> & { render?: string },
+): Promise<ResolvedUiResource | null> {
+  const resourceDir = resolve(appDir, resource.path);
+
+  if (resource.bundler === 'manual@2026') {
+    const entryHtml = uiModule.entryKey
+      ? resource.entry?.[uiModule.entryKey]
+      : 'index.html';
+    if (!entryHtml) {
+      throw new Error(
+        `Module "${uiModule.key}" references entry "${uiModule.entryKey}" but resource ` +
+        `"${resource.key}" does not define it. Declared entries: ` +
+        `${Object.keys(resource.entry ?? {}).join(', ') || '(none)'}.`
+      );
+    }
+    const htmlPath = join(resourceDir, entryHtml);
+    try {
+      await access(htmlPath);
+    } catch {
+      throw new Error(
+        `Manual-packaged resource "${resource.key}": entry file "${entryHtml}" not found in ` +
+        `${resource.path}/. Run your frontend build so the compiled output exists there.`
+      );
+    }
+
+    // render: native marks UI Kit (UIKit-2 manifest contract); everything
+    // else is Custom UI and serves the directory as static pages.
+    if (uiModule.render !== 'native') {
+      return { kind: 'customui', filePath: resourceDir, entryHtml };
+    }
+
+    const html = await readFile(htmlPath, 'utf-8');
+    const script = extractEntryScript(html);
+    if (!script) {
+      throw new Error(
+        `Manual-packaged UI Kit entry "${entryHtml}" in resource "${resource.key}" has no ` +
+        `<script src> — per the packaging standard it must reference the built JS with a ` +
+        `relative script tag.`
+      );
+    }
+    return { kind: 'uikit-prebuilt', filePath: join(resourceDir, script) };
+  }
+
+  // Multi-entry WITHOUT manual packaging: entry values are source files
+  // directly inside the resource path (the CLI bundles them in real Forge).
+  if (uiModule.entryKey) {
+    const entryFile = resource.entry?.[uiModule.entryKey];
+    if (!entryFile) {
+      throw new Error(
+        `Module "${uiModule.key}" references entry "${uiModule.entryKey}" but resource ` +
+        `"${resource.key}" does not define it. Declared entries: ` +
+        `${Object.keys(resource.entry ?? {}).join(', ') || '(none)'}.`
+      );
+    }
+    const filePath = await resolveResourceFile(appDir, join(resource.path, entryFile));
+    if (!filePath) return null;
+    return { kind: 'uikit-source', filePath };
+  }
+
+  // Plain resource — existing semantics, shape sniffing stays with the caller.
+  const filePath = await resolveResourceFile(appDir, resource.path);
+  if (!filePath) return null;
+  return { kind: 'uikit-source', filePath };
 }
 
 /**
