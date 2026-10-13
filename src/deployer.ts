@@ -412,7 +412,11 @@ const FILE_EXTENSIONS = ['.js', '.ts', '.tsx', '.jsx', '.mjs', '.cjs'];
 // Manual packaging ships built output, so runnable JS comes first. TS/JSX
 // sources still resolve — the sim can execute them — but draw a parity
 // warning at deploy (real Forge uploads the file as-is to a Node runtime).
-const MANUAL_FILE_EXTENSIONS = ['.js', '.cjs', '.mjs', '.ts', '.tsx', '.jsx'];
+// Deliberately NO .mjs: upstream lint's handler extension set is
+// (tsx|jsx|ts|js|cjs) and lint gates real deploys — resolving .mjs here
+// while the validator rejects it produced contradictory errors
+// (adversarial finding #6). ESM output ships as .js + "type": "module".
+const MANUAL_FILE_EXTENSIONS = ['.js', '.cjs', '.ts', '.tsx', '.jsx'];
 
 export interface HandlerResolutionOptions {
   /** Directory handlers resolve from, relative to the app root (ParsedManifest.handlersDirectory). */
@@ -551,16 +555,58 @@ export interface ResolvedUiResource {
 }
 
 /**
- * Extract the script src from a manual-packaged UI Kit entry HTML. Per the
- * packaging standard, the HTML "must contain only the script references
- * needed for the particular resource … using relative paths", so a straight
- * scan is faithful; the first module script is the app entry.
+ * Extract the app entry script src from a manual-packaged UI Kit entry HTML.
+ *
+ * The app entry is the first `type="module"` script — a browser executes
+ * every script tag, but only the module entry mounts the UI Kit app, and
+ * real pages often carry extra plain scripts (analytics, polyfills) FIRST.
+ * Falling back to "first script of any kind" only when no module script
+ * exists (adversarial finding #2: picking a leading analytics.js as the app
+ * made rendering silently time out).
+ *
+ * Absolute srcs (`/assets/app.js` — Vite's default without `base: './'`)
+ * draw a parity warning: forge-sim can resolve them against the resource
+ * dir, but real Forge serves resources from a nested CDN path where absolute
+ * URLs 404 (packaging standard: "asset paths relative to the resource
+ * root"). Warn-not-throw: real Forge fails at runtime, not deploy.
  */
-export function extractEntryScript(html: string): string | null {
-  const match = html.match(/<script\b[^>]*\bsrc\s*=\s*["']([^"']+)["'][^>]*>/i);
-  if (!match) return null;
-  // './index.js' → 'index.js'
-  return match[1].replace(/^\.\//, '');
+export function extractEntryScript(
+  html: string,
+  warnContext?: string,
+): string | null {
+  const scripts = [...html.matchAll(/<script\b[^>]*\bsrc\s*=\s*["']([^"']+)["'][^>]*>/gi)];
+  if (scripts.length === 0) return null;
+
+  const moduleScript = scripts.find(([tag]) => /\btype\s*=\s*["']module["']/i.test(tag));
+  const chosen = moduleScript ?? scripts[0];
+  const src = chosen[1];
+
+  if (src.startsWith('/') && warnContext) {
+    warnEntryScriptOnce(
+      `${warnContext}: entry script src "${src}" is ABSOLUTE. forge-sim resolves it against ` +
+      `the resource directory, but real Forge serves resources from a nested path where ` +
+      `absolute URLs 404 — the page will load blank in production. Use relative paths ` +
+      `(Vite: set \`base: './'\` in the build config, per the Forge packaging docs).`
+    );
+  }
+  if (!moduleScript && warnContext) {
+    warnEntryScriptOnce(
+      `${warnContext}: no <script type="module"> found; using "${src}". UI Kit entry HTML ` +
+      `should load the built bundle with a module script (the packaging standard's shape).`
+    );
+  }
+
+  // './index.js' → 'index.js'; '/assets/x.js' → 'assets/x.js'
+  return src.replace(/^(\.\/|\/)/, '');
+}
+
+// One warning per distinct message per process — entry HTML is re-read on
+// every render/detect pass and would otherwise spam.
+const warnedEntryScripts = new Set<string>();
+function warnEntryScriptOnce(message: string): void {
+  if (warnedEntryScripts.has(message)) return;
+  warnedEntryScripts.add(message);
+  console.warn(`[forge-sim] ⚠️ ${message}`);
 }
 
 /**
@@ -610,7 +656,7 @@ export async function resolveUiResourceEntry(
     }
 
     const html = await readFile(htmlPath, 'utf-8');
-    const script = extractEntryScript(html);
+    const script = extractEntryScript(html, `resource "${resource.key}" (${entryHtml})`);
     if (!script) {
       throw new Error(
         `Manual-packaged UI Kit entry "${entryHtml}" in resource "${resource.key}" has no ` +
@@ -813,7 +859,8 @@ export async function deploy(sim: ForgeSimulator, appDir: string, options: Deplo
           functionKey: fnKey,
           error: manualPackaging
             ? `Could not find handler file for "${fnDef.handler}" under app.package.path ` +
-              `(tried ${manifest.handlersDirectory}/${fileStem}.{js,cjs,mjs,ts}). Manual packaging ` +
+              `(tried ${manifest.handlersDirectory}/${fileStem}.{js,cjs,ts,tsx,jsx} — .mjs is not ` +
+              `accepted by Forge lint; ship ESM as .js with "type": "module"). Manual packaging ` +
               `resolves handlers ONLY inside the package directory — run your build so the ` +
               `compiled file exists there.`
             : `Could not find handler file for "${fnDef.handler}" (tried src/${fileStem}.{js,ts,mjs,cjs} and ${fileStem}.{js,ts,mjs,cjs})`,

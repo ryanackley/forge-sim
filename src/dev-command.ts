@@ -166,7 +166,10 @@ export function detectModuleType(appDir: string, manifest: ParsedManifest, mod: 
     const htmlPath = join(resourcePath, entryHtml);
     if (!existsSync(htmlPath)) return null; // missing build output — validation reports it
     if (mod.render === 'native') {
-      const script = extractEntryScript(readFileSync(htmlPath, 'utf-8'));
+      const script = extractEntryScript(
+        readFileSync(htmlPath, 'utf-8'),
+        `resource "${resource.key}" (${entryHtml})`,
+      );
       if (!script) return null;
       return { module: mod, resourcePath: join(resourcePath, script), mode: 'uikit', prebuilt: true };
     }

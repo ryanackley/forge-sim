@@ -147,6 +147,25 @@ modules:
     expect(nativeRequire(entry).tag).toBe('v2');
   });
 
+  it('does not resolve .mjs handlers (Forge lint rejects them) — one consistent error', async () => {
+    // Adversarial finding #6: the validator rejected index.mjs while the
+    // deployer happily loaded it, producing contradictory errors. The
+    // deployer must agree with lint: .mjs is not a handler extension.
+    await mkdir(join(appDir, 'out'), { recursive: true });
+    await writeFile(
+      join(appDir, 'out', 'index.mjs'),
+      'export const run = () => ({ statusCode: 200 });',
+      'utf8'
+    );
+    const result = await deploy(sim, appDir, { throwOnError: false });
+    const notFound = result.errors.find(
+      (e) => e.functionKey === 'main' && /Could not find handler file/.test(e.error)
+    );
+    expect(notFound?.error).toMatch(/\.mjs is not\s+accepted by Forge lint/);
+    // And crucially: no "Failed to load"-style error proving we imported it anyway.
+    expect(result.errors.some((e) => /Failed to load/.test(e.error))).toBe(false);
+  });
+
   it('warns when a handler resolves to a TypeScript source under manual packaging', async () => {
     await mkdir(join(appDir, 'out'), { recursive: true });
     await writeFile(

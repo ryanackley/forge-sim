@@ -907,7 +907,27 @@ export class SimulatorUI {
       // imports) so both environments agree. See hooks.ts.
       const fileUrl = pathToFileURL(resourcePath).href;
       const marker = prebuilt ? '&forge-sim-esm=1' : '';
-      await import(fileUrl + '?t=' + Date.now() + marker);
+      try {
+        await import(fileUrl + '?t=' + Date.now() + marker);
+      } catch (importErr: any) {
+        // Prebuilt bundles sometimes touch browser globals at module-eval
+        // time (CSS injection helpers, polyfills beyond the stubbed
+        // document). The raw ReferenceError points into minified code and
+        // says nothing about the cause — translate it.
+        const m = prebuilt && importErr instanceof ReferenceError
+          ? /^(\w+) is not defined/.exec(importErr.message)
+          : null;
+        if (m) {
+          throw new Error(
+            `Prebuilt bundle for module "${moduleKey}" accessed the browser global ` +
+            `"${m[1]}" while loading (headless rendering runs in Node, which doesn't have it). ` +
+            `Configure your bundler to defer DOM access until render, or test this module via ` +
+            `\`forge-sim dev\` in a real browser. Original error: ${importErr.message}`,
+            { cause: importErr },
+          );
+        }
+        throw importErr;
+      }
 
       // If the reconcile hasn't landed yet, wait for it — with a timeout
       // safety net in case React's reconciler bails out on a tree it

@@ -425,6 +425,50 @@ function callBridge(cmd: string, data?: any): any {
 // ── Setup ───────────────────────────────────────────────────────────────
 
 /**
+ * Minimal document stub for headless imports of PREBUILT (manual-packaged)
+ * bundles. Only installed when no real `document` exists (never in browsers
+ * or jsdom test environments).
+ *
+ * Why: Vite injects its modulepreload polyfill into every default build, and
+ * its first statement is `document.createElement("link").relList` — followed
+ * by an early return when `relList.supports("modulepreload")` is true. In
+ * plain Node that's an immediate `ReferenceError: document is not defined`
+ * from inside the minified chunk, hit by anyone who runs a standard
+ * `vite build` and calls sim.ui.render(). Answering `supports → true` makes
+ * the polyfill exit on its own fast path — the browser-parity answer, since
+ * every browser Forge supports has native modulepreload. The stub is
+ * deliberately inert-but-permissive so load-time CSS/style injection
+ * preambles (document.head.appendChild(style)) are absorbed too.
+ */
+function installDocumentStub(): void {
+  if (typeof (globalThis as any).document !== 'undefined') return;
+
+  const inertElement = (): any => ({
+    relList: { supports: () => true },
+    style: {},
+    setAttribute: () => {},
+    appendChild: (child: unknown) => child,
+    removeChild: (child: unknown) => child,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+  });
+
+  (globalThis as any).document = {
+    __forgeSimStub: true,
+    createElement: inertElement,
+    createTextNode: () => ({}),
+    querySelector: () => null,
+    querySelectorAll: () => [],
+    getElementsByTagName: () => [],
+    head: inertElement(),
+    body: inertElement(),
+    documentElement: inertElement(),
+    addEventListener: () => {},
+    removeEventListener: () => {},
+  };
+}
+
+/**
  * Install the bridge on globalThis so @forge/bridge and @forge/react find it.
  * Call this BEFORE importing any @forge/react or @forge/bridge modules.
  */
@@ -437,6 +481,7 @@ export function installBridge(): void {
     (globalThis as any).window = globalThis;
   }
   (globalThis as any).window.__bridge = bridge;
+  installDocumentStub();
 }
 
 /**

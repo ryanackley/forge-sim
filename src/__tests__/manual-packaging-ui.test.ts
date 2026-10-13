@@ -257,6 +257,168 @@ describe('extractEntryScript', () => {
   it('returns null when no script reference exists', () => {
     expect(extractEntryScript('<html><body></body></html>')).toBeNull();
   });
+
+  it('prefers the type="module" script over leading plain scripts (adversarial #2)', () => {
+    const html = `<html><head>
+      <script src="./analytics.js"></script>
+    </head><body>
+      <script type="module" src="./app.js"></script>
+    </body></html>`;
+    expect(extractEntryScript(html)).toBe('app.js');
+  });
+
+  it('normalizes an absolute src and warns about real-Forge 404s (adversarial #5)', () => {
+    const spy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const src = extractEntryScript(
+        '<html><body><script type="module" src="/assets/home-Abc1.js"></script></body></html>',
+        'resource "warn-abs-test" (index.html)'
+      );
+      expect(src).toBe('assets/home-Abc1.js');
+      expect(
+        spy.mock.calls.some((c) => /ABSOLUTE/.test(String(c[0])) && /base: '\.\/'/.test(String(c[0])))
+      ).toBe(true);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('falls back to a plain script with a warning when no module script exists', () => {
+    const spy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const src = extractEntryScript(
+        '<html><body><script src="./legacy.js"></script></body></html>',
+        'resource "warn-fallback-test" (index.html)'
+      );
+      expect(src).toBe('legacy.js');
+      expect(spy.mock.calls.some((c) => /no <script type="module">/.test(String(c[0])))).toBe(true);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+});
+
+describe('headless DOM-at-load handling (adversarial #1)', () => {
+  // Vite's modulepreload polyfill body, verbatim shape from vite/dist (the
+  // default `vite build` injects this into the shared chunk). With the
+  // document stub answering supports('modulepreload') → true it returns on
+  // its first branch; if the stub regresses, the body falls through to
+  // MutationObserver — undefined in Node — and the render throws.
+  const VITE_POLYFILL = `
+(function polyfill() {
+  const relList = document.createElement("link").relList;
+  if (relList && relList.supports && relList.supports("modulepreload")) {
+    return;
+  }
+  for (const link of document.querySelectorAll('link[rel="modulepreload"]')) {
+    processPreload(link);
+  }
+  new MutationObserver(() => {}).observe(document, { childList: true, subtree: true });
+  function processPreload() {}
+})();`;
+
+  let appDir: string;
+
+  beforeAll(async () => {
+    appDir = await mkdtemp(join(tmpdir(), 'forge-sim-polyfill-'));
+    await writeFile(join(appDir, 'package.json'), '{ "name": "t", "private": true }', 'utf8');
+    await writeFile(
+      join(appDir, 'manifest.yml'),
+      `
+app:
+  id: ari:cloud:ecosystem::app/11111111-2222-3333-4444-555555555555
+  runtime:
+    name: nodejs22.x
+modules:
+  jira:issuePanel:
+    - key: panel
+      resource: main
+      render: native
+      title: P
+      icon: https://example.com/i.svg
+resources:
+  - key: main
+    bundler: manual@2026
+    path: dist
+`,
+      'utf8'
+    );
+    const srcDir = join(appDir, 'src');
+    await mkdir(srcDir, { recursive: true });
+    await mkdir(join(appDir, 'dist'), { recursive: true });
+    await writeFile(join(srcDir, 'app.jsx'), pageSrc('polyfilled-app'), 'utf8');
+    const out = join(appDir, 'dist', 'index.js');
+    await buildBundle(join(srcDir, 'app.jsx'), out);
+    // Prepend the polyfill exactly where Vite puts it: top of the bundle.
+    const { readFile: rf } = await import('node:fs/promises');
+    const bundled = await rf(out, 'utf8');
+    await writeFile(out, VITE_POLYFILL + '\n' + bundled, 'utf8');
+    await writeFile(
+      join(appDir, 'dist', 'index.html'),
+      '<!doctype html><html><body><script type="module" src="./index.js"></script></body></html>',
+      'utf8'
+    );
+  }, 60_000);
+
+  afterAll(async () => {
+    await rm(appDir, { recursive: true, force: true }).catch(() => undefined);
+  });
+
+  it("renders a bundle carrying Vite's modulepreload polyfill (document stub short-circuits it)", async () => {
+    const sim = createSimulator();
+    await sim.deploy(appDir, { throwOnError: false });
+    const doc = await sim.ui.waitForContent('panel', 'polyfilled-app');
+    expect(JSON.stringify(doc)).toContain('polyfilled-app');
+    sim.ui.resetAll();
+  });
+
+  it('translates other browser-global ReferenceErrors into an actionable message', async () => {
+    // Own app dir: vite-node caches modules by PATH (ignoring the ?t query),
+    // so reusing the previous test's dist/index.js would re-serve the cached
+    // polyfilled module instead of this file.
+    const alertDir = await mkdtemp(join(tmpdir(), 'forge-sim-alert-'));
+    try {
+      await writeFile(join(alertDir, 'package.json'), '{ "name": "t", "private": true }', 'utf8');
+      await writeFile(
+        join(alertDir, 'manifest.yml'),
+        `
+app:
+  id: ari:cloud:ecosystem::app/11111111-2222-3333-4444-555555555555
+  runtime:
+    name: nodejs22.x
+modules:
+  jira:issuePanel:
+    - key: panel
+      resource: main
+      render: native
+      title: P
+      icon: https://example.com/i.svg
+resources:
+  - key: main
+    bundler: manual@2026
+    path: dist
+`,
+        'utf8'
+      );
+      await mkdir(join(alertDir, 'dist'), { recursive: true });
+      // alert() is not defined in Node and not stubbed — stands in for any
+      // DOM-at-load access beyond the document stub.
+      await writeFile(join(alertDir, 'dist', 'index.js'), `alert('boom');`, 'utf8');
+      await writeFile(
+        join(alertDir, 'dist', 'index.html'),
+        '<!doctype html><html><body><script type="module" src="./index.js"></script></body></html>',
+        'utf8'
+      );
+      const sim = createSimulator();
+      await sim.deploy(alertDir, { throwOnError: false });
+      await expect(sim.ui.render('panel')).rejects.toThrow(
+        /accessed the browser global "alert" while loading/
+      );
+      sim.ui.resetAll();
+    } finally {
+      await rm(alertDir, { recursive: true, force: true }).catch(() => undefined);
+    }
+  });
 });
 
 describe('warnOnForgeReactMajorMismatch', () => {
