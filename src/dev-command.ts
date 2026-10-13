@@ -30,6 +30,7 @@ import { buildDefaultContext, buildForgeContext, contextFlagForModuleType, type 
 import { createWebTriggerHandler } from './web-trigger.js';
 import { startTypeCheckWatch, type TypeCheckWatcher } from './type-checker.js';
 import { RAW_HTML_TAG_LIST } from './ui/html-elements.js';
+import { contentTypeFor } from './mime.js';
 import { materializeRenderer } from './renderer-deps.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -1425,16 +1426,10 @@ export async function buildViteConfig(opts: {
           }
         }
         if (existsSync(filePath)) {
-          const ext = filePath.split('.').pop() || '';
-          const mimeTypes: Record<string, string> = {
-            html: 'text/html', js: 'application/javascript', ts: 'application/javascript',
-            tsx: 'application/javascript', jsx: 'application/javascript',
-            css: 'text/css', json: 'application/json', svg: 'image/svg+xml',
-            png: 'image/png', jpg: 'image/jpeg', ico: 'image/x-icon',
-          };
+          const ext = filePath.split('.').pop()?.toLowerCase() || '';
 
           // For HTML files, inject the bridge shim before any app scripts
-          if (ext === 'html') {
+          if (ext === 'html' || ext === 'htm') {
             let html = readFileSync(filePath, 'utf-8');
             const bridgeScript = generateBridgeInlineScript(wsPort);
             // Inject right after <head> (before any other scripts)
@@ -1447,7 +1442,7 @@ export async function buildViteConfig(opts: {
           }
 
           const content = readFileSync(filePath);
-          _res.writeHead(200, { 'Content-Type': mimeTypes[ext] || 'application/octet-stream' });
+          _res.writeHead(200, { 'Content-Type': contentTypeFor(filePath) });
           _res.end(content);
           return;
         }
