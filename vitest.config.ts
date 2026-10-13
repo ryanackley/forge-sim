@@ -1,10 +1,52 @@
 import { defineConfig } from 'vitest/config';
 import { resolve } from 'path';
 import { tmpdir } from 'os';
-import { realpathSync } from 'fs';
+import { realpathSync, readFileSync } from 'fs';
 import { shimFileBase, shimNamesBySpecificity } from './src/shims/shim-registry.js';
 
+/**
+ * Mirror Node's native wasm-ESM integration under vite-node.
+ *
+ * Plain-node runs (CLI, MCP daemon) import `.wasm` natively — current Node
+ * ships the ESM integration unflagged (experimental warning only). vite-node
+ * intercepts dynamic imports and rejects `.wasm` outright, so without this
+ * plugin a manual-packaged app using wasm would pass in production AND in
+ * `forge-sim dev`, but fail under vitest — an environment split inside the
+ * sim itself. Named exports mirror the instance exports, same as Node.
+ * Wasm modules with imports are rejected loudly (no silent stub).
+ */
+function forgeSimWasmPlugin() {
+  return {
+    name: 'forge-sim-wasm',
+    enforce: 'pre' as const,
+    load(id: string) {
+      if (!id.split('?')[0].endsWith('.wasm')) return null;
+      const bytes = readFileSync(id.split('?')[0]);
+      const mod = new WebAssembly.Module(bytes);
+      if (WebAssembly.Module.imports(mod).length > 0) {
+        throw new Error(
+          `forge-sim: wasm module ${id} declares imports — wasm-to-ESM import wiring ` +
+          `is not simulated under vitest. Instantiate it manually with WebAssembly.instantiate().`
+        );
+      }
+      const names = WebAssembly.Module.exports(mod)
+        .filter((e) => e.kind === 'function' || e.kind === 'global')
+        .map((e) => e.name);
+      return [
+        `const bytes = Buffer.from(${JSON.stringify(bytes.toString('base64'))}, 'base64');`,
+        `const { instance } = await WebAssembly.instantiate(bytes, {});`,
+        ...names.map(
+          (n, i) =>
+            `const __wasmExport${i} = instance.exports[${JSON.stringify(n)}]; ` +
+            `export { __wasmExport${i} as ${JSON.stringify(n)} };`
+        ),
+      ].join('\n');
+    },
+  };
+}
+
 export default defineConfig({
+  plugins: [forgeSimWasmPlugin()],
   // vite >= 6.4.2 (security backport) gates vite-node's fs reads on
   // server.fs.allow — including the rewritten dynamic import() in our
   // deployer, which loads per-deploy handler bundles written into the app

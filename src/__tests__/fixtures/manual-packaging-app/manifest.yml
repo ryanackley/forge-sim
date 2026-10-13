@@ -1,0 +1,30 @@
+app:
+  id: ari:cloud:ecosystem::app/11111111-2222-3333-4444-555555555555
+  runtime:
+    name: nodejs22.x
+  package:
+    bundler: manual@2026
+    path: out
+modules:
+  webtrigger:
+    - key: hook
+      function: hook-fn
+  jira:issuePanel:
+    - key: panel
+      resource: main
+      render: native
+      title: Manual Panel
+      icon: https://example.com/icon.svg
+      resolver:
+        function: main-fn
+  function:
+    - key: hook-fn
+      handler: cucumber/two.run
+    - key: main-fn
+      handler: index.handler
+resources:
+  - key: main
+    path: src/frontend/index.jsx
+permissions:
+  scopes:
+    - storage:app

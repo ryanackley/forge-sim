@@ -8,10 +8,12 @@
  * This is the "deploy to sim" equivalent — one call, zero app modifications.
  */
 
-import { resolve, join, dirname } from 'node:path';
+import { resolve, join, dirname, sep as pathSep } from 'node:path';
 import { access, mkdir, writeFile, readdir, unlink, stat } from 'node:fs/promises';
+import { realpathSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { createRequire } from 'node:module';
+import { interceptCjsForgeRequires } from './loader/cjs-interception.js';
 import { parseManifest, type ParsedManifest, type ManifestFunction } from './manifest.js';
 import { validateManifestFile, printManifestWarnings } from './manifest-validation.js';
 import { checkAppForgeVersions, readAppForgeDeps } from './forge-package-versions.js';
@@ -390,11 +392,11 @@ export interface DeployResult {
 
 /**
  * Resolve a Forge handler string like "index.handler" to a file path and export name.
- * 
+ *
  * Convention: "file.exportName" → src/file.{js,ts,mjs} → import { exportName }
  * Supports nested: "resolvers/issue.handler" → src/resolvers/issue.{js,ts,mjs}
  */
-function parseHandlerString(handler: string): { fileStem: string; exportName: string } {
+export function parseHandlerString(handler: string): { fileStem: string; exportName: string } {
   const lastDot = handler.lastIndexOf('.');
   if (lastDot === -1) {
     return { fileStem: handler, exportName: 'default' };
@@ -407,10 +409,44 @@ function parseHandlerString(handler: string): { fileStem: string; exportName: st
 
 const FILE_EXTENSIONS = ['.js', '.ts', '.tsx', '.jsx', '.mjs', '.cjs'];
 
+// Manual packaging ships built output, so runnable JS comes first. TS/JSX
+// sources still resolve — the sim can execute them — but draw a parity
+// warning at deploy (real Forge uploads the file as-is to a Node runtime).
+const MANUAL_FILE_EXTENSIONS = ['.js', '.cjs', '.mjs', '.ts', '.tsx', '.jsx'];
+
+export interface HandlerResolutionOptions {
+  /** Directory handlers resolve from, relative to the app root (ParsedManifest.handlersDirectory). */
+  handlersDirectory?: string;
+  /** True when app.package.bundler is manual@2026 — resolution is confined to handlersDirectory. */
+  manualPackaging?: boolean;
+}
+
 /**
- * Find the actual file for a handler stem, checking src/ with various extensions.
+ * Find the actual file for a handler stem.
+ *
+ * Default packaging: appDir-relative first ("src/resolver" written out in the
+ * handler), then under src/. Manual packaging: ONLY inside the package path —
+ * per the packaging standard, the packaged directory must contain every
+ * handler, so an app-root fallback would load files real Forge never uploads.
  */
-async function resolveHandlerFile(appDir: string, fileStem: string): Promise<string | null> {
+export async function resolveHandlerFile(
+  appDir: string,
+  fileStem: string,
+  options: HandlerResolutionOptions = {},
+): Promise<string | null> {
+  const { handlersDirectory = 'src', manualPackaging = false } = options;
+
+  if (manualPackaging) {
+    for (const ext of MANUAL_FILE_EXTENSIONS) {
+      const candidate = resolve(appDir, handlersDirectory, fileStem + ext);
+      try {
+        await access(candidate);
+        return candidate;
+      } catch {}
+    }
+    return null;
+  }
+
   // Try appDir-relative first (handles "src/resolver" → appDir/src/resolver.ts)
   for (const ext of FILE_EXTENSIONS) {
     const candidate = resolve(appDir, fileStem + ext);
@@ -422,7 +458,7 @@ async function resolveHandlerFile(appDir: string, fileStem: string): Promise<str
 
   // Fallback: try under src/ (handles "resolver" → appDir/src/resolver.ts)
   for (const ext of FILE_EXTENSIONS) {
-    const candidate = resolve(appDir, 'src', fileStem + ext);
+    const candidate = resolve(appDir, handlersDirectory, fileStem + ext);
     try {
       await access(candidate);
       return candidate;
@@ -430,6 +466,37 @@ async function resolveHandlerFile(appDir: string, fileStem: string): Promise<str
   }
 
   return null;
+}
+
+/**
+ * Drop every CommonJS module cached from inside `appDir`.
+ *
+ * Manual-packaged handlers are imported without bundling, so the `?t=` query
+ * only cache-busts the ESM wrapper of the entry file — a CJS handler and its
+ * transitive requires live in the shared require cache and would survive
+ * redeploys, silently serving stale code. Clearing the app's slice of the
+ * cache before each deploy restores the bundle path's edit-and-redeploy
+ * semantics for CJS. (Native ESM files inside the package dir have no
+ * clearable cache — a known limitation documented in the manual-packaging
+ * docs.)
+ */
+export function clearAppRequireCache(appDir: string): void {
+  const require = createRequire(import.meta.url);
+  // require.cache keys are realpaths (Node resolves symlinks for CJS cache
+  // identity), so match against both the given dir and its realpath — on
+  // macOS, tmpdir() hands out /var/... while the cache holds /private/var/...
+  const prefixes = new Set([appDir]);
+  try {
+    prefixes.add(realpathSync(appDir));
+  } catch {}
+  for (const key of Object.keys(require.cache)) {
+    for (const p of prefixes) {
+      if (key.startsWith(p.endsWith(pathSep) ? p : p + pathSep)) {
+        delete require.cache[key];
+        break;
+      }
+    }
+  }
 }
 
 /**
@@ -596,6 +663,23 @@ export async function deploy(sim: ForgeSimulator, appDir: string, options: Deplo
     // Fallback: loader hooks already registered via --import, or Node version doesn't support register()
   }
 
+  // Manual packaging (#40): the app ships prebuilt code in app.package.path
+  // and real Forge uploads it UNMODIFIED. Three deviations from the default
+  // path below: handlers resolve only inside the package dir, modules are
+  // imported without esbuild (bundling breaks require()/__dirname/data files
+  // /wasm — the very things manual packaging legitimizes), and CJS requires
+  // of @forge/* from app code are routed to the shims (the ESM hooks never
+  // see require()).
+  const manualPackaging = manifest.raw.app?.package?.bundler === 'manual@2026';
+  const handlerResolution = {
+    handlersDirectory: manifest.handlersDirectory,
+    manualPackaging,
+  };
+  if (manualPackaging) {
+    interceptCjsForgeRequires(absDir);
+    clearAppRequireCache(absDir);
+  }
+
   // 3. Load each function module
   const handlerExports = new Map<string, any>();
   // Per-deploy bundle/import cache keyed by absolute source path. Many manifests
@@ -612,23 +696,49 @@ export async function deploy(sim: ForgeSimulator, appDir: string, options: Deplo
   for (const [fnKey, fnDef] of manifest.functions) {
     try {
       const { fileStem, exportName } = parseHandlerString(fnDef.handler);
-      const filePath = await resolveHandlerFile(absDir, fileStem);
+      const filePath = await resolveHandlerFile(absDir, fileStem, handlerResolution);
 
       if (!filePath) {
         errors.push({
           functionKey: fnKey,
-          error: `Could not find handler file for "${fnDef.handler}" (tried src/${fileStem}.{js,ts,mjs,cjs} and ${fileStem}.{js,ts,mjs,cjs})`,
+          error: manualPackaging
+            ? `Could not find handler file for "${fnDef.handler}" under app.package.path ` +
+              `(tried ${manifest.handlersDirectory}/${fileStem}.{js,cjs,mjs,ts}). Manual packaging ` +
+              `resolves handlers ONLY inside the package directory — run your build so the ` +
+              `compiled file exists there.`
+            : `Could not find handler file for "${fnDef.handler}" (tried src/${fileStem}.{js,ts,mjs,cjs} and ${fileStem}.{js,ts,mjs,cjs})`,
         });
         continue;
       }
 
-      // Bundle+import the source file exactly once per deploy, reusing the
-      // same module for every manifest function that points at it. See the
+      if (manualPackaging && /\.(ts|tsx|jsx)$/.test(filePath)) {
+        const w = {
+          level: 'warning' as const,
+          message: `Handler "${fnDef.handler}" resolved to a TypeScript/JSX source file ` +
+            `(${filePath.slice(absDir.length + 1)}). Manual packaging uploads files as-is and the ` +
+            `Forge runtime executes JavaScript — forge-sim runs this file, but real Forge likely ` +
+            `won't. Point app.package.path at your build output.`,
+        };
+        manifest.warnings.push(w);
+        printManifestWarnings([w]);
+      }
+
+      // Import the source file exactly once per deploy, reusing the same
+      // module for every manifest function that points at it. See the
       // `moduleCache` comment above for the F8 backstory.
       let mod = moduleCache.get(filePath);
       if (!mod) {
-        const fileUrl = await bundleHandlerToFileUrl(filePath, absDir);
-        mod = await import(fileUrl);
+        if (manualPackaging) {
+          // As-is import — no esbuild. The query string busts the ESM cache
+          // for the entry across deploys; CJS trees were already evicted via
+          // clearAppRequireCache above.
+          const fileUrl = pathToFileURL(filePath).href +
+            `?forge-sim-deploy=${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+          mod = await import(fileUrl);
+        } else {
+          const fileUrl = await bundleHandlerToFileUrl(filePath, absDir);
+          mod = await import(fileUrl);
+        }
         moduleCache.set(filePath, mod);
       }
 
@@ -748,12 +858,24 @@ export async function deploy(sim: ForgeSimulator, appDir: string, options: Deplo
     }
   }
 
+  // Keys registered by THIS deploy pass. The web-trigger and generic steps
+  // below must not clobber a more specific type registered a few lines up —
+  // but they MUST clobber registrations from a PREVIOUS deploy, or a redeploy
+  // keeps serving the old handler (web triggers did exactly that: the old
+  // guard was `!sim.functions.has(key)`, which is indistinguishable from
+  // "registered by deploy #1"). Fresh code on redeploy is the whole point.
+  const registeredThisDeploy = new Set<string>();
+  const registerFresh = (key: string, handler: (...args: any[]) => any, type: Parameters<typeof sim.registerFunction>[2]) => {
+    sim.registerFunction(key, handler, type);
+    registeredThisDeploy.add(key);
+  };
+
   // 4. Register trigger functions in the function registry
   // Triggers receive (event, context) as two separate arguments.
   for (const trigger of manifest.triggers) {
     const handler = handlerExports.get(trigger.functionKey);
     if (handler && typeof handler === 'function') {
-      sim.registerFunction(trigger.functionKey, handler, 'trigger');
+      registerFresh(trigger.functionKey, handler, 'trigger');
     }
   }
 
@@ -790,13 +912,13 @@ export async function deploy(sim: ForgeSimulator, appDir: string, options: Deplo
       const wrapped = wrapV1ConsumerHandler(
         methodHandler as (req: { payload: unknown; context: unknown }) => unknown
       );
-      sim.registerFunction(consumer.functionKey, wrapped, 'consumer');
+      registerFresh(consumer.functionKey, wrapped, 'consumer');
       sim.registerConsumer(consumer.queue, wrapped);
       continue;
     }
 
     if (typeof exported === 'function') {
-      sim.registerFunction(consumer.functionKey, exported, 'consumer');
+      registerFresh(consumer.functionKey, exported, 'consumer');
       sim.registerConsumer(consumer.queue, exported);
     }
   }
@@ -807,7 +929,7 @@ export async function deploy(sim: ForgeSimulator, appDir: string, options: Deplo
   for (const st of manifest.scheduledTriggers) {
     const handler = handlerExports.get(st.functionKey);
     if (handler && typeof handler === 'function') {
-      sim.registerFunction(st.functionKey, handler, 'scheduledTrigger');
+      registerFresh(st.functionKey, handler, 'scheduledTrigger');
     }
   }
 
@@ -819,17 +941,17 @@ export async function deploy(sim: ForgeSimulator, appDir: string, options: Deplo
   // the wrong-convention call with a pointer to fireWebTrigger (eval B4).
   for (const wt of manifest.webTriggers) {
     const handler = handlerExports.get(wt.functionKey);
-    if (handler && typeof handler === 'function' && !sim.functions.has(wt.functionKey)) {
-      sim.registerFunction(wt.functionKey, handler, 'webTrigger');
+    if (handler && typeof handler === 'function' && !registeredThisDeploy.has(wt.functionKey)) {
+      registerFresh(wt.functionKey, handler, 'webTrigger');
     }
   }
 
   // 8. Register remaining functions as generic (if not already registered)
   for (const [fnKey, handler] of handlerExports) {
-    if (typeof handler === 'function' && !sim.functions.has(fnKey)) {
+    if (typeof handler === 'function' && !registeredThisDeploy.has(fnKey)) {
       // Not a trigger, consumer, scheduled trigger, or web trigger —
       // register as generic
-      sim.registerFunction(fnKey, handler, 'generic');
+      registerFresh(fnKey, handler, 'generic');
       // Also make it available via resolver.define() for backward compat
       if (!sim.resolver.getDefinitions().includes(fnKey)) {
         sim.resolver.define(fnKey, handler);

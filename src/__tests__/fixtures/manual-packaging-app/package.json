@@ -1,0 +1,5 @@
+{
+  "name": "manual-packaging-app",
+  "private": true,
+  "description": "No `type` field on purpose: the packaged .js files are CommonJS, and Node derives that from the app's own nearest package.json. Without this file the lookup walks up to forge-sim's package.json (type: module) and misparses the fixture as ESM — something that can't happen to a real app, which always ships its own package.json."
+}

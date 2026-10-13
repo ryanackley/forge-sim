@@ -20,9 +20,10 @@
 
 import { resolve, join, relative, dirname } from 'node:path';
 import { existsSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createSimulator, ForgeSimulator } from './simulator.js';
-import { deploy, bundleHandlerToFileUrl, sweepStaleBundles, deployBundleDir, wrapV1ConsumerHandler } from './deployer.js';
+import { deploy, bundleHandlerToFileUrl, sweepStaleBundles, deployBundleDir, wrapV1ConsumerHandler, parseHandlerString, resolveHandlerFile, clearAppRequireCache } from './deployer.js';
+import { interceptCjsForgeRequires } from './loader/cjs-interception.js';
 import { createDevServer } from './dev-server.js';
 import { parseManifest, type ParsedManifest, type ManifestUIModule, BACKGROUND_SCRIPT_TYPES, getCompatibleBackgroundScripts } from './manifest.js';
 import { saveState, loadState, hasPersistedState, getSQLDumpPath, claimStateLock, ownsStateLock, releaseStateLock } from './persistence.js';
@@ -1594,6 +1595,17 @@ export async function devCommand(options: DevCommandOptions) {
   // 2. Parse manifest
   console.log(`  📋 Reading manifest.yml...`);
   const manifest = await parseManifest(manifestPath);
+
+  // Manual packaging (#40): app.package.path holds prebuilt output. Two dev
+  // consequences wired below: the file watcher must NOT ignore that directory
+  // (it's what redeploys — forge tunnel watches the target dir too), and the
+  // tsc watcher is skipped entirely (the real CLI does no processing under
+  // manual packaging; the user runs their own compiler, typically in watch
+  // mode alongside us).
+  const devManualPackaging = manifest.raw.app?.package?.bundler === 'manual@2026';
+  const devWatchIgnoreDirs = ['node_modules', 'dist'].filter(
+    (d) => !(devManualPackaging && manifest.handlersDirectory.split(/[\\/]/).includes(d))
+  );
   console.log(`     App: ${manifest.raw.app?.name ?? manifest.raw.app?.id ?? 'unnamed'}`);
   console.log(`     Functions: ${manifest.functions.size}`);
   console.log(`     UI modules: ${manifest.uiModules.length}`);
@@ -1819,6 +1831,7 @@ export async function devCommand(options: DevCommandOptions) {
     // their choice and fail fast instead of silently picking another port.
     strictPort: wsPortExplicit,
     watchDir: appDir,
+    watchIgnoreDirs: devWatchIgnoreDirs,
     simulator: sim,
     context: moduleContext,
     onFileChange: redeployOnChange,
@@ -1999,8 +2012,9 @@ export async function devCommand(options: DevCommandOptions) {
       broadcastToolsMessage({ type: 'log', data: entry });
     });
 
-    // Start TypeScript type checker — console output PLUS live broadcast to Tools UI
-    const proxyTypeCheckWatcher = startTypeCheckWatch({
+    // Start TypeScript type checker — console output PLUS live broadcast to
+    // Tools UI. Skipped under manual packaging (see devManualPackaging).
+    const proxyTypeCheckWatcher = devManualPackaging ? null : startTypeCheckWatch({
       appDir,
       onErrors: (errors, critical) => {
         lastTypeErrors = { errors, critical, checking: false };
@@ -2220,8 +2234,9 @@ export async function devCommand(options: DevCommandOptions) {
       toolsServer.broadcastLog(entry);
     });
 
-    // 8a. Start TypeScript type checker (tsc --watch --noEmit)
-    const typeCheckWatcher = startTypeCheckWatch({
+    // 8a. Start TypeScript type checker (tsc --watch --noEmit).
+    // Skipped under manual packaging (see devManualPackaging).
+    const typeCheckWatcher = devManualPackaging ? null : startTypeCheckWatch({
       appDir,
       onCheckStart: () => {
         toolsServer.broadcastTypeErrors([], [], true);
@@ -2534,29 +2549,58 @@ export async function deployResolversOnly(
   // pass. Mirrors the F8 fix in deployer.deploy().
   const moduleCache = new Map<string, any>();
 
+  // Manual packaging: resolve only inside app.package.path and import the
+  // prebuilt files as-is — mirrors the deployer (see the manualPackaging
+  // block in deploy() for the full rationale).
+  const manualPackaging = manifest.raw.app?.package?.bundler === 'manual@2026';
+  const handlerResolution = {
+    handlersDirectory: manifest.handlersDirectory,
+    manualPackaging,
+  };
+  if (manualPackaging) {
+    interceptCjsForgeRequires(appDir);
+    clearAppRequireCache(appDir);
+  }
+
   for (const [fnKey, fnDef] of manifest.functions) {
     try {
       const { fileStem, exportName } = parseHandlerString(fnDef.handler);
-      const filePath = await resolveHandlerFile(appDir, fileStem);
+      const filePath = await resolveHandlerFile(appDir, fileStem, handlerResolution);
 
       if (!filePath) {
         errors.push({
           functionKey: fnKey,
-          error: `Could not find handler file for "${fnDef.handler}"`,
+          error: manualPackaging
+            ? `Could not find handler file for "${fnDef.handler}" under app.package.path ` +
+              `(${manifest.handlersDirectory}/). Run your build so the compiled file exists there.`
+            : `Could not find handler file for "${fnDef.handler}"`,
         });
         continue;
       }
 
-      // Bundle+import via esbuild — NOT `import(fileUrl + '?t=' + Date.now())`.
-      // The `?t=` trick only cache-busts the entry file; transitive relative
-      // imports keep plain URLs and stay cached forever, so edits to helper
-      // files never took effect on dev reloads (same F3 bug fixed in
-      // deployer.deploy()). Bundling folds the whole relative-import tree
-      // into one fresh-URL module per deploy pass.
+      // Default packaging: bundle+import via esbuild — NOT
+      // `import(fileUrl + '?t=' + Date.now())`. The `?t=` trick only
+      // cache-busts the entry file; transitive relative imports keep plain
+      // URLs and stay cached forever, so edits to helper files never took
+      // effect on dev reloads (same F3 bug fixed in deployer.deploy()).
+      // Bundling folds the whole relative-import tree into one fresh-URL
+      // module per deploy pass.
+      //
+      // Manual packaging: no bundling (code must load as-is); CJS trees are
+      // evicted via clearAppRequireCache above, ESM transitive imports can
+      // stay cached across reloads (documented limitation — rebuilds that
+      // change helper files should also touch the entry, which most bundlers
+      // do anyway via content hashing).
       let mod = moduleCache.get(filePath);
       if (!mod) {
-        const fileUrl = await bundleHandlerToFileUrl(filePath, appDir);
-        mod = await import(fileUrl);
+        if (manualPackaging) {
+          const fileUrl = pathToFileURL(filePath).href +
+            `?forge-sim-deploy=${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+          mod = await import(fileUrl);
+        } else {
+          const fileUrl = await bundleHandlerToFileUrl(filePath, appDir);
+          mod = await import(fileUrl);
+        }
         moduleCache.set(filePath, mod);
       }
 
@@ -2687,31 +2731,6 @@ export async function deployResolversOnly(
   return { loadedFunctions, errors };
 }
 
-// ── Helpers (duplicated from deployer to avoid side effects) ────────────
-
-function parseHandlerString(handler: string): { fileStem: string; exportName: string } {
-  const lastDot = handler.lastIndexOf('.');
-  if (lastDot === -1) return { fileStem: handler, exportName: 'default' };
-  return {
-    fileStem: handler.substring(0, lastDot),
-    exportName: handler.substring(lastDot + 1),
-  };
-}
-
-const FILE_EXTENSIONS = ['.js', '.ts', '.tsx', '.jsx', '.mjs', '.cjs'];
-
-async function resolveHandlerFile(appDir: string, fileStem: string): Promise<string | null> {
-  const { access } = await import('node:fs/promises');
-
-  // Try appDir-relative first (handles "src/resolver" → appDir/src/resolver.ts)
-  for (const ext of FILE_EXTENSIONS) {
-    const candidate = resolve(appDir, fileStem + ext);
-    try { await access(candidate); return candidate; } catch {}
-  }
-  // Fallback: try under src/ (handles "resolver" → appDir/src/resolver.ts)
-  for (const ext of FILE_EXTENSIONS) {
-    const candidate = resolve(appDir, 'src', fileStem + ext);
-    try { await access(candidate); return candidate; } catch {}
-  }
-  return null;
-}
+// Handler resolution/import helpers are shared with the deployer — see
+// parseHandlerString / resolveHandlerFile / clearAppRequireCache in
+// src/deployer.ts. (They were duplicated here for a while and drifted.)

@@ -37,6 +37,13 @@ export interface DevServerOptions {
   strictPort?: boolean;
   /** App source directory to watch for changes */
   watchDir?: string;
+  /**
+   * Directory names (path segments relative to watchDir) the watcher ignores.
+   * Default: ['node_modules', 'dist']. Manual-packaging apps must drop 'dist'
+   * when app.package.path points there — the built output IS what redeploys
+   * (same semantics as `forge tunnel`, which watches the target directory).
+   */
+  watchIgnoreDirs?: string[];
   /** Debounce interval for file changes in ms (default: 300) */
   debounceMs?: number;
   /** Called when a file change is detected — should re-deploy and return new ForgeDoc */
@@ -194,6 +201,7 @@ export async function createDevServer(options: DevServerOptions = {}): Promise<D
     port: requestedPort = 5174,
     strictPort = false,
     watchDir,
+    watchIgnoreDirs = ['node_modules', 'dist'],
     debounceMs = 300,
     onFileChange,
     simulator,
@@ -890,9 +898,14 @@ export async function createDevServer(options: DevServerOptions = {}): Promise<D
   if (watchDir) {
     let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
+    // Segment-based ignore — the old substring test (`filename.includes('dist')`)
+    // also swallowed files like `redistribute.ts`, and couldn't be disabled for
+    // manual-packaging apps whose package path IS dist/.
+    const ignoredSegments = new Set(watchIgnoreDirs);
     watcher = watch(watchDir, { recursive: true }, (eventType, filename) => {
       if (!filename) return;
-      if (filename.includes('node_modules') || filename.includes('dist') || filename.startsWith('.')) return;
+      const segments = filename.split(/[\\/]/);
+      if (segments.some((s) => ignoredSegments.has(s)) || filename.startsWith('.')) return;
 
       if (debounceTimer) clearTimeout(debounceTimer);
       debounceTimer = setTimeout(async () => {
