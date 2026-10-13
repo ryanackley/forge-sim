@@ -13,6 +13,7 @@
 
 import type { ForgeSimulator } from '../simulator.js';
 import { isRawHtmlType } from './html-elements.js';
+import { warnOnForgeReactMajorMismatch } from '../forge-package-versions.js';
 
 // ── Types ───────────────────────────────────────────────────────────────
 
@@ -123,7 +124,9 @@ async function handleReconcile(data: any): Promise<void> {
 
   // Manual-packaged bundles ship their own @forge/react; the payload is the
   // only place its version is visible. One-time warning per mismatched major.
-  const { warnOnForgeReactMajorMismatch } = await import('../forge-package-versions.js');
+  // Statically imported: an `await import()` here suspends the handler
+  // mid-capture and reorders waiter resolution against a fast follow-up
+  // reconcile (broke the render-race tests).
   warnOnForgeReactMajorMismatch(data.forgeDoc.forgeReactMajorVersion);
 
   const isMacroConfig = data.forgeDoc.type === 'MacroConfig';
