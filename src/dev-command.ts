@@ -22,7 +22,7 @@ import { resolve, join, relative, dirname } from 'node:path';
 import { existsSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createSimulator, ForgeSimulator } from './simulator.js';
-import { deploy, bundleHandlerToFileUrl, sweepStaleBundles, deployBundleDir, wrapV1ConsumerHandler, parseHandlerString, resolveHandlerFile, clearAppRequireCache, extractEntryScripts } from './deployer.js';
+import { deploy, bundleHandlerToFileUrl, sweepStaleBundles, deployBundleDir, wrapV1ConsumerHandler, parseHandlerString, resolveHandlerFile, clearAppRequireCache, extractEntryScripts, detectResolverDispatch } from './deployer.js';
 import { interceptCjsForgeRequires } from './loader/cjs-interception.js';
 import { createDevServer } from './dev-server.js';
 import { parseManifest, type ParsedManifest, type ManifestUIModule, BACKGROUND_SCRIPT_TYPES, getCompatibleBackgroundScripts } from './manifest.js';
@@ -2547,60 +2547,20 @@ export async function devCommand(options: DevCommandOptions) {
  * UI resources will run in the browser via Vite, not in Node.
  */
 /**
- * Detect if a handler function is a real @forge/resolver dispatch function.
- * The dispatch function is created by Resolver.getDefinitions() and has a
- * characteristic signature: async ({ call: { functionKey, payload }, context }, backendRuntimePayload)
- *
- * We detect it by inspecting the function source — no probing (which would
- * cause side effects by actually executing handler code).
- */
-function detectResolverDispatch(handler: Function): boolean {
-  const src = handler.toString();
-  // Real @forge/resolver dispatch function has 2 params and destructures { call: { functionKey } }
-  return handler.length === 2 && src.includes('functionKey') && src.includes('call');
-}
-
-/**
  * Register a real @forge/resolver dispatch function on the simulator.
  *
- * The dispatch function's signature is:
- *   async ({ call: { functionKey, payload }, context }, backendRuntimePayload) => result
- *
- * We register the manifest function key (e.g., 'uiResolver') as a direct handler,
- * AND install a fallback on the simulator's invoke so that any unknown key
- * (e.g., 'retrieveData') gets routed through the dispatch function.
+ * Thin wrapper over the resolver's first-class dispatch-fallback support,
+ * which the deployer uses too (#40, adversarial D). It replaced an older
+ * implementation here that monkey-patched `sim.resolver.invoke` with a
+ * closure per registration — three bugs the shared path doesn't have: the
+ * wrappers CHAINED on every hot-redeploy (dev redeploys on every save),
+ * they matched on the error message text, and they passed `{}` as the
+ * backendRuntimePayload, which made real @forge/resolver overwrite
+ * `context.accountId` with undefined.
  */
 function registerDispatchFunction(sim: ForgeSimulator, fnKey: string, dispatchFn: Function): void {
-  // Register the function key itself so it shows up in the handler map
-  sim.resolver.define(fnKey, async (req: any) => {
-    return dispatchFn(
-      { call: { functionKey: fnKey, payload: req.payload }, context: req.context },
-      {}
-    );
-  });
-
-  // Install a fallback: for any invoke(key) that doesn't match a registered
-  // resolver, try routing through this dispatch function.
-  // This handles calls like invoke('retrieveData') where 'retrieveData' is
-  // a definition inside the resolver, not a top-level manifest function key.
-  const originalInvoke = sim.resolver.invoke.bind(sim.resolver);
-  sim.resolver.invoke = async (functionKey: string, payload?: any) => {
-    try {
-      return await originalInvoke(functionKey, payload);
-    } catch (err: any) {
-      if (err?.message?.includes('No resolver defined')) {
-        // Use the simulator's canonical default context so daemon-routed
-        // invokes share the same accountId as cold MCP invokes and the UI
-        // render path. Fix for N3.
-        const context = sim.getDefaultContext();
-        return dispatchFn(
-          { call: { functionKey, payload: payload ?? {} }, context },
-          {}
-        );
-      }
-      throw err;
-    }
-  };
+  sim.resolver.registerDispatch(fnKey, dispatchFn as any);
+  sim.resolver.define(fnKey, sim.resolver.makeDispatchAdapter(fnKey));
 }
 
 /**

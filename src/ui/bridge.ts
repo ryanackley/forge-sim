@@ -54,6 +54,13 @@ let macroConfigRenderListeners: Array<(doc: ForgeDoc) => void> = [];
 // successful reconcile. simulator-ui.render() consumes this to throw even
 // when its waitForRender promise wasn't directly awaited (N9 race paths).
 let latestRenderError: Error | null = null;
+/**
+ * Set when a UI-driven invoke asked for a resolver key that does not exist.
+ * Surfaced as a hint by waitForContent's timeout (see simulator-ui), which
+ * is where the symptom actually shows up — the UI just sits on its loading
+ * state forever.
+ */
+let latestMissingResolverError: Error | null = null;
 const bridgeCalls: BridgeCall[] = [];
 let tornDown = false;
 let currentForgeContext: ForgeContext | null = null;
@@ -195,7 +202,51 @@ async function handleInvoke(data: any): Promise<any> {
     throw new Error('forge-sim bridge: No simulator connected. Call connectSimulator() first.');
   }
   const { functionKey, payload } = data;
-  return simulator.invoke(functionKey, payload);
+
+  try {
+    return await simulator.invoke(functionKey, payload);
+  } catch (err: any) {
+    // A resolver that does not exist is a SIM/DEPLOY configuration failure,
+    // not something the app can meaningfully handle — and app code almost
+    // never guards it (`invoke(...).then(setState)` is the canonical shape).
+    // Rejecting here becomes an unhandled rejection in the app's effect,
+    // which in Node takes down the whole test runner: every test reports
+    // "passed" and the process still exits 1, with the blame attached to
+    // whichever test happened to run last.
+    //
+    // In a real browser that same rejection logs to the console and the UI
+    // simply stays on its loading state — the page keeps running. So we
+    // reproduce the browser: record the error (waitForContent surfaces it
+    // as an actionable hint) and leave the app's promise pending.
+    //
+    // Errors THROWN BY a resolver that does exist still reject normally —
+    // apps do catch those, and swallowing them would break real error-state
+    // UIs and hide genuine bugs.
+    if (isMissingResolverError(err)) {
+      latestMissingResolverError = err instanceof Error ? err : new Error(String(err));
+      console.error(
+        `[forge-sim] UI invoke("${functionKey}") failed: ${latestMissingResolverError.message}`,
+      );
+      return new Promise(() => {}); // stays pending, like the browser's dangling fetch
+    }
+    throw err;
+  }
+}
+
+/** The simulator's "this key isn't registered" error, raised before any app code ran. */
+function isMissingResolverError(err: unknown): boolean {
+  const msg = (err as { message?: unknown })?.message;
+  return typeof msg === 'string' && /^No resolver defined for "/.test(msg);
+}
+
+/**
+ * Consume the most recent missing-resolver invoke failure, if any.
+ * Returns it once and clears it.
+ */
+export function consumeMissingResolverError(): Error | null {
+  const err = latestMissingResolverError;
+  latestMissingResolverError = null;
+  return err;
 }
 
 async function handleFetchProduct(data: any): Promise<any> {
@@ -621,6 +672,7 @@ export function resetBridge(): void {
   latestForgeDoc = null;
   latestMacroConfigDoc = null;
   latestRenderError = null;
+  latestMissingResolverError = null;
   renderResolvers = [];
   macroConfigRenderResolvers = [];
   bridgeCalls.length = 0;

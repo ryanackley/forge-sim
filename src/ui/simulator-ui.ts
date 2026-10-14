@@ -30,6 +30,7 @@ import {
   replayCapturedRender,
   moduleUsesConfig,
   consumeRenderError,
+  consumeMissingResolverError,
   setStubCurrentScript,
 } from './bridge.js';
 import { buildForgeContext, type ForgeContext, type RenderContextOptions } from '../context.js';
@@ -612,6 +613,21 @@ export class SimulatorUI {
 
     // Build a helpful hint when we can detect a likely cause.
     const hints: string[] = [];
+
+    // Hint 0 (highest priority): the UI invoked a resolver that isn't
+    // registered, so its promise never settled and the module is stuck on
+    // its loading state. Without this the user just sees "timed out waiting
+    // for X / current content: Loading..." and has to guess.
+    const missingResolver = consumeMissingResolverError();
+    if (missingResolver) {
+      hints.push(
+        `${missingResolver.message}\n      ` +
+        `The UI called invoke() for a resolver the simulator doesn't know, so it never ` +
+        `resolved and the module stayed on its loading state. If your backend bundles ` +
+        `@forge/resolver, check that the manifest function actually exports ` +
+        `getDefinitions(); otherwise check the resolver key spelling.`
+      );
+    }
 
     // Hint 1: macro module with no saved config — likely missed setMacroConfig.
     // Gated on (a) the bundle actually calling useConfig(), so we don't

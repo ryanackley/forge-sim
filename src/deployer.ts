@@ -537,6 +537,33 @@ export async function resolveResourceFile(appDir: string, resourcePath: string):
   return null;
 }
 
+/**
+ * Does this exported handler look like real @forge/resolver's
+ * `getDefinitions()` dispatch function?
+ *
+ * Apps that BUNDLE @forge/resolver (no bare `@forge/resolver` specifier
+ * survives in the output) run the real package, so our shim's registering
+ * `define()` never executes — the definition keys live in a private map
+ * inside the app's own Resolver instance and are invisible to us. What we
+ * get is the dispatch closure, whose signature is distinctive:
+ *
+ *   async ({ call: { functionKey, payload }, context }, backendRuntimePayload)
+ *
+ * Detection is by source inspection, never by probing: calling the function
+ * to see what happens would execute the app's own resolver code and cause
+ * real side effects (writes, fetches) at deploy time.
+ *
+ * Real Forge supports inlined @forge/resolver, so failing to spot this is a
+ * parity violation: the app deploys clean and every invoke 404s.
+ */
+export function detectResolverDispatch(handler: Function): boolean {
+  // Arity 2 (the dispatch closure's own shape) plus both destructured names.
+  // A hand-written `(req) => ...` resolver has arity 1 and fails fast here.
+  if (handler.length !== 2) return false;
+  const src = handler.toString();
+  return src.includes('functionKey') && src.includes('call');
+}
+
 // ── UI resource entry resolution (manual packaging + entry maps, #40) ─────
 
 export interface ResolvedUiResource {
@@ -1034,8 +1061,29 @@ export async function deploy(sim: ForgeSimulator, appDir: string, options: Deplo
         sim.registerResolverOwnership(defKey, uiModule.resolverFunctionKey);
       }
     } else if (typeof exported === 'function') {
+      // An app that bundled @forge/resolver exports the dispatch closure
+      // rather than a definitions map. Register it as a fallback route so
+      // its (un-enumerable) definition keys are reachable by invoke(), the
+      // same way the real platform reaches them. Without this the app
+      // deploys clean and every UI invoke fails with "no resolver defined"
+      // — and registering it as a plain handler is worse still: the
+      // signatures don't match, so it fails with a cryptic
+      // "Cannot read properties of undefined (reading 'functionKey')".
+      const isDispatch = detectResolverDispatch(exported);
+      if (isDispatch) {
+        sim.resolver.registerDispatch(uiModule.resolverFunctionKey, exported as any);
+      }
       if (!sim.resolver.getDefinitions().includes(uiModule.resolverFunctionKey)) {
-        sim.resolver.define(uiModule.resolverFunctionKey, exported);
+        // For a dispatch closure, the manifest key must be an ADAPTER: the
+        // raw closure takes ({ call, context }, runtimePayload), so defining
+        // it directly makes `sim.invoke('<fnKey>')` die on
+        // `undefined.functionKey`.
+        sim.resolver.define(
+          uiModule.resolverFunctionKey,
+          isDispatch
+            ? sim.resolver.makeDispatchAdapter(uiModule.resolverFunctionKey)
+            : exported,
+        );
       }
       sim.registerResolverOwnership(uiModule.resolverFunctionKey, uiModule.resolverFunctionKey);
     }
@@ -1050,6 +1098,21 @@ export async function deploy(sim: ForgeSimulator, appDir: string, options: Deplo
         if (typeof defHandler === 'function' && !sim.resolver.getDefinitions().includes(defKey)) {
           sim.resolver.define(defKey, defHandler as any);
         }
+      }
+    } else if (
+      typeof handler === 'function' &&
+      !resolverFnKeys.has(fnKey) &&
+      detectResolverDispatch(handler)
+    ) {
+      // A bundled resolver exported by a function that no UI module claims
+      // (the loop above only covers modules with `resolver.function`). Apps
+      // call these straight through sim.invoke(), so they need the same
+      // fallback route. Trigger/consumer/web-trigger handlers can't be
+      // confused for one: those take (event, context) and don't mention
+      // `call`/`functionKey`.
+      sim.resolver.registerDispatch(fnKey, handler as any);
+      if (!sim.resolver.getDefinitions().includes(fnKey)) {
+        sim.resolver.define(fnKey, sim.resolver.makeDispatchAdapter(fnKey));
       }
     }
   }
