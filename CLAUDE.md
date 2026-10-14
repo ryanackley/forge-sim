@@ -81,6 +81,7 @@ When you need actual surface details, go to the doc; don't guess from this file.
 | AI-driven development overview | `docs/ai/README.md` |
 | MCP server (tools, resources, transport) | `docs/ai/mcp.md` |
 | Architecture (interception strategies, runtime model) | `docs/reference/architecture.md` |
+| Bundled `@forge/*` findings (why shape-2 backends are unsupported) | `docs/reference/bundled-forge-packages.md` |
 | CLI (`forge-sim dev`, `auth`, `daemon`) | `docs/reference/cli.md` |
 | Programmatic API (`sim.*`) | `docs/reference/api.md` |
 | Renderer (ForgeDoc → Atlaskit, color modes) | `docs/reference/renderer.md` |

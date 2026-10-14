@@ -125,23 +125,26 @@ Three consequences the deployer handles:
 - **Handler extensions follow Forge lint**: `.js`/`.cjs` (plus TS sources with a parity warning). No `.mjs` — lint rejects it; ship ESM as `.js` + `"type": "module"`.
 - **Bundled `@forge/resolver`** — see below; the one shimmed package with no runtime seam.
 
-### Which packages survive being bundled in (and the one that doesn't)
+### Bundled `@forge/*` backends are not supported
 
-Both interception mechanisms — the ESM resolve hook and the CJS `Module._resolveFilename` patch — key on the **specifier string** `@forge/<pkg>`. A bundler that inlines the package leaves no specifier behind, so there is nothing to intercept. That is true of *every* shim, not just one. What differs is whether the REAL package, running inlined, still reaches the simulator through a second seam:
+Both interception mechanisms — the ESM resolve hook and the CJS `Module._resolveFilename` patch — key on the **specifier string** `@forge/<pkg>`. A bundler that inlines the package leaves no specifier behind, so there is nothing to intercept. That is true of *every* shim, not just one, and it is why **backends that bundle `@forge/*` are unsupported**: the supported recipe is `--external:@forge/*` plus a shipped `node_modules`, which real Forge requires anyway.
 
-| Package | Seam that survives bundling |
-|---|---|
-| `@forge/api`, `@forge/kvs`, `@forge/sql` | `global.__forge_fetch__` |
-| `@forge/events`, `@forge/object-store` | via their `@forge/api` dependency |
-| `@forge/llm`, `@forge/realtime` | `global.__forge_fetch__` |
-| `@forge/bridge`, `@forge/react`, `@forge/*-bridge` | `window.__bridge` |
-| **`@forge/resolver`** | **none** |
+Whether an inlined package still *happens* to reach the simulator depends on a second seam, and the answer differs per package — which is precisely why it isn't a guarantee:
 
-`@forge/resolver` is pure in-process glue: `define()` stores a callback in a private map and `getDefinitions()` returns a closure over it. It never talks to anything external, so there is no seam to own. Our shim works by *side effect* — its `define()` also registers each key on `sim.resolver`. Inlined, the real `define()` runs instead, and the simulator learns nothing: the app deploys clean and every `invoke()` 404s.
+| Package (inlined) | Reaches a seam | Routed |
+|---|---|---|
+| `@forge/api`, `@forge/kvs`, `@forge/sql` | `global.__forge_fetch__` | yes — incidental, untested |
+| `@forge/events`, `@forge/object-store`, `@forge/llm`, `@forge/realtime` | `global.__forge_fetch__` | **no — throws a named error** |
+| `@forge/bridge`, `@forge/react`, `@forge/*-bridge` | `window.__bridge` | yes — *supported* (see below) |
+| **`@forge/resolver`** | **none — no I/O at all** | handled by dispatch detection |
 
-Real Forge supports inlined `@forge/resolver` (the platform only ever calls the exported dispatch function), so this is a parity bug, and the fix mirrors the platform. The deployer detects the dispatch shape by source inspection — `detectResolverDispatch()`, never by probing, since calling the function would execute app handlers at deploy time — and registers it via `resolver.registerDispatch()`. `invoke()` then consults registered dispatchers for any key with no explicit handler, passing a realistic `backendRuntimePayload` (the real package *overwrites* `context.accountId`, `installContext`, `license` and `installation` from that second argument, so passing `{}` blanks exactly the fields the app reads).
+The four unrouted packages speak Atlassian-internal wire protocols (`/webhook/queue/publish/{contextAri}/…` and friends) that are undocumented, unversioned, and impossible to contract-test. `src/shims/globals.ts` detects them by descriptor and throws a message naming the package and the `--external` fix, rather than letting them fall through to the product-API mock and surface as a bare `501`. Measurements and descriptor shapes: [`bundled-forge-packages.md`](./bundled-forge-packages.md).
 
-The definition keys of a bundled resolver still cannot be *enumerated* — they live in the app's private map — so they don't appear in `sim.resolver.getDefinitions()` or in "Available:" error text. Routing works; listing doesn't.
+Note the frontend row is different in kind: a UI resource is *always* built output, so inlined `@forge/react`/`@forge/bridge` is the normal case, not a misconfiguration. It works because `window.__bridge` is a narrow protocol we implement completely.
+
+`@forge/resolver` is the one package with no seam at all — pure in-process glue: `define()` stores a callback in a private map and `getDefinitions()` returns a closure over it. Our shim works by *side effect*, registering each key on `sim.resolver` as the app defines it. When the real package runs instead, the simulator cannot enumerate the app's keys. The deployer detects the dispatch shape by source inspection — `detectResolverDispatch()`, never by probing, since calling the function would execute app handlers at deploy time — and registers it via `resolver.registerDispatch()`. `invoke()` then consults registered dispatchers for any key with no explicit handler, passing a realistic `backendRuntimePayload` (the real package *overwrites* `context.accountId`, `installContext`, `license` and `installation` from that second argument, so passing `{}` blanks exactly the fields the app reads).
+
+That path exists for a reason unrelated to bundling: `852ea7b` added it when tsx's loader hooks short-circuited ours, so the real `@forge/resolver` loaded even for ordinary source apps. It covers bundled resolvers as a side effect. Either way the definition keys cannot be *enumerated* — they live in the app's private map — so they don't appear in `sim.resolver.getDefinitions()` or in "Available:" error text. Routing works; listing doesn't.
 
 ### Prebuilt UI bundles: the bridge seam survives where module interception can't
 

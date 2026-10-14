@@ -3,6 +3,7 @@
 Lookup material shared across local development, testing, and AI-driven use.
 
 - [Architecture](./architecture.md) — how forge-sim intercepts `@forge/*` imports and bridges the frontend and backend.
+- [Bundled `@forge/*` packages](./bundled-forge-packages.md) — findings on why backends that inline `@forge/*` are unsupported, and what happens if they do.
 - [CLI reference](./cli.md) — every command and flag (`dev`, `auth`, daemon, MCP).
 - [Programmatic API](./api.md) — the `sim.*` surface used from tests and scripts.
 - [UIKit renderer](./renderer.md) — ForgeDoc → Atlaskit, color modes, component coverage.

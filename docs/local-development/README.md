@@ -110,6 +110,28 @@ What to expect:
 - UI Kit vs Custom UI for a prebuilt resource is decided by the module's `render: native` flag, since built bundles can't be sniffed. Keep asset paths **relative** (`base: './'` in Vite) — forge-sim warns if an entry script src is absolute, because real Forge serves resources from a nested path where absolute URLs 404.
 - Every `<script type="module">` in the entry HTML runs, in document order — so multi-bundle output (e.g. Parcel's shared-bundle-then-entry layout) works as-is, and webpack/Rspack's `publicPath: 'auto'` resolves against the bundle's own directory in headless renders.
 
+### Keep `@forge/*` external in your backend build
+
+> **Not supported: backends that bundle `@forge/*` into their output.** Mark them external:
+>
+> ```bash
+> esbuild src/index.js --bundle --platform=node --external:@forge/*
+> ```
+> ```js
+> // rollup / webpack
+> external: [/^@forge\//]
+> ```
+>
+> …and ship `node_modules` inside your package. Real Forge doesn't run `npm install` on a manually packaged app either, so its dependencies have to be in the upload regardless.
+
+forge-sim replaces `@forge/*` **at import time** — that interception is what connects your app to the simulator's KVS, SQL, queues, product APIs and mocks. A bundler that inlines those packages leaves no import to intercept, so the real package runs instead and talks to Atlassian's internal endpoints, which forge-sim does not implement.
+
+`@forge/events`, `@forge/object-store`, `@forge/llm` and `@forge/realtime` detect this and throw an error naming the package and the fix. Some other packages happen to keep working when bundled (`@forge/api`, `@forge/kvs` and `@forge/sql` route through a runtime hook that survives bundling) — but that is incidental, not tested, and not a guarantee.
+
+**This applies to your backend only.** A UI resource is *always* built output — raw JSX can't run in a browser — so a prebuilt UI Kit or Custom UI resource has `@forge/react` and `@forge/bridge` inlined by necessity. That is fully supported: those packages talk to the simulator through the `window.__bridge` protocol, which forge-sim implements completely.
+
+Background and measurements: [`docs/reference/bundled-forge-packages.md`](../reference/bundled-forge-packages.md).
+
 ## Atlassian, third party APIs, and remotes
 
 Real apps integrate with things: Atlassian's own APIs, third-party services, your own backend. forge-sim supports all three:
