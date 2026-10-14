@@ -22,7 +22,7 @@ import { resolve, join, relative, dirname } from 'node:path';
 import { existsSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createSimulator, ForgeSimulator } from './simulator.js';
-import { deploy, bundleHandlerToFileUrl, sweepStaleBundles, deployBundleDir, wrapV1ConsumerHandler, parseHandlerString, resolveHandlerFile, clearAppRequireCache, extractEntryScript } from './deployer.js';
+import { deploy, bundleHandlerToFileUrl, sweepStaleBundles, deployBundleDir, wrapV1ConsumerHandler, parseHandlerString, resolveHandlerFile, clearAppRequireCache, extractEntryScripts } from './deployer.js';
 import { interceptCjsForgeRequires } from './loader/cjs-interception.js';
 import { createDevServer } from './dev-server.js';
 import { parseManifest, type ParsedManifest, type ManifestUIModule, BACKGROUND_SCRIPT_TYPES, getCompatibleBackgroundScripts } from './manifest.js';
@@ -71,6 +71,13 @@ export interface DetectedModule {
    * Vite serve → renderer shell); only the imported file differs.
    */
   prebuilt?: boolean;
+  /**
+   * Prebuilt only: ALL module scripts from the entry HTML in document order
+   * (absolute paths; resourcePath is the last of them). Multi-entry builds
+   * (Parcel) list shared bundles before the entry bundle, and a browser
+   * executes every module script — the generated dev entry imports them all.
+   */
+  prebuiltScripts?: string[];
   /** Custom UI: HTML page to serve as the module's index (multi-entry maps). */
   entryHtml?: string;
 }
@@ -166,12 +173,19 @@ export function detectModuleType(appDir: string, manifest: ParsedManifest, mod: 
     const htmlPath = join(resourcePath, entryHtml);
     if (!existsSync(htmlPath)) return null; // missing build output — validation reports it
     if (mod.render === 'native') {
-      const script = extractEntryScript(
+      const scripts = extractEntryScripts(
         readFileSync(htmlPath, 'utf-8'),
         `resource "${resource.key}" (${entryHtml})`,
       );
-      if (!script) return null;
-      return { module: mod, resourcePath: join(resourcePath, script), mode: 'uikit', prebuilt: true };
+      if (scripts.length === 0) return null;
+      const prebuiltScripts = scripts.map((s) => join(resourcePath, s));
+      return {
+        module: mod,
+        resourcePath: prebuiltScripts[prebuiltScripts.length - 1],
+        mode: 'uikit',
+        prebuilt: true,
+        prebuiltScripts,
+      };
     }
     return { module: mod, resourcePath, mode: 'customui', entryHtml };
   }
@@ -242,8 +256,11 @@ export function refreshPrebuiltModules(
     } catch {
       continue;
     }
-    if (!fresh?.prebuilt || fresh.resourcePath === mod.resourcePath) continue;
+    const freshScripts = fresh?.prebuiltScripts?.join('\n');
+    const currentScripts = mod.prebuiltScripts?.join('\n') ?? mod.resourcePath;
+    if (!fresh?.prebuilt || freshScripts === currentScripts) continue;
     mod.resourcePath = fresh.resourcePath;
+    mod.prebuiltScripts = fresh.prebuiltScripts;
     changed.push(mod);
   }
   return changed;
@@ -251,7 +268,13 @@ export function refreshPrebuiltModules(
 
 // ── Entry Point Generation ────────────────────────────────────────────────
 
-export function generateUIKitEntry(appResourcePath: string, wsPort: number, strictMode: boolean): string {
+export function generateUIKitEntry(appResourcePath: string | string[], wsPort: number, strictMode: boolean): string {
+  // Multi-entry prebuilt builds (Parcel) need every module script imported
+  // in document order — the shared bundle registers modules the entry
+  // bundle consumes, exactly like a browser executing the entry HTML.
+  const appImports = (Array.isArray(appResourcePath) ? appResourcePath : [appResourcePath])
+    .map((p) => `  await import('${p}');`)
+    .join('\n');
   const shellElement = 'React.createElement(ForgeSimShell)';
   const rootElement = strictMode
     ? `React.createElement(React.StrictMode, null, ${shellElement})`
@@ -275,7 +298,7 @@ async function boot() {
 
   // 2. Import the developer's app — triggers ForgeReconciler.render()
   //    The bridge shim buffers the ForgeDoc so step 3 can pick it up
-  await import('${appResourcePath}');
+${appImports}
 
   // 3. Mount the Atlaskit renderer shell
   const React = await import('react');
@@ -2216,9 +2239,12 @@ export async function devCommand(options: DevCommandOptions) {
     const moduleDir = join(tempDir, mod.module.key);
     mkdirSync(moduleDir, { recursive: true });
 
-    const appResourceRelative = relative(moduleDir, mod.resourcePath).replace(/\\/g, '/');
-    const appResourceImportPath = appResourceRelative.startsWith('.') ? appResourceRelative : './' + appResourceRelative;
-    const entryContent = generateUIKitEntry(appResourceImportPath, wsPort, !!strictMode);
+    const toImportPath = (p: string) => {
+      const rel = relative(moduleDir, p).replace(/\\/g, '/');
+      return rel.startsWith('.') ? rel : './' + rel;
+    };
+    const importPaths = (mod.prebuiltScripts ?? [mod.resourcePath]).map(toImportPath);
+    const entryContent = generateUIKitEntry(importPaths, wsPort, !!strictMode);
 
     writeFileSync(join(moduleDir, 'entry.tsx'), entryContent);
     writeFileSync(join(moduleDir, 'index.html'), generateIndexHtml(

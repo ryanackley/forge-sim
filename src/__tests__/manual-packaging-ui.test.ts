@@ -15,8 +15,8 @@ import { resolve, join } from 'node:path';
 import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'os';
 import { createSimulator, type ForgeSimulator } from '../simulator.js';
-import { extractEntryScript } from '../deployer.js';
-import { detectModuleType, refreshPrebuiltModules } from '../dev-command.js';
+import { extractEntryScript, extractEntryScripts } from '../deployer.js';
+import { detectModuleType, refreshPrebuiltModules, generateUIKitEntry } from '../dev-command.js';
 import { parseManifestContent } from '../manifest.js';
 import { warnOnForgeReactMajorMismatch, VERIFIED_FORGE_REACT_DOC_MAJOR } from '../forge-package-versions.js';
 import { vi } from 'vitest';
@@ -338,6 +338,47 @@ describe('extractEntryScript', () => {
   });
 });
 
+describe('extractEntryScripts (adversarial B: Parcel shapes)', () => {
+  it('parses UNQUOTED attribute values (Parcel production optimizer)', () => {
+    const html = '<!doctype html><html><body><script src=index.abc123.js type=module></script></body></html>';
+    expect(extractEntryScripts(html)).toEqual(['index.abc123.js']);
+    expect(extractEntryScript(html)).toBe('index.abc123.js');
+  });
+
+  it('returns ALL module scripts in document order (shared bundle before entry)', () => {
+    const html = `<html><head>
+      <script src="./analytics.js"></script>
+      <script type="module" src="./shared.abc.js"></script>
+    </head><body>
+      <script type="module" src="./entry.def.js"></script>
+    </body></html>`;
+    expect(extractEntryScripts(html)).toEqual(['shared.abc.js', 'entry.def.js']);
+    // The singular helper yields the ENTRY — the last module script.
+    expect(extractEntryScript(html)).toBe('entry.def.js');
+  });
+
+  it('mixed quoting styles across tags all parse', () => {
+    const html = `<script type=module src=a.js></script>
+      <script type='module' src='b.js'></script>
+      <script type="module" src="./c.js"></script>`;
+    expect(extractEntryScripts(html)).toEqual(['a.js', 'b.js', 'c.js']);
+  });
+
+  it('returns [] when no script has a src', () => {
+    expect(extractEntryScripts('<html><script>inline()</script></html>')).toEqual([]);
+  });
+});
+
+describe('generateUIKitEntry with multiple prebuilt scripts', () => {
+  it('imports every script in document order', () => {
+    const entry = generateUIKitEntry(['../../dist/shared.js', '../../dist/entry.js'], 5174, false);
+    const shared = entry.indexOf("await import('../../dist/shared.js');");
+    const main = entry.indexOf("await import('../../dist/entry.js');");
+    expect(shared).toBeGreaterThan(-1);
+    expect(main).toBeGreaterThan(shared);
+  });
+});
+
 describe('headless DOM-at-load handling (adversarial #1)', () => {
   // Vite's modulepreload polyfill body, verbatim shape from vite/dist (the
   // default `vite build` injects this into the shared chunk). With the
@@ -459,6 +500,125 @@ resources:
       await rm(alertDir, { recursive: true, force: true }).catch(() => undefined);
     }
   });
+});
+
+describe('headless prebuilt bundles — adversarial A/B integration', () => {
+  const manifestYml = `
+app:
+  id: ari:cloud:ecosystem::app/11111111-2222-3333-4444-555555555555
+  runtime:
+    name: nodejs22.x
+modules:
+  jira:issuePanel:
+    - key: panel
+      resource: main
+      render: native
+      title: P
+      icon: https://example.com/i.svg
+resources:
+  - key: main
+    bundler: manual@2026
+    path: dist
+`;
+
+  const makeAppDir = async (prefix: string): Promise<string> => {
+    const dir = await mkdtemp(join(tmpdir(), prefix));
+    await writeFile(join(dir, 'package.json'), '{ "name": "t", "private": true }', 'utf8');
+    await writeFile(join(dir, 'manifest.yml'), manifestYml, 'utf8');
+    await mkdir(join(dir, 'dist'), { recursive: true });
+    await mkdir(join(dir, 'src'), { recursive: true });
+    return dir;
+  };
+
+  // webpack 5's `publicPath: 'auto'` runtime, verbatim shape: reads
+  // document.currentScript (gated on tagName) at MODULE EVAL and throws the
+  // opaque "Automatic publicPath is not supported in this browser" when the
+  // stub lacks it — which every Forge webpack build hits, since
+  // @forge/bridge's dynamic iframe-resizer import forces chunk runtime.
+  const WEBPACK_PUBLICPATH_PREAMBLE = `
+var scriptUrl;
+if (typeof document !== "undefined") {
+  if (document.currentScript && document.currentScript.tagName && document.currentScript.tagName.toUpperCase() === "SCRIPT")
+    scriptUrl = document.currentScript.src;
+  if (!scriptUrl) {
+    var scripts = document.getElementsByTagName("script");
+    if (scripts.length) {
+      var i = scripts.length - 1;
+      while (i > -1 && (!scriptUrl || !/^http(s?):/.test(scriptUrl))) scriptUrl = scripts[i--].src;
+    }
+  }
+}
+if (!scriptUrl) throw new Error("Automatic publicPath is not supported in this browser");
+scriptUrl = scriptUrl.replace(/^blob:/, "").replace(/#.*$/, "").replace(/\\?.*$/, "").replace(/\\/[^\\/]+$/, "/");
+globalThis.__forgeSimTestPublicPath = scriptUrl;
+`;
+
+  it("survives webpack's publicPath:'auto' runtime via the stub's currentScript (adversarial A)", async () => {
+    const appDir = await makeAppDir('forge-sim-webpack-pp-');
+    try {
+      await writeFile(join(appDir, 'src', 'app.jsx'), pageSrc('webpack-publicpath-app'), 'utf8');
+      const out = join(appDir, 'dist', 'index.js');
+      await buildBundle(join(appDir, 'src', 'app.jsx'), out);
+      const { readFile: rf } = await import('node:fs/promises');
+      await writeFile(out, WEBPACK_PUBLICPATH_PREAMBLE + '\n' + (await rf(out, 'utf8')), 'utf8');
+      await writeFile(
+        join(appDir, 'dist', 'index.html'),
+        '<!doctype html><html><body><script type="module" src="./index.js"></script></body></html>',
+        'utf8'
+      );
+
+      const sim = createSimulator();
+      await sim.deploy(appDir, { throwOnError: false });
+      const doc = await sim.ui.waitForContent('panel', 'webpack-publicpath-app');
+      expect(JSON.stringify(doc)).toContain('webpack-publicpath-app');
+      // publicPath derived from currentScript.src — the bundle's own dir.
+      expect((globalThis as any).__forgeSimTestPublicPath).toMatch(/\/dist\/$/);
+      // Browser parity at rest: null outside script evaluation.
+      expect((globalThis as any).document.currentScript).toBeNull();
+      sim.ui.resetAll();
+    } finally {
+      delete (globalThis as any).__forgeSimTestPublicPath;
+      await rm(appDir, { recursive: true, force: true }).catch(() => undefined);
+    }
+  }, 60_000);
+
+  it('imports every module script in document order — Parcel shared-before-entry, unquoted attrs (adversarial B)', async () => {
+    const appDir = await makeAppDir('forge-sim-parcel-multi-');
+    try {
+      // Shared bundle registers state the entry depends on — nothing renders
+      // unless it executed FIRST, so a single-script pick fails loudly here.
+      await writeFile(
+        join(appDir, 'dist', 'shared.js'),
+        "globalThis.__forgeSimTestShared = 'shared-ran';\nexport {};",
+        'utf8'
+      );
+      await writeFile(
+        join(appDir, 'src', 'app.jsx'),
+        `
+import React from 'react';
+import ForgeReconciler, { Text } from '@forge/react';
+ForgeReconciler.render(<Text>{String(globalThis.__forgeSimTestShared ?? 'shared-missing')}</Text>);
+`,
+        'utf8'
+      );
+      await buildBundle(join(appDir, 'src', 'app.jsx'), join(appDir, 'dist', 'entry.js'));
+      // Parcel optimizer shape: unquoted attributes, shared listed first.
+      await writeFile(
+        join(appDir, 'dist', 'index.html'),
+        '<!doctype html><html><body><script src=shared.js type=module></script><script type=module src=entry.js></script></body></html>',
+        'utf8'
+      );
+
+      const sim = createSimulator();
+      await sim.deploy(appDir, { throwOnError: false });
+      const doc = await sim.ui.waitForContent('panel', 'shared-ran');
+      expect(JSON.stringify(doc)).toContain('shared-ran');
+      sim.ui.resetAll();
+    } finally {
+      delete (globalThis as any).__forgeSimTestShared;
+      await rm(appDir, { recursive: true, force: true }).catch(() => undefined);
+    }
+  }, 60_000);
 });
 
 describe('warnOnForgeReactMajorMismatch', () => {

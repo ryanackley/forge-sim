@@ -550,19 +550,37 @@ export interface ResolvedUiResource {
   kind: 'uikit-source' | 'uikit-prebuilt' | 'customui';
   /** Absolute path: entry file for uikit kinds, resource directory for customui. */
   filePath: string;
+  /**
+   * uikit-prebuilt only: ALL module scripts from the entry HTML in document
+   * order (absolute paths; `filePath` is the last of them). Multi-entry
+   * bundlers (Parcel) list shared bundles before the entry bundle, and a
+   * browser executes every module script in order — consumers must import
+   * them all, not just one.
+   */
+  filePaths?: string[];
   /** Custom UI only: HTML filename (relative to the dir) to serve as the page. */
   entryHtml?: string;
 }
 
+// Tag-level parsing instead of one mega-regex: Parcel's production optimizer
+// emits UNQUOTED attribute values (<script src=app.js type=module>), which a
+// quotes-required src matcher classifies as "no script" (adversarial B1).
+const SCRIPT_TAG_RE = /<script\b[^>]*>/gi;
+const SRC_ATTR_RE = /\bsrc\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'<>`]+))/i;
+const MODULE_TYPE_RE = /\btype\s*=\s*(?:"module"|'module'|module(?=[\s/>]|$))/i;
+
 /**
- * Extract the app entry script src from a manual-packaged UI Kit entry HTML.
+ * Extract the app script srcs from a manual-packaged UI Kit entry HTML, in
+ * document order.
  *
- * The app entry is the first `type="module"` script — a browser executes
- * every script tag, but only the module entry mounts the UI Kit app, and
- * real pages often carry extra plain scripts (analytics, polyfills) FIRST.
- * Falling back to "first script of any kind" only when no module script
- * exists (adversarial finding #2: picking a leading analytics.js as the app
- * made rendering silently time out).
+ * A browser executes EVERY `type="module"` script in order, and multi-entry
+ * builds (Parcel) rely on that: the shared bundle is listed before the entry
+ * bundle, and importing only one of them renders nothing with zero
+ * diagnostic (adversarial B2 — an earlier version picked a single "best"
+ * script). So: all module scripts, in order. Plain scripts (analytics,
+ * polyfills) are still skipped — they don't mount the app (adversarial
+ * finding #2) — with a fallback to the first script of any kind when no
+ * module script exists.
  *
  * Absolute srcs (`/assets/app.js` — Vite's default without `base: './'`)
  * draw a parity warning: forge-sim can resolve them against the resource
@@ -570,34 +588,54 @@ export interface ResolvedUiResource {
  * URLs 404 (packaging standard: "asset paths relative to the resource
  * root"). Warn-not-throw: real Forge fails at runtime, not deploy.
  */
+export function extractEntryScripts(
+  html: string,
+  warnContext?: string,
+): string[] {
+  const scripts: { src: string; isModule: boolean }[] = [];
+  for (const [tag] of html.matchAll(SCRIPT_TAG_RE)) {
+    const m = SRC_ATTR_RE.exec(tag);
+    const src = m?.[1] ?? m?.[2] ?? m?.[3];
+    if (src) scripts.push({ src, isModule: MODULE_TYPE_RE.test(tag) });
+  }
+  if (scripts.length === 0) return [];
+
+  const moduleScripts = scripts.filter((s) => s.isModule);
+  const chosen = moduleScripts.length > 0 ? moduleScripts : [scripts[0]];
+
+  if (warnContext) {
+    const absolute = chosen.find((s) => s.src.startsWith('/'));
+    if (absolute) {
+      warnEntryScriptOnce(
+        `${warnContext}: entry script src "${absolute.src}" is ABSOLUTE. forge-sim resolves it against ` +
+        `the resource directory, but real Forge serves resources from a nested path where ` +
+        `absolute URLs 404 — the page will load blank in production. Use relative paths ` +
+        `(Vite: set \`base: './'\` in the build config, per the Forge packaging docs).`
+      );
+    }
+    if (moduleScripts.length === 0) {
+      warnEntryScriptOnce(
+        `${warnContext}: no <script type="module"> found; using "${scripts[0].src}". UI Kit entry HTML ` +
+        `should load the built bundle with a module script (the packaging standard's shape).`
+      );
+    }
+  }
+
+  // './index.js' → 'index.js'; '/assets/x.js' → 'assets/x.js'
+  return chosen.map((s) => s.src.replace(/^(\.\/|\/)/, ''));
+}
+
+/**
+ * Single-script convenience over extractEntryScripts: the app ENTRY script —
+ * the LAST module script in document order (multi-entry builds list shared
+ * bundles first, entry last). Null when the HTML has no script src at all.
+ */
 export function extractEntryScript(
   html: string,
   warnContext?: string,
 ): string | null {
-  const scripts = [...html.matchAll(/<script\b[^>]*\bsrc\s*=\s*["']([^"']+)["'][^>]*>/gi)];
-  if (scripts.length === 0) return null;
-
-  const moduleScript = scripts.find(([tag]) => /\btype\s*=\s*["']module["']/i.test(tag));
-  const chosen = moduleScript ?? scripts[0];
-  const src = chosen[1];
-
-  if (src.startsWith('/') && warnContext) {
-    warnEntryScriptOnce(
-      `${warnContext}: entry script src "${src}" is ABSOLUTE. forge-sim resolves it against ` +
-      `the resource directory, but real Forge serves resources from a nested path where ` +
-      `absolute URLs 404 — the page will load blank in production. Use relative paths ` +
-      `(Vite: set \`base: './'\` in the build config, per the Forge packaging docs).`
-    );
-  }
-  if (!moduleScript && warnContext) {
-    warnEntryScriptOnce(
-      `${warnContext}: no <script type="module"> found; using "${src}". UI Kit entry HTML ` +
-      `should load the built bundle with a module script (the packaging standard's shape).`
-    );
-  }
-
-  // './index.js' → 'index.js'; '/assets/x.js' → 'assets/x.js'
-  return src.replace(/^(\.\/|\/)/, '');
+  const scripts = extractEntryScripts(html, warnContext);
+  return scripts.length > 0 ? scripts[scripts.length - 1] : null;
 }
 
 // One warning per distinct message per process — entry HTML is re-read on
@@ -656,15 +694,16 @@ export async function resolveUiResourceEntry(
     }
 
     const html = await readFile(htmlPath, 'utf-8');
-    const script = extractEntryScript(html, `resource "${resource.key}" (${entryHtml})`);
-    if (!script) {
+    const scripts = extractEntryScripts(html, `resource "${resource.key}" (${entryHtml})`);
+    if (scripts.length === 0) {
       throw new Error(
         `Manual-packaged UI Kit entry "${entryHtml}" in resource "${resource.key}" has no ` +
         `<script src> — per the packaging standard it must reference the built JS with a ` +
         `relative script tag.`
       );
     }
-    return { kind: 'uikit-prebuilt', filePath: join(resourceDir, script) };
+    const filePaths = scripts.map((s) => join(resourceDir, s));
+    return { kind: 'uikit-prebuilt', filePath: filePaths[filePaths.length - 1], filePaths };
   }
 
   // Multi-entry WITHOUT manual packaging: entry values are source files

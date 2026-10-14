@@ -30,6 +30,7 @@ import {
   replayCapturedRender,
   moduleUsesConfig,
   consumeRenderError,
+  setStubCurrentScript,
 } from './bridge.js';
 import { buildForgeContext, type ForgeContext, type RenderContextOptions } from '../context.js';
 import {
@@ -240,6 +241,12 @@ export class SimulatorUI {
   private resolvedResources = new Map<string, string>();
   /** Modules whose resolved resource is a manual-packaged (prebuilt) bundle. */
   private prebuiltResources = new Set<string>();
+  /**
+   * Prebuilt modules: ALL module scripts from the entry HTML in document
+   * order (multi-entry builds list shared bundles before the entry — a
+   * browser executes every one, so headless must import every one).
+   */
+  private prebuiltScriptPaths = new Map<string, string[]>();
 
   /** Render listeners scoped per module */
   private moduleListeners = new Map<string, Array<(doc: ForgeDoc) => void>>();
@@ -801,7 +808,10 @@ export class SimulatorUI {
       }
 
       this.resolvedResources.set(moduleKey, resourcePath);
-      if (prebuilt) this.prebuiltResources.add(moduleKey);
+      if (prebuilt) {
+        this.prebuiltResources.add(moduleKey);
+        this.prebuiltScriptPaths.set(moduleKey, resolved.filePaths ?? [resourcePath]);
+      }
     }
 
     this.ensureBridge();
@@ -905,28 +915,44 @@ export class SimulatorUI {
       // from the app's package.json. The loader hooks force ESM for marked
       // URLs (and propagate the marker to the bundle's relative chunk
       // imports) so both environments agree. See hooks.ts.
-      const fileUrl = pathToFileURL(resourcePath).href;
+      // Prebuilt multi-entry HTML (Parcel) lists shared bundles before the
+      // entry bundle — a browser executes every module script in document
+      // order, so headless imports every one in order too (adversarial B2).
+      const scriptPaths = prebuilt
+        ? this.prebuiltScriptPaths.get(moduleKey) ?? [resourcePath]
+        : [resourcePath];
       const marker = prebuilt ? '&forge-sim-esm=1' : '';
-      try {
-        await import(fileUrl + '?t=' + Date.now() + marker);
-      } catch (importErr: any) {
-        // Prebuilt bundles sometimes touch browser globals at module-eval
-        // time (CSS injection helpers, polyfills beyond the stubbed
-        // document). The raw ReferenceError points into minified code and
-        // says nothing about the cause — translate it.
-        const m = prebuilt && importErr instanceof ReferenceError
-          ? /^(\w+) is not defined/.exec(importErr.message)
-          : null;
-        if (m) {
-          throw new Error(
-            `Prebuilt bundle for module "${moduleKey}" accessed the browser global ` +
-            `"${m[1]}" while loading (headless rendering runs in Node, which doesn't have it). ` +
-            `Configure your bundler to defer DOM access until render, or test this module via ` +
-            `\`forge-sim dev\` in a real browser. Original error: ${importErr.message}`,
-            { cause: importErr },
-          );
+      const stamp = Date.now();
+      for (const scriptPath of scriptPaths) {
+        const fileUrl = pathToFileURL(scriptPath).href;
+        try {
+          // Browser parity for bundler runtimes that derive publicPath from
+          // document.currentScript.src at module eval (adversarial A). Only
+          // touches our headless stub; cleared in finally like a browser
+          // clears it when script evaluation ends.
+          setStubCurrentScript(fileUrl);
+          await import(fileUrl + '?t=' + stamp + marker);
+        } catch (importErr: any) {
+          // Prebuilt bundles sometimes touch browser globals at module-eval
+          // time (CSS injection helpers, polyfills beyond the stubbed
+          // document). The raw ReferenceError points into minified code and
+          // says nothing about the cause — translate it.
+          const m = prebuilt && importErr instanceof ReferenceError
+            ? /^(\w+) is not defined/.exec(importErr.message)
+            : null;
+          if (m) {
+            throw new Error(
+              `Prebuilt bundle for module "${moduleKey}" accessed the browser global ` +
+              `"${m[1]}" while loading (headless rendering runs in Node, which doesn't have it). ` +
+              `Configure your bundler to defer DOM access until render, or test this module via ` +
+              `\`forge-sim dev\` in a real browser. Original error: ${importErr.message}`,
+              { cause: importErr },
+            );
+          }
+          throw importErr;
+        } finally {
+          setStubCurrentScript(null);
         }
-        throw importErr;
       }
 
       // If the reconcile hasn't landed yet, wait for it — with a timeout
@@ -1488,6 +1514,7 @@ export class SimulatorUI {
     // in the manifest) keeps serving the stale path. Tracked as N1.
     this.resolvedResources.clear();
     this.prebuiltResources.clear();
+    this.prebuiltScriptPaths.clear();
     this.viewEventListeners.clear();
     this.activeModuleKey = null;
     // Clear the per-render resolver context overlay — UI is gone, so post-
@@ -1507,6 +1534,7 @@ export class SimulatorUI {
     this.moduleContexts.clear();
     this.resolvedResources.clear();
     this.prebuiltResources.clear();
+    this.prebuiltScriptPaths.clear();
     this.moduleListeners.clear();
     this.viewEventListeners.clear();
     if (this.viewEventUnbind) {

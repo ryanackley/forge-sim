@@ -455,6 +455,14 @@ function installDocumentStub(): void {
 
   (globalThis as any).document = {
     __forgeSimStub: true,
+    // null (not undefined) outside script evaluation — browser parity.
+    // simulator-ui points this at the bundle being imported via
+    // setStubCurrentScript(): webpack/Rspack's `publicPath: 'auto'` runtime
+    // reads document.currentScript.src at module eval and throws an opaque
+    // "Automatic publicPath is not supported in this browser" when it's
+    // missing — and every Forge webpack frontend has chunk runtime, because
+    // @forge/bridge itself dynamically imports iframe-resizer (adversarial A).
+    currentScript: null as null | { src: string },
     createElement: inertElement,
     createTextNode: () => ({}),
     querySelector: () => null,
@@ -466,6 +474,27 @@ function installDocumentStub(): void {
     addEventListener: () => {},
     removeEventListener: () => {},
   };
+}
+
+/**
+ * Point the document stub's `currentScript` at the script being evaluated
+ * (pass null when evaluation ends — the browser-parity resting state).
+ * Only touches OUR stub: real documents (browser, jsdom) manage their own.
+ *
+ * `src` carries the entry-script file URL so bundler runtimes that derive
+ * their asset base from it (webpack/Rspack `publicPath: 'auto'`, bundles
+ * reading `currentScript.src` directly) resolve it the same way a browser
+ * would — relative to the bundle's own directory.
+ */
+export function setStubCurrentScript(src: string | null): void {
+  const doc = (globalThis as any).document;
+  if (!doc?.__forgeSimStub) return;
+  // tagName matters: webpack 5's publicPath runtime gates on
+  // `document.currentScript.tagName.toUpperCase() === "SCRIPT"` before
+  // reading `.src`.
+  doc.currentScript = src === null
+    ? null
+    : { src, tagName: 'SCRIPT', type: 'text/javascript', getAttribute: (n: string) => (n === 'src' ? src : null) };
 }
 
 /**

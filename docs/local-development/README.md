@@ -108,6 +108,7 @@ What to expect:
 - **Frontend**: a rebuild that renames hashed bundles (Vite's default) is picked up automatically — forge-sim re-reads the entry HTML and reloads connected browsers onto the new bundle.
 - **No TypeScript watcher**: the Tools UI type-error panel is off for manual-packaged apps, matching the real CLI ("Forge CLI does not process the code to upload"). Your own compiler owns type errors.
 - UI Kit vs Custom UI for a prebuilt resource is decided by the module's `render: native` flag, since built bundles can't be sniffed. Keep asset paths **relative** (`base: './'` in Vite) — forge-sim warns if an entry script src is absolute, because real Forge serves resources from a nested path where absolute URLs 404.
+- Every `<script type="module">` in the entry HTML runs, in document order — so multi-bundle output (e.g. Parcel's shared-bundle-then-entry layout) works as-is, and webpack/Rspack's `publicPath: 'auto'` resolves against the bundle's own directory in headless renders.
 
 ## Atlassian, third party APIs, and remotes
 
