@@ -92,6 +92,23 @@ forge-sim sits in front of your dev server and hosts it in an iframe with shimme
 
 <!-- TODO(demo): record proxy-mode demo and replace the line above. To embed on GitHub, edit this file on github.com and drag the .mp4/.mov in. -->
 
+## Manual packaging (`bundler: manual@2026`)
+
+Apps on [manual packaging](https://developer.atlassian.com/platform/forge/manifest-reference/packaging/) run in dev mode with the same semantics as `forge tunnel`: forge-sim loads your **built output** (from `app.package.path` and manual resource dirs), not your sources, so you run your own compiler alongside it — typically in watch mode:
+
+```bash
+tsc --watch          # or: vite build --watch
+# in another terminal
+forge-sim dev
+```
+
+What to expect:
+
+- **Backend**: editing files under `app.package.path` hot-redeploys your functions, same as source mode. Code loads as-is — compiled CommonJS, `__dirname` data files, and `.wasm` imports all behave like production.
+- **Frontend**: a rebuild that renames hashed bundles (Vite's default) is picked up automatically — forge-sim re-reads the entry HTML and reloads connected browsers onto the new bundle.
+- **No TypeScript watcher**: the Tools UI type-error panel is off for manual-packaged apps, matching the real CLI ("Forge CLI does not process the code to upload"). Your own compiler owns type errors.
+- UI Kit vs Custom UI for a prebuilt resource is decided by the module's `render: native` flag, since built bundles can't be sniffed. Keep asset paths **relative** (`base: './'` in Vite) — forge-sim warns if an entry script src is absolute, because real Forge serves resources from a nested path where absolute URLs 404.
+
 ## Atlassian, third party APIs, and remotes
 
 Real apps integrate with things: Atlassian's own APIs, third-party services, your own backend. forge-sim supports all three:

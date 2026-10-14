@@ -25,6 +25,21 @@ Complete mapping of every Forge API, hook, component, and platform feature again
 
 ---
 
+## Manifest: manual packaging (`app.package`)
+
+[Forge manual packaging](https://developer.atlassian.com/platform/forge/manifest-reference/packaging/) (Preview, CHANGE-3466). Handlers and UI resources load as-is from prebuilt output. Full behavior matrix in [module-support.md](module-support.md#manual-packaging-bundler-manual2026); mechanics in [architecture.md](architecture.md).
+
+| Surface | Status | Tests | Notes |
+|---------|--------|-------|-------|
+| `app.package` (bundler/path/extraFiles) | ✅ | `manual-packaging-manifest.test.ts` | Validated by the real `@forge/manifest` schema |
+| Handler resolution from `path`, as-is execution | ✅ | `manual-packaging-deploy.test.ts` | CJS, `__dirname` data files, nested dirs, redeploy |
+| CJS `require('@forge/*')` → shims | ✅ | `manual-packaging-deploy.test.ts` | `src/loader/cjs-interception.ts` |
+| `.wasm` imports from unbundled handlers | ✅ | `manual-packaging-deploy.test.ts` | Node-native wasm-ESM (vitest plugin mirrors it) |
+| Prebuilt UI Kit resources (headless + dev) | ✅ | `manual-packaging-ui.test.ts` | `window.__bridge` seam; Vite modulepreload polyfill short-circuited |
+| Multi-entry resources (`entry:` + slash refs) | ✅ | `manual-packaging-ui.test.ts` | Manual (HTML) and source (`.jsx`) flavors |
+
+---
+
 ## @forge/api
 
 The main backend API package. Imported by resolver/trigger/consumer functions.

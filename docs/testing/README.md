@@ -29,6 +29,7 @@ For the complete `sim.*` surface this guide draws on, see the [programmatic API 
   - [Product API Mocking](#product-api-mocking)
   - [Mocking @forge/llm](#mocking-forgellm)
   - [UIKit 2 Rendering](#uikit-2-rendering)
+  - [Manual Packaging (prebuilt apps)](#manual-packaging-prebuilt-apps)
   - [View Events: submit, close, refresh](#view-events-submit-close-refresh)
 - [Tips](#tips)
 - [Debugging Tests](#debugging-tests)
@@ -779,6 +780,25 @@ it('debug example', async () => {
 | `onSubmit(listener)` | Listen for `view.submit()` calls. Callback: `(moduleKey, payload) => void`. |
 | `onClose(listener)` | Listen for `view.close()` calls. Callback: `(moduleKey, payload) => void`. |
 | `onRefresh(listener)` | Listen for `view.refresh()` calls. Callback: `(moduleKey, payload) => void`. |
+
+### Manual Packaging (prebuilt apps)
+
+Apps using [manual packaging](https://developer.atlassian.com/platform/forge/manifest-reference/packaging/) (`app.package.bundler: manual@2026`) test exactly like source apps — deploy and go. The only extra step is the one real Forge also requires: **run your build first.** The simulator loads the packaged output as-is (that's the parity contract), so a missing or stale `dist/` fails the deploy with a "run your build" error.
+
+```ts
+// Run `tsc` / `vite build` before the test run (e.g. in package.json pretest).
+const sim = createSimulator();
+await sim.deploy('./my-manual-app');          // handlers load from app.package.path
+await sim.invoke('getText', { ... });          // compiled CJS, __dirname data files, .wasm — all work
+const doc = await sim.ui.waitForContent('home-page', 'Hello');  // prebuilt UIKit bundle renders headless
+```
+
+Notes:
+
+- **No bundler aliases are needed for the app itself.** Prebuilt frontends have `@forge/react`/`@forge/bridge` inlined and talk to the simulator through the same `window.__bridge` seam real Forge provides; backend `require('@forge/*')` calls are intercepted at the CJS resolver. The [bundler configuration](#bundler-configuration) still applies to `@forge/*` imports in your *test files*.
+- Default Vite builds work headless out of the box — the modulepreload polyfill and similar load-time DOM touches are handled. If your bundle does something more exotic with the DOM at module eval, the error names the global and suggests deferring DOM access (or testing via `forge-sim dev`).
+- A bundle built against a different `@forge/react` major gets a one-time warning (the reconcile payload self-identifies its protocol version).
+- Vitest caches modules by file path, so a rebuild **mid-test-run** won't be re-imported. Build once before the run; in `forge-sim dev` rebuilds are picked up live.
 
 ### View Events: submit, close, refresh
 

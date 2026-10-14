@@ -32,6 +32,22 @@ Every Forge module falls into one of these patterns:
 
 ---
 
+## Manual Packaging (`bundler: manual@2026`)
+
+Apps using [manual packaging](https://developer.atlassian.com/platform/forge/manifest-reference/packaging/) work across the patterns above with no simulator-specific setup — the code is loaded as-is, matching real Forge's "uploaded unmodified" contract. See the [architecture doc](architecture.md) for how.
+
+| Manifest shape | Level | Notes |
+|---------------|-------|-------|
+| `app.package.bundler: manual@2026` + `path` | ✅ Full | Handlers resolve ONLY inside the package path; CJS output, `__dirname` data reads, `.wasm` imports all work. `.mjs` handlers rejected (matches Forge lint) |
+| `app.package.extraFiles` | ⚠️ Partial | Validated (globs must match); no runtime effect — files are already on disk in the sim |
+| `app.package.bundler: typescript` | ❌ Rejected | Removed from Forge when manual packaging reached Preview; error message shows the `manual@2026` migration |
+| Resource `bundler: manual@2026` (single entry, `index.html`) | ✅ Full | UIKit (`render: native`) renders the prebuilt bundle headless and in dev mode; Custom UI serves the dir |
+| Resource `entry:` map + `resource: <key>/<entry>` refs | ✅ Full | Both manual (HTML entries) and source (`.jsx` entries) flavors |
+| Frontend rebuilds in dev mode | ✅ Full | Renamed hashed bundles are re-resolved from the entry HTML on change |
+| Bundled `@forge/react` version skew | ⚠️ Warn | Reconcile protocol major checked at runtime; deploy-time advisory reads the app's package.json |
+
+---
+
 ## Platform Modules (Product-Agnostic)
 
 | Module Key | Pattern | Level | Notes |

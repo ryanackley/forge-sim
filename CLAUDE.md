@@ -123,7 +123,8 @@ Node 22+ required (native TS type stripping). MySQL-memory-server bundles its ow
 
 These are the ones you'll forget and re-learn the hard way:
 
-- Handler format: `file.export` — file path relative to `src/`, dot-separated export name (e.g. `index.handler` → `src/index.js` export `handler`).
+- Handler format: `file.export` — file path relative to `src/`, dot-separated export name (e.g. `index.handler` → `src/index.js` export `handler`). Under manual packaging (`app.package.bundler: manual@2026`) the path is relative to `app.package.path` instead, and ONLY that directory is searched. No `.mjs` handlers — Forge lint rejects them (ship ESM as `.js` + `"type": "module"`).
+- `@forge/react`'s reconcile protocol major (`forgeReactMajorVersion` on ForgeDoc roots) is NOT the npm major — 12.x emits 11. Pinned as `VERIFIED_FORGE_REACT_DOC_MAJOR`; revisit on every `@forge/react` bump.
 - Resources are **top-level** in `manifest.yml`, not nested under modules.
 - `app.runtime.name` is required (`nodejs22.x` / `nodejs24.x` / `nodejs20.x`). Manifests without it are rejected, including by us.
 - UIKit modules in UIKit 2 require **both** `resource:` and `render: native`. Just `function:` is the deprecated UIKit 1 shape.

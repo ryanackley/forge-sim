@@ -114,6 +114,27 @@ Bare specifiers (`@forge/*`, react, axios, …) stay external. The bundle file l
 
 `data:` URLs were the obvious first attempt but don't work: Node can't resolve bare specifiers from a `data:` URL because there's no parent path to anchor the `node_modules` walk. A file URL inside the app dir is the cheapest fix that keeps the resolver behavior intact. Sourcemaps are inline, so stack traces still point at user source.
 
+### Manual packaging: no bundling at all
+
+Apps that declare [manual packaging](https://developer.atlassian.com/platform/forge/manifest-reference/packaging/) (`app.package.bundler: manual@2026`) ship prebuilt output, and real Forge uploads it **unmodified**. The simulator matches that: handlers resolve ONLY inside `app.package.path` (no `src/` fallback — that would load files Forge never uploads), and the esbuild step above is skipped entirely. Skipping it is the point: bundling breaks exactly the things manual packaging legitimizes — CommonJS `require()`/`module.exports`/`__dirname`, data files read relative to the module, and `.wasm` imports (Node's native wasm-ESM integration handles those once no bundler is in the way).
+
+Three consequences the deployer handles:
+
+- **Cache busting without a bundle.** The entry import gets a per-deploy query string, and the app's slice of the CommonJS `require` cache is evicted before each deploy (realpath-aware — `require.cache` keys are realpaths and macOS tmpdirs are symlinks). Transitive **native-ESM** files inside the package dir have no evictable cache; rebuilds that touch helpers should also touch the entry, which content-hashing bundlers do anyway.
+- **CJS `@forge/*` interception.** Manual output is typically TypeScript-compiled CJS, and `require('@forge/api')` bypasses the ESM loader hooks entirely. A scoped `Module._resolveFilename` patch (`src/loader/cjs-interception.ts`) maps shim names — only for requests from inside a deployed app dir, never from `node_modules/@forge/` (real packages' internal cross-requires stay native), and never from forge-sim's own shims, whose fallthrough requires *depend* on bypassing interception.
+- **Handler extensions follow Forge lint**: `.js`/`.cjs` (plus TS sources with a parity warning). No `.mjs` — lint rejects it; ship ESM as `.js` + `"type": "module"`.
+
+### Prebuilt UI bundles: the bridge seam survives where module interception can't
+
+A manual-packaged UI Kit resource is built output with the app's own `@forge/react` and `@forge/bridge` **inlined** — no bare `@forge/*` import ever executes, so loader hooks and aliases have nothing to intercept. The seam that survives is the one real Forge uses: `window.__bridge`. The bundled `@forge/bridge` looks it up at call time, and both forge-sim surfaces already provide it (the in-process bridge for headless renders, the injected/served bridge in the dev server). Reconcile capture, `invoke` routing, and function props flow through the exact same pipeline as source-mode UI Kit; only the imported file differs (the built entry script, extracted from the resource's entry HTML).
+
+Two Node-vs-browser gaps are papered over for headless renders:
+
+- **Format forcing.** Browsers load `<script type="module">` as ESM unconditionally; Node infers a `.js` file's format from the app's `package.json`. A `forge-sim-esm` query marker on the entry import (propagated to relative chunk imports by the resolve hook) forces ESM so a `"type": "commonjs"` backend package can't misparse its own frontend dist.
+- **A minimal `document` stub** (installed only when no real `document` exists). Vite's default build injects a modulepreload polyfill whose first statement touches `document`; the stub answers `relList.supports('modulepreload') → true`, so the polyfill exits on its own fast path — the browser-parity answer, since every browser Forge supports has native modulepreload. Any *other* browser-global access at module eval is translated into an error naming the global instead of a minified-stack `ReferenceError`.
+
+Version skew is detected at the only place it's visible: the reconcile payload carries a protocol major (`forgeReactMajorVersion`), checked against `VERIFIED_FORGE_REACT_DOC_MAJOR`. Note the upstream quirk: the protocol major is NOT the npm major (`@forge/react` 12.x emits 11).
+
 ## Frontend: bridge replacement at the network layer
 
 Frontend interception is fundamentally simpler because the bridge is already a network boundary. `@forge/bridge.invoke('method', args)` is a `postMessage` envelope. We swap the bridge implementation itself:
@@ -129,8 +150,9 @@ In all three cases, the bridge contract (`bridge.invoke(method, args) → Promis
 `forge-sim dev` picks the rendering mode per module by inspecting the manifest resource: no flag, no config. The detection rules live in `detectModuleType()` in `src/dev-command.ts`:
 
 1. **No `resource` key** → server-only module, no UI rendered.
-2. **Resource path is a directory containing `index.html`** → Custom UI mode (served by Vite or proxied to an external dev server via `--proxy`).
-3. **Resource path is a file (`.tsx` / `.ts` / `.jsx` / `.js` / `index.*` inside a dir)** → read it. If the source imports `@forge/react` or references `ForgeReconciler`, it's UIKit. Otherwise, Custom UI.
+2. **Resource declares `bundler: manual@2026`** → the dir is prebuilt output, which can't be sniffed, so the manifest decides: `render: native` on the module means UIKit (the entry HTML's module script is resolved and fed through the normal UIKit pipeline), anything else is Custom UI serving the entry HTML. Multi-entry resources pick their entry via the module's `resource: <key>/<entry>` reference. Rebuilds that rename hashed bundles are re-resolved on the fly (`refreshPrebuiltModules`).
+3. **Resource path is a directory containing `index.html`** → Custom UI mode (served by Vite or proxied to an external dev server via `--proxy`).
+4. **Resource path is a file (`.tsx` / `.ts` / `.jsx` / `.js` / `index.*` inside a dir)** → read it. If the source imports `@forge/react` or references `ForgeReconciler`, it's UIKit. Otherwise, Custom UI. (Entry maps without manual packaging resolve the per-module source file first, then sniff the same way.)
 
 This is why a UIKit app and a Custom UI app coexist happily in the same project; the detector classifies each module independently and the dev server wires the right surface for each.
 

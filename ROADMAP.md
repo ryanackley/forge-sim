@@ -74,6 +74,8 @@ Shim shipped and scoping fixed in v0.1.19 (#11). Production wire format is still
 
 For the full history, see `git log`. Highlights of the last few weeks:
 
+- **Manual packaging (`bundler: manual@2026`)** (#40) — `app.package` + prebuilt UI resources with entry maps; handlers and bundles load as-is (CJS, `__dirname` data files, wasm); adversarially tested with real Vite builds
+- **Upstream `@forge/manifest` types adopted** — `ForgeManifest` is now `ManifestSchema`; manifest-shape drift surfaces at compile time on package bumps
 - **Dark / light / auto color mode** in the renderer (real-Forge `?theme=` contract)
 - **Tools UI parity in `--proxy` mode** — full WebSocket log streaming + type-error broadcasts
 - **`@forge/llm` shim** with Claude 4.6 / 4.7 + `forge-sim auth --llm`
