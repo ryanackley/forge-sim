@@ -789,7 +789,7 @@ Apps using [manual packaging](https://developer.atlassian.com/platform/forge/man
 // Run `tsc` / `vite build` before the test run (e.g. in package.json pretest).
 const sim = createSimulator();
 await sim.deploy('./my-manual-app');          // handlers load from app.package.path
-await sim.invoke('getText', { ... });          // compiled CJS, __dirname data files, .wasm — all work
+await sim.invoke('getText', { from: 'test' }); // compiled CJS, __dirname data files, .wasm — all work
 const doc = await sim.ui.waitForContent('home-page', 'Hello');  // prebuilt UIKit bundle renders headless
 ```
 
