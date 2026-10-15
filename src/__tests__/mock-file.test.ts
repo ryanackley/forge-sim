@@ -185,18 +185,29 @@ describe('watchMockFile', () => {
 
     // No file yet — write one after the watcher is armed (debounce is 300ms).
     const dir = join(appDir, MOCK_FILE_DIR);
-    writeFileSync(join(dir, MOCK_FILE_NAME), JSON.stringify({
+    const writeMocks = () => writeFileSync(join(dir, MOCK_FILE_NAME), JSON.stringify({
       jira: { 'GET /rest/api/3/myself': { accountId: 'late' } },
     }));
+    writeMocks();
 
     // Poll budget must stay well under the test timeout (vitest.config.ts), or
     // the test dies on its own timeout before the poll can report what it
     // actually saw — turning "the watcher never fired" into a bare "timed out
     // in 5000ms" with no diagnosis. 5s is plenty for a 300ms debounce.
+    //
+    // RE-SAVE inside the poll: fs.watch has no exactly-once guarantee, and a
+    // write landing in the watcher's attach window can be missed outright —
+    // this file's sibling test flaked exactly that way twice under full
+    // parallel-suite load (never in isolation). The feature's contract is "a
+    // user saves the file, possibly repeatedly, while editing", so the test
+    // re-saves until the watcher reacts instead of betting on one OS event.
+    // Interval 500ms > the 300ms trailing debounce, so each save's debounce
+    // fires before the next save re-arms it.
     await expect.poll(async () => {
       const resp = await sim.productApi.request('jira', '/rest/api/3/myself');
+      if (resp.status !== 200) writeMocks();
       return resp.status;
-    }, { timeout: 5000, interval: 100 }).toBe(200);
+    }, { timeout: 8000, interval: 500 }).toBe(200);
 
     expect(logs.some((l) => l.includes('Reloaded'))).toBe(true);
   });
@@ -212,11 +223,16 @@ describe('watchMockFile', () => {
     const logs: string[] = [];
     stop = watchMockFile(sim, appDir, (m) => logs.push(m));
 
-    writeFileSync(join(dir, MOCK_FILE_NAME), '{ "jira": { half-saved');
+    // Re-save inside the poll — same missed-attach-window rationale as the
+    // test above (this is the test that flaked twice under parallel load).
+    const writeMalformed = () => writeFileSync(join(dir, MOCK_FILE_NAME), '{ "jira": { half-saved');
+    writeMalformed();
 
-    await expect.poll(() => logs.some((l) => l.includes('not valid JSON')), {
-      timeout: 5000, interval: 100,
-    }).toBe(true);
+    await expect.poll(() => {
+      const seen = logs.some((l) => l.includes('not valid JSON'));
+      if (!seen) writeMalformed();
+      return seen;
+    }, { timeout: 8000, interval: 500 }).toBe(true);
 
     // Previous mocks survive.
     const resp = await sim.productApi.request('jira', '/rest/api/3/myself');
