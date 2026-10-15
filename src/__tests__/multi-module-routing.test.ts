@@ -505,6 +505,94 @@ describe('Multi-Module Routing', () => {
       expect(req.url).toBe('/panel/entry.tsx');
     });
 
+    describe('prebuilt sibling assets (adversarial C)', () => {
+      // A prebuilt module's chunks/CSS resolve relative to the PAGE
+      // (/module/<key>/chunk.js) and live in the resource dir, which the
+      // temp-dir rewrite knows nothing about. Pre-fix these requests fell
+      // through to Vite's SPA fallback: 200, text/html, no diagnostic.
+      const assetDir = join(resolve(import.meta.dirname, '..', '..'), '.tmp-test-prebuilt-assets');
+
+      const prebuiltModule = (): DetectedModule => ({
+        module: { type: 'jira:issuePanel', key: 'pb', title: 'PB' } as ManifestUIModule,
+        resourcePath: join(assetDir, 'index.js'),
+        mode: 'uikit',
+        prebuilt: true,
+        prebuiltScripts: [join(assetDir, 'index.js')],
+        prebuiltAssetDir: assetDir,
+        prebuiltHeadTags: ['<link rel="stylesheet" href="./styles.css">'],
+      });
+
+      beforeEach(() => {
+        mkdirSync(assetDir, { recursive: true });
+        writeFileSync(join(assetDir, 'index.js'), 'export {};');
+        writeFileSync(join(assetDir, 'chunk-abc.js'), 'export const x = 1;');
+        writeFileSync(join(assetDir, 'styles.css'), 'body { color: red; }');
+        writeFileSync(join(assetDir, 'index.html'), '<html>app shell</html>');
+      });
+
+      afterEach(() => {
+        rmSync(assetDir, { recursive: true, force: true });
+      });
+
+      const serve = (url: string) => {
+        const vite = createMockViteServer();
+        installModuleRouting(vite, [prebuiltModule()], '/tmp');
+        const middleware = vite.getMiddleware();
+        const { req, res } = createMockReqRes(url);
+        let nextCalled = false;
+        middleware(req, res, () => { nextCalled = true; });
+        return { req, res, nextCalled };
+      };
+
+      it('serves a webpack/Parcel-style chunk from the resource dir, correct MIME', () => {
+        const { res, nextCalled } = serve('/module/pb/chunk-abc.js');
+        expect(nextCalled).toBe(false);
+        expect(res.getStatus()).toBe(200);
+        expect(res.getHeaders()['Content-Type']).toContain('javascript');
+        expect(String(res.getBody())).toBe('export const x = 1;');
+      });
+
+      it('serves a stylesheet (the <link> carry-over target) as text/css', () => {
+        const { res, nextCalled } = serve('/module/pb/styles.css');
+        expect(nextCalled).toBe(false);
+        expect(res.getHeaders()['Content-Type']).toContain('css');
+        expect(String(res.getBody())).toContain('color: red');
+      });
+
+      it('entry.tsx and missing assets still fall through to the temp-dir rewrite', () => {
+        // entry.tsx is generated, not a resource-dir sibling.
+        const a = serve('/module/pb/entry.tsx');
+        expect(a.nextCalled).toBe(true);
+        expect(a.req.url).toBe('/pb/entry.tsx');
+        // A deleted/renamed hash falls through too (NOT a 200 html page).
+        const b = serve('/module/pb/chunk-gone.js');
+        expect(b.nextCalled).toBe(true);
+        expect(b.req.url).toBe('/pb/chunk-gone.js');
+      });
+
+      it('never serves the app HTML — the module page is the generated shell', () => {
+        const { req, nextCalled } = serve('/module/pb/index.html');
+        expect(nextCalled).toBe(true);
+        expect(req.url).toBe('/pb/index.html');
+      });
+
+      it('percent-encoded traversal cannot escape the resource dir', () => {
+        // WHATWG URL parsing folds %2e%2e into '..' and normalizes it away
+        // BEFORE our route regex runs — the path becomes /module/package.json,
+        // an unknown module key → 404. The in-handler resolve+prefix guard is
+        // defense-in-depth behind that; neither layer serves the file.
+        const traversal = serve('/module/pb/%2e%2e/package.json');
+        expect(traversal.res.getStatus()).toBe(404);
+        expect(String(traversal.res.getBody())).not.toContain('"name"');
+        // Double-encoding survives to the handler, decodes once to literal
+        // '%2e%2e' (a filename, not a traversal), doesn't exist → falls
+        // through to the temp-dir rewrite rather than serving anything.
+        const doubled = serve('/module/pb/%252e%252e/package.json');
+        expect(doubled.nextCalled).toBe(true);
+        expect(doubled.res.getStatus()).toBeUndefined();
+      });
+    });
+
     it('should rewrite /module/<key>/ to /_customui_<key>/index.html for Custom UI', () => {
       const vite = createMockViteServer();
       installModuleRouting(vite, testModules, '/tmp');

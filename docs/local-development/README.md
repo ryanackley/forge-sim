@@ -105,7 +105,7 @@ forge-sim dev
 What to expect:
 
 - **Backend**: editing files under `app.package.path` hot-redeploys your functions, same as source mode. Code loads as-is — compiled CommonJS, `__dirname` data files, and `.wasm` imports all behave like production.
-- **Frontend**: a rebuild that renames hashed bundles (Vite's default) is picked up automatically — forge-sim re-reads the entry HTML and reloads connected browsers onto the new bundle.
+- **Frontend**: a rebuild that renames hashed bundles (Vite's default) is picked up automatically — forge-sim re-reads the entry HTML and reloads connected browsers onto the new bundle. Sibling assets of a prebuilt UI Kit bundle (webpack/Parcel chunks, hashed CSS, images) are served from the resource dir under `/module/<key>/`, and `<link rel="stylesheet">` / `<script type="importmap">` tags from your entry HTML are carried into the served page — a CSS-only rebuild (new stylesheet hash) also triggers the reload.
 - **No TypeScript watcher**: the Tools UI type-error panel is off for manual-packaged apps, matching the real CLI ("Forge CLI does not process the code to upload"). Your own compiler owns type errors.
 - UI Kit vs Custom UI for a prebuilt resource is decided by the module's `render: native` flag, since built bundles can't be sniffed. Keep asset paths **relative** (`base: './'` in Vite) — forge-sim warns if an entry script src is absolute, because real Forge serves resources from a nested path where absolute URLs 404.
 - Every `<script type="module">` in the entry HTML runs, in document order — so multi-bundle output (e.g. Parcel's shared-bundle-then-entry layout) works as-is, and webpack/Rspack's `publicPath: 'auto'` resolves against the bundle's own directory in headless renders.

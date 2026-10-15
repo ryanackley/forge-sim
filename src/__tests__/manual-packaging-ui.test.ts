@@ -16,7 +16,7 @@ import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'os';
 import { createSimulator, type ForgeSimulator } from '../simulator.js';
 import { extractEntryScript, extractEntryScripts } from '../deployer.js';
-import { detectModuleType, refreshPrebuiltModules, generateUIKitEntry } from '../dev-command.js';
+import { detectModuleType, refreshPrebuiltModules, generateUIKitEntry, extractHeadCarryover, generateIndexHtml } from '../dev-command.js';
 import { parseManifestContent } from '../manifest.js';
 import { warnOnForgeReactMajorMismatch, VERIFIED_FORGE_REACT_DOC_MAJOR } from '../forge-package-versions.js';
 import { vi } from 'vitest';
@@ -265,6 +265,48 @@ ${resources}
     );
   });
 
+  it('captures asset dir + head carry-over for prebuilt modules (adversarial C)', async () => {
+    await mkdir(join(appDir, 'dist-styled'), { recursive: true });
+    await writeFile(
+      join(appDir, 'dist-styled', 'index.html'),
+      '<!doctype html><html><head><link rel="stylesheet" href="./styles-abc.css"></head>' +
+      '<body><script type="module" src="./app.js"></script></body></html>',
+      'utf8'
+    );
+    await writeFile(join(appDir, 'dist-styled', 'app.js'), 'export {};', 'utf8');
+    await writeFile(join(appDir, 'dist-styled', 'styles-abc.css'), 'body{}', 'utf8');
+
+    const manifest = manifestFor(
+      `  jira:issuePanel:
+    - key: p
+      resource: main
+      render: native
+      title: P
+      icon: https://example.com/i.svg`,
+      `  - key: main
+    bundler: manual@2026
+    path: dist-styled`
+    );
+    const detected = detectModuleType(appDir, manifest, manifest.uiModules[0])!;
+    expect(detected.prebuiltAssetDir).toBe(join(appDir, 'dist-styled'));
+    expect(detected.prebuiltHeadTags).toEqual(['<link rel="stylesheet" href="./styles-abc.css">']);
+
+    // CSS-only hash rename (scripts untouched) must register as a change, or
+    // the regenerated shell keeps linking the deleted stylesheet.
+    await writeFile(join(appDir, 'dist-styled', 'styles-def.css'), 'body{}', 'utf8');
+    await writeFile(
+      join(appDir, 'dist-styled', 'index.html'),
+      '<!doctype html><html><head><link rel="stylesheet" href="./styles-def.css"></head>' +
+      '<body><script type="module" src="./app.js"></script></body></html>',
+      'utf8'
+    );
+    const changed = refreshPrebuiltModules(appDir, manifest, [detected]);
+    expect(changed).toHaveLength(1);
+    expect(detected.prebuiltHeadTags).toEqual(['<link rel="stylesheet" href="./styles-def.css">']);
+    // Idempotent on a second pass.
+    expect(refreshPrebuiltModules(appDir, manifest, [detected])).toHaveLength(0);
+  });
+
   it('entry map + render native picks the per-entry script', () => {
     const manifest = manifestFor(
       `  confluence:globalPage:
@@ -366,6 +408,45 @@ describe('extractEntryScripts (adversarial B: Parcel shapes)', () => {
 
   it('returns [] when no script has a src', () => {
     expect(extractEntryScripts('<html><script>inline()</script></html>')).toEqual([]);
+  });
+});
+
+describe('extractHeadCarryover (adversarial C: stylesheet/importmap carry-over)', () => {
+  it('collects stylesheet links — any attribute order, quoted or not', () => {
+    const html = `<html><head>
+      <link rel="stylesheet" href="./styles-abc.css">
+      <link href=theme.css rel=stylesheet>
+      <link href="/icon.png" rel="icon">
+    </head><body><script type="module" src="./index.js"></script></body></html>`;
+    expect(extractHeadCarryover(html)).toEqual([
+      '<link rel="stylesheet" href="./styles-abc.css">',
+      '<link href=theme.css rel=stylesheet>',
+    ]);
+  });
+
+  it('collects importmap blocks with their JSON body, in document order', () => {
+    const html = `<head>
+      <script type="importmap">{ "imports": { "lodash": "./vendor/lodash.js" } }</script>
+      <link rel="stylesheet" href="a.css">
+    </head>`;
+    const tags = extractHeadCarryover(html);
+    expect(tags).toHaveLength(2);
+    expect(tags[0]).toContain('importmap');
+    expect(tags[0]).toContain('vendor/lodash.js');
+    expect(tags[1]).toContain('a.css');
+  });
+
+  it('returns [] when the entry HTML has no carry-over tags', () => {
+    expect(extractHeadCarryover('<html><body><script type="module" src="x.js"></script></body></html>'))
+      .toEqual([]);
+  });
+
+  it('generateIndexHtml injects carry-over into the shell head', () => {
+    const html = generateIndexHtml('T', ['<link rel="stylesheet" href="./s.css">']);
+    expect(html).toContain('<link rel="stylesheet" href="./s.css">');
+    expect(html.indexOf('s.css')).toBeLessThan(html.indexOf('<body>'));
+    // The shell still loads the generated entry.
+    expect(html).toContain('./entry.tsx');
   });
 });
 

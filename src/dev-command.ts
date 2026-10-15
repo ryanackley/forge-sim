@@ -18,8 +18,8 @@
  *   4. No ForgeDoc, no Atlaskit mapping needed
  */
 
-import { resolve, join, relative, dirname } from 'node:path';
-import { existsSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
+import { resolve, join, relative, dirname, sep } from 'node:path';
+import { existsSync, mkdirSync, writeFileSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createSimulator, ForgeSimulator } from './simulator.js';
 import { deploy, bundleHandlerToFileUrl, sweepStaleBundles, deployBundleDir, wrapV1ConsumerHandler, parseHandlerString, resolveHandlerFile, clearAppRequireCache, extractEntryScripts, detectResolverDispatch } from './deployer.js';
@@ -78,8 +78,48 @@ export interface DetectedModule {
    * executes every module script — the generated dev entry imports them all.
    */
   prebuiltScripts?: string[];
+  /**
+   * Prebuilt only: the resource directory, absolute — the base the dev
+   * server serves sibling assets from under /module/<key>/ (webpack/Parcel
+   * chunks, hashed CSS, images). Without it those requests fall through to
+   * Vite's SPA fallback and come back as the HTML shell (adversarial C).
+   */
+  prebuiltAssetDir?: string;
+  /**
+   * Prebuilt only: head tags carried over from the app's entry HTML into the
+   * generated module shell — stylesheet <link>s and importmap <script>
+   * blocks. We replace the app's HTML with our own shell (it must load
+   * entry.tsx and the renderer), so anything the real page loaded via <head>
+   * would otherwise be silently dropped (adversarial C: esbuild/Parcel CSS).
+   */
+  prebuiltHeadTags?: string[];
   /** Custom UI: HTML page to serve as the module's index (multi-entry maps). */
   entryHtml?: string;
+}
+
+// Head tags worth carrying from a prebuilt entry HTML into our generated
+// shell. Tag-level and quote-agnostic for the same reason as
+// extractEntryScripts: Parcel's optimizer emits unquoted attributes.
+const LINK_TAG_RE = /<link\b[^>]*>/gi;
+const REL_STYLESHEET_RE = /\brel\s*=\s*(?:"stylesheet"|'stylesheet'|stylesheet(?=[\s/>]|$))/i;
+const IMPORTMAP_RE = /<script\b[^>]*\btype\s*=\s*(?:"importmap"|'importmap'|importmap(?=[\s>]))[^>]*>[\s\S]*?<\/script>/gi;
+
+/**
+ * Extract the head tags a browser would have honored from a prebuilt entry
+ * HTML: `<link rel="stylesheet">` (any attribute order, quoted or not) and
+ * `<script type="importmap">` blocks, in document order. Returned verbatim —
+ * relative hrefs stay relative, resolving against /module/<key>/ where the
+ * sibling-asset route serves them from the resource dir.
+ */
+export function extractHeadCarryover(html: string): string[] {
+  const tags: Array<{ index: number; tag: string }> = [];
+  for (const m of html.matchAll(LINK_TAG_RE)) {
+    if (REL_STYLESHEET_RE.test(m[0])) tags.push({ index: m.index ?? 0, tag: m[0] });
+  }
+  for (const m of html.matchAll(IMPORTMAP_RE)) {
+    tags.push({ index: m.index ?? 0, tag: m[0] });
+  }
+  return tags.sort((a, b) => a.index - b.index).map((t) => t.tag);
 }
 
 /**
@@ -173,10 +213,8 @@ export function detectModuleType(appDir: string, manifest: ParsedManifest, mod: 
     const htmlPath = join(resourcePath, entryHtml);
     if (!existsSync(htmlPath)) return null; // missing build output — validation reports it
     if (mod.render === 'native') {
-      const scripts = extractEntryScripts(
-        readFileSync(htmlPath, 'utf-8'),
-        `resource "${resource.key}" (${entryHtml})`,
-      );
+      const html = readFileSync(htmlPath, 'utf-8');
+      const scripts = extractEntryScripts(html, `resource "${resource.key}" (${entryHtml})`);
       if (scripts.length === 0) return null;
       const prebuiltScripts = scripts.map((s) => join(resourcePath, s));
       return {
@@ -185,6 +223,8 @@ export function detectModuleType(appDir: string, manifest: ParsedManifest, mod: 
         mode: 'uikit',
         prebuilt: true,
         prebuiltScripts,
+        prebuiltAssetDir: resourcePath,
+        prebuiltHeadTags: extractHeadCarryover(html),
       };
     }
     return { module: mod, resourcePath, mode: 'customui', entryHtml };
@@ -256,11 +296,16 @@ export function refreshPrebuiltModules(
     } catch {
       continue;
     }
-    const freshScripts = fresh?.prebuiltScripts?.join('\n');
-    const currentScripts = mod.prebuiltScripts?.join('\n') ?? mod.resourcePath;
-    if (!fresh?.prebuilt || freshScripts === currentScripts) continue;
+    // Scripts AND carried-over head tags: a rebuild that only renames a
+    // hashed stylesheet (styles-abc.css → styles-def.css) must regenerate
+    // the shell too, or the page keeps linking the deleted file.
+    const signature = (m: DetectedModule) =>
+      [...(m.prebuiltScripts ?? [m.resourcePath]), ...(m.prebuiltHeadTags ?? [])].join('\n');
+    if (!fresh?.prebuilt || signature(fresh) === signature(mod)) continue;
     mod.resourcePath = fresh.resourcePath;
     mod.prebuiltScripts = fresh.prebuiltScripts;
+    mod.prebuiltAssetDir = fresh.prebuiltAssetDir;
+    mod.prebuiltHeadTags = fresh.prebuiltHeadTags;
     changed.push(mod);
   }
   return changed;
@@ -1047,13 +1092,19 @@ export function generateRootIndexHtml(title: string): string {
 </html>`;
 }
 
-function generateIndexHtml(title: string): string {
+export function generateIndexHtml(title: string, headCarryover: string[] = []): string {
+  // headCarryover: stylesheet links / importmaps from a prebuilt module's own
+  // entry HTML (adversarial C) — we replace that HTML with this shell, so
+  // anything its <head> loaded must ride along or it is silently dropped.
+  // Relative hrefs resolve against /module/<key>/, where the sibling-asset
+  // route serves the resource dir.
   return `<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>${title} — forge-sim</title>
+    ${headCarryover.join('\n    ')}
     <style>
       body { margin: 0; background: #f4f5f7; }
     </style>
@@ -1394,6 +1445,33 @@ export function installModuleRouting(
       const isFileRequest = lastSegment.includes('.');
 
       if (mod.mode === 'uikit') {
+        // Prebuilt (manual-packaged) modules: sibling assets of the bundle —
+        // webpack/Parcel chunks, hashed CSS, images — are requested relative
+        // to the page (/module/<key>/chunk-abc.js) and live in the app's
+        // resource dir, which the temp-dir rewrite below knows nothing
+        // about. Pre-fix those requests fell through to Vite's SPA fallback
+        // and came back as the HTML shell, 200 text/html (adversarial C) —
+        // webpack chunk loads and <link> stylesheets died with no
+        // diagnostic. Serve them the way the Custom UI middleware serves its
+        // resource dir; anything not found there (entry.tsx, index.html)
+        // still falls through to the generated temp dir. Resolved fresh per
+        // request so rebuild-renamed hashes work without a server restart.
+        // HTML stays excluded: the module page is OUR generated shell
+        // (entry.tsx + bridge + head carry-over), never the app's raw HTML.
+        if (mod.prebuilt && mod.prebuiltAssetDir && isFileRequest && rest !== '/' && !/\.html?$/i.test(rest)) {
+          try {
+            const base = resolve(mod.prebuiltAssetDir);
+            const candidate = resolve(base, '.' + decodeURIComponent(rest));
+            // Traversal guard: never serve outside the resource dir.
+            if (candidate.startsWith(base + sep) && existsSync(candidate) && statSync(candidate).isFile()) {
+              res.writeHead(200, { 'Content-Type': contentTypeFor(candidate) });
+              res.end(readFileSync(candidate));
+              return;
+            }
+          } catch {
+            // Malformed percent-encoding — fall through to the temp-dir rewrite.
+          }
+        }
         // Rewrite URL to serve from the module's temp subdirectory
         // /module/<key>/ → /<key>/index.html
         // /module/<key>/entry.tsx → /<key>/entry.tsx
@@ -2248,7 +2326,8 @@ export async function devCommand(options: DevCommandOptions) {
 
     writeFileSync(join(moduleDir, 'entry.tsx'), entryContent);
     writeFileSync(join(moduleDir, 'index.html'), generateIndexHtml(
-      `${mod.module.key} — ${manifest.raw.app?.name ?? 'Forge App'}`
+      `${mod.module.key} — ${manifest.raw.app?.name ?? 'Forge App'}`,
+      mod.prebuiltHeadTags ?? [],
     ));
   };
   for (const mod of detectedModules) {
