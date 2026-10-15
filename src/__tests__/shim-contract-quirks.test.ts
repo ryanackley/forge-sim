@@ -240,6 +240,23 @@ export const QUIRKS: Quirk[] = [
     ],
   },
   {
+    id: 'bridge-product-requests-take-strings',
+    package: '@forge/bridge',
+    symbol: 'requestJira',
+    quirk:
+      'The FRONTEND requestJira/requestConfluence/requestBitbucket (@forge/bridge) take a plain ' +
+      'string (`restPath: string`) — the Route concept does not exist in @forge/bridge at all. ' +
+      'Only the backend @forge/api versions require a Route. The asymmetry is upstream-mandated, ' +
+      'not an oversight in our shims.',
+    breaks:
+      'Porting the backend Route requirement into the bridge shim ("for consistency") throws ' +
+      'where real Forge succeeds — the inverted parity violation — breaking every Custom UI and ' +
+      'UI Kit frontend that calls requestJira(string) exactly as the @forge/bridge docs show.',
+    pinnedBy: [
+      { file: 'route-parity.test.ts', test: 'frontend @forge/bridge requestJira ACCEPTS a plain string — do not "fix" this' },
+    ],
+  },
+  {
     id: 'api-i18n-helpers-not-top-level',
     package: '@forge/api',
     symbol: 'i18n',

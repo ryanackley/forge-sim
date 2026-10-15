@@ -23,6 +23,8 @@ import { describe, it, expect } from 'vitest';
 import { join, resolve } from 'node:path';
 import { createRequire } from 'node:module';
 import * as shim from '../shims/forge-api.js';
+import * as bridgeShim from '../shims/forge-bridge.js';
+import { installBridge, connectSimulator } from '../ui/bridge.js';
 import { createSimulator } from '../simulator.js';
 
 const REPO_ROOT = resolve(import.meta.dirname, '..', '..');
@@ -124,6 +126,30 @@ describe('per-surface string policy (mirrors real wrapper functions)', () => {
       expect(viaTrusted.status).toBe(200);
     } finally {
       sim.reset();
+    }
+  });
+
+  it('frontend @forge/bridge requestJira ACCEPTS a plain string — do not "fix" this', async () => {
+    // There are TWO requestJira implementations and their path policies
+    // deliberately differ, because the real packages differ:
+    //
+    //   @forge/api (backend):     requestJira(path: Route)   — strings THROW
+    //   @forge/bridge (frontend): requestJira(restPath: string) — no Route
+    //                             concept exists in the package at all
+    //
+    // This guard exists so nobody sees the backend's Route requirement and
+    // "fixes" the bridge shim to match. That would be the INVERTED parity
+    // violation — throwing where Forge succeeds — for every Custom UI app.
+    const sim = createSimulator();
+    installBridge();
+    connectSimulator(sim);
+    try {
+      sim.mockProductRoutes('jira', { '/rest/api/3/myself': { accountId: 'u1' } });
+      const res = await bridgeShim.requestJira('/rest/api/3/myself');
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({ accountId: 'u1' });
+    } finally {
+      await sim.reset();
     }
   });
 
