@@ -455,30 +455,24 @@ export class SimulatorUI {
    *   const select = sim.ui.findFirstByType(doc, 'Select')!;
    *   expect(select.props.options.map(o => o.label)).toContain('Bug');
    */
-  async waitForContent(moduleKey: string, text: string, timeoutMs = 5000): Promise<ForgeDoc> {
-    // Validate the timeout before it poisons the arithmetic. This is the ONE
-    // public wait helper taking a bare number — `settle()` and `sim.idle()`
-    // both take `{ timeoutMs }`, so passing that object shape here is natural
-    // muscle memory, and two independent adversarial runs did exactly that.
+  async waitForContent(
+    moduleKey: string,
+    text: string,
+    timeout: number | { timeoutMs?: number; timeout?: number } = 5000,
+  ): Promise<ForgeDoc> {
+    // Both shapes are accepted on purpose: `settle()` and `sim.idle()` take
+    // `{ timeoutMs }`, so callers (agents especially — two independent
+    // adversarial runs did it) reach for that shape here too. This is a
+    // sim-only test helper, not a Forge parity surface, so converge on what
+    // callers write instead of gatekeeping one calling convention.
     //
-    // Unvalidated, the failure modes are both silent:
-    //   { timeoutMs: 500 } → Date.now() + object = NaN → every deadline check
-    //     is false → fails in ~0ms, ignoring the timeout, and reports
-    //     "after [object Object]ms".
-    //   '500'              → Date.now() + '500' CONCATENATES → a deadline ~1.7e15
-    //     → waits effectively forever and dies on the test runner's own
-    //     timeout, losing this method's diagnostic entirely.
-    if (typeof timeoutMs !== 'number' || !Number.isFinite(timeoutMs) || timeoutMs < 0) {
-      const shown = typeof timeoutMs === 'object' && timeoutMs !== null
-        ? JSON.stringify(timeoutMs)
-        : String(timeoutMs);
-      throw new TypeError(
-        `sim.ui.waitForContent("${moduleKey}", ...) expects a timeout in MILLISECONDS as its ` +
-        `third argument, got ${shown}. Pass a plain number — \`waitForContent(key, text, 500)\` — ` +
-        `not an options object. (\`settle()\` and \`sim.idle()\` DO take \`{ timeoutMs }\`; this ` +
-        `method does not.)`
-      );
-    }
+    // Validation still matters for everything else, because unvalidated
+    // garbage fails SILENTLY in both directions: a stray object made
+    // `Date.now() + obj` NaN (every deadline check false → gave up in ~0ms
+    // reporting "after [object Object]ms"), and a numeric STRING
+    // concatenated into a ~1.7e15 deadline (hung until the test runner's own
+    // timeout, losing this method's diagnostic entirely).
+    const timeoutMs = normalizeWaitTimeout(timeout, moduleKey);
     // Auto-render if this module has never been rendered. Idempotent: once
     // a doc exists in moduleDocs, repeat calls skip this branch entirely.
     if (!this.moduleDocs.has(moduleKey)) {
@@ -1589,4 +1583,39 @@ export class SimulatorUI {
     // Per-render overlay clears with the UI (matches `reset()` above).
     this.sim.resolver.setRenderContext(null);
   }
+}
+
+/**
+ * Resolve waitForContent's timeout argument: a bare number of milliseconds,
+ * or the `{ timeoutMs }` options shape its sibling helpers (`settle`,
+ * `sim.idle`) use — plus the common `timeout` alias. Anything else throws a
+ * TypeError naming the problem, because the unvalidated failure modes are
+ * silent (see the call site).
+ */
+function normalizeWaitTimeout(
+  timeout: number | { timeoutMs?: number; timeout?: number },
+  moduleKey: string,
+): number {
+  let value: unknown = timeout;
+  if (typeof timeout === 'object' && timeout !== null) {
+    if ('timeoutMs' in timeout) value = timeout.timeoutMs;
+    else if ('timeout' in timeout) value = (timeout as { timeout?: number }).timeout;
+    else {
+      // An options object with NEITHER key is a typo ({ timeouts: 5 },
+      // { quietMs: 5 }) — silently defaulting to 5000ms would hide it.
+      throw new TypeError(
+        `sim.ui.waitForContent("${moduleKey}", ...): unrecognized options object ` +
+        `${JSON.stringify(timeout)}. Pass a number of milliseconds or { timeoutMs: <number> }.`
+      );
+    }
+  }
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
+    throw new TypeError(
+      `sim.ui.waitForContent("${moduleKey}", ...) expects a timeout in MILLISECONDS ` +
+      `(a number, or { timeoutMs: <number> }), got ${
+        typeof value === 'object' && value !== null ? JSON.stringify(value) : String(value)
+      }.`
+    );
+  }
+  return value;
 }

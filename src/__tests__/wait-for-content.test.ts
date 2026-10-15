@@ -129,10 +129,14 @@ describe('waitForContent — error messages', () => {
   });
 });
 
-describe('waitForContent — timeout argument validation (#40 adversarial F)', () => {
-  // This is the one public wait helper taking a BARE number; settle() and
-  // sim.idle() take { timeoutMs }. Two independent adversarial runs passed
-  // the options-object shape here, and both failure modes were silent.
+describe('waitForContent — timeout argument shapes (#40 adversarial F)', () => {
+  // settle() and sim.idle() take { timeoutMs }, so callers reach for that
+  // shape here too — two independent adversarial runs did. Both shapes are
+  // accepted ON PURPOSE (this is a sim-only test helper, not a parity
+  // surface); only genuinely broken values throw, because unvalidated they
+  // failed silently: an object NaN'd the deadline (gave up in ~0ms saying
+  // "after [object Object]ms"), a numeric string CONCATENATED into a
+  // ~1.7e15 deadline (hung until the runner's own timeout).
   let sim: ForgeSimulator;
 
   beforeEach(async () => {
@@ -145,31 +149,42 @@ describe('waitForContent — timeout argument validation (#40 adversarial F)', (
     sim.ui.resetAll();
   });
 
-  it('rejects the { timeoutMs } options-object shape and names the fix', async () => {
-    // Pre-fix: Date.now() + object = NaN, so every deadline comparison was
-    // false — it gave up in ~0ms (ignoring the requested timeout) and said
-    // "after [object Object]ms".
+  it('accepts the { timeoutMs } options shape — converged with settle()/idle()', async () => {
     await expect(
-      (sim.ui as any).waitForContent(MACRO_KEY, 'x', { timeoutMs: 500 })
-    ).rejects.toThrow(TypeError);
+      sim.ui.waitForContent(MACRO_KEY, 'Pet: Whiskers', { timeoutMs: 500 })
+    ).resolves.toBeDefined();
+    // And the timeout VALUE is honored, not silently replaced by the default.
     await expect(
-      (sim.ui as any).waitForContent(MACRO_KEY, 'x', { timeoutMs: 500 })
-    ).rejects.toThrow(/expects a timeout in MILLISECONDS.*not an options object/s);
+      sim.ui.waitForContent(MACRO_KEY, 'will-not-appear', { timeoutMs: 137 })
+    ).rejects.toThrow(/after 137ms/);
+  });
+
+  it('accepts the { timeout } alias', async () => {
+    await expect(
+      sim.ui.waitForContent(MACRO_KEY, 'will-not-appear', { timeout: 142 })
+    ).rejects.toThrow(/after 142ms/);
+  });
+
+  it('rejects an options object with NEITHER key — a typo must not default to 5s', async () => {
+    await expect(
+      (sim.ui as any).waitForContent(MACRO_KEY, 'x', { quietMs: 500 })
+    ).rejects.toThrow(/unrecognized options object.*quietMs/s);
   });
 
   it('rejects a numeric string before it concatenates into a 50,000-year deadline', async () => {
-    // Pre-fix: Date.now() + '500' CONCATENATES → deadline ~1.7e15 → waits
-    // effectively forever and dies on the test runner's own timeout.
     await expect(
       (sim.ui as any).waitForContent(MACRO_KEY, 'x', '500')
     ).rejects.toThrow(/got 500\./);
   });
 
-  it.each([[NaN], [Infinity], [-1], [null]])('rejects %s', async (bad) => {
-    await expect(
-      (sim.ui as any).waitForContent(MACRO_KEY, 'x', bad)
-    ).rejects.toThrow(TypeError);
-  });
+  it.each([[NaN], [Infinity], [-1], [null], [{ timeoutMs: '500' }]])(
+    'rejects %j',
+    async (bad) => {
+      await expect(
+        (sim.ui as any).waitForContent(MACRO_KEY, 'x', bad)
+      ).rejects.toThrow(TypeError);
+    },
+  );
 
   it('still accepts a plain number, including 0', async () => {
     // 0 is legal: "check what is already rendered, do not wait".
