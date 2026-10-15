@@ -75,6 +75,7 @@ Shim shipped and scoping fixed in v0.1.19 (#11). Production wire format is still
 
 For the full history, see `git log`. Highlights of the last few weeks:
 
+- **`route()` parity — BREAKING (0.2)** — `route`/`routeFromAbsolute`/`assumeTrustedRoute` now serve the real `@forge/api` implementation (mode-aware escaping: path segments reject traversal shapes instead of being encoded; query segments encode). `requestJira`/`requestConfluence`/`requestBitbucket` reject plain-string paths exactly like real Forge; `fetch` keeps accepting string-or-Route (also the real policy). The sim-only string-returning `route` export from `'forge-sim'` is removed — import `route` from `'@forge/api'`. Code these throws break was already broken in production; the sim now surfaces it first.
 - **Manual packaging (`bundler: manual@2026`)** (#40) — `app.package` + prebuilt UI resources with entry maps; handlers and bundles load as-is (CJS, `__dirname` data files, wasm); adversarially tested with real Vite builds
 - **Upstream `@forge/manifest` types adopted** — `ForgeManifest` is now `ManifestSchema`; manifest-shape drift surfaces at compile time on package bumps
 - **Dark / light / auto color mode** in the renderer (real-Forge `?theme=` contract)

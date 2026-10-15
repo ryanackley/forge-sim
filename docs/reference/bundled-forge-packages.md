@@ -144,7 +144,11 @@ were not.
 
 ### Measured divergence between the real package and our shim
 
-`src/shims/forge-api.ts` reimplements `route()` rather than falling through:
+**Status: fixed (October 2026).** `route`, `routeFromAbsolute` and
+`assumeTrustedRoute` now fall through to the real package, product-request
+surfaces enforce the Route requirement, and `route-parity.test.ts` pins both
+differentially. The table below records the divergence as measured, before
+the fix — `src/shims/forge-api.ts` reimplemented `route()` at the time:
 
 | Input | real `@forge/api` | forge-sim shim |
 |---|---|---|

@@ -19,8 +19,8 @@ resolver.define('setData', async ({ payload }) => {
 
 resolver.define('getJiraIssue', async ({ payload, context }) => {
   // Uses requestJira under the hood via @forge/api
-  const { requestJira } = await import('@forge/api');
-  const response = await requestJira(`/rest/api/3/issue/${payload.issueKey}`);
+  const { requestJira, route } = await import('@forge/api');
+  const response = await requestJira(route`/rest/api/3/issue/${payload.issueKey}`);
   const data = await response.json();
   return { issue: data, requestedBy: context.accountId };
 });

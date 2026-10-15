@@ -61,7 +61,7 @@ The popover footer shows the detected module type so you can confirm which defau
 
 ### Acting user
 
-The **Acting as** dropdown changes who your app thinks is looking at it. Pick a user and forge-sim overrides two things at once: the `accountId` in your resolver's `context`, and the current-user identity route (`requestJira('/myself')` and the Confluence current-user endpoint). So both ways an app can ask "who am I", the resolver context and a `/myself` call, agree on the same person. This is how you exercise per-user state (a "you already voted" flag, permission-gated UI, assignee filters) without deploying or juggling logins.
+The **Acting as** dropdown changes who your app thinks is looking at it. Pick a user and forge-sim overrides two things at once: the `accountId` in your resolver's `context`, and the current-user identity route (`` requestJira(route`/rest/api/3/myself`) `` and the Confluence current-user endpoint). So both ways an app can ask "who am I", the resolver context and a `/myself` call, agree on the same person. This is how you exercise per-user state (a "you already voted" flag, permission-gated UI, assignee filters) without deploying or juggling logins.
 
 The dropdown is mode-aware:
 

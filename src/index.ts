@@ -20,7 +20,11 @@ export type { EntitySchema, IndexDefinition, EntityStoreDump, StoredEntry } from
 export { UnifiedKVS as SimulatedKVS } from './kvs.js';
 export { SimulatedQueue, SimulatedQueueInstance } from './queue.js';
 export { SimulatedResolver } from './resolver.js';
-export { SimulatedProductApi, route, mockResponse, MOCK_RESPONSE_MARKER } from './product-api.js';
+// NOTE: the string-returning `route` helper is intentionally no longer
+// exported (0.2 breaking change) — real @forge/api rejects plain-string
+// paths, so it only produced values that fail in production. Import `route`
+// from '@forge/api' instead; forge-sim serves the real implementation.
+export { SimulatedProductApi, mockResponse, MOCK_RESPONSE_MARKER } from './product-api.js';
 export type { MockResponseTag } from './product-api.js';
 export { parseManifest, parseManifestContent } from './manifest.js';
 export { deploy, DeployError } from './deployer.js';

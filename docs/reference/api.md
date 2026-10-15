@@ -1025,7 +1025,11 @@ export { SimulatedResolver } from 'forge-sim';
 export type { ResolverContext, ResolverRequest } from 'forge-sim';
 
 // Product API
-export { SimulatedProductApi, route } from 'forge-sim';
+// (0.2 breaking change: the string-returning `route` helper is no longer
+// exported — import `route` from '@forge/api' instead. forge-sim serves the
+// real implementation, and product requests reject plain-string paths just
+// like real Forge.)
+export { SimulatedProductApi } from 'forge-sim';
 export type { ProductApiHandler, ProductApiRequest, ProductApiResponse } from 'forge-sim';
 
 // External Auth

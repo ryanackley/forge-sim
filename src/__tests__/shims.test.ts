@@ -62,9 +62,21 @@ describe('Forge Shims', () => {
 
   describe('@forge/api shim', () => {
     it('route() returns a Route OBJECT with the built path in .value, like real @forge/api', () => {
+      // The shim serves the REAL implementation (ReadonlyRoute — value is a
+      // getter, assignment throws), so assert behavior, not object shape.
       const issueKey = 'TEST-1';
       const path = forgeApi.route`/rest/api/3/issue/${issueKey}`;
-      expect(path).toEqual({ value: '/rest/api/3/issue/TEST-1' });
+      expect(path.value).toBe('/rest/api/3/issue/TEST-1');
+      expect(() => { (path as any).value = '/evil'; }).toThrow(/modification/);
+    });
+
+    it('route() rejects path-traversal attempts in path position (real behavior)', () => {
+      // Deep parity coverage lives in route-parity.test.ts (differential
+      // against the real package); this pins the headline for shim readers.
+      expect(() => forgeApi.route`/x/${'../etc'}`).toThrow(/path manipulation/);
+      expect(() => forgeApi.route`/x/${'a/b'}`).toThrow(/path manipulation/);
+      // Path segments are NOT encoded (the old hand-rolled shim encoded them).
+      expect(forgeApi.route`/x/${'a b'}`.value).toBe('/x/a b');
     });
 
     it('route() should encode special characters', () => {
@@ -74,10 +86,19 @@ describe('Forge Shims', () => {
     });
 
     it('route() embeds Route and URLSearchParams params verbatim (real behavior)', () => {
-      const sub = forgeApi.routeFromAbsolute('/rest/api/3');
+      // assumeTrustedRoute, not routeFromAbsolute: the real routeFromAbsolute
+      // requires a full absolute URL (it runs `new URL(...)` and strips the
+      // origin) — the old shim accepted bare paths, which was drift.
+      const sub = forgeApi.assumeTrustedRoute('/rest/api/3');
       const params = new URLSearchParams({ q: 'a b' });
       const path = forgeApi.route`${sub}/search?${params}`;
       expect(path.value).toBe('/rest/api/3/search?q=a+b');
+    });
+
+    it('routeFromAbsolute() strips the origin and rejects non-absolute input (real behavior)', () => {
+      expect(forgeApi.routeFromAbsolute('https://x.atlassian.net/rest/api/3?q=1').value)
+        .toBe('/rest/api/3?q=1');
+      expect(() => forgeApi.routeFromAbsolute('/rest/api/3')).toThrow();
     });
 
     it('asUser().requestJira() should hit simulator product API', async () => {
@@ -85,7 +106,9 @@ describe('Forge Shims', () => {
         '/rest/api/3/issue/TEST-1': { key: 'TEST-1', summary: 'Bug fix' },
       });
 
-      const response = await forgeApi.asUser().requestJira('/rest/api/3/issue/TEST-1');
+      // Route required — real Forge rejects plain strings (requireSafeUrl),
+      // and since the route-parity work, so do we.
+      const response = await forgeApi.asUser().requestJira(forgeApi.route`/rest/api/3/issue/TEST-1`);
       expect(response.ok).toBe(true);
       const data = await response.json();
       expect(data).toEqual({ key: 'TEST-1', summary: 'Bug fix' });
@@ -96,7 +119,7 @@ describe('Forge Shims', () => {
         '/wiki/rest/api/content/123': { id: '123', title: 'My Page' },
       });
 
-      const response = await forgeApi.asApp().requestConfluence('/wiki/rest/api/content/123');
+      const response = await forgeApi.asApp().requestConfluence(forgeApi.route`/wiki/rest/api/content/123`);
       const data = await response.json();
       expect(data).toEqual({ id: '123', title: 'My Page' });
     });

@@ -104,6 +104,8 @@ For programmatic use (`createSimulator()` in tests), `sim.deploy()` registers th
 
 `@forge/sql` and `@forge/kvs` are partially CJS, partially using a different bridge model: they call `global.__forge_fetch__({ type: 'kvs', ... })` internally. For those, the shim imports the real package and substitutes only the bridge function on `globalThis`. See `src/shims/globals.ts`. This is the "shim → real package fallthrough" convention noted in `CLAUDE.md`: same Atlassian code path, just routed to our backing storage.
 
+The `@forge/api` shim applies the same convention to `route` / `routeFromAbsolute` / `assumeTrustedRoute`: pure functions with no cloud I/O, re-exported from the real package rather than reimplemented. The hand-rolled version had drifted in a security-relevant way (always-encoding instead of real `route()`'s mode-aware escaping, which *rejects* path-traversal shapes in path position) — pinned by the differential suite in `route-parity.test.ts`. Product-request surfaces (`requestJira` et al.) also enforce the real package's Route-only policy; plain strings throw exactly as they do in Forge, while the `fetch` surfaces keep accepting string-or-Route, which is the real policy there too.
+
 ### Bundle caching for handler imports
 
 There's one place where Node's ESM cache fights the iterate loop: `sim.deploy()`. Node keys the dynamic-import cache on the full specifier URL, so appending `?t=Date.now()` to the entry-point URL busts the entry's cache, but **not** its transitive imports. Those resolve to plain URLs with no query string and stay cached forever across redeploys. The agent edits `validation.js`, redeploys, and the resolver still throws the old error message.

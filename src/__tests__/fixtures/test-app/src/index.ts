@@ -1,5 +1,5 @@
 import Resolver from '@forge/resolver';
-import { storage, requestJira } from '@forge/api';
+import { storage, requestJira, route } from '@forge/api';
 import { Queue } from '@forge/events';
 
 const resolver = new Resolver();
@@ -11,7 +11,7 @@ resolver.define('getIssue', async (req: any) => {
   console.log('getIssue called with:', issueKey);
 
   // Fetch from Jira
-  const res = await requestJira(`/rest/api/3/issue/${issueKey}`);
+  const res = await requestJira(route`/rest/api/3/issue/${issueKey}`);
   const issue = await res.json();
 
   // Track views in KVS

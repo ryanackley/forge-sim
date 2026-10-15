@@ -53,7 +53,10 @@ const PREAMBLE_DECLS: Array<[name: string, line: string]> = [
   ['setSimulator', `declare const setSimulator: typeof __fs.setSimulator;`],
   ['WhereConditions', `declare const WhereConditions: typeof __fs.WhereConditions;`],
   ['Sort', `declare const Sort: typeof __fs.Sort;`],
-  ['route', `declare const route: typeof __fs.route;`],
+  // route comes from '@forge/api' now (the shim serves the REAL
+  // implementation) — forge-sim's string-returning helper was removed in 0.2
+  // because real product requests reject plain-string paths.
+  ['route', `declare const route: typeof __fapi.route;`],
   ['mockResponse', `declare const mockResponse: typeof __fs.mockResponse;`],
   ['payload', `declare const payload: Record<string, unknown>;`],
   ['ForgeSimulator', `type ForgeSimulator = __fs.ForgeSimulator;`],
@@ -83,6 +86,7 @@ function importedNames(importLines: string[]): Set<string> {
 function buildPreamble(imported: Set<string>): string[] {
   return [
     `import type * as __fs from 'forge-sim';`,
+    `import type * as __fapi from '@forge/api';`,
     ...PREAMBLE_DECLS.filter(([name]) => !imported.has(name)).map(([, l]) => l),
     `export {};`,
   ];

@@ -1,6 +1,6 @@
 import { sql } from '@forge/sql';
 import { kvs } from '@forge/kvs';
-import { requestJira } from '@forge/api';
+import { requestJira, route } from '@forge/api';
 import type { RecalcEvent, SnapshotEvent, KrJiraConfig } from '../types/index.js';
 
 /**
@@ -24,13 +24,13 @@ export async function recalcKeyResult(event: any) {
   try {
     if (config.metric === 'count') {
       // Count issues matching JQL
-      const response = await requestJira(`/rest/api/3/search?jql=${encodeURIComponent(config.jql)}&maxResults=0`);
+      const response = await requestJira(route`/rest/api/3/search?jql=${config.jql}&maxResults=0`);
       const data = await response.json();
       newValue = data.total || 0;
 
     } else if (config.metric === 'sum_field' && config.field) {
       // Sum a numeric field across matching issues
-      const response = await requestJira(`/rest/api/3/search?jql=${encodeURIComponent(config.jql)}&fields=${config.field}&maxResults=100`);
+      const response = await requestJira(route`/rest/api/3/search?jql=${config.jql}&fields=${config.field}&maxResults=100`);
       const data = await response.json();
       newValue = (data.issues || []).reduce((sum: number, issue: any) => {
         return sum + (Number(issue.fields?.[config.field!]) || 0);
@@ -39,8 +39,8 @@ export async function recalcKeyResult(event: any) {
     } else if (config.metric === 'ratio' && config.ratio_jql) {
       // Ratio: count(jql) / count(ratio_jql) * 100
       const [numResponse, denResponse] = await Promise.all([
-        requestJira(`/rest/api/3/search?jql=${encodeURIComponent(config.jql)}&maxResults=0`),
-        requestJira(`/rest/api/3/search?jql=${encodeURIComponent(config.ratio_jql)}&maxResults=0`),
+        requestJira(route`/rest/api/3/search?jql=${config.jql}&maxResults=0`),
+        requestJira(route`/rest/api/3/search?jql=${config.ratio_jql}&maxResults=0`),
       ]);
       const numData = await numResponse.json();
       const denData = await denResponse.json();

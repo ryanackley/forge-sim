@@ -205,6 +205,41 @@ export const QUIRKS: Quirk[] = [
     ],
   },
   {
+    id: 'api-route-mode-aware-escaping',
+    package: '@forge/api',
+    symbol: 'route',
+    quirk:
+      '`route` escaping is MODE-aware: parameters in path position are NOT encoded but THROW on ' +
+      'traversal shapes (`..`, `/`, `\\`, `?`, `#`); parameters after the template crosses `?` or ' +
+      '`#` are encodeURIComponent-ed (including nested Routes, which embed verbatim only in path ' +
+      'position). The shim now re-exports the real implementation, so this cannot drift — the ' +
+      'pin exists to make an UPSTREAM semantics change fail the version-bump ritual visibly.',
+    breaks:
+      'A hand-rolled route that always-encodes (our pre-0.2 shim) silently accepts user input ' +
+      'containing `/` that real Forge rejects with "path manipulation attempt" — works-in-sim, ' +
+      'throws-in-prod, with a security flavor.',
+    pinnedBy: [
+      { file: 'route-parity.test.ts', test: 'pins the real semantics we rely on (fails loudly on upstream change)' },
+      { file: 'route-parity.test.ts', test: 'serves the real implementation, not a lookalike' },
+    ],
+  },
+  {
+    id: 'api-product-requests-require-route-fetch-does-not',
+    package: '@forge/api',
+    symbol: 'requestJira',
+    quirk:
+      'requestJira/requestConfluence/requestBitbucket (bare and via asApp()/asUser()) REQUIRE a ' +
+      'Route and throw "You must create your route…" on plain strings (requireSafeUrl); the ' +
+      '`fetch` surfaces are the ONE exception and accept string OR Route (wrapWithRouteUnwrapper).',
+    breaks:
+      'A shim that uniformly accepts strings (our pre-0.2 routePath helper) lets every ' +
+      'string-path product request pass locally and throw on its first production call.',
+    pinnedBy: [
+      { file: 'route-parity.test.ts', test: 'requestJira/Confluence/Bitbucket REJECT plain strings, like requireSafeUrl' },
+      { file: 'route-parity.test.ts', test: 'egress fetch still accepts a plain string — the real wrapWithRouteUnwrapper policy' },
+    ],
+  },
+  {
     id: 'api-i18n-helpers-not-top-level',
     package: '@forge/api',
     symbol: 'i18n',

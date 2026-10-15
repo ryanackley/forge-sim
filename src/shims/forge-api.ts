@@ -6,6 +6,7 @@
  *   import { asUser, asApp } from '@forge/api';
  */
 
+import { createRequire } from 'node:module';
 import { getSimulator } from './globals.js';
 import { WhereConditions as KvsWhereConditions, FilterConditions as KvsFilterConditions } from './forge-kvs.js';
 import { buildAuthorizeApi, AUTHORIZE_NO_ACCOUNT_ERROR, type AuthorizeFetch } from '../authorize.js';
@@ -13,49 +14,70 @@ import { extractAppIdUuid } from '../app-ari.js';
 import { ProductFetchResponse } from './fetch-response.js';
 import type { ForgeSupportedLocaleCode } from './i18n-locales.js';
 
-// ── Route template tag ──────────────────────────────────────────────────
+// ── Route template tag: REAL implementation, not a reimplementation ─────
+//
+// `route()` is Atlassian's path-traversal defense and it is subtle: path
+// segments are NOT encoded but reject `..` / `/` / `\` with a throw; query
+// segments ARE encoded; the mode flips when the template crosses `?` or `#`.
+// Our previous hand-rolled version always-encoded and never threw — a
+// works-in-sim/fails-in-Forge divergence with a security flavor (an app
+// interpolating a user value containing `/` passed here, threw in prod).
+//
+// So we fall through to the real package (the CLAUDE.md convention): these
+// are pure functions with no cloud I/O, which makes them the ideal
+// fallthrough — upstream behavior for free, drift impossible. Resolved via
+// createRequire from THIS file, so it binds to forge-sim's own pinned
+// @forge/api (a runtime dependency; contract-tested via
+// VERIFIED_FORGE_VERSIONS), not whatever the app has installed.
+// Runtime require also dodges both interception layers on purpose: the CJS
+// patch exempts non-app parents, and the vitest alias only rewrites static
+// imports. Verified side-effect-free to load with no simulator present.
+// Behavior is pinned by route-parity.test.ts (differential, real-by-path).
+const realForgeApi = createRequire(import.meta.url)('@forge/api');
 
-/**
- * Real @forge/api's route() returns a Route OBJECT ({ readonly value }), not
- * a string — `route\`/x\`.value` is legal app code. The simulator used to
- * return the built string, which diverged (found by shim-contract-types).
- */
 export type Route = { readonly value: string };
 
-function route(strings: TemplateStringsArray, ...values: any[]): Route {
-  let result = '';
-  for (let i = 0; i < strings.length; i++) {
-    result += strings[i];
-    if (i < values.length) {
-      const v = values[i];
-      // Real route(): Route and URLSearchParams params embed verbatim;
-      // strings/numbers are encoded.
-      if (v && typeof v === 'object' && typeof (v as Route).value === 'string') {
-        result += (v as Route).value;
-      } else if (v instanceof URLSearchParams) {
-        result += v.toString();
-      } else {
-        result += encodeURIComponent(String(v));
-      }
-    }
-  }
-  return { value: result };
-}
+const route: (strings: TemplateStringsArray, ...values: any[]) => Route = realForgeApi.route;
+const routeFromAbsolute: (path: string) => Route = realForgeApi.routeFromAbsolute;
+const assumeTrustedRoute: (path: string) => Route = realForgeApi.assumeTrustedRoute;
 
-function routeFromAbsolute(path: string): Route {
-  return { value: path };
-}
+/**
+ * The real package's (unexported) ReadonlyRoute class, recovered from the
+ * real factory's own output — gives us `requireSafeUrl`-identical
+ * enforcement without deep-importing Atlassian internals.
+ */
+const RealReadonlyRoute: new (v: string) => Route =
+  (assumeTrustedRoute('/') as any).constructor;
 
-function assumeTrustedRoute(path: string): Route {
-  return { value: path };
+/**
+ * Product-request surfaces (requestJira/Confluence/Bitbucket) REQUIRE a
+ * Route in real Forge — `wrapRequestProduct` rejects anything else, plain
+ * strings included. We used to accept strings here; that leniency let code
+ * pass in the sim and die on its first production request.
+ *
+ * instanceof against the real class, exactly like upstream. A Route from an
+ * app's own BUNDLED @forge/api copy would fail this check — consistent,
+ * since bundled @forge/* backends are unsupported outright
+ * (docs/reference/bundled-forge-packages.md).
+ */
+function requireRoute(path: unknown, fnName: string): string {
+  if (path instanceof RealReadonlyRoute) return path.value;
+  const got = typeof path === 'string' ? `a plain string` : `a ${typeof path}`;
+  throw new Error(
+    `${fnName}() was called with ${got} instead of a Route. Real Forge rejects this — ` +
+    `build the path with the \`route\` template literal from '@forge/api' ` +
+    `(https://go.atlassian.com/forge-fetch-route), e.g. route\`/rest/api/3/myself\`. ` +
+    `forge-sim matches Forge here so the bug surfaces now instead of in production.`
+  );
 }
 
 /**
- * Accept both real Route objects and plain strings (older app code and the
- * sim's own string-returning `route` helper from 'forge-sim').
+ * The `fetch` surfaces (egress fetch, remotes fetch) are the ONE place real
+ * @forge/api accepts a plain string OR a Route (`wrapWithRouteUnwrapper`).
+ * Keep that exact policy here and nowhere else.
  */
-function routePath(path: Route | string): string {
-  return typeof path === 'string' ? path : path.value;
+function unwrapRouteOrString(path: Route | string): string {
+  return path instanceof RealReadonlyRoute ? path.value : String(path);
 }
 
 // ── API client builders ─────────────────────────────────────────────────
@@ -65,8 +87,8 @@ function routePath(path: Route | string): string {
  * ProductApiResponse at the shim boundary (see fetch-response.ts). Single-read
  * body semantics included, exactly like Forge.
  */
-async function productResponse(product: string, path: Route | string, options?: any): Promise<Response> {
-  const inner = await getSimulator().productApi.request(product, routePath(path), options);
+async function productResponse(product: string, path: Route, options?: any, fnName = `request${product[0].toUpperCase()}${product.slice(1)}`): Promise<Response> {
+  const inner = await getSimulator().productApi.request(product, requireRoute(path, fnName), options);
   return new ProductFetchResponse(inner);
 }
 
@@ -78,28 +100,28 @@ function notImplemented(name: string, extra = ''): Promise<never> {
 
 function makeApiClient() {
   return {
-    requestJira(path: Route | string, options?: any) {
+    requestJira(path: Route, options?: any) {
       return productResponse('jira', path, options);
     },
-    requestConfluence(path: Route | string, options?: any) {
+    requestConfluence(path: Route, options?: any) {
       return productResponse('confluence', path, options);
     },
-    requestBitbucket(path: Route | string, options?: any) {
+    requestBitbucket(path: Route, options?: any) {
       return productResponse('bitbucket', path, options);
     },
     async requestGraph(query: string, variables?: any, headers?: Record<string, string>) {
       return new ProductFetchResponse(await getSimulator().productApi.requestGraph(query, variables, headers));
     },
-    requestConnectedData(_path: Route | string, _options?: any): Promise<Response> {
+    requestConnectedData(_path: Route, _options?: any): Promise<Response> {
       return notImplemented('requestConnectedData');
     },
-    requestAtlassian(_path: Route | string, _options?: any): Promise<Response> {
+    requestAtlassian(_path: Route, _options?: any): Promise<Response> {
       return notImplemented('requestAtlassian', '(the api.atlassian.com gateway is not simulated; use requestJira/requestConfluence)');
     },
     withContext(_contextAri: string) {
       // Returns context-scoped request methods in real Forge; scoping is not
       // simulated, so fail loudly rather than silently ignore the context.
-      const scoped = (name: string) => (_path: Route | string, _options?: any): Promise<Response> =>
+      const scoped = (name: string) => (_path: Route, _options?: any): Promise<Response> =>
         notImplemented(`withContext().${name}`);
       return {
         requestJira: scoped('requestJira'),
@@ -136,7 +158,8 @@ function makeExternalAuthAccountMethods(providerKey: string, _remoteName?: strin
     },
 
     async fetch(rawUrl: Route | string, options?: any): Promise<any> {
-      const url = routePath(rawUrl);
+      // Remote fetch takes string OR Route — real wrapWithRouteUnwrapper policy.
+      const url = unwrapRouteOrString(rawUrl);
       const remoteName = resolveRemote();
 
       // Always try mock routes first (same pattern as product API)
@@ -215,13 +238,13 @@ function asUser() {
 function asApp() { return makeApiClient(); }
 
 // Top-level convenience (these use asUser by default in real Forge)
-function requestJira(path: Route | string, options?: any) {
+function requestJira(path: Route, options?: any) {
   return productResponse('jira', path, options);
 }
-function requestConfluence(path: Route | string, options?: any) {
+function requestConfluence(path: Route, options?: any) {
   return productResponse('confluence', path, options);
 }
-function requestBitbucket(path: Route | string, options?: any) {
+function requestBitbucket(path: Route, options?: any) {
   return productResponse('bitbucket', path, options);
 }
 
@@ -254,7 +277,8 @@ const storage = {
 // ── Simulated fetch (external HTTP) ─────────────────────────────────────
 
 async function forgeFetch(rawUrl: Route | string, options?: any) {
-  const url = routePath(rawUrl);
+  // Egress fetch takes string OR Route — real wrapWithRouteUnwrapper policy.
+  const url = unwrapRouteOrString(rawUrl);
   // In simulation, we can either use real fetch or mock it.
   // Default: use real fetch but log it.
   console.warn(`[forge-sim] External fetch: ${options?.method || 'GET'} ${url}`);
@@ -410,7 +434,7 @@ function authorize() {
   // builders can tell "mocked answer" from "unmocked → permissive true".
   const wrapFetch = (product: 'jira' | 'confluence'): AuthorizeFetch =>
     async (path, opts) => {
-      const res = await sim.productApi.request(product, routePath(assumeTrustedRoute(path)), opts);
+      const res = await sim.productApi.request(product, assumeTrustedRoute(path).value, opts);
       let json: any;
       try { json = await res.json(); } catch { json = undefined; }
       return { status: res.status, json };

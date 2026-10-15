@@ -652,22 +652,10 @@ export class SimulatedProductApi {
   }
 }
 
-// ── Route template tag (mirrors @forge/api route) ───────────────────────
-
-/**
- * Template tag that builds a path string, matching @forge/api's `route` tag.
- * Encodes interpolated values for safety.
- */
-export function route(
-  strings: TemplateStringsArray,
-  ...values: any[]
-): string {
-  let result = '';
-  for (let i = 0; i < strings.length; i++) {
-    result += strings[i];
-    if (i < values.length) {
-      result += encodeURIComponent(String(values[i]));
-    }
-  }
-  return result;
-}
+// The string-returning `route` template tag that used to live here (and was
+// re-exported from 'forge-sim') is gone. It did NOT mirror @forge/api's
+// `route`: it always-encoded (real route never encodes path segments — it
+// REJECTS traversal attempts) and returned a bare string, which every real
+// product-request surface refuses with "You must create your route using
+// the 'route' export". Tests should import `route` from '@forge/api' — the
+// shim serves the real implementation.

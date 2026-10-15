@@ -1,5 +1,5 @@
 import Resolver from '@forge/resolver';
-import { requestJira } from '@forge/api';
+import { requestJira, route } from '@forge/api';
 
 const resolver = new Resolver();
 
@@ -10,7 +10,7 @@ resolver.define('getMyIssues', async ({ context }) => {
   const accountId = context.accountId;
   const jql = `assignee = "${accountId}" AND resolution = Unresolved ORDER BY updated DESC`;
 
-  const response = await requestJira(`/rest/api/3/search/jql`, {
+  const response = await requestJira(route`/rest/api/3/search/jql`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -50,7 +50,7 @@ resolver.define('getIssueDetail', async ({ payload }) => {
   const { issueKey } = payload;
 
   const response = await requestJira(
-    `/rest/api/3/issue/${issueKey}?fields=summary,description,status,priority,assignee,reporter,created,updated,labels,components,fixVersions`
+    route`/rest/api/3/issue/${issueKey}?fields=summary,description,status,priority,assignee,reporter,created,updated,labels,components,fixVersions`
   );
 
   if (!response.ok) {
@@ -82,7 +82,7 @@ resolver.define('searchIssues', async ({ payload }) => {
   const { query } = payload;
   const jql = `text ~ "${query}" ORDER BY updated DESC`;
 
-  const response = await requestJira(`/rest/api/3/search/jql`, {
+  const response = await requestJira(route`/rest/api/3/search/jql`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -112,7 +112,7 @@ resolver.define('searchIssues', async ({ payload }) => {
  * Get current user info.
  */
 resolver.define('getMyself', async () => {
-  const response = await requestJira('/rest/api/3/myself');
+  const response = await requestJira(route`/rest/api/3/myself`);
 
   if (!response.ok) {
     return { error: 'Failed to fetch user info' };
