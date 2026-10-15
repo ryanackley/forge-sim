@@ -29,6 +29,11 @@ describe('contentTypeFor', () => {
     ['doc.pdf', 'application/pdf'],
     ['notes.txt', 'text/plain'],
     ['feed.xml', 'application/xml'],
+    // Sourcemaps: siblings of a prebuilt bundle once the dev server serves
+    // the resource dir (#40 adversarial C). webpack/Rspack emit these by
+    // default; octet-stream makes devtools skip them without a word.
+    ['index.js.map', 'application/json'],
+    ['styles.css.map', 'application/json'],
   ])('%s → %s', (file, mime) => {
     expect(contentTypeFor(file)).toBe(mime);
   });

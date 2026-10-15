@@ -456,6 +456,29 @@ export class SimulatorUI {
    *   expect(select.props.options.map(o => o.label)).toContain('Bug');
    */
   async waitForContent(moduleKey: string, text: string, timeoutMs = 5000): Promise<ForgeDoc> {
+    // Validate the timeout before it poisons the arithmetic. This is the ONE
+    // public wait helper taking a bare number — `settle()` and `sim.idle()`
+    // both take `{ timeoutMs }`, so passing that object shape here is natural
+    // muscle memory, and two independent adversarial runs did exactly that.
+    //
+    // Unvalidated, the failure modes are both silent:
+    //   { timeoutMs: 500 } → Date.now() + object = NaN → every deadline check
+    //     is false → fails in ~0ms, ignoring the timeout, and reports
+    //     "after [object Object]ms".
+    //   '500'              → Date.now() + '500' CONCATENATES → a deadline ~1.7e15
+    //     → waits effectively forever and dies on the test runner's own
+    //     timeout, losing this method's diagnostic entirely.
+    if (typeof timeoutMs !== 'number' || !Number.isFinite(timeoutMs) || timeoutMs < 0) {
+      const shown = typeof timeoutMs === 'object' && timeoutMs !== null
+        ? JSON.stringify(timeoutMs)
+        : String(timeoutMs);
+      throw new TypeError(
+        `sim.ui.waitForContent("${moduleKey}", ...) expects a timeout in MILLISECONDS as its ` +
+        `third argument, got ${shown}. Pass a plain number — \`waitForContent(key, text, 500)\` — ` +
+        `not an options object. (\`settle()\` and \`sim.idle()\` DO take \`{ timeoutMs }\`; this ` +
+        `method does not.)`
+      );
+    }
     // Auto-render if this module has never been rendered. Idempotent: once
     // a doc exists in moduleDocs, repeat calls skip this branch entirely.
     if (!this.moduleDocs.has(moduleKey)) {

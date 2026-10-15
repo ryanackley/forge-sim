@@ -128,6 +128,24 @@ source apps.
 enumerated, so they do not appear in `sim.resolver.getDefinitions()` or in
 "Available:" error text. Routing works; listing does not.
 
+A measured consequence of that: `sim.registerResolverOwnership()` is driven
+by iterating a definitions map, so for a bundled resolver no ownership is
+recorded. The cross-module guard in `simulator.ts` reads
+
+```
+const owner = this.resolverOwnership.get(functionKey);
+if (owner && owner !== route.resolverFunctionKey) throw …
+```
+
+— permissive when `owner` is `undefined`. So a `moduleKey`-scoped invoke
+that real Forge would reject ("each module can only invoke functions defined
+in its own resolver") is **permitted** when the resolver was bundled. This
+is the residual of the adversarial-F "webpack moduleKey-scoped invoke"
+report, whose original repro was confounded by finding D: the bundler is
+irrelevant, non-enumerable keys are the cause. It affects unsupported
+shape-2 backends, plus the tsx-bypass path in §4; the effect is a missing
+guard, not broken routing.
+
 ## 5. The real `@forge/api` runs on the seam alone
 
 Loaded by explicit path (bypassing the shim alias) against a bare

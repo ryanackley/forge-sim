@@ -130,6 +130,26 @@ forge-sim replaces `@forge/*` **at import time** — that interception is what c
 
 **This applies to your backend only.** A UI resource is *always* built output — raw JSX can't run in a browser — so a prebuilt UI Kit or Custom UI resource has `@forge/react` and `@forge/bridge` inlined by necessity. That is fully supported: those packages talk to the simulator through the `window.__bridge` protocol, which forge-sim implements completely.
 
+### Per-bundler notes
+
+Gathered from running real builds of the same app through each bundler. Nothing here is forge-sim-specific plumbing — these are the traps that cost time.
+
+- **webpack / Rspack — the `type: module` interop trap.** With `"type": "module"` in `package.json`, webpack treats `.js` config and output as ESM, and a backend built that way can end up emitting `export` statements while your handler files still `require()` each other. Forge's handler resolution follows Node's rules, so the mismatch surfaces as "handler not found" or "Cannot use import statement outside a module" rather than anything pointing at the bundler. Pick one convention per package and keep the output's extension consistent with it (`.cjs` for CommonJS output under `"type": "module"`).
+- **webpack / Rspack — `publicPath: 'auto'` needs no special handling.** It reads `document.currentScript` at module eval; forge-sim's headless renderer provides that, so default builds work (and chunk runtime is always present, because `@forge/bridge` dynamically imports `iframe-resizer`).
+- **Parcel — the main-field papercut.** Parcel reads `main` from `package.json` as its default output target, so a Forge app whose `main` points at a *source* file (or is absent) gets output written somewhere unexpected — often over your sources. Set `targets` explicitly, or point `main` at the built file inside `app.package.path`.
+- **Parcel — production builds emit unquoted HTML attributes.** Supported: forge-sim parses the entry HTML tag-by-tag, quotes or not.
+- **Parcel — multi-entry output lists the shared bundle first.** Supported: every `<script type="module">` in the entry HTML runs, in document order.
+- **esbuild — the smoothest path.** iife/esm, code splitting, dynamic imports, and minified rebuilds all work, including live re-resolution of renamed hashes in dev.
+- **Rollup — `manualChunks` works**; remember `@rollup/plugin-replace` for anything reading `process.env` in frontend code (real browsers have no `process`; see the parity boundary below).
+
+#### Known gap: Parcel importmap-based dynamic imports
+
+Parcel can emit `<script type="importmap">` and have bundles resolve dynamic imports through it. In **dev mode** that importmap is carried into the served page, so the browser honors it. In **headless rendering** (`sim.ui.render` / `waitForContent`) it is not: Node resolves the bundle's imports itself and has no notion of an HTML importmap, so a dynamic import routed through one fails to resolve. Test those modules via `forge-sim dev` in a browser, or configure Parcel to emit relative specifiers. Tracked for 0.2+.
+
+#### Parity boundary: Node-only globals in headless rendering
+
+Headless rendering executes frontend code in **Node**, not a browser. So `process`, `__filename`, `Buffer`, `require`, and `node:*` imports all resolve in `sim.ui.render()` and would fail in a real Forge iframe. forge-sim does not try to detect this class of mistake: it is unbounded, and screening one member of it (say, bare `process.env`) while the rest sail through would be false reassurance. `forge-sim dev` runs your code in an actual browser — that is the check. The parity guarantee covers the **Forge APIs** forge-sim implements, not the absence of the Node runtime.
+
 Background and measurements: [`docs/reference/bundled-forge-packages.md`](../reference/bundled-forge-packages.md).
 
 ## Atlassian, third party APIs, and remotes

@@ -55,6 +55,10 @@ const MIME_TYPES: Record<string, string> = {
   js: 'text/javascript',
   json: 'application/json',
   jsonld: 'application/ld+json',
+  // Sourcemaps are JSON. Bundlers that emit `//# sourceMappingURL=x.js.map`
+  // (webpack/Rspack by default) make the browser fetch these as siblings of
+  // a prebuilt bundle; octet-stream makes devtools skip them silently.
+  map: 'application/json',
   md: 'text/markdown',
   mid: 'audio/midi',
   midi: 'audio/midi',

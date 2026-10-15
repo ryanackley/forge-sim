@@ -129,6 +129,59 @@ describe('waitForContent — error messages', () => {
   });
 });
 
+describe('waitForContent — timeout argument validation (#40 adversarial F)', () => {
+  // This is the one public wait helper taking a BARE number; settle() and
+  // sim.idle() take { timeoutMs }. Two independent adversarial runs passed
+  // the options-object shape here, and both failure modes were silent.
+  let sim: ForgeSimulator;
+
+  beforeEach(async () => {
+    sim = new ForgeSimulator();
+    await sim.deploy(MACRO_FIXTURE);
+    sim.ui.setMacroConfig(MACRO_KEY, { name: 'Whiskers', tier: 'gold' });
+  });
+
+  afterEach(() => {
+    sim.ui.resetAll();
+  });
+
+  it('rejects the { timeoutMs } options-object shape and names the fix', async () => {
+    // Pre-fix: Date.now() + object = NaN, so every deadline comparison was
+    // false — it gave up in ~0ms (ignoring the requested timeout) and said
+    // "after [object Object]ms".
+    await expect(
+      (sim.ui as any).waitForContent(MACRO_KEY, 'x', { timeoutMs: 500 })
+    ).rejects.toThrow(TypeError);
+    await expect(
+      (sim.ui as any).waitForContent(MACRO_KEY, 'x', { timeoutMs: 500 })
+    ).rejects.toThrow(/expects a timeout in MILLISECONDS.*not an options object/s);
+  });
+
+  it('rejects a numeric string before it concatenates into a 50,000-year deadline', async () => {
+    // Pre-fix: Date.now() + '500' CONCATENATES → deadline ~1.7e15 → waits
+    // effectively forever and dies on the test runner's own timeout.
+    await expect(
+      (sim.ui as any).waitForContent(MACRO_KEY, 'x', '500')
+    ).rejects.toThrow(/got 500\./);
+  });
+
+  it.each([[NaN], [Infinity], [-1], [null]])('rejects %s', async (bad) => {
+    await expect(
+      (sim.ui as any).waitForContent(MACRO_KEY, 'x', bad)
+    ).rejects.toThrow(TypeError);
+  });
+
+  it('still accepts a plain number, including 0', async () => {
+    // 0 is legal: "check what is already rendered, do not wait".
+    await expect(
+      sim.ui.waitForContent(MACRO_KEY, 'will-not-appear', 0)
+    ).rejects.toThrow(/Timed out waiting/);
+    await expect(
+      sim.ui.waitForContent(MACRO_KEY, 'Pet: Whiskers', 500)
+    ).resolves.toBeDefined();
+  });
+});
+
 describe('waitForContent — async-effect chain (the MCP ui_wait_for premise)', () => {
   // The `forge_ui_wait_for` MCP tool exists because `forge_ui_render` only
   // awaits the INITIAL reconcile. Modules that fetch data via
