@@ -1,0 +1,11 @@
+{
+  "jira": {
+    "GET /rest/api/3/issue/10001": { "id": "10001", "key": "MOCK-1", "fields": { "summary": "Mocked issue" } }
+  },
+  "my-backend": {
+    "GET /api/v1/items": [{ "id": 1 }]
+  },
+  "analytics": {
+    "GET /events": [{ "event": "page_view" }]
+  }
+}

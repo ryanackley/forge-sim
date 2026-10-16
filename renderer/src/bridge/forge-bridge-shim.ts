@@ -448,6 +448,20 @@ async function callBridge(cmd: string, data?: any): Promise<any> {
         fetchRequestInit: data?.fetchRequestInit,
       });
 
+    case 'fetchRemote':
+      // Real @forge/bridge's requestRemote() (inlined in a PREBUILT bundle —
+      // our own requestRemote above calls rpc directly) sends
+      // callBridge('fetchRemote', { remoteKey, fetchRequestInit }) with the
+      // path inside fetchRequestInit (@forge/bridge out/fetch/fetch.js). The
+      // dev-server RPC already accepts both shapes; this dispatch was the
+      // missing link — without it the package destructures `undefined` and
+      // the app's promise rejects. Caught by e2e/manual-packaging.spec.ts.
+      return rpc('fetchRemote', {
+        remoteKey: data?.remoteKey,
+        path: data?.path,
+        fetchRequestInit: data?.fetchRequestInit,
+      });
+
     case 'getContext':
       return rpc('getContext', {
         moduleKey: getModuleKeyFromURL(),

@@ -1,0 +1,65 @@
+app:
+  id: ari:cloud:ecosystem::app/e2e-manual-packaging-ui
+  runtime:
+    name: nodejs22.x
+  package:
+    bundler: manual@2026
+    path: out
+modules:
+  jira:issuePanel:
+    - key: panel
+      resource: single
+      render: native
+      title: Prebuilt Panel
+      icon: https://example.com/icon.svg
+      resolver:
+        function: main-fn
+    - key: remote-panel
+      resource: remote
+      render: native
+      title: Prebuilt Remote Panel
+      icon: https://example.com/icon.svg
+      resolver:
+        endpoint: my-endpoint
+  confluence:globalPage:
+    - key: page-global
+      resource: multi/global
+      render: native
+      title: Global
+      route: global
+    - key: page-settings
+      resource: multi/settings
+      render: native
+      title: Settings
+      route: settings
+  endpoint:
+    - key: my-endpoint
+      remote: my-backend
+      route:
+        path: /api/v1
+  function:
+    - key: main-fn
+      handler: index.handler
+resources:
+  - key: single
+    bundler: manual@2026
+    path: frontend/single
+  - key: remote
+    bundler: manual@2026
+    path: frontend/remote
+  - key: multi
+    bundler: manual@2026
+    path: frontend/multi
+    entry:
+      global: global.html
+      settings: settings.html
+remotes:
+  - key: my-backend
+    baseUrl: https://api.example.com
+  - key: analytics
+    baseUrl: https://analytics.example.com
+    operations:
+      - fetch
+permissions:
+  scopes:
+    - read:jira-work
