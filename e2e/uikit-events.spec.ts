@@ -25,14 +25,12 @@ test.describe('UIKit Events', () => {
   test.beforeAll(async () => {
     server = await startForgeSimDev({
       appDir: resolve(__dirname, 'fixtures/uikit-events'),
-      port: 19530,
-      wsPort: 19531,
       timeoutMs: 45_000,
     });
   });
 
-  test.afterAll(() => {
-    server?.stop();
+  test.afterAll(async () => {
+    await server?.stop();
   });
 
   // Helper: navigate and wait for the app to render
@@ -165,6 +163,29 @@ test.describe('UIKit Events', () => {
     // Click the button in the second row
     await page.getByRole('button', { name: 'Click Beta' }).click();
     await expect(page.getByText('table-clicked:beta')).toBeVisible({ timeout: 5_000 });
+  });
+
+  // ── 7b. DynamicTable edge states ─────────────────────────────────────
+
+  test('empty DynamicTable renders its header with no body rows', async ({ page }) => {
+    await loadApp(page);
+
+    // Atlaskit DynamicTable derives its test ids from the one we pass
+    // (`<testId>--table`, `--head--cell`, `--loadingSpinner`, ...).
+    const table = page.getByTestId('table-empty--table');
+    await expect(table).toBeVisible();
+    await expect(table.locator('th')).toHaveCount(2);
+    await expect(table.locator('th').nth(0)).toHaveText('Name');
+    await expect(table.locator('th').nth(1)).toHaveText('Value');
+    await expect(table.locator('tbody tr')).toHaveCount(0);
+  });
+
+  test('loading DynamicTable shows a spinner', async ({ page }) => {
+    await loadApp(page);
+
+    await expect(page.getByTestId('table-loading--loadingSpinner')).toBeVisible();
+    // The plain empty table above must not be in a loading state.
+    await expect(page.getByTestId('table-empty--loadingSpinner')).toHaveCount(0);
   });
 
   // ── 8. RadioGroup onChange ───────────────────────────────────────────

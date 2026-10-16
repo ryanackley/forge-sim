@@ -35,14 +35,12 @@ test.describe('Custom Fields', () => {
   test.beforeAll(async () => {
     server = await startForgeSimDev({
       appDir: resolve(__dirname, 'fixtures/custom-field'),
-      port: 19540,
-      wsPort: 19541,
       timeoutMs: 45_000,
     });
   });
 
-  test.afterAll(() => {
-    server?.stop();
+  test.afterAll(async () => {
+    await server?.stop();
   });
 
   // ── Module picker ───────────────────────────────────────────────────

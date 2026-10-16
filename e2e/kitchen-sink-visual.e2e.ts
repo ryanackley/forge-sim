@@ -19,78 +19,14 @@
  */
 
 import { test, expect } from '@playwright/test';
-import { type ChildProcess, spawn } from 'node:child_process';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { startForgeSimDev, type DevServerInstance } from './helpers/forge-sim-harness';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const KITCHEN_SINK_DIR = resolve(__dirname, 'fixtures/kitchen-sink');
-const DEV_PORT = 19500;
-const WS_PORT = 19501;
-const DEV_URL = `http://localhost:${DEV_PORT}`;
 
-// How long to wait for forge-sim dev to be ready
-const STARTUP_TIMEOUT = 30_000;
-
-let devProcess: ChildProcess;
-
-/**
- * Start forge-sim dev for the kitchen-sink app.
- * Waits until the Vite dev server is serving content.
- */
-async function startDevServer(): Promise<void> {
-  const forgeSim = resolve(__dirname, '..', 'src', 'cli.ts');
-
-  devProcess = spawn(
-    'npx', ['tsx', forgeSim, 'dev', '--port', String(DEV_PORT), '--ws-port', String(WS_PORT), '--no-open'],
-    {
-      cwd: KITCHEN_SINK_DIR,
-      stdio: ['pipe', 'pipe', 'pipe'],
-      env: { ...process.env, NODE_NO_WARNINGS: '1' },
-      detached: true,
-    }
-  );
-
-  // Log stderr for debugging
-  devProcess.stderr?.on('data', (data: Buffer) => {
-    const line = data.toString().trim();
-    if (line) console.log(`[forge-sim] ${line}`);
-  });
-
-  devProcess.stdout?.on('data', (data: Buffer) => {
-    const line = data.toString().trim();
-    if (line) console.log(`[forge-sim] ${line}`);
-  });
-
-  // Wait for the server to be ready by polling
-  const start = Date.now();
-  while (Date.now() - start < STARTUP_TIMEOUT) {
-    try {
-      const resp = await fetch(DEV_URL, { signal: AbortSignal.timeout(2000) });
-      if (resp.ok) return;
-    } catch {
-      // Not ready yet
-    }
-    await new Promise(r => setTimeout(r, 500));
-  }
-
-  throw new Error(`forge-sim dev didn't start within ${STARTUP_TIMEOUT}ms`);
-}
-
-function stopDevServer(): void {
-  if (devProcess?.pid) {
-    // Kill the entire process group (npx → tsx → node) not just the parent
-    try {
-      process.kill(-devProcess.pid, 'SIGTERM');
-    } catch {
-      // process group kill failed — try direct
-      try { devProcess.kill('SIGTERM'); } catch {}
-    }
-    setTimeout(() => {
-      try { process.kill(-devProcess.pid!, 'SIGKILL'); } catch {}
-    }, 2000);
-  }
-}
+let server: DevServerInstance;
 
 // ── Test Setup ──────────────────────────────────────────────────────────
 
@@ -98,17 +34,17 @@ test.describe('Kitchen Sink Visual Regression', () => {
   test.describe.configure({ mode: 'serial' });
 
   test.beforeAll(async () => {
-    await startDevServer();
+    server = await startForgeSimDev({ appDir: KITCHEN_SINK_DIR, timeoutMs: 45_000 });
   });
 
-  test.afterAll(() => {
-    stopDevServer();
+  test.afterAll(async () => {
+    await server?.stop();
   });
 
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
     // Navigate directly to the kitchen-sink module (not the module picker)
-    await page.goto(`${DEV_URL}/module/kitchen-sink/`);
+    await page.goto(`${server.url}/module/kitchen-sink/`);
     // Wait for the app to fully render — look for a section heading
     await page.waitForSelector('text=1. Typography', { timeout: 15000 });
     // Extra settle time for fonts, charts, async components

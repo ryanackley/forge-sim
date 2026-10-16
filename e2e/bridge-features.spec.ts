@@ -25,14 +25,12 @@ test.describe('Custom UI Bridge', () => {
   test.beforeAll(async () => {
     server = await startForgeSimDev({
       appDir: resolve(__dirname, 'fixtures/customui-bridge'),
-      port: 19510,
-      wsPort: 19511,
       timeoutMs: 30_000,
     });
   });
 
-  test.afterAll(() => {
-    server?.stop();
+  test.afterAll(async () => {
+    await server?.stop();
   });
 
   test('invoke calls resolver and returns result', async ({ page }) => {
@@ -103,14 +101,12 @@ test.describe('UIKit Bridge', () => {
   test.beforeAll(async () => {
     server = await startForgeSimDev({
       appDir: resolve(__dirname, 'fixtures/uikit-bridge'),
-      port: 19520,
-      wsPort: 19521,
       timeoutMs: 30_000,
     });
   });
 
-  test.afterAll(() => {
-    server?.stop();
+  test.afterAll(async () => {
+    await server?.stop();
   });
 
   test('requestJira result renders on page load', async ({ page }) => {
