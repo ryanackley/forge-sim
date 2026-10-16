@@ -715,3 +715,181 @@ describe('warnOnForgeReactMajorMismatch', () => {
     }
   });
 });
+
+// ── Real @forge/bridge seams that only a PREBUILT bundle exercises ────────
+//
+// Our forge-bridge shim short-circuits these (it calls sim.* directly), so
+// source-mode tests can never catch a gap in the host bridge's handling of
+// the real package's framing. Each case here is a real inlined @forge/bridge
+// talking to window.__bridge exactly as it would in Forge.
+
+/** All String-node texts in a ForgeDoc, in document order. */
+function textNodes(doc: any): string[] {
+  const out: string[] = [];
+  const walk = (n: any) => {
+    if (n?.type === 'String' && typeof n.props?.text === 'string') out.push(n.props.text);
+    for (const c of n?.children ?? []) walk(c);
+  };
+  walk(doc);
+  return out;
+}
+
+describe('manual packaging: real @forge/bridge framing through the headless host bridge', () => {
+  let appDir: string;
+  let sim: ForgeSimulator;
+
+  const REMOTE_SRC = `
+import React, { useEffect, useState } from 'react';
+import ForgeReconciler, { Text } from '@forge/react';
+import { invokeRemote, requestRemote, requestJira } from '@forge/bridge';
+
+const App = () => {
+  const [viaInvoke, setViaInvoke] = useState(null);
+  const [viaFetch, setViaFetch] = useState(null);
+  const [viaProduct, setViaProduct] = useState(null);
+  useEffect(() => {
+    // Real bridge: parseRequest → new Request('', init) → callBridge('fetchProduct', ...).
+    // Same pipeline the useIssueProperty/useContentProperty/useSpaceProperty hooks ride.
+    requestJira('/rest/api/3/issue/10001/properties/viewCount')
+      .then((r) => r.json())
+      .then((j) => setViaProduct(String(j.value)));
+    // Real bridge: callBridge('invoke', { path, method, invokeType: 'ui-remote-fetch' })
+    invokeRemote({ path: '/items', method: 'GET' }).then((r) => setViaInvoke(JSON.stringify(r.body)));
+    // Real bridge: callBridge('fetchRemote', { remoteKey, fetchRequestInit: { path, headers: [...] } })
+    requestRemote('analytics', { path: '/events', headers: { 'x-test': '1' } })
+      .then((r) => r.json())
+      .then((j) => setViaFetch(JSON.stringify(j)));
+  }, []);
+  return (
+    <>
+      <Text>{viaInvoke ? 'invoke:' + viaInvoke : 'invoke-loading'}</Text>
+      <Text>{viaFetch ? 'fetch:' + viaFetch : 'fetch-loading'}</Text>
+      <Text>{viaProduct ? 'product:' + viaProduct : 'product-loading'}</Text>
+    </>
+  );
+};
+ForgeReconciler.render(<App />);
+`;
+
+  const I18N_SRC = `
+import React from 'react';
+import ForgeReconciler, { Text, I18nProvider, useTranslation } from '@forge/react';
+
+const Greeting = () => {
+  const { t, ready } = useTranslation();
+  return <Text>{ready ? 'i18n:' + t('greeting') : 'i18n-loading'}</Text>;
+};
+ForgeReconciler.render(<I18nProvider><Greeting /></I18nProvider>);
+`;
+
+  beforeAll(async () => {
+    appDir = await mkdtemp(join(tmpdir(), 'forge-sim-manual-seams-'));
+    await writeFile(join(appDir, 'package.json'), '{ "name": "t", "private": true }', 'utf8');
+    await writeFile(
+      join(appDir, 'manifest.yml'),
+      `
+app:
+  id: ari:cloud:ecosystem::app/11111111-2222-3333-4444-555555555555
+  runtime:
+    name: nodejs22.x
+modules:
+  jira:issuePanel:
+    - key: remote-panel
+      resource: remote
+      render: native
+      title: Remote Panel
+      icon: https://example.com/icon.svg
+      resolver:
+        endpoint: my-endpoint
+    - key: i18n-panel
+      resource: i18n
+      render: native
+      title: I18n Panel
+      icon: https://example.com/icon.svg
+  endpoint:
+    - key: my-endpoint
+      remote: my-backend
+      route:
+        path: /api/v1
+resources:
+  - key: remote
+    bundler: manual@2026
+    path: frontend/remote
+  - key: i18n
+    bundler: manual@2026
+    path: frontend/i18n
+remotes:
+  - key: my-backend
+    baseUrl: https://api.example.com
+  - key: analytics
+    baseUrl: https://analytics.example.com
+    operations:
+      - fetch
+`,
+      'utf8'
+    );
+
+    const srcDir = join(appDir, 'frontend', 'src');
+    await mkdir(srcDir, { recursive: true });
+    await mkdir(join(appDir, 'frontend', 'remote'), { recursive: true });
+    await mkdir(join(appDir, 'frontend', 'i18n'), { recursive: true });
+    await writeFile(join(srcDir, 'remote.jsx'), REMOTE_SRC, 'utf8');
+    await writeFile(join(srcDir, 'i18n.jsx'), I18N_SRC, 'utf8');
+    await buildBundle(join(srcDir, 'remote.jsx'), join(appDir, 'frontend', 'remote', 'index.js'));
+    await buildBundle(join(srcDir, 'i18n.jsx'), join(appDir, 'frontend', 'i18n', 'index.js'));
+
+    const html = `<!doctype html><html><head></head><body><script type="module" src="./index.js"></script></body></html>`;
+    await writeFile(join(appDir, 'frontend', 'remote', 'index.html'), html, 'utf8');
+    await writeFile(join(appDir, 'frontend', 'i18n', 'index.html'), html, 'utf8');
+
+    sim = createSimulator();
+    await sim.deploy(appDir, { throwOnError: false });
+    await sim.fit.initInMemory();
+    sim.mockProductRoutes('my-backend', { 'GET /api/v1/items': [{ id: 1 }] });
+    sim.mockProductRoutes('analytics', { 'GET /events': [{ event: 'page_view' }] });
+    sim.i18n.setTranslations('en-US', { greeting: 'Hello' });
+    sim.properties.setIssueProperty('10001', 'viewCount', 42);
+  }, 60_000);
+
+  afterAll(async () => {
+    sim?.ui.resetAll();
+    await rm(appDir, { recursive: true, force: true }).catch(() => undefined);
+  });
+
+  it("routes invokeRemote by the real bridge's invokeType marker instead of treating it as a resolver call", async () => {
+    // Before the fix this arrived as invoke(undefined) → missing-resolver path
+    // → promise pending forever; waitForContent would time out on 'invoke-loading'.
+    const doc = await sim.ui.waitForContent('remote-panel', 'invoke:[{"id":1}]');
+    expect(textNodes(doc)).toContain('invoke:[{"id":1}]');
+  });
+
+  it('handles the fetchRemote command (requestRemote) with the path inside fetchRequestInit', async () => {
+    // Before the fix: "Unhandled bridge command: fetchRemote" → undefined →
+    // destructure throws inside the real package → 'fetch-loading' forever.
+    const doc = await sim.ui.waitForContent('remote-panel', 'fetch:[{"event":"page_view"}]');
+    expect(textNodes(doc)).toContain('fetch:[{"event":"page_view"}]');
+  });
+
+  it("survives the real bridge's `new Request('', init)` normalization so requestJira (and the property hooks on it) reach the sim", async () => {
+    // Before the fix: undici throws `Invalid URL` inside the package before
+    // any bridge command fires — the request never reaches forge-sim.
+    const doc = await sim.ui.waitForContent('remote-panel', 'product:42');
+    expect(textNodes(doc)).toContain('product:42');
+  });
+
+  it("serves the real bridge's page-relative __LOCALES__ fetches from sim.i18n so useTranslation resolves", async () => {
+    // Real @forge/bridge i18n has no bridge seam — it fetch()es
+    // './__LOCALES__/i18n-info.json' relative to the page. Headless Node has
+    // no page; without the interception the provider never becomes ready
+    // and t() silently returns keys.
+    const doc = await sim.ui.waitForContent('i18n-panel', 'i18n:Hello');
+    expect(textNodes(doc)).toContain('i18n:Hello');
+    expect(textNodes(doc)).not.toContain('i18n:greeting');
+  });
+
+  it('leaves non-__LOCALES__ fetches to the real fetch (absolute URLs never match)', async () => {
+    // The patch must be invisible to everything else — including an absolute
+    // URL that happens to contain the folder name.
+    await expect(fetch('http://127.0.0.1:1/__LOCALES__/en-US.json')).rejects.toThrow();
+  });
+});

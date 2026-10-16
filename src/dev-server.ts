@@ -17,6 +17,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { watch } from 'node:fs';
 import { resolve, relative } from 'node:path';
 import type { ForgeDoc } from './ui/bridge.js';
+import { normalizeBridgeHeaders } from './ui/bridge.js';
 import {
   getSeededUsers,
   getSeededUserByAccountId,
@@ -423,17 +424,18 @@ export async function createDevServer(options: DevServerOptions = {}): Promise<D
         const endpointKey = moduleKey ? simulator.resolveModuleEndpoint(moduleKey) : undefined;
         // Look up module type for FIT claims
         const moduleType = moduleKey ? simulator.getModuleType(moduleKey) : undefined;
-        return simulator.remotes.invokeFromBridge({ path, method, headers, body, endpointKey, moduleKey, moduleType });
+        return simulator.remotes.invokeFromBridge({ path, method, headers: normalizeBridgeHeaders(headers), body, endpointKey, moduleKey, moduleType });
       }
 
       case 'fetchRemote': {
         const { remoteKey, fetchRequestInit } = params;
         // path can come as a top-level param (renderer shim) or inside fetchRequestInit (real @forge/bridge)
         const path = params.path ?? fetchRequestInit?.path ?? '/';
+        // Real @forge/bridge ships headers as [name, value] pairs; normalize.
         const response = await simulator.remotes.request(remoteKey, {
           path,
           method: fetchRequestInit?.method,
-          headers: fetchRequestInit?.headers,
+          headers: normalizeBridgeHeaders(fetchRequestInit?.headers),
           body: fetchRequestInit?.body,
         });
         return {
@@ -448,7 +450,7 @@ export async function createDevServer(options: DevServerOptions = {}): Promise<D
         const { product, restPath, fetchRequestInit } = params;
         const response = await simulator.productApi.request(product, restPath, {
           method: fetchRequestInit?.method,
-          headers: fetchRequestInit?.headers,
+          headers: normalizeBridgeHeaders(fetchRequestInit?.headers),
           body: fetchRequestInit?.body,
         });
         return {

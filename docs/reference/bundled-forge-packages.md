@@ -61,8 +61,32 @@ resolution:
 | `@forge/object-store` | `__forge_fetch__` (`type: 'os'`) | **no** |
 | `@forge/llm` | `__forge_fetch__` (`type: 'llm'`) | **no** |
 | `@forge/realtime` | `__forge_fetch__` (`type: 'realtime'`) | **no** |
-| `@forge/react`, `@forge/bridge`, `@forge/*-bridge` | `window.__bridge` | yes |
+| `@forge/react`, `@forge/bridge`, `@forge/*-bridge` | `window.__bridge` (see note) | yes |
 | `@forge/resolver` | **none — makes no I/O** | n/a |
+
+**Note on `@forge/bridge`:** two of its paths do not go through `window.__bridge`
+at all and only work headless because `src/ui/bridge.ts` patches the
+corresponding browser globals (measured October 2026, `@forge/bridge` pinned in
+`src/forge-package-versions.ts`):
+
+- `i18n.createTranslationFunction` / `getTranslations` load
+  `./__LOCALES__/i18n-info.json` and `./__LOCALES__/<locale>.json` with a
+  **page-relative global `fetch()`** (`out/i18n/index.js`). No bridge command.
+  Headless, undici rejects the relative URL; the real `I18nProvider` effect
+  rejects and `t()` silently returns keys.
+- `parseRequest` (`out/fetch/fetch.js`) runs every `requestJira` /
+  `requestConfluence` / `requestBitbucket` / `requestRemote` init through
+  `new Request('', init)`. In Node that throws `Invalid URL` **before**
+  `fetchProduct` / `fetchRemote` is ever sent — so the property hooks
+  (`useIssueProperty` et al., built on `requestJira`) fail headless too.
+
+Also measured: `invokeRemote` / `invokeService` are sent on the **`invoke`**
+command with `invokeType: 'ui-remote-fetch'` / `'ui-container-fetch'`
+(`out/invoke-endpoint/invoke-endpoint.js`), not a command of their own;
+`requestRemote` is `fetchRemote` with the path inside `fetchRequestInit`; and
+request headers cross the bridge as `[...headers.entries()]` pairs, not a
+record. Our shim never emits any of these shapes, so they were invisible to
+source-mode tests until `manual-packaging-ui.test.ts` ran the real package.
 
 ### Descriptor shapes observed
 

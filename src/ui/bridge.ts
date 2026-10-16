@@ -4,8 +4,10 @@
  * @forge/react and @forge/bridge communicate via globalThis.__bridge.callBridge().
  * This module sets up that bridge so that:
  *   - "reconcile" → captures the ForgeDoc tree
- *   - "invoke" → routes to sim.invoke() (the real simulated resolvers)
+ *   - "invoke" → routes to sim.invoke() (the real simulated resolvers), or to
+ *     sim.remotes when real @forge/bridge tags it `invokeType: 'ui-remote-fetch'`
  *   - "fetchProduct" → routes to sim.productApi.request()
+ *   - "fetchRemote" → routes to sim.remotes.request()
  *   - "getContext" → returns simulated context
  * 
  * Must be set up BEFORE any @forge/react or @forge/bridge imports.
@@ -201,6 +203,28 @@ async function handleInvoke(data: any): Promise<any> {
   if (!simulator) {
     throw new Error('forge-sim bridge: No simulator connected. Call connectSimulator() first.');
   }
+
+  // Real @forge/bridge multiplexes invokeRemote()/invokeService() onto the
+  // SAME 'invoke' command as resolver calls, distinguished only by
+  // `invokeType: 'ui-remote-fetch' | 'ui-container-fetch'`
+  // (node_modules/@forge/bridge/out/invoke-endpoint/invoke-endpoint.js).
+  // Those payloads carry { path, method, headers, body } and no functionKey,
+  // so treating them as a resolver call lands in the missing-resolver path
+  // and the app's promise hangs forever. The browser bridge (dev-command.ts)
+  // already branches here; this is the headless equivalent. Our own
+  // forge-bridge shim never hits this — it calls sim.remotes directly — so
+  // only PREBUILT bundles (real inlined @forge/bridge) reach it.
+  const remoteInvoke = parseRemoteInvokeType(data?.invokeType);
+  if (remoteInvoke === 'container') {
+    throw new Error(
+      'invokeService is not yet implemented in forge-sim (Container services are ' +
+        'an Atlassian developer preview, tracked as roadmap watch item #19).',
+    );
+  }
+  if (remoteInvoke === 'remote') {
+    return handleInvokeRemote(data);
+  }
+
   const { functionKey, payload } = data;
 
   try {
@@ -233,6 +257,94 @@ async function handleInvoke(data: any): Promise<any> {
   }
 }
 
+/**
+ * Classify real @forge/bridge's `invokeType` marker. Resolver invokes carry
+ * no marker; endpoint invokes carry `ui-<Remote|Container>-fetch`
+ * (lower-cased by the package). Anything else is treated as a resolver call
+ * so a future marker degrades to today's behavior rather than being dropped.
+ */
+function parseRemoteInvokeType(invokeType: unknown): 'remote' | 'container' | null {
+  if (typeof invokeType !== 'string') return null;
+  const m = /^ui-(remote|container)-fetch$/.exec(invokeType);
+  return m ? (m[1] as 'remote' | 'container') : null;
+}
+
+/**
+ * The module the current frontend work belongs to. Same resolution order as
+ * the forge-bridge shim's getCurrentModuleKeyForBridge(): an explicit test
+ * knob wins, then the module most recently rendered headlessly.
+ */
+function activeModuleKey(): string | undefined {
+  return simulator?.currentModuleKey ?? simulator?.ui?.getActiveModule?.() ?? undefined;
+}
+
+/**
+ * invokeRemote() from a prebuilt bundle. Mirrors dev-server.ts's
+ * 'invokeRemote' RPC: resolve the module's manifest endpoint, thread module
+ * key/type through for FIT claims, and return the `{ success, payload,
+ * error }` envelope `_setupInvokeEndpointFn` unwraps.
+ */
+async function handleInvokeRemote(data: any): Promise<any> {
+  const { path, method, headers, body } = data ?? {};
+  const moduleKey = activeModuleKey();
+  const endpointKey = simulator!.resolveModuleEndpoint(moduleKey);
+  const moduleType = moduleKey ? simulator!.getModuleType(moduleKey) : undefined;
+  return simulator!.remotes.invokeFromBridge({
+    path,
+    method,
+    headers: normalizeBridgeHeaders(headers),
+    body,
+    endpointKey,
+    moduleKey,
+    moduleType,
+  });
+}
+
+/**
+ * requestRemote() from a prebuilt bundle — real @forge/bridge sends
+ * `callBridge('fetchRemote', { remoteKey, fetchRequestInit })` with the path
+ * inside fetchRequestInit (node_modules/@forge/bridge/out/fetch/fetch.js).
+ * Response framing is the same shape as fetchProduct.
+ */
+async function handleFetchRemote(data: any): Promise<any> {
+  if (!simulator) {
+    throw new Error('forge-sim bridge: No simulator connected. Call connectSimulator() first.');
+  }
+  const { remoteKey, fetchRequestInit } = data ?? {};
+  const response = await simulator.remotes.request(remoteKey, {
+    path: data?.path ?? fetchRequestInit?.path ?? '/',
+    method: fetchRequestInit?.method,
+    headers: normalizeBridgeHeaders(fetchRequestInit?.headers),
+    body: fetchRequestInit?.body,
+  });
+  return {
+    status: response.status,
+    statusText: response.statusText,
+    body: await response.text(),
+    headers: response.headers,
+    isAttachment: false,
+  };
+}
+
+/**
+ * Real @forge/bridge serializes request headers as `[...headers.entries()]`
+ * — an array of [name, value] pairs — before crossing the bridge. Our
+ * backends take a plain record (spreading an array into one yields numeric
+ * keys), so normalize here. Records and undefined pass through.
+ */
+export function normalizeBridgeHeaders(headers: unknown): Record<string, string> | undefined {
+  if (headers == null) return undefined;
+  if (Array.isArray(headers)) {
+    const out: Record<string, string> = {};
+    for (const pair of headers) {
+      if (Array.isArray(pair) && pair.length >= 2) out[String(pair[0])] = String(pair[1]);
+    }
+    return out;
+  }
+  if (typeof headers === 'object') return headers as Record<string, string>;
+  return undefined;
+}
+
 /** The simulator's "this key isn't registered" error, raised before any app code ran. */
 function isMissingResolverError(err: unknown): boolean {
   const msg = (err as { message?: unknown })?.message;
@@ -256,7 +368,7 @@ async function handleFetchProduct(data: any): Promise<any> {
   const { product, restPath, fetchRequestInit } = data;
   const response = await simulator.productApi.request(product, restPath, {
     method: fetchRequestInit?.method,
-    headers: fetchRequestInit?.headers,
+    headers: normalizeBridgeHeaders(fetchRequestInit?.headers),
     body: fetchRequestInit?.body,
   });
 
@@ -449,6 +561,7 @@ const HANDLERS: Record<string, (data: any) => Promise<any>> = {
   reconcile: handleReconcile,
   invoke: handleInvoke,
   fetchProduct: handleFetchProduct,
+  fetchRemote: handleFetchRemote,
   getContext: handleGetContext,
   createHistory: handleCreateHistory,
   // Cross-module event subscriptions — no-op in headless mode.
@@ -527,6 +640,116 @@ function installDocumentStub(): void {
   };
 }
 
+// ── Headless i18n: page-relative __LOCALES__ fetches ────────────────────
+//
+// Real @forge/bridge's i18n module has NO bridge seam. It loads translations
+// with a page-relative `fetch('./__LOCALES__/i18n-info.json')` and
+// `fetch('./__LOCALES__/<locale>.json')` (node_modules/@forge/bridge/out/
+// i18n/index.js) — static files Forge's build places next to the entry HTML.
+// In a browser that resolves against the document URL; in Node there is no
+// document URL and undici throws `TypeError: Failed to parse URL`. The
+// I18nProvider effect rejects (unhandled) and `t()` silently falls back to
+// returning keys — a headless-only failure that passes untranslated.
+//
+// Our forge-bridge shim never hits this (it reads sim.i18n directly), so this
+// is only reached by PREBUILT bundles with the real package inlined. We are
+// the page here, so answer the two relative shapes from sim.i18n — the same
+// store the shim path uses — and leave every other URL to the real fetch.
+// Absolute URLs never match: the page-relative form is the only one the real
+// package emits and the only one a browser would resolve against the resource.
+
+const I18N_BUNDLE_FOLDER_NAME = '__LOCALES__';
+const I18N_INFO_FILE_NAME = 'i18n-info.json';
+const RELATIVE_LOCALES_RE = new RegExp(`^(?:\\./)?${I18N_BUNDLE_FOLDER_NAME}/([^/?#]+)$`);
+const FETCH_PATCH_MARK = Symbol.for('forge-sim.relative-i18n-fetch');
+
+function requestUrl(input: unknown): string | null {
+  if (typeof input === 'string') return input;
+  if (input instanceof URL) return input.href;
+  if (input && typeof (input as { url?: unknown }).url === 'string') return (input as { url: string }).url;
+  return null;
+}
+
+async function serveLocalesFile(file: string): Promise<Response> {
+  const json = (body: unknown, status = 200) =>
+    new Response(JSON.stringify(body), {
+      status,
+      statusText: status === 200 ? 'OK' : 'Not Found',
+      headers: { 'content-type': 'application/json' },
+    });
+  if (!simulator) return json({ error: 'forge-sim bridge: No simulator connected' }, 404);
+  try {
+    if (file === I18N_INFO_FILE_NAME) {
+      // Real file shape is `{ config: {...} }` — the package reads `.config`.
+      return json({ config: await simulator.i18n.getI18nInfoConfig() });
+    }
+    if (file.endsWith('.json')) {
+      return json(await simulator.i18n.getTranslationResource(file.slice(0, -'.json'.length)));
+    }
+  } catch (err) {
+    // Missing locale → the same 404 a missing static file would produce, so
+    // the real package raises ITS error ("Failed to get translation resource
+    // for locale: xx"), exactly as in a browser.
+    return json({ error: (err as Error).message }, 404);
+  }
+  return json({ error: `Not found: ${I18N_BUNDLE_FOLDER_NAME}/${file}` }, 404);
+}
+
+// ── Headless page base for `new Request('')` ────────────────────────────
+//
+// Real @forge/bridge normalizes every requestJira/requestConfluence/
+// requestBitbucket/requestRemote init through `new Request('', init)` to
+// derive headers and body text (node_modules/@forge/bridge/out/fetch/
+// fetch.js, parseRequest). A browser resolves '' against the document base;
+// undici has no base and throws `TypeError: Invalid URL`, so a prebuilt
+// bundle's first product or remote request dies inside the package before
+// it ever reaches the bridge — and with it every hook built on requestJira
+// (useIssueProperty, useContentProperty, useSpaceProperty). Give relative
+// and empty request URLs the base a browser would: the real document's if
+// one exists, otherwise a synthetic headless origin. Absolute URLs pass
+// through untouched; nothing about the Request is read back as a URL by the
+// package, so the synthetic origin never leaks into app-visible data.
+
+const HEADLESS_PAGE_BASE = 'http://forge-sim.headless/';
+const REQUEST_PATCH_MARK = Symbol.for('forge-sim.relative-request-base');
+const ABSOLUTE_URL_RE = /^[a-z][a-z0-9+.-]*:/i;
+
+function installRelativeRequestBase(): void {
+  const g = globalThis as any;
+  const RealRequest = g.Request;
+  if (typeof RealRequest !== 'function' || RealRequest[REQUEST_PATCH_MARK]) return;
+  const base = () => {
+    const doc = g.document;
+    const docBase = doc && !doc.__forgeSimStub ? doc.baseURI : undefined;
+    return typeof docBase === 'string' && docBase ? docBase : HEADLESS_PAGE_BASE;
+  };
+  class ForgeSimRequest extends RealRequest {
+    constructor(input: unknown, init?: unknown) {
+      if (typeof input === 'string' && !ABSOLUTE_URL_RE.test(input)) {
+        input = new URL(input, base()).href;
+      }
+      super(input as any, init as any);
+    }
+  }
+  (ForgeSimRequest as any)[REQUEST_PATCH_MARK] = true;
+  Object.defineProperty(ForgeSimRequest, 'name', { value: 'Request' });
+  g.Request = ForgeSimRequest;
+}
+
+function installRelativeI18nFetch(): void {
+  const g = globalThis as any;
+  const real = g.fetch;
+  if (typeof real !== 'function' || real[FETCH_PATCH_MARK]) return;
+  const patched = function forgeSimFetch(this: unknown, input: unknown, init?: unknown) {
+    const url = requestUrl(input);
+    const m = url ? RELATIVE_LOCALES_RE.exec(url) : null;
+    if (m) return serveLocalesFile(decodeURIComponent(m[1]));
+    return real.call(this ?? globalThis, input, init);
+  } as any;
+  patched[FETCH_PATCH_MARK] = true;
+  g.fetch = patched;
+}
+
 /**
  * Point the document stub's `currentScript` at the script being evaluated
  * (pass null when evaluation ends — the browser-parity resting state).
@@ -562,6 +785,8 @@ export function installBridge(): void {
   }
   (globalThis as any).window.__bridge = bridge;
   installDocumentStub();
+  installRelativeI18nFetch();
+  installRelativeRequestBase();
 }
 
 /**
