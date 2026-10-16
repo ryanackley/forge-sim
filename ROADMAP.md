@@ -50,6 +50,7 @@ Close the gap between what Forge shipped since July and what the simulator accep
 - `@forge/react` component sync automation (#3).
 - Maintenance: stale-daemon self-detection in the MCP server, runtime-mismatch warning dedupe, `resolver.define` overwrite warning noise on reset+deploy.
 - Watch only: Container services developer preview (#19), User Impersonation RFC-149 (#43), dashboard filters EAP.
+- Validation exception for loopback remote URLs. The upstream `@forge/manifest` validator rejects a `localhost` / `127.0.0.1` remote `baseUrl` once it is referenced from `permissions.external.fetch.backend`, and we run that validator unmodified, so there is no supported way to point a remote at a local server from the manifest. Production parity is right for a real deploy but wrong for the local loop that is this tool's whole purpose: the OAuth e2e had to declare public hostnames and rewrite `baseUrl` on the parsed manifest after validation. Decide the shape (an explicit sim-side allowance for loopback hosts, or a per-remote dev override surfaced in the deploy log) and make sure the deploy advisory still says the manifest would be rejected by real Forge as written.
 
 ### 0.3 Graph and agents (3 to 4 weeks)
 

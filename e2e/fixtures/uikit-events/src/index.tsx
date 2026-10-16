@@ -209,6 +209,27 @@ const TableButtonTest = () => {
   );
 };
 
+// ── Section 7b: DynamicTable edge states (empty rows, isLoading) ────────
+// Ported from the retired renderer/e2e harness so these states are covered
+// through the real @forge/react → bridge → renderer pipeline.
+
+const TableStatesTest = () => {
+  const head = {
+    cells: [
+      { key: 'name', content: 'Name' },
+      { key: 'value', content: 'Value' },
+    ],
+  };
+  return (
+    <Stack>
+      <Heading as="h3">table-empty-test</Heading>
+      <DynamicTable testId="table-empty" head={head} rows={[]} />
+      <Heading as="h3">table-loading-test</Heading>
+      <DynamicTable testId="table-loading" head={head} rows={[]} isLoading />
+    </Stack>
+  );
+};
+
 // ── Section 8: RadioGroup onChange ──────────────────────────────────────
 
 const radioOptions = [
@@ -308,6 +329,7 @@ const App = () => {
       <SelectTest />
       <ToggleTest />
       <TableButtonTest />
+      <TableStatesTest />
       <RadioTest />
       <InlineEditTest />
       <ChromelessEditorTest />

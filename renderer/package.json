@@ -6,9 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview",
-    "test:e2e": "playwright test",
-    "test:e2e:headed": "playwright test --headed"
+    "preview": "vite preview"
   },
   "dependencies": {
     "@atlaskit/app-provider": "^4.1.0",
@@ -65,7 +63,6 @@
     "recharts": "^2.15.4"
   },
   "devDependencies": {
-    "@playwright/test": "^1.58.2",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
