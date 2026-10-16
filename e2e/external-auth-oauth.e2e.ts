@@ -128,10 +128,13 @@ function startMockProvider(): Promise<Server> {
 const MANIFEST = `
 app:
   id: ari:cloud:ecosystem::app/e2e-oauth-test
+  runtime:
+    name: nodejs22.x
 modules:
   jira:issuePanel:
     - key: main
       resource: main
+      icon: https://example.com/icon.svg
       resolver:
         function: resolver
       title: E2E OAuth Test
@@ -143,9 +146,15 @@ resources:
     path: src/frontend/index.tsx
 remotes:
   - key: mock-google-apis
-    baseUrl: http://localhost:${MOCK_PORT}
+    baseUrl: https://mock-googleapis.example.com
   - key: mock-google-auth
-    baseUrl: http://localhost:${MOCK_PORT}
+    baseUrl: https://mock-accounts.example.com
+permissions:
+  external:
+    fetch:
+      backend:
+        - remote: mock-google-apis
+        - remote: mock-google-auth
 providers:
   auth:
     - key: mock-google
@@ -204,7 +213,16 @@ test.describe('External Auth OAuth Flow', () => {
     _resetOAuthCallbackRegistryForTests();
     sim = new ForgeSimulator();
     setSimulator(sim);
-    await sim.loadManifest(MANIFEST);
+    const parsed = await sim.loadManifest(MANIFEST);
+    // The manifest must stay production-shaped: real Forge (and so our
+    // validator) rejects a localhost/127.0.0.1 remote in
+    // permissions.external.fetch.backend, so the declared baseUrls are
+    // public hostnames. Point them at the in-process mock provider now that
+    // validation has passed — remote-proxy reads baseUrl off these same
+    // objects at request time.
+    for (const key of ['mock-google-apis', 'mock-google-auth']) {
+      parsed.remotes.get(key)!.baseUrl = `http://127.0.0.1:${MOCK_PORT}`;
+    }
     sim.externalAuth.setSecret('mock-google', 'mock-client-secret');
   });
 

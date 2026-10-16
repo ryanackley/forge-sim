@@ -10,7 +10,7 @@
  * Run with: npx playwright test custom-field.spec.ts --project=bridge --headed
  */
 
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 import { startForgeSimDev, type DevServerInstance } from './helpers/forge-sim-harness';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -19,6 +19,16 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 
 test.describe('Custom Fields', () => {
   test.describe.configure({ mode: 'serial' });
+
+  // The combined page is ForgeSimModulePage (Atlaskit React) since 664b6bd:
+  // mode tabs are plain <button>s carrying `aria-pressed`, and each mode's
+  // content iframe is identified by `title="<baseKey> (<Label>)"`. There are
+  // no `.cf-tab` classes or `#cf-view` ids any more — match the same
+  // accessibility contract the renderer's own module-page tests assert on.
+  const viewTab = (page: Page) => page.getByRole('button', { name: 'View', exact: true });
+  const editTab = (page: Page) => page.getByRole('button', { name: 'Edit', exact: true });
+  const modeFrame = (page: Page, label: string) =>
+    page.frameLocator(`iframe[title="priority-score (${label})"]`);
 
   let server: DevServerInstance;
 
@@ -50,9 +60,9 @@ test.describe('Custom Fields', () => {
   test('combined page renders with View and Edit tabs', async ({ page }) => {
     await page.goto(`${server.url}/module/priority-score/`);
 
-    await expect(page.locator('.cf-tab[data-mode="view"]')).toBeVisible({ timeout: 10_000 });
-    await expect(page.locator('.cf-tab[data-mode="edit"]')).toBeVisible();
-    await expect(page.locator('.cf-tab[data-mode="view"]')).toHaveClass(/active/);
+    await expect(viewTab(page)).toBeVisible({ timeout: 10_000 });
+    await expect(editTab(page)).toBeVisible();
+    await expect(viewTab(page)).toHaveAttribute('aria-pressed', 'true');
   });
 
   // ── View sub-module ─────────────────────────────────────────────────
@@ -100,39 +110,39 @@ test.describe('Custom Fields', () => {
     test('combined page view iframe renders', async ({ page }) => {
       await page.goto(`${server.url}/module/priority-score/`);
 
-      const viewFrame = page.frameLocator('#cf-view');
+      const viewFrame = modeFrame(page, 'View');
       await expect(viewFrame.getByText('Score:')).toBeVisible({ timeout: 30_000 });
     });
 
     test('combined page edit tab loads and renders', async ({ page }) => {
       await page.goto(`${server.url}/module/priority-score/`);
 
-      const viewFrame = page.frameLocator('#cf-view');
+      const viewFrame = modeFrame(page, 'View');
       await expect(viewFrame.getByText('Score:')).toBeVisible({ timeout: 30_000 });
 
-      await page.locator('.cf-tab[data-mode="edit"]').click();
-      await expect(page.locator('.cf-tab[data-mode="edit"]')).toHaveClass(/active/);
+      await editTab(page).click();
+      await expect(editTab(page)).toHaveAttribute('aria-pressed', 'true');
 
-      const editFrame = page.frameLocator('#cf-edit');
+      const editFrame = modeFrame(page, 'Edit');
       await expect(editFrame.getByText('Edit Score:')).toBeVisible({ timeout: 30_000 });
     });
 
     test('submit from edit switches to view tab', async ({ page }) => {
       await page.goto(`${server.url}/module/priority-score/`);
 
-      const viewFrame = page.frameLocator('#cf-view');
+      const viewFrame = modeFrame(page, 'View');
       await expect(viewFrame.getByText('Score:')).toBeVisible({ timeout: 30_000 });
 
-      await page.locator('.cf-tab[data-mode="edit"]').click();
+      await editTab(page).click();
 
-      const editFrame = page.frameLocator('#cf-edit');
+      const editFrame = modeFrame(page, 'Edit');
       await expect(editFrame.getByText('Edit Score:')).toBeVisible({ timeout: 30_000 });
 
       const textfield = editFrame.getByRole('textbox').first();
       await textfield.fill('42');
       await editFrame.getByRole('button', { name: 'Save' }).click();
 
-      await expect(page.locator('.cf-tab[data-mode="view"]')).toHaveClass(/active/, { timeout: 5_000 });
+      await expect(viewTab(page)).toHaveAttribute('aria-pressed', 'true', { timeout: 5_000 });
     });
   });
 });
