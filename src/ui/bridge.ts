@@ -34,6 +34,7 @@ export interface BridgeCall {
 }
 
 import type { ForgeContext } from '../context.js';
+import { BRIDGE_COMMANDS, bridgeNotImplementedError } from '../bridge-commands.js';
 
 // ── State ───────────────────────────────────────────────────────────────
 
@@ -581,8 +582,18 @@ function callBridge(cmd: string, data?: any): any {
     return handler(data);
   }
 
-  // Unknown commands get a warning but don't crash
-  console.warn(`[forge-sim bridge] Unhandled bridge command: "${cmd}"`);
+  // Headless shares the command REGISTRY with the two browser hosts
+  // (canonical: src/bridge-commands.ts) but not their translation — they
+  // speak WebSocket RPC to the dev server, this one calls sim.* in process.
+  // The registry is still what decides whether an unhandled command is a
+  // deliberate gap, a host gap, or a stale table.
+  const spec = BRIDGE_COMMANDS[cmd];
+  if (spec?.disposition === 'unsupported') throw bridgeNotImplementedError(cmd);
+  console.warn(
+    spec
+      ? `[forge-sim bridge] Bridge command "${cmd}" is declared '${spec.disposition}' but the headless host has no handler for it.`
+      : `[forge-sim bridge] Unknown bridge command: "${cmd}". If @forge/bridge added it, update src/bridge-commands.ts.`,
+  );
   return Promise.resolve(undefined);
 }
 

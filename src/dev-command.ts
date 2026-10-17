@@ -33,6 +33,7 @@ import { startTypeCheckWatch, type TypeCheckWatcher } from './type-checker.js';
 import { RAW_HTML_TAG_LIST } from './ui/html-elements.js';
 import { contentTypeFor } from './mime.js';
 import { materializeRenderer } from './renderer-deps.js';
+import { BRIDGE_COMMANDS, translateBridgeCommand, bridgeNotImplementedError } from './bridge-commands.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -584,8 +585,31 @@ boot().catch((err) => {
  * so @forge/bridge's getCallBridge() finds our bridge immediately.
  */
 export function generateBridgeInlineScript(wsPort: number, defaultModuleKey?: string): string {
+  // The frame→RPC translation and the command registry are EMBEDDED from the
+  // canonical table (src/bridge-commands.ts) rather than re-implemented here.
+  // This script is a plain string injected inline ahead of all app code, so it
+  // cannot import anything — but it can carry the real function's source.
+  // `translateBridgeCommand` is written to be self-contained for exactly this
+  // reason; src/__tests__/bridge-command-parity.test.ts evaluates this
+  // stringified copy and compares it against the canonical one, so a stray
+  // module reference fails CI instead of breaking Custom UI at runtime.
+  const translatorSource = translateBridgeCommand.toString();
+  const registryJson = JSON.stringify(
+    Object.fromEntries(Object.entries(BRIDGE_COMMANDS).map(([k, v]) => [k, v.disposition])),
+  );
+  const notImplementedJson = JSON.stringify(
+    Object.fromEntries(
+      Object.entries(BRIDGE_COMMANDS)
+        .filter(([, v]) => v.disposition === 'unsupported')
+        .map(([k]) => [k, bridgeNotImplementedError(k).message]),
+    ),
+  );
   return `
 (function() {
+  // ── Shared bridge command table (generated from src/bridge-commands.ts) ──
+  var BRIDGE_DISPOSITIONS = ${registryJson};
+  var BRIDGE_NOT_IMPLEMENTED = ${notImplementedJson};
+  var translateBridgeCommand = ${translatorSource};
   var S = {
     ws: null, wsReady: false, wsUrl: 'ws://localhost:${wsPort}',
     pendingRequests: {}, requestCounter: 0, reconcileListeners: [], lastForgeDoc: null,
@@ -804,33 +828,6 @@ export function generateBridgeInlineScript(wsPort: number, defaultModuleKey?: st
           S.reconcileListeners.forEach(function(l) { try { l(doc); } catch(e) { console.warn('[forge-sim] Reconcile listener error:', e); } });
         }
         return Promise.resolve();
-      case 'invoke':
-        if (data && data.invokeType && data.invokeType.startsWith('ui-') && data.invokeType.endsWith('-fetch')) {
-          return rpc('invokeRemote', {
-            path: data.path,
-            method: data.method,
-            headers: data.headers,
-            body: data.body,
-            moduleKey: getModuleKeyFromURL()
-          });
-        }
-        return rpc('invoke', { functionKey: data && data.functionKey, payload: data && data.payload, moduleKey: getModuleKeyFromURL() });
-      case 'fetchProduct':
-        return rpc('fetchProduct', {
-          product: data && data.product, restPath: data && data.restPath,
-          fetchRequestInit: data && data.fetchRequestInit
-        });
-      case 'fetchRemote':
-        return rpc('fetchRemote', {
-          remoteKey: data && data.remoteKey,
-          fetchRequestInit: data && data.fetchRequestInit
-        });
-      case 'getContext':
-        return rpc('getContext', { moduleKey: getModuleKeyFromURL() });
-      case 'submit':
-        return rpc('viewSubmit', { payload: data && data.payload || data, moduleKey: getModuleKeyFromURL() });
-      case 'close':
-        return rpc('viewClose', { payload: data && data.payload || data });
       case 'createHistory':
         return Promise.resolve((function() {
           var listeners = [];
@@ -971,9 +968,29 @@ export function generateBridgeInlineScript(wsPort: number, defaultModuleKey?: st
       case 'enableTheming':
         return Promise.resolve();
       default:
-        console.warn('[forge-sim bridge] Unhandled command: ' + cmd);
-        return Promise.resolve();
+        break;
     }
+
+    // Shared table, embedded above from src/bridge-commands.ts — the same
+    // translation the served dev shim runs, so Custom UI and UI Kit cannot
+    // drift apart on what the seam accepts.
+    var call = translateBridgeCommand(cmd, data, {
+      moduleKey: getModuleKeyFromURL(),
+      contextOptions: undefined,
+      submitTree: undefined
+    });
+    if (call) return rpc(call.method, call.params);
+
+    var disposition = BRIDGE_DISPOSITIONS[cmd];
+    if (disposition === 'unsupported') {
+      return Promise.reject(new Error(BRIDGE_NOT_IMPLEMENTED[cmd]));
+    }
+    console.warn(
+      disposition
+        ? '[forge-sim bridge] Bridge command ' + cmd + ' is declared ' + disposition + ' but this host has no handler for it.'
+        : '[forge-sim bridge] Unknown bridge command: ' + cmd + '. If @forge/bridge added it, update src/bridge-commands.ts.'
+    );
+    return Promise.resolve();
   }
 
   window.__bridge = { callBridge: callBridge };

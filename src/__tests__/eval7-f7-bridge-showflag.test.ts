@@ -150,7 +150,9 @@ describe('eval-7 F7 — showFlag / closeFlag in the inline Custom UI bridge', ()
   it('truly unknown commands still hit the unhandled warning (dispatch sanity)', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     await callBridge('definitelyNotACommand');
-    expect(warn).toHaveBeenCalledWith(expect.stringContaining('Unhandled command: definitelyNotACommand'));
+    // A command absent from the shared table (src/bridge-commands.ts) means
+    // either a typo or an @forge/bridge bump; the warning says which to check.
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('Unknown bridge command: definitelyNotACommand'));
     warn.mockRestore();
   });
 });

@@ -12,6 +12,11 @@
  */
 
 import { globalChannelKey, channelKeyFor, invalidContextOverrides, validateRealtimeToken, parseRealtimeToken } from './channel-key.js';
+import {
+  BRIDGE_COMMANDS,
+  translateBridgeCommand,
+  bridgeNotImplementedError,
+} from './bridge-commands';
 
 // ── Shared State (survives Vite module duplication) ────────────────────
 //
@@ -421,93 +426,23 @@ async function callBridge(cmd: string, data?: any): Promise<any> {
       }
       return;
 
-    case 'invoke':
-      // Endpoint invocations: invokeRemote → 'ui-remote-fetch', invokeService → 'ui-container-fetch'
-      if (data?.invokeType?.startsWith('ui-') && data.invokeType.endsWith('-fetch')) {
-        return rpc('invokeRemote', {
-          path: data.path,
-          method: data.method,
-          headers: data.headers,
-          body: data.body,
-          moduleKey: getModuleKeyFromURL(),
-        });
-      }
-      // Route to forge-sim backend. contextOptions rides along so the
-      // dev server builds the resolver's req.context from the SAME
-      // placement data the frontend's getContext sees — real Forge
-      // delivers matching context.extension to both sides.
-      return rpc('invoke', {
-        functionKey: data?.functionKey,
-        payload: data?.payload,
-        moduleKey: getModuleKeyFromURL(),
-        contextOptions: getContextFromURL(),
-      });
-
-    case 'fetchProduct':
-      // Route to forge-sim backend
-      return rpc('fetchProduct', {
-        product: data?.product,
-        restPath: data?.restPath,
-        fetchRequestInit: data?.fetchRequestInit,
-      });
-
-    case 'fetchRemote':
-      // Real @forge/bridge's requestRemote() (inlined in a PREBUILT bundle —
-      // our own requestRemote above calls rpc directly) sends
-      // callBridge('fetchRemote', { remoteKey, fetchRequestInit }) with the
-      // path inside fetchRequestInit (@forge/bridge out/fetch/fetch.js). The
-      // dev-server RPC already accepts both shapes; this dispatch was the
-      // missing link — without it the package destructures `undefined` and
-      // the app's promise rejects. Caught by e2e/manual-packaging.spec.ts.
-      return rpc('fetchRemote', {
-        remoteKey: data?.remoteKey,
-        path: data?.path,
-        fetchRequestInit: data?.fetchRequestInit,
-      });
-
-    case 'getContext':
-      return rpc('getContext', {
-        moduleKey: getModuleKeyFromURL(),
-        contextOptions: getContextFromURL(),
-      });
-
-    case 'publishRealtimeChannel': {
-      // Real frame: { channelName, eventPayload, options, isGlobal? }
-      // (out/realtime/realtime.js). Scoped publishes carry the iframe's own
-      // placement context so publish and subscribe derive the same channel
-      // identity.
-      const isGlobal = !!data?.isGlobal;
-      return rpc('realtimePublish', {
-        channel: data?.channelName,
-        payload: data?.eventPayload,
-        global: isGlobal,
-        options: data?.options,
-        ...(isGlobal ? {} : { moduleKey: getModuleKeyFromURL(), contextOptions: getContextFromURL() }),
-      });
-    }
-
     case 'openModal':
       return openModalOverlay(data);
 
     case 'submit':
+      // Inside a modal the host, not the dev server, owns the result.
       if (isInModal()) {
         window.parent.postMessage({ type: 'forge-sim-modal-submit', payload: data?.payload ?? data }, '*');
         return;
       }
-      return rpc('viewSubmit', {
-        payload: data?.payload ?? data,
-        moduleKey: getModuleKeyFromURL(),
-        // Tag the submit so the dev-server knows whether this came from the
-        // main view tree or the inline macro config tree.
-        submitTree: G.__forgeSim.activeSubmitTree,
-      });
+      break;
 
     case 'close':
       if (isInModal()) {
         window.parent.postMessage({ type: 'forge-sim-modal-close', payload: data?.payload ?? data }, '*');
         return;
       }
-      return rpc('viewClose', { payload: data?.payload ?? data });
+      break;
 
     case 'onClose': {
       const S = G.__forgeSim;
@@ -525,9 +460,29 @@ async function callBridge(cmd: string, data?: any): Promise<any> {
       return;
 
     default:
-      console.warn(`[forge-bridge-shim] Unhandled bridge command: "${cmd}"`);
-      return;
+      break;
   }
+
+  // Shared table (canonical: src/bridge-commands.ts). Everything with
+  // disposition 'rpc' is translated here, so this host and the injected
+  // Custom UI bridge cannot drift apart.
+  const call = translateBridgeCommand(cmd, data, {
+    moduleKey: getModuleKeyFromURL(),
+    contextOptions: getContextFromURL(),
+    submitTree: G.__forgeSim.activeSubmitTree,
+  });
+  if (call) return rpc(call.method, call.params);
+
+  const spec = BRIDGE_COMMANDS[cmd];
+  if (spec?.disposition === 'unsupported') throw bridgeNotImplementedError(cmd);
+  // A known 'local' command with no case above is a gap in THIS host; an
+  // unknown command means the table is behind the installed @forge/bridge.
+  console.warn(
+    spec
+      ? `[forge-bridge-shim] Bridge command "${cmd}" is declared '${spec.disposition}' but this host has no handler for it.`
+      : `[forge-bridge-shim] Unknown bridge command: "${cmd}". If @forge/bridge added it, update src/bridge-commands.ts.`,
+  );
+  return;
 }
 
 // ── Install on globalThis ───────────────────────────────────────────────
