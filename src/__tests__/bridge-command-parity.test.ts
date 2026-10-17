@@ -1,19 +1,21 @@
 /**
- * The bridge seam has one command table (src/bridge-commands.ts) and three
- * hosts answering it. This suite is what keeps them from drifting:
+ * Browser-side bridge table checks, kept while the two browser hosts still
+ * run on src/bridge-commands.ts. The protocol (src/bridge/protocol) is now
+ * canonical and tested in bridge-protocol.test.ts; until the browser host is
+ * rebuilt on it, this suite:
  *
- *  1. The table covers every command the INSTALLED @forge/bridge and
- *     @forge/react can actually send — derived from their source, not from
- *     memory, so a version bump that adds a command fails here.
- *  2. The renderer mirror is byte-identical below its header.
- *  3. The translator survives `.toString()` embedding into the Custom UI
- *     inline script (no module references), and the embedded copy produces
- *     identical RPC calls to the canonical one.
- *  4. Each host handles, or deliberately declines, every command — no
- *     command is answered by one host and silently `undefined` from another.
+ *  1. keeps the renderer mirror byte-identical to src/bridge-commands.ts,
+ *  2. proves translateBridgeCommand survives `.toString()` embedding into the
+ *     Custom UI inline script (no module references) and that script parses,
+ *  3. asserts the legacy browser registry names EXACTLY the protocol's
+ *     commands, so the two cannot drift while both exist.
+ *
+ * TODO(bridge-consolidation): delete this file, src/bridge-commands.ts and
+ * renderer/src/bridge/bridge-commands.ts when the browser host is served
+ * from dist/bridge.js.
  */
 import { describe, it, expect } from 'vitest';
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import {
   BRIDGE_COMMANDS,
@@ -24,47 +26,18 @@ import {
 
 const REPO_ROOT = resolve(import.meta.dirname, '..', '..');
 
-// ── 1. Table vs the real packages ──────────────────────────────────────
+// ── 1. Legacy browser registry == protocol registry ────────────────────
 
-/** Every `callBridge('x', ...)` literal in a package's shipped JS. */
-function commandsEmittedBy(pkgOutDir: string): Set<string> {
-  const found = new Set<string>();
-  const walk = (dir: string) => {
-    for (const entry of readdirSync(dir)) {
-      const full = join(dir, entry);
-      if (statSync(full).isDirectory()) { walk(full); continue; }
-      if (!entry.endsWith('.js')) continue;
-      const src = readFileSync(full, 'utf8');
-      for (const m of src.matchAll(/callBridge\)?\(\s*['"]([A-Za-z][A-Za-z0-9]*)['"]/g)) {
-        found.add(m[1]);
-      }
-    }
-  };
-  walk(pkgOutDir);
-  return found;
-}
+import { BRIDGE_COMMANDS as PROTOCOL_COMMANDS } from '../bridge/protocol/index.js';
 
-describe('bridge command table vs the installed @forge packages', () => {
-  it('covers every command real @forge/bridge can send', () => {
-    const emitted = commandsEmittedBy(join(REPO_ROOT, 'node_modules/@forge/bridge/out'));
-    expect(emitted.size).toBeGreaterThan(20); // sanity: we actually scanned it
-    const missing = [...emitted].filter((c) => !(c in BRIDGE_COMMANDS)).sort();
-    expect(missing, `@forge/bridge sends these but src/bridge-commands.ts does not list them`).toEqual([]);
+describe('legacy browser registry mirrors the protocol registry', () => {
+  it('names exactly the same commands', () => {
+    expect(Object.keys(BRIDGE_COMMANDS).sort()).toEqual(Object.keys(PROTOCOL_COMMANDS).sort());
   });
-
-  it('covers every command @forge/react can send', () => {
-    const emitted = commandsEmittedBy(join(REPO_ROOT, 'node_modules/@forge/react/out'));
-    const missing = [...emitted].filter((c) => !(c in BRIDGE_COMMANDS)).sort();
-    expect(missing).toEqual([]);
-  });
-
-  it('lists no command the packages never send (no dead entries)', () => {
-    const emitted = new Set([
-      ...commandsEmittedBy(join(REPO_ROOT, 'node_modules/@forge/bridge/out')),
-      ...commandsEmittedBy(join(REPO_ROOT, 'node_modules/@forge/react/out')),
-    ]);
-    const dead = Object.keys(BRIDGE_COMMANDS).filter((c) => !emitted.has(c)).sort();
-    expect(dead, 'entries in the table that no installed @forge package emits').toEqual([]);
+  it('agrees on which commands are unsupported', () => {
+    const legacy = Object.entries(BRIDGE_COMMANDS).filter(([, v]) => v.disposition === 'unsupported').map(([k]) => k).sort();
+    const proto = Object.entries(PROTOCOL_COMMANDS).filter(([, v]) => v.unsupported !== undefined).map(([k]) => k).sort();
+    expect(legacy).toEqual(proto);
   });
 });
 
@@ -159,50 +132,41 @@ describe('host coverage', () => {
     }
   });
 
-  it('documents, per local command, which hosts implement it', () => {
-    // Local commands are DOM/state work, so each host implements what its
-    // environment supports. This test does not demand uniformity — it records
-    // the split, so a change to any host shows up as a diff here rather than
-    // as a silent behaviour gap in one surface.
+  it('documents, per local command, which BROWSER host implements it', () => {
+    // Headless is no longer in this table: it implements the typed BridgeHost
+    // interface, so a missing method is a compile error, not a snapshot diff.
     const shim = casesIn('renderer/src/bridge/forge-bridge-shim.ts', 'async function callBridge(', '\n// ──');
     const inline = casesIn('src/dev-command.ts', 'function callBridge(cmd, data) {', 'window.__bridge = {');
-    const headlessSrc = readFileSync(join(REPO_ROOT, 'src/ui/bridge.ts'), 'utf8');
-    const handlersStart = headlessSrc.indexOf('const HANDLERS');
-    const handlersEnd = headlessSrc.indexOf('\n};', handlersStart);
-    expect(handlersStart, 'HANDLERS map not found in src/ui/bridge.ts').toBeGreaterThan(-1);
-    const headless = new Set(
-      [...headlessSrc.slice(handlersStart, handlersEnd).matchAll(/^\s{2}([A-Za-z][A-Za-z0-9]*):/gm)].map((m) => m[1]),
-    );
     const coverage = Object.fromEntries(
-      LOCAL_COMMANDS.map((c) => [c, [shim.has(c) && 'shim', inline.has(c) && 'inline', headless.has(c) && 'headless'].filter(Boolean).join(',') || 'NONE']),
+      LOCAL_COMMANDS.map((c) => [c, [shim.has(c) && 'shim', inline.has(c) && 'inline'].filter(Boolean).join(',') || 'NONE']),
     );
     expect(coverage).toMatchInlineSnapshot(`
       {
-        "changeWindowTitle": "shim,inline,headless",
-        "closeFlag": "shim,inline,headless",
-        "createHistory": "shim,inline,headless",
-        "emit": "shim,inline,headless",
-        "emitFrontendCustomMetric": "shim,inline,headless",
-        "emitPublic": "shim,inline,headless",
-        "emitReadyEvent": "shim,inline,headless",
-        "enableTheming": "shim,inline,headless",
-        "getFrameId": "shim,inline,headless",
-        "getUrl": "shim,inline,headless",
-        "initFeatureFlags": "shim,inline,headless",
-        "isRovoEnabled": "shim,inline,headless",
-        "navigate": "shim,inline,headless",
-        "on": "shim,inline,headless",
-        "onClose": "shim,headless",
-        "onError": "shim,headless",
-        "onPublic": "shim,inline,headless",
-        "open": "shim,inline,headless",
-        "openModal": "shim,headless",
-        "reconcile": "shim,inline,headless",
-        "refresh": "shim,inline,headless",
-        "reload": "shim,inline,headless",
-        "showFlag": "shim,inline,headless",
-        "subscribeRealtimeChannel": "shim,inline,headless",
-        "trackObjectStoreAction": "shim,headless",
+        "changeWindowTitle": "shim,inline",
+        "closeFlag": "shim,inline",
+        "createHistory": "shim,inline",
+        "emit": "shim,inline",
+        "emitFrontendCustomMetric": "shim,inline",
+        "emitPublic": "shim,inline",
+        "emitReadyEvent": "shim,inline",
+        "enableTheming": "shim,inline",
+        "getFrameId": "shim,inline",
+        "getUrl": "shim,inline",
+        "initFeatureFlags": "shim,inline",
+        "isRovoEnabled": "shim,inline",
+        "navigate": "shim,inline",
+        "on": "shim,inline",
+        "onClose": "shim",
+        "onError": "shim",
+        "onPublic": "shim,inline",
+        "open": "shim,inline",
+        "openModal": "shim",
+        "reconcile": "shim,inline",
+        "refresh": "shim,inline",
+        "reload": "shim,inline",
+        "showFlag": "shim,inline",
+        "subscribeRealtimeChannel": "shim,inline",
+        "trackObjectStoreAction": "shim",
       }
     `);
   });

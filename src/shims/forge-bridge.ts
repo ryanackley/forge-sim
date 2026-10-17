@@ -178,7 +178,7 @@ const viewEventStore = ((globalThis as any).__forgeSimViewEvents ??= {
   listeners: [] as ViewEventListener[],
 }) as { listeners: ViewEventListener[] };
 
-function emitViewEvent(event: ViewEventType, payload: any): void {
+export function emitViewEvent(event: ViewEventType, payload: any): void {
   for (const fn of viewEventStore.listeners) {
     try { fn(event, payload); } catch {}
   }

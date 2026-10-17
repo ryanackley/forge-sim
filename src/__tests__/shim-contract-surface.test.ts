@@ -59,6 +59,7 @@ const SIM_ONLY_EXPORTS: Record<string, Record<string, string>> = {
     BridgeAPIError:
       'Matches the error class real @forge/bridge throws; upstream does not export it but apps catch it by behavior, and the sim exporting it aids tests',
     createMemoryHistory: 'Sim-internal router history factory used by view.createHistory()',
+    emitViewEvent: 'Sim-only: emits the view-event stream (see onViewEvent). Called by the headless BridgeHost in src/bridge/hosts/headless.ts so a bundle running the REAL @forge/bridge is observable via sim.ui.onSubmit like a source-mode app',
     onViewEvent: 'Sim-only test hook for observing view events',
     resetViewEvents: 'Sim-only test hook (see onViewEvent)',
   },

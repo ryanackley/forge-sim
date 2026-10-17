@@ -63,7 +63,8 @@
     "forge-sim-daemon": "./dist/daemon.js"
   },
   "scripts": {
-    "build": "tsc && chmod +x dist/cli.js dist/mcp-server.js dist/daemon.js",
+    "build": "npm run check:bridge-protocol && tsc && chmod +x dist/cli.js dist/mcp-server.js dist/daemon.js",
+    "check:bridge-protocol": "tsc -p tsconfig.bridge-protocol.json",
     "prepare": "npm run build",
     "test": "vitest run",
     "test:watch": "vitest",

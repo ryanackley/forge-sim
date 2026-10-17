@@ -1,0 +1,16 @@
+{
+  "//": "Type gate for src/bridge/protocol: no DOM, no Node. Any reference to window, document, process, or an import outside the subtree fails here. Emit is done by the root tsconfig; this one only checks.",
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "Node16",
+    "moduleResolution": "Node16",
+    "lib": ["ES2022"],
+    "types": [],
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "isolatedModules": true
+  },
+  "include": ["src/bridge/protocol"]
+}

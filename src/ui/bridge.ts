@@ -1,21 +1,29 @@
 /**
- * Forge Bridge — connects @forge/react's reconciler to the ForgeSimulator.
+ * Forge Bridge — the HEADLESS host of `window.__bridge`.
  *
- * @forge/react and @forge/bridge communicate via globalThis.__bridge.callBridge().
- * This module sets up that bridge so that:
- *   - "reconcile" → captures the ForgeDoc tree
- *   - "invoke" → routes to sim.invoke() (the real simulated resolvers), or to
- *     sim.remotes when real @forge/bridge tags it `invokeType: 'ui-remote-fetch'`
- *   - "fetchProduct" → routes to sim.productApi.request()
- *   - "fetchRemote" → routes to sim.remotes.request()
- *   - "getContext" → returns simulated context
- * 
+ * @forge/react and @forge/bridge talk to the host through
+ * globalThis.__bridge.callBridge(). The protocol — which commands exist, what
+ * each frame looks like, which typed BridgeHost method answers it — lives in
+ * src/bridge/protocol. The headless host that answers against a
+ * ForgeSimulator in process lives in src/bridge/hosts/headless.ts.
+ *
+ * This module owns what is specific to the render lifecycle and the test API:
+ * ForgeDoc capture and waiters, raw-HTML rejection (UIK-003), the forge
+ * context, in-memory / WS-proxied history, the N9 replay workaround, and the
+ * Node-vs-browser shims a prebuilt bundle needs (document stub, relative
+ * Request base, page-relative __LOCALES__ fetch).
+ *
  * Must be set up BEFORE any @forge/react or @forge/bridge imports.
  */
 
 import type { ForgeSimulator } from '../simulator.js';
 import { isRawHtmlType } from './html-elements.js';
 import { warnOnForgeReactMajorMismatch } from '../forge-package-versions.js';
+import { createBridgeDispatcher, normalizeBridgeHeaders } from '../bridge/protocol/index.js';
+import { createHeadlessHost, type HeadlessHost } from '../bridge/hosts/headless.js';
+
+// Re-exported for dev-server.ts, which normalizes the same frames over RPC.
+export { normalizeBridgeHeaders };
 
 // ── Types ───────────────────────────────────────────────────────────────
 
@@ -34,7 +42,6 @@ export interface BridgeCall {
 }
 
 import type { ForgeContext } from '../context.js';
-import { BRIDGE_COMMANDS, bridgeNotImplementedError } from '../bridge-commands.js';
 
 // ── State ───────────────────────────────────────────────────────────────
 
@@ -129,17 +136,16 @@ function collectRawHtmlTypes(doc: ForgeDoc, found: Set<string> = new Set()): Set
 
 // ── Bridge command handlers ─────────────────────────────────────────────
 
-async function handleReconcile(data: any): Promise<void> {
-  if (!data?.forgeDoc) return;
-
+async function handleReconcile(forgeDoc: ForgeDoc, kind: 'view' | 'macroConfig'): Promise<void> {
   // Manual-packaged bundles ship their own @forge/react; the payload is the
   // only place its version is visible. One-time warning per mismatched major.
   // Statically imported: an `await import()` here suspends the handler
   // mid-capture and reorders waiter resolution against a fast follow-up
   // reconcile (broke the render-race tests).
-  warnOnForgeReactMajorMismatch(data.forgeDoc.forgeReactMajorVersion);
+  warnOnForgeReactMajorMismatch(forgeDoc.forgeReactMajorVersion);
 
-  const isMacroConfig = data.forgeDoc.type === 'MacroConfig';
+  const isMacroConfig = kind === 'macroConfig';
+  const data = { forgeDoc };
 
   // Parity (UIK-003): HARD FAIL on raw HTML host elements. The doc is not
   // published — pending waiters reject, and the error is recorded so
@@ -194,208 +200,6 @@ async function handleReconcile(data: any): Promise<void> {
   }
 }
 
-async function handleInvoke(data: any): Promise<any> {
-  // After teardown, reject stale invoke calls from unmounted React effects.
-  // This prevents the app code from trying to use the result, and React
-  // swallows errors from unmounted component effects.
-  if (tornDown) {
-    return new Promise(() => {}); // Hang forever — effect is stale, nobody's listening
-  }
-  if (!simulator) {
-    throw new Error('forge-sim bridge: No simulator connected. Call connectSimulator() first.');
-  }
-
-  // Real @forge/bridge multiplexes invokeRemote()/invokeService() onto the
-  // SAME 'invoke' command as resolver calls, distinguished only by
-  // `invokeType: 'ui-remote-fetch' | 'ui-container-fetch'`
-  // (node_modules/@forge/bridge/out/invoke-endpoint/invoke-endpoint.js).
-  // Those payloads carry { path, method, headers, body } and no functionKey,
-  // so treating them as a resolver call lands in the missing-resolver path
-  // and the app's promise hangs forever. The browser bridge (dev-command.ts)
-  // already branches here; this is the headless equivalent. Our own
-  // forge-bridge shim never hits this — it calls sim.remotes directly — so
-  // only PREBUILT bundles (real inlined @forge/bridge) reach it.
-  const remoteInvoke = parseRemoteInvokeType(data?.invokeType);
-  if (remoteInvoke === 'container') {
-    throw new Error(
-      'invokeService is not yet implemented in forge-sim (Container services are ' +
-        'an Atlassian developer preview, tracked as roadmap watch item #19).',
-    );
-  }
-  if (remoteInvoke === 'remote') {
-    return handleInvokeRemote(data);
-  }
-
-  const { functionKey, payload } = data;
-
-  try {
-    return await simulator.invoke(functionKey, payload);
-  } catch (err: any) {
-    // A resolver that does not exist is a SIM/DEPLOY configuration failure,
-    // not something the app can meaningfully handle — and app code almost
-    // never guards it (`invoke(...).then(setState)` is the canonical shape).
-    // Rejecting here becomes an unhandled rejection in the app's effect,
-    // which in Node takes down the whole test runner: every test reports
-    // "passed" and the process still exits 1, with the blame attached to
-    // whichever test happened to run last.
-    //
-    // In a real browser that same rejection logs to the console and the UI
-    // simply stays on its loading state — the page keeps running. So we
-    // reproduce the browser: record the error (waitForContent surfaces it
-    // as an actionable hint) and leave the app's promise pending.
-    //
-    // Errors THROWN BY a resolver that does exist still reject normally —
-    // apps do catch those, and swallowing them would break real error-state
-    // UIs and hide genuine bugs.
-    if (isMissingResolverError(err)) {
-      latestMissingResolverError = err instanceof Error ? err : new Error(String(err));
-      console.error(
-        `[forge-sim] UI invoke("${functionKey}") failed: ${latestMissingResolverError.message}`,
-      );
-      return new Promise(() => {}); // stays pending, like the browser's dangling fetch
-    }
-    throw err;
-  }
-}
-
-/**
- * Classify real @forge/bridge's `invokeType` marker. Resolver invokes carry
- * no marker; endpoint invokes carry `ui-<Remote|Container>-fetch`
- * (lower-cased by the package). Anything else is treated as a resolver call
- * so a future marker degrades to today's behavior rather than being dropped.
- */
-function parseRemoteInvokeType(invokeType: unknown): 'remote' | 'container' | null {
-  if (typeof invokeType !== 'string') return null;
-  const m = /^ui-(remote|container)-fetch$/.exec(invokeType);
-  return m ? (m[1] as 'remote' | 'container') : null;
-}
-
-/**
- * The module the current frontend work belongs to. Same resolution order as
- * the forge-bridge shim's getCurrentModuleKeyForBridge(): an explicit test
- * knob wins, then the module most recently rendered headlessly.
- */
-function activeModuleKey(): string | undefined {
-  return simulator?.currentModuleKey ?? simulator?.ui?.getActiveModule?.() ?? undefined;
-}
-
-/**
- * invokeRemote() from a prebuilt bundle. Mirrors dev-server.ts's
- * 'invokeRemote' RPC: resolve the module's manifest endpoint, thread module
- * key/type through for FIT claims, and return the `{ success, payload,
- * error }` envelope `_setupInvokeEndpointFn` unwraps.
- */
-async function handleInvokeRemote(data: any): Promise<any> {
-  const { path, method, headers, body } = data ?? {};
-  const moduleKey = activeModuleKey();
-  const endpointKey = simulator!.resolveModuleEndpoint(moduleKey);
-  const moduleType = moduleKey ? simulator!.getModuleType(moduleKey) : undefined;
-  return simulator!.remotes.invokeFromBridge({
-    path,
-    method,
-    headers: normalizeBridgeHeaders(headers),
-    body,
-    endpointKey,
-    moduleKey,
-    moduleType,
-  });
-}
-
-/**
- * requestRemote() from a prebuilt bundle — real @forge/bridge sends
- * `callBridge('fetchRemote', { remoteKey, fetchRequestInit })` with the path
- * inside fetchRequestInit (node_modules/@forge/bridge/out/fetch/fetch.js).
- * Response framing is the same shape as fetchProduct.
- */
-async function handleFetchRemote(data: any): Promise<any> {
-  if (!simulator) {
-    throw new Error('forge-sim bridge: No simulator connected. Call connectSimulator() first.');
-  }
-  const { remoteKey, fetchRequestInit } = data ?? {};
-  const response = await simulator.remotes.request(remoteKey, {
-    path: data?.path ?? fetchRequestInit?.path ?? '/',
-    method: fetchRequestInit?.method,
-    headers: normalizeBridgeHeaders(fetchRequestInit?.headers),
-    body: fetchRequestInit?.body,
-  });
-  return {
-    status: response.status,
-    statusText: response.statusText,
-    body: await response.text(),
-    headers: response.headers,
-    isAttachment: false,
-  };
-}
-
-/**
- * Real @forge/bridge serializes request headers as `[...headers.entries()]`
- * — an array of [name, value] pairs — before crossing the bridge. Our
- * backends take a plain record (spreading an array into one yields numeric
- * keys), so normalize here. Records and undefined pass through.
- */
-export function normalizeBridgeHeaders(headers: unknown): Record<string, string> | undefined {
-  if (headers == null) return undefined;
-  if (Array.isArray(headers)) {
-    const out: Record<string, string> = {};
-    for (const pair of headers) {
-      if (Array.isArray(pair) && pair.length >= 2) out[String(pair[0])] = String(pair[1]);
-    }
-    return out;
-  }
-  if (typeof headers === 'object') return headers as Record<string, string>;
-  return undefined;
-}
-
-/**
- * events.emit / emitPublic headless. There is no sibling frame to relay to,
- * but same-frame subscribers registered through `on`/`onPublic` are real, so
- * dispatch to them.
- */
-async function handleEventEmit(data: any): Promise<void> {
-  const event = data?.event;
-  const subs = headlessEventListeners.get(event);
-  if (subs) {
-    for (const cb of subs) {
-      try { await cb(data?.payload); } catch (err) {
-        console.error('[forge-sim bridge] Event handler error:', err);
-      }
-    }
-  }
-}
-
-/**
- * realtime.subscribe headless. Routes to the simulator's realtime store, so
- * a backend `realtime.publish()` reaches a UI subscriber in the same test.
- */
-async function handleRealtimeSubscribe(data: any): Promise<{ unsubscribe: () => void }> {
-  if (!simulator) {
-    throw new Error('forge-sim bridge: No simulator connected. Call connectSimulator() first.');
-  }
-  const channel = data?.channelName;
-  const onEvent = data?.onEvent;
-  // sim.realtime.subscribe/subscribeGlobal ARE the bridge-side API (they
-  // throw on a bad channel/token exactly as the docs require, which surfaces
-  // as the rejected Promise the app sees).
-  if (data?.isGlobal) {
-    return simulator.realtime.subscribeGlobal(channel, onEvent, data?.options);
-  }
-  // Same placement data view.getContext() reports, so a UI subscribe and a
-  // backend publish derive the same scoped channel key.
-  return simulator.realtime.subscribe(
-    channel,
-    onEvent,
-    activeModuleKey() ?? null,
-    data?.options,
-    currentForgeContext?.extension ?? null,
-  );
-}
-
-/** The simulator's "this key isn't registered" error, raised before any app code ran. */
-function isMissingResolverError(err: unknown): boolean {
-  const msg = (err as { message?: unknown })?.message;
-  return typeof msg === 'string' && /^No resolver defined for "/.test(msg);
-}
-
 /**
  * Consume the most recent missing-resolver invoke failure, if any.
  * Returns it once and clears it.
@@ -404,65 +208,6 @@ export function consumeMissingResolverError(): Error | null {
   const err = latestMissingResolverError;
   latestMissingResolverError = null;
   return err;
-}
-
-async function handleFetchProduct(data: any): Promise<any> {
-  if (!simulator) {
-    throw new Error('forge-sim bridge: No simulator connected. Call connectSimulator() first.');
-  }
-  const { product, restPath, fetchRequestInit } = data;
-  const response = await simulator.productApi.request(product, restPath, {
-    method: fetchRequestInit?.method,
-    headers: normalizeBridgeHeaders(fetchRequestInit?.headers),
-    body: fetchRequestInit?.body,
-  });
-
-  // Return in the format @forge/bridge expects
-  return {
-    status: response.status,
-    statusText: response.statusText,
-    body: await response.text(),
-    headers: response.headers,
-    isAttachment: false,
-  };
-}
-
-async function handleGetContext(): Promise<ForgeContext> {
-  if (currentForgeContext) {
-    return currentForgeContext;
-  }
-
-  // Fallback — no context has been set
-  const { buildDefaultContext } = await import('../context.js');
-  return buildDefaultContext('sim-module');
-}
-
-/**
- * No-op subscriber for cross-module event subscriptions (e.g. useConfig()
- * subscribes to `FORGE_CORE_MACRO_CONFIG_CHANGED` via @forge/bridge events.on).
- *
- * In headless mode we don't dispatch these events to subscribers — the test
- * drives state synchronously via sim.ui.render(). Returning a stub unsubscribe
- * keeps the calling code happy without leaking a "Unhandled bridge command"
- * warning on every render.
- */
-/**
- * Same-frame listener registry for events.on / onPublic. Headless there are
- * no sibling frames to relay between, but a subscription inside one render
- * is real: `emit` below dispatches to it, so an app that talks to itself
- * through the events API behaves as it would in a browser.
- */
-const headlessEventListeners = new Map<string, Set<(payload?: any) => any>>();
-
-async function handleEventSubscribe(data: any): Promise<{ unsubscribe: () => void }> {
-  const event = data?.event;
-  const callback = data?.callback;
-  if (typeof event !== 'string' || typeof callback !== 'function') {
-    return { unsubscribe: () => {} };
-  }
-  if (!headlessEventListeners.has(event)) headlessEventListeners.set(event, new Set());
-  headlessEventListeners.get(event)!.add(callback);
-  return { unsubscribe: () => { headlessEventListeners.get(event)?.delete(callback); } };
 }
 
 // ── createHistory (server-side bridge — headless/MCP mode) ──────────────
@@ -613,82 +358,6 @@ function parseTo(to: string | Record<string, any>, state?: any): any {
     return { pathname, search, hash, state: state ?? null, key: Math.random().toString(36).slice(2, 10) };
   }
   return { pathname: to.pathname || '/', search: to.search || '', hash: to.hash || '', state: state ?? null, key: Math.random().toString(36).slice(2, 10) };
-}
-
-// ── Bridge dispatch ─────────────────────────────────────────────────────
-
-const HANDLERS: Record<string, (data: any) => Promise<any>> = {
-  reconcile: handleReconcile,
-  invoke: handleInvoke,
-  fetchProduct: handleFetchProduct,
-  fetchRemote: handleFetchRemote,
-  getContext: handleGetContext,
-  createHistory: handleCreateHistory,
-  // Cross-module event subscriptions — no-op in headless mode.
-  // @forge/bridge's events.on dispatches via callBridge('on', ...).
-  on: handleEventSubscribe,
-  onPublic: handleEventSubscribe,
-  // Object Store analytics — real @forge/bridge fire-and-forgets this before
-  // every objectStore.* call. No-op so it never rejects or warns.
-  trackObjectStoreAction: async () => undefined,
-
-  // ── Local commands with no host surface headless (phase 3) ──────────
-  // There is no page, no tab and no flag container in a headless render.
-  // Real Forge resolves all of these, so they must resolve here too —
-  // returning a shaped value where there is one, rather than warning. Each
-  // is recorded in bridgeCalls, so a test can still assert the app asked.
-  emit: handleEventEmit,
-  emitPublic: handleEventEmit,
-  showFlag: async () => undefined,
-  closeFlag: async () => undefined,
-  navigate: async () => undefined,
-  reload: async () => undefined,
-  getUrl: async (data: any) => (typeof data === 'string' ? data : (data?.url ?? null)),
-  refresh: async () => undefined,
-  open: async () => undefined,
-  enableTheming: async () => undefined,
-  changeWindowTitle: async () => undefined,
-  emitReadyEvent: async () => undefined,
-  onClose: async () => undefined,
-  onError: async (data: any) => {
-    console.error('[forge-sim bridge] App error:', data?.error ?? data);
-    return undefined;
-  },
-  getFrameId: async () => 'forge-sim-frame-headless',
-  initFeatureFlags: async () => undefined,
-  isRovoEnabled: async () => false,
-  emitFrontendCustomMetric: async () => undefined,
-  openModal: async () => {
-    throw new Error(
-      '[forge-sim] Modal.open() needs a host to draw the modal — there is no ' +
-        'window in a headless render. Use forge-sim dev to exercise modals, or ' +
-        'render the modal module directly by its own module key.',
-    );
-  },
-  subscribeRealtimeChannel: handleRealtimeSubscribe,
-};
-
-function callBridge(cmd: string, data?: any): any {
-  bridgeCalls.push({ cmd, data, timestamp: Date.now() });
-
-  const handler = HANDLERS[cmd];
-  if (handler) {
-    return handler(data);
-  }
-
-  // Headless shares the command REGISTRY with the two browser hosts
-  // (canonical: src/bridge-commands.ts) but not their translation — they
-  // speak WebSocket RPC to the dev server, this one calls sim.* in process.
-  // The registry is still what decides whether an unhandled command is a
-  // deliberate gap, a host gap, or a stale table.
-  const spec = BRIDGE_COMMANDS[cmd];
-  if (spec?.disposition === 'unsupported') throw bridgeNotImplementedError(cmd);
-  console.warn(
-    spec
-      ? `[forge-sim bridge] Bridge command "${cmd}" is declared '${spec.disposition}' but the headless host has no handler for it.`
-      : `[forge-sim bridge] Unknown bridge command: "${cmd}". If @forge/bridge added it, update src/bridge-commands.ts.`,
-  );
-  return Promise.resolve(undefined);
 }
 
 // ── Setup ───────────────────────────────────────────────────────────────
@@ -880,6 +549,27 @@ export function setStubCurrentScript(src: string | null): void {
  * Install the bridge on globalThis so @forge/bridge and @forge/react find it.
  * Call this BEFORE importing any @forge/react or @forge/bridge modules.
  */
+const headlessHost: HeadlessHost = createHeadlessHost({
+  getSimulator: () => simulator,
+  isTornDown: () => tornDown,
+  reconcile: (doc, kind) => handleReconcile(doc as ForgeDoc, kind),
+  getContext: handleGetContext,
+  getContextExtension: () => (currentForgeContext?.extension as Record<string, unknown> | undefined) ?? null,
+  createHistory: handleCreateHistory,
+  recordMissingResolver: (err) => { latestMissingResolverError = err; },
+});
+
+const { callBridge } = createBridgeDispatcher(headlessHost, {
+  onCall: (cmd, data) => { bridgeCalls.push({ cmd, data, timestamp: Date.now() }); },
+});
+
+async function handleGetContext(): Promise<ForgeContext> {
+  if (currentForgeContext) return currentForgeContext;
+  // Fallback — no context has been set
+  const { buildDefaultContext } = await import('../context.js');
+  return buildDefaultContext('sim-module');
+}
+
 export function installBridge(): void {
   const bridge = { callBridge };
   (globalThis as any).__bridge = bridge;
@@ -1006,7 +696,7 @@ export function resetBridge(): void {
   renderResolvers = [];
   macroConfigRenderResolvers = [];
   bridgeCalls.length = 0;
-  headlessEventListeners.clear();
+  headlessHost.reset();
   currentForgeContext = null;
   resetHistoryState();
 }
