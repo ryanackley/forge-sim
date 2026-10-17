@@ -166,41 +166,42 @@ describe('host coverage', () => {
     // as a silent behaviour gap in one surface.
     const shim = casesIn('renderer/src/bridge/forge-bridge-shim.ts', 'async function callBridge(', '\n// ──');
     const inline = casesIn('src/dev-command.ts', 'function callBridge(cmd, data) {', 'window.__bridge = {');
+    const headlessSrc = readFileSync(join(REPO_ROOT, 'src/ui/bridge.ts'), 'utf8');
+    const handlersStart = headlessSrc.indexOf('const HANDLERS');
+    const handlersEnd = headlessSrc.indexOf('\n};', handlersStart);
+    expect(handlersStart, 'HANDLERS map not found in src/ui/bridge.ts').toBeGreaterThan(-1);
     const headless = new Set(
-      [...readFileSync(join(REPO_ROOT, 'src/ui/bridge.ts'), 'utf8')
-        .slice(readFileSync(join(REPO_ROOT, 'src/ui/bridge.ts'), 'utf8').indexOf('const HANDLERS'))
-        .slice(0, 900)
-        .matchAll(/^\s{2}([A-Za-z][A-Za-z0-9]*):/gm)].map((m) => m[1]),
+      [...headlessSrc.slice(handlersStart, handlersEnd).matchAll(/^\s{2}([A-Za-z][A-Za-z0-9]*):/gm)].map((m) => m[1]),
     );
     const coverage = Object.fromEntries(
       LOCAL_COMMANDS.map((c) => [c, [shim.has(c) && 'shim', inline.has(c) && 'inline', headless.has(c) && 'headless'].filter(Boolean).join(',') || 'NONE']),
     );
     expect(coverage).toMatchInlineSnapshot(`
       {
-        "changeWindowTitle": "NONE",
-        "closeFlag": "inline",
-        "createHistory": "inline,headless",
-        "emit": "inline",
-        "emitFrontendCustomMetric": "NONE",
-        "emitPublic": "inline",
-        "emitReadyEvent": "NONE",
-        "enableTheming": "inline",
-        "getFrameId": "NONE",
-        "getUrl": "NONE",
-        "initFeatureFlags": "NONE",
-        "isRovoEnabled": "NONE",
-        "navigate": "NONE",
-        "on": "inline,headless",
-        "onClose": "shim",
-        "onError": "shim",
-        "onPublic": "inline,headless",
-        "open": "NONE",
-        "openModal": "shim",
+        "changeWindowTitle": "shim,inline,headless",
+        "closeFlag": "shim,inline,headless",
+        "createHistory": "shim,inline,headless",
+        "emit": "shim,inline,headless",
+        "emitFrontendCustomMetric": "shim,inline,headless",
+        "emitPublic": "shim,inline,headless",
+        "emitReadyEvent": "shim,inline,headless",
+        "enableTheming": "shim,inline,headless",
+        "getFrameId": "shim,inline,headless",
+        "getUrl": "shim,inline,headless",
+        "initFeatureFlags": "shim,inline,headless",
+        "isRovoEnabled": "shim,inline,headless",
+        "navigate": "shim,inline,headless",
+        "on": "shim,inline,headless",
+        "onClose": "shim,headless",
+        "onError": "shim,headless",
+        "onPublic": "shim,inline,headless",
+        "open": "shim,inline,headless",
+        "openModal": "shim,headless",
         "reconcile": "shim,inline,headless",
-        "refresh": "inline",
-        "reload": "NONE",
-        "showFlag": "inline",
-        "subscribeRealtimeChannel": "NONE",
+        "refresh": "shim,inline,headless",
+        "reload": "shim,inline,headless",
+        "showFlag": "shim,inline,headless",
+        "subscribeRealtimeChannel": "shim,inline,headless",
         "trackObjectStoreAction": "shim,headless",
       }
     `);

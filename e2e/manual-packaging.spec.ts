@@ -54,6 +54,7 @@ async function buildAll(): Promise<void> {
   await Promise.all([
     buildBundle(join(SRC, 'panel.jsx'), join(OUT, 'single', 'index.js')),
     buildBundle(join(SRC, 'remote.jsx'), join(OUT, 'remote', 'index.js')),
+    buildBundle(join(SRC, 'bridgeapi.jsx'), join(OUT, 'bridgeapi', 'index.js')),
     buildBundle(join(SRC, 'global.jsx'), join(OUT, 'multi', 'global.js')),
     buildBundle(join(SRC, 'settings.jsx'), join(OUT, 'multi', 'settings.js')),
   ]);
@@ -115,6 +116,42 @@ test.describe('Manual packaging: prebuilt UI Kit resources through forge-sim dev
     });
     expect(sheet?.href).toBe('/module/page-global/styles.css');
     expect(sheet?.rules).toBeGreaterThan(0);
+  });
+
+  // ── Bridge command surface (consolidation phase 3) ──────────────────
+  // These calls exist ONLY as callBridge commands for a prebuilt bundle:
+  // the real @forge/bridge has no other way to reach the host. Before the
+  // consolidation each returned undefined and the app broke downstream.
+
+  test('router.getUrl, events.on/emit and view.getContext resolve through callBridge', async ({ page }) => {
+    await open(page, 'bridge-api-panel');
+    const log = page.getByText(/^log:/);
+    await expect(log).toContainText('getUrl:/browse/TEST-1', { timeout: 20_000 });
+    await expect(log).toContainText('event:7');
+    await expect(log).toContainText('ctx:bridge-api-panel');
+  });
+
+  test('showFlag renders a host flag and Flag.close() dismisses it', async ({ page }) => {
+    await open(page, 'bridge-api-panel');
+    await expect(page.getByText(/^log:/)).toContainText('ctx:', { timeout: 20_000 });
+
+    const flag = page.locator('[data-testid="forge-sim-flag"]');
+    await expect(flag).toHaveCount(0);
+    await page.getByRole('button', { name: 'Show Flag' }).click();
+    await expect(flag).toHaveCount(1);
+    await expect(flag).toContainText('Hello from the bridge');
+    // The app closes it on a timer via Flag.close() → callBridge('closeFlag').
+    await expect(flag).toHaveCount(0, { timeout: 10_000 });
+  });
+
+  test('realtime.subscribe receives an event published from the same frame', async ({ page }) => {
+    await open(page, 'bridge-api-panel');
+    const log = page.getByText(/^log:/);
+    await expect(log).toContainText('rt-subscribed', { timeout: 20_000 });
+
+    await page.getByRole('button', { name: 'Publish' }).click();
+    await expect(log).toContainText('rt-published', { timeout: 10_000 });
+    await expect(log).toContainText('rt:live', { timeout: 10_000 });
   });
 
   test('a rebuild on disk is picked up without restarting the dev server', async ({ page }) => {

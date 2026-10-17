@@ -1,5 +1,6 @@
 # Built by e2e/manual-packaging.spec.ts (esbuild) at test time; sources live in frontend/src/.
 frontend/single/index.js
 frontend/remote/index.js
+frontend/bridgeapi/index.js
 frontend/multi/global.js
 frontend/multi/settings.js

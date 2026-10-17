@@ -967,6 +967,55 @@ export function generateBridgeInlineScript(wsPort: number, defaultModuleKey?: st
         return Promise.resolve();
       case 'enableTheming':
         return Promise.resolve();
+
+      // ── Local commands (phase 3) ─────────────────────────────────────
+      // Real @forge/bridge can only reach the host through callBridge, so a
+      // command missing here is a dead API for every Custom UI app.
+      case 'navigate': {
+        var navType = data && data.type;
+        var navTarget = data && data.url !== undefined ? data.url : (data && data.appRoute) || '';
+        if (navType === 'new-tab') { window.open(navTarget, '_blank'); }
+        else if (navTarget) { window.location.href = navTarget; }
+        return Promise.resolve();
+      }
+      case 'getUrl': {
+        var loc = typeof data === 'string' ? data : (data && data.url) || '';
+        try { return Promise.resolve(new URL(loc, window.location.origin).toString()); }
+        catch (e) { return Promise.resolve(null); }
+      }
+      case 'reload':
+        window.location.reload();
+        return Promise.resolve();
+      case 'open':
+        return Promise.resolve();
+      case 'changeWindowTitle':
+        document.title = typeof data === 'string' ? data : ((data && data.title) || document.title);
+        return Promise.resolve();
+      case 'emitReadyEvent':
+        window.dispatchEvent(new CustomEvent('forge-sim:ready'));
+        return Promise.resolve();
+      case 'getFrameId':
+        return Promise.resolve('forge-sim-frame-' + (getModuleKeyFromURL() || 'unknown'));
+      case 'initFeatureFlags':
+        return Promise.resolve();
+      case 'isRovoEnabled':
+        return Promise.resolve(false);
+      case 'emitFrontendCustomMetric':
+        return Promise.resolve();
+      case 'subscribeRealtimeChannel':
+        // Deliberately NOT wired for Custom UI. Scoped channel identity is
+        // derived from the realtime channel-key algorithm (canonical:
+        // src/realtime-channel-key.ts, mirrored into the renderer for the UI
+        // Kit shim); this inline script is a dependency-free string and has
+        // no access to it. Registering the callback anyway would look like a
+        // working subscription that silently never fires — worse than
+        // failing. realtime.publish() works here; subscribe does not yet.
+        return Promise.reject(new Error(
+          '[forge-sim] realtime.subscribe() is not yet wired for Custom UI apps in dev mode. ' +
+          'It works in UI Kit modules and in headless tests (sim.realtime). ' +
+          'Track: bridge consolidation phase 3.'
+        ));
+
       default:
         break;
     }

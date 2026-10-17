@@ -389,6 +389,14 @@ function openModalOverlay(data: any): Promise<any> {
   });
 }
 
+/**
+ * Flags shown through `callBridge('showFlag')`, keyed by the id the app
+ * supplied, so a later `closeFlag` can dismiss the right one. (The module
+ * export hands the caller a `{ close }` handle directly; across the bridge
+ * the real package keeps only the id.)
+ */
+const openFlags = new Map<string, { close: () => Promise<boolean | void> }>();
+
 // ── callBridge (used internally by @forge/react reconciler) ─────────────
 
 /**
@@ -453,6 +461,98 @@ async function callBridge(cmd: string, data?: any): Promise<any> {
     case 'onError':
       console.error('[forge-bridge-shim] App error:', data?.error);
       return;
+
+    // ── Local commands (phase 3) ───────────────────────────────────────
+    // These were reachable only through this shim's module exports, so a
+    // source-mode app worked and a PREBUILT bundle (real @forge/bridge,
+    // which can only speak callBridge) got `undefined`. Each case below
+    // delegates to the same implementation the export uses, with the real
+    // package's frame shape.
+
+    case 'navigate': {
+      // router.navigate → { url|<location fields>, type: 'same-tab' };
+      // router.open → the same command with type: 'new-tab'.
+      const { type, ...location } = data ?? {};
+      const target = location.url !== undefined ? location.url : location;
+      return type === 'new-tab' ? router.open(target) : router.navigate(target);
+    }
+
+    case 'getUrl':
+      // The location is the frame itself, not wrapped (out/router/router.js).
+      return router.getUrl(data).then((u) => (u ? u.toString() : null));
+
+    case 'reload':
+      return router.reload();
+
+    case 'showFlag': {
+      const handle = showFlag(data ?? {});
+      const id = data?.id;
+      if (id !== undefined) openFlags.set(String(id), handle);
+      return Promise.resolve();
+    }
+
+    case 'closeFlag': {
+      const id = data?.id;
+      if (id === undefined) return Promise.resolve();
+      const handle = openFlags.get(String(id));
+      openFlags.delete(String(id));
+      return Promise.resolve(handle?.close());
+    }
+
+    case 'emit':
+      return events.emit(data?.event, data?.payload);
+
+    case 'on':
+      return events.on(data?.event, data?.callback);
+
+    case 'emitPublic':
+      return events.emitPublic(data?.event, data?.payload);
+
+    case 'onPublic':
+      return events.onPublic(data?.event, data?.callback);
+
+    case 'subscribeRealtimeChannel':
+      // { channelName, onEvent, options, isGlobal? } — the callback stays in
+      // this frame, which is why this is local and publish is an RPC.
+      return data?.isGlobal
+        ? realtime.subscribeGlobal(data?.channelName, data?.onEvent, data?.options)
+        : realtime.subscribe(data?.channelName, data?.onEvent, data?.options);
+
+    case 'refresh':
+      return view.refresh(data);
+
+    case 'open':
+      return view.open();
+
+    case 'createHistory':
+      return Promise.resolve(createMemoryHistory());
+
+    case 'enableTheming':
+      return view.theme.enable();
+
+    case 'changeWindowTitle':
+      // The title is the frame itself (out/view/changeWindowTitle.js).
+      return view.changeWindowTitle(typeof data === 'string' ? data : data?.title);
+
+    case 'emitReadyEvent':
+      return view.emitReadyEvent();
+
+    case 'getFrameId':
+      // Real Forge returns an opaque per-frame id; the module key is the
+      // stable, meaningful equivalent here.
+      return Promise.resolve(`forge-sim-frame-${getModuleKeyFromURL() ?? 'unknown'}`);
+
+    case 'initFeatureFlags':
+      // No flag service locally: the client initialises with nothing set,
+      // which is what FeatureFlags.* already reports.
+      return Promise.resolve();
+
+    case 'isRovoEnabled':
+      return rovo.isEnabled();
+
+    case 'emitFrontendCustomMetric':
+      // App performance telemetry — inert locally, must never reject.
+      return Promise.resolve();
 
     case 'trackObjectStoreAction':
       // Object Store analytics — real @forge/bridge fire-and-forgets this

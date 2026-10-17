@@ -346,6 +346,50 @@ export function normalizeBridgeHeaders(headers: unknown): Record<string, string>
   return undefined;
 }
 
+/**
+ * events.emit / emitPublic headless. There is no sibling frame to relay to,
+ * but same-frame subscribers registered through `on`/`onPublic` are real, so
+ * dispatch to them.
+ */
+async function handleEventEmit(data: any): Promise<void> {
+  const event = data?.event;
+  const subs = headlessEventListeners.get(event);
+  if (subs) {
+    for (const cb of subs) {
+      try { await cb(data?.payload); } catch (err) {
+        console.error('[forge-sim bridge] Event handler error:', err);
+      }
+    }
+  }
+}
+
+/**
+ * realtime.subscribe headless. Routes to the simulator's realtime store, so
+ * a backend `realtime.publish()` reaches a UI subscriber in the same test.
+ */
+async function handleRealtimeSubscribe(data: any): Promise<{ unsubscribe: () => void }> {
+  if (!simulator) {
+    throw new Error('forge-sim bridge: No simulator connected. Call connectSimulator() first.');
+  }
+  const channel = data?.channelName;
+  const onEvent = data?.onEvent;
+  // sim.realtime.subscribe/subscribeGlobal ARE the bridge-side API (they
+  // throw on a bad channel/token exactly as the docs require, which surfaces
+  // as the rejected Promise the app sees).
+  if (data?.isGlobal) {
+    return simulator.realtime.subscribeGlobal(channel, onEvent, data?.options);
+  }
+  // Same placement data view.getContext() reports, so a UI subscribe and a
+  // backend publish derive the same scoped channel key.
+  return simulator.realtime.subscribe(
+    channel,
+    onEvent,
+    activeModuleKey() ?? null,
+    data?.options,
+    currentForgeContext?.extension ?? null,
+  );
+}
+
 /** The simulator's "this key isn't registered" error, raised before any app code ran. */
 function isMissingResolverError(err: unknown): boolean {
   const msg = (err as { message?: unknown })?.message;
@@ -402,8 +446,23 @@ async function handleGetContext(): Promise<ForgeContext> {
  * keeps the calling code happy without leaking a "Unhandled bridge command"
  * warning on every render.
  */
-async function handleEventSubscribe(): Promise<{ unsubscribe: () => void }> {
-  return { unsubscribe: () => {} };
+/**
+ * Same-frame listener registry for events.on / onPublic. Headless there are
+ * no sibling frames to relay between, but a subscription inside one render
+ * is real: `emit` below dispatches to it, so an app that talks to itself
+ * through the events API behaves as it would in a browser.
+ */
+const headlessEventListeners = new Map<string, Set<(payload?: any) => any>>();
+
+async function handleEventSubscribe(data: any): Promise<{ unsubscribe: () => void }> {
+  const event = data?.event;
+  const callback = data?.callback;
+  if (typeof event !== 'string' || typeof callback !== 'function') {
+    return { unsubscribe: () => {} };
+  }
+  if (!headlessEventListeners.has(event)) headlessEventListeners.set(event, new Set());
+  headlessEventListeners.get(event)!.add(callback);
+  return { unsubscribe: () => { headlessEventListeners.get(event)?.delete(callback); } };
 }
 
 // ── createHistory (server-side bridge — headless/MCP mode) ──────────────
@@ -572,6 +631,41 @@ const HANDLERS: Record<string, (data: any) => Promise<any>> = {
   // Object Store analytics — real @forge/bridge fire-and-forgets this before
   // every objectStore.* call. No-op so it never rejects or warns.
   trackObjectStoreAction: async () => undefined,
+
+  // ── Local commands with no host surface headless (phase 3) ──────────
+  // There is no page, no tab and no flag container in a headless render.
+  // Real Forge resolves all of these, so they must resolve here too —
+  // returning a shaped value where there is one, rather than warning. Each
+  // is recorded in bridgeCalls, so a test can still assert the app asked.
+  emit: handleEventEmit,
+  emitPublic: handleEventEmit,
+  showFlag: async () => undefined,
+  closeFlag: async () => undefined,
+  navigate: async () => undefined,
+  reload: async () => undefined,
+  getUrl: async (data: any) => (typeof data === 'string' ? data : (data?.url ?? null)),
+  refresh: async () => undefined,
+  open: async () => undefined,
+  enableTheming: async () => undefined,
+  changeWindowTitle: async () => undefined,
+  emitReadyEvent: async () => undefined,
+  onClose: async () => undefined,
+  onError: async (data: any) => {
+    console.error('[forge-sim bridge] App error:', data?.error ?? data);
+    return undefined;
+  },
+  getFrameId: async () => 'forge-sim-frame-headless',
+  initFeatureFlags: async () => undefined,
+  isRovoEnabled: async () => false,
+  emitFrontendCustomMetric: async () => undefined,
+  openModal: async () => {
+    throw new Error(
+      '[forge-sim] Modal.open() needs a host to draw the modal — there is no ' +
+        'window in a headless render. Use forge-sim dev to exercise modals, or ' +
+        'render the modal module directly by its own module key.',
+    );
+  },
+  subscribeRealtimeChannel: handleRealtimeSubscribe,
 };
 
 function callBridge(cmd: string, data?: any): any {
@@ -912,6 +1006,7 @@ export function resetBridge(): void {
   renderResolvers = [];
   macroConfigRenderResolvers = [];
   bridgeCalls.length = 0;
+  headlessEventListeners.clear();
   currentForgeContext = null;
   resetHistoryState();
 }

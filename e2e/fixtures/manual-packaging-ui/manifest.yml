@@ -14,6 +14,11 @@ modules:
       icon: https://example.com/icon.svg
       resolver:
         function: main-fn
+    - key: bridge-api-panel
+      resource: bridgeapi
+      render: native
+      title: Bridge API Panel
+      icon: https://example.com/icon.svg
     - key: remote-panel
       resource: remote
       render: native
@@ -44,6 +49,9 @@ resources:
   - key: single
     bundler: manual@2026
     path: frontend/single
+  - key: bridgeapi
+    bundler: manual@2026
+    path: frontend/bridgeapi
   - key: remote
     bundler: manual@2026
     path: frontend/remote
