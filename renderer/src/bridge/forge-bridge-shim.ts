@@ -387,13 +387,16 @@ function openModalOverlay(data: any): Promise<any> {
 // ── callBridge (used internally by @forge/react reconciler) ─────────────
 
 /**
- * The bridge dispatch function. @forge/react calls this via
- * globalThis.__bridge.callBridge() for reconcile, invoke, etc.
+ * The bridge dispatch function — the ONE seam real Forge gives an iframe
+ * (`window.__bridge.callBridge`). @forge/react calls it for reconcile; real
+ * @forge/bridge (installed, or inlined in a prebuilt bundle) calls it for
+ * everything else; and this shim's own module exports route through it too
+ * (bridge consolidation, phase 1), so source-mode apps exercise the same
+ * command table as bundled apps and a missing case fails in both.
  *
  * - reconcile: handled locally (stays in browser)
- * - invoke: routed to forge-sim backend
- * - fetchProduct: routed to forge-sim backend
- * - getContext: routed to forge-sim backend
+ * - everything else: translated from the real package's frame shape onto
+ *   the dev-server RPC, with module key / placement context attached here
  */
 async function callBridge(cmd: string, data?: any): Promise<any> {
   switch (cmd) {
@@ -468,6 +471,21 @@ async function callBridge(cmd: string, data?: any): Promise<any> {
         contextOptions: getContextFromURL(),
       });
 
+    case 'publishRealtimeChannel': {
+      // Real frame: { channelName, eventPayload, options, isGlobal? }
+      // (out/realtime/realtime.js). Scoped publishes carry the iframe's own
+      // placement context so publish and subscribe derive the same channel
+      // identity.
+      const isGlobal = !!data?.isGlobal;
+      return rpc('realtimePublish', {
+        channel: data?.channelName,
+        payload: data?.eventPayload,
+        global: isGlobal,
+        options: data?.options,
+        ...(isGlobal ? {} : { moduleKey: getModuleKeyFromURL(), contextOptions: getContextFromURL() }),
+      });
+    }
+
     case 'openModal':
       return openModalOverlay(data);
 
@@ -533,12 +551,10 @@ installBridgeShim();
 // These match the real @forge/bridge exports so this file works as a drop-in
 
 export async function invoke<T = any>(functionKey: string, payload?: Record<string, any>): Promise<T> {
-  return rpc('invoke', {
-    functionKey,
-    payload,
-    moduleKey: getModuleKeyFromURL(),
-    contextOptions: getContextFromURL(),
-  });
+  // Same frame real @forge/bridge sends (out/invoke/invoke.js); module key
+  // and placement context are attached by the callBridge case, exactly as
+  // they are for a bundled copy of the real package.
+  return callBridge('invoke', { functionKey, payload });
 }
 
 export function makeInvoke() {
@@ -671,10 +687,7 @@ function createMemoryHistory(): any {
 }
 
 export const view = {
-  getContext: () => rpc('getContext', {
-    moduleKey: getModuleKeyFromURL(),
-    contextOptions: getContextFromURL(),
-  }),
+  getContext: () => callBridge('getContext'),
   submit: (payload?: any) => callBridge('submit', { payload }),
   close: (payload?: any) => callBridge('close', { payload }),
   onClose: (cb: () => Promise<void>) => { callBridge('onClose', cb); return Promise.resolve(); },
@@ -711,7 +724,7 @@ export const view = {
 /** Product fetch API — routes through forge-sim's product API mocks */
 function makeProductFetch(product: string) {
   return async (restPath: string, fetchOptions?: RequestInit): Promise<Response> => {
-    const result = await rpc('fetchProduct', {
+    const result = await callBridge('fetchProduct', {
       product,
       restPath,
       fetchRequestInit: fetchOptions ? {
@@ -735,10 +748,12 @@ export const requestBitbucket = makeProductFetch('bitbucket');
 
 /** Remote fetch — for external API calls via Forge's remote module */
 export async function requestRemote(remoteKey: string, fetchOptions?: RequestInit & { path?: string }): Promise<Response> {
-  const result = await rpc('fetchRemote', {
+  // Real @forge/bridge frame (out/fetch/fetch.js): the path travels inside
+  // fetchRequestInit, not as a top-level field.
+  const result = await callBridge('fetchRemote', {
     remoteKey,
-    path: fetchOptions?.path,
     fetchRequestInit: fetchOptions ? {
+      path: fetchOptions.path,
       method: fetchOptions.method,
       headers: fetchOptions.headers,
       body: fetchOptions.body,
@@ -1034,6 +1049,12 @@ export const permissions = {
 };
 
 // ── i18n (bridge-level) ─────────────────────────────────────────────────
+//
+// Deliberately still on rpc(): real @forge/bridge's i18n has NO callBridge
+// seam — it fetch()es ./__LOCALES__/*.json relative to the page. Moving
+// this means serving those files from the dev server (a later phase of the
+// bridge consolidation), not adding a callBridge command that the real
+// package would never send.
 
 export const i18n = {
   getLocale: (): Promise<string> => {
@@ -1217,7 +1238,7 @@ export const realtime = {
     const claims = options?.token !== undefined ? parseRealtimeToken(options.token)?.claims ?? null : null;
     // The iframe's own placement data (what view.getContext() returns) is
     // part of scoped channel identity, mirroring the Node bridge shim.
-    const ctx = await rpc('getContext', { moduleKey, contextOptions: getContextFromURL() });
+    const ctx = await callBridge('getContext');
     const channelKey = channelKeyFor(moduleKey, channel, options?.contextOverrides, claims, ctx?.extension ?? null);
     if (channelKey === null) throw new Error('Unauthorized request');
 
@@ -1267,14 +1288,8 @@ export const realtime = {
     payload: string | Record<string, unknown>,
     options?: { token?: string; contextOverrides?: string[] },
   ): Promise<{ eventId: string | null; eventTimestamp: string | null; errors?: Array<{ message: string }> }> {
-    return rpc('realtimePublish', {
-      channel,
-      payload,
-      global: false,
-      moduleKey: getModuleKeyFromURL(),
-      contextOptions: getContextFromURL(),
-      options,
-    });
+    // Real frame (out/realtime/realtime.js).
+    return callBridge('publishRealtimeChannel', { channelName: channel, eventPayload: payload, options });
   },
 
   async publishGlobal(
@@ -1282,12 +1297,7 @@ export const realtime = {
     payload: string | Record<string, unknown>,
     options?: { token?: string; contextOverrides?: string[] },
   ): Promise<{ eventId: string | null; eventTimestamp: string | null; errors?: Array<{ message: string }> }> {
-    return rpc('realtimePublish', {
-      channel,
-      payload,
-      global: true,
-      options,
-    });
+    return callBridge('publishRealtimeChannel', { channelName: channel, eventPayload: payload, options, isGlobal: true });
   },
 };
 
