@@ -574,6 +574,23 @@ export async function createDevServer(options: DevServerOptions = {}): Promise<D
         }
       }
 
+      case 'realtimeSubscribe': {
+        // The browser subscribes by asking US for the channel key, then
+        // filters the realtime push stream on it. Keeping the key algorithm
+        // server-side means dev mode and headless cannot disagree, and the
+        // served bridge bundle needs no part of it.
+        const { channel, global: isGlobal, options, moduleKey, contextOptions } = params;
+        const ctx = isGlobal ? null : await resolveModuleContext(moduleKey, contextOptions);
+        const channelKey = simulator.realtime.resolveSubscriptionKey(
+          channel,
+          !!isGlobal,
+          options,
+          moduleKey ?? null,
+          ctx?.extension ?? null,
+        );
+        return { channelKey };
+      }
+
       // ── "Acting as" user switcher (gear menu) ─────────────────────────
       // Mode-aware. OFFLINE the dropdown works off the seeded roster
       // (forge-sim's no-cloud differentiator). CONNECTED it searches REAL

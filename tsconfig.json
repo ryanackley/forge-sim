@@ -16,5 +16,6 @@
     "jsx": "react-jsx"
   },
   "include": ["src"],
-  "exclude": ["node_modules", "dist", "src/__tests__"]
+  "//exclude": "src/bridge/hosts/browser is DOM code bundled by esbuild (scripts/build-bridge-bundle.mjs) and type-checked by tsconfig.bridge-browser.json. The root project is lib: ES2022 only, so it must not sweep it in.",
+  "exclude": ["node_modules", "dist", "src/__tests__", "src/bridge/hosts/browser"]
 }

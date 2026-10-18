@@ -359,6 +359,40 @@ export class SimulatedRealtime {
   }
 
   /**
+   * Resolve the channel key a FRONTEND subscription should listen on.
+   *
+   * The browser bridge calls this over RPC instead of computing the key
+   * itself: the algorithm (and the token/override validation that precedes
+   * it) stays here, so a dev-mode subscribe and a headless/backend one key
+   * identically by construction, and the served bridge bundle carries none
+   * of it. Throws exactly where subscribe() would — the RPC rejection is the
+   * rejected Promise the docs promise for a bad channel or token.
+   */
+  resolveSubscriptionKey(
+    channel: string,
+    global: boolean,
+    options?: SubscriptionOptions,
+    moduleKey?: string | null,
+    extension?: Record<string, unknown> | null,
+  ): string {
+    const invalid = this.prevalidate(channel, options, 'subscribe');
+    if (invalid) {
+      this.logFn('warn', `realtime.subscribe("${channel}") rejected: ${invalid}`);
+      throw new Error(invalid);
+    }
+    if (global) return globalChannelKey(channel, this.claimsOf(options));
+    const key = channelKeyFor(moduleKey ?? null, channel, options?.contextOverrides, this.claimsOf(options), extension);
+    if (key === null) {
+      this.logFn(
+        'warn',
+        `realtime.subscribe("${channel}") called with no module context — scoped subscriptions need a rendered module.`,
+      );
+      throw new Error('Unauthorized request');
+    }
+    return key;
+  }
+
+  /**
    * Publish from the frontend (bridge side).
    * Scoped publish — requires module key context.
    */

@@ -1,55 +1,28 @@
 /**
- * Eval-7 F7 — showFlag in the Custom UI dev bridge.
+ * Eval-7 F7 — showFlag / closeFlag through the browser bridge host.
  *
- * The inline bridge script installed for pre-built Custom UI apps
- * (generateBridgeInlineScript) dispatched showFlag to the `default` case:
- * a console.warn and a silent no-op. Flags are a top-5 bridge API —
  * @forge/bridge's showFlag() posts callBridge('showFlag', options) and
- * Flag.close() posts callBridge('closeFlag', {id}), and both must work.
- *
- * These tests eval the ACTUAL generated script in jsdom and drive it
- * through window.__bridge.callBridge, exactly like the real @forge/bridge
- * npm package does (same-realm, so action onClick handlers arrive as live
- * function references).
+ * Flag.close() posts callBridge('closeFlag', {id}); both once dispatched to
+ * the `default` case — a console.warn and a silent no-op. Flags are a top-5
+ * bridge API, so these drive the REAL host (src/bridge/hosts/browser) in
+ * jsdom through window.__bridge.callBridge, exactly as the npm package does
+ * (same realm, so action onClick handlers arrive as live function refs).
  *
  * @vitest-environment jsdom
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { generateBridgeInlineScript } from '../dev-command.js';
+import { installBrowserBridge } from './helpers/browser-bridge-harness.js';
 
 type CallBridge = (cmd: string, data?: any) => Promise<any>;
 
-/**
- * The script eagerly opens a WebSocket to the dev server at load (for the
- * event/history relay). Nothing listens in jsdom, so stub it out — the
- * flag path never touches the wire.
- */
-class FakeWebSocket {
-  static CONNECTING = 0;
-  readyState = 0;
-  onopen: null | (() => void) = null;
-  onmessage: null | ((e: unknown) => void) = null;
-  onclose: null | (() => void) = null;
-  onerror: null | (() => void) = null;
-  addEventListener() {}
-  send() {}
-  close() {}
-}
-
 function installBridge(): CallBridge {
-  delete (window as any).__bridge;
-  delete (window as any).__forgeSim;
-  (window as any).WebSocket = FakeWebSocket;
-  document.body.innerHTML = '';
-  // eslint-disable-next-line no-new-func
-  new Function(generateBridgeInlineScript(5174))();
-  return (window as any).__bridge.callBridge;
+  return installBrowserBridge().callBridge;
 }
 
 const flagEls = () => document.querySelectorAll('[data-testid="forge-sim-flag"]');
 
-describe('eval-7 F7 — showFlag / closeFlag in the inline Custom UI bridge', () => {
+describe('eval-7 F7 — showFlag / closeFlag in the browser bridge host', () => {
   let callBridge: CallBridge;
 
   beforeEach(() => {
@@ -147,12 +120,12 @@ describe('eval-7 F7 — showFlag / closeFlag in the inline Custom UI bridge', ()
     expect(containers[0].querySelectorAll('[data-testid="forge-sim-flag"]')).toHaveLength(2);
   });
 
-  it('truly unknown commands still hit the unhandled warning (dispatch sanity)', async () => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    await callBridge('definitelyNotACommand');
-    // A command absent from the shared table (src/bridge-commands.ts) means
-    // either a typo or an @forge/bridge bump; the warning says which to check.
-    expect(warn).toHaveBeenCalledWith(expect.stringContaining('Unknown bridge command: definitelyNotACommand'));
-    warn.mockRestore();
+  it('a truly unknown command REJECTS rather than resolving undefined (dispatch sanity)', async () => {
+    // The old inline bridge console.warn'd and resolved undefined, which is
+    // how a missing command surfaced as a failure somewhere unrelated in the
+    // app. The protocol dispatcher rejects and names where to register it.
+    await expect(callBridge('definitelyNotACommand')).rejects.toThrow(
+      /Unknown bridge command "definitelyNotACommand".*bridge\/protocol\/commands\.ts/s,
+    );
   });
 });

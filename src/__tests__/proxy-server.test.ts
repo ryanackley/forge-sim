@@ -70,9 +70,18 @@ describe('ProxyServer', () => {
     expect(status).toBe(200);
     // Bridge script should be injected after <head>
     expect(body).toContain('<head>');
-    expect(body).toContain('<script>');
-    expect(body).toContain('__bridge');
-    expect(body).toContain('ws://localhost:9999');
+    // The bridge is a SERVED bundle now, not an inline blob: a config
+    // script carrying the ws port, then the bundle itself.
+    expect(body).toContain('window.__FORGE_SIM_BRIDGE_CONFIG__');
+    expect(body).toContain('"wsPort":9999');
+    expect(body).toContain('<script src="/__forge/bridge.js"></script>');
+    // Classic script, no async/defer: the parser must run it before any app
+    // code, which is what real @forge/bridge's getCallBridge() relies on.
+    expect(body).not.toMatch(/<script[^>]+src="\/__forge\/bridge\.js"[^>]*\b(async|defer|type="module")/);
+    // Config must come BEFORE the bundle that reads it.
+    expect(body.indexOf('__FORGE_SIM_BRIDGE_CONFIG__')).toBeLessThan(body.indexOf('/__forge/bridge.js'));
+    // ...and the whole injection before any upstream content.
+    expect(body.indexOf('/__forge/bridge.js')).toBeLessThan(body.indexOf('<title>'));
     // Original content should still be present
     expect(body).toContain('<title>Test</title>');
     expect(body).toContain('Hello');
@@ -308,7 +317,8 @@ describe('ProxyServer', () => {
 
     // Should inject after <head lang="en"> not duplicate or break
     expect(body).toContain('<head lang="en">');
-    expect(body).toContain('ws://localhost:7777');
+    expect(body).toContain('"wsPort":7777');
+    expect(body).toContain('<script src="/__forge/bridge.js"></script>');
     expect(body).toContain('<title>Attr Test</title>');
   });
 

@@ -30,10 +30,8 @@ import { saveState, loadState, hasPersistedState, getSQLDumpPath, claimStateLock
 import { buildDefaultContext, buildForgeContext, contextFlagForModuleType, type RenderContextOptions } from './context.js';
 import { createWebTriggerHandler } from './web-trigger.js';
 import { startTypeCheckWatch, type TypeCheckWatcher } from './type-checker.js';
-import { RAW_HTML_TAG_LIST } from './ui/html-elements.js';
 import { contentTypeFor } from './mime.js';
 import { materializeRenderer } from './renderer-deps.js';
-import { BRIDGE_COMMANDS, translateBridgeCommand, bridgeNotImplementedError } from './bridge-commands.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -580,548 +578,56 @@ boot().catch((err) => {
 }
 
 /**
- * Generate a self-contained inline script that installs window.__bridge
- * for pre-built Custom UI apps. This runs before any bundled app code,
- * so @forge/bridge's getCallBridge() finds our bridge immediately.
+ * Path to the browser bridge bundle (`dist/bridge.js`), built by
+ * scripts/build-bridge-bundle.mjs at `npm run build`.
+ *
+ * In a git checkout `__dirname` is `src/`, so the sibling `dist/` may be
+ * stale or missing until the first build; from an installed package
+ * `__dirname` IS `dist/`. Both are checked.
  */
-export function generateBridgeInlineScript(wsPort: number, defaultModuleKey?: string): string {
-  // The frame→RPC translation and the command registry are EMBEDDED from the
-  // canonical table (src/bridge-commands.ts) rather than re-implemented here.
-  // This script is a plain string injected inline ahead of all app code, so it
-  // cannot import anything — but it can carry the real function's source.
-  // `translateBridgeCommand` is written to be self-contained for exactly this
-  // reason; src/__tests__/bridge-command-parity.test.ts evaluates this
-  // stringified copy and compares it against the canonical one, so a stray
-  // module reference fails CI instead of breaking Custom UI at runtime.
-  const translatorSource = translateBridgeCommand.toString();
-  const registryJson = JSON.stringify(
-    Object.fromEntries(Object.entries(BRIDGE_COMMANDS).map(([k, v]) => [k, v.disposition])),
-  );
-  const notImplementedJson = JSON.stringify(
-    Object.fromEntries(
-      Object.entries(BRIDGE_COMMANDS)
-        .filter(([, v]) => v.disposition === 'unsupported')
-        .map(([k]) => [k, bridgeNotImplementedError(k).message]),
-    ),
-  );
-  return `
-(function() {
-  // ── Shared bridge command table (generated from src/bridge-commands.ts) ──
-  var BRIDGE_DISPOSITIONS = ${registryJson};
-  var BRIDGE_NOT_IMPLEMENTED = ${notImplementedJson};
-  var translateBridgeCommand = ${translatorSource};
-  var S = {
-    ws: null, wsReady: false, wsUrl: 'ws://localhost:${wsPort}',
-    pendingRequests: {}, requestCounter: 0, reconcileListeners: [], lastForgeDoc: null,
-    eventListeners: {}, flags: {}
-  };
-  window.__forgeSim = S;
-
-  function ensureConnection() {
-    if (S.ws && S.wsReady) return Promise.resolve();
-    return new Promise(function(resolve, reject) {
-      if (S.ws && S.ws.readyState === WebSocket.CONNECTING) {
-        S.ws.addEventListener('open', function() { resolve(); }, { once: true });
-        return;
-      }
-      S.ws = new WebSocket(S.wsUrl);
-      S.ws.onopen = function() { S.wsReady = true; resolve(); };
-      S.ws.onmessage = function(event) {
-        try {
-          var msg = JSON.parse(event.data);
-          // History commands from server (UIKit push/replace/go)
-          if (msg.type === 'historyCommand') {
-            handleHistoryCommand(msg);
-            return;
-          }
-          // (forgeEvent relay moved to postMessage — see below)
-          if (msg.requestId && S.pendingRequests[msg.requestId]) {
-            var pending = S.pendingRequests[msg.requestId];
-            delete S.pendingRequests[msg.requestId];
-            if (msg.error) pending.reject(new Error(msg.error));
-            else pending.resolve(msg.result);
-          }
-        } catch(e) { console.warn('[forge-sim] Failed to parse WS message:', e); }
-      };
-      S.ws.onclose = function() {
-        S.wsReady = false;
-        Object.keys(S.pendingRequests).forEach(function(id) {
-          S.pendingRequests[id].reject(new Error('WebSocket disconnected'));
-          delete S.pendingRequests[id];
-        });
-        setTimeout(function() { ensureConnection(); }, 2000);
-      };
-      S.ws.onerror = function() { S.wsReady = false; reject(new Error('WebSocket connection failed')); };
-    });
+export function resolveBridgeBundlePath(): string | null {
+  for (const candidate of [join(__dirname, 'bridge.js'), join(__dirname, '..', 'dist', 'bridge.js')]) {
+    if (existsSync(candidate)) return candidate;
   }
-
-  function rpc(method, params) {
-    return ensureConnection().then(function() {
-      var requestId = 'rpc-' + (++S.requestCounter) + '-' + Date.now();
-      return new Promise(function(resolve, reject) {
-        var timeout = setTimeout(function() {
-          delete S.pendingRequests[requestId];
-          reject(new Error('RPC timeout: ' + method));
-        }, 900000);
-        S.pendingRequests[requestId] = {
-          resolve: function(v) { clearTimeout(timeout); resolve(v); },
-          reject: function(e) { clearTimeout(timeout); reject(e); }
-        };
-        S.ws.send(JSON.stringify({ type: 'rpc', requestId: requestId, method: method, params: params || {} }));
-      });
-    });
-  }
-
-  function getModuleKeyFromURL() {
-    var match = window.location.pathname.match(/\\/module\\/([^/]+)/);
-    return match ? match[1] : ${defaultModuleKey ? `'${defaultModuleKey}'` : 'undefined'};
-  }
-
-  // Parity (spec UIK-003): real Forge UI Kit rejects raw HTML host elements
-  // (<div> etc.) — apps may only render '@forge/react' components. Detection
-  // uses the canonical HTML/SVG/MathML tag list (injected from
-  // src/ui/html-elements.ts) plus the custom-element rule (hyphenated name).
-  // In the dev server the failure is VISUAL — an error doc replaces the app —
-  // while the headless test/MCP bridge hard-fails instead.
-  var RAW_HTML_TAGS = ${JSON.stringify(RAW_HTML_TAG_LIST)};
-  var RAW_HTML_TAG_MAP = {};
-  for (var _rht = 0; _rht < RAW_HTML_TAGS.length; _rht++) RAW_HTML_TAG_MAP[RAW_HTML_TAGS[_rht]] = true;
-
-  function isRawHtmlType(type) {
-    return typeof type === 'string' && (RAW_HTML_TAG_MAP[type] === true || type.indexOf('-') !== -1);
-  }
-
-  function collectRawHtml(doc, found) {
-    if (doc && isRawHtmlType(doc.type)) found.push(doc.type);
-    var kids = (doc && doc.children) || [];
-    for (var i = 0; i < kids.length; i++) collectRawHtml(kids[i], found);
-    return found;
-  }
-
-  function rawHtmlErrorDoc(rootType, tags) {
-    var msg = 'UI Kit does not support raw HTML elements (found: <' + tags.join('>, <') + '>). ' +
-      "Apps are restricted to components exported from '@forge/react' — real Forge rejects this render.";
-    return { type: rootType, key: '', props: {}, children: [
-      { type: 'SectionMessage', props: { title: 'UI Kit rendering error', appearance: 'error' }, key: 'uikit-raw-html-error', children: [
-        { type: 'Text', props: {}, key: 'uikit-raw-html-error-text', children: [
-          { type: 'String', props: { text: msg }, key: 'uikit-raw-html-error-string', children: [] }
-        ] }
-      ] }
-    ] };
-  }
-
-  // ── showFlag / closeFlag — toast notifications ────────────────────────
-  // Parity with @forge/bridge's flag module: showFlag posts
-  // callBridge('showFlag', options) (id required, enforced by the npm
-  // package itself) and Flag.close() posts callBridge('closeFlag', {id}).
-  // Rendered as an in-iframe toast, mirroring the UIKit renderer shim's
-  // look (renderer/src/bridge/forge-bridge-shim.ts showFlag).
-  var FLAG_COLORS = {
-    info:    { bg: '#DEEBFF', border: '#0052CC', icon: '\\u2139\\uFE0F' },
-    success: { bg: '#E3FCEF', border: '#00875A', icon: '\\u2705' },
-    warning: { bg: '#FFFAE6', border: '#FF8B00', icon: '\\u26A0\\uFE0F' },
-    error:   { bg: '#FFEBE6', border: '#DE350B', icon: '\\u274C' }
-  };
-
-  function applyStyles(el, styles) {
-    for (var k in styles) el.style[k] = styles[k];
-  }
-
-  function ensureFlagContainer() {
-    var c = document.getElementById('forge-sim-flag-container');
-    if (c) return c;
-    c = document.createElement('div');
-    c.id = 'forge-sim-flag-container';
-    c.setAttribute('data-testid', 'forge-sim-flag-container');
-    applyStyles(c, {
-      position: 'fixed', bottom: '24px', left: '24px',
-      display: 'flex', flexDirection: 'column-reverse', gap: '8px',
-      zIndex: '1100', maxWidth: '400px'
-    });
-    document.body.appendChild(c);
-    return c;
-  }
-
-  function removeFlag(id) {
-    var el = S.flags[id];
-    if (!el) return false;
-    delete S.flags[id];
-    el.style.opacity = '0';
-    el.style.transform = 'translateX(-20px)';
-    setTimeout(function() { if (el.parentNode) el.parentNode.removeChild(el); }, 200);
-    return true;
-  }
-
-  function renderFlag(options) {
-    var type = options.appearance || options.type || 'info';
-    var colors = FLAG_COLORS[type] || FLAG_COLORS.info;
-    // Re-showing an id replaces the existing flag (no duplicate stacking).
-    if (options.id !== undefined && S.flags[options.id]) removeFlag(options.id);
-
-    var flag = document.createElement('div');
-    flag.setAttribute('data-testid', 'forge-sim-flag');
-    applyStyles(flag, {
-      background: colors.bg, borderLeft: '3px solid ' + colors.border,
-      borderRadius: '4px', padding: '12px 16px',
-      boxShadow: '0 1px 1px rgba(9,30,66,0.25), 0 0 1px rgba(9,30,66,0.31)',
-      fontFamily: '-apple-system, BlinkMacSystemFont, Roboto, sans-serif',
-      fontSize: '14px', color: '#172B4D',
-      transition: 'opacity 0.2s, transform 0.2s'
-    });
-
-    if (options.title) {
-      var title = document.createElement('div');
-      title.style.fontWeight = '600';
-      title.textContent = colors.icon + ' ' + options.title;
-      flag.appendChild(title);
-    }
-    if (options.description) {
-      var desc = document.createElement('div');
-      applyStyles(desc, { marginTop: '4px', color: '#6B778C' });
-      desc.textContent = options.description;
-      flag.appendChild(desc);
-    }
-    if (options.actions && options.actions.length) {
-      var actions = document.createElement('div');
-      applyStyles(actions, { marginTop: '8px', display: 'flex', gap: '8px' });
-      for (var fi = 0; fi < options.actions.length; fi++) {
-        (function(action) {
-          var btn = document.createElement('button');
-          applyStyles(btn, {
-            background: 'none', border: 'none', color: colors.border,
-            cursor: 'pointer', fontWeight: '600', fontSize: '13px', padding: '0'
-          });
-          btn.textContent = action.text;
-          // Same-realm bridge: onClick arrives as a live function reference.
-          if (typeof action.onClick === 'function') btn.addEventListener('click', action.onClick);
-          actions.appendChild(btn);
-        })(options.actions[fi]);
-      }
-      flag.appendChild(actions);
-    }
-
-    ensureFlagContainer().appendChild(flag);
-    if (options.id !== undefined) S.flags[options.id] = flag;
-
-    // Auto-dismiss after 5s unless explicitly disabled (matches the
-    // renderer shim's behavior).
-    if (options.isAutoDismiss !== false) {
-      setTimeout(function() {
-        if (options.id !== undefined && S.flags[options.id] === flag) removeFlag(options.id);
-        else if (options.id === undefined && flag.parentNode) flag.parentNode.removeChild(flag);
-      }, 5000);
-    }
-  }
-
-  function callBridge(cmd, data) {
-    switch(cmd) {
-      case 'reconcile':
-        if (data && data.forgeDoc) {
-          var rawTags = collectRawHtml(data.forgeDoc, []);
-          var doc = data.forgeDoc;
-          if (rawTags.length > 0) {
-            console.error('[forge-sim] UI Kit render rejected: raw HTML element(s) <' + rawTags.join('>, <') +
-              "> are not supported. UI Kit apps may only render components exported from '@forge/react'.");
-            doc = rawHtmlErrorDoc(doc.type, rawTags);
-          }
-          S.lastForgeDoc = doc;
-          S.reconcileListeners.forEach(function(l) { try { l(doc); } catch(e) { console.warn('[forge-sim] Reconcile listener error:', e); } });
-        }
-        return Promise.resolve();
-      case 'createHistory':
-        return Promise.resolve((function() {
-          var listeners = [];
-          var blockers = [];
-          var action = 'POP';
-
-          function parsePath(path) {
-            if (typeof path === 'object') return { pathname: path.pathname || '/', search: path.search || '', hash: path.hash || '' };
-            var p = path || '/';
-            var searchIdx = p.indexOf('?');
-            var hashIdx = p.indexOf('#');
-            var pathname = p, search = '', hash = '';
-            if (hashIdx >= 0) { hash = p.slice(hashIdx); p = p.slice(0, hashIdx); }
-            if (searchIdx >= 0) { search = p.slice(searchIdx); pathname = p.slice(0, searchIdx); }
-            else { pathname = p; }
-            return { pathname: pathname, search: search, hash: hash };
-          }
-
-          function createLocation(to, state) {
-            var parsed = (typeof to === 'string') ? parsePath(to) : to;
-            return {
-              pathname: parsed.pathname || '/',
-              search: parsed.search || '',
-              hash: parsed.hash || '',
-              state: state === undefined ? null : state,
-              key: Math.random().toString(36).slice(2, 10)
-            };
-          }
-
-          function getCurrentLocation() {
-            return {
-              pathname: window.location.pathname,
-              search: window.location.search,
-              hash: window.location.hash,
-              state: window.history.state,
-              key: (window.history.state && window.history.state.__key) || 'default'
-            };
-          }
-
-          var history = {
-            action: action,
-            location: getCurrentLocation(),
-            createHref: function(to) {
-              if (typeof to === 'string') return to;
-              return (to.pathname || '') + (to.search || '') + (to.hash || '');
-            },
-            push: function(to, state) {
-              var loc = createLocation(to, state);
-              for (var i = 0; i < blockers.length; i++) {
-                var blocked = false;
-                blockers[i]({ action: 'PUSH', location: loc, retry: function() { history.push(to, state); } });
-                blocked = true;
-                if (blocked) return;
-              }
-              var stateObj = state === undefined ? null : state;
-              if (stateObj && typeof stateObj === 'object') stateObj = Object.assign({}, stateObj, { __key: loc.key });
-              else stateObj = { __key: loc.key };
-              window.history.pushState(stateObj, '', history.createHref(loc));
-              history.action = 'PUSH';
-              history.location = loc;
-              // v4 listener signature (location, action) — matches real Forge
-              listeners.forEach(function(fn) { try { fn(loc, 'PUSH'); } catch(e) { console.error(e); } });
-            },
-            replace: function(to, state) {
-              var loc = createLocation(to, state);
-              for (var i = 0; i < blockers.length; i++) {
-                blockers[i]({ action: 'REPLACE', location: loc, retry: function() { history.replace(to, state); } });
-                return;
-              }
-              var stateObj = state === undefined ? null : state;
-              if (stateObj && typeof stateObj === 'object') stateObj = Object.assign({}, stateObj, { __key: loc.key });
-              else stateObj = { __key: loc.key };
-              window.history.replaceState(stateObj, '', history.createHref(loc));
-              history.action = 'REPLACE';
-              history.location = loc;
-              listeners.forEach(function(fn) { try { fn(loc, 'REPLACE'); } catch(e) { console.error(e); } });
-            },
-            go: function(delta) { window.history.go(delta); },
-            goBack: function() { window.history.go(-1); },
-            goForward: function() { window.history.go(1); },
-            back: function() { window.history.go(-1); },
-            forward: function() { window.history.go(1); },
-            listen: function(fn) {
-              listeners.push(fn);
-              return function() { listeners = listeners.filter(function(l) { return l !== fn; }); };
-            },
-            block: function(fn) {
-              blockers.push(fn);
-              return function() { blockers = blockers.filter(function(b) { return b !== fn; }); };
-            }
-          };
-
-          window.addEventListener('popstate', function() {
-            history.action = 'POP';
-            history.location = getCurrentLocation();
-            // v4 listener contract: fn(location, action) — matches real Forge's bridge history
-            listeners.forEach(function(fn) { try { fn(history.location, 'POP'); } catch(e) { console.error(e); } });
-          });
-
-          return history;
-        })());
-      case 'emit':
-        // Dispatch locally
-        var emitKey = data && data.event;
-        var emitCbs = S.eventListeners[emitKey];
-        if (emitCbs) { emitCbs.forEach(function(cb) { try { cb(data.payload); } catch(e) { console.error(e); } }); }
-        // Post to parent for cross-module relay (parent page brokers between iframes)
-        window.parent.postMessage({ type: 'forgeEvent', eventName: emitKey, payload: data.payload, isPublic: false }, '*');
-        return Promise.resolve();
-      case 'on':
-        var onKey = data && data.event;
-        if (!S.eventListeners[onKey]) S.eventListeners[onKey] = [];
-        S.eventListeners[onKey].push(data.callback);
-        return Promise.resolve({ unsubscribe: function() {
-          S.eventListeners[onKey] = (S.eventListeners[onKey] || []).filter(function(cb) { return cb !== data.callback; });
-        }});
-      case 'emitPublic':
-        var emitPubKey = 'public:' + (data && data.event);
-        var emitPubCbs = S.eventListeners[emitPubKey];
-        if (emitPubCbs) { emitPubCbs.forEach(function(cb) { try { cb(data.payload); } catch(e) { console.error(e); } }); }
-        window.parent.postMessage({ type: 'forgeEvent', eventName: data.event, payload: data.payload, isPublic: true }, '*');
-        return Promise.resolve();
-      case 'onPublic':
-        var onPubKey = 'public:' + (data && data.event);
-        if (!S.eventListeners[onPubKey]) S.eventListeners[onPubKey] = [];
-        S.eventListeners[onPubKey].push(data.callback);
-        return Promise.resolve({ unsubscribe: function() {
-          S.eventListeners[onPubKey] = (S.eventListeners[onPubKey] || []).filter(function(cb) { return cb !== data.callback; });
-        }});
-      case 'showFlag':
-        renderFlag(data || {});
-        return Promise.resolve();
-      case 'closeFlag':
-        return Promise.resolve(removeFlag(data && data.id));
-      case 'refresh':
-        window.location.reload();
-        return Promise.resolve();
-      case 'enableTheming':
-        return Promise.resolve();
-
-      // ── Local commands (phase 3) ─────────────────────────────────────
-      // Real @forge/bridge can only reach the host through callBridge, so a
-      // command missing here is a dead API for every Custom UI app.
-      case 'navigate': {
-        var navType = data && data.type;
-        var navTarget = data && data.url !== undefined ? data.url : (data && data.appRoute) || '';
-        if (navType === 'new-tab') { window.open(navTarget, '_blank'); }
-        else if (navTarget) { window.location.href = navTarget; }
-        return Promise.resolve();
-      }
-      case 'getUrl': {
-        var loc = typeof data === 'string' ? data : (data && data.url) || '';
-        try { return Promise.resolve(new URL(loc, window.location.origin).toString()); }
-        catch (e) { return Promise.resolve(null); }
-      }
-      case 'reload':
-        window.location.reload();
-        return Promise.resolve();
-      case 'open':
-        return Promise.resolve();
-      case 'changeWindowTitle':
-        document.title = typeof data === 'string' ? data : ((data && data.title) || document.title);
-        return Promise.resolve();
-      case 'emitReadyEvent':
-        window.dispatchEvent(new CustomEvent('forge-sim:ready'));
-        return Promise.resolve();
-      case 'getFrameId':
-        return Promise.resolve('forge-sim-frame-' + (getModuleKeyFromURL() || 'unknown'));
-      case 'initFeatureFlags':
-        return Promise.resolve();
-      case 'isRovoEnabled':
-        return Promise.resolve(false);
-      case 'emitFrontendCustomMetric':
-        return Promise.resolve();
-      case 'subscribeRealtimeChannel':
-        // Deliberately NOT wired for Custom UI. Scoped channel identity is
-        // derived from the realtime channel-key algorithm (canonical:
-        // src/realtime-channel-key.ts, mirrored into the renderer for the UI
-        // Kit shim); this inline script is a dependency-free string and has
-        // no access to it. Registering the callback anyway would look like a
-        // working subscription that silently never fires — worse than
-        // failing. realtime.publish() works here; subscribe does not yet.
-        return Promise.reject(new Error(
-          '[forge-sim] realtime.subscribe() is not yet wired for Custom UI apps in dev mode. ' +
-          'It works in UI Kit modules and in headless tests (sim.realtime). ' +
-          'Track: bridge consolidation phase 3.'
-        ));
-
-      default:
-        break;
-    }
-
-    // Shared table, embedded above from src/bridge-commands.ts — the same
-    // translation the served dev shim runs, so Custom UI and UI Kit cannot
-    // drift apart on what the seam accepts.
-    var call = translateBridgeCommand(cmd, data, {
-      moduleKey: getModuleKeyFromURL(),
-      contextOptions: undefined,
-      submitTree: undefined
-    });
-    if (call) return rpc(call.method, call.params);
-
-    var disposition = BRIDGE_DISPOSITIONS[cmd];
-    if (disposition === 'unsupported') {
-      return Promise.reject(new Error(BRIDGE_NOT_IMPLEMENTED[cmd]));
-    }
-    console.warn(
-      disposition
-        ? '[forge-sim bridge] Bridge command ' + cmd + ' is declared ' + disposition + ' but this host has no handler for it.'
-        : '[forge-sim bridge] Unknown bridge command: ' + cmd + '. If @forge/bridge added it, update src/bridge-commands.ts.'
-    );
-    return Promise.resolve();
-  }
-
-  window.__bridge = { callBridge: callBridge };
-
-  // ── Forge events relay via postMessage (parent page brokers between frames) ──
-  window.addEventListener('message', function(e) {
-    if (!e.data) return;
-    if (e.data.type === 'forgeEvent') {
-      // Only dispatch events from OTHER windows (the broker or sibling frames)
-      if (e.source === window) return;
-      var eventKey = e.data.isPublic ? ('public:' + e.data.eventName) : e.data.eventName;
-      var cbs = S.eventListeners[eventKey];
-      if (cbs) { cbs.forEach(function(cb) { try { cb(e.data.payload); } catch(err) { console.error(err); } }); }
-    }
-    // Parent page triggers submit (Save button on custom field combined page)
-    // Triggers the same code path as CustomFieldEdit's onBlur/confirm button
-    if (e.data.type === 'forge-sim-trigger-submit') {
-      // 1. Blur active element — triggers CustomFieldEdit's onBlur → onSubmit → view.submit()
-      if (document.activeElement && document.activeElement !== document.body) {
-        document.activeElement.blur();
-      } else {
-        // 2. Fallback: click the first button (app's own save button)
-        var btn = document.querySelector('button[type="submit"], button');
-        if (btn) btn.click();
-      }
-    }
-  });
-
-  // ── History command handler (server → browser) ──────────────────────
-  function getCurrentLocation() {
-    return {
-      pathname: window.location.pathname,
-      search: window.location.search,
-      hash: window.location.hash,
-      state: window.history.state,
-      key: (window.history.state && window.history.state.__key) || 'default'
-    };
-  }
-
-  function handleHistoryCommand(msg) {
-    var requestId = msg.requestId;
-    var cmd = msg.cmd;
-    var data = msg.data;
-    var loc, stateObj, href;
-
-    if (cmd === 'history.push') {
-      loc = typeof data.to === 'string' ? data.to : ((data.to.pathname || '') + (data.to.search || '') + (data.to.hash || ''));
-      stateObj = data.state || null;
-      if (stateObj && typeof stateObj === 'object') stateObj.__key = Math.random().toString(36).slice(2, 10);
-      else stateObj = { __key: Math.random().toString(36).slice(2, 10) };
-      window.history.pushState(stateObj, '', loc);
-    } else if (cmd === 'history.replace') {
-      loc = typeof data.to === 'string' ? data.to : ((data.to.pathname || '') + (data.to.search || '') + (data.to.hash || ''));
-      stateObj = data.state || null;
-      if (stateObj && typeof stateObj === 'object') stateObj.__key = Math.random().toString(36).slice(2, 10);
-      else stateObj = { __key: Math.random().toString(36).slice(2, 10) };
-      window.history.replaceState(stateObj, '', loc);
-    } else if (cmd === 'history.go') {
-      window.history.go(data.delta);
-      // popstate will fire asynchronously — ack will come from the popstate handler
-      return;
-    }
-
-    // Acknowledge with updated location
-    var action = cmd === 'history.push' ? 'PUSH' : 'REPLACE';
-    if (S.ws && S.wsReady) {
-      S.ws.send(JSON.stringify({ type: 'historyAck', requestId: requestId, action: action, location: getCurrentLocation() }));
-    }
-  }
-
-  // Listen for browser back/forward → notify server
-  window.addEventListener('popstate', function() {
-    if (S.ws && S.wsReady) {
-      S.ws.send(JSON.stringify({ type: 'historyEvent', action: 'POP', location: getCurrentLocation() }));
-    }
-  });
-
-  // Pre-connect WebSocket so it's ready when the app loads
-  ensureConnection();
-})();
-`;
+  return null;
 }
+
+/**
+ * The tag injected ahead of all app code. A CLASSIC script with no
+ * `async`/`defer`: the parser must fetch and run it at that point, which is
+ * the ordering real @forge/bridge's getCallBridge() depends on. A
+ * `type="module"` script would be deferred and app code could run first.
+ */
+export function bridgeScriptTag(wsPort: number, defaultModuleKey?: string): string {
+  // defaultModuleKey matters for PROXIED pages (forge-sim dev --proxy): the
+  // app runs on its own dev server, so the URL is not /module/<key>/ and the
+  // bridge cannot infer the placement from it.
+  const config = JSON.stringify({ wsPort, defaultModuleKey: defaultModuleKey ?? null });
+  return `<script>window.__FORGE_SIM_BRIDGE_CONFIG__=${config};</script>\n<script src="/__forge/bridge.js"></script>`;
+}
+
+/**
+ * Serve `dist/bridge.js`. Returns false when it has not been built, so the
+ * caller falls through — the app then fails with a clear missing-bridge
+ * error rather than a half-working page.
+ */
+function serveBridgeBundle(res: any): boolean {
+  const bundle = resolveBridgeBundlePath();
+  if (!bundle) {
+    console.error(
+      '[forge-sim] dist/bridge.js is missing — the browser bridge cannot be served. ' +
+        'Run `npm run build` (or `npm run build:bridge`) in the forge-sim checkout.',
+    );
+    return false;
+  }
+  res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+  // Rebuilt on every `npm run build`; never cache it in the dev loop.
+  res.setHeader('Cache-Control', 'no-store');
+  res.writeHead(200);
+  res.end(readFileSync(bundle));
+  return true;
+}
+
 
 function generateCustomUIEntry(_appResourcePath: string, wsPort: number): string {
   // For Custom UI, we generate a small bootstrap script that Vite injects.
@@ -1667,9 +1173,8 @@ export async function buildViteConfig(opts: {
           // For HTML files, inject the bridge shim before any app scripts
           if (ext === 'html' || ext === 'htm') {
             let html = readFileSync(filePath, 'utf-8');
-            const bridgeScript = generateBridgeInlineScript(wsPort);
-            // Inject right after <head> (before any other scripts)
-            html = html.replace(/<head([^>]*)>/i, `<head$1>\n<script>${bridgeScript}</script>`);
+            // Inject right after <head>, before any app script.
+            html = html.replace(/<head([^>]*)>/i, `<head$1>\n${bridgeScriptTag(wsPort)}`);
             // Inject background script iframe loader before </body>
             html = html.replace(/<\/body>/i, `${BACKGROUND_SCRIPT_IFRAME_INJECTOR}\n</body>`);
             _res.writeHead(200, { 'Content-Type': 'text/html', 'Content-Language': 'en' });
@@ -2211,6 +1716,7 @@ export async function devCommand(options: DevCommandOptions) {
 
     // Serve JWKS endpoint
     proxyServer.addMiddleware('/__forge', (req, res, pathname) => {
+      if (pathname === '/__forge/bridge.js' && serveBridgeBundle(res)) return true;
       if (pathname === '/__forge/jwks.json') {
         res.setHeader('Content-Type', 'application/json');
         res.setHeader('Access-Control-Allow-Origin', '*');
@@ -2535,6 +2041,7 @@ export async function devCommand(options: DevCommandOptions) {
     // 8b. Serve FIT JWKS endpoint at /__forge/jwks.json (+ favicon, F7)
     const forgeMiddleware = (req: any, res: any, next: any) => {
       const url = new URL(req.url ?? '/', 'http://localhost');
+      if (url.pathname === '/__forge/bridge.js' && serveBridgeBundle(res)) return;
       if (url.pathname === '/__forge/jwks.json') {
         res.setHeader('Content-Type', 'application/json');
         res.setHeader('Access-Control-Allow-Origin', '*');

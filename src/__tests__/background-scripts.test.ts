@@ -1,3 +1,4 @@
+/** @vitest-environment jsdom */
 /**
  * Background script support tests.
  *
@@ -514,34 +515,66 @@ describe('cross-module events (bridge shim)', () => {
   });
 });
 
-// ── Inline Bridge Events (Custom UI) ──────────────────────────────────
+// ── Bridge events (Custom UI) ─────────────────────────────────────────
+//
+// These used to assert that the generated inline script CONTAINED certain
+// case labels. The browser host is ordinary TypeScript now, so they assert
+// behaviour instead: run the real host in jsdom and check the wire effects
+// a cross-module event actually produces.
 
-describe('inline bridge events', () => {
-  it('should include event handling cases in bridge inline script', async () => {
-    const { generateBridgeInlineScript } = await import('../dev-command.js');
-    const script = generateBridgeInlineScript(5174);
+describe('bridge events reach listeners and the cross-frame relay', () => {
+  it('emit dispatches to same-frame listeners AND posts forgeEvent to the parent', async () => {
+    const { installBrowserBridge } = await import('./helpers/browser-bridge-harness.js');
+    const { callBridge } = installBrowserBridge();
 
-    // Should handle callBridge('emit', ...) for Custom UI apps
-    expect(script).toContain("case 'emit':");
-    expect(script).toContain("case 'on':");
-    expect(script).toContain("case 'emitPublic':");
-    expect(script).toContain("case 'onPublic':");
+    const posted: any[] = [];
+    const realPost = window.parent.postMessage.bind(window.parent);
+    (window.parent as any).postMessage = (msg: any, origin: string) => { posted.push(msg); };
+    try {
+      const seen: any[] = [];
+      await callBridge('on', { event: 'thing', callback: (p: any) => seen.push(p) });
+      await callBridge('emit', { event: 'thing', payload: { n: 1 } });
 
-    // Should send forgeEvent via postMessage for cross-module relay
-    expect(script).toContain("type: 'forgeEvent'");
-    expect(script).toContain("postMessage");
-
-    // Should listen for incoming forgeEvent postMessages
-    expect(script).toContain("e.data.type === 'forgeEvent'");
+      expect(seen).toEqual([{ n: 1 }]);
+      expect(posted).toEqual([{ type: 'forgeEvent', eventName: 'thing', payload: { n: 1 }, isPublic: false }]);
+    } finally {
+      (window.parent as any).postMessage = realPost;
+    }
   });
 
-  it('should include background script iframe injector in inline script', async () => {
-    const { generateBridgeInlineScript } = await import('../dev-command.js');
-    const script = generateBridgeInlineScript(5174);
+  it('public and private channels are separate, and unsubscribe stops delivery', async () => {
+    const { installBrowserBridge } = await import('./helpers/browser-bridge-harness.js');
+    const { callBridge } = installBrowserBridge();
 
-    // The iframe injector is separate from the bridge script
-    // It's added to the HTML template, not the bridge script itself
-    // So we verify the bridge handles events, not iframe injection
-    expect(script).toContain('eventListeners');
+    const priv: any[] = [];
+    const pub: any[] = [];
+    const sub = await callBridge('on', { event: 'e', callback: (p: any) => priv.push(p) });
+    await callBridge('onPublic', { event: 'e', callback: (p: any) => pub.push(p) });
+
+    await callBridge('emitPublic', { event: 'e', payload: 'public-only' });
+    expect(priv).toEqual([]);
+    expect(pub).toEqual(['public-only']);
+
+    sub.unsubscribe();
+    await callBridge('emit', { event: 'e', payload: 'after-unsub' });
+    expect(priv).toEqual([]);
+  });
+
+  it('an inbound forgeEvent from another frame reaches subscribers', async () => {
+    const { installBrowserBridge } = await import('./helpers/browser-bridge-harness.js');
+    const { callBridge } = installBrowserBridge();
+
+    const seen: any[] = [];
+    await callBridge('on', { event: 'relayed', callback: (p: any) => seen.push(p) });
+
+    // A sibling frame's emit arrives via the parent broker. `source` must not
+    // be this window, or it would double-dispatch our own emit.
+    const ev = new MessageEvent('message', {
+      data: { type: 'forgeEvent', eventName: 'relayed', payload: 'from-sibling', isPublic: false },
+      source: { } as any,
+    });
+    window.dispatchEvent(ev);
+
+    expect(seen).toEqual(['from-sibling']);
   });
 });

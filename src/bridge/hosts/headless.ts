@@ -186,7 +186,7 @@ export function createHeadlessHost(deps: HeadlessHostDeps): HeadlessHost {
 
     // ── Flags / modal ──────────────────────────────────────────────────
     async showFlag() {},
-    async closeFlag() {},
+    async closeFlag() { return false; }, // no flag surface headless
     async openModal() {
       throw new Error(
         '[forge-sim] Modal.open() needs a host to draw the modal — there is no ' +

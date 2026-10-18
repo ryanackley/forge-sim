@@ -86,7 +86,8 @@ export interface BridgeHost {
 
   // ── Flags / modal ────────────────────────────────────────────────────
   showFlag(options: Record<string, unknown>): Promise<void>;
-  closeFlag(id: unknown): Promise<void>;
+  /** Resolves true when a flag with that id was open and is now dismissed. */
+  closeFlag(id: unknown): Promise<boolean>;
   openModal(options: unknown): Promise<unknown>;
 
   // ── Cross-module events ──────────────────────────────────────────────

@@ -1,0 +1,15 @@
+{
+  "//": "Type check for the browser bridge host. DOM is allowed here (that is the point); Node types are not. Emit is esbuild's job — see scripts/build-bridge-bundle.mjs.",
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": [],
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": ["src/bridge/hosts/browser", "src/bridge/protocol"]
+}

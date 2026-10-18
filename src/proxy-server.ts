@@ -16,7 +16,7 @@ import { URL } from 'node:url';
 import { Socket } from 'node:net';
 import type { Duplex } from 'node:stream';
 import { Buffer as NodeBuffer } from 'node:buffer';
-import { generateBridgeInlineScript } from './dev-command.js';
+import { bridgeScriptTag } from './dev-command.js';
 
 export interface ProxyServerOptions {
   /** Upstream dev server URL (e.g., http://localhost:3000) */
@@ -59,8 +59,10 @@ export interface ProxyServer {
 export function createProxyServer(options: ProxyServerOptions): ProxyServer {
   const { upstream, wsPort, defaultModuleKey } = options;
   const upstreamUrl = new URL(upstream);
-  const bridgeScript = generateBridgeInlineScript(wsPort, defaultModuleKey);
-  const bridgeTag = `<script>${bridgeScript}</script>`;
+  // Served bundle, not an inline blob: one browser host for proxied pages,
+  // Custom UI and UI Kit alike. /__forge/bridge.js is answered by the
+  // middleware dev-command registers on this server.
+  const bridgeTag = bridgeScriptTag(wsPort, defaultModuleKey);
 
   const middlewares: Array<{ prefix: string; handler: MiddlewareHandler }> = [];
   const upgradeHandlers: Array<{ prefix: string; handler: UpgradeHandler }> = [];
