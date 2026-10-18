@@ -48,7 +48,7 @@ Three integration paths into the sim, depending on which surface the app uses:
 
 1. **Loader hook shims** — `@forge/api`, `@forge/resolver`, `@forge/events`, etc. are aliased to `src/shims/*` at import time. App code never knows.
 2. **`global.__forge_fetch__` bridge** — Real CJS `@forge/sql` and `@forge/kvs` packages call this internally; we route to MySQL / entity store. See `src/shims/globals.ts`.
-3. **UIKit bridge** — `@forge/react` reconciler calls `bridge.callBridge('reconcile', { forgeDoc })`; we capture the tree, fire listeners, and the renderer turns ForgeDoc into Atlaskit components.
+3. **`window.__bridge`** — the one seam real Forge gives a frontend. Apps run the **real** `@forge/bridge` (no alias, no app-facing shim); `src/bridge/protocol/` dispatches its ~34 commands to a `BridgeHost`: headless (`src/bridge/hosts/headless.ts`, calls `sim.*`) or browser (`src/bridge/hosts/browser/`, bundled to `dist/bridge.js`, served at `/__forge/bridge.js` ahead of app code on every dev page, speaks WebSocket RPC). `@forge/react`'s `reconcile` arrives the same way; the renderer turns ForgeDoc into Atlaskit.
 
 ## Where the code lives
 
@@ -121,6 +121,7 @@ Node 22+ required (native TS type stripping). MySQL-memory-server bundles its ow
 - **Stats blocks** in markdown use HTML-comment marker pairs (`BEGIN:STATS` and `END:STATS`, each wrapped in `<!-- ... -->`) and are rewritten by `scripts/update-stats.mjs`. Don't hand-edit numbers inside markers; re-run the script. The known generators are `STATS`, `STATS_COMPACT`, and `MCP_TOOLS`. See the script for details.
 - **`npm run docs:stats` is a release chore, not a per-commit step.** Don't run it after every change that adds tests: it reruns both full test suites just to count them, pollutes feature commits with doc churn across README/ROADMAP/CLAUDE.md, and any suite flake turns into troubleshooting the stats script instead of the actual work. Stale numbers between releases are fine. Run it (and `docs:stats:check`) once as part of the release ritual.
 
+- **Bridge commands live in one place.** Adding or changing one means `src/bridge/protocol/commands.ts` (registry) + `dispatcher.ts` (frame → typed call) + a method on `BridgeHost` implemented by **both** hosts. `bridge-protocol.test.ts` re-derives the command list from the installed `@forge/bridge`, so a bump that adds a command fails CI until it is routed. Never resolve `undefined` for a command: unknown/unsupported must reject. Don't reimplement a frame from memory — read `node_modules/@forge/bridge/out/<module>.js` and cite it; every bridge bug in #40 and the consolidation was a frame detail guessed wrong.
 - **Deferring work? Append to `deferred-issues.md`, don't open a GitHub issue.** Multiple agents work this repo at once; filing directly causes duplicates and races. A single agent converts that file to issues in one pass later. A few sentences per item: what's wrong, why it was left, what a fix must decide.
 
 ## Forge platform quirks that bite you
@@ -139,6 +140,9 @@ These are the ones you'll forget and re-learn the hard way:
 - `?theme=dark|light` query string is the real-Forge convention for telling the iframe which theme to render. Custom UI apps should read `window.location.search`. Auto = OS preference.
 - KVS uses `@forge/kvs` (new). `@forge/api`'s `storage` API is legacy.
 - Custom Entity Store uses `@forge/kvs.entity()`: separate API from plain KVS, but same `global.__forge_fetch__({ type: 'kvs' })` bridge underneath.
+- Real `@forge/bridge` is strict where our old shim was lenient: `showFlag` throws without an `id`; `router.getUrl` requires a `NavigationLocation` with `target` and runs `new URL()` on the host's answer (so hosts return absolute URLs); `requestJira` on the backend requires a `route` tagged template, never a plain string. Fixtures written against the old shim fail on the real package for these reasons, not because the sim is broken.
+- `@forge/bridge` i18n has **no bridge command**: it fetches `./__LOCALES__/i18n-info.json` and `./__LOCALES__/<locale>.json` relative to the page. The dev server answers `<page>/__LOCALES__/<file>`; headless patches `fetch`. The info file's real shape is `{ config: {...} }`.
+- UI Kit dev pages keep the module key in the URL path (`/module/<key>/`), so their `view.createHistory()` is in-memory; a browser-backed history would navigate the key away and every later `invoke` would lose its placement.
 
 ## When something doesn't work the way you expect
 

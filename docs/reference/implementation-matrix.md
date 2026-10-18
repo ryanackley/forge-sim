@@ -295,11 +295,11 @@ UIKit components and hooks. The reconciler produces ForgeDoc.
 | `useConfig()` | ✅ | `macro-config.test.ts`, `macro-inline-config.test.ts`, `macro-config-bridge.test.ts` | Re-exported from real package; reads `extension.config` from context. Dev server injects stored config from macro `--config` viewSubmit payloads (custom config) or `submitTree='macroConfig'`-tagged submits on flat inline-config macros. |
 | `useTheme()` | ✅ | — | Re-exported from real package |
 | `usePermissions()` | ✅ | — | Re-exported from real package |
-| `useIssueProperty(key, init)` | ✅ | — | Re-exported from real package; routes through bridge shim → PropertyStore |
-| `useContentProperty(key, init)` | ✅ | — | Re-exported from real package; routes through bridge shim → PropertyStore |
-| `useSpaceProperty(key, init)` | ✅ | — | Re-exported from real package; routes through bridge shim → PropertyStore |
-| `useTranslation()` | ✅ | — | Re-exported from real package; reads from I18nProvider context → bridge i18n → I18nStore |
-| `I18nProvider` | ✅ | — | Re-exported from real package; calls bridge.i18n.createTranslationFunction() |
+| `useIssueProperty(key, init)` | ✅ | — | Re-exported from real package; `requestJira` → bridge host → PropertyStore |
+| `useContentProperty(key, init)` | ✅ | — | Re-exported from real package; `requestConfluence` → bridge host → PropertyStore |
+| `useSpaceProperty(key, init)` | ✅ | — | Re-exported from real package; `requestConfluence` → bridge host → PropertyStore |
+| `useTranslation()` | ✅ | `bridge-features.spec.ts`, `manual-packaging.spec.ts` (e2e) | Re-exported from real package; the real i18n fetches `./__LOCALES__/*.json` page-relative — served from I18nStore by the dev server, by a `fetch` patch headless |
+| `I18nProvider` | ✅ | — | Re-exported from real package; see `useTranslation()` |
 | `useForm()` | ✅ | — | Re-exported from real package (wraps react-hook-form) |
 | `useObjectStore()` | ✅ | `object-store-bridge.test.ts` | Re-exported from real package; routes through bridge `objectStore.*` → SimulatedObjectStore |
 | `replaceUnsupportedDocumentNodes()` | ❌ | — | ADF utility |
@@ -492,14 +492,14 @@ Frontend API for Custom UI apps (runs in iframe).
 
 | API | Status | Tests | Notes |
 |-----|--------|-------|-------|
-| `showFlag(options)` | ✅ | `bridge-features.test.ts`, `eval7-f7-bridge-showflag.test.ts` | Renders Atlaskit-styled toast (stacking, auto-dismiss, actions, close handle) in both the UIKit renderer and the Custom UI dev bridge |
+| `showFlag(options)` | ✅ | `bridge-features.test.ts`, `eval7-f7-bridge-showflag.test.ts`, `manual-packaging.spec.ts` | Real package → `callBridge('showFlag')` → browser host toast (stacking, auto-dismiss, actions, `closeFlag` by id). `id` is required by the real package. Headless: recorded, no DOM |
 | `rovo.open(payload)` | ❌ | `shim-contract-surface.test.ts` | Exported, throws not-implemented (Rovo AI agent sidebar) |
 | `rovo.isEnabled()` | ✅ | — | Returns `false` — same answer as a site without Rovo |
-| `i18n.getTranslations(locale, options)` | ✅ | — | Reads from I18nStore (app's __LOCALES__ dir) |
-| `i18n.createTranslationFunction(locale)` | ✅ | — | Returns t(key, defaultValue) backed by I18nStore |
-| `i18n.resetTranslationsCache()` | ✅ | — | Clears translation cache and store |
+| `i18n.getTranslations(locale, options)` | ✅ | e2e (see `useTranslation`) | Real package fetches `./__LOCALES__/*.json`; dev server + headless `fetch` patch answer from I18nStore (app's `__LOCALES__` dir) |
+| `i18n.createTranslationFunction(locale)` | ✅ | e2e (see `useTranslation`) | Real package; same `__LOCALES__` path |
+| `i18n.resetTranslationsCache()` | ✅ | — | Real package; next `t()` refetches `__LOCALES__` |
 | `permissions` (egress/remote admin) | ❌ | — | Real shape ({ egress: get/set/deleteDomain/deleteGroup, remote: get/set }); all throw not-implemented. (The old sim-invented `permissions.check()` never existed upstream and was removed.) |
-| `FeatureFlags` class | ✅ | `bridge-features.test.ts` | Matches real shape (initialize/checkFlag/shutdown); every flag evaluates to its defaultValue — no flag backend in the sim. (The old lowercase `featureFlags` object never existed in real @forge/bridge and was removed.) |
+| `FeatureFlags` class | ✅ | `shim-contract-surface.test.ts` | Matches real shape (initialize/checkFlag/shutdown); every flag evaluates to its defaultValue — no flag backend in the sim. (The old lowercase `featureFlags` object never existed in real @forge/bridge and was removed.) |
 | `checkPermissions(required, runtime?)` | ✅ | `shim-contract-surface.test.ts` | Scope checks in full; external (egress URL) requirements throw not-implemented |
 | `createPermissionUtils(runtime)` | ✅ | — | hasScope/getScopes/etc. in full; canFetchFrom/canLoadResource throw not-implemented (need @forge/egress) |
 | `makeInvoke()` | ✅ | — | Typed factory over the same invoke function, like upstream |
@@ -571,7 +571,7 @@ Product-specific bridge APIs for Jira Dashboard widgets. All no-ops: callback re
 | Package | Status | Notes |
 |---------|--------|-------|
 | `@forge/auth` | ❌ | `authorizeJiraWithFetch`, `authorizeConfluenceWithFetch`. Not intercepted by loader hooks. |
-| `@forge/i18n` | ⚠️ | Not intercepted by loader hooks, but bridge shim's I18nStore provides equivalent functionality. Real package partially works for types/constants. |
+| `@forge/i18n` | ⚠️ | Not intercepted by loader hooks; the simulator's I18nStore backs the real `@forge/bridge` i18n (served `__LOCALES__` files) and the headless Node shim. Real package partially works for types/constants. |
 | `@forge/egress` | ❌ | Egress filtering rules. Not intercepted. Not commonly imported directly by apps. |
 | `@forge/manifest` | ❌ | Manifest types. Not intercepted. Types-only usage would work at compile time. |
 | `@forge/storage` | ⚠️ | Not directly shimmed, but `@forge/api` re-exports its query types. Direct `import { storage } from '@forge/storage'` would load the real package. |

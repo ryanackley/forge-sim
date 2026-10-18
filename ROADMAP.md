@@ -75,6 +75,7 @@ Shim shipped and scoping fixed in v0.1.19 (#11). Production wire format is still
 
 For the full history, see `git log`. Highlights of the last few weeks:
 
+- **Bridge consolidation (0.2)** — one protocol (`src/bridge/protocol`, 34 commands re-derived from the installed `@forge/bridge`) behind two hosts (headless in-process; browser bundled to `dist/bridge.js`, served at `/__forge/bridge.js`). The `@forge/bridge` Vite alias, the inline Custom UI bridge script, the UI Kit shim's command switch, and both renderer mirrors (channel-key, command table) are gone; every surface runs the real client. Fixed along the way: `requestRemote`/`invokeRemote`/header framing for prebuilt bundles, modal frame detection, `?context=` decoding, Custom UI modals and realtime subscribe, and i18n in dev mode (translations were never loaded; the shim called RPCs that did not exist). The e2e harness now allocates free ports and reports dev-server exits; Playwright suites are green and consolidated.
 - **`route()` parity — BREAKING (0.2)** — `route`/`routeFromAbsolute`/`assumeTrustedRoute` now serve the real `@forge/api` implementation (mode-aware escaping: path segments reject traversal shapes instead of being encoded; query segments encode). `requestJira`/`requestConfluence`/`requestBitbucket` reject plain-string paths exactly like real Forge; `fetch` keeps accepting string-or-Route (also the real policy). The sim-only string-returning `route` export from `'forge-sim'` is removed — import `route` from `'@forge/api'`. Code these throws break was already broken in production; the sim now surfaces it first.
 - **Manual packaging (`bundler: manual@2026`)** (#40) — `app.package` + prebuilt UI resources with entry maps; handlers and bundles load as-is (CJS, `__dirname` data files, wasm). Adversarially tested against real builds from esbuild, Vite, webpack, Rspack, Rollup and Parcel: headless `document.currentScript` for webpack/Rspack `publicPath: 'auto'`, every entry-HTML module script executed in document order (Parcel multi-entry, unquoted attributes), dev-server serving of sibling chunks/CSS plus stylesheet and importmap carry-over, and inlined `@forge/resolver` dispatch. Backends that bundle `@forge/*` are explicitly unsupported and now fail with guidance
 - **Upstream `@forge/manifest` types adopted** — `ForgeManifest` is now `ManifestSchema`; manifest-shape drift surfaces at compile time on package bumps
@@ -111,7 +112,7 @@ For the full history, see `git log`. Highlights of the last few weeks:
 
 ### Custom UI support
 - Auto-detects from manifest, serves resource directory via Vite OR proxies external dev server
-- `@forge/bridge` shim injection
+- Real `@forge/bridge` against the served browser bridge (`/__forge/bridge.js`); no shim injection
 - `invoke()`, `view.getContext()`, `requestJira()` all routed through simulator
 
 ### Tools UI (`/__tools/`)
