@@ -14,6 +14,11 @@ modules:
       icon: https://example.com/icon.svg
       resolver:
         function: main-fn
+    - key: i18n-panel
+      resource: i18n
+      render: native
+      title: I18n Panel
+      icon: https://example.com/icon.svg
     - key: bridge-api-panel
       resource: bridgeapi
       render: native
@@ -49,6 +54,9 @@ resources:
   - key: single
     bundler: manual@2026
     path: frontend/single
+  - key: i18n
+    bundler: manual@2026
+    path: frontend/i18n
   - key: bridgeapi
     bundler: manual@2026
     path: frontend/bridgeapi

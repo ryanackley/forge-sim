@@ -582,6 +582,41 @@ boot().catch((err) => {
 }
 
 /**
+ * Answer real @forge/bridge's i18n fetches.
+ *
+ * The package has NO bridge command for translations: `createTranslationFunction`
+ * / `getTranslations` do a page-relative `fetch('./__LOCALES__/i18n-info.json')`
+ * and `fetch('./__LOCALES__/<locale>.json')` — static files Forge's build puts
+ * beside the entry HTML (node_modules/@forge/bridge/out/i18n/index.js). So any
+ * dev page (UI Kit at /module/<key>/, Custom UI, a proxied page at /) asks for
+ * `<page>/__LOCALES__/<file>`. Serve those from sim.i18n — the same store the
+ * headless host answers from — with the real file shapes: the info file is
+ * `{ config }`, and a missing locale is a 404 so the package raises ITS error.
+ */
+const LOCALES_REQUEST_RE = /\/__LOCALES__\/([^/?#]+)$/;
+export function serveLocalesRequest(sim: ForgeSimulator, pathname: string, res: any): boolean {
+  const m = LOCALES_REQUEST_RE.exec(pathname);
+  if (!m) return false;
+  const file = decodeURIComponent(m[1]);
+  const send = (status: number, body: unknown) => {
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-store');
+    res.writeHead(status);
+    res.end(JSON.stringify(body));
+  };
+  (async () => {
+    try {
+      if (file === 'i18n-info.json') return send(200, { config: await sim.i18n.getI18nInfoConfig() });
+      if (file.endsWith('.json')) return send(200, await sim.i18n.getTranslationResource(file.slice(0, -'.json'.length)));
+      return send(404, { error: `Not found: __LOCALES__/${file}` });
+    } catch (err: any) {
+      return send(404, { error: err?.message ?? String(err) });
+    }
+  })();
+  return true;
+}
+
+/**
  * Path to the browser bridge bundle (`dist/bridge.js`), built by
  * scripts/build-bridge-bundle.mjs at `npm run build`.
  *
@@ -1110,7 +1145,6 @@ export async function buildViteConfig(opts: {
   const { appDir, tempDir, modules, wsPort, port, forgeSimRoot } = opts;
   const rendererRoot = opts.rendererRoot ?? join(forgeSimRoot, 'renderer');
   const hasUikitModules = modules.some((m) => m.mode === 'uikit');
-  const shimPath = join(rendererRoot, 'src', 'bridge', 'forge-bridge-shim.ts');
   const bridgeBarrel = join(rendererRoot, 'src', 'bridge', 'index.ts');
 
   const rendererNodeModules = join(rendererRoot, 'node_modules');
@@ -1121,8 +1155,12 @@ export async function buildViteConfig(opts: {
   const reactPlugin = (await import('@vitejs/plugin-react')).default;
 
   // Build alias map: standard aliases + Custom UI resource directories
+  // No '@forge/bridge' alias: source-mode apps import the REAL package, which
+  // talks to window.__bridge — installed by /__forge/bridge.js ahead of app
+  // code — exactly as a prebuilt bundle or real Forge does. One bridge, every
+  // surface. (renderer/src/bridge/forge-bridge-shim.ts is forge-sim's own
+  // chrome hooks now, not an app-facing module.)
   const aliases: Record<string, string> = {
-    '@forge/bridge': shimPath,
     'forge-sim/renderer/bridge': bridgeBarrel,
     'forge-sim/renderer/ForgeDocRenderer': join(rendererRoot, 'src', 'ForgeDocRenderer.tsx'),
     'forge-sim/renderer/ForgeSimShell': join(rendererRoot, 'src', 'ForgeSimShell.tsx'),
@@ -1265,6 +1303,9 @@ export async function buildViteConfig(opts: {
             '@atlaskit/button',
             '@atlaskit/button/new',
             '@atlaskit/section-message',
+            // Real @forge/bridge (CJS) is now what app code imports; pin it so
+            // Vite pre-bundles it at startup rather than on first request.
+            '@forge/bridge',
           ]
         : [],
       // Vite's dep scanner only crawls <root>/index.html by default. Our
@@ -1438,6 +1479,16 @@ export async function devCommand(options: DevCommandOptions) {
   // daemon's full deployer populates `sim.functions`), so counting
   // `sim.functions` here always showed "0 registered" (eval 3.7).
   let registeredFunctionCount = 0;
+
+  // 4a.4. Load the app's translations. deploy() does this through
+  // sim.setAppDir(), but dev mode deploys with deployResolversOnly() and
+  // never did — so sim.i18n had no locales dir, the __LOCALES__ route (and
+  // before it, the shim's i18n RPCs) answered "No locale files loaded", and
+  // every useTranslation() in dev silently fell back to returning keys.
+  // Same lookup as deploy: <app>/src/__LOCALES__, then <app>/__LOCALES__.
+  if (sim.i18n.loadFromAppDir(appDir)) {
+    console.log('  🌐 Loaded __LOCALES__ translations');
+  }
 
   // 4a.5. Apply .forge-sim/mocks.json BEFORE deploy (eval-6 F8): deploy-time
   // scheduled triggers fire during boot, so this is the only window where a
@@ -1717,6 +1768,9 @@ export async function devCommand(options: DevCommandOptions) {
     proxyBroadcast = broadcastToolsMessage;
 
     // Serve JWKS endpoint
+    // Page-relative __LOCALES__ fetches from the proxied app (see serveLocalesRequest).
+    proxyServer.addMiddleware('/', (_req, res, pathname) => serveLocalesRequest(sim, pathname, res));
+
     proxyServer.addMiddleware('/__forge', (req, res, pathname) => {
       if (pathname === '/__forge/bridge.js' && serveBridgeBundle(res)) return true;
       if (pathname === '/__forge/jwks.json') {
@@ -2047,6 +2101,7 @@ export async function devCommand(options: DevCommandOptions) {
     const forgeMiddleware = (req: any, res: any, next: any) => {
       const url = new URL(req.url ?? '/', 'http://localhost');
       if (url.pathname === '/__forge/bridge.js' && serveBridgeBundle(res)) return;
+      if (serveLocalesRequest(sim, url.pathname, res)) return;
       if (url.pathname === '/__forge/jwks.json') {
         res.setHeader('Content-Type', 'application/json');
         res.setHeader('Access-Control-Allow-Origin', '*');

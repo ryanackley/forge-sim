@@ -475,48 +475,37 @@ describe('background script iframe injection', () => {
 
 // ── Cross-Module Events ───────────────────────────────────────────────
 
-describe('cross-module events (bridge shim)', () => {
-  // These tests verify the @forge/bridge shim's events API end to end: the
-  // shim sends the real package's frames into window.__bridge, and the
-  // browser bridge host (installed here in jsdom) dispatches locally and
-  // relays via postMessage for the parent page to broker between iframes.
+describe('cross-module events (host, driven with real @forge/bridge frames)', () => {
+  // App code imports the real @forge/bridge; events.emit/on reach the host
+  // as callBridge('emit' | 'on', ...) frames (out/events/events.js). The
+  // browser host dispatches locally and relays via postMessage so the
+  // parent page can broker between iframes.
+  let callBridge: (cmd: string, data?: any) => Promise<any>;
   beforeEach(async () => {
     const { installBrowserBridge } = await import('./helpers/browser-bridge-harness.js');
-    installBrowserBridge();
+    callBridge = installBrowserBridge().callBridge;
   });
 
-  it('should export events with emit/on/emitPublic/onPublic', async () => {
-    const { events } = await import('../../renderer/src/bridge/forge-bridge-shim.js');
-    expect(typeof events.emit).toBe('function');
-    expect(typeof events.on).toBe('function');
-    expect(typeof events.emitPublic).toBe('function');
-    expect(typeof events.onPublic).toBe('function');
-  });
-
-  it('should dispatch events locally via emit/on', async () => {
-    const { events } = await import('../../renderer/src/bridge/forge-bridge-shim.js');
+  it('dispatches events locally via emit/on', async () => {
     const received: any[] = [];
-    await events.on('test-event', (payload: any) => received.push(payload));
-    await events.emit('test-event', { data: 'hello' });
+    await callBridge('on', { event: 'test-event', callback: (p: any) => received.push(p) });
+    await callBridge('emit', { event: 'test-event', payload: { data: 'hello' } });
     expect(received).toEqual([{ data: 'hello' }]);
   });
 
-  it('should dispatch public events locally via emitPublic/onPublic', async () => {
-    const { events } = await import('../../renderer/src/bridge/forge-bridge-shim.js');
+  it('dispatches public events locally via emitPublic/onPublic', async () => {
     const received: any[] = [];
-    await events.onPublic('pub-test', (payload: any) => received.push(payload));
-    await events.emitPublic('pub-test', { data: 'public' });
+    await callBridge('onPublic', { event: 'pub-test', callback: (p: any) => received.push(p) });
+    await callBridge('emitPublic', { event: 'pub-test', payload: { data: 'public' } });
     expect(received).toEqual([{ data: 'public' }]);
   });
 
-  it('should support unsubscribe', async () => {
-    const { events } = await import('../../renderer/src/bridge/forge-bridge-shim.js');
+  it('supports unsubscribe', async () => {
     const received: any[] = [];
-    const sub = await events.on('unsub-test', (payload: any) => received.push(payload));
-    await events.emit('unsub-test', 'first');
+    const sub = await callBridge('on', { event: 'unsub', callback: (p: any) => received.push(p) });
     sub.unsubscribe();
-    await events.emit('unsub-test', 'second');
-    expect(received).toEqual(['first']);
+    await callBridge('emit', { event: 'unsub', payload: 1 });
+    expect(received).toEqual([]);
   });
 });
 

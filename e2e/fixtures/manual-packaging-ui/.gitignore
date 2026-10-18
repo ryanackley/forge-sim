@@ -2,5 +2,6 @@
 frontend/single/index.js
 frontend/remote/index.js
 frontend/bridgeapi/index.js
+frontend/i18n/index.js
 frontend/multi/global.js
 frontend/multi/settings.js

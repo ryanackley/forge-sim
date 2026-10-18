@@ -161,6 +161,19 @@ test.describe('UIKit Bridge', () => {
     expect(text).toContain('"status"');
   });
 
+  test('useTranslation resolves through the real package: page-relative __LOCALES__ fetches served from src/__LOCALES__', async ({ page }) => {
+    await page.goto(`${server.url}/module/test-panel/`);
+    await expect(page.getByText('i18n:Hello from locales')).toBeVisible({ timeout: 15_000 });
+
+    // The real file shapes, straight off the dev server.
+    const info = await page.request.get(`${server.url}/module/test-panel/__LOCALES__/i18n-info.json`);
+    expect(info.status()).toBe(200);
+    expect(await info.json()).toEqual({ config: { locales: ['en-US'], fallback: { default: 'en-US' } } });
+    // A missing locale is a 404 so the package raises ITS error, as in production.
+    const missing = await page.request.get(`${server.url}/module/test-panel/__LOCALES__/xx-XX.json`);
+    expect(missing.status()).toBe(404);
+  });
+
   test('requestConfluence via button click updates UI', async ({ page }) => {
     await page.goto(`${server.url}/module/test-panel/`);
     // Wait for initial render

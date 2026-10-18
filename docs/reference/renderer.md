@@ -39,7 +39,9 @@ This is what `forge-sim dev` uses.
 
 Every page `forge-sim dev` serves — UI Kit, Custom UI, and pages proxied with `--proxy` — loads one script ahead of all app code: `/__forge/bridge.js`, built from `src/bridge/hosts/browser` into `dist/bridge.js`. It installs `window.__bridge` (what `@forge/bridge` and `@forge/react` talk to) and implements every bridge command: resolver and product calls over WebSocket RPC; flags, modals, history, navigation and cross-module events in the DOM. The protocol it speaks lives in `src/bridge/protocol` and is shared with the headless host used by tests and the MCP server, so a command cannot work on one surface and silently return `undefined` on another.
 
-Source-mode UI Kit apps still import `@forge/bridge` through a Vite alias to `renderer/src/bridge/forge-bridge-shim.ts`. That file is now a thin adapter: each export sends the exact frame the real package sends through `window.__bridge`. Dropping the alias so source-mode apps run the real package is the last step of the bridge consolidation.
+There is no `@forge/bridge` alias. Source-mode UI Kit apps, prebuilt bundles and Custom UI all run the **real** `@forge/bridge`, which looks up `window.__bridge` at call time — the same thing it does inside real Forge. `renderer/src/bridge/forge-bridge-shim.ts` is forge-sim's own chrome hooks (reconcile stream, dev-server RPC for the gear menu) and is not an app-facing module.
+
+Translations follow the real package too: its i18n does a page-relative `fetch('./__LOCALES__/i18n-info.json')` and `fetch('./__LOCALES__/<locale>.json')` rather than a bridge call, so the dev server answers `<page>/__LOCALES__/<file>` from the simulator's i18n store (the same store headless tests fill with `sim.i18n.setTranslations`). A missing locale is a 404, so the package raises its own error exactly as in production.
 
 If a Forge app's **own** Vite dev server must serve the page, a plugin injects the same bundle from a running `forge-sim dev`:
 

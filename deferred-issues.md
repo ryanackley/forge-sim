@@ -35,3 +35,15 @@ the modal module by key and drive submit/close through the existing view-event
 stream. The decision to make is whether the modal's ForgeDoc becomes a
 first-class thing `sim.ui` exposes, or stays a thrown error with a pointer to
 `forge-sim dev`.
+
+## Dev mode does not hot-reload `__LOCALES__` edits
+
+`forge-sim dev` now loads the app's translations at boot (`sim.i18n.loadFromAppDir`
+in `src/dev-command.ts`) and serves them at `<page>/__LOCALES__/<file>`. The store
+caches each locale after first read, and nothing re-reads on change, so editing
+`en-US.json` while dev is running has no effect until restart. The file watcher
+already fires for the app dir; the fix is to call `loadFromAppDir` again (it
+clears the caches) when a changed path is under a `__LOCALES__` directory, then
+let the page's next `useTranslation` fetch pick it up. Decide whether a locale
+change should also trigger a browser reload, since the real package caches
+translations per page load too.

@@ -55,6 +55,7 @@ async function buildAll(): Promise<void> {
     buildBundle(join(SRC, 'panel.jsx'), join(OUT, 'single', 'index.js')),
     buildBundle(join(SRC, 'remote.jsx'), join(OUT, 'remote', 'index.js')),
     buildBundle(join(SRC, 'bridgeapi.jsx'), join(OUT, 'bridgeapi', 'index.js')),
+    buildBundle(join(SRC, 'i18n.jsx'), join(OUT, 'i18n', 'index.js')),
     buildBundle(join(SRC, 'global.jsx'), join(OUT, 'multi', 'global.js')),
     buildBundle(join(SRC, 'settings.jsx'), join(OUT, 'multi', 'settings.js')),
   ]);
@@ -152,6 +153,17 @@ test.describe('Manual packaging: prebuilt UI Kit resources through forge-sim dev
     await page.getByRole('button', { name: 'Publish' }).click();
     await expect(log).toContainText('rt-published', { timeout: 10_000 });
     await expect(log).toContainText('rt:live', { timeout: 10_000 });
+  });
+
+  test("useTranslation in a prebuilt bundle: the real package's page-relative __LOCALES__ fetches are served from the app's __LOCALES__/", async ({ page }) => {
+    await open(page, 'i18n-panel');
+    await expect(page.getByText('i18n:Bonjour from a prebuilt bundle')).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText('i18n:greeting')).toHaveCount(0); // not the silent key fallback
+
+    const info = await page.request.get(`${server.url}/module/i18n-panel/__LOCALES__/i18n-info.json`);
+    expect(await info.json()).toEqual({ config: { locales: ['en-US', 'fr-FR'], fallback: { default: 'en-US' } } });
+    // Listed in the config but no file on disk → 404, the package's own error.
+    expect((await page.request.get(`${server.url}/module/i18n-panel/__LOCALES__/fr-FR.json`)).status()).toBe(404);
   });
 
   test('a rebuild on disk is picked up without restarting the dev server', async ({ page }) => {

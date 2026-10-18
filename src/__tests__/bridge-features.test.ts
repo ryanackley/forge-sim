@@ -1,408 +1,208 @@
 /**
- * Tests for the @forge/bridge shim's app-facing exports, driven end to end
- * through the real browser bridge host in jsdom:
- * - showFlag (toast notifications)
- * - router (navigation targets, URL resolution)
- * - events (local pub/sub dispatch)
- * - view helpers (changeWindowTitle, emitReadyEvent, theme.enable)
- * - permissions, i18n, featureFlags stubs
+ * Browser bridge host surface behaviours, driven the way the real
+ * @forge/bridge drives them: through window.__bridge.callBridge with the
+ * package's own frames (file references inline). This replaces a suite that
+ * called a forge-sim shim's exports; app code now imports the real package,
+ * so the host is the only thing left to test on this side.
+ *
+ * - showFlag / closeFlag   (out/flag/flag.js)
+ * - router.getUrl          (out/router/router.js — must return an ABSOLUTE url)
+ * - events                 (out/events/events.js)
+ * - view helpers           (out/view/*.js)
  *
  * @vitest-environment jsdom
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-
-// ── Test setup ──────────────────────────────────────────────────────────
-
 import { installBrowserBridge } from './helpers/browser-bridge-harness.js';
 
-// The shim is a thin adapter over window.__bridge now; the DOM work these
-// tests observe (flags, document.title, theme attribute, event dispatch)
-// happens in the browser bridge HOST. Install the real host in jsdom so the
-// shim's exports drive it — the same path a dev page takes.
-function resetGlobals() {
-  delete (globalThis as any).__forgeSim;
-  delete (globalThis as any).__bridge;
-  delete (window as any).__bridge;
-  installBrowserBridge({ moduleKey: 'test-module' });
-}
+type CallBridge = (cmd: string, data?: any) => Promise<any>;
+let callBridge: CallBridge;
 
-async function loadShim() {
-  const mod = await import('../../renderer/src/bridge/forge-bridge-shim.ts');
-  return mod;
-}
+beforeEach(() => {
+  document.querySelectorAll('[data-testid="forge-sim-flag-container"]').forEach((el) => el.remove());
+  document.title = '';
+  document.documentElement.removeAttribute('data-color-mode');
+  callBridge = installBrowserBridge({ moduleKey: 'test-module' }).callBridge;
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+});
+
+const flag = () => document.querySelector('[data-testid="forge-sim-flag"]');
+const flags = () => document.querySelectorAll('[data-testid="forge-sim-flag"]');
 
 // ── showFlag ────────────────────────────────────────────────────────────
 
 describe('showFlag', () => {
-  let shimModule: Awaited<ReturnType<typeof loadShim>>;
-
-  beforeEach(async () => {
-    resetGlobals();
-    shimModule = await loadShim();
-    // Clean up any flag containers from previous tests
-    document.querySelectorAll('[data-testid="forge-sim-flag-container"]').forEach(el => el.remove());
-  });
-
-  it('creates a flag element in the DOM', () => {
-    shimModule.showFlag({ title: 'Test Flag', type: 'info' });
-
+  it('creates a flag element in the DOM', async () => {
+    await callBridge('showFlag', { id: 'a', title: 'Test Flag', type: 'info' });
     const container = document.querySelector('[data-testid="forge-sim-flag-container"]');
     expect(container).not.toBeNull();
-
-    const flag = container!.querySelector('[data-testid="forge-sim-flag"]');
-    expect(flag).not.toBeNull();
-    expect(flag!.textContent).toContain('Test Flag');
+    expect(container!.querySelector('[data-testid="forge-sim-flag"]')!.textContent).toContain('Test Flag');
   });
 
-  it('renders description when provided', () => {
-    shimModule.showFlag({ title: 'Title', description: 'Some details', type: 'success' });
-
-    const flag = document.querySelector('[data-testid="forge-sim-flag"]');
-    expect(flag!.textContent).toContain('Some details');
+  it('renders description when provided', async () => {
+    await callBridge('showFlag', { id: 'a', title: 'Title', description: 'Some details', type: 'success' });
+    expect(flag()!.textContent).toContain('Some details');
   });
 
-  it('renders action buttons', () => {
+  it('renders action buttons and fires their live onClick', async () => {
     const onClick = vi.fn();
-    shimModule.showFlag({
-      title: 'With Actions',
-      type: 'warning',
-      actions: [{ text: 'Undo', onClick }],
-    });
-
-    const btn = document.querySelector('[data-testid="forge-sim-flag"] button');
-    expect(btn).not.toBeNull();
-    expect(btn!.textContent).toBe('Undo');
-
-    btn!.dispatchEvent(new Event('click'));
+    await callBridge('showFlag', { id: 'a', title: 'With Actions', type: 'warning', actions: [{ text: 'Undo', onClick }] });
+    const btn = document.querySelector('[data-testid="forge-sim-flag"] button')!;
+    expect(btn.textContent).toBe('Undo');
+    btn.dispatchEvent(new Event('click'));
     expect(onClick).toHaveBeenCalledOnce();
   });
 
-  it('returns a close function that removes the flag', async () => {
+  it('closeFlag removes the flag by id and reports whether it existed', async () => {
     vi.useFakeTimers();
-    const result = shimModule.showFlag({
-      title: 'Closeable',
-      type: 'error',
-      isAutoDismiss: false,
-    });
-
-    expect(document.querySelector('[data-testid="forge-sim-flag"]')).not.toBeNull();
-
-    await result.close();
-    vi.advanceTimersByTime(300); // wait for animation
-
-    expect(document.querySelectorAll('[data-testid="forge-sim-flag"]').length).toBe(0);
-    vi.useRealTimers();
+    await callBridge('showFlag', { id: 'close-me', title: 'Closeable', isAutoDismiss: false });
+    expect(flag()).not.toBeNull();
+    await expect(callBridge('closeFlag', { id: 'close-me' })).resolves.toBe(true);
+    vi.advanceTimersByTime(300); // exit animation
+    expect(flags().length).toBe(0);
+    await expect(callBridge('closeFlag', { id: 'close-me' })).resolves.toBe(false);
   });
 
-  it('stacks multiple flags', () => {
-    shimModule.showFlag({ title: 'Flag 1', type: 'info', isAutoDismiss: false });
-    shimModule.showFlag({ title: 'Flag 2', type: 'success', isAutoDismiss: false });
-
-    const flags = document.querySelectorAll('[data-testid="forge-sim-flag"]');
-    expect(flags.length).toBe(2);
+  it('stacks multiple flags in one container', async () => {
+    await callBridge('showFlag', { id: '1', title: 'One', isAutoDismiss: false });
+    await callBridge('showFlag', { id: '2', title: 'Two', isAutoDismiss: false });
+    expect(flags().length).toBe(2);
+    expect(document.querySelectorAll('[data-testid="forge-sim-flag-container"]').length).toBe(1);
   });
 
-  it('uses appearance over type when both provided', () => {
-    shimModule.showFlag({ title: 'Test', type: 'error', appearance: 'success' } as any);
-
-    const flag = document.querySelector('[data-testid="forge-sim-flag"]');
-    expect(flag!.textContent).toContain('✅'); // success icon, not error
+  it('uses appearance over type when both provided; unknown types fall back to info', async () => {
+    // jsdom normalises colour strings, so read the scheme off the icon the
+    // title is prefixed with rather than the border style.
+    await callBridge('showFlag', { id: 'a', title: 'Mixed', type: 'info', appearance: 'error' });
+    expect(flag()!.textContent).toContain('❌');
+    await callBridge('showFlag', { id: 'b', title: 'Odd', type: 'nonsense' });
+    expect(flags()[1].textContent).toContain('ℹ️');
   });
 
-  it('defaults to info type when none specified', () => {
-    shimModule.showFlag({ title: 'Default' });
-
-    const flag = document.querySelector('[data-testid="forge-sim-flag"]');
-    expect(flag!.textContent).toContain('ℹ️');
-  });
-});
-
-// ── NavigationTarget ────────────────────────────────────────────────────
-
-describe('NavigationTarget', () => {
-  let shimModule: Awaited<ReturnType<typeof loadShim>>;
-
-  beforeEach(async () => {
-    resetGlobals();
-    shimModule = await loadShim();
-  });
-
-  it('has all standard target constants', () => {
-    expect(shimModule.NavigationTarget.Issue).toBe('issue');
-    expect(shimModule.NavigationTarget.ContentView).toBe('contentView');
-    expect(shimModule.NavigationTarget.ContentEdit).toBe('contentEdit');
-    expect(shimModule.NavigationTarget.SpaceView).toBe('spaceView');
-    expect(shimModule.NavigationTarget.Dashboard).toBe('dashboard');
-    expect(shimModule.NavigationTarget.UserProfile).toBe('userProfile');
-    expect(shimModule.NavigationTarget.Module).toBe('module');
-    expect(shimModule.NavigationTarget.ContentList).toBe('contentList');
-    expect(shimModule.NavigationTarget.ProjectSettingsDetails).toBe('projectSettingsDetails');
+  it('defaults to info when no type is given', async () => {
+    await callBridge('showFlag', { id: 'a', title: 'Default' });
+    expect(flag()!.textContent).toContain('ℹ️');
   });
 });
 
 // ── router.getUrl ───────────────────────────────────────────────────────
+// The real package does `new URL(await callBridge('getUrl', location))`, so
+// the host must return an ABSOLUTE string.
 
 describe('router.getUrl', () => {
-  let shimModule: Awaited<ReturnType<typeof loadShim>>;
-
-  beforeEach(async () => {
-    resetGlobals();
-    shimModule = await loadShim();
-  });
+  const abs = async (location: any) => {
+    const s = await callBridge('getUrl', location);
+    expect(typeof s).toBe('string');
+    return new URL(s);
+  };
 
   it('resolves a raw string URL', async () => {
-    const url = await shimModule.router.getUrl('/browse/PROJ-42');
-    expect(url).not.toBeNull();
-    expect(url!.pathname).toBe('/browse/PROJ-42');
+    expect((await abs('/browse/PROJ-42')).pathname).toBe('/browse/PROJ-42');
   });
 
-  it('resolves Issue navigation target', async () => {
-    const url = await shimModule.router.getUrl({
-      target: shimModule.NavigationTarget.Issue,
-      issueKey: 'TEST-123',
-    });
-    expect(url).not.toBeNull();
-    expect(url!.pathname).toBe('/browse/TEST-123');
+  it.each([
+    [{ target: 'issue', issueKey: 'TEST-123' }, '/browse/TEST-123'],
+    [{ target: 'contentView', contentId: '12345' }, '/wiki/pages/12345'],
+    [{ target: 'contentEdit', contentId: '12345' }, '/wiki/pages/edit-v2/12345'],
+    [{ target: 'spaceView', spaceKey: 'DEV' }, '/wiki/spaces/DEV'],
+    [{ target: 'contentList', spaceKey: 'DEV' }, '/wiki/spaces/DEV/pages'],
+    [{ target: 'dashboard', dashboardId: '10001' }, '/jira/dashboards/10001'],
+    [{ target: 'userProfile', accountId: '5b10ac8d82e05b22cc7d4ef5' }, '/people/5b10ac8d82e05b22cc7d4ef5'],
+    [{ target: 'module', moduleKey: 'my-panel' }, '/module/my-panel/'],
+    [{ target: 'projectSettingsDetails', projectKey: 'PROJ' }, '/jira/software/projects/PROJ/settings'],
+  ])('resolves navigation target %j', async (location, pathname) => {
+    expect((await abs(location)).pathname).toBe(pathname);
   });
 
-  it('resolves ContentView navigation target', async () => {
-    const url = await shimModule.router.getUrl({
-      target: shimModule.NavigationTarget.ContentView,
-      contentId: '12345',
-    });
-    expect(url!.pathname).toBe('/wiki/pages/12345');
-  });
-
-  it('resolves ContentEdit navigation target', async () => {
-    const url = await shimModule.router.getUrl({
-      target: shimModule.NavigationTarget.ContentEdit,
-      contentId: '12345',
-    });
-    expect(url!.pathname).toBe('/wiki/pages/edit-v2/12345');
-  });
-
-  it('resolves SpaceView navigation target', async () => {
-    const url = await shimModule.router.getUrl({
-      target: shimModule.NavigationTarget.SpaceView,
-      spaceKey: 'DEV',
-    });
-    expect(url!.pathname).toBe('/wiki/spaces/DEV');
-  });
-
-  it('resolves Dashboard navigation target', async () => {
-    const url = await shimModule.router.getUrl({
-      target: shimModule.NavigationTarget.Dashboard,
-      dashboardId: '10001',
-    });
-    expect(url!.pathname).toBe('/jira/dashboards/10001');
-  });
-
-  it('resolves UserProfile navigation target', async () => {
-    const url = await shimModule.router.getUrl({
-      target: shimModule.NavigationTarget.UserProfile,
-      accountId: '5b10ac8d82e05b22cc7d4ef5',
-    });
-    expect(url!.pathname).toBe('/people/5b10ac8d82e05b22cc7d4ef5');
-  });
-
-  it('resolves Module navigation target', async () => {
-    const url = await shimModule.router.getUrl({
-      target: shimModule.NavigationTarget.Module,
-      moduleKey: 'my-panel',
-    });
-    expect(url!.pathname).toBe('/module/my-panel/');
-  });
-
-  it('resolves ProjectSettingsDetails navigation target', async () => {
-    const url = await shimModule.router.getUrl({
-      target: shimModule.NavigationTarget.ProjectSettingsDetails,
-      projectKey: 'PROJ',
-    });
-    expect(url!.pathname).toBe('/jira/software/projects/PROJ/settings');
+  it('returns null for an unknown target (the package then throws "Failed to get URL")', async () => {
+    await expect(callBridge('getUrl', { target: 'nope' })).resolves.toBeNull();
   });
 });
 
 // ── events ──────────────────────────────────────────────────────────────
 
 describe('events', () => {
-  let shimModule: Awaited<ReturnType<typeof loadShim>>;
-
-  beforeEach(async () => {
-    resetGlobals();
-    shimModule = await loadShim();
-  });
-
   it('dispatches events to local listeners', async () => {
-    const callback = vi.fn();
-    await shimModule.events.on('test-event', callback);
-
-    await shimModule.events.emit('test-event', { value: 42 });
-
-    expect(callback).toHaveBeenCalledOnce();
-    expect(callback).toHaveBeenCalledWith({ value: 42 });
+    const cb = vi.fn();
+    await callBridge('on', { event: 'test-event', callback: cb });
+    await callBridge('emit', { event: 'test-event', payload: { value: 42 } });
+    expect(cb).toHaveBeenCalledOnce();
+    expect(cb).toHaveBeenCalledWith({ value: 42 });
   });
 
-  it('supports multiple listeners for same event', async () => {
-    const cb1 = vi.fn();
-    const cb2 = vi.fn();
-    await shimModule.events.on('multi', cb1);
-    await shimModule.events.on('multi', cb2);
-
-    await shimModule.events.emit('multi', 'data');
-
+  it('supports multiple listeners for the same event', async () => {
+    const cb1 = vi.fn(); const cb2 = vi.fn();
+    await callBridge('on', { event: 'multi', callback: cb1 });
+    await callBridge('on', { event: 'multi', callback: cb2 });
+    await callBridge('emit', { event: 'multi', payload: 'data' });
     expect(cb1).toHaveBeenCalledOnce();
     expect(cb2).toHaveBeenCalledOnce();
   });
 
   it('unsubscribe removes the listener', async () => {
-    const callback = vi.fn();
-    const sub = await shimModule.events.on('unsub-test', callback);
-
+    const cb = vi.fn();
+    const sub = await callBridge('on', { event: 'unsub-test', callback: cb });
     sub.unsubscribe();
-    await shimModule.events.emit('unsub-test', 'data');
-
-    expect(callback).not.toHaveBeenCalled();
+    await callBridge('emit', { event: 'unsub-test', payload: 'data' });
+    expect(cb).not.toHaveBeenCalled();
   });
 
   it('does not dispatch to listeners of other events', async () => {
-    const callback = vi.fn();
-    await shimModule.events.on('event-a', callback);
-
-    await shimModule.events.emit('event-b', 'data');
-
-    expect(callback).not.toHaveBeenCalled();
+    const cb = vi.fn();
+    await callBridge('on', { event: 'event-a', callback: cb });
+    await callBridge('emit', { event: 'event-b', payload: 'data' });
+    expect(cb).not.toHaveBeenCalled();
   });
 
-  it('emitPublic prefixes with public:', async () => {
-    const callback = vi.fn();
-    await shimModule.events.onPublic('shared', callback);
-
-    await shimModule.events.emitPublic('shared', { cross: true });
-
-    expect(callback).toHaveBeenCalledWith({ cross: true });
+  it('public and private channels are separate', async () => {
+    const pub = vi.fn(); const priv = vi.fn();
+    await callBridge('onPublic', { event: 'x', callback: pub });
+    await callBridge('on', { event: 'x', callback: priv });
+    await callBridge('emitPublic', { event: 'x', payload: { cross: true } });
+    expect(pub).toHaveBeenCalledWith({ cross: true });
+    expect(priv).not.toHaveBeenCalled();
   });
 
   it('catches and logs listener errors without breaking other listeners', async () => {
-    const errorCb = vi.fn(() => { throw new Error('boom'); });
-    const goodCb = vi.fn();
-
-    await shimModule.events.on('error-test', errorCb);
-    await shimModule.events.on('error-test', goodCb);
-
-    // Should not throw
-    await shimModule.events.emit('error-test', 'data');
-
-    expect(errorCb).toHaveBeenCalledOnce();
-    expect(goodCb).toHaveBeenCalledOnce();
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const bad = vi.fn(() => { throw new Error('boom'); });
+    const good = vi.fn();
+    await callBridge('on', { event: 'error-test', callback: bad });
+    await callBridge('on', { event: 'error-test', callback: good });
+    await callBridge('emit', { event: 'error-test', payload: 'data' });
+    expect(bad).toHaveBeenCalledOnce();
+    expect(good).toHaveBeenCalledOnce();
+    expect(errSpy).toHaveBeenCalled();
+    errSpy.mockRestore();
   });
 });
 
 // ── view helpers ────────────────────────────────────────────────────────
 
 describe('view', () => {
-  let shimModule: Awaited<ReturnType<typeof loadShim>>;
-
-  beforeEach(async () => {
-    resetGlobals();
-    shimModule = await loadShim();
-  });
-
-  it('changeWindowTitle sets document.title', async () => {
-    await shimModule.view.changeWindowTitle('New Title');
+  it('changeWindowTitle sets document.title (the title IS the frame)', async () => {
+    await callBridge('changeWindowTitle', 'New Title');
     expect(document.title).toBe('New Title');
   });
 
-  it('emitReadyEvent dispatches a custom event', async () => {
+  it('emitReadyEvent dispatches forge-sim:ready on window', async () => {
     const handler = vi.fn();
     window.addEventListener('forge-sim:ready', handler);
-
-    await shimModule.view.emitReadyEvent();
-
+    await callBridge('emitReadyEvent');
     expect(handler).toHaveBeenCalledOnce();
     window.removeEventListener('forge-sim:ready', handler);
   });
 
-  it('theme.enable sets data-color-mode attribute', async () => {
-    await shimModule.view.theme.enable();
+  it('enableTheming sets data-color-mode', async () => {
+    await callBridge('enableTheming');
     expect(document.documentElement.getAttribute('data-color-mode')).toBe('dark');
-    // Clean up
-    document.documentElement.removeAttribute('data-color-mode');
-  });
-});
-
-// ── permissions ─────────────────────────────────────────────────────────
-
-describe('permissions', () => {
-  let shimModule: Awaited<ReturnType<typeof loadShim>>;
-
-  beforeEach(async () => {
-    resetGlobals();
-    shimModule = await loadShim();
   });
 
-  it('has the real egress/remote admin shape (the invented check()/request() are gone)', () => {
-    expect(typeof shimModule.permissions.egress.get).toBe('function');
-    expect(typeof shimModule.permissions.egress.set).toBe('function');
-    expect(typeof shimModule.permissions.egress.deleteDomain).toBe('function');
-    expect(typeof shimModule.permissions.egress.deleteGroup).toBe('function');
-    expect(typeof shimModule.permissions.remote.get).toBe('function');
-    expect(typeof shimModule.permissions.remote.set).toBe('function');
-    expect('check' in shimModule.permissions).toBe(false);
-    expect('request' in shimModule.permissions).toBe(false);
-  });
-
-  it('egress/remote calls fail loudly (not simulated yet)', async () => {
-    await expect(shimModule.permissions.egress.get({})).rejects.toThrow(/not yet implemented/);
-    await expect(shimModule.permissions.remote.set({})).rejects.toThrow(/not yet implemented/);
-  });
-});
-
-// ── featureFlags ────────────────────────────────────────────────────────
-
-describe('FeatureFlags', () => {
-  let shimModule: Awaited<ReturnType<typeof loadShim>>;
-
-  beforeEach(async () => {
-    resetGlobals();
-    shimModule = await loadShim();
-  });
-
-  it('checkFlag throws before initialize(), like real @forge/bridge', () => {
-    const flags = new shimModule.FeatureFlags();
-    expect(() => flags.checkFlag('my-flag')).toThrow(/not initialized/i);
-  });
-
-  it('checkFlag returns the defaultValue after initialize()', async () => {
-    const flags = new shimModule.FeatureFlags();
-    await flags.initialize({ identifier: 'user-1' });
-    expect(flags.isInitialized()).toBe(true);
-    expect(flags.checkFlag('my-flag')).toBe(false);
-    expect(flags.checkFlag('my-flag', true)).toBe(true);
-  });
-
-  it('shutdown() resets the initialized state', async () => {
-    const flags = new shimModule.FeatureFlags();
-    await flags.initialize({ identifier: 'user-1' });
-    flags.shutdown();
-    expect(flags.isInitialized()).toBe(false);
-    expect(() => flags.checkFlag('my-flag')).toThrow(/not initialized/i);
-  });
-});
-
-// ── i18n (bridge-level) ─────────────────────────────────────────────────
-
-describe('i18n', () => {
-  let shimModule: Awaited<ReturnType<typeof loadShim>>;
-
-  beforeEach(async () => {
-    resetGlobals();
-    shimModule = await loadShim();
-  });
-
-  it('getLocale returns navigator.language', async () => {
-    const locale = await shimModule.i18n.getLocale();
-    expect(typeof locale).toBe('string');
-    expect(locale.length).toBeGreaterThan(0);
+  it('getFrameId is stable and names the module', async () => {
+    await expect(callBridge('getFrameId')).resolves.toBe('forge-sim-frame-test-module');
   });
 });

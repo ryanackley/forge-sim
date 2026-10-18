@@ -1,6 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import ForgeReconciler, { Text, Button, Stack } from '@forge/react';
+import ForgeReconciler, { Text, Button, Stack, I18nProvider, useTranslation } from '@forge/react';
 import { invoke } from '@forge/bridge';
+
+// Source-mode app running the REAL @forge/bridge: its i18n fetches
+// ./__LOCALES__/*.json relative to this page, which the dev server answers
+// from src/__LOCALES__ via the simulator's i18n store.
+const Greeting = () => {
+  const { t, ready } = useTranslation();
+  return <Text>i18n:{ready ? t('greeting') : 'loading'}</Text>;
+};
 
 const App = () => {
   const [jiraResult, setJiraResult] = useState('loading...');
@@ -24,6 +32,7 @@ const App = () => {
       <Text>jira-result:{jiraResult}</Text>
       <Text>conf-result:{confResult}</Text>
       <Text>echo-result:{echoResult}</Text>
+      <Greeting />
       <Button
         onClick={async () => {
           try {
@@ -48,4 +57,4 @@ const App = () => {
   );
 };
 
-ForgeReconciler.render(<App />);
+ForgeReconciler.render(<I18nProvider><App /></I18nProvider>);
