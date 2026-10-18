@@ -24,35 +24,35 @@ The reconciler runs in Node.js. The ForgeDoc (intermediate UI tree) can be inspe
 Browser
 ├── @forge/react runs HERE (debuggable in Chrome DevTools)
 ├── Event handlers, useState, useEffect — all client-side
-├── @forge/bridge shim → WebSocket → forge-sim backend
+├── window.__bridge ← /__forge/bridge.js (forge-sim's browser bridge host)
 
 forge-sim (Node)
 ├── Resolvers, KVS, SQL, Product APIs
-└── Handles invoke() and requestProduct() calls
+└── Answers the bridge host's WebSocket RPCs
 ```
 
-App code runs in the browser. You can set breakpoints in event handlers, use React DevTools, and inspect state changes in real-time. `invoke()` calls route over WebSocket to forge-sim's backend.
+App code runs in the browser. You can set breakpoints in event handlers, use React DevTools, and inspect state changes in real-time. Bridge calls (`invoke()`, `requestJira()`, `view.getContext()`, …) go through `window.__bridge`, the same seam real Forge provides, and the bridge host relays them to forge-sim over WebSocket.
 
 This is what `forge-sim dev` uses.
 
-## @forge/bridge Shim
+## The browser bridge
 
-For browser mode, forge-sim provides a Vite plugin that aliases `@forge/bridge` to a WebSocket-backed shim:
+Every page `forge-sim dev` serves — UI Kit, Custom UI, and pages proxied with `--proxy` — loads one script ahead of all app code: `/__forge/bridge.js`, built from `src/bridge/hosts/browser` into `dist/bridge.js`. It installs `window.__bridge` (what `@forge/bridge` and `@forge/react` talk to) and implements every bridge command: resolver and product calls over WebSocket RPC; flags, modals, history, navigation and cross-module events in the DOM. The protocol it speaks lives in `src/bridge/protocol` and is shared with the headless host used by tests and the MCP server, so a command cannot work on one surface and silently return `undefined` on another.
+
+Source-mode UI Kit apps still import `@forge/bridge` through a Vite alias to `renderer/src/bridge/forge-bridge-shim.ts`. That file is now a thin adapter: each export sends the exact frame the real package sends through `window.__bridge`. Dropping the alias so source-mode apps run the real package is the last step of the bridge consolidation.
+
+If a Forge app's **own** Vite dev server must serve the page, a plugin injects the same bundle from a running `forge-sim dev`:
 
 ```typescript no-check
 // vite.config.ts (in your Forge app)
 import { forgeSimPlugin } from 'forge-sim/renderer/bridge/vite-plugin-forge-sim';
 
 export default defineConfig({
-  plugins: [react(), forgeSimPlugin()],
+  plugins: [react(), forgeSimPlugin({ forgeSimUrl: 'http://localhost:5173', wsPort: 5174 })],
 });
 ```
 
-The shim intercepts all `@forge/bridge` calls:
-- `invoke()` → WebSocket RPC to forge-sim backend
-- `requestJira()` / `requestConfluence()` → forwarded to product API proxy
-- `getContext()` → returns simulated context (accountId, cloudId, siteUrl, etc.)
-- `view.submit()` / `view.close()` → logged
+Prefer `forge-sim dev --proxy <url>`, which performs the same injection server-side with no app config.
 
 ## Component Coverage
 

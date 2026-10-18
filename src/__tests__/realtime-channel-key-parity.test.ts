@@ -74,9 +74,6 @@
  *      { contextOverrides: [] })` lands on `subscribeGlobal(ch)` is
  *      therefore unsettled; we document current behaviour only.
  *
- * Also pinned here (promised by the header of src/realtime-channel-key.ts
- * and its renderer mirror): the canonical key builder and the browser mirror
- * produce identical keys over a matrix of inputs.
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
@@ -84,7 +81,6 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { SimulatedRealtime, type RealtimeInvocationContext, type PublishResult } from '../realtime.js';
 import * as canonical from '../realtime-channel-key.js';
-import * as mirror from '../../renderer/src/bridge/channel-key.js';
 import { createSimulator, ForgeSimulator } from '../simulator.js';
 
 // ── Source-of-truth helpers ────────────────────────────────────────────────
@@ -424,51 +420,6 @@ describe('Realtime channel-key parity (docs + real typings vs forge-sim)', () =>
       await rt.publish('my:channel', 'ok');
 
       expect(received).toEqual(['ok']);
-    });
-  });
-
-  // ────────────────────────────────────────────────────────────────────────
-  // 5b. Canonical key builder and the renderer mirror agree
-  // ────────────────────────────────────────────────────────────────────────
-
-  describe('canonical src/realtime-channel-key.ts == renderer/src/bridge/channel-key.ts mirror', () => {
-    const modules = ['jira:issuePanel', 'a', 'a:b', 'with\\back', 'ctx(project)', ''];
-    const channels = ['ch', 'b:c', 'c', 'global:ch', 'ctx(project):ch', '\\', ''];
-    const overrideSets: Array<readonly string[] | undefined> = [
-      undefined,
-      [],
-      [Jira.Project],
-      [Jira.Project, Jira.Issue],
-      [Jira.Issue, Jira.Project],
-      [Confluence.Space, Confluence.Content, Confluence.Space],
-      [Bitbucket.PullRequest],
-      ['bo:gus'],
-    ];
-
-    it('scopedChannelKey matches over the full matrix', () => {
-      for (const m of modules) for (const c of channels) for (const o of overrideSets) {
-        expect(mirror.scopedChannelKey(m, c, o)).toBe(canonical.scopedChannelKey(m, c, o));
-      }
-    });
-
-    it('channelKeyFor matches over the full matrix, including null module', () => {
-      for (const m of [...modules, null, undefined]) for (const c of channels) for (const o of overrideSets) {
-        expect(mirror.channelKeyFor(m, c, o)).toBe(canonical.channelKeyFor(m, c, o));
-      }
-    });
-
-    it('globalChannelKey and isGlobalByEmptyOverrides match', () => {
-      for (const c of channels) expect(mirror.globalChannelKey(c)).toBe(canonical.globalChannelKey(c));
-      for (const o of overrideSets) {
-        expect(mirror.isGlobalByEmptyOverrides(o)).toBe(canonical.isGlobalByEmptyOverrides(o));
-      }
-    });
-
-    it('the mirror body is byte-identical to the canonical body below the header', () => {
-      const strip = (s: string) => s.slice(s.indexOf("const SEP = ':';"));
-      const canonicalSrc = readFileSync(resolve(import.meta.dirname, '../realtime-channel-key.ts'), 'utf8');
-      const mirrorSrc = readFileSync(resolve(import.meta.dirname, '../../renderer/src/bridge/channel-key.ts'), 'utf8');
-      expect(strip(mirrorSrc)).toBe(strip(canonicalSrc));
     });
   });
 

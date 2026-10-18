@@ -1,5 +1,5 @@
 import Resolver from '@forge/resolver';
-import { requestJira, requestConfluence } from '@forge/api';
+import { route, requestJira, requestConfluence } from '@forge/api';
 
 const resolver = new Resolver();
 
@@ -9,7 +9,7 @@ resolver.define('echo', ({ payload }: any) => {
 
 resolver.define('getJiraData', async () => {
   try {
-    const res = await requestJira('/rest/api/3/myself');
+    const res = await requestJira(route`/rest/api/3/myself`);
     const body = await res.text();
     return { success: true, status: res.status, body };
   } catch (err: any) {
@@ -19,7 +19,7 @@ resolver.define('getJiraData', async () => {
 
 resolver.define('getConfluenceData', async () => {
   try {
-    const res = await requestConfluence('/wiki/api/v2/spaces');
+    const res = await requestConfluence(route`/wiki/api/v2/spaces`);
     const body = await res.text();
     return { success: true, status: res.status, body };
   } catch (err: any) {

@@ -1,16 +1,19 @@
 /**
- * Vite Plugin: forge-sim browser mode
+ * Vite Plugin: run a Forge app's OWN Vite dev server against forge-sim.
  *
- * Aliases @forge/bridge to our WebSocket-based shim so that
- * Forge app code can run in the browser with CDT debugging,
- * while resolver calls route to forge-sim on the backend.
+ * Injects the forge-sim browser bridge bundle, served by a running
+ * `forge-sim dev`, ahead of the app's scripts, and aliases `@forge/bridge`
+ * to forge-sim's shim so a source-mode app's imports resolve. Prefer
+ * `forge-sim dev --proxy <url>` where possible — it does the same injection
+ * server-side with no app config. This plugin is for setups where the app's
+ * dev server must be the one serving the page.
  *
  * Usage in the Forge app's vite.config.ts:
  *
  *   import { forgeSimPlugin } from 'forge-sim/renderer/bridge/vite-plugin-forge-sim';
  *
  *   export default defineConfig({
- *     plugins: [react(), forgeSimPlugin({ wsUrl: 'ws://localhost:5174' })],
+ *     plugins: [react(), forgeSimPlugin({ forgeSimUrl: 'http://localhost:5173', wsPort: 5174 })],
  *   });
  */
 
@@ -21,13 +24,22 @@ import type { Plugin } from 'vite';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 export interface ForgeSimPluginOptions {
-  /** WebSocket URL for the forge-sim dev server (default: ws://localhost:5174) */
-  wsUrl?: string;
+  /** Origin of the running `forge-sim dev` HTTP server (default: http://localhost:5173). */
+  forgeSimUrl?: string;
+  /** Its WebSocket bridge port (default: 5174). */
+  wsPort?: number;
+  /** Module key to report as this page's placement (there is no /module/<key>/ in the URL here). */
+  moduleKey?: string;
 }
 
 export function forgeSimPlugin(options: ForgeSimPluginOptions = {}): Plugin {
   const shimPath = resolve(__dirname, 'forge-bridge-shim.ts');
-  const wsUrl = options.wsUrl ?? 'ws://localhost:5174';
+  const forgeSimUrl = (options.forgeSimUrl ?? 'http://localhost:5173').replace(/\/$/, '');
+  const config = JSON.stringify({
+    wsPort: options.wsPort ?? 5174,
+    defaultModuleKey: options.moduleKey ?? null,
+    history: 'browser',
+  });
 
   return {
     name: 'vite-plugin-forge-sim',
@@ -35,31 +47,17 @@ export function forgeSimPlugin(options: ForgeSimPluginOptions = {}): Plugin {
     config() {
       return {
         resolve: {
-          alias: {
-            // Redirect @forge/bridge imports to our WebSocket shim
-            '@forge/bridge': shimPath,
-          },
-        },
-        define: {
-          // Inject the WebSocket URL as a global
-          '__FORGE_SIM_WS_URL__': JSON.stringify(wsUrl),
+          alias: { '@forge/bridge': shimPath },
         },
       };
     },
 
-    // Inject a banner that installs the bridge before any app code runs
+    // Classic scripts, no async/defer: the parser runs them before any app
+    // script, which is what @forge/bridge's getCallBridge() depends on.
     transformIndexHtml() {
       return [
-        {
-          tag: 'script',
-          attrs: { type: 'module' },
-          children: `
-            // forge-sim: install bridge shim before app code
-            window.__FORGE_SIM__ = true;
-            window.__FORGE_SIM_WS_URL__ = ${JSON.stringify(wsUrl)};
-          `,
-          injectTo: 'head-prepend',
-        },
+        { tag: 'script', children: `window.__FORGE_SIM_BRIDGE_CONFIG__=${config};`, injectTo: 'head-prepend' },
+        { tag: 'script', attrs: { src: `${forgeSimUrl}/__forge/bridge.js` }, injectTo: 'head-prepend' },
       ];
     },
   };

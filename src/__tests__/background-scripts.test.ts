@@ -6,7 +6,7 @@
  * iframe injection, and cross-module event relay.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import {
   parseManifestContent,
   BACKGROUND_SCRIPT_TYPES,
@@ -476,9 +476,14 @@ describe('background script iframe injection', () => {
 // ── Cross-Module Events ───────────────────────────────────────────────
 
 describe('cross-module events (bridge shim)', () => {
-  // These tests verify the renderer bridge shim's event relay behavior.
-  // Events relay via postMessage between iframes (parent page brokers).
-  // Here we test the bridge shim's local dispatch + postMessage send behavior.
+  // These tests verify the @forge/bridge shim's events API end to end: the
+  // shim sends the real package's frames into window.__bridge, and the
+  // browser bridge host (installed here in jsdom) dispatches locally and
+  // relays via postMessage for the parent page to broker between iframes.
+  beforeEach(async () => {
+    const { installBrowserBridge } = await import('./helpers/browser-bridge-harness.js');
+    installBrowserBridge();
+  });
 
   it('should export events with emit/on/emitPublic/onPublic', async () => {
     const { events } = await import('../../renderer/src/bridge/forge-bridge-shim.js');

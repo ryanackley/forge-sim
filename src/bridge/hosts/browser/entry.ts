@@ -23,7 +23,7 @@ declare global {
   interface Window {
     __bridge?: { callBridge: (cmd: string, data?: unknown) => Promise<unknown> };
     __forgeSimBridge?: ForgeSimBridgeHooks;
-    __FORGE_SIM_BRIDGE_CONFIG__?: { wsPort: number; defaultModuleKey: string | null };
+    __FORGE_SIM_BRIDGE_CONFIG__?: { wsPort: number; defaultModuleKey: string | null; history?: 'browser' | 'memory' };
   }
 }
 
@@ -70,6 +70,7 @@ function install(): void {
     getContextOptions: readContextOptionsFromUrl,
     getSubmitTree: () => activeSubmitTree,
     isInModal: isInModalFrame,
+    historyMode: config.history ?? 'browser',
     onReconcile(doc, kind) {
       const [store, listeners] = kind === 'macroConfig'
         ? ['config', configListeners] as const

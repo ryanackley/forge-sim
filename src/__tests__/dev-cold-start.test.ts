@@ -26,7 +26,10 @@ describe('generateUIKitEntry — boot resilience', () => {
   const entry = generateUIKitEntry('/app/src/frontend/index.jsx', 5174, false);
 
   it('imports bridge → app code → shell in order', () => {
-    const bridgeIdx = entry.indexOf("import('forge-sim/renderer/bridge')");
+    // The bridge is no longer imported by the entry: index.html loads
+    // /__forge/bridge.js ahead of it. The entry's first act is to verify it
+    // landed, BEFORE the app import evaluates @forge/react.
+    const bridgeIdx = entry.indexOf('if (!window.__bridge)');
     const appIdx = entry.indexOf("import('/app/src/frontend/index.jsx')");
     const shellIdx = entry.indexOf("import('forge-sim/renderer/ForgeSimShell')");
     expect(bridgeIdx).toBeGreaterThan(-1);
@@ -52,6 +55,26 @@ describe('generateUIKitEntry — boot resilience', () => {
   it('clears the retry guard after a successful boot', () => {
     const successPath = entry.slice(0, entry.indexOf('boot().catch'));
     expect(successPath).toContain("sessionStorage.removeItem('forge-sim-boot-retried')");
+  });
+});
+
+describe('generateIndexHtml — bridge bundle injection', () => {
+  it('loads /__forge/bridge.js as a classic script in <head>, after its config, before the entry module', async () => {
+    const { generateIndexHtml } = await import('../dev-command.js');
+    const html = generateIndexHtml('T', [], 5174);
+    expect(html).toContain('window.__FORGE_SIM_BRIDGE_CONFIG__=');
+    expect(html).toContain('"wsPort":5174');
+    // UI Kit pages keep the module key in the URL path, so history is in-memory.
+    expect(html).toContain('"history":"memory"');
+    expect(html).toContain('<script src="/__forge/bridge.js"></script>');
+    expect(html).not.toMatch(/<script[^>]+src="\/__forge\/bridge\.js"[^>]*\b(async|defer|type="module")/);
+    expect(html.indexOf('__FORGE_SIM_BRIDGE_CONFIG__')).toBeLessThan(html.indexOf('/__forge/bridge.js'));
+    expect(html.indexOf('/__forge/bridge.js')).toBeLessThan(html.indexOf('./entry.tsx'));
+  });
+
+  it('omits the bundle when no port is given (headless callers that only want the shell markup)', async () => {
+    const { generateIndexHtml } = await import('../dev-command.js');
+    expect(generateIndexHtml('T')).not.toContain('/__forge/bridge.js');
   });
 });
 

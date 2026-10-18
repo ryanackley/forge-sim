@@ -23,7 +23,7 @@ import type {
 } from '../../protocol/index.js';
 import type { Transport } from './transport.js';
 import { createFlagSurface } from './flags.js';
-import { createBrowserHistory } from './history.js';
+import { createBrowserHistory, createMemoryHistory } from './history.js';
 import { createModalSurface } from './modal.js';
 
 export interface BrowserHostOptions {
@@ -38,6 +38,13 @@ export interface BrowserHostOptions {
   getSubmitTree?(): string | undefined;
   /** True when this frame is itself a modal, so submit/close go to the opener. */
   isInModal?(): boolean;
+  /**
+   * 'browser' (default): view.createHistory() drives window.history — Custom
+   * UI SPAs, whose routes the dev server serves under /module/<key>/.
+   * 'memory': in-memory stack — UI Kit pages, where the module key lives in
+   * the URL path and must not be navigated away.
+   */
+  historyMode?: 'browser' | 'memory';
 }
 
 function eventKey(event: string, isPublic: boolean): string {
@@ -152,7 +159,9 @@ export function createBrowserHost(options: BrowserHostOptions): BridgeHost {
     async refresh() { window.location.reload(); },
     async open() { /* view.open() has no host surface in dev */ },
     async onClose() { /* the opener drives close; nothing to register here */ },
-    async createHistory() { return createBrowserHistory(); },
+    async createHistory() {
+      return options.historyMode === 'memory' ? createMemoryHistory() : createBrowserHistory();
+    },
     async enableTheming() {
       document.documentElement.setAttribute('data-color-mode', 'dark');
     },

@@ -1,782 +1,179 @@
 /**
- * @forge/bridge browser shim — drop-in replacement for @forge/bridge
- * that routes backend calls (invoke, requestProduct, getContext) over
- * WebSocket to forge-sim, while keeping everything else client-side.
+ * @forge/bridge browser shim — the `@forge/bridge` module a SOURCE-MODE app
+ * gets in `forge-sim dev` (Vite aliases the package here), plus the hooks
+ * forge-sim's own chrome needs.
  *
- * This enables the real Forge architecture:
- *   - @forge/react reconciler runs in the browser (debuggable in CDT)
- *   - Event handlers, useState, useEffect run in the browser
- *   - Only resolver invocations and product API calls cross to the backend
+ * This file no longer owns a transport, a command switch, or any DOM. The
+ * browser bridge HOST does — src/bridge/hosts/browser, built to
+ * dist/bridge.js and loaded by every dev page ahead of app code. It installs
+ * `window.__bridge` (the one seam real Forge provides) and
+ * `window.__forgeSimBridge` (reconcile stream + raw RPC for the shell).
  *
- * Usage: Vite aliases @forge/bridge → this file
+ * Every export below is therefore a thin adapter:
+ *   - app-facing exports send the exact frame real @forge/bridge sends
+ *     through `window.__bridge.callBridge`, so a source-mode app and a
+ *     prebuilt bundle exercise the identical path;
+ *   - chrome-facing exports (onReconcile, rpc, setActiveSubmitTree) read
+ *     `window.__forgeSimBridge`.
+ *
+ * Under jsdom (renderer unit tests) no bundle is loaded. The adapter then
+ * installs a minimal local stand-in that supports exactly what those tests
+ * drive — reconcile capture with replay, the active submit tree, and an RPC
+ * that rejects — and exposes its state on `globalThis.__forgeSim` so the
+ * existing tests can reset it between cases.
+ *
+ * The alias itself is the last step of the bridge consolidation: once it is
+ * dropped, source-mode apps run the real package and this file shrinks to
+ * the chrome hooks only.
  */
 
-import { globalChannelKey, channelKeyFor, invalidContextOverrides, validateRealtimeToken, parseRealtimeToken } from './channel-key.js';
-import {
-  BRIDGE_COMMANDS,
-  translateBridgeCommand,
-  bridgeNotImplementedError,
-} from './bridge-commands';
-
-// ── Shared State (survives Vite module duplication) ────────────────────
-//
-// Vite may create multiple copies of this module (pre-bundled deps vs source).
-// ALL mutable state must live on globalThis.__forgeSim so every copy shares it.
-
 type ReconcileListener = (forgeDoc: any) => void;
-type ModalCloseCallback = (payload?: any) => void;
 
-interface ActiveModal {
-  overlay: HTMLElement;
-  dialog: HTMLElement;
-  iframe: HTMLIFrameElement;
-  messageHandler: (e: MessageEvent) => void;
-  escapeHandler: (e: KeyboardEvent) => void;
-  resolve: (payload?: any) => void;
-  onClose?: ModalCloseCallback;
+/** What the bundle exposes for forge-sim's own UI (see src/bridge/hosts/browser/entry.ts). */
+interface ForgeSimBridgeHooks {
+  onReconcile(fn: ReconcileListener): () => void;
+  onMacroConfigReconcile(fn: ReconcileListener): () => void;
+  getLatestForgeDoc(): unknown;
+  getLatestMacroConfigDoc(): unknown;
+  rpc(method: string, params?: Record<string, unknown>): Promise<any>;
+  setActiveSubmitTree(tree: 'view' | 'macroConfig'): void;
 }
 
 const G = globalThis as any;
+
+// ── Shared state (jsdom stand-in; also what tests reset) ────────────────
+
 if (!G.__forgeSim) {
   G.__forgeSim = {
-    // WebSocket connection
-    ws: null as WebSocket | null,
-    wsReady: false,
-    wsUrl: 'ws://localhost:5174',
-    pendingRequests: new Map<string, { resolve: (v: any) => void; reject: (e: any) => void }>(),
-    requestCounter: 0,
-    // Reconcile — main view tree (ForgeReconciler.render(<App />))
     reconcileListeners: [] as ReconcileListener[],
     lastForgeDoc: null as any,
-    // Reconcile — macro config tree (ForgeReconciler.addConfig(<Config />))
     macroConfigReconcileListeners: [] as ReconcileListener[],
     lastMacroConfigDoc: null as any,
-    /** True once a 'submit' bridge call originates from the macro config tree.
-     * Used by the dev-server to route the payload to the inline macro config
-     * store instead of treating it as a regular viewSubmit. */
+    /** Which reconcile tree the next view.submit() belongs to (macro inline config). */
     activeSubmitTree: 'view' as 'view' | 'macroConfig',
-    // Modal
-    activeModal: null as ActiveModal | null,
-    viewOnCloseCallback: null as ModalCloseCallback | null,
-    // Realtime
-    realtimeSubscribers: new Map<string, Set<(payload: any) => void>>(),
   };
 }
 
-// Local references for convenience
-const reconcileListeners: ReconcileListener[] = G.__forgeSim.reconcileListeners;
-const macroConfigReconcileListeners: ReconcileListener[] = G.__forgeSim.macroConfigReconcileListeners;
+/**
+ * The hooks object: the bundle's when a dev page loaded it, otherwise a local
+ * stand-in (jsdom). Resolved lazily on every call so a test that installs
+ * its own `window.__bridge` before importing this module is honoured.
+ */
+function hooks(): ForgeSimBridgeHooks {
+  if (G.__forgeSimBridge) return G.__forgeSimBridge as ForgeSimBridgeHooks;
+  return localStandIn();
+}
+
+let standIn: ForgeSimBridgeHooks | null = null;
+function localStandIn(): ForgeSimBridgeHooks {
+  if (standIn) return standIn;
+  const S = G.__forgeSim;
+  const dispatch = (listeners: ReconcileListener[], doc: any) => {
+    for (const fn of [...listeners]) { try { fn(doc); } catch {} }
+  };
+  standIn = {
+    onReconcile(fn) {
+      S.reconcileListeners.push(fn);
+      if (S.lastForgeDoc) { try { fn(S.lastForgeDoc); } catch {} }
+      return () => { const i = S.reconcileListeners.indexOf(fn); if (i >= 0) S.reconcileListeners.splice(i, 1); };
+    },
+    onMacroConfigReconcile(fn) {
+      S.macroConfigReconcileListeners.push(fn);
+      if (S.lastMacroConfigDoc) { try { fn(S.lastMacroConfigDoc); } catch {} }
+      return () => { const i = S.macroConfigReconcileListeners.indexOf(fn); if (i >= 0) S.macroConfigReconcileListeners.splice(i, 1); };
+    },
+    getLatestForgeDoc: () => S.lastForgeDoc,
+    getLatestMacroConfigDoc: () => S.lastMacroConfigDoc,
+    rpc: (method) => Promise.reject(new Error(`[forge-sim] No dev server in this environment (rpc "${method}")`)),
+    setActiveSubmitTree: (tree) => { S.activeSubmitTree = tree; },
+  };
+  // A minimal window.__bridge so @forge/react's reconcile has somewhere to go.
+  if (!G.__bridge) {
+    G.__bridge = {
+      callBridge(cmd: string, data?: any): Promise<any> {
+        switch (cmd) {
+          case 'reconcile': {
+            const doc = data?.forgeDoc;
+            if (!doc) return Promise.resolve();
+            if (doc.type === 'MacroConfig') { S.lastMacroConfigDoc = doc; dispatch(S.macroConfigReconcileListeners, doc); }
+            else { S.lastForgeDoc = doc; dispatch(S.reconcileListeners, doc); }
+            return Promise.resolve();
+          }
+          case 'getContext':
+            return standIn!.rpc('getContext');
+          case 'submit':
+          case 'close':
+          case 'onClose':
+          case 'onError':
+          case 'trackObjectStoreAction':
+            return Promise.resolve();
+          default:
+            return Promise.reject(new Error(`[forge-sim] Bridge command "${cmd}" is not available without the dev server bundle.`));
+        }
+      },
+    };
+    if (typeof window !== 'undefined') (window as any).__bridge = G.__bridge;
+  }
+  return standIn;
+}
+
+/** The one seam: whatever installed window.__bridge (the bundle, or the stand-in). */
+function callBridge(cmd: string, data?: any): Promise<any> {
+  const bridge = G.__bridge ?? (localStandIn(), G.__bridge);
+  return bridge.callBridge(cmd, data);
+}
+
+// ── Chrome hooks (ForgeSimShell, ForgeSimModulePage, GearPopover) ────────
 
 export function onReconcile(listener: ReconcileListener): () => void {
-  reconcileListeners.push(listener);
-  // Replay the last ForgeDoc immediately if we already have one
-  // This handles the case where ForgeReconciler.render() fires before
-  // the React DOM shell mounts and registers its listener
-  if (G.__forgeSim.lastForgeDoc) {
-    try { listener(G.__forgeSim.lastForgeDoc); } catch {}
-  }
-  return () => {
-    const idx = reconcileListeners.indexOf(listener);
-    if (idx >= 0) reconcileListeners.splice(idx, 1);
-  };
+  return hooks().onReconcile(listener);
 }
 
-/**
- * Subscribe to ForgeDocs from the macro config tree (`ForgeReconciler.addConfig`).
- * The reconciler emits these alongside the main view tree when an app uses inline
- * macro configuration. Listeners only fire when a config tree exists.
- */
 export function onMacroConfigReconcile(listener: ReconcileListener): () => void {
-  macroConfigReconcileListeners.push(listener);
-  if (G.__forgeSim.lastMacroConfigDoc) {
-    try { listener(G.__forgeSim.lastMacroConfigDoc); } catch {}
-  }
-  return () => {
-    const idx = macroConfigReconcileListeners.indexOf(listener);
-    if (idx >= 0) macroConfigReconcileListeners.splice(idx, 1);
-  };
+  return hooks().onMacroConfigReconcile(listener);
 }
 
-/** Called by the shell whenever the user switches between View and Config tabs.
- * The bridge uses this to tag the next view.submit() call so the dev-server
- * can route the payload to the right place. */
+/** Called by the shell whenever the user switches between View and Config tabs. */
 export function setActiveSubmitTree(tree: 'view' | 'macroConfig') {
   G.__forgeSim.activeSubmitTree = tree;
-}
-
-function ensureConnection(): Promise<void> {
-  const S = G.__forgeSim;
-  if (S.ws && S.wsReady) return Promise.resolve();
-
-  return new Promise((resolve, reject) => {
-    if (S.ws && S.ws.readyState === WebSocket.CONNECTING) {
-      S.ws.addEventListener('open', () => resolve(), { once: true });
-      return;
-    }
-
-    S.ws = new WebSocket(S.wsUrl);
-
-    S.ws.onopen = () => {
-      S.wsReady = true;
-      console.log('[forge-bridge-shim] Connected to forge-sim');
-      resolve();
-    };
-
-    S.ws.onmessage = (event: MessageEvent) => {
-      try {
-        const msg = JSON.parse(event.data);
-
-        // (forgeEvent relay moved to postMessage — see window message listener below)
-
-        // Realtime event push from backend
-        if (msg.type === 'realtime') {
-          const subs = S.realtimeSubscribers as Map<string, Set<(payload: any) => void>>;
-          const channelKey = msg.channelKey as string;
-          const callbacks = subs.get(channelKey);
-          if (callbacks) {
-            for (const cb of callbacks) {
-              try { cb(msg.payload); } catch (e) { console.error('[forge-bridge-shim] realtime callback error:', e); }
-            }
-          }
-          return;
-        }
-
-        if (msg.requestId && S.pendingRequests.has(msg.requestId)) {
-          const pending = S.pendingRequests.get(msg.requestId)!;
-          S.pendingRequests.delete(msg.requestId);
-          if (msg.error) {
-            pending.reject(new Error(msg.error));
-          } else {
-            pending.resolve(msg.result);
-          }
-        }
-      } catch (err) {
-        console.error('[forge-bridge-shim] Failed to parse message:', err);
-      }
-    };
-
-    S.ws.onclose = () => {
-      S.wsReady = false;
-      console.log('[forge-bridge-shim] Disconnected, will reconnect...');
-      for (const [id, pending] of S.pendingRequests) {
-        pending.reject(new Error('WebSocket disconnected'));
-        S.pendingRequests.delete(id);
-      }
-      setTimeout(() => ensureConnection(), 2000);
-    };
-
-    S.ws.onerror = () => {
-      S.wsReady = false;
-      reject(new Error('WebSocket connection failed'));
-    };
-  });
+  hooks().setActiveSubmitTree(tree);
 }
 
 /**
- * Send a request to forge-sim and wait for the response.
- * Exported so the dev-server shell (gear menu) can issue tooling RPCs
- * (`getSeededUsers`, `setActingUser`) over the same WebSocket channel the
- * Forge bridge uses.
+ * Raw dev-server RPC for forge-sim's own chrome (`getActingUserState`,
+ * `searchUsers`, `setActingUser`, i18n). Not a Forge bridge command.
  */
-export async function rpc(method: string, params: any = {}): Promise<any> {
-  await ensureConnection();
-
-  const S = G.__forgeSim;
-  const requestId = `rpc-${++S.requestCounter}-${Date.now()}`;
-
-  return new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => {
-      S.pendingRequests.delete(requestId);
-      reject(new Error(`RPC timeout: ${method}`));
-    }, 900000);
-
-    S.pendingRequests.set(requestId, {
-      resolve: (v: any) => { clearTimeout(timeout); resolve(v); },
-      reject: (e: any) => { clearTimeout(timeout); reject(e); },
-    });
-
-    S.ws!.send(JSON.stringify({ type: 'rpc', requestId, method, params }));
-  });
+export function rpc(method: string, params: any = {}): Promise<any> {
+  return hooks().rpc(method, params);
 }
-
-// ── URL-based context extraction ────────────────────────────────────────
-
-/**
- * Extract the module key from the current URL path.
- * Pattern: /module/<key>/...
- */
-function getModuleKeyFromURL(): string | undefined {
-  if (typeof window === 'undefined') return undefined;
-  const match = window.location.pathname.match(/^\/module\/([^/]+)/);
-  return match?.[1];
-}
-
-/**
- * Extract context options from URL query params.
- * Supports:
- *   ?issueKey=TEST-1
- *   ?contentId=12345
- *   ?spaceKey=DEV
- *   ?context=<base64-encoded JSON>
- */
-function getContextFromURL(): Record<string, any> | undefined {
-  if (typeof window === 'undefined') return undefined;
-  const params = new URLSearchParams(window.location.search);
-
-  const result: Record<string, any> = {};
-  let hasAny = false;
-
-  const issueKey = params.get('issueKey');
-  if (issueKey) { result.issueKey = issueKey; hasAny = true; }
-
-  const contentId = params.get('contentId');
-  if (contentId) { result.contentId = contentId; hasAny = true; }
-
-  const spaceKey = params.get('spaceKey');
-  if (spaceKey) { result.spaceKey = spaceKey; hasAny = true; }
-
-  const contextB64 = params.get('context');
-  if (contextB64) {
-    try {
-      const decoded = JSON.parse(atob(contextB64));
-      Object.assign(result, decoded);
-      hasAny = true;
-    } catch {
-      console.warn('[forge-bridge-shim] Failed to decode ?context param');
-    }
-  }
-
-  return hasAny ? result : undefined;
-}
-
-// ── Configure ───────────────────────────────────────────────────────────
-
-/** Set the WebSocket URL for the forge-sim backend */
-export function configure(opts: { wsUrl?: string }) {
-  if (opts.wsUrl) G.__forgeSim.wsUrl = opts.wsUrl;
-}
-
-// ── Modal helpers ────────────────────────────────────────────────────────
-
-const MODAL_SIZES: Record<string, number> = {
-  small: 400,
-  medium: 600,
-  large: 800,
-  'x-large': 968,
-};
-
-export function isInModal(): boolean {
-  if (typeof window === 'undefined') return false;
-  try {
-    if (window === window.parent) return false;
-  } catch {
-    // cross-origin — assume modal
-    return true;
-  }
-  const params = new URLSearchParams(window.location.search);
-  return params.get('_modal') === 'true';
-}
-
-export function buildModalIframeURL(resource: string, context?: any): string {
-  let url = `/module/${encodeURIComponent(resource)}/?_modal=true`;
-  if (context != null) {
-    const b64 = btoa(JSON.stringify(context));
-    url += `&context=${encodeURIComponent(b64)}`;
-  }
-  return url;
-}
-
-function closeActiveModal(payload?: any) {
-  const S = G.__forgeSim;
-  const modal = S.activeModal as ActiveModal | null;
-  if (!modal) return;
-
-  window.removeEventListener('message', modal.messageHandler);
-  document.removeEventListener('keydown', modal.escapeHandler);
-  modal.overlay.remove();
-  S.activeModal = null;
-
-  if (modal.onClose) {
-    try { modal.onClose(payload); } catch {}
-  }
-  modal.resolve(payload);
-}
-
-function openModalOverlay(data: any): Promise<any> {
-  const S = G.__forgeSim;
-
-  // Close existing modal if one is open
-  if (S.activeModal) closeActiveModal();
-
-  const size = MODAL_SIZES[data?.size] || MODAL_SIZES.medium;
-  const closeOnOverlayClick = data?.closeOnOverlayClick !== false;
-  const closeOnEscape = data?.closeOnEscape !== false;
-
-  // Create overlay
-  const overlay = document.createElement('div');
-  overlay.setAttribute('data-testid', 'forge-sim-modal-overlay');
-  Object.assign(overlay.style, {
-    position: 'fixed', top: '0', left: '0', right: '0', bottom: '0',
-    backgroundColor: 'rgba(9, 30, 66, 0.54)',
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    zIndex: '1000',
-  });
-
-  // Create dialog
-  const dialog = document.createElement('div');
-  dialog.setAttribute('data-testid', 'forge-sim-modal-dialog');
-  dialog.setAttribute('role', 'dialog');
-  Object.assign(dialog.style, {
-    backgroundColor: '#fff', borderRadius: '3px',
-    boxShadow: '0 0 0 1px rgba(9,30,66,0.08), 0 2px 1px rgba(9,30,66,0.08), 0 0 20px -6px rgba(9,30,66,0.31)',
-    width: `${size}px`, maxHeight: '90vh',
-    display: 'flex', flexDirection: 'column', overflow: 'hidden',
-  });
-
-  // Optional title bar
-  if (data?.title) {
-    const titleBar = document.createElement('div');
-    Object.assign(titleBar.style, {
-      padding: '16px 20px', borderBottom: '1px solid #ebecf0',
-      fontSize: '20px', fontWeight: '500',
-    });
-    titleBar.textContent = data.title;
-    dialog.appendChild(titleBar);
-  }
-
-  // Create iframe
-  const iframe = document.createElement('iframe');
-  iframe.setAttribute('data-testid', 'forge-sim-modal-iframe');
-  iframe.src = buildModalIframeURL(data?.resource, data?.context);
-  Object.assign(iframe.style, {
-    width: '100%', flex: '1', border: 'none', minHeight: '200px',
-  });
-  dialog.appendChild(iframe);
-  overlay.appendChild(dialog);
-
-  return new Promise((resolve) => {
-    // Message handler for submit/close from modal iframe
-    const messageHandler = (e: MessageEvent) => {
-      if (!e.data || typeof e.data !== 'object') return;
-      if (e.data.type === 'forge-sim-modal-submit' || e.data.type === 'forge-sim-modal-close') {
-        closeActiveModal(e.data.payload);
-      }
-    };
-
-    // Escape key handler
-    const escapeHandler = (e: KeyboardEvent) => {
-      if (closeOnEscape && e.key === 'Escape') {
-        closeActiveModal();
-      }
-    };
-
-    // Overlay click handler
-    if (closeOnOverlayClick) {
-      overlay.addEventListener('click', (e) => {
-        if (e.target === overlay) closeActiveModal();
-      });
-    }
-
-    window.addEventListener('message', messageHandler);
-    document.addEventListener('keydown', escapeHandler);
-
-    S.activeModal = {
-      overlay, dialog, iframe, messageHandler, escapeHandler, resolve,
-      onClose: data?.onClose,
-    } satisfies ActiveModal;
-
-    document.body.appendChild(overlay);
-  });
-}
-
-/**
- * Flags shown through `callBridge('showFlag')`, keyed by the id the app
- * supplied, so a later `closeFlag` can dismiss the right one. (The module
- * export hands the caller a `{ close }` handle directly; across the bridge
- * the real package keeps only the id.)
- */
-const openFlags = new Map<string, { close: () => Promise<boolean | void> }>();
-
-// ── callBridge (used internally by @forge/react reconciler) ─────────────
-
-/**
- * The bridge dispatch function — the ONE seam real Forge gives an iframe
- * (`window.__bridge.callBridge`). @forge/react calls it for reconcile; real
- * @forge/bridge (installed, or inlined in a prebuilt bundle) calls it for
- * everything else; and this shim's own module exports route through it too
- * (bridge consolidation, phase 1), so source-mode apps exercise the same
- * command table as bundled apps and a missing case fails in both.
- *
- * - reconcile: handled locally (stays in browser)
- * - everything else: translated from the real package's frame shape onto
- *   the dev-server RPC, with module key / placement context attached here
- */
-async function callBridge(cmd: string, data?: any): Promise<any> {
-  switch (cmd) {
-    case 'reconcile':
-      // ForgeDoc stays in the browser — notify local listeners.
-      // The reconciler emits two roots when a macro uses inline config:
-      //   - { type: 'Root' }        from ForgeReconciler.render(<App />)
-      //   - { type: 'MacroConfig' } from ForgeReconciler.addConfig(<Config />)
-      // We route them to separate listeners so the shell can render both.
-      if (data?.forgeDoc) {
-        if (data.forgeDoc.type === 'MacroConfig') {
-          G.__forgeSim.lastMacroConfigDoc = data.forgeDoc;
-          for (const listener of macroConfigReconcileListeners) {
-            try { listener(data.forgeDoc); } catch {}
-          }
-        } else {
-          G.__forgeSim.lastForgeDoc = data.forgeDoc;
-          for (const listener of reconcileListeners) {
-            try { listener(data.forgeDoc); } catch {}
-          }
-        }
-      }
-      return;
-
-    case 'openModal':
-      return openModalOverlay(data);
-
-    case 'submit':
-      // Inside a modal the host, not the dev server, owns the result.
-      if (isInModal()) {
-        window.parent.postMessage({ type: 'forge-sim-modal-submit', payload: data?.payload ?? data }, '*');
-        return;
-      }
-      break;
-
-    case 'close':
-      if (isInModal()) {
-        window.parent.postMessage({ type: 'forge-sim-modal-close', payload: data?.payload ?? data }, '*');
-        return;
-      }
-      break;
-
-    case 'onClose': {
-      const S = G.__forgeSim;
-      S.viewOnCloseCallback = data;
-      return;
-    }
-
-    case 'onError':
-      console.error('[forge-bridge-shim] App error:', data?.error);
-      return;
-
-    // ── Local commands (phase 3) ───────────────────────────────────────
-    // These were reachable only through this shim's module exports, so a
-    // source-mode app worked and a PREBUILT bundle (real @forge/bridge,
-    // which can only speak callBridge) got `undefined`. Each case below
-    // delegates to the same implementation the export uses, with the real
-    // package's frame shape.
-
-    case 'navigate': {
-      // router.navigate → { url|<location fields>, type: 'same-tab' };
-      // router.open → the same command with type: 'new-tab'.
-      const { type, ...location } = data ?? {};
-      const target = location.url !== undefined ? location.url : location;
-      return type === 'new-tab' ? router.open(target) : router.navigate(target);
-    }
-
-    case 'getUrl':
-      // The location is the frame itself, not wrapped (out/router/router.js).
-      return router.getUrl(data).then((u) => (u ? u.toString() : null));
-
-    case 'reload':
-      return router.reload();
-
-    case 'showFlag': {
-      const handle = showFlag(data ?? {});
-      const id = data?.id;
-      if (id !== undefined) openFlags.set(String(id), handle);
-      return Promise.resolve();
-    }
-
-    case 'closeFlag': {
-      const id = data?.id;
-      if (id === undefined) return Promise.resolve();
-      const handle = openFlags.get(String(id));
-      openFlags.delete(String(id));
-      return Promise.resolve(handle?.close());
-    }
-
-    case 'emit':
-      return events.emit(data?.event, data?.payload);
-
-    case 'on':
-      return events.on(data?.event, data?.callback);
-
-    case 'emitPublic':
-      return events.emitPublic(data?.event, data?.payload);
-
-    case 'onPublic':
-      return events.onPublic(data?.event, data?.callback);
-
-    case 'subscribeRealtimeChannel':
-      // { channelName, onEvent, options, isGlobal? } — the callback stays in
-      // this frame, which is why this is local and publish is an RPC.
-      return data?.isGlobal
-        ? realtime.subscribeGlobal(data?.channelName, data?.onEvent, data?.options)
-        : realtime.subscribe(data?.channelName, data?.onEvent, data?.options);
-
-    case 'refresh':
-      return view.refresh(data);
-
-    case 'open':
-      return view.open();
-
-    case 'createHistory':
-      return Promise.resolve(createMemoryHistory());
-
-    case 'enableTheming':
-      return view.theme.enable();
-
-    case 'changeWindowTitle':
-      // The title is the frame itself (out/view/changeWindowTitle.js).
-      return view.changeWindowTitle(typeof data === 'string' ? data : data?.title);
-
-    case 'emitReadyEvent':
-      return view.emitReadyEvent();
-
-    case 'getFrameId':
-      // Real Forge returns an opaque per-frame id; the module key is the
-      // stable, meaningful equivalent here.
-      return Promise.resolve(`forge-sim-frame-${getModuleKeyFromURL() ?? 'unknown'}`);
-
-    case 'initFeatureFlags':
-      // No flag service locally: the client initialises with nothing set,
-      // which is what FeatureFlags.* already reports.
-      return Promise.resolve();
-
-    case 'isRovoEnabled':
-      return rovo.isEnabled();
-
-    case 'emitFrontendCustomMetric':
-      // App performance telemetry — inert locally, must never reject.
-      return Promise.resolve();
-
-    case 'trackObjectStoreAction':
-      // Object Store analytics — real @forge/bridge fire-and-forgets this
-      // before every objectStore.* call. No-op, must never reject.
-      return;
-
-    default:
-      break;
-  }
-
-  // Shared table (canonical: src/bridge-commands.ts). Everything with
-  // disposition 'rpc' is translated here, so this host and the injected
-  // Custom UI bridge cannot drift apart.
-  const call = translateBridgeCommand(cmd, data, {
-    moduleKey: getModuleKeyFromURL(),
-    contextOptions: getContextFromURL(),
-    submitTree: G.__forgeSim.activeSubmitTree,
-  });
-  if (call) return rpc(call.method, call.params);
-
-  const spec = BRIDGE_COMMANDS[cmd];
-  if (spec?.disposition === 'unsupported') throw bridgeNotImplementedError(cmd);
-  // A known 'local' command with no case above is a gap in THIS host; an
-  // unknown command means the table is behind the installed @forge/bridge.
-  console.warn(
-    spec
-      ? `[forge-bridge-shim] Bridge command "${cmd}" is declared '${spec.disposition}' but this host has no handler for it.`
-      : `[forge-bridge-shim] Unknown bridge command: "${cmd}". If @forge/bridge added it, update src/bridge-commands.ts.`,
-  );
-  return;
-}
-
-// ── Install on globalThis ───────────────────────────────────────────────
-
-/**
- * Install the bridge shim on globalThis so @forge/react finds it.
- * Call this before importing any @forge/react code.
- */
-export function installBridgeShim() {
-  const bridge = { callBridge };
-  (globalThis as any).__bridge = bridge;
-  if (typeof (globalThis as any).window !== 'undefined') {
-    (globalThis as any).window.__bridge = bridge;
-  }
-}
-
-// Auto-install on import
-installBridgeShim();
 
 // ── @forge/bridge public API ────────────────────────────────────────────
-// These match the real @forge/bridge exports so this file works as a drop-in
+// Frames below mirror the real package file-for-file (node_modules/@forge/bridge/out).
 
 export async function invoke<T = any>(functionKey: string, payload?: Record<string, any>): Promise<T> {
-  // Same frame real @forge/bridge sends (out/invoke/invoke.js); module key
-  // and placement context are attached by the callBridge case, exactly as
-  // they are for a bundled copy of the real package.
-  return callBridge('invoke', { functionKey, payload });
+  return callBridge('invoke', { functionKey, payload }); // out/invoke/invoke.js
 }
 
 export function makeInvoke() {
   return invoke;
 }
 
-// ── Memory history (view.createHistory) ─────────────────────────────────
-// Powers @forge/react/router's <Router> in the browser dev server. Same
-// memory history as the headless shim (src/shims/forge-bridge.ts) —
-// entries/index stack, PUSH truncates the forward stack, listen/unlisten,
-// blockers. A memory history (not window.history) keeps the dev server URL
-// intact — it encodes module key + context in the query string.
-//
-// Parity: real Forge's bridge history uses the history v4 runtime contract —
-// listen((location, action)), goBack()/goForward(). @forge/react's Router
-// destructures the first listener arg as the location, so v5-style notify
-// ({action, location}) breaks Route matching after navigation. We keep
-// back()/forward() too since @forge/bridge's .d.ts types the return as v5.
-
-interface HistoryLocation {
-  pathname: string;
-  search: string;
-  hash: string;
-  state: any;
-  key: string;
-}
-
-type HistoryListener = (location: HistoryLocation, action: string) => void;
-
-function createMemoryHistory(): any {
-  const entries: HistoryLocation[] = [
-    { pathname: '/', search: '', hash: '', state: null, key: 'default' },
-  ];
-  let index = 0;
-  let listeners: HistoryListener[] = [];
-  let blockers: Array<(tx: any) => void> = [];
-
-  function generateKey(): string {
-    return Math.random().toString(36).slice(2, 10);
-  }
-
-  function parsePath(to: string | Partial<HistoryLocation>): Partial<HistoryLocation> {
-    if (typeof to === 'object') return to;
-    const path = to || '/';
-    let pathname = path, search = '', hash = '';
-    const hashIdx = path.indexOf('#');
-    if (hashIdx >= 0) { hash = path.slice(hashIdx); pathname = path.slice(0, hashIdx); }
-    const searchIdx = pathname.indexOf('?');
-    if (searchIdx >= 0) { search = pathname.slice(searchIdx); pathname = pathname.slice(0, searchIdx); }
-    return { pathname, search, hash };
-  }
-
-  function createLocation(to: string | Partial<HistoryLocation>, state?: any): HistoryLocation {
-    const parsed = parsePath(to);
-    return {
-      pathname: parsed.pathname || '/',
-      search: parsed.search || '',
-      hash: parsed.hash || '',
-      state: state ?? null,
-      key: generateKey(),
-    };
-  }
-
-  function notify(action: string): void {
-    const location = entries[index];
-    for (const fn of listeners) {
-      try { fn(location, action); } catch (e) { console.error(e); }
-    }
-  }
-
-  const history = {
-    get action() { return 'POP'; },
-    get location() { return entries[index]; },
-    set location(_loc: HistoryLocation) { /* mutable per history v5 spec */ },
-
-    createHref(to: string | Partial<HistoryLocation>): string {
-      if (typeof to === 'string') return to;
-      return (to.pathname || '') + (to.search || '') + (to.hash || '');
-    },
-
-    push(to: string | Partial<HistoryLocation>, state?: any): void {
-      const loc = createLocation(to, state);
-      if (blockers.length > 0) {
-        blockers[0]({ action: 'PUSH', location: loc, retry: () => history.push(to, state) });
-        return;
-      }
-      // Truncate forward stack and push
-      entries.splice(index + 1);
-      entries.push(loc);
-      index = entries.length - 1;
-      notify('PUSH');
-    },
-
-    replace(to: string | Partial<HistoryLocation>, state?: any): void {
-      const loc = createLocation(to, state);
-      if (blockers.length > 0) {
-        blockers[0]({ action: 'REPLACE', location: loc, retry: () => history.replace(to, state) });
-        return;
-      }
-      entries[index] = loc;
-      notify('REPLACE');
-    },
-
-    go(delta: number): void {
-      const nextIndex = Math.max(0, Math.min(entries.length - 1, index + delta));
-      if (nextIndex === index) return;
-      index = nextIndex;
-      notify('POP');
-    },
-
-    // v4 names (the documented Forge contract)
-    goBack(): void { history.go(-1); },
-    goForward(): void { history.go(1); },
-    // v5 names (what @forge/bridge's .d.ts promises)
-    back(): void { history.go(-1); },
-    forward(): void { history.go(1); },
-
-    listen(fn: HistoryListener): () => void {
-      listeners.push(fn);
-      return () => { listeners = listeners.filter(l => l !== fn); };
-    },
-
-    block(fn: (tx: any) => void): () => void {
-      blockers.push(fn);
-      return () => { blockers = blockers.filter(b => b !== fn); };
-    },
-  };
-
-  return history;
-}
-
 export const view = {
   getContext: () => callBridge('getContext'),
-  submit: (payload?: any) => callBridge('submit', { payload }),
-  close: (payload?: any) => callBridge('close', { payload }),
-  onClose: (cb: () => Promise<void>) => { callBridge('onClose', cb); return Promise.resolve(); },
-  open: () => Promise.resolve(),
-  refresh: (_payload?: any) => {
-    // Trigger a page reload to re-render the module
-    if (typeof window !== 'undefined') window.location.reload();
-    return Promise.resolve();
-  },
-  createHistory: () => Promise.resolve(createMemoryHistory()),
-  theme: {
-    enable: () => {
-      // Apply dark mode tokens by setting the Atlaskit theme attribute
-      if (typeof document !== 'undefined') {
-        document.documentElement.setAttribute('data-color-mode', 'dark');
-      }
-      return Promise.resolve();
-    },
-  },
-  changeWindowTitle: (title: string) => {
-    if (typeof document !== 'undefined') document.title = title;
-    return Promise.resolve();
-  },
-  emitReadyEvent: () => {
-    // Dispatch a custom event that the shell can listen for
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('forge-sim:ready'));
-    }
-    return Promise.resolve();
-  },
+  // Bare payload, as out/view/submit.js sends it.
+  submit: (payload?: any) => callBridge('submit', payload),
+  close: (payload?: any) => callBridge('close', payload),
+  onClose: (cb: () => Promise<void>) => callBridge('onClose', cb).then(() => undefined),
+  open: () => callBridge('open'),
+  refresh: (payload?: any) => callBridge('refresh', payload),
+  createHistory: () => callBridge('createHistory'),
+  theme: { enable: () => callBridge('enableTheming') },
+  changeWindowTitle: (title: string) => callBridge('changeWindowTitle', title),
+  emitReadyEvent: () => callBridge('emitReadyEvent'),
   createAdfRendererIframeProps: () => Promise.reject(new Error('ADF renderer not supported in forge-sim')),
 };
 
-/** Product fetch API — routes through forge-sim's product API mocks */
+/** Product fetch API — out/fetch/fetch.js framing. */
 function makeProductFetch(product: string) {
   return async (restPath: string, fetchOptions?: RequestInit): Promise<Response> => {
     const result = await callBridge('fetchProduct', {
@@ -788,12 +185,7 @@ function makeProductFetch(product: string) {
         body: fetchOptions.body,
       } : undefined,
     });
-
-    return new Response(result.body, {
-      status: result.status,
-      statusText: result.statusText,
-      headers: result.headers,
-    });
+    return new Response(result.body, { status: result.status, statusText: result.statusText, headers: result.headers });
   };
 }
 
@@ -801,10 +193,8 @@ export const requestJira = makeProductFetch('jira');
 export const requestConfluence = makeProductFetch('confluence');
 export const requestBitbucket = makeProductFetch('bitbucket');
 
-/** Remote fetch — for external API calls via Forge's remote module */
+/** Remote fetch — the path travels inside fetchRequestInit (out/fetch/fetch.js). */
 export async function requestRemote(remoteKey: string, fetchOptions?: RequestInit & { path?: string }): Promise<Response> {
-  // Real @forge/bridge frame (out/fetch/fetch.js): the path travels inside
-  // fetchRequestInit, not as a top-level field.
   const result = await callBridge('fetchRemote', {
     remoteKey,
     fetchRequestInit: fetchOptions ? {
@@ -814,45 +204,32 @@ export async function requestRemote(remoteKey: string, fetchOptions?: RequestIni
       body: fetchOptions.body,
     } : undefined,
   });
-  return new Response(result.body, {
-    status: result.status,
-    statusText: result.statusText,
-    headers: result.headers,
-  });
+  return new Response(result.body, { status: result.status, statusText: result.statusText, headers: result.headers });
 }
 
-/** Modal API */
+/** Modal API — same option normalisation and frame as out/modal/modal.js. */
 export const Modal = class {
   private opts: any;
-  constructor(opts?: any) { this.opts = opts || {}; }
-  open() { return callBridge('openModal', this.opts); }
-  close(payload?: any) { closeActiveModal(payload); return Promise.resolve(); }
+  constructor(opts?: any) {
+    this.opts = {
+      resource: opts?.resource ?? null,
+      onClose: opts?.onClose ?? (() => {}),
+      size: opts?.size ?? 'medium',
+      context: opts?.context ?? {},
+      closeOnEscape: opts?.closeOnEscape ?? true,
+      closeOnOverlayClick: opts?.closeOnOverlayClick ?? true,
+      title: opts?.title ?? '',
+      icon: opts?.icon ?? '',
+    };
+  }
+  async open(): Promise<void> {
+    const success = await callBridge('openModal', this.opts);
+    if (success === false) throw new BridgeAPIError('Unable to open modal.');
+  }
   onClose(cb: () => void) { this.opts.onClose = cb; return Promise.resolve(); }
 };
 
-// ── showFlag — browser toast notifications ──────────────────────────────
-
-const FLAG_COLORS: Record<string, { bg: string; border: string; icon: string }> = {
-  info:    { bg: '#DEEBFF', border: '#0052CC', icon: 'ℹ️' },
-  success: { bg: '#E3FCEF', border: '#00875A', icon: '✅' },
-  warning: { bg: '#FFFAE6', border: '#FF8B00', icon: '⚠️' },
-  error:   { bg: '#FFEBE6', border: '#DE350B', icon: '❌' },
-};
-
-let flagContainer: HTMLElement | null = null;
-
-function ensureFlagContainer(): HTMLElement {
-  if (flagContainer && document.body.contains(flagContainer)) return flagContainer;
-  flagContainer = document.createElement('div');
-  flagContainer.setAttribute('data-testid', 'forge-sim-flag-container');
-  Object.assign(flagContainer.style, {
-    position: 'fixed', bottom: '24px', left: '24px',
-    display: 'flex', flexDirection: 'column-reverse', gap: '8px',
-    zIndex: '1100', maxWidth: '400px',
-  });
-  document.body.appendChild(flagContainer);
-  return flagContainer;
-}
+// ── showFlag — out/flag/flag.js ─────────────────────────────────────────
 
 export function showFlag(options: {
   id?: number | string;
@@ -863,76 +240,15 @@ export function showFlag(options: {
   actions?: Array<{ text: string; onClick?: () => void }>;
   isAutoDismiss?: boolean;
 }): { close: () => Promise<boolean | void> } {
-  const type = options.appearance ?? options.type ?? 'info';
-  const colors = FLAG_COLORS[type] || FLAG_COLORS.info;
-
-  const container = ensureFlagContainer();
-  const flag = document.createElement('div');
-  flag.setAttribute('data-testid', 'forge-sim-flag');
-  Object.assign(flag.style, {
-    background: colors.bg, borderLeft: `3px solid ${colors.border}`,
-    borderRadius: '4px', padding: '12px 16px',
-    boxShadow: '0 1px 1px rgba(9,30,66,0.25), 0 0 1px rgba(9,30,66,0.31)',
-    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-    fontSize: '14px', color: '#172B4D',
-    animation: 'forge-sim-flag-in 0.2s ease-out',
-    transition: 'opacity 0.2s, transform 0.2s',
-  });
-
-  // Title
-  if (options.title) {
-    const title = document.createElement('div');
-    title.style.fontWeight = '600';
-    title.textContent = `${colors.icon} ${options.title}`;
-    flag.appendChild(title);
-  }
-
-  // Description
-  if (options.description) {
-    const desc = document.createElement('div');
-    desc.style.marginTop = '4px';
-    desc.style.color = '#6B778C';
-    desc.textContent = options.description;
-    flag.appendChild(desc);
-  }
-
-  // Actions
-  if (options.actions?.length) {
-    const actions = document.createElement('div');
-    actions.style.marginTop = '8px';
-    actions.style.display = 'flex';
-    actions.style.gap = '8px';
-    for (const action of options.actions) {
-      const btn = document.createElement('button');
-      Object.assign(btn.style, {
-        background: 'none', border: 'none', color: colors.border,
-        cursor: 'pointer', fontWeight: '600', fontSize: '13px', padding: '0',
-      });
-      btn.textContent = action.text;
-      if (action.onClick) btn.addEventListener('click', action.onClick);
-      actions.appendChild(btn);
-    }
-    flag.appendChild(actions);
-  }
-
-  container.appendChild(flag);
-
-  const close = () => {
-    flag.style.opacity = '0';
-    flag.style.transform = 'translateX(-20px)';
-    setTimeout(() => flag.remove(), 200);
-    return Promise.resolve();
+  // The real package throws without an id; keep callers working by minting one.
+  const id = options.id ?? `forge-sim-flag-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const result = callBridge('showFlag', { ...options, id, type: options.type ?? options.appearance ?? 'info' });
+  return {
+    close: async () => { await result; return callBridge('closeFlag', { id }); },
   };
-
-  // Auto-dismiss after 5s unless explicitly disabled
-  if (options.isAutoDismiss !== false) {
-    setTimeout(close, 5000);
-  }
-
-  return { close };
 }
 
-// ── Router — product navigation ─────────────────────────────────────────
+// ── Router — out/router/router.js ───────────────────────────────────────
 
 export const NavigationTarget = {
   ContentView: 'contentView' as const,
@@ -948,130 +264,35 @@ export const NavigationTarget = {
 
 type NavigationLocation = { target: string; [key: string]: any };
 
-function resolveNavigationUrl(location: string | NavigationLocation): string {
-  if (typeof location === 'string') return location;
-
-  // Build product URLs from navigation targets
-  switch (location.target) {
-    case NavigationTarget.Issue:
-      return `/browse/${location.issueKey}`;
-    case NavigationTarget.ContentView:
-      return `/wiki/pages/${location.contentId}`;
-    case NavigationTarget.ContentEdit:
-      return `/wiki/pages/edit-v2/${location.contentId}`;
-    case NavigationTarget.SpaceView:
-      return `/wiki/spaces/${location.spaceKey}`;
-    case NavigationTarget.Dashboard:
-      return `/jira/dashboards/${location.dashboardId}`;
-    case NavigationTarget.UserProfile:
-      return `/people/${location.accountId}`;
-    case NavigationTarget.Module:
-      return `/module/${location.moduleKey}/`;
-    case NavigationTarget.ContentList:
-      return `/wiki/spaces/${location.spaceKey}/pages`;
-    case NavigationTarget.ProjectSettingsDetails:
-      return `/jira/software/projects/${location.projectKey}/settings`;
-    default:
-      return '/';
-  }
-}
-
 export const router = {
-  navigate: (location: string | NavigationLocation): Promise<void> => {
-    const url = resolveNavigationUrl(location);
-    if (typeof window !== 'undefined') window.location.href = url;
-    return Promise.resolve();
+  navigate: (location: string | NavigationLocation): Promise<void> =>
+    typeof location === 'string'
+      ? callBridge('navigate', { url: location, type: 'same-tab' })
+      : callBridge('navigate', { ...location, type: 'same-tab' }),
+  open: (location: string | NavigationLocation): Promise<void> =>
+    typeof location === 'string'
+      ? callBridge('navigate', { url: location, type: 'new-tab' })
+      : callBridge('navigate', { ...location, type: 'new-tab' }),
+  getUrl: async (location: string | NavigationLocation): Promise<URL | null> => {
+    // The real package requires a NavigationLocation; a string is accepted
+    // here as a convenience and resolved the same way.
+    const frame = typeof location === 'string' ? { target: 'url', url: location } : location;
+    const url = await callBridge('getUrl', frame);
+    try { return url ? new URL(url) : null; } catch { return null; }
   },
-  open: (location: string | NavigationLocation): Promise<void> => {
-    const url = resolveNavigationUrl(location);
-    if (typeof window !== 'undefined') window.open(url, '_blank');
-    return Promise.resolve();
-  },
-  getUrl: (location: string | NavigationLocation): Promise<URL | null> => {
-    try {
-      const url = resolveNavigationUrl(location);
-      const base = typeof window !== 'undefined' ? window.location.origin : 'http://localhost';
-      return Promise.resolve(new URL(url, base));
-    } catch {
-      return Promise.resolve(null);
-    }
-  },
-  reload: (): Promise<void> => {
-    if (typeof window !== 'undefined') window.location.reload();
-    return Promise.resolve();
-  },
+  reload: (): Promise<void> => callBridge('reload'),
 };
 
-// ── Events — cross-module pub/sub ───────────────────────────────────────
-
-const eventListeners = new Map<string, Set<(payload?: any) => any>>();
+// ── Events — out/events/events.js ───────────────────────────────────────
 
 export const events = {
-  async emit(event: string, payload?: any): Promise<void> {
-    // Dispatch locally
-    const listeners = eventListeners.get(event);
-    if (listeners) {
-      for (const cb of listeners) {
-        try { cb(payload); } catch (e) { console.error('[forge-bridge-shim] Event handler error:', e); }
-      }
-    }
-    // Post to parent for cross-module relay (parent page brokers between iframes)
-    if (typeof window !== 'undefined' && window.parent) {
-      window.parent.postMessage({ type: 'forgeEvent', eventName: event, payload, isPublic: false }, '*');
-    }
-  },
-
-  async on(event: string, callback: (payload?: any) => any): Promise<{ unsubscribe: () => void }> {
-    if (!eventListeners.has(event)) eventListeners.set(event, new Set());
-    eventListeners.get(event)!.add(callback);
-    return { unsubscribe: () => eventListeners.get(event)?.delete(callback) };
-  },
-
-  async emitPublic(event: string, payload?: any): Promise<void> {
-    // Dispatch locally with public prefix
-    const listeners = eventListeners.get(`public:${event}`);
-    if (listeners) {
-      for (const cb of listeners) {
-        try { cb(payload); } catch (e) { console.error('[forge-bridge-shim] Event handler error:', e); }
-      }
-    }
-    // Post to parent for cross-module relay
-    if (typeof window !== 'undefined' && window.parent) {
-      window.parent.postMessage({ type: 'forgeEvent', eventName: event, payload, isPublic: true }, '*');
-    }
-  },
-
-  async onPublic(event: string, callback: (payload?: any) => any): Promise<{ unsubscribe: () => void }> {
-    return events.on(`public:${event}`, callback);
-  },
+  emit: (event: string, payload?: any): Promise<void> => callBridge('emit', { event, payload }),
+  on: (event: string, callback: (payload?: any) => any): Promise<{ unsubscribe: () => void }> =>
+    callBridge('on', { event, callback }),
+  emitPublic: (event: string, payload?: any): Promise<void> => callBridge('emitPublic', { event, payload }),
+  onPublic: (event: string, callback: (payload?: any) => any): Promise<{ unsubscribe: () => void }> =>
+    callBridge('onPublic', { event, callback }),
 };
-
-// ── Forge events relay via postMessage (parent page brokers between frames) ──
-if (typeof window !== 'undefined') {
-  window.addEventListener('message', (e: MessageEvent) => {
-    if (!e.data) return;
-    if (e.data.type === 'forgeEvent') {
-      // Only dispatch events from OTHER windows (the broker or sibling frames)
-      if (e.source === window) return;
-      const eventKey = e.data.isPublic ? `public:${e.data.eventName}` : e.data.eventName;
-      const listeners = eventListeners.get(eventKey);
-      if (listeners) {
-        for (const cb of listeners) {
-          try { cb(e.data.payload); } catch (err) { console.error('[forge-bridge-shim] Event handler error:', err); }
-        }
-      }
-    }
-    // Parent page triggers submit (Save button on custom field combined page)
-    if (e.data.type === 'forge-sim-trigger-submit') {
-      if (document.activeElement && document.activeElement !== document.body) {
-        (document.activeElement as HTMLElement).blur();
-      } else {
-        const btn = document.querySelector('button[type="submit"], button');
-        if (btn) (btn as HTMLElement).click();
-      }
-    }
-  });
-}
 
 // ── Permissions ─────────────────────────────────────────────────────────
 
@@ -1273,87 +494,36 @@ export async function checkPermissions(
     : { granted: true, missing: null };
 }
 
-// ── Realtime (Preview) ──────────────────────────────────────────────────
+// ── Realtime (Preview) — out/realtime/realtime.js ──────────────────────
+// Channel identity and token/override validation live on the dev server
+// (realtimeSubscribe RPC → realtime.resolveSubscriptionKey), so dev mode and
+// headless key identically and this file carries none of the algorithm.
 
 export const realtime = {
-  async subscribe(
+  subscribe: (
     channel: string,
     callback: (payload?: string | Record<string, unknown>) => any,
     options?: { replaySeconds?: number; token?: string; contextOverrides?: string[] },
-  ): Promise<{ unsubscribe: () => void }> {
-    await ensureConnection();
-    const S = G.__forgeSim;
-    const moduleKey = getModuleKeyFromURL();
-    // Same pre-validation and identity rules as the Node backend (shared via
-    // the channel-key mirror): bad overrides / bad token → rejected Promise,
-    // and a token's claims become part of the channel key.
-    const invalid = invalidContextOverrides(options?.contextOverrides)
-      ?? (options?.token !== undefined ? validateRealtimeToken(options.token, channel, 'subscribe') : null);
-    if (invalid) throw new Error(invalid);
-    const claims = options?.token !== undefined ? parseRealtimeToken(options.token)?.claims ?? null : null;
-    // The iframe's own placement data (what view.getContext() returns) is
-    // part of scoped channel identity, mirroring the Node bridge shim.
-    const ctx = await callBridge('getContext');
-    const channelKey = channelKeyFor(moduleKey, channel, options?.contextOverrides, claims, ctx?.extension ?? null);
-    if (channelKey === null) throw new Error('Unauthorized request');
-
-    const subs = S.realtimeSubscribers as Map<string, Set<(payload: any) => void>>;
-    if (!subs.has(channelKey)) subs.set(channelKey, new Set());
-    subs.get(channelKey)!.add(callback);
-
-    console.log(`[forge-bridge-shim] realtime.subscribe("${channel}") → ${channelKey}`);
-
-    return {
-      unsubscribe: () => {
-        subs.get(channelKey)?.delete(callback);
-        console.log(`[forge-bridge-shim] realtime.unsubscribe("${channel}")`);
-      },
-    };
-  },
-
-  async subscribeGlobal(
+  ): Promise<{ unsubscribe: () => void }> =>
+    callBridge('subscribeRealtimeChannel', { channelName: channel, onEvent: callback, options }),
+  subscribeGlobal: (
     channel: string,
     callback: (payload?: string | Record<string, unknown>) => any,
     options?: { replaySeconds?: number; token?: string; contextOverrides?: string[] },
-  ): Promise<{ unsubscribe: () => void }> {
-    await ensureConnection();
-    const S = G.__forgeSim;
-    const invalid = invalidContextOverrides(options?.contextOverrides)
-      ?? (options?.token !== undefined ? validateRealtimeToken(options.token, channel, 'subscribe') : null);
-    if (invalid) throw new Error(invalid);
-    const claims = options?.token !== undefined ? parseRealtimeToken(options.token)?.claims ?? null : null;
-    const channelKey = globalChannelKey(channel, claims);
-
-    const subs = S.realtimeSubscribers as Map<string, Set<(payload: any) => void>>;
-    if (!subs.has(channelKey)) subs.set(channelKey, new Set());
-    subs.get(channelKey)!.add(callback);
-
-    console.log(`[forge-bridge-shim] realtime.subscribeGlobal("${channel}") → ${channelKey}`);
-
-    return {
-      unsubscribe: () => {
-        subs.get(channelKey)?.delete(callback);
-        console.log(`[forge-bridge-shim] realtime.unsubscribeGlobal("${channel}")`);
-      },
-    };
-  },
-
-  async publish(
+  ): Promise<{ unsubscribe: () => void }> =>
+    callBridge('subscribeRealtimeChannel', { channelName: channel, onEvent: callback, options, isGlobal: true }),
+  publish: (
     channel: string,
     payload: string | Record<string, unknown>,
     options?: { token?: string; contextOverrides?: string[] },
-  ): Promise<{ eventId: string | null; eventTimestamp: string | null; errors?: Array<{ message: string }> }> {
-    // Real frame (out/realtime/realtime.js).
-    return callBridge('publishRealtimeChannel', { channelName: channel, eventPayload: payload, options });
-  },
-
-  async publishGlobal(
+  ): Promise<{ eventId: string | null; eventTimestamp: string | null; errors?: Array<{ message: string }> }> =>
+    callBridge('publishRealtimeChannel', { channelName: channel, eventPayload: payload, options }),
+  publishGlobal: (
     channel: string,
     payload: string | Record<string, unknown>,
     options?: { token?: string; contextOverrides?: string[] },
-  ): Promise<{ eventId: string | null; eventTimestamp: string | null; errors?: Array<{ message: string }> }> {
-    return callBridge('publishRealtimeChannel', { channelName: channel, eventPayload: payload, options, isGlobal: true });
-  },
+  ): Promise<{ eventId: string | null; eventTimestamp: string | null; errors?: Array<{ message: string }> }> =>
+    callBridge('publishRealtimeChannel', { channelName: channel, eventPayload: payload, options, isGlobal: true }),
 };
 
 // ── Object Store bridge surface ─────────────────────────────────────────

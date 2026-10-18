@@ -6,5 +6,5 @@
  * when needed in Vite configs (server-side only).
  */
 
-export { installBridgeShim, configure, onReconcile } from './forge-bridge-shim';
+export { onReconcile } from './forge-bridge-shim';
 export { useBrowserDoc } from './useBrowserDoc';

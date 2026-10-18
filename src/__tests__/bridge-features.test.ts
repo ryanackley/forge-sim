@@ -1,5 +1,6 @@
 /**
- * Tests for browser bridge shim features:
+ * Tests for the @forge/bridge shim's app-facing exports, driven end to end
+ * through the real browser bridge host in jsdom:
  * - showFlag (toast notifications)
  * - router (navigation targets, URL resolution)
  * - events (local pub/sub dispatch)
@@ -13,14 +14,20 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 // ── Test setup ──────────────────────────────────────────────────────────
 
-// Reset the global state before each test to isolate module state
+import { installBrowserBridge } from './helpers/browser-bridge-harness.js';
+
+// The shim is a thin adapter over window.__bridge now; the DOM work these
+// tests observe (flags, document.title, theme attribute, event dispatch)
+// happens in the browser bridge HOST. Install the real host in jsdom so the
+// shim's exports drive it — the same path a dev page takes.
 function resetGlobals() {
   delete (globalThis as any).__forgeSim;
   delete (globalThis as any).__bridge;
+  delete (window as any).__bridge;
+  installBrowserBridge({ moduleKey: 'test-module' });
 }
 
 async function loadShim() {
-  // Clear module cache so each test gets fresh state
   const mod = await import('../../renderer/src/bridge/forge-bridge-shim.ts');
   return mod;
 }

@@ -75,11 +75,7 @@
     "test:e2e:debug": "playwright test --debug",
     "docs": "typedoc",
     "docs:stats": "node scripts/update-stats.mjs",
-    "docs:stats:check": "node scripts/update-stats.mjs --check",
-    "sync:channel-key": "node scripts/sync-channel-key-mirror.mjs",
-    "sync:channel-key:check": "node scripts/sync-channel-key-mirror.mjs --check",
-    "sync:bridge-commands": "node scripts/sync-bridge-commands-mirror.mjs",
-    "sync:bridge-commands:check": "node scripts/sync-bridge-commands-mirror.mjs --check"
+    "docs:stats:check": "node scripts/update-stats.mjs --check"
   },
   "dependencies": {
     "@forge/api": "^8.2.0",

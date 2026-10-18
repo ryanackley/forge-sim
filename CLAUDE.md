@@ -59,7 +59,8 @@ Three integration paths into the sim, depending on which surface the app uses:
 | Backend | `src/resolver.ts`, `src/product-api.ts`, `src/web-trigger.ts`, `src/remote-proxy.ts`, `src/llm.ts`, `src/realtime.ts` (scheduled triggers wired in `src/deployer.ts`) |
 | Shims | `src/shims/` — drop-in replacements for `@forge/*` |
 | Loader | `src/loader/` — Node `--import` hooks (note: native TS type stripping is used now; tsx loader is a fallback) |
-| UIKit bridge | `src/ui/bridge.ts`, `src/ui/simulator-ui.ts`, `src/ui/doc-utils.ts` |
+| Bridge protocol + hosts | `src/bridge/protocol/` (dispatcher, `BridgeHost`, command registry), `src/bridge/hosts/headless.ts`, `src/bridge/hosts/browser/` (bundled to `dist/bridge.js`, served at `/__forge/bridge.js`) |
+| UIKit bridge (headless lifecycle) | `src/ui/bridge.ts`, `src/ui/simulator-ui.ts`, `src/ui/doc-utils.ts` |
 | CLI | `src/cli.ts`, `src/dev-command.ts`, `src/auth/auth-command.ts`, `src/proxy-server.ts` |
 | Dev tools UI | `src/tools/api.ts`, `src/tools/server.ts` (`/__tools/` routes) |
 | MCP server | `src/mcp-server.ts` |

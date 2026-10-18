@@ -117,3 +117,76 @@ export function createBrowserHistory(): Record<string, any> {
 
   return history;
 }
+
+// ── Memory history ─────────────────────────────────────────────────────
+//
+// UI Kit modules are served at /module/<key>/ and the bridge reads the
+// module key back out of that path for every invoke and getContext. A
+// browser-backed history would pushState('/settings') and take the key with
+// it. So UI Kit pages get an in-memory history: @forge/react's Router and
+// useNavigate work, the URL does not move. Custom UI keeps browser history
+// (its SPA fallback serves index.html under /module/<key>/<route>).
+
+export function createMemoryHistory(): Record<string, any> {
+  const entries: Loc[] = [{ pathname: '/', search: '', hash: '', state: null, key: 'default' }];
+  let index = 0;
+  let listeners: Listener[] = [];
+  let blockers: Blocker[] = [];
+
+  const notify = (action: string) => {
+    const location = entries[index];
+    for (const fn of listeners) {
+      try { fn(location, action); } catch (e) { console.error(e); }
+    }
+  };
+
+  const history: Record<string, any> = {
+    get action() { return 'POP'; },
+    get location() { return entries[index]; },
+    set location(_loc: Loc) { /* assigned by @forge/bridge's wrapper; getter is live */ },
+
+    createHref(to: string | Record<string, any>): string {
+      if (typeof to === 'string') return to;
+      return (to.pathname || '') + (to.search || '') + (to.hash || '');
+    },
+    push(to: string | Record<string, any>, state?: unknown): void {
+      const loc = createLocation(to, state);
+      if (blockers.length > 0) {
+        blockers[0]({ action: 'PUSH', location: loc, retry: () => history.push(to, state) });
+        return;
+      }
+      entries.splice(index + 1); // drop the forward stack
+      entries.push(loc);
+      index = entries.length - 1;
+      notify('PUSH');
+    },
+    replace(to: string | Record<string, any>, state?: unknown): void {
+      const loc = createLocation(to, state);
+      if (blockers.length > 0) {
+        blockers[0]({ action: 'REPLACE', location: loc, retry: () => history.replace(to, state) });
+        return;
+      }
+      entries[index] = loc;
+      notify('REPLACE');
+    },
+    go(delta: number): void {
+      const next = Math.max(0, Math.min(entries.length - 1, index + delta));
+      if (next === index) return;
+      index = next;
+      notify('POP');
+    },
+    goBack(): void { history.go(-1); },
+    goForward(): void { history.go(1); },
+    back(): void { history.go(-1); },
+    forward(): void { history.go(1); },
+    listen(fn: Listener): () => void {
+      listeners.push(fn);
+      return () => { listeners = listeners.filter((l) => l !== fn); };
+    },
+    block(fn: Blocker): () => void {
+      blockers.push(fn);
+      return () => { blockers = blockers.filter((b) => b !== fn); };
+    },
+  };
+  return history;
+}

@@ -395,7 +395,10 @@ describe('macro combined page', () => {
 
     // Mounts the top-level parent page, wired to the WS port.
     expect(entry).toContain('ForgeSimModulePage');
-    expect(entry).toContain('ws://localhost:5174');
+    // The WebSocket port rides in index.html's bridge config now
+    // (generateIndexHtml → bridgeScriptTag); the entry only asserts the
+    // bundle landed before mounting.
+    expect(entry).toContain('window.__forgeSimBridge');
     // Props are baked into the entry as JSON.
     expect(entry).toContain('"baseKey":"pet-info"');
     expect(entry).toContain('"surface":"macro"');

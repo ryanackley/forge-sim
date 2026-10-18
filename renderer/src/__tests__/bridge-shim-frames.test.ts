@@ -1,135 +1,152 @@
 /**
- * Bridge consolidation, phase 1: the shim's app-facing exports must go
- * through callBridge — the one seam real Forge provides — and emit the
- * same frame shapes real @forge/bridge does, so source-mode apps exercise
- * the identical command table as bundled apps running the real package.
+ * The `@forge/bridge` shim (what a source-mode app imports under the Vite
+ * alias) must send the SAME frames real @forge/bridge sends, through the
+ * same seam: `window.__bridge.callBridge`. It owns no transport of its own
+ * any more — the browser bridge host does — so this suite installs a
+ * recording `window.__bridge` and asserts the frame each export emits.
  *
- * The WebSocket is stubbed to capture the RPC the callBridge case produces
- * and to answer it, so each test asserts the full translation:
- *   export → callBridge(<real command>, <real frame>) → rpc(<method>, <params>)
+ * The other half (frame → host method → RPC params) is pinned in the root
+ * package: src/__tests__/bridge-protocol.test.ts and the browser-host tests
+ * built on src/__tests__/helpers/browser-bridge-harness.ts.
  */
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import {
   invoke,
   view,
   requestJira,
   requestRemote,
   realtime,
+  router,
+  events,
+  showFlag,
+  Modal,
 } from '../bridge/forge-bridge-shim';
 
 const G = globalThis as any;
 
-type Frame = { method: string; params: any };
-
-class FakeWebSocket {
-  static CONNECTING = 0;
-  static OPEN = 1;
-  static sent: Frame[] = [];
-  static reply: (frame: Frame) => any = () => ({});
-  readyState = FakeWebSocket.OPEN;
-  onopen: (() => void) | null = null;
-  onmessage: ((e: { data: string }) => void) | null = null;
-  onclose: (() => void) | null = null;
-  onerror: (() => void) | null = null;
-  constructor(_url: string) {
-    queueMicrotask(() => this.onopen?.());
-  }
-  addEventListener() {}
-  send(raw: string) {
-    const msg = JSON.parse(raw);
-    const frame = { method: msg.method, params: msg.params };
-    FakeWebSocket.sent.push(frame);
-    const result = FakeWebSocket.reply(frame);
-    queueMicrotask(() => this.onmessage?.({ data: JSON.stringify({ requestId: msg.requestId, result }) }));
-  }
-  close() {}
-}
-
-const realWebSocket = G.WebSocket;
+type Frame = { cmd: string; data: any };
+let frames: Frame[] = [];
+let reply: (f: Frame) => any = () => undefined;
 
 beforeEach(() => {
-  G.WebSocket = FakeWebSocket;
-  FakeWebSocket.sent = [];
-  FakeWebSocket.reply = () => ({});
-  // Force a fresh (fake) connection per test.
-  G.__forgeSim.ws = null;
-  G.__forgeSim.wsReady = false;
-  G.__forgeSim.pendingRequests.clear();
-  window.history.replaceState({}, '', '/module/test-panel/');
+  frames = [];
+  reply = () => undefined;
+  // The bundle is not loaded under jsdom; stand in for its window.__bridge.
+  G.__bridge = {
+    callBridge: (cmd: string, data?: any) => {
+      const f = { cmd, data };
+      frames.push(f);
+      return Promise.resolve(reply(f));
+    },
+  };
+  (window as any).__bridge = G.__bridge;
 });
 
-afterEach(() => {
-  G.WebSocket = realWebSocket;
-});
+const last = () => frames[frames.length - 1];
 
-const callBridge = (cmd: string, data?: any) => G.__bridge.callBridge(cmd, data);
-const lastFrame = () => FakeWebSocket.sent[FakeWebSocket.sent.length - 1];
-
-describe('bridge shim — exports route through callBridge with real @forge/bridge frames', () => {
-  it('invoke(): { functionKey, payload } → rpc invoke with module key attached by the bridge', async () => {
-    FakeWebSocket.reply = () => 'ok';
+describe('shim exports emit real @forge/bridge frames into window.__bridge', () => {
+  it('invoke(): { functionKey, payload } (out/invoke/invoke.js)', async () => {
+    reply = () => 'ok';
     await expect(invoke('getText', { a: 1 })).resolves.toBe('ok');
-    expect(lastFrame()).toMatchObject({
-      method: 'invoke',
-      params: { functionKey: 'getText', payload: { a: 1 }, moduleKey: 'test-panel' },
-    });
-    // The real package's frame produces the identical RPC.
-    FakeWebSocket.sent = [];
-    await callBridge('invoke', { functionKey: 'getText', payload: { a: 1 } });
-    expect(lastFrame()).toMatchObject({ method: 'invoke', params: { functionKey: 'getText', moduleKey: 'test-panel' } });
+    expect(last()).toEqual({ cmd: 'invoke', data: { functionKey: 'getText', payload: { a: 1 } } });
   });
 
-  it('view.getContext(): bare getContext command → rpc getContext with module key', async () => {
-    FakeWebSocket.reply = () => ({ moduleKey: 'test-panel' });
-    await expect(view.getContext()).resolves.toEqual({ moduleKey: 'test-panel' });
-    expect(lastFrame()).toMatchObject({ method: 'getContext', params: { moduleKey: 'test-panel' } });
+  it('view.getContext(): bare getContext, no frame (out/view/getContext.js)', async () => {
+    reply = () => ({ moduleKey: 'm' });
+    await expect(view.getContext()).resolves.toEqual({ moduleKey: 'm' });
+    expect(last()).toEqual({ cmd: 'getContext', data: undefined });
   });
 
-  it('requestJira(): fetchProduct frame → rpc fetchProduct; response rehydrated as a Response', async () => {
-    FakeWebSocket.reply = () => ({ status: 200, statusText: 'OK', body: '{"key":"X-1"}', headers: { 'content-type': 'application/json' } });
+  it('view.submit()/close(): the BARE payload, not { payload } (out/view/submit.js)', async () => {
+    await view.submit({ field: 1 });
+    expect(last()).toEqual({ cmd: 'submit', data: { field: 1 } });
+    await view.close('bye');
+    expect(last()).toEqual({ cmd: 'close', data: 'bye' });
+  });
+
+  it('requestJira(): fetchProduct frame; response rehydrated as a Response', async () => {
+    reply = () => ({ status: 200, statusText: 'OK', body: '{"key":"X-1"}', headers: { 'content-type': 'application/json' } });
     const res = await requestJira('/rest/api/3/issue/X-1', { method: 'GET', headers: { 'x-a': '1' } });
-    expect(lastFrame()).toMatchObject({
-      method: 'fetchProduct',
-      params: { product: 'jira', restPath: '/rest/api/3/issue/X-1', fetchRequestInit: { method: 'GET', headers: { 'x-a': '1' } } },
+    expect(last()).toEqual({
+      cmd: 'fetchProduct',
+      data: { product: 'jira', restPath: '/rest/api/3/issue/X-1', fetchRequestInit: { method: 'GET', headers: { 'x-a': '1' }, body: undefined } },
     });
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toEqual({ key: 'X-1' });
   });
 
-  it('requestRemote(): path travels INSIDE fetchRequestInit, as the real package sends it', async () => {
-    FakeWebSocket.reply = () => ({ status: 200, statusText: 'OK', body: '[]', headers: {} });
+  it('requestRemote(): path travels INSIDE fetchRequestInit (out/fetch/fetch.js)', async () => {
+    reply = () => ({ status: 200, statusText: 'OK', body: '[]', headers: {} });
     await requestRemote('analytics', { path: '/events', method: 'POST', body: '{}' });
-    const f = lastFrame();
-    expect(f.method).toBe('fetchRemote');
-    expect(f.params.remoteKey).toBe('analytics');
-    expect(f.params.fetchRequestInit).toMatchObject({ path: '/events', method: 'POST', body: '{}' });
-    expect(f.params.path).toBeUndefined();
-
-    // And the real package's frame (the one e2e/manual-packaging.spec.ts
-    // proved in Chromium) lands on the same RPC.
-    FakeWebSocket.sent = [];
-    await callBridge('fetchRemote', { remoteKey: 'analytics', fetchRequestInit: { path: '/events', method: 'GET' } });
-    expect(lastFrame()).toMatchObject({ method: 'fetchRemote', params: { remoteKey: 'analytics', fetchRequestInit: { path: '/events' } } });
+    const f = last();
+    expect(f.cmd).toBe('fetchRemote');
+    expect(f.data.remoteKey).toBe('analytics');
+    expect(f.data.fetchRequestInit).toMatchObject({ path: '/events', method: 'POST', body: '{}' });
+    expect(f.data.path).toBeUndefined();
   });
 
-  it('realtime.publish(): publishRealtimeChannel frame → rpc realtimePublish scoped to the module', async () => {
-    FakeWebSocket.reply = () => ({ eventId: 'e1', eventTimestamp: 't' });
-    await expect(realtime.publish('chan', { x: 1 }, { contextOverrides: [] })).resolves.toEqual({ eventId: 'e1', eventTimestamp: 't' });
-    expect(lastFrame()).toMatchObject({
-      method: 'realtimePublish',
-      params: { channel: 'chan', payload: { x: 1 }, global: false, moduleKey: 'test-panel', options: { contextOverrides: [] } },
+  it('realtime.publish()/publishGlobal(): publishRealtimeChannel frames (out/realtime/realtime.js)', async () => {
+    await realtime.publish('chan', { x: 1 }, { contextOverrides: [] });
+    expect(last()).toEqual({ cmd: 'publishRealtimeChannel', data: { channelName: 'chan', eventPayload: { x: 1 }, options: { contextOverrides: [] } } });
+    await realtime.publishGlobal('chan', 'hi');
+    expect(last()).toEqual({ cmd: 'publishRealtimeChannel', data: { channelName: 'chan', eventPayload: 'hi', options: undefined, isGlobal: true } });
+  });
+
+  it('realtime.subscribe()/subscribeGlobal(): the callback rides the frame, unserialised', async () => {
+    const cb = () => {};
+    await realtime.subscribe('room', cb, { replaySeconds: 5 });
+    expect(last()).toEqual({ cmd: 'subscribeRealtimeChannel', data: { channelName: 'room', onEvent: cb, options: { replaySeconds: 5 } } });
+    await realtime.subscribeGlobal('room', cb);
+    expect(last().data).toMatchObject({ channelName: 'room', onEvent: cb, isGlobal: true });
+  });
+
+  it('router.navigate()/open(): navigate with type; getUrl() parses the returned absolute url (out/router/router.js)', async () => {
+    await router.navigate('/browse/T-1');
+    expect(last()).toEqual({ cmd: 'navigate', data: { url: '/browse/T-1', type: 'same-tab' } });
+    await router.open({ target: 'issue', issueKey: 'T-1' });
+    expect(last()).toEqual({ cmd: 'navigate', data: { target: 'issue', issueKey: 'T-1', type: 'new-tab' } });
+
+    reply = () => 'http://localhost:5173/browse/T-1';
+    const url = await router.getUrl({ target: 'issue', issueKey: 'T-1' });
+    expect(last()).toEqual({ cmd: 'getUrl', data: { target: 'issue', issueKey: 'T-1' } });
+    expect(url).toBeInstanceOf(URL);
+    expect(url?.pathname).toBe('/browse/T-1');
+  });
+
+  it('events.*: { event, payload } / { event, callback } (out/events/events.js)', async () => {
+    const cb = () => {};
+    await events.on('e', cb);
+    expect(last()).toEqual({ cmd: 'on', data: { event: 'e', callback: cb } });
+    await events.emitPublic('e', 7);
+    expect(last()).toEqual({ cmd: 'emitPublic', data: { event: 'e', payload: 7 } });
+  });
+
+  it('showFlag(): spreads options with a type, close() sends closeFlag with the same id (out/flag/flag.js)', async () => {
+    const flag = showFlag({ id: 'f1', title: 'Hi', appearance: 'success' });
+    expect(last()).toEqual({ cmd: 'showFlag', data: { id: 'f1', title: 'Hi', appearance: 'success', type: 'success' } });
+    await flag.close();
+    expect(last()).toEqual({ cmd: 'closeFlag', data: { id: 'f1' } });
+  });
+
+  it('showFlag() without an id mints one so close() still targets the right flag', async () => {
+    const flag = showFlag({ title: 'anon' });
+    const minted = last().data.id;
+    expect(typeof minted).toBe('string');
+    await flag.close();
+    expect(last()).toEqual({ cmd: 'closeFlag', data: { id: minted } });
+  });
+
+  it('new Modal(opts).open(): normalised options, same defaults as the real class (out/modal/modal.js)', async () => {
+    const onClose = () => {};
+    await new Modal({ resource: 'r', onClose }).open();
+    expect(last()).toEqual({
+      cmd: 'openModal',
+      data: { resource: 'r', onClose, size: 'medium', context: {}, closeOnEscape: true, closeOnOverlayClick: true, title: '', icon: '' },
     });
   });
 
-  it('realtime.publishGlobal(): isGlobal frame → rpc realtimePublish global, no module scoping', async () => {
-    await realtime.publishGlobal('chan', 'hi');
-    const f = lastFrame();
-    expect(f).toMatchObject({ method: 'realtimePublish', params: { channel: 'chan', payload: 'hi', global: true } });
-    expect(f.params.moduleKey).toBeUndefined();
-  });
-
-  it("the real package's publishRealtimeChannel frame is accepted directly", async () => {
-    await callBridge('publishRealtimeChannel', { channelName: 'c', eventPayload: { n: 2 }, options: undefined });
-    expect(lastFrame()).toMatchObject({ method: 'realtimePublish', params: { channel: 'c', payload: { n: 2 }, global: false, moduleKey: 'test-panel' } });
+  it('Modal.open() rejects when the host reports failure, like the real class', async () => {
+    reply = () => false;
+    await expect(new Modal({ resource: 'r' }).open()).rejects.toThrow(/Unable to open modal/);
   });
 });

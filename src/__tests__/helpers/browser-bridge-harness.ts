@@ -34,6 +34,7 @@ export interface HarnessOptions {
 
 export function installBrowserBridge(options: HarnessOptions = {}): BrowserBridgeHarness {
   delete (window as any).__bridge;
+  delete (globalThis as any).__bridge;
   document.body.innerHTML = '';
 
   const rpcs: Array<{ method: string; params: any }> = [];
@@ -62,7 +63,10 @@ export function installBrowserBridge(options: HarnessOptions = {}): BrowserBridg
   });
 
   const { callBridge } = createBridgeDispatcher(host);
+  // Both: jsdom's `window` and `globalThis` are distinct objects, and the
+  // renderer shim reads globalThis.__bridge.
   (window as any).__bridge = { callBridge };
+  (globalThis as any).__bridge = (window as any).__bridge;
 
   return {
     callBridge,

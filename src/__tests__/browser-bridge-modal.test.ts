@@ -135,6 +135,40 @@ describe('Modal.open() through the browser bridge host', () => {
   });
 });
 
+describe('submit/close outside a modal', () => {
+  it('view.submit() goes to the dev server, never postMessage, when this frame is not a modal', async () => {
+    const { callBridge, rpcs } = installBrowserBridge({ isInModal: false });
+    const posted: any[] = [];
+    const realPost = window.parent.postMessage.bind(window.parent);
+    (window.parent as any).postMessage = (msg: any) => { posted.push(msg); };
+    try {
+      await callBridge('submit', { data: 'test' });
+    } finally {
+      (window.parent as any).postMessage = realPost;
+    }
+    expect(rpcs.map((r) => r.method)).toEqual(['viewSubmit']);
+    expect(posted.filter((m) => /^forge-sim-modal-/.test(m?.type))).toEqual([]);
+  });
+
+  it('inside a modal, submit/close post to the opener and send no RPC', async () => {
+    const { callBridge, rpcs } = installBrowserBridge({ isInModal: true });
+    const posted: any[] = [];
+    const realPost = window.parent.postMessage.bind(window.parent);
+    (window.parent as any).postMessage = (msg: any) => { posted.push(msg); };
+    try {
+      await callBridge('submit', { saved: 1 });
+      await callBridge('close', 'bye');
+    } finally {
+      (window.parent as any).postMessage = realPost;
+    }
+    expect(rpcs).toEqual([]);
+    expect(posted).toEqual([
+      { type: 'forge-sim-modal-submit', payload: { saved: 1 } },
+      { type: 'forge-sim-modal-close', payload: 'bye' },
+    ]);
+  });
+});
+
 describe('modal iframe URL + frame detection', () => {
   it('tags the URL so the child frame knows it is a modal', () => {
     expect(buildModalIframeURL('my-page')).toBe('/module/my-page/?_modal=true');
