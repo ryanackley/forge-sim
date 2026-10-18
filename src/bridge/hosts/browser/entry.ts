@@ -16,6 +16,8 @@
 import { createBridgeDispatcher } from '../../protocol/index.js';
 import { createTransport } from './transport.js';
 import { createBrowserHost } from './host.js';
+import { isInModalFrame } from './modal.js';
+import { readContextOptionsFromUrl } from './context.js';
 
 declare global {
   interface Window {
@@ -47,12 +49,6 @@ function moduleKey(): string | undefined {
   return fromUrl ?? window.__FORGE_SIM_BRIDGE_CONFIG__?.defaultModuleKey ?? undefined;
 }
 
-/** Placement overrides the dev server encodes into the page query string. */
-function contextOptionsFromUrl(): unknown {
-  const raw = new URLSearchParams(window.location.search).get('context');
-  if (!raw) return undefined;
-  try { return JSON.parse(decodeURIComponent(raw)); } catch { return undefined; }
-}
 
 function install(): void {
   const config = window.__FORGE_SIM_BRIDGE_CONFIG__;
@@ -71,9 +67,9 @@ function install(): void {
   const host = createBrowserHost({
     transport,
     getModuleKey: moduleKey,
-    getContextOptions: contextOptionsFromUrl,
+    getContextOptions: readContextOptionsFromUrl,
     getSubmitTree: () => activeSubmitTree,
-    isInModal: () => new URLSearchParams(window.location.search).get('modal') === '1',
+    isInModal: isInModalFrame,
     onReconcile(doc, kind) {
       const [store, listeners] = kind === 'macroConfig'
         ? ['config', configListeners] as const

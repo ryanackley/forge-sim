@@ -28,6 +28,8 @@ export interface HarnessOptions {
   moduleKey?: string;
   contextOptions?: unknown;
   isInModal?: boolean;
+  /** Supply a real reader so a test can exercise URL-derived placement. */
+  getContextOptions?: () => unknown;
 }
 
 export function installBrowserBridge(options: HarnessOptions = {}): BrowserBridgeHarness {
@@ -54,7 +56,7 @@ export function installBrowserBridge(options: HarnessOptions = {}): BrowserBridg
   const host = createBrowserHost({
     transport,
     getModuleKey: () => options.moduleKey ?? 'test-module',
-    getContextOptions: () => options.contextOptions,
+    getContextOptions: options.getContextOptions ?? (() => options.contextOptions),
     isInModal: () => !!options.isInModal,
     onReconcile: (doc, kind) => { reconciled.push({ doc, kind }); },
   });

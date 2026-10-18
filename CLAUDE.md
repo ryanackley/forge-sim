@@ -120,6 +120,8 @@ Node 22+ required (native TS type stripping). MySQL-memory-server bundles its ow
 - **Stats blocks** in markdown use HTML-comment marker pairs (`BEGIN:STATS` and `END:STATS`, each wrapped in `<!-- ... -->`) and are rewritten by `scripts/update-stats.mjs`. Don't hand-edit numbers inside markers; re-run the script. The known generators are `STATS`, `STATS_COMPACT`, and `MCP_TOOLS`. See the script for details.
 - **`npm run docs:stats` is a release chore, not a per-commit step.** Don't run it after every change that adds tests: it reruns both full test suites just to count them, pollutes feature commits with doc churn across README/ROADMAP/CLAUDE.md, and any suite flake turns into troubleshooting the stats script instead of the actual work. Stale numbers between releases are fine. Run it (and `docs:stats:check`) once as part of the release ritual.
 
+- **Deferring work? Append to `deferred-issues.md`, don't open a GitHub issue.** Multiple agents work this repo at once; filing directly causes duplicates and races. A single agent converts that file to issues in one pass later. A few sentences per item: what's wrong, why it was left, what a fix must decide.
+
 ## Forge platform quirks that bite you
 
 These are the ones you'll forget and re-learn the hard way:

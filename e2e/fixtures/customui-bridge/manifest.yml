@@ -5,6 +5,10 @@ app:
 
 modules:
   jira:issuePanel:
+    - key: modal-content
+      title: Modal Content
+      icon: https://example.com/icon.svg
+      resource: modal-ui
     - key: test-panel
       title: Bridge Test
       icon: https://example.com/icon.svg
@@ -19,6 +23,8 @@ modules:
 resources:
   - key: static-ui
     path: static
+  - key: modal-ui
+    path: static/modal
 
 permissions:
   scopes:

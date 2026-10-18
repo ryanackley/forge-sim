@@ -89,6 +89,48 @@ test.describe('Custom UI Bridge', () => {
     // Context should have moduleKey matching our module
     expect(ctx.moduleKey ?? ctx.extension?.type).toBeTruthy();
   });
+
+  // ── Modal (bridge consolidation) ─────────────────────────────────────
+  // Custom UI never had an openModal case: it hit the default arm and
+  // resolved undefined. The shared browser host draws a real modal, so the
+  // whole round trip — overlay, child frame, submit back to the opener —
+  // is now exercised here.
+
+  test('Modal.open draws an overlay and loads the target module in a frame', async ({ page }) => {
+    await page.goto(`${server.url}/module/test-panel/`);
+    await page.getByRole('button', { name: 'Open Modal' }).click();
+
+    const overlay = page.locator('[data-testid="forge-sim-modal-overlay"]');
+    await expect(overlay).toBeVisible({ timeout: 10_000 });
+    await expect(overlay).toContainText('Edit Thing');
+
+    const frame = page.frameLocator('[data-testid="forge-sim-modal-iframe"]');
+    await expect(frame.getByTestId('modal-heading')).toBeVisible({ timeout: 10_000 });
+    // The opener's ?context= rides into the child frame and decodes there.
+    await expect(frame.getByTestId('modal-context')).toHaveText('ctx-issue:MODAL-1');
+  });
+
+  test('view.submit() inside the modal resolves the opener with the payload', async ({ page }) => {
+    await page.goto(`${server.url}/module/test-panel/`);
+    await page.getByRole('button', { name: 'Open Modal' }).click();
+
+    const frame = page.frameLocator('[data-testid="forge-sim-modal-iframe"]');
+    await expect(frame.getByTestId('modal-heading')).toBeVisible({ timeout: 10_000 });
+    await frame.getByRole('button', { name: 'Save' }).click();
+
+    await expect(page.getByTestId('modal-result')).toHaveText('closed:{"saved":"from-modal"}', { timeout: 10_000 });
+    await expect(page.locator('[data-testid="forge-sim-modal-overlay"]')).toHaveCount(0);
+  });
+
+  test('Escape dismisses the modal and resolves the opener', async ({ page }) => {
+    await page.goto(`${server.url}/module/test-panel/`);
+    await page.getByRole('button', { name: 'Open Modal' }).click();
+    await expect(page.locator('[data-testid="forge-sim-modal-overlay"]')).toBeVisible({ timeout: 10_000 });
+
+    await page.keyboard.press('Escape');
+    await expect(page.getByTestId('modal-result')).toHaveText('closed:null', { timeout: 10_000 });
+    await expect(page.locator('[data-testid="forge-sim-modal-overlay"]')).toHaveCount(0);
+  });
 });
 
 // ── UIKit Bridge Tests ──────────────────────────────────────────────────

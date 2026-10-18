@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head><title>Modal Content</title></head>
+<body>
+  <h2 data-testid="modal-heading">Modal Content</h2>
+  <div data-testid="modal-context"></div>
+  <button id="btn-submit" onclick="doSubmit()">Save</button>
+  <button id="btn-close" onclick="doClose()">Cancel</button>
+  <script>
+    // Rendered inside the modal iframe. view.submit()/close() from here must
+    // reach the OPENER (postMessage), not the dev server.
+    (async () => {
+      const ctx = await window.__bridge.callBridge('getContext');
+      document.querySelector('[data-testid="modal-context"]').textContent =
+        'ctx-issue:' + (ctx && ctx.extension && ctx.extension.issue
+          ? ctx.extension.issue.key
+          : (ctx && ctx.issueKey) || 'none');
+    })();
+    function doSubmit() { window.__bridge.callBridge('submit', { saved: 'from-modal' }); }
+    function doClose() { window.__bridge.callBridge('close'); }
+  </script>
+</body>
+</html>

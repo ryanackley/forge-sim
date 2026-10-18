@@ -24,6 +24,7 @@ import type {
 import type { Transport } from './transport.js';
 import { createFlagSurface } from './flags.js';
 import { createBrowserHistory } from './history.js';
+import { createModalSurface } from './modal.js';
 
 export interface BrowserHostOptions {
   transport: Transport;
@@ -35,8 +36,6 @@ export interface BrowserHostOptions {
   onReconcile(doc: unknown, kind: 'view' | 'macroConfig'): void;
   /** Which reconcile tree a submit belongs to (UI Kit macro config). */
   getSubmitTree?(): string | undefined;
-  /** Modal overlay, when the surface provides one. */
-  openModal?(options: unknown): Promise<unknown>;
   /** True when this frame is itself a modal, so submit/close go to the opener. */
   isInModal?(): boolean;
 }
@@ -48,6 +47,7 @@ function eventKey(event: string, isPublic: boolean): string {
 export function createBrowserHost(options: BrowserHostOptions): BridgeHost {
   const { transport, getModuleKey, getContextOptions, onReconcile } = options;
   const flags = createFlagSurface();
+  const modals = createModalSurface();
 
   // channelKey (assigned by the server) → callbacks in this frame.
   const realtimeSubs = new Map<string, Set<(payload?: unknown) => unknown>>();
@@ -177,12 +177,7 @@ export function createBrowserHost(options: BrowserHostOptions): BridgeHost {
     // ── Flags / modal ──────────────────────────────────────────────────
     async showFlag(opts) { flags.show(opts); },
     async closeFlag(id) { return flags.close(id); },
-    async openModal(opts) {
-      if (!options.openModal) {
-        throw new Error('[forge-sim] Modal.open() is not available on this surface.');
-      }
-      return options.openModal(opts);
-    },
+    openModal: (opts) => modals.open(opts),
 
     // ── Cross-module events ────────────────────────────────────────────
     async emitEvent(event, payload, isPublic) {

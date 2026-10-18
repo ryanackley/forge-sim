@@ -8,15 +8,30 @@
   <button id="btn-jira" onclick="testJira()">Test requestJira</button>
   <button id="btn-confluence" onclick="testConfluence()">Test requestConfluence</button>
   <button id="btn-context" onclick="testContext()">Test getContext</button>
+  <button id="btn-modal" onclick="testModal()">Open Modal</button>
 
   <div id="invoke-result" data-testid="invoke-result"></div>
   <div id="jira-result" data-testid="jira-result"></div>
   <div id="confluence-result" data-testid="confluence-result"></div>
   <div id="context-result" data-testid="context-result"></div>
+  <div id="modal-result" data-testid="modal-result"></div>
 
   <script>
     function callBridge(cmd, data) {
       return window.__bridge.callBridge(cmd, data);
+    }
+
+    async function testModal() {
+      try {
+        const result = await callBridge('openModal', {
+          resource: 'modal-content',
+          title: 'Edit Thing',
+          context: { issueKey: 'MODAL-1' }
+        });
+        document.getElementById('modal-result').textContent = 'closed:' + JSON.stringify(result ?? null);
+      } catch (err) {
+        document.getElementById('modal-result').textContent = 'ERROR: ' + err.message;
+      }
     }
 
     async function testInvoke() {
