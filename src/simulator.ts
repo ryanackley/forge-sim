@@ -6,7 +6,9 @@
  */
 
 import { AsyncLocalStorage } from 'node:async_hooks';
+import { randomUUID } from 'node:crypto';
 import { setSimulator } from './shims/globals.js';
+import { runWithInvocationRuntime, type InvocationRuntimeInfo } from './runtime/forge-runtime.js';
 import { UnifiedKVS } from './kvs.js';
 import { SimulatedQueue } from './queue.js';
 import { SimulatedResolver } from './resolver.js';
@@ -135,9 +137,18 @@ export class ForgeSimulator {
     return this.invocationContextStorage.getStore() ?? null;
   }
 
-  /** Run fn inside an invocation context (all handler entry paths funnel through this). */
-  private runInInvocationContext<T>(ctx: RealtimeInvocationContext, fn: () => T): T {
-    return this.invocationContextStorage.run(ctx, fn);
+  /**
+   * Run fn inside an invocation context (all handler entry paths funnel
+   * through this). `info` is the per-invocation slice of the
+   * `global.__forge_runtime__` view — identity, time budget, trace ids —
+   * carried on its own AsyncLocalStorage in src/runtime/forge-runtime.ts.
+   */
+  private runInInvocationContext<T>(
+    ctx: RealtimeInvocationContext,
+    info: InvocationRuntimeInfo,
+    fn: () => T
+  ): T {
+    return this.invocationContextStorage.run(ctx, () => runWithInvocationRuntime(info, fn));
   }
 
   constructor(config?: SimulationConfig) {
@@ -602,10 +613,23 @@ export class ForgeSimulator {
     const startMs = Date.now();
     this.pendingInvokeCount++;
     try {
-      const { result, console: captured } = await this.runInInvocationContext(invocationCtx, () =>
-        withCapture(() =>
-          this.resolver.invoke(functionKey, payload, contextOverride)
-        )
+      const { result, console: captured } = await this.runInInvocationContext(
+        invocationCtx,
+        {
+          invocationId: randomUUID(),
+          functionKey,
+          moduleKey: invocationCtx.moduleKey,
+          moduleType: fnType,
+          startMs,
+          timeoutMs: (fnMeta?.timeoutSeconds ?? INVOCATION_LIMITS[fnType] ?? 25) * 1000,
+          // No `context` here: the resolver computes the merged context
+          // (including the per-call override) and exposes it via
+          // getActiveContext(), which the runtime getter prefers.
+        },
+        () =>
+          withCapture(() =>
+            this.resolver.invoke(functionKey, payload, contextOverride)
+          )
       );
       this.consoleLogs.push(...captured);
       for (const line of captured) {
@@ -728,8 +752,18 @@ export class ForgeSimulator {
    */
   registerConsumer(queueKey: string, handler: (event: any, context: any) => Promise<any>): void {
     this.queue.registerConsumer(queueKey, (event: any, context: any) =>
-      this.runInInvocationContext({ kind: 'consumer', moduleKey: null }, () =>
-        handler(event, context)
+      this.runInInvocationContext(
+        { kind: 'consumer', moduleKey: null },
+        {
+          invocationId: randomUUID(),
+          functionKey: null,
+          moduleKey: queueKey,
+          moduleType: 'consumer',
+          startMs: Date.now(),
+          timeoutMs: INVOCATION_LIMITS.consumer * 1000,
+          context,
+        },
+        () => handler(event, context)
       )
     );
   }
@@ -842,6 +876,15 @@ export class ForgeSimulator {
       try {
         const { result, console: captured } = await this.runInInvocationContext(
           { kind: 'trigger', moduleKey: null },
+          {
+            invocationId: randomUUID(),
+            functionKey: trigger.functionKey,
+            moduleKey: trigger.key,
+            moduleType: 'trigger',
+            startMs: triggerStartMs,
+            timeoutMs: INVOCATION_LIMITS.trigger * 1000,
+            context,
+          },
           () => withCapture(() => handler(deliveredEvent, context))
         );
         this.consoleLogs.push(...captured);
@@ -910,6 +953,15 @@ export class ForgeSimulator {
     try {
       const { result, console: captured } = await this.runInInvocationContext(
         { kind: 'scheduledTrigger', moduleKey: null },
+        {
+          invocationId: randomUUID(),
+          functionKey: st.functionKey,
+          moduleKey: triggerKey,
+          moduleType: 'scheduledTrigger',
+          startMs: schedStartMs,
+          timeoutMs: (customTimeout ?? INVOCATION_LIMITS.scheduledTrigger) * 1000,
+          context,
+        },
         () => withCapture(() => handler(request, context))
       );
       this.consoleLogs.push(...captured);
@@ -994,6 +1046,14 @@ export class ForgeSimulator {
     try {
       const { result, console: captured } = await this.runInInvocationContext(
         { kind: 'webTrigger', moduleKey: null },
+        {
+          invocationId: randomUUID(),
+          functionKey: trigger.functionKey,
+          moduleKey: triggerKey,
+          moduleType: 'webTrigger',
+          startMs,
+          timeoutMs: (fnMeta?.timeoutSeconds ?? INVOCATION_LIMITS.webTrigger) * 1000,
+        },
         () => withCapture(() => executeWebTrigger(this, trigger, forgeRequest))
       );
       this.consoleLogs.push(...captured);

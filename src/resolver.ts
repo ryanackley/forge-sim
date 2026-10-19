@@ -4,6 +4,7 @@
  * Mirrors the Resolver class that Forge apps use to define backend handlers.
  */
 
+import { AsyncLocalStorage } from 'node:async_hooks';
 import type { ResolverRequest, ResolverContext } from './types.js';
 
 export type ResolverHandler = (req: ResolverRequest) => any | Promise<any>;
@@ -70,10 +71,12 @@ export class SimulatedResolver {
    * Forge's per-invocation runtime (`__getRuntime().aaid`) — APIs that need
    * to know "who is the invoking user right now" (e.g. authorize()) read
    * this so per-call context overrides are honored, not just the sticky
-   * baseline. Saved/restored around handler execution so nested invokes
-   * unwind correctly.
+   * baseline. AsyncLocalStorage, not a save/restore field: overlapping async
+   * invocations each see their own context. The old field restore unwound
+   * nested invokes correctly but let invocation B's context leak into a
+   * still-running invocation A.
    */
-  private activeInvocationContext: ResolverContext | null = null;
+  private activeContextStorage = new AsyncLocalStorage<ResolverContext>();
   /**
    * Keys carried over from a previous deploy epoch. Redefining one of these
    * is a silent replacement (that's what a redeploy *is* — real Forge never
@@ -239,14 +242,10 @@ export class SimulatedResolver {
       context,
     };
 
-    const previous = this.activeInvocationContext;
-    this.activeInvocationContext = context;
-    try {
+    return this.activeContextStorage.run(context, async () => {
       if (handler) return await handler(req);
       return await this.invokeViaDispatch(functionKey, req);
-    } finally {
-      this.activeInvocationContext = previous;
-    }
+    });
   }
 
   /**
@@ -283,7 +282,8 @@ export class SimulatedResolver {
    * when called outside a resolver invocation.
    */
   getActiveContext(): ResolverContext | null {
-    return this.activeInvocationContext ? { ...this.activeInvocationContext } : null;
+    const active = this.activeContextStorage.getStore();
+    return active ? { ...active } : null;
   }
 
   /**
@@ -324,7 +324,6 @@ export class SimulatedResolver {
     this.dispatchFallbacks.clear();
     this.contextOverrides = {};
     this.renderContextOverlay = {};
-    this.activeInvocationContext = null;
     this.staleKeys.clear();
   }
 }

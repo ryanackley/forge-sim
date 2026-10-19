@@ -6,6 +6,7 @@
  */
 
 import type { ForgeSimulator } from '../simulator.js';
+import { installForgeRuntime } from '../runtime/forge-runtime.js';
 
 const SIM_KEY = Symbol.for('forge-sim.instance');
 
@@ -22,6 +23,9 @@ const SIM_KEY = Symbol.for('forge-sim.instance');
 export function setSimulator(sim: ForgeSimulator): void {
   (globalThis as any)[SIM_KEY] = sim;
   installGlobalForgeFetch(sim);
+  // __forge_runtime__ — the backend context seam (Seam B). A live getter over
+  // the sim + the active invocation; see src/runtime/forge-runtime.ts.
+  installForgeRuntime(sim);
 }
 
 /**
@@ -104,32 +108,6 @@ function installGlobalForgeFetch(sim: ForgeSimulator): void {
 
     // Wrap response to have Web API-compatible headers.get()
     return toWebResponse(response);
-  };
-
-  // Install __forge_runtime__ — the real @forge/api calls __getRuntime() for
-  // metrics, and its authorize() reads `.aaid` for the invoking user.
-  (global as any).__forge_runtime__ = {
-    metrics: {
-      counter: () => ({ incr: () => {} }),
-      timing: () => ({ measure: () => ({ stop: () => {} }) }),
-    },
-    externalAuth: [],
-    /**
-     * The invoking user's accountId — real Forge's runtime carries the aaid
-     * of the user who triggered the invocation. Resolved lazily: the active
-     * resolver invocation's merged context wins (per-call overrides
-     * included), falling back to the sticky/default context.
-     */
-    get aaid(): string | undefined {
-      const active = sim.resolver.getActiveContext?.();
-      if (active) return active.accountId as string | undefined;
-      const merged = {
-        ...sim.getDefaultContext(),
-        ...sim.resolver.getContextOverrides(),
-        ...(sim.resolver.getRenderContext?.() ?? {}),
-      };
-      return merged.accountId as string | undefined;
-    },
   };
 }
 

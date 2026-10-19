@@ -22,6 +22,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { createRequire } from 'node:module';
 import { createSimulator, ForgeSimulator } from '../simulator.js';
+import { installForgeRuntime } from '../runtime/forge-runtime.js';
 import { authorize } from '../shims/forge-api.js';
 import Resolver from '../shims/forge-resolver.js';
 import {
@@ -111,8 +112,10 @@ describe('authorize() builders', () => {
     it('no-account error message matches what real authorize() throws, byte-for-byte', () => {
       // Force the REAL @forge/api authorize() down its throw path by
       // temporarily replacing the runtime global with one that has no aaid.
+      // Assignment is the documented escape hatch: it swaps the live getter
+      // for the assigned value. Restoring a SAVED SNAPSHOT would leave a
+      // stale data property, so re-arm the live view instead.
       const realApi = require('@forge/api');
-      const saved = (global as any).__forge_runtime__;
       (global as any).__forge_runtime__ = {};
       try {
         let realMessage: string | undefined;
@@ -124,7 +127,7 @@ describe('authorize() builders', () => {
         expect(realMessage).toBeDefined();
         expect(AUTHORIZE_NO_ACCOUNT_ERROR).toBe(realMessage);
       } finally {
-        (global as any).__forge_runtime__ = saved;
+        installForgeRuntime(sim);
       }
     });
   });
