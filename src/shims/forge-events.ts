@@ -10,7 +10,7 @@
 import { getSimulator } from './globals.js';
 // Lives outside the shim: real @forge/events has no such export, and shim
 // exports are the package's public surface (see shim-contract-surface.test.ts)
-import { extractAppIdUuid } from '../app-ari.js';
+import { publishAppEventsViaTriggers } from '../app-events.js';
 
 // ── Error classes matching @forge/events ────────────────────────────────
 
@@ -269,61 +269,10 @@ const appEvents = {
    * @see https://developer.atlassian.com/platform/forge/events-reference/app-events/
    */
   async publish(events: AppEvent | AppEvent[]): Promise<AppEventPublishResult> {
-    const sim = getSimulator();
-    const manifest = sim.getManifest();
-    const appUuid = extractAppIdUuid(manifest?.raw.app?.id);
-    const cloudId = 'sim-cloud-001';
-
-    const eventsArray = Array.isArray(events) ? events : [events];
-    const failedEvents: AppEventPublishFailure[] = [];
-
-    for (const evt of eventsArray) {
-      if (!evt.key || typeof evt.key !== 'string') {
-        failedEvents.push({ event: evt, errorMessage: 'Missing or invalid event key' });
-        continue;
-      }
-
-      // Canonical Forge AVI format for custom app events.
-      // NOTE: NOT `avi:forge:<...>` — that prefix is reserved for app lifecycle
-      // events (avi:forge:installed:app, avi:forge:upgraded:app, etc).
-      const fullEventName = `avi:cloud:ecosystem::event/${appUuid}/${evt.key}`;
-
-      // Platform-generated payload shape that the trigger handler receives.
-      // Per Forge docs, publishing apps can't add custom payload.
-      //
-      // Eval-10 F10: `name` is the event module's human-readable `name` from
-      // `modules.event` in the manifest — not the raw key. Fall back to the
-      // key when the module (or its name) is undeclared. The per-subscriber
-      // `context`/`contextToken` fields are injected by sim.fireTrigger,
-      // which knows each receiving trigger's module key.
-      const eventModules = (manifest?.raw.modules as Record<string, unknown> | undefined)?.event;
-      const eventModule = Array.isArray(eventModules)
-        ? (eventModules as Array<Record<string, unknown>>).find((m) => m?.key === evt.key)
-        : undefined;
-      const eventName = typeof eventModule?.name === 'string' && eventModule.name
-        ? eventModule.name
-        : evt.key;
-
-      const eventPayload: Record<string, unknown> = {
-        workspaceId: `ari:cloud:jira::site/${cloudId}`,
-        eventType: fullEventName,
-        name: eventName,
-        environmentId: 'sim-environment-001',
-        environmentType: 'DEVELOPMENT',
-        environmentKey: 'default',
-      };
-
-      try {
-        await sim.fireTrigger(fullEventName, eventPayload);
-      } catch (err) {
-        failedEvents.push({
-          event: evt,
-          errorMessage: err instanceof Error ? err.message : String(err),
-        });
-      }
-    }
-
-    return { type: 'success', failedEvents };
+    // Shared with the __forge_fetch__ seam (POST /forge/events/v1/app-events),
+    // so the shim path and a bundled @forge/events behave identically.
+    const { failedEvents } = await publishAppEventsViaTriggers(getSimulator(), events);
+    return { type: 'success', failedEvents: failedEvents as AppEventPublishFailure[] };
   },
 };
 

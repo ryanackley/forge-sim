@@ -54,15 +54,21 @@ resolution:
 
 | Package | Seam reached when bundled | Routed by forge-sim |
 |---|---|---|
-| `@forge/api` | `__forge_fetch__` | yes — product REST |
+| `@forge/api` | `__forge_fetch__` | yes — product REST, webTrigger GraphQL, `invokeRemote` (`invokeService` throws not-implemented: container services are a developer preview) |
 | `@forge/kvs` | `__forge_fetch__` (`type: 'kvs'`) | yes |
 | `@forge/sql` | `__forge_fetch__` (`type: 'sql'`) | yes |
-| `@forge/events` | `__forge_fetch__` (`type: 'fpp'`) | **no** |
-| `@forge/object-store` | `__forge_fetch__` (`type: 'os'`) | **no** |
-| `@forge/llm` | `__forge_fetch__` (`type: 'llm'`) | **no** |
-| `@forge/realtime` | `__forge_fetch__` (`type: 'realtime'`) | **no** |
+| `@forge/events` | `__forge_fetch__` (`type: 'fpp'`, `/webhook/queue/*` + `/forge/events/v1/app-events`) | yes — `src/runtime/seam-fetch.ts` |
+| `@forge/object-store` | `__forge_fetch__` (`type: 'os'`) | yes — `src/runtime/seam-fetch.ts` |
+| `@forge/llm` | `__forge_fetch__` (`type: 'llm'`) | yes — `src/runtime/seam-fetch.ts` |
+| `@forge/realtime` | `__forge_fetch__` (`type: 'realtime'`) | yes — `src/runtime/seam-fetch.ts` |
 | `@forge/react`, `@forge/bridge`, `@forge/*-bridge` | `window.__bridge` (see note) | yes |
-| `@forge/resolver` | **none — makes no I/O** | n/a |
+| `@forge/resolver` | **none — makes no I/O** | n/a (bundled-dispatch detection in `src/deployer.ts` covers it) |
+
+> **Since the Phase 2 seam work**, every descriptor type above is routed by
+> `src/runtime/seam-fetch.ts` (registry: `src/runtime/seam-registry.ts`;
+> real-package proof: `src/__tests__/seam-fetch.test.ts`). The sections below
+> this table are the original findings and keep their historical framing —
+> the wire shapes they record are what the seam now implements.
 
 **Note on `@forge/bridge`:** two of its paths do not go through `window.__bridge`
 at all and only work headless because `src/ui/bridge.ts` patches the
@@ -106,13 +112,15 @@ Captured by wrapping `__forge_fetch__` and calling each real package:
 (`node_modules/@forge/api/out/api/fetch.js`). Only the path distinguishes
 them.
 
-### Unrouted behavior before the guard
+### Unrouted behavior, historically
 
-A bundled `@forge/events` `queue.push()` fell through to the product-API mock
-and surfaced in app code as `InternalServerError: 501 Error`, with nothing
-connecting it to the bundler configuration. The event was never enqueued.
-Loud, but unactionable. `src/shims/globals.ts` now detects these four
-surfaces and throws a named error instead.
+A bundled `@forge/events` `queue.push()` originally fell through to the
+product-API mock and surfaced in app code as `InternalServerError: 501 Error`,
+with nothing connecting it to the bundler configuration. An interim guard in
+`src/shims/globals.ts` turned that into a named "you bundled X" error pointing
+at `--external:@forge/*`. Both are gone: the seam now routes these surfaces
+for real (`src/runtime/seam-fetch.ts`), so a bundled copy behaves like the
+shimmed one and `--external` is an optimization, not a requirement.
 
 ## 4. `@forge/resolver` is the one package with no seam
 

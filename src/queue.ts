@@ -145,7 +145,12 @@ export class SimulatedQueue {
    */
   async push(
     queueKey: string,
-    events: QueueEvent | QueueEvent[]
+    events: QueueEvent | QueueEvent[],
+    // Real @forge/events mints the jobId CLIENT-side and sends it in the push
+    // request (events/out/queue.js:22), then uses it for getStats/cancel — so
+    // the __forge_fetch__ seam must honor the caller's id or every later
+    // stats/cancel call 404s. The shim path keeps letting the sim mint one.
+    options?: { jobId?: string }
   ): Promise<QueuePushResult> {
     const eventList = Array.isArray(events) ? events : [events];
 
@@ -170,7 +175,7 @@ export class SimulatedQueue {
       );
     }
 
-    const jobId = randomUUID();
+    const jobId = options?.jobId ?? randomUUID();
     const internalEvents: QueueEventInternal[] = eventList.map((e) => ({
       body: e.body,
       delayInSeconds: e.delayInSeconds ?? 0,

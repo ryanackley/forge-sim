@@ -83,6 +83,8 @@ export const FETCH_DESCRIPTORS: Readonly<Record<string, FetchDescriptorSpec>> = 
     owner: '@forge/api',
     source: 'api/out/api/endpoint.js:37-41, built by constructInvokePayload() and passed at :26',
     summary: 'invokeService() — call a Forge container service by key',
+    unrouted:
+      'container services are an Atlassian developer preview (roadmap watch item #19); the seam throws not-implemented, same posture as the @forge/api shim — faking INVALID_SERVICE_KEY would misreport "unsupported" as "wrong key"',
   },
 
   // ── Storage ──────────────────────────────────────────────────────────────
@@ -98,26 +100,20 @@ export const FETCH_DESCRIPTORS: Readonly<Record<string, FetchDescriptorSpec>> = 
   },
   os: {
     owner: '@forge/object-store',
-    source: 'object-store/out/object-store.js:16, via @forge/api __fetchProduct',
-    summary: 'Object Store — blob put/get/delete/list and pre-signed download URLs',
-    unrouted:
-      'the Object Store wire protocol is an undocumented Atlassian internal; forge-sim intercepts the @forge/object-store import instead, so only a bundled copy reaches the seam',
+    source: 'object-store/out/object-store.js:16, via @forge/api __fetchProduct; endpoints at :43-86',
+    summary: 'Object Store — metadata/delete plus minted upload/download/CDN URLs; content bytes travel over plain fetch to the minted URL, never through this seam',
   },
 
   // ── Everything else ──────────────────────────────────────────────────────
   llm: {
     owner: '@forge/llm',
-    source: 'llm/out/llm-client.js:18 (GET list) and :35 (POST chat/stream)',
-    summary: 'Forge LLM — model list and chat/stream completions against https://llm',
-    unrouted:
-      'forge-sim intercepts the @forge/llm import and serves sim.llm (mocks + recorded history); the raw seam protocol is undocumented',
+    source: 'llm/out/llm-client.js:18 (GET list) and :35 (POST chat/stream); stream framing is newline-delimited JSON (llm-stream-parser.js)',
+    summary: 'Forge LLM — model list and chat/stream completions against https://llm/<model>',
   },
   realtime: {
     owner: '@forge/realtime',
-    source: 'realtime/out/publish.js:40 and realtime/out/signRealtimeToken.js:33',
-    summary: 'Realtime — publishRealtimeChannel GraphQL mutation and context-token signing',
-    unrouted:
-      'forge-sim intercepts the @forge/realtime import and serves sim.realtime; the raw seam protocol is undocumented',
+    source: 'realtime/out/publish.js:7-27,40 and realtime/out/signRealtimeToken.js:5-33; errors ride the TOP-LEVEL GraphQL errors array',
+    summary: 'Realtime — publishRealtimeChannel GraphQL mutation and signRealtimeToken, POSTed to "/"',
   },
 };
 

@@ -306,11 +306,7 @@ describe('import-time reads are still import-time', () => {
     expect(RUNTIME_FIELDS.proxy.plan).toBe('noop');
   });
 
-  it('the unrouted set is exactly the packages forge-sim still intercepts by import', () => {
-    expect(Object.keys(FETCH_DESCRIPTORS).filter(isUnroutedDescriptor).sort()).toEqual([
-      'llm',
-      'os',
-      'realtime',
-    ]);
+  it('the unrouted set is exactly container services (a Forge developer preview)', () => {
+    expect(Object.keys(FETCH_DESCRIPTORS).filter(isUnroutedDescriptor).sort()).toEqual(['fcc']);
   });
 });
