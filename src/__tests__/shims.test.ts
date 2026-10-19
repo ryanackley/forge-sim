@@ -14,7 +14,7 @@ import { setSimulator, getSimulator } from '../shims/globals.js';
 // Import the shims directly (in real usage, the loader hook does this mapping)
 import Resolver from '../shims/forge-resolver.js';
 import * as forgeApi from '../shims/forge-api.js';
-import * as forgeKvs from '../shims/forge-kvs.js';
+import * as forgeKvs from '@forge/kvs';
 import { Queue } from '../shims/forge-events.js';
 
 describe('Forge Shims', () => {
@@ -198,49 +198,6 @@ resources:
     });
   });
 
-  describe('@forge/kvs shim', () => {
-    it('kvs.get/set/delete should use simulator KVS', async () => {
-      await forgeKvs.kvs.set('key1', { count: 42 });
-      expect(await forgeKvs.kvs.get('key1')).toEqual({ count: 42 });
-      await forgeKvs.kvs.delete('key1');
-      expect(await forgeKvs.kvs.get('key1')).toBeUndefined();
-    });
-
-    it('kvs.query() should support where/getMany', async () => {
-      await forgeKvs.kvs.set('item:1', 'a');
-      await forgeKvs.kvs.set('item:2', 'b');
-      await forgeKvs.kvs.set('other:1', 'c');
-
-      const result = await forgeKvs.kvs.query()
-        .where('key', forgeKvs.WhereConditions.beginsWith('item:'))
-        .getMany();
-
-      expect(result.results).toHaveLength(2);
-      expect(result.results.map((r: any) => r.key)).toEqual(['item:1', 'item:2']);
-    });
-
-    it('kvs.transact() builder should batch set and delete', async () => {
-      await forgeKvs.kvs.set('a', 1);
-      await forgeKvs.kvs.set('b', 2);
-
-      await forgeKvs.kvs.transact()
-        .set('a', 10)
-        .set('c', 3)
-        .delete('b')
-        .execute();
-
-      expect(await forgeKvs.kvs.get('a')).toBe(10);
-      expect(await forgeKvs.kvs.get('b')).toBeUndefined();
-      expect(await forgeKvs.kvs.get('c')).toBe(3);
-    });
-
-    it('secrets should use simulator secrets store', async () => {
-      await forgeKvs.kvs.setSecret('api-key', 'secret123');
-      expect(await forgeKvs.kvs.getSecret('api-key')).toBe('secret123');
-      await forgeKvs.kvs.deleteSecret('api-key');
-      expect(await forgeKvs.kvs.getSecret('api-key')).toBeUndefined();
-    });
-  });
 
   describe('@forge/events shim', () => {
     it('Queue.push() should push events through simulator', async () => {

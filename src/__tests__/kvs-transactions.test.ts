@@ -18,7 +18,7 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import { UnifiedKVS, ForgeKvsError } from '../kvs.js';
-import { Filter, FilterConditions } from '../shims/forge-kvs.js';
+import { Filter, FilterConditions } from '@forge/kvs';
 
 describe('KVS transactions (ENT-030/031)', () => {
   let kvs: UnifiedKVS;

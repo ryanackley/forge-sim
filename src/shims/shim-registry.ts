@@ -38,7 +38,6 @@
  */
 export const SHIM_NAMES = [
   '@forge/api',
-  '@forge/kvs',
   '@forge/events',
   '@forge/resolver',
   '@forge/react',
@@ -59,12 +58,25 @@ export type ShimName = (typeof SHIM_NAMES)[number];
  * @forge/* packages that deliberately pass through to the REAL Atlassian
  * package, with no shim and no warning.
  *
- * `@forge/sql` ships CJS and routes all its I/O through
- * `global.__forge_fetch__`, which the simulator installs — so the real package
- * runs unmodified against the sim's MySQL backend. Do NOT add an alias for
- * these; resolving to the real package IS the intended behavior.
+ * These ship CJS and route all their I/O through `global.__forge_fetch__`,
+ * which the simulator installs (`src/runtime/seam-fetch.ts`) — so the real
+ * package runs unmodified against the sim's backends. Do NOT add an alias for
+ * these; resolving to the real package IS the intended behavior. This is the
+ * end state the bare-seam migration is moving every backend package toward:
+ * running the real thing beats impersonating it, because the contract can't
+ * drift from itself.
+ *
+ *   `@forge/sql`  → sim MySQL      (`type: 'sql'`)
+ *   `@forge/kvs`  → sim KVS/entity store (`type: 'kvs'`; all 15 of the
+ *                   package's `/api/v1/*` paths are served, transactions and
+ *                   batch ops included)
+ *
+ * Packages listed here that set `__esModule` + `exports.default` must ALSO be
+ * in `CJS_DEFAULT_FACADE` in `src/loader/hooks.ts`, or the documented
+ * `import kvs from '@forge/kvs'` default-import style breaks under Node's
+ * native CJS interop. Both entries above need it.
  */
-export const PASSTHROUGH_OK: readonly string[] = ['@forge/sql'];
+export const PASSTHROUGH_OK: readonly string[] = ['@forge/sql', '@forge/kvs'];
 
 /**
  * Shim filename stem for a package name.

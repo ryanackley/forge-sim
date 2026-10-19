@@ -41,7 +41,6 @@ const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
  */
 const REAL_TYPES_ENTRY: Record<string, string> = {
   '@forge/api': 'node_modules/@forge/api/out/index.js',
-  '@forge/kvs': 'node_modules/@forge/kvs/out/index.js',
   '@forge/events': 'node_modules/@forge/events/out/index.js',
   '@forge/resolver': 'node_modules/@forge/resolver/out/index.js',
   '@forge/react': 'node_modules/@forge/react/out/index.js',
@@ -101,21 +100,6 @@ const TYPE_DEVIATIONS: Record<string, Record<string, string>> = {
       'Real ObjectStoreClient has private members (sendRequest, requestJson), ' +
       'making it nominally typed. The public methods are mirrored and covered ' +
       'by object-store tests.',
-  },
-  '@forge/kvs': {
-    MetadataField:
-      'Real is a TS enum (enum member types are nominal); the shim ships a ' +
-      'frozen object with the identical runtime values.',
-    Sort: 'Same as MetadataField: real is a TS enum, shim ships the identical runtime values.',
-    kvs:
-      'Real kvs is a KvsImpl instance with a private storageApi field — ' +
-      'nominal typing no structural shim can satisfy. The full kvs/entity ' +
-      'surface is covered by forge-kvs-shim and entity-store tests.',
-    Filter:
-      'Real FilterBuilder extends BaseFilter, which has a protected items ' +
-      'field — nominal typing no structural shim can satisfy. The builder ' +
-      'surface (and/or/filters/operator) is mirrored and covered by ' +
-      'entity-store tests.',
   },
   '@forge/realtime': {
     publish: REALTIME_ERRORS_REASON,

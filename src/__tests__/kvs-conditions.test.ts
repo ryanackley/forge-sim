@@ -22,11 +22,13 @@
  */
 import { describe, it, expect, beforeEach } from 'vitest';
 import { UnifiedKVS, WhereConditions } from '../kvs.js';
+// The @forge/kvs shim is gone (bare-seam phase 3a) — apps run the REAL
+// package, so these compare our sim-side helpers against upstream itself.
 import {
   WhereConditions as ShimWhereConditions,
   FilterConditions as ShimFilterConditions,
   MetadataField as ShimMetadataField,
-} from '../shims/forge-kvs.js';
+} from '@forge/kvs';
 
 describe('WhereConditions — canonical clause shape', () => {
   it('beginsWith returns { condition: BEGINS_WITH, values: [value] }', () => {

@@ -100,9 +100,22 @@ The real `@forge/llm` package still sits in `node_modules`. It just never loads.
 
 For programmatic use (`createSimulator()` in tests), `sim.deploy()` registers the hooks for you via `module.register()`. No `--import` flag needed.
 
-### A few packages need a different shape
+### A few packages have no shim at all
 
-`@forge/sql` and `@forge/kvs` are partially CJS, partially using a different bridge model: they call `global.__forge_fetch__({ type: 'kvs', ... })` internally. For those, the shim imports the real package and substitutes only the bridge function on `globalThis`. See `src/shims/globals.ts`. This is the "shim → real package fallthrough" convention noted in `CLAUDE.md`: same Atlassian code path, just routed to our backing storage.
+`@forge/sql` and `@forge/kvs` ship CJS and route every call through
+`global.__forge_fetch__({ type: 'sql' | 'kvs', ... })` internally. They are
+deliberately **not** aliased (`PASSTHROUGH_OK` in
+`src/shims/shim-registry.ts`): the app loads the real Atlassian package and
+`src/runtime/seam-fetch.ts` answers its I/O from the sim's MySQL / entity
+store. Same Atlassian code path, just pointed at our backing storage — and
+nothing to drift, because there is no second implementation.
+
+This is the end state the backend bare-seam migration is moving the remaining
+backend packages toward; `@forge/kvs` reached it first (all 15 of its
+`/api/v1/*` paths are served, transactions and batch ops included). A package
+listed in `PASSTHROUGH_OK` that sets `__esModule` + `exports.default` also
+needs an entry in `CJS_DEFAULT_FACADE` (`src/loader/hooks.ts`), or the
+documented default-import style breaks under Node's native CJS interop.
 
 The `@forge/api` shim applies the same convention to `route` / `routeFromAbsolute` / `assumeTrustedRoute`: pure functions with no cloud I/O, re-exported from the real package rather than reimplemented. The hand-rolled version had drifted in a security-relevant way (always-encoding instead of real `route()`'s mode-aware escaping, which *rejects* path-traversal shapes in path position) — pinned by the differential suite in `route-parity.test.ts`. Product-request surfaces (`requestJira` et al.) also enforce the real package's Route-only policy; plain strings throw exactly as they do in Forge, while the `fetch` surfaces keep accepting string-or-Route, which is the real policy there too.
 

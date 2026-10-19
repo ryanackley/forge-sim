@@ -145,7 +145,7 @@ export const QUIRKS: Quirk[] = [
       'Apps commonly branch on `err.name`. A shim that sets the obvious name takes a different ' +
       'branch in the sim than in production.',
     pinnedBy: [
-      { file: 'forge-kvs-shim.test.ts', test: 'mirrors the real name quirk: ForgeKvsAPIError.name stays "ForgeKvsError"' },
+      { file: 'forge-kvs-package.test.ts', test: 'mirrors the real name quirk: ForgeKvsAPIError.name stays "ForgeKvsError"' },
     ],
   },
   {
@@ -159,7 +159,7 @@ export const QUIRKS: Quirk[] = [
       'Anything inferring the default combinator from a fresh builder picks the wrong one, ' +
       'silently changing query semantics for an empty-then-populated filter.',
     pinnedBy: [
-      { file: 'forge-kvs-shim.test.ts', test: 'plain new Filter() matches real: filters() is [] and operator() is "or"' },
+      { file: 'forge-kvs-package.test.ts', test: 'plain new Filter() matches real: filters() is [] and operator() is "or"' },
     ],
   },
   {
@@ -172,7 +172,7 @@ export const QUIRKS: Quirk[] = [
       '`new Filter()` worked in Forge and threw in the sim — the canonical "works in Forge, ' +
       'fails here" bug this whole suite exists to prevent.',
     pinnedBy: [
-      { file: 'forge-kvs-shim.test.ts', test: 'Filter is constructible (was aliased to FilterConditions until 2026-07-04)' },
+      { file: 'forge-kvs-package.test.ts', test: 'Filter is constructible (was aliased to FilterConditions until 2026-07-04)' },
     ],
   },
   {
@@ -186,7 +186,7 @@ export const QUIRKS: Quirk[] = [
       'A shim exposing both methods on both builders lets an app write a mixed and/or chain that ' +
       'type-checks and runs locally, then fails to compile or behaves differently against the real package.',
     pinnedBy: [
-      { file: 'forge-kvs-shim.test.ts', test: 'combinator locking matches real: and-builder has no .or, or-builder has no .and' },
+      { file: 'forge-kvs-package.test.ts', test: 'combinator locking matches real: and-builder has no .or, or-builder has no .and' },
     ],
   },
   {

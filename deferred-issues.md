@@ -56,10 +56,9 @@ Found while mapping the backend seams for the `__forge_runtime__` migration
 - `:63`, `:99`, `:201` say forge-sim never builds a fake `__forge_runtime__`.
   `src/shims/globals.ts:111-133` has installed a minimal one (no-op metrics,
   empty `externalAuth`, a lazy `aaid` getter) for some time.
-- `:105` says the KVS shim wraps the real package. `src/shims/forge-kvs.ts` is
-  a full reimplementation against `sim.kvs` and never loads the real package;
-  the shim-wraps-real pattern applies to `@forge/react` and `@forge/api`'s
-  route helpers only.
+- ~~`:105` says the KVS shim wraps the real package.~~ **Fixed** in phase 3a:
+  there is no KVS shim any more, and that section now describes the
+  `PASSTHROUGH_OK` + seam arrangement it actually uses.
 - `:72-77` lists 11 shims. `SHIM_NAMES` (`src/shims/shim-registry.ts:39-54`)
   has 14 — missing object-store, react/router and bridge/realtime.
 - `:157` (and `docs/reference/renderer.md:42`) say the real `@forge/bridge`

@@ -21,7 +21,6 @@ const nextResolve = vi.fn(async (specifier: string) => ({
 
 const EXPECTED_SHIMS = [
   '@forge/api',
-  '@forge/kvs',
   '@forge/events',
   '@forge/resolver',
   '@forge/react',
@@ -299,6 +298,42 @@ describe('Loader Hooks — resolve()', () => {
           defaultIsNamedSql: true,         // exports.default === exports.sql
           migrationRunner: 'object',       // named exports untouched (it's an instance)
           nsDefaultPrepare: 'function',    // namespace default matches too
+        });
+      } finally {
+        rmSync(scriptPath, { force: true });
+      }
+    });
+
+    it('E2E: @forge/kvs default import yields the kvs instance, not the namespace', () => {
+      // @forge/kvs has no shim since the bare-seam migration (phase 3a) — the
+      // app runs the REAL package. It has the same __esModule + exports.default
+      // shape as @forge/sql, so without the facade `import kvs from '@forge/kvs'`
+      // (Atlassian's documented style) hands back module.exports and `kvs.get`
+      // is undefined: works in Forge, breaks in the sim.
+      const repoRoot = pathResolve(fileURLToPath(import.meta.url), '..', '..', '..');
+      const scriptPath = join(repoRoot, `.tmp-kvs-facade-test-${process.pid}.mjs`);
+      writeFileSync(scriptPath, [
+        `import kvsDefault from '@forge/kvs';`,
+        `import { kvs, WhereConditions, Filter } from '@forge/kvs';`,
+        `console.log(JSON.stringify({`,
+        `  defaultGet: typeof kvsDefault.get,`,
+        `  defaultIsNamedKvs: kvsDefault === kvs,`,
+        `  whereConditions: typeof WhereConditions.beginsWith,`,
+        `  filterConstructible: typeof Filter,`,
+        `}));`,
+      ].join('\n'));
+
+      try {
+        const out = execSync(
+          `node --import ./dist/loader/register.js ${JSON.stringify(scriptPath)}`,
+          { cwd: repoRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }
+        );
+        const parsed = JSON.parse(out.trim().split('\n').pop()!);
+        expect(parsed).toEqual({
+          defaultGet: 'function',        // would be 'undefined' without the facade
+          defaultIsNamedKvs: true,       // exports.default === exports.kvs
+          whereConditions: 'function',   // named exports untouched
+          filterConstructible: 'function',
         });
       } finally {
         rmSync(scriptPath, { force: true });

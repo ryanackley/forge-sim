@@ -8,7 +8,10 @@
 
 import { createRequire } from 'node:module';
 import { getSimulator } from './globals.js';
-import { WhereConditions as KvsWhereConditions, FilterConditions as KvsFilterConditions } from './forge-kvs.js';
+// Legacy `api.storage` shares its clause helpers with KVS. Since the
+// @forge/kvs shim was removed (bare-seam phase 3a), these come from the REAL
+// package via createRequire — the same CJS-bypass the route helpers below use,
+// since a bare `import` here would be aliased away under vitest.
 import { buildAuthorizeApi, AUTHORIZE_NO_ACCOUNT_ERROR, type AuthorizeFetch } from '../authorize.js';
 import { extractAppIdUuid } from '../app-ari.js';
 import { ProductFetchResponse } from './fetch-response.js';
@@ -287,14 +290,15 @@ async function forgeFetch(rawUrl: Route | string, options?: any) {
 
 // ── Condition helpers (re-exported from @forge/api) ─────────────────────
 //
-// Both objects re-export the canonical clause helpers from the forge-kvs
-// shim. Keeping a single source of truth avoids the drift that bit
+// Both objects re-export the canonical clause helpers from the REAL
+// @forge/kvs. Keeping a single source of truth avoids the drift that bit
 // pre-2026-05-16: this file used to define its own broken FilterConditions
 // returning { condition: 'camelCase', value: ... } (singular value, wrong
-// shape).
+// shape). Upstream is now that source, so the shapes cannot drift at all.
 
-const WhereConditions = KvsWhereConditions;
-const FilterConditions = KvsFilterConditions;
+const realKvs = createRequire(import.meta.url)('@forge/kvs');
+const WhereConditions = realKvs.WhereConditions;
+const FilterConditions = realKvs.FilterConditions;
 
 const SortOrder = {
   ASC: 'ASC' as const,
