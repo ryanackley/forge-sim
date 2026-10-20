@@ -121,11 +121,33 @@ slice — frontend surface, unlike Phases 1–3 which could skip e2e)
   a 4c behavior question. Also fixed en route: `be94d7c` repaired the
   external-auth Playwright spec that still imported the deleted
   `@forge/api` shim (e2e was never run in Phases 1–3).
-- **4b — product-bridge command derivation.** Extend
-  `bridge-protocol.test.ts`'s `commandsEmittedBy()` scan to the three product
-  bridges; add each command to `BRIDGE_COMMANDS` as routed or
-  `unsupported:` with a reason. Mutation-test the derivation (remove/add an
-  entry, watch it fail both ways — the Phase 0 ritual).
+- **4b — product-bridge command derivation. DONE.** Scan extended to the
+  three product bridges; all commands routed (Ryan's call: they stay logging
+  no-ops, just answered as a bridge command instead of a shim — nothing
+  `unsupported:`, since the real packages validate the answer and a throw
+  would be the parity violation). Shared implementation in
+  `src/bridge/hosts/product-surfaces.ts`, spread into BOTH hosts: a dev page
+  has no Jira/Confluence/dashboard around the app either, so the answer does
+  not vary by environment.
+  **Finding: the count was 13, not the 11 this doc predicted.** The old
+  `commandsEmittedBy()` regex matched lowercase `callBridge` only.
+  @forge/bridge assigns a lowercase local, but the product bridges call
+  inline — `(0, bridge_1.getCallBridge)()('getWidgetApi')` — where the only
+  occurrence is the capitalised one. `getWidgetEditApi` and `getWidgetApi`
+  were invisible; the regex is now `[cC]allBridge[)(\s]*\(` and a test pins
+  the two dashboards commands by name. (`emit` is the 13th: Confluence's
+  `updateBylineProperties` rides the existing cross-module command, so it
+  needed no entry.)
+  One surface is NOT inert: `uiModificationsApi.onInit()` runs the app's
+  callbacks the instant the internal API resolves (out/ui-modifications/
+  onInit.js), so "registered and waiting" is not a simulatable state — it
+  runs against an empty form and its submitted changes are dropped. The
+  alternative, never resolving, would hang the app's await.
+  Pinned by `product-bridges-package.test.ts` against the REAL packages,
+  deep-required at `out/index.js` (they ship no `main`/`exports`, so a bare
+  specifier cannot resolve until 4d). Mutation-tested six ways: registry
+  entry removed/added, the `[cC]` fix reverted, and three host answers
+  broken — each reproduces the real package's own BridgeAPIError.
 - **4c — drop `@forge/bridge` + `@forge/bridge/realtime`.** Real package runs
   headless. Budget the lesson-10 fixture pass (flag `id`s,
   `NavigationLocation`, the strictness list in CLAUDE.md's quirks). Sim-only

@@ -24,6 +24,7 @@ import type {
 import type { Transport } from './transport.js';
 import { createFlagSurface } from './flags.js';
 import { createBrowserHistory, createMemoryHistory } from './history.js';
+import { createProductBridgeSurfaces } from '../product-surfaces.js';
 import { createModalSurface } from './modal.js';
 
 export interface BrowserHostOptions {
@@ -232,5 +233,11 @@ export function createBrowserHost(options: BrowserHostOptions): BridgeHost {
     async initFeatureFlags() {},
     async isRovoEnabled() { return false; },
     async emitFrontendCustomMetric() {},
+
+    // ── Product bridges ────────────────────────────────────────────────
+    // A dev page is still just the app's iframe — there is no Jira issue
+    // view, Confluence editor or dashboard around it — so the answers are
+    // the headless ones.
+    ...createProductBridgeSurfaces(),
   };
 }

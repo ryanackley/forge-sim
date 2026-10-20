@@ -123,7 +123,7 @@ These all follow the **UI + Resolver** or **UI + Custom UI** pattern. They have 
 
 | Module Key | Level | Notes |
 |------------|-------|-------|
-| `jira:uiModifications` | 🔇 Stub | No resource/function in manifest. Host calls `uiModificationsApi.onInit/onChange` from `@forge/jira-bridge`, which we stub as no-ops. Not planned — niche module; open an issue if you need it. |
+| `jira:uiModifications` | 🔇 Stub | No resource/function in manifest. Host calls `uiModificationsApi.onInit/onChange` from `@forge/jira-bridge`; the bridge answers them inertly (`onInit` runs against an empty form, `onChange` never fires). Not planned — niche module; open an issue if you need it. |
 
 ### Full Page (New)
 

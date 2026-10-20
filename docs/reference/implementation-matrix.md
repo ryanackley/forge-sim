@@ -523,46 +523,47 @@ Frontend API for Custom UI apps (runs in iframe).
 
 ## @forge/jira-bridge
 
-Product-specific bridge APIs for Jira host UI. All no-ops in forge-sim; the host product isn't present. App code that imports these won't crash.
+Product-specific bridge APIs for Jira host UI. The host product isn't present, so these are answered inertly — by a **bridge command** (`src/bridge/hosts/product-surfaces.ts`), the same way in a headless render and in `forge-sim dev`. App code runs the real package and won't crash. Tests drive the real package: `product-bridges-package.test.ts`.
 
 | API | Status | Tests | Notes |
 |-----|--------|-------|-------|
-| `new ViewIssueModal(opts).open()` | 🔇 | `product-bridges.test.ts` | Logs + resolves. Stores onClose but never fires it (no host) |
-| `new CreateIssueModal(opts).open()` | 🔇 | `product-bridges.test.ts` | Logs + resolves. Context and onClose stored but inert |
-| `workflowRules.onConfigure(fn)` | 🔇 | `product-bridges.test.ts` | Registers callback (host-driven, never fires in sim) |
-| `uiModificationsApi.onInit(cb, registerCb)` | 🔇 | `product-bridges.test.ts` | Registers hooks for issue create/edit forms (host-driven) |
-| `uiModificationsApi.onChange(cb, registerCb)` | 🔇 | `product-bridges.test.ts` | Registers field-change hooks (host-driven) |
-| `uiModificationsApi.onError(cb)` | 🔇 | `product-bridges.test.ts` | Registers error handler (host-driven) |
-| `customFieldApi.getFieldData(cb)` | 🔇 | `product-bridges.test.ts` | Registers callback (host pushes data, no host in sim) |
+| `new ViewIssueModal(opts).open()` | 🔇 | `product-bridges-package.test.ts` | Logs + resolves; the simulated modal closes itself so an awaited `onClose` can't hang. Real package throws in the constructor without `context.issueKey` |
+| `new CreateIssueModal(opts).open()` | 🔇 | `product-bridges-package.test.ts` | Logs + resolves; `onClose` receives `{ payload: [] }` — no issues were created |
+| `refreshIssueView()` | 🔇 | `product-bridges-package.test.ts` | Logs + resolves. Not re-exported from the package index in 0.40.x — reachable only by deep import |
+| `workflowRules.onConfigure(fn)` | 🔇 | `product-bridges-package.test.ts` | Registers callback (host-driven, never fires in sim) |
+| `uiModificationsApi.onInit(cb, registerCb)` | 🔇 | `product-bridges-package.test.ts` | **Runs the app callbacks** against an empty form — the real package invokes them as soon as the internal API resolves, so "registered and waiting" isn't a state that exists. Submitted changes are dropped |
+| `uiModificationsApi.onChange(cb, registerCb)` | 🔇 | `product-bridges-package.test.ts` | Subscribes; the callback never fires (host-driven) |
+| `uiModificationsApi.onError(cb)` | 🔇 | `product-bridges.test.ts` | Registers error handler (host-driven); no bridge command of its own |
+| `customFieldApi.getFieldData(cb)` | 🔇 | `product-bridges-package.test.ts` | Registers callback (host pushes data, no host in sim) |
 | `REQUEST_TYPE_CF_TYPE` | ✅ | `product-bridges.test.ts` | String constant: `"com.atlassian.servicedesk:vp-origin"` |
 
 ---
 
 ## @forge/confluence-bridge
 
-Product-specific bridge APIs for Confluence editor/macro/byline. All no-ops; returns sensible defaults.
+Product-specific bridge APIs for Confluence editor/macro/byline. Answered inertly by a bridge command (`src/bridge/hosts/product-surfaces.ts`) with the smallest value the real package accepts — both content getters throw on a falsy answer, so the empty document is `{ data: '' }`.
 
 | API | Status | Tests | Notes |
 |-----|--------|-------|-------|
-| `getEditorContent()` | 🔇 | `product-bridges.test.ts` | Returns `{ data: '' }`; no Confluence editor in sim |
-| `getMacroContent()` | 🔇 | `product-bridges.test.ts` | Returns `{ data: '' }` |
-| `updateMacro(content)` | 🔇 | `product-bridges.test.ts` | Returns `true` (no-op) |
-| `setMacroViewportHeight(height)` | 🔇 | `product-bridges.test.ts` | Returns `true` (no-op) |
-| `updateBylineProperties(payload)` | 🔇 | `product-bridges.test.ts` | No-op |
+| `getEditorContent()` | 🔇 | `product-bridges-package.test.ts` | Returns `{ data: '' }`; no Confluence editor in sim |
+| `getMacroContent()` | 🔇 | `product-bridges-package.test.ts` | Returns `{ data: '' }` |
+| `updateMacro(content)` | 🔇 | `product-bridges-package.test.ts` | Returns `true` (no-op) |
+| `setMacroViewportHeight(height)` | 🔇 | `product-bridges-package.test.ts` | Returns `true` (no-op). Real package rejects a non-positive height client-side, before the bridge call |
+| `updateBylineProperties(payload)` | 🔇 | `product-bridges-package.test.ts` | Rides the existing `emit` command with event `FORGE_CONTENT_PROPERTY_UPDATED` — not a product-bridge command of its own |
 
 ---
 
 ## @forge/dashboards-bridge
 
-Product-specific bridge APIs for Jira Dashboard widgets. All no-ops: callback registration stubs.
+Product-specific bridge APIs for Jira Dashboard widgets. Answered inertly by a bridge command (`src/bridge/hosts/product-surfaces.ts`). Both entry points first call `view.getContext()` to split the extension, so they exercise the normal context path too.
 
 | API | Status | Tests | Notes |
 |-----|--------|-------|-------|
-| `widgetEdit.onSave(cb)` | 🔇 | `product-bridges.test.ts` | Registers save callback (host-driven) |
-| `widgetEdit.onProductSave(cb)` | 🔇 | `product-bridges.test.ts` | Registers product-save callback (host-driven) |
-| `widgetEdit.onSaveError(cb)` | 🔇 | `product-bridges.test.ts` | Registers error callback (host-driven) |
-| `widgetEdit.updateConfig(config)` | 🔇 | `product-bridges.test.ts` | Pushes config to host (no-op + log) |
-| `widget.setPreviewConfig(config)` | 🔇 | `product-bridges.test.ts` | Pushes preview config to host (no-op + log) |
+| `widgetEdit.onSave(cb)` | 🔇 | `product-bridges-package.test.ts` | Registers save callback (host-driven) |
+| `widgetEdit.onProductSave(cb)` | 🔇 | `product-bridges-package.test.ts` | Registers product-save callback (host-driven) |
+| `widgetEdit.onSaveError(cb)` | 🔇 | `product-bridges-package.test.ts` | Registers error callback (host-driven) |
+| `widgetEdit.updateConfig(config)` | 🔇 | `product-bridges-package.test.ts` | Pushes config to host (no-op + log) |
+| `widget.setPreviewConfig(config)` | 🔇 | `product-bridges-package.test.ts` | Pushes preview config to host (no-op + log) |
 
 ---
 

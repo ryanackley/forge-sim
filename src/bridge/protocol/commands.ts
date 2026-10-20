@@ -2,11 +2,13 @@
  * The bridge command registry — every command the seam can receive.
  *
  * Derived from the installed packages, not from memory:
- *   grep -rhoE "callBridge\)?\('[A-Za-z]+'" node_modules/@forge/{bridge,react}/out
- * `src/__tests__/bridge-protocol.test.ts` re-derives this list from the
- * installed `@forge/bridge` and `@forge/react` on every run, so a package
- * bump that adds a command fails CI here rather than surfacing as an
- * `undefined` inside some app.
+ *   grep -rhoE "[cC]allBridge[)([:space:]]+\('[A-Za-z]+'" node_modules/@forge/<pkg>/out
+ * `src/__tests__/bridge-protocol.test.ts` re-derives this list on every run
+ * from the five packages that can reach the seam — `@forge/bridge`,
+ * `@forge/react`, and the three product bridges — so a package bump that
+ * adds a command fails CI here rather than surfacing as an `undefined`
+ * inside some app. (Note the capital-C alternative: the product bridges call
+ * `getCallBridge()('cmd')` inline, with no lowercase local to match.)
  *
  * The dispatcher routes every listed command to a `BridgeHost` method, except
  * those marked `unsupported`, which throw with the stated reason. There is
@@ -15,7 +17,10 @@
  */
 
 export interface BridgeCommandSpec {
-  /** The `@forge/bridge` module that emits it (`out/<source>`), or `@forge/react`. */
+  /**
+   * Where it comes from: the `@forge/bridge` module (`out/<source>`), or
+   * `@forge/react`, or `<package> <module>` for a product bridge.
+   */
   source: string;
   /** One line on what the app is asking for. */
   summary: string;
@@ -63,7 +68,11 @@ export const BRIDGE_COMMANDS: Readonly<Record<string, BridgeCommandSpec>> = {
   openModal: { source: 'modal/modal.js', summary: 'Modal.open() — host-drawn modal around a module' },
 
   // ── Cross-module events ──────────────────────────────────────────────
-  emit: { source: 'events/events.js', summary: 'events.emit() — app-private channel' },
+  // @forge/confluence-bridge's updateBylineProperties() rides this same
+  // command with event 'FORGE_CONTENT_PROPERTY_UPDATED'
+  // (confluence-bridge out/content/updateBylineProperties.js) — no separate
+  // command, so it needs no separate entry.
+  emit: { source: 'events/events.js', summary: 'events.emit() — app-private channel; also Confluence byline updates' },
   on: { source: 'events/events.js', summary: 'events.on() — app-private subscription' },
   emitPublic: { source: 'events/events.js', summary: 'events.emitPublic() — cross-app channel' },
   onPublic: { source: 'events/events.js', summary: 'events.onPublic() — cross-app subscription' },
@@ -85,6 +94,27 @@ export const BRIDGE_COMMANDS: Readonly<Record<string, BridgeCommandSpec>> = {
   openRovo: { source: 'rovo/open.js', summary: 'Open the Rovo chat panel', unsupported: 'Rovo chat is a host surface forge-sim does not render' },
   requestTeamworkGraph: { source: 'requestTeamworkGraph/index.js', summary: 'Teamwork Graph query', unsupported: 'Teamwork Graph has no simulated backend' },
   fetchUserRecommendations: { source: 'fetch/index.js', summary: 'User recommendations service', unsupported: 'the user-recommendations service has no simulated backend' },
+
+  // ── Product bridges ──────────────────────────────────────────────────
+  // @forge/{jira,confluence,dashboards}-bridge drive HOST PRODUCT chrome.
+  // forge-sim renders no product around the app, so every one of these is
+  // answered inertly — by BOTH hosts, from the shared implementation in
+  // `src/bridge/hosts/product-surfaces.ts`. They are supported, not
+  // `unsupported:`: the app's call is a legitimate thing to do and the real
+  // packages validate what comes back, so each needs a real (if empty)
+  // answer rather than a throw.
+  openIssueViewModal: { source: '@forge/jira-bridge modal/issue-view.js', summary: 'ViewIssueModal.open() — host-drawn Jira issue modal' },
+  openIssueCreateModal: { source: '@forge/jira-bridge modal/issue-create.js', summary: 'CreateIssueModal.open() — host-drawn Jira create-issue modal' },
+  refreshIssueView: { source: '@forge/jira-bridge issue-utils/refresh.js', summary: 'refreshIssueView() — ask Jira to reload the issue view' },
+  setWorkflowRuleConfigurationCallback: { source: '@forge/jira-bridge workflow/onConfigure.js', summary: 'workflowRules.onConfigure() — register the workflow-rule config callback' },
+  getCustomFieldInternalAPI: { source: '@forge/jira-bridge custom-field/getCustomFieldInternalAPI.js', summary: 'Internal custom-field API backing customFieldApi.getFieldData()' },
+  getUiModificationsInternalAPI: { source: '@forge/jira-bridge ui-modifications/getInternalAPI.js', summary: 'Internal API backing uiModificationsApi.onInit()/onChange()' },
+  getEditorContent: { source: '@forge/confluence-bridge content/getEditorContent.js', summary: 'Current Confluence editor content' },
+  getMacroContent: { source: '@forge/confluence-bridge content/getMacroContent.js', summary: 'Current Confluence macro body' },
+  updateMacro: { source: '@forge/confluence-bridge content/updateMacro.js', summary: 'Write a macro body back to the Confluence editor' },
+  setMacroViewportHeight: { source: '@forge/confluence-bridge content/setMacroViewportHeight.js', summary: 'Resize the macro viewport in the Confluence editor' },
+  getWidgetEditApi: { source: '@forge/dashboards-bridge widgets/edit/utils/get-widget-edit-bridge.js', summary: 'Internal API backing widgetEdit.onSave()/onProductSave()/onSaveError()/updateConfig()' },
+  getWidgetApi: { source: '@forge/dashboards-bridge widgets/view/utils/get-widget-bridge.js', summary: 'Internal API backing widget.setPreviewConfig()' },
 };
 /** True when the registry knows the command and no host is expected to answer it. */
 export function isUnsupportedBridgeCommand(cmd: string): boolean {

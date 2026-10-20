@@ -3,9 +3,9 @@
  * real @forge/bridge sends through window.__bridge.callBridge and what each
  * command becomes on a BridgeHost. This suite pins that in three ways:
  *
- *  1. The registry covers exactly the commands the INSTALLED @forge/bridge
- *     and @forge/react can send — derived from their source, so a bump that
- *     adds a command fails here.
+ *  1. The registry covers exactly the commands the INSTALLED packages can
+ *     send — @forge/bridge, @forge/react and the three product bridges,
+ *     derived from their source, so a bump that adds a command fails here.
  *  2. The dispatcher routes EVERY supported registry entry to a typed host
  *     method with the frame normalized, and throws (never resolves undefined)
  *     for unsupported and unknown commands.
@@ -36,7 +36,15 @@ function commandsEmittedBy(pkgOutDir: string): Set<string> {
       const full = join(dir, entry);
       if (statSync(full).isDirectory()) { walk(full); continue; }
       if (!entry.endsWith('.js')) continue;
-      for (const m of readFileSync(full, 'utf8').matchAll(/callBridge\)?\(\s*['"]([A-Za-z][A-Za-z0-9]*)['"]/g)) {
+      // `[cC]` is load-bearing. @forge/bridge assigns a lowercase local
+      // (`const callBridge = getCallBridge()`), but the product bridges call
+      // it inline — `(0, bridge_1.getCallBridge)()('getWidgetApi')` — where
+      // the only occurrence is the capitalised one inside `getCallBridge`.
+      // A lowercase-only pattern silently misses those; it hid
+      // getWidgetEditApi and getWidgetApi until this suite grew the product
+      // bridges. The `[)(\s]*` run absorbs the `)()(`  between the two call
+      // forms.
+      for (const m of readFileSync(full, 'utf8').matchAll(/[cC]allBridge[)(\s]*\(\s*['"]([A-Za-z][A-Za-z0-9]*)['"]/g)) {
         found.add(m[1]);
       }
     }
@@ -45,12 +53,38 @@ function commandsEmittedBy(pkgOutDir: string): Set<string> {
   return found;
 }
 
-const emittedByPackages = () => new Set([
-  ...commandsEmittedBy(join(REPO_ROOT, 'node_modules/@forge/bridge/out')),
-  ...commandsEmittedBy(join(REPO_ROOT, 'node_modules/@forge/react/out')),
-]);
+/**
+ * Every installed package that can reach `window.__bridge`. The three product
+ * bridges talk to the same seam as @forge/bridge and ship commands of their
+ * own, so leaving them out of the scan left a hole the registry could not
+ * see — which is exactly what it did before Phase 4b.
+ */
+const SEAM_PACKAGES = [
+  '@forge/bridge',
+  '@forge/react',
+  '@forge/jira-bridge',
+  '@forge/confluence-bridge',
+  '@forge/dashboards-bridge',
+] as const;
 
-describe('registry vs installed @forge/bridge + @forge/react', () => {
+const emittedByPackages = () =>
+  new Set(SEAM_PACKAGES.flatMap((pkg) => [...commandsEmittedBy(join(REPO_ROOT, 'node_modules', pkg, 'out'))]));
+
+describe('registry vs the installed seam packages', () => {
+  it('every scanned package contributes at least one command (guards a silently empty scan)', () => {
+    for (const pkg of SEAM_PACKAGES) {
+      const emitted = commandsEmittedBy(join(REPO_ROOT, 'node_modules', pkg, 'out'));
+      expect(emitted.size, `${pkg} emitted no commands — did its layout change?`).toBeGreaterThan(0);
+    }
+  });
+
+  it('finds the product-bridge commands that only appear in the inline getCallBridge()() form', () => {
+    // Pins the [cC] fix in commandsEmittedBy: these two are invisible to a
+    // lowercase-only pattern (dashboards-bridge out/widgets/**/utils/get-*-bridge.js).
+    const dashboards = commandsEmittedBy(join(REPO_ROOT, 'node_modules/@forge/dashboards-bridge/out'));
+    expect([...dashboards].sort()).toEqual(['getWidgetApi', 'getWidgetEditApi']);
+  });
+
   it('lists every command the packages can send', () => {
     const emitted = emittedByPackages();
     expect(emitted.size).toBeGreaterThan(20);
@@ -130,6 +164,30 @@ const ctxFrames: Record<string, { data: unknown; expect: Call }> = {
   initFeatureFlags: { data: { user: 'u', config: 'c' }, expect: { method: 'initFeatureFlags', args: ['u', 'c'] } },
   isRovoEnabled: { data: undefined, expect: { method: 'isRovoEnabled', args: [] } },
   emitFrontendCustomMetric: { data: { customMetricName: 'm', value: 2 }, expect: { method: 'emitFrontendCustomMetric', args: ['m', 2] } },
+
+  // ── Product bridges ──────────────────────────────────────────────────
+  openIssueViewModal: {
+    data: { data: { context: { issueKey: 'T-1' }, onClose: 'cb' } },
+    expect: { method: 'openIssueViewModal', args: [{ context: { issueKey: 'T-1' }, onClose: 'cb' }] },
+  },
+  openIssueCreateModal: {
+    data: { data: { context: { projectId: '1' }, onClose: 'cb' } },
+    expect: { method: 'openIssueCreateModal', args: [{ context: { projectId: '1' }, onClose: 'cb' }] },
+  },
+  refreshIssueView: { data: undefined, expect: { method: 'refreshIssueView', args: [] } },
+  setWorkflowRuleConfigurationCallback: {
+    data: { data: { onConfigure: 'cb' } },
+    expect: { method: 'setWorkflowRuleConfigurationCallback', args: ['cb'] },
+  },
+  getCustomFieldInternalAPI: { data: undefined, expect: { method: 'getCustomFieldInternalAPI', args: [] } },
+  getUiModificationsInternalAPI: { data: undefined, expect: { method: 'getUiModificationsInternalAPI', args: [] } },
+  getEditorContent: { data: undefined, expect: { method: 'getEditorContent', args: [] } },
+  getMacroContent: { data: undefined, expect: { method: 'getMacroContent', args: [] } },
+  // These two send their argument bare, not wrapped in a frame object.
+  updateMacro: { data: { data: '<p>x</p>' }, expect: { method: 'updateMacro', args: [{ data: '<p>x</p>' }] } },
+  setMacroViewportHeight: { data: 300, expect: { method: 'setMacroViewportHeight', args: [300] } },
+  getWidgetEditApi: { data: undefined, expect: { method: 'getWidgetEditApi', args: [] } },
+  getWidgetApi: { data: undefined, expect: { method: 'getWidgetApi', args: [] } },
 };
 
 describe('dispatcher routes every supported command to a typed host call', () => {

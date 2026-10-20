@@ -109,4 +109,31 @@ export interface BridgeHost {
   initFeatureFlags(user: unknown, config: unknown): Promise<void>;
   isRovoEnabled(): Promise<boolean>;
   emitFrontendCustomMetric(name: string, value: unknown): Promise<void>;
+
+  // ── Product bridges ──────────────────────────────────────────────────
+  // Host-product chrome (Jira issue modals and forms, the Confluence editor,
+  // the dashboard widget save cycle). No forge-sim surface renders a product
+  // around the app, so both hosts share one inert implementation —
+  // `createProductBridgeSurfaces()` in `src/bridge/hosts/product-surfaces.ts`,
+  // which documents what each real package validates about the answer.
+
+  /** Resolve false only to make the package throw; the stub answers true. */
+  openIssueViewModal(options: { context?: Record<string, unknown>; onClose?: unknown }): Promise<boolean>;
+  openIssueCreateModal(options: { context?: Record<string, unknown>; onClose?: unknown }): Promise<boolean>;
+  refreshIssueView(): Promise<boolean>;
+  setWorkflowRuleConfigurationCallback(onConfigure: unknown): Promise<boolean>;
+  /** Must carry `actions.onFieldDataChange` + `actions.onBridgeError`. */
+  getCustomFieldInternalAPI(): Promise<unknown>;
+  /** Must carry the full `actions` + `data` shape; getInternalAPI.js validates it. */
+  getUiModificationsInternalAPI(): Promise<unknown>;
+  /** Must be truthy — the package throws on a falsy answer. */
+  getEditorContent(): Promise<{ data: string }>;
+  /** Must be truthy — the package throws on a falsy answer. */
+  getMacroContent(): Promise<{ data: string }>;
+  updateMacro(content: unknown): Promise<boolean>;
+  setMacroViewportHeight(height: unknown): Promise<boolean>;
+  /** Must carry onSave/onProductSave/onSaveError/updateConfig. */
+  getWidgetEditApi(): Promise<unknown>;
+  /** Must carry setPreviewConfig. */
+  getWidgetApi(): Promise<unknown>;
 }

@@ -15,6 +15,7 @@
 
 import type { ForgeSimulator } from '../../simulator.js';
 import { emitViewEvent } from '../../ui/view-events.js';
+import { createProductBridgeSurfaces } from './product-surfaces.js';
 import type {
   BridgeHost,
   BridgeFetchResponse,
@@ -250,5 +251,10 @@ export function createHeadlessHost(deps: HeadlessHostDeps): HeadlessHost {
     async initFeatureFlags() {},
     async isRovoEnabled() { return false; },
     async emitFrontendCustomMetric() {},
+
+    // ── Product bridges ────────────────────────────────────────────────
+    // Shared with the browser host: no forge-sim surface renders a product
+    // around the app, so the inert answer is the same in both.
+    ...createProductBridgeSurfaces(),
   };
 }

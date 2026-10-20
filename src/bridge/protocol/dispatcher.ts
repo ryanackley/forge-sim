@@ -152,6 +152,48 @@ export function createBridgeDispatcher(host: BridgeHost, options: DispatcherOpti
         return host.initFeatureFlags(d.user, d.config);
       case 'isRovoEnabled':
         return host.isRovoEnabled();
+      // ── Product bridges ────────────────────────────────────────────────
+      // Frames measured from the three product packages. The two modal
+      // commands and the workflow one wrap their payload in `data`
+      // (jira-bridge out/modal/issue-view.js:19, issue-create.js:15,
+      // workflow/onConfigure.js:9); the Confluence writers send their
+      // argument bare (confluence-bridge out/content/updateMacro.js:9,
+      // setMacroViewportHeight.js:14); the rest send nothing at all.
+      case 'openIssueViewModal': {
+        const payload = (d.data ?? {}) as Record<string, unknown>;
+        return host.openIssueViewModal({
+          context: payload.context as Record<string, unknown> | undefined,
+          onClose: payload.onClose,
+        });
+      }
+      case 'openIssueCreateModal': {
+        const payload = (d.data ?? {}) as Record<string, unknown>;
+        return host.openIssueCreateModal({
+          context: payload.context as Record<string, unknown> | undefined,
+          onClose: payload.onClose,
+        });
+      }
+      case 'refreshIssueView':
+        return host.refreshIssueView();
+      case 'setWorkflowRuleConfigurationCallback':
+        return host.setWorkflowRuleConfigurationCallback((d.data ?? {}).onConfigure);
+      case 'getCustomFieldInternalAPI':
+        return host.getCustomFieldInternalAPI();
+      case 'getUiModificationsInternalAPI':
+        return host.getUiModificationsInternalAPI();
+      case 'getEditorContent':
+        return host.getEditorContent();
+      case 'getMacroContent':
+        return host.getMacroContent();
+      case 'updateMacro':
+        return host.updateMacro(data);
+      case 'setMacroViewportHeight':
+        return host.setMacroViewportHeight(data);
+      case 'getWidgetEditApi':
+        return host.getWidgetEditApi();
+      case 'getWidgetApi':
+        return host.getWidgetApi();
+
       case 'emitFrontendCustomMetric':
         return host.emitFrontendCustomMetric(d.customMetricName ?? d.name, d.value);
 
