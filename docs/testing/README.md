@@ -57,7 +57,6 @@ export default defineConfig({
       '@forge/resolver':           'forge-sim/shims/forge-resolver',
       '@forge/api':                'forge-sim/shims/forge-api',
       '@forge/events':             'forge-sim/shims/forge-events',
-      '@forge/llm':                'forge-sim/shims/forge-llm',
       // Subpath first: Vite and Webpack match alias keys as prefixes, so a bare
       // '@forge/react' listed above this line would rewrite
       // '@forge/react/router' into 'forge-sim/shims/forge-react/router'.
@@ -81,11 +80,12 @@ export default defineConfig({
 
 > **Note:** You only need aliases for the `@forge/*` packages your app actually imports. The full list is shown above for reference.
 >
-> **`@forge/kvs` and `@forge/sql` are deliberately absent.** Both ship CJS and
+> **`@forge/kvs`, `@forge/sql` and `@forge/llm` are deliberately absent.** They ship CJS and
 > route all their I/O through `global.__forge_fetch__`, which `createSimulator()`
 > installs — so the REAL packages run unmodified against the simulator's
-> storage. Aliasing them will break module resolution. (`@forge/kvs` had a shim
-> until the backend seam migration; if you're upgrading, delete that line.)
+> storage. Aliasing them will break module resolution. (`@forge/kvs` and
+> `@forge/llm` had shims until the backend seam migration; if you're upgrading,
+> delete those lines.)
 
 ### Webpack / Jest
 
@@ -98,7 +98,6 @@ module.exports = {
     '^@forge/resolver$':          'forge-sim/shims/forge-resolver',
     '^@forge/api$':               'forge-sim/shims/forge-api',
     '^@forge/events$':            'forge-sim/shims/forge-events',
-    '^@forge/llm$':               'forge-sim/shims/forge-llm',
     '^@forge/react/router$':      'forge-sim/shims/forge-react-router',
     '^@forge/react$':             'forge-sim/shims/forge-react',
     '^@forge/bridge/realtime$':      'forge-sim/shims/forge-bridge-realtime',
@@ -1023,11 +1022,13 @@ await sim.sql.start();
 await sim.deploy('./my-app');
 ```
 
-### `@forge/sql` and `@forge/kvs` have no shim, and that's intentional
+### `@forge/sql`, `@forge/kvs` and `@forge/llm` have no shim, and that's intentional
 
-Unlike `@forge/api` / `@forge/events` / etc., there is no `forge-sim/shims/forge-sql` or `forge-sim/shims/forge-kvs` alias. Both real packages talk to the simulator through a runtime hook (`global.__forge_fetch__`) that `createSimulator()` installs automatically — your app runs the same Atlassian code it runs in production, pointed at the sim's storage. If you add either to your `vitest.config.ts` alias map, you'll get module-resolution errors. Just leave them out.
+Unlike `@forge/api` / `@forge/events` / etc., there is no `forge-sim/shims/forge-sql`, `forge-sim/shims/forge-kvs` or `forge-sim/shims/forge-llm` alias. These real packages talk to the simulator through a runtime hook (`global.__forge_fetch__`) that `createSimulator()` installs automatically — your app runs the same Atlassian code it runs in production, pointed at the sim's backends. If you add any of them to your `vitest.config.ts` alias map, you'll get module-resolution errors. Just leave them out.
 
-`@forge/kvs` gained this status in the backend seam migration; it previously had a shim. If you're upgrading and see `Cannot find module 'forge-sim/shims/forge-kvs'`, delete that alias line.
+`@forge/kvs` and `@forge/llm` gained this status in the backend seam migration; both previously had shims. If you're upgrading and see `Cannot find module 'forge-sim/shims/forge-kvs'` (or `-llm`), delete that alias line.
+
+One behavior change comes with running the real `@forge/llm`: it validates prompts **client-side** before any request is made. A prompt with no `model`, no `messages`, or a `temperature` outside 0–1 now throws `PromptValidationError` — exactly as it would in production. The old shim accepted these, so a test that relied on that leniency was passing on behavior real Forge rejects.
 
 ### `sim.reset()` wipes mocks too
 

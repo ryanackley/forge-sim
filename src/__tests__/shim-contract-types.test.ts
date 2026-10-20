@@ -50,7 +50,6 @@ const REAL_TYPES_ENTRY: Record<string, string> = {
   '@forge/jira-bridge': 'node_modules/@forge/jira-bridge/out/index.js',
   '@forge/confluence-bridge': 'node_modules/@forge/confluence-bridge/out/index.js',
   '@forge/dashboards-bridge': 'node_modules/@forge/dashboards-bridge/out/index.js',
-  '@forge/llm': 'node_modules/@forge/llm/out/index.js',
   '@forge/realtime': 'node_modules/@forge/realtime/out/index.js',
   '@forge/object-store': 'node_modules/@forge/object-store/out/index.js',
 };
@@ -88,12 +87,6 @@ const TYPE_DEVIATIONS: Record<string, Record<string, string>> = {
       'frozen object with the identical runtime values, pinned as quirk ' +
       'events-invocation-error-code-values; see the index in ' +
       'shim-contract-quirks.test.ts.',
-  },
-  '@forge/llm': {
-    stream:
-      'Real stream() returns the StreamResponse class, which has private fields ' +
-      '(iterator, wrapper) and so is nominally typed. The sim returns a ' +
-      'structurally identical AsyncIterable<LlmResponse> with close().',
   },
   '@forge/object-store': {
     objectStore:

@@ -70,30 +70,40 @@ node --import ./dist/loader/register.js app.js
 
 ```ts
 const SHIM_NAMES = [
-  '@forge/api', '@forge/kvs', '@forge/events', '@forge/resolver',
-  '@forge/react', '@forge/bridge', '@forge/jira-bridge',
+  '@forge/api', '@forge/events', '@forge/resolver',
+  '@forge/react', '@forge/react/router',
+  '@forge/bridge', '@forge/bridge/realtime', '@forge/jira-bridge',
   '@forge/confluence-bridge', '@forge/dashboards-bridge',
-  '@forge/llm', '@forge/realtime',
+  '@forge/realtime', '@forge/object-store',
 ];
 ```
 
-When the app does `import { chat } from '@forge/llm'`, the hook returns `dist/shims/forge-llm.js` instead of the real package. That shim is a tiny file:
+This list shrinks as the bare-seam migration proceeds: a backend package whose
+I/O the seam can serve moves to `PASSTHROUGH_OK` and the app runs the real
+Atlassian package (see "A few packages have no shim at all" below).
+`@forge/resolver` is the one that can never move — it performs no I/O, so
+there is no seam to intercept. When the app does
+`import Resolver from '@forge/resolver'`, the hook returns
+`dist/shims/forge-resolver.js` instead of the real package. That shim is a
+tiny file:
 
 ```ts no-check
-// src/shims/forge-llm.ts
+// src/shims/forge-resolver.ts
 import { getSimulator } from './globals.js';
-export async function chat(prompt) {
-  return getSimulator().llm.chat(prompt);
+class Resolver {
+  define(functionKey, handler) {
+    getSimulator().resolver.define(functionKey, handler);
+  }
 }
 ```
 
 So the call chain is:
 
 ```
-app code   → import { chat } from '@forge/llm'
-loader     → resolves to dist/shims/forge-llm.js
-shim       → getSimulator().llm.chat(prompt)
-simulator  → llm.chat() runs against sim.llm (mocks or real Anthropic)
+app code   → import Resolver from '@forge/resolver'
+loader     → resolves to dist/shims/forge-resolver.js
+shim       → getSimulator().resolver.define(key, handler)
+simulator  → sim.invoke(key) can now reach the app's handler
 ```
 
 The real `@forge/llm` package still sits in `node_modules`. It just never loads. We bypass `__forge_runtime__` entirely; there is no runtime object to fake.

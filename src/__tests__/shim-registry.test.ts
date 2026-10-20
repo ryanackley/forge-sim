@@ -8,7 +8,7 @@
  * hand-written list, and they drifted — the loader registered 13 shims while
  * vitest aliased 7. The five missing entries failed in two different ways:
  *
- *   - `@forge/realtime` and `@forge/llm` have no real Atlassian package
+ *   - `@forge/realtime` had no real Atlassian package
  *     installed, so an app importing them failed to deploy under vitest with
  *     "Cannot find package '@forge/realtime'".
  *   - `@forge/jira-bridge`, `@forge/confluence-bridge` and
@@ -37,9 +37,9 @@ describe('@forge/* shim registry', () => {
   it('declares at least the shims we know exist', () => {
     // Guards against the list being accidentally emptied/truncated, which
     // would make every other assertion here vacuously true.
-    expect(SHIM_NAMES.length).toBeGreaterThanOrEqual(13);
+    expect(SHIM_NAMES.length).toBeGreaterThanOrEqual(11);
     expect(SHIM_NAMES).toContain('@forge/realtime');
-    expect(SHIM_NAMES).toContain('@forge/llm');
+    expect(SHIM_NAMES).toContain('@forge/api');
   });
 
   it.each([...SHIM_NAMES])('%s has a shim source file', (pkg) => {
