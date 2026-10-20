@@ -62,7 +62,7 @@ The main backend API package. Imported by resolver/trigger/consumer functions.
 | `asUser().requestAtlassian()` | ❌ | — | Generic Atlassian API not implemented |
 | `asUser().withProvider(provider, remote)` | ✅ | `external-auth.test.ts` | Full `ExternalAuthFetchMethods` interface |
 | `.withProvider().hasCredentials(scopes?)` | ✅ | `external-auth.test.ts` | Checks token existence, expiry, and scopes |
-| `.withProvider().requestCredentials(scopes?)` | ✅ | `external-auth.test.ts` | Opens browser for OAuth dance if secret configured; falls back to warning |
+| `.withProvider().requestCredentials(scopes?)` | ✅ | `external-auth.test.ts` | Real package: always rejects with `NeedsAuthenticationError`, as in Forge. Authorize locally via `forge-sim auth` or the Tools UI |
 | `.withProvider().fetch(url, options)` | ✅ | `external-auth.test.ts` | Mock routes first, then real HTTP with Bearer injection |
 | `.withProvider().getAccount()` | ✅ | `external-auth.test.ts` | Returns `ExternalAuthAccount` from stored token |
 | `.withProvider().listAccounts()` | ✅ | `external-auth.test.ts` | Lists linked accounts (max 1 per provider in sim) |

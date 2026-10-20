@@ -21,8 +21,7 @@ http://localhost:5173/__tools/oauth/callback
 
 ## Authorization Flow
 
-**Automatically:**
-Any call to `withProvider().requestCredentials` will launch your default browser to initiate the oauth flow
+**From app code:** nothing. `withProvider().requestCredentials()` behaves exactly as in Forge: it rejects with `NeedsAuthenticationError`, because in production the frontend drives the consent prompt off that error. Authorizing a provider locally is a sim-side action, done one of the two ways below.
 
 **Via the Tools UI:**
 

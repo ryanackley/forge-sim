@@ -275,38 +275,38 @@ test.describe('External Auth OAuth Flow', () => {
     expect(sim.externalAuth.hasCredentials('mock-google', ['profile', 'email'])).toBe(true);
   });
 
-  test('requestCredentials() triggers interactive flow and returns true on success', async ({ page }) => {
-    // Hook to capture auth URL
-    let capturedAuthUrl = '';
-    sim.externalAuth.onAuthUrl = (url) => { capturedAuthUrl = url; };
-
-    // Call requestCredentials from the shim (same as app code would)
-    const forgeApi = await import('../src/shims/forge-api.js');
+  test('requestCredentials() rejects with NeedsAuthenticationError — authorizing is a sim-side action', async () => {
+    // Real @forge/api never resolves requestCredentials: it is bound to a
+    // thrower (api/out/api/fetch.js lazyThrowNeedsAuthenticationError,
+    // used at :89 and :121) because in production the FRONTEND drives the
+    // 3LO prompt off that error. The old shim resolved true after running
+    // interactiveOAuthFlow — an app that awaited it and carried on worked
+    // here and broke in Forge. The interactive flow itself is covered by
+    // the first test; it is reached via `forge-sim auth` and the Tools UI.
+    const forgeApi = await import('@forge/api');
     const google = forgeApi.asUser().withProvider('mock-google', 'mock-google-apis');
 
-    const credPromise = google.requestCredentials();
-
-    // Wait for auth URL
-    await expect.poll(() => capturedAuthUrl, { timeout: 5000 }).toBeTruthy();
-
-    // Complete the dance in the browser
-    await page.goto(capturedAuthUrl);
-    await page.click('#authorize');
-    await expect(page.locator('h1')).toHaveText('✅ Authorized!');
-
-    // requestCredentials should resolve to true
-    expect(await credPromise).toBe(true);
-
-    // Subsequent hasCredentials should return true
-    expect(await google.hasCredentials()).toBe(true);
+    const err = await google.requestCredentials().then(() => null, (e: Error) => e);
+    expect(err).toBeInstanceOf(forgeApi.NeedsAuthenticationError);
+    expect(sim.externalAuth.hasCredentials('mock-google')).toBe(false);
   });
 
-  test('withProvider().fetch() uses mock routes (no token needed)', async () => {
+  test('withProvider().fetch() answers from mock routes before any real HTTP', async () => {
     sim.productApi.mockRoutes('mock-google-apis', {
       'GET /userinfo/v2/me': { id: MOCK_USER_ID, email: MOCK_USER_EMAIL },
     });
+    // The real package binds `fetch` to a client-side thrower when the
+    // runtime reports no credential for the provider, so a token must exist
+    // for the request to leave the client at all. The mock route then
+    // answers it; the bearer value is never checked, and no HTTP occurs.
+    sim.externalAuth.setToken('mock-google', {
+      provider: 'mock-google',
+      accessToken: 'not-the-mock-token',
+      expiresAt: Date.now() + 3600_000,
+      scopes: ['profile', 'email'],
+    });
 
-    const forgeApi = await import('../src/shims/forge-api.js');
+    const forgeApi = await import('@forge/api');
     const google = forgeApi.asUser().withProvider('mock-google', 'mock-google-apis');
     const resp = await google.fetch('/userinfo/v2/me');
     const data = await resp.json();
@@ -325,7 +325,7 @@ test.describe('External Auth OAuth Flow', () => {
     });
 
     // No mock routes — should fall through to real HTTP with Bearer token
-    const forgeApi = await import('../src/shims/forge-api.js');
+    const forgeApi = await import('@forge/api');
     const google = forgeApi.asUser().withProvider('mock-google', 'mock-google-apis');
     const resp = await google.fetch('/userinfo/v2/me');
     const data = await resp.json();

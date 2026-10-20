@@ -425,7 +425,11 @@ export class ExternalAuthStore {
 
   /**
    * Run an interactive OAuth flow: opens the browser, waits for callback,
-   * exchanges code, stores token. Used by requestCredentials() at runtime.
+   * exchanges code, stores token. Reached from `forge-sim auth` and the
+   * Tools UI Providers tab — NOT from the app: real @forge/api's
+   * requestCredentials() always rejects with NeedsAuthenticationError (the
+   * frontend drives the prompt in production), and the app runs the real
+   * package here too.
    *
    * Dispatched through the shared OAuthCallbackRegistry — the dev server's
    * `/__tools/oauth/callback` route forwards incoming callbacks to the
