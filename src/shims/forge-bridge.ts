@@ -9,6 +9,9 @@
  * by app code or by @forge/react's internal hooks (useIssueProperty, etc.).
  */
 
+import { emitViewEvent } from '../ui/view-events.js';
+import { createMemoryHistory } from '../bridge/memory-history.js';
+
 function getBridge() {
   const bridge = (globalThis as any).__bridge;
   if (!bridge) {
@@ -16,136 +19,6 @@ function getBridge() {
   }
   return bridge;
 }
-
-// ── Memory History (history v4 semantics) ───────────────────────────────
-//
-// Real Forge's bridge history uses the history v4 runtime contract:
-//   listen((location, action) => void)   — NOT v5's listen(({action, location}))
-//   goBack() / goForward()
-// Source of truth: the createHistory signature in the official view docs, and
-// the @ts-ignore in @forge/react's Router ("the history object returned by
-// the bridge does not conform to the v5 types. Instead it uses v4 types").
-// @forge/bridge's own createHistory wrapper and @forge/react/router both
-// destructure the first listener arg as the location — v5-style notify
-// breaks Route matching after every navigation.
-//
-// We also keep back()/forward() (v5 names): @forge/bridge's .d.ts types the
-// return as history v5's `History`, so TS apps are told those exist.
-
-interface HistoryLocation {
-  pathname: string;
-  search: string;
-  hash: string;
-  state: any;
-  key: string;
-}
-
-type HistoryListener = (location: HistoryLocation, action: string) => void;
-
-function createMemoryHistory(): any {
-  const entries: HistoryLocation[] = [
-    { pathname: '/', search: '', hash: '', state: null, key: 'default' },
-  ];
-  let index = 0;
-  let listeners: HistoryListener[] = [];
-  let blockers: Array<(tx: any) => void> = [];
-
-  function generateKey(): string {
-    return Math.random().toString(36).slice(2, 10);
-  }
-
-  function parsePath(to: string | Partial<HistoryLocation>): Partial<HistoryLocation> {
-    if (typeof to === 'object') return to;
-    const path = to || '/';
-    let pathname = path, search = '', hash = '';
-    const hashIdx = path.indexOf('#');
-    if (hashIdx >= 0) { hash = path.slice(hashIdx); pathname = path.slice(0, hashIdx); }
-    const searchIdx = pathname.indexOf('?');
-    if (searchIdx >= 0) { search = pathname.slice(searchIdx); pathname = pathname.slice(0, searchIdx); }
-    return { pathname, search, hash };
-  }
-
-  function createLocation(to: string | Partial<HistoryLocation>, state?: any): HistoryLocation {
-    const parsed = parsePath(to);
-    return {
-      pathname: parsed.pathname || '/',
-      search: parsed.search || '',
-      hash: parsed.hash || '',
-      state: state ?? null,
-      key: generateKey(),
-    };
-  }
-
-  function notify(action: string): void {
-    const location = entries[index];
-    for (const fn of listeners) {
-      try { fn(location, action); } catch (e) { console.error(e); }
-    }
-  }
-
-  const history = {
-    get action() { return 'POP'; },
-    get location() { return entries[index]; },
-    set location(loc: HistoryLocation) { /* mutable per history v5 spec */ },
-
-    createHref(to: string | Partial<HistoryLocation>): string {
-      if (typeof to === 'string') return to;
-      return (to.pathname || '') + (to.search || '') + (to.hash || '');
-    },
-
-    push(to: string | Partial<HistoryLocation>, state?: any): void {
-      const loc = createLocation(to, state);
-      if (blockers.length > 0) {
-        blockers[0]({ action: 'PUSH', location: loc, retry: () => history.push(to, state) });
-        return;
-      }
-      // Truncate forward stack and push
-      entries.splice(index + 1);
-      entries.push(loc);
-      index = entries.length - 1;
-      notify('PUSH');
-    },
-
-    replace(to: string | Partial<HistoryLocation>, state?: any): void {
-      const loc = createLocation(to, state);
-      if (blockers.length > 0) {
-        blockers[0]({ action: 'REPLACE', location: loc, retry: () => history.replace(to, state) });
-        return;
-      }
-      entries[index] = loc;
-      notify('REPLACE');
-    },
-
-    go(delta: number): void {
-      const nextIndex = Math.max(0, Math.min(entries.length - 1, index + delta));
-      if (nextIndex === index) return;
-      index = nextIndex;
-      notify('POP');
-    },
-
-    // v4 names (the documented Forge contract)
-    goBack(): void { history.go(-1); },
-    goForward(): void { history.go(1); },
-    // v5 names (what @forge/bridge's .d.ts promises)
-    back(): void { history.go(-1); },
-    forward(): void { history.go(1); },
-
-    listen(fn: HistoryListener): () => void {
-      listeners.push(fn);
-      return () => { listeners = listeners.filter(l => l !== fn); };
-    },
-
-    block(fn: (tx: any) => void): () => void {
-      blockers.push(fn);
-      return () => { blockers = blockers.filter(b => b !== fn); };
-    },
-  };
-
-  return history;
-}
-
-// Expose for testing
-export { createMemoryHistory };
 
 // ── Response wrapper ────────────────────────────────────────────────────
 
@@ -163,43 +36,6 @@ export function invoke(functionKey: string, payload?: any): Promise<any> {
 }
 
 // ── view ────────────────────────────────────────────────────────────────
-
-/**
- * View event system — allows tests to observe view.submit(), view.close(),
- * and view.refresh() calls from app code.
- *
- * Events fire through globalThis.__forgeSimViewEvents so SimulatorUI can
- * listen without a circular dependency.
- */
-export type ViewEventType = 'submit' | 'close' | 'refresh';
-export type ViewEventListener = (event: ViewEventType, payload: any) => void;
-
-const viewEventStore = ((globalThis as any).__forgeSimViewEvents ??= {
-  listeners: [] as ViewEventListener[],
-}) as { listeners: ViewEventListener[] };
-
-export function emitViewEvent(event: ViewEventType, payload: any): void {
-  for (const fn of viewEventStore.listeners) {
-    try { fn(event, payload); } catch {}
-  }
-}
-
-/**
- * Register a listener for view events. Returns an unbind function.
- * @internal — used by SimulatorUI to wire onSubmit/onClose/onRefresh.
- */
-export function onViewEvent(listener: ViewEventListener): () => void {
-  viewEventStore.listeners.push(listener);
-  return () => {
-    const idx = viewEventStore.listeners.indexOf(listener);
-    if (idx >= 0) viewEventStore.listeners.splice(idx, 1);
-  };
-}
-
-/** Clear all view event listeners. @internal */
-export function resetViewEvents(): void {
-  viewEventStore.listeners.length = 0;
-}
 
 export const view = {
   getContext(): Promise<any> {

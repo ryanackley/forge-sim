@@ -14,7 +14,7 @@
  */
 
 import type { ForgeSimulator } from '../../simulator.js';
-import { emitViewEvent } from '../../shims/forge-bridge.js';
+import { emitViewEvent } from '../../ui/view-events.js';
 import type {
   BridgeHost,
   BridgeFetchResponse,

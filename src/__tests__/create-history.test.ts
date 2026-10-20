@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { createMemoryHistory } from '../shims/forge-bridge.js';
+import { createMemoryHistory } from '../bridge/memory-history.js';
 
 describe('createMemoryHistory', () => {
   // ── Initial state ───────────────────────────────────────────────────

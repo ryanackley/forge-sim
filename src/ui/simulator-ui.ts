@@ -56,7 +56,7 @@ import type { ForgeSimulator } from '../simulator.js';
 // setSimulator is auto-called in the ForgeSimulator constructor.
 // We keep this import for the defensive re-wire in ensureBridge().
 import { setSimulator } from '../shims/globals.js';
-import { onViewEvent, resetViewEvents, type ViewEventType } from '../shims/forge-bridge.js';
+import { onViewEvent, resetViewEvents, type ViewEventType } from './view-events.js';
 import { pathToFileURL } from 'node:url';
 import { AsyncLocalStorage } from 'node:async_hooks';
 
