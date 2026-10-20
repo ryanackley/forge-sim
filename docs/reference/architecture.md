@@ -74,7 +74,6 @@ const SHIM_NAMES = [
   '@forge/react', '@forge/react/router',
   '@forge/bridge', '@forge/bridge/realtime', '@forge/jira-bridge',
   '@forge/confluence-bridge', '@forge/dashboards-bridge',
-  '@forge/realtime',
 ];
 ```
 

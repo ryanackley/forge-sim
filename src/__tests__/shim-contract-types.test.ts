@@ -50,7 +50,6 @@ const REAL_TYPES_ENTRY: Record<string, string> = {
   '@forge/jira-bridge': 'node_modules/@forge/jira-bridge/out/index.js',
   '@forge/confluence-bridge': 'node_modules/@forge/confluence-bridge/out/index.js',
   '@forge/dashboards-bridge': 'node_modules/@forge/dashboards-bridge/out/index.js',
-  '@forge/realtime': 'node_modules/@forge/realtime/out/index.js',
 };
 
 /**
@@ -86,15 +85,6 @@ const TYPE_DEVIATIONS: Record<string, Record<string, string>> = {
       'frozen object with the identical runtime values, pinned as quirk ' +
       'events-invocation-error-code-values; see the index in ' +
       'shim-contract-quirks.test.ts.',
-  },
-  '@forge/realtime': {
-    publish: REALTIME_ERRORS_REASON,
-    publishGlobal: REALTIME_ERRORS_REASON,
-    signRealtimeToken:
-      "Upstream's inferred union ({ token: null; expiresAt: null; errors: any } " +
-      '| { token: any; expiresAt: any; errors?: undefined }) cannot be ' +
-      'satisfied by an honest TokenResult type; runtime shape matches the ' +
-      'Forge docs per the doc-parity suite (#11). Revisit at realtime GA.',
   },
   '@forge/bridge/realtime': {
     realtime: REALTIME_ERRORS_REASON,

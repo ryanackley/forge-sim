@@ -265,28 +265,64 @@ export function claimsSignature(claims: Record<string, unknown>): string {
   return JSON.stringify(sortKeys(claims));
 }
 
+/**
+ * Mint a token in the shape the REAL `@forge/realtime` client validates.
+ *
+ * This is a platform contract, not a sim-internal format: the real package's
+ * `validateToken` (realtime/out/utils.js:13-39) runs CLIENT-side on every
+ * token-secured publish — it splits on '.', base64url-decodes the middle
+ * segment, and reads `exp` (epoch SECONDS), `channel.name` (an object field,
+ * not a string) and `permissions` off it. The sim's previous
+ * `forge-sim-rt:<channel>:<b64>` format failed that check as INVALID_TOKEN
+ * before the publish ever reached the seam — a parity break that only
+ * surfaced once apps ran the real package (bare-seam phase 3d).
+ *
+ * The signature segment is a fixed marker: nothing verifies it locally, and
+ * shipping a real signing key in a simulator would be theater.
+ */
+// JWT segments must be PLAIN utf-8 base64url: the real client decodes with
+// Buffer.from(b64, 'base64') + JSON.parse and nothing else. The file's
+// base64UrlEncode helper wraps btoa(encodeURIComponent(..)) for channel-key
+// strings and would feed the real client percent-escapes it can't parse.
+const jwtSegment = (value: unknown): string =>
+  Buffer.from(JSON.stringify(value), 'utf8').toString('base64url');
+
 export function encodeRealtimeToken(body: RealtimeTokenBody): string {
-  return `${TOKEN_PREFIX}${body.channel}:${base64UrlEncode(JSON.stringify(body))}`;
+  return [
+    jwtSegment({ alg: 'none', typ: 'JWT' }),
+    jwtSegment({
+      exp: body.exp,
+      channel: { name: body.channel },
+      permissions: body.permissions,
+      claims: body.claims,
+    }),
+    Buffer.from(TOKEN_PREFIX, 'utf8').toString('base64url'),
+  ].join('.');
 }
 
-/** Parse a forge-sim token. Returns null for anything malformed. */
+/** Parse a forge-sim-minted JWT-shaped token. Returns null for anything malformed. */
 export function parseRealtimeToken(token: unknown): RealtimeTokenBody | null {
-  if (typeof token !== 'string' || !token.startsWith(TOKEN_PREFIX)) return null;
-  const cut = token.lastIndexOf(':');
-  if (cut <= TOKEN_PREFIX.length - 1) return null;
+  if (typeof token !== 'string') return null;
+  const parts = token.split('.');
+  if (parts.length !== 3) return null;
   try {
-    const body = JSON.parse(base64UrlDecode(token.slice(cut + 1)));
+    const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
     if (
-      !body || typeof body !== 'object' ||
-      typeof body.channel !== 'string' ||
-      !body.claims || typeof body.claims !== 'object' || Array.isArray(body.claims) ||
-      !Array.isArray(body.permissions) ||
-      !body.permissions.every((p: unknown) => (REALTIME_TOKEN_PERMISSIONS as readonly unknown[]).includes(p)) ||
-      typeof body.exp !== 'number'
+      !payload || typeof payload !== 'object' ||
+      !payload.channel || typeof payload.channel.name !== 'string' ||
+      !payload.claims || typeof payload.claims !== 'object' || Array.isArray(payload.claims) ||
+      !Array.isArray(payload.permissions) ||
+      !payload.permissions.every((p: unknown) => (REALTIME_TOKEN_PERMISSIONS as readonly unknown[]).includes(p)) ||
+      typeof payload.exp !== 'number'
     ) {
       return null;
     }
-    return body as RealtimeTokenBody;
+    return {
+      channel: payload.channel.name,
+      claims: payload.claims,
+      permissions: payload.permissions,
+      exp: payload.exp,
+    } as RealtimeTokenBody;
   } catch {
     return null;
   }

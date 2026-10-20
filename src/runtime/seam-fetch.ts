@@ -435,9 +435,20 @@ async function handleRealtime(
   const variables = (body.variables ?? {}) as Record<string, any>;
 
   if (query.includes('publishRealtimeChannel')) {
-    // `payload` crosses the wire pre-stringified (publish.js:92); sim
-    // publish accepts the string form. `context` carries contextOverrides
-    // as a JSON string (publish.js:88-89).
+    // `payload` crosses the wire pre-stringified (publish.js:92) and the real
+    // service parses it before delivery — subscribers receive the VALUE, not
+    // the JSON string. Sim publish treats a string payload as opaque, so
+    // parse here; the round-trip is identity for every JSON type (a string
+    // payload 'hi' arrives as '"hi"' and parses back to 'hi').
+    let payload: unknown = variables.payload;
+    if (typeof payload === 'string') {
+      try {
+        payload = JSON.parse(payload);
+      } catch {
+        // Unreachable from the real client (it always JSON.stringifies);
+        // deliver the raw string rather than invent a failure.
+      }
+    }
     const options: Record<string, unknown> = { token: variables.token ?? undefined };
     if (typeof variables.context === 'string') {
       try {
@@ -447,8 +458,8 @@ async function handleRealtime(
       }
     }
     const result = variables.isGlobal
-      ? await sim.realtime.publishGlobal(variables.name, variables.payload, { token: options.token as string | undefined })
-      : await sim.realtime.publish(variables.name, variables.payload, options as any);
+      ? await sim.realtime.publishGlobal(variables.name, payload as any, { token: options.token as string | undefined })
+      : await sim.realtime.publish(variables.name, payload as any, options as any);
     if (result.errors?.length) {
       return json(200, { errors: result.errors });
     }

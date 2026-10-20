@@ -264,10 +264,21 @@ describe('SimulatedRealtime', () => {
   // ── signRealtimeToken ─────────────────────────────────────────────────
 
   describe('signRealtimeToken', () => {
-    it('returns a token and expiry', async () => {
+    it('returns a JWT-shaped token the REAL @forge/realtime client can validate, and an expiry', async () => {
       const result = await rt.signRealtimeToken('ch', { userId: 'abc' });
 
-      expect(result.token).toContain('sim-rt-token:ch:');
+      // The shape is a platform contract, not a sim detail: the real
+      // package's validateToken (realtime/out/utils.js) splits on '.',
+      // base64-decodes the middle segment and reads exp (epoch seconds),
+      // channel.name and permissions off it — CLIENT-side, before any
+      // publish reaches the seam. The old `sim-rt-token:<ch>:<b64>` format
+      // failed that check as INVALID_TOKEN (bare-seam phase 3d).
+      const parts = result.token!.split('.');
+      expect(parts).toHaveLength(3);
+      const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
+      expect(payload.channel).toEqual({ name: 'ch' });
+      expect(payload.claims).toEqual({ userId: 'abc' });
+      expect(typeof payload.exp).toBe('number');
       expect(result.expiresAt).toBeGreaterThan(Math.floor(Date.now() / 1000));
       expect(result.errors).toBeUndefined();
     });

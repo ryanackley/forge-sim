@@ -47,7 +47,6 @@ export const SHIM_NAMES = [
   '@forge/jira-bridge',
   '@forge/confluence-bridge',
   '@forge/dashboards-bridge',
-  '@forge/realtime',
 ] as const;
 
 export type ShimName = (typeof SHIM_NAMES)[number];
@@ -73,6 +72,11 @@ export type ShimName = (typeof SHIM_NAMES)[number];
  *   `@forge/object-store` → sim Object Store (`type: 'os'`; the seven JSON
  *                   endpoints — content bytes travel over plain fetch to the
  *                   minted URLs, which the sim serves over real HTTP)
+ *   `@forge/realtime` → sim realtime (`type: 'realtime'`; publish /
+ *                   publishGlobal / signRealtimeToken GraphQL, with the
+ *                   scoped-publish invocation gate riding the same
+ *                   AsyncLocalStorage the shim path used. NOT the frontend
+ *                   `@forge/bridge/realtime`, which stays shimmed.)
  *
  * Packages listed here that set `__esModule` AND `exports.default` must ALSO
  * be in `CJS_DEFAULT_FACADE` in `src/loader/hooks.ts`, or the documented
@@ -85,6 +89,7 @@ export const PASSTHROUGH_OK: readonly string[] = [
   '@forge/kvs',
   '@forge/llm',
   '@forge/object-store',
+  '@forge/realtime',
 ];
 
 /**

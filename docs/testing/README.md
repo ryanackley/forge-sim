@@ -67,7 +67,6 @@ export default defineConfig({
       '@forge/jira-bridge':        'forge-sim/shims/forge-jira-bridge',
       '@forge/confluence-bridge':  'forge-sim/shims/forge-confluence-bridge',
       '@forge/dashboards-bridge':  'forge-sim/shims/forge-dashboards-bridge',
-      '@forge/realtime':           'forge-sim/shims/forge-realtime',
     },
   },
   test: {
@@ -79,12 +78,14 @@ export default defineConfig({
 
 > **Note:** You only need aliases for the `@forge/*` packages your app actually imports. The full list is shown above for reference.
 >
-> **`@forge/kvs`, `@forge/sql`, `@forge/llm` and `@forge/object-store` are deliberately absent.** They ship CJS and
+> **`@forge/kvs`, `@forge/sql`, `@forge/llm`, `@forge/object-store` and `@forge/realtime` are deliberately absent.** They ship CJS and
 > route all their I/O through `global.__forge_fetch__`, which `createSimulator()`
 > installs — so the REAL packages run unmodified against the simulator's
 > storage. Aliasing them will break module resolution. (`@forge/kvs`,
 > `@forge/llm` and `@forge/object-store` had shims until the backend seam
-> migration; if you're upgrading, delete those lines.)
+> migration; if you're upgrading, delete those lines.) `@forge/bridge/realtime`
+> — the FRONTEND realtime client — is a different package surface and keeps its
+> alias above.
 
 ### Webpack / Jest
 
@@ -104,7 +105,6 @@ module.exports = {
     '^@forge/jira-bridge$':       'forge-sim/shims/forge-jira-bridge',
     '^@forge/confluence-bridge$': 'forge-sim/shims/forge-confluence-bridge',
     '^@forge/dashboards-bridge$': 'forge-sim/shims/forge-dashboards-bridge',
-    '^@forge/realtime$':          'forge-sim/shims/forge-realtime',
   },
 
   // Webpack (resolve.alias section)
@@ -1020,11 +1020,11 @@ await sim.sql.start();
 await sim.deploy('./my-app');
 ```
 
-### `@forge/sql`, `@forge/kvs`, `@forge/llm` and `@forge/object-store` have no shim, and that's intentional
+### `@forge/sql`, `@forge/kvs`, `@forge/llm`, `@forge/object-store` and `@forge/realtime` have no shim, and that's intentional
 
-Unlike `@forge/api` / `@forge/events` / etc., there is no shim alias for `@forge/sql`, `@forge/kvs`, `@forge/llm` or `@forge/object-store`. These real packages talk to the simulator through a runtime hook (`global.__forge_fetch__`) that `createSimulator()` installs automatically — your app runs the same Atlassian code it runs in production, pointed at the sim's backends. If you add any of them to your `vitest.config.ts` alias map, you'll get module-resolution errors. Just leave them out.
+Unlike `@forge/api` / `@forge/events` / etc., there is no shim alias for `@forge/sql`, `@forge/kvs`, `@forge/llm`, `@forge/object-store` or the backend `@forge/realtime`. These real packages talk to the simulator through a runtime hook (`global.__forge_fetch__`) that `createSimulator()` installs automatically — your app runs the same Atlassian code it runs in production, pointed at the sim's backends. If you add any of them to your `vitest.config.ts` alias map, you'll get module-resolution errors. Just leave them out.
 
-`@forge/kvs`, `@forge/llm` and `@forge/object-store` gained this status in the backend seam migration; all three previously had shims. If you're upgrading and see `Cannot find module 'forge-sim/shims/forge-kvs'` (or `-llm`, `-object-store`), delete that alias line.
+`@forge/kvs`, `@forge/llm`, `@forge/object-store` and `@forge/realtime` gained this status in the backend seam migration; all four previously had shims. If you're upgrading and see `Cannot find module 'forge-sim/shims/forge-kvs'` (or `-llm`, `-object-store`), delete that alias line.
 
 With the real `@forge/object-store` there is also no `put()`/`download()` — those were sim-only helpers that never existed upstream. Use `createUploadUrl` + HTTP `PUT` and `createDownloadUrl` + HTTP `GET`, exactly as in production (the sim serves the minted URLs over real HTTP). For seeding test data directly, `sim.objectStore.put()` remains available on the simulator API.
 

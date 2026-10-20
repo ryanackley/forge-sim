@@ -37,8 +37,8 @@ describe('@forge/* shim registry', () => {
   it('declares at least the shims we know exist', () => {
     // Guards against the list being accidentally emptied/truncated, which
     // would make every other assertion here vacuously true.
-    expect(SHIM_NAMES.length).toBeGreaterThanOrEqual(11);
-    expect(SHIM_NAMES).toContain('@forge/realtime');
+    expect(SHIM_NAMES.length).toBeGreaterThanOrEqual(10);
+    expect(SHIM_NAMES).toContain('@forge/resolver'); // no seam — shimmed forever
     expect(SHIM_NAMES).toContain('@forge/api');
   });
 
