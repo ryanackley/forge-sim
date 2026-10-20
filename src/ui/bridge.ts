@@ -589,10 +589,37 @@ export function installBridge(): void {
  * After this, invoke/fetchProduct calls from the UI go through the simulator.
  */
 export function connectSimulator(sim: ForgeSimulator): void {
-  simulator = sim;
+  attachSimulator(sim);
   tornDown = false;
+}
+
+function attachSimulator(sim: ForgeSimulator): void {
+  simulator = sim;
   // Expose simulator on globalThis so the bridge shim can access i18n store etc.
   (globalThis as any).__forgeSimulator = sim;
+}
+
+/**
+ * Make `globalThis.__bridge` present from the moment a ForgeSimulator exists
+ * — the frontend seam, installed next to the two backend seams by
+ * setSimulator() (src/shims/globals.ts).
+ *
+ * Why at construction and not at render: the real `@forge/bridge` captures
+ * the seam at MODULE EVALUATION — `getCallBridge()` in
+ * node_modules/@forge/bridge/out/bridge.js throws BridgeAPIError when
+ * `globalThis.__bridge.callBridge` is absent, and ~25 of its modules call it
+ * in a top-level `const callBridge = getCallBridge()`. Real Forge has the
+ * seam in place before any app script runs; so must we, or a bare
+ * `import '@forge/bridge'` before the first render dies in the package.
+ *
+ * Deliberately leaves `tornDown` alone: resetBridge() sets it so effects
+ * from an unmounted React tree are swallowed, and constructing another sim
+ * is not a render — connectSimulator() (via sim.ui.ensureBridge()) is what
+ * clears it when a render actually starts.
+ */
+export function installBridgeSeam(sim: ForgeSimulator): void {
+  installBridge();
+  attachSimulator(sim);
 }
 
 /**

@@ -8,6 +8,7 @@
 import type { ForgeSimulator } from '../simulator.js';
 import { installForgeRuntime } from '../runtime/forge-runtime.js';
 import { installForgeFetch } from '../runtime/seam-fetch.js';
+import { installBridgeSeam } from '../ui/bridge.js';
 
 const SIM_KEY = Symbol.for('forge-sim.instance');
 
@@ -18,15 +19,17 @@ const SIM_KEY = Symbol.for('forge-sim.instance');
  * You no longer need to call setSimulator() manually. It remains available for
  * backward compatibility and advanced use cases (e.g., swapping simulator instances).
  *
- * Also installs the two backend platform seams the real `@forge/*` packages
- * call at runtime, so bundled copies behave like shimmed ones:
- *   global.__forge_fetch__   — all I/O (src/runtime/seam-fetch.ts)
- *   global.__forge_runtime__ — identity + config (src/runtime/forge-runtime.ts)
+ * Also installs the three platform seams the real `@forge/*` packages call
+ * at runtime, so bundled copies behave like shimmed ones:
+ *   global.__forge_fetch__   — backend I/O (src/runtime/seam-fetch.ts)
+ *   global.__forge_runtime__ — backend identity + config (src/runtime/forge-runtime.ts)
+ *   globalThis.__bridge      — the frontend bridge, headless host (src/ui/bridge.ts)
  */
 export function setSimulator(sim: ForgeSimulator): void {
   (globalThis as any)[SIM_KEY] = sim;
   installForgeFetch(sim);
   installForgeRuntime(sim);
+  installBridgeSeam(sim);
 }
 
 /**

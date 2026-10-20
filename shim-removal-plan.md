@@ -104,14 +104,23 @@ package against `src/bridge/protocol/` + hosts.
 ### Slices (one commit each; run core + renderer + **Playwright e2e** per
 slice — frontend surface, unlike Phases 1–3 which could skip e2e)
 
-- **4a — seam always present.** Install the headless `__bridge`
-  (`createBridgeDispatcher(headlessHost)`) from the `ForgeSimulator`
-  constructor alongside Seams A/B, carrying the Node patches from fact 4.
-  Move the view-event store, memory history, and anything else the sim itself
-  uses OUT of the shim into `src/bridge/hosts/` / `src/ui/` and repoint
-  headless.ts + simulator-ui.ts. Pin: plain-node `import '@forge/bridge'`
-  with a constructed sim doesn't throw (spawned-node test, like the facade
-  E2Es in `loader-hooks.test.ts`).
+- **4a — seam always present. DONE** in two commits: `7e0842f` (view-event
+  store → `src/ui/view-events.ts`, memory history → shared
+  `src/bridge/memory-history.ts`; the sim no longer imports from the shim;
+  the four sim-only exports left the shim) and the commit after `be94d7c`
+  (`installBridgeSeam(sim)` in `src/ui/bridge.ts`, called from
+  `setSimulator()` beside Seams A/B, carrying the fact-4 Node patches;
+  pinned by `bridge-seam.test.ts`, in-process via `createRequire` AND
+  spawned plain-node against `dist/`, with a no-sim negative control).
+  Findings that narrowed the slice: the only real coupling was the
+  view-event store — the shim's memory history was used by nothing in the
+  sim and duplicated the browser host's; and there is a THIRD history
+  (`handleCreateHistory` in `src/ui/bridge.ts`, WS-proxied) which is what
+  the headless host actually serves, so under the real package headless
+  `view.createHistory()` returns that one, not the shim's memory history —
+  a 4c behavior question. Also fixed en route: `be94d7c` repaired the
+  external-auth Playwright spec that still imported the deleted
+  `@forge/api` shim (e2e was never run in Phases 1–3).
 - **4b — product-bridge command derivation.** Extend
   `bridge-protocol.test.ts`'s `commandsEmittedBy()` scan to the three product
   bridges; add each command to `BRIDGE_COMMANDS` as routed or

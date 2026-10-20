@@ -3,7 +3,9 @@
  * requestBitbucket(), router, events, showFlag, Modal, etc. that route through
  * the simulator's bridge (globalThis.__bridge).
  *
- * The bridge object is installed by installBridge() in ui/bridge.ts.
+ * The bridge object is installed by installBridgeSeam() in ui/bridge.ts the
+ * moment a ForgeSimulator is constructed (via setSimulator), so it is present
+ * before any app module evaluates — as in real Forge.
  *
  * This shim is loaded in server mode (Node.js) when @forge/bridge is imported
  * by app code or by @forge/react's internal hooks (useIssueProperty, etc.).
@@ -15,7 +17,7 @@ import { createMemoryHistory } from '../bridge/memory-history.js';
 function getBridge() {
   const bridge = (globalThis as any).__bridge;
   if (!bridge) {
-    throw new Error('forge-sim: Bridge not installed. Call installBridge() first.');
+    throw new Error('forge-sim: Bridge not installed. Construct a ForgeSimulator (createSimulator()) before loading app code.');
   }
   return bridge;
 }
