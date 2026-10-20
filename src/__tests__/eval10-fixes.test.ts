@@ -10,7 +10,7 @@ import { afterAll, describe, expect, it } from 'vitest';
 import { createServer } from 'node:http';
 import { createSimulator, type ForgeSimulator } from '../simulator.js';
 import { createApiHandler } from '../tools/api.js';
-import { appEvents } from '../shims/forge-events.js';
+import { appEvents } from '@forge/events';
 import { parseManifestContent } from '../manifest.js';
 
 async function startApiServer(): Promise<{

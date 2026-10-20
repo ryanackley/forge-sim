@@ -188,7 +188,6 @@ const COMPILER_OPTIONS: ts.CompilerOptions = {
     'forge-sim': ['src/index.ts'],
     'forge-sim/shims/*': ['src/shims/*'],
     '@forge/api': ['src/shims/forge-api.ts'],
-    '@forge/events': ['src/shims/forge-events.ts'],
     '@forge/resolver': ['src/shims/forge-resolver.ts'],
     // @forge/kvs, @forge/llm and @forge/object-store have no shim (bare-seam
     // migration) — doc examples typecheck against the REAL packages' types,

@@ -15,7 +15,7 @@ import { setSimulator, getSimulator } from '../shims/globals.js';
 import Resolver from '../shims/forge-resolver.js';
 import * as forgeApi from '../shims/forge-api.js';
 import * as forgeKvs from '@forge/kvs';
-import { Queue } from '../shims/forge-events.js';
+import { Queue } from '@forge/events';
 
 describe('Forge Shims', () => {
   let sim: ForgeSimulator;

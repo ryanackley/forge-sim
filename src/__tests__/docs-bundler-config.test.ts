@@ -27,17 +27,13 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { SHIM_NAMES, shimFileBase } from '../shims/shim-registry.js';
 
-const SHIMS = [
-  'forge-resolver',
-  'forge-api',
-  'forge-kvs',
-  'forge-events',
-  'forge-react',
-  'forge-bridge',
-  'forge-jira-bridge',
-  'forge-confluence-bridge',
-  'forge-dashboards-bridge',
-] as const;
+// Derived, never hand-listed: a shim removed by the bare-seam migration must
+// drop out of here automatically. The hardcoded version silently kept passing
+// against ORPHANED dist/ files after its shims were deleted (tsc leaves stale
+// output behind), which is exactly the zombie `forge-sim/shims/forge-kvs` an
+// upgrading user would have resolved instead of getting a clean error. The
+// build now cleans dist first, and this list follows the registry.
+const SHIMS = SHIM_NAMES.map(shimFileBase);
 
 const REPO_ROOT = join(import.meta.dirname, '..', '..');
 const TESTING_DOC = join(REPO_ROOT, 'docs', 'testing', 'README.md');

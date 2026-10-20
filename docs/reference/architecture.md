@@ -70,7 +70,7 @@ node --import ./dist/loader/register.js app.js
 
 ```ts
 const SHIM_NAMES = [
-  '@forge/api', '@forge/events', '@forge/resolver',
+  '@forge/api', '@forge/resolver',
   '@forge/react', '@forge/react/router',
   '@forge/bridge', '@forge/bridge/realtime', '@forge/jira-bridge',
   '@forge/confluence-bridge', '@forge/dashboards-bridge',

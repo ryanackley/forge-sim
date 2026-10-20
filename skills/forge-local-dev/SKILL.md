@@ -332,8 +332,6 @@ export default defineConfig({
     alias: {
       '@forge/resolver': 'forge-sim/shims/forge-resolver',
       '@forge/api':      'forge-sim/shims/forge-api',
-      '@forge/kvs':      'forge-sim/shims/forge-kvs',
-      '@forge/events':   'forge-sim/shims/forge-events',
       '@forge/react':    'forge-sim/shims/forge-react',
       '@forge/bridge':   'forge-sim/shims/forge-bridge',
       // add any other @forge/* the app actually imports

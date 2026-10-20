@@ -56,7 +56,6 @@ export default defineConfig({
     alias: {
       '@forge/resolver':           'forge-sim/shims/forge-resolver',
       '@forge/api':                'forge-sim/shims/forge-api',
-      '@forge/events':             'forge-sim/shims/forge-events',
       // Subpath first: Vite and Webpack match alias keys as prefixes, so a bare
       // '@forge/react' listed above this line would rewrite
       // '@forge/react/router' into 'forge-sim/shims/forge-react/router'.
@@ -78,7 +77,7 @@ export default defineConfig({
 
 > **Note:** You only need aliases for the `@forge/*` packages your app actually imports. The full list is shown above for reference.
 >
-> **`@forge/kvs`, `@forge/sql`, `@forge/llm`, `@forge/object-store` and `@forge/realtime` are deliberately absent.** They ship CJS and
+> **`@forge/kvs`, `@forge/sql`, `@forge/llm`, `@forge/object-store`, `@forge/realtime` and `@forge/events` are deliberately absent.** They ship CJS and
 > route all their I/O through `global.__forge_fetch__`, which `createSimulator()`
 > installs — so the REAL packages run unmodified against the simulator's
 > storage. Aliasing them will break module resolution. (`@forge/kvs`,
@@ -97,7 +96,6 @@ module.exports = {
   moduleNameMapper: {
     '^@forge/resolver$':          'forge-sim/shims/forge-resolver',
     '^@forge/api$':               'forge-sim/shims/forge-api',
-    '^@forge/events$':            'forge-sim/shims/forge-events',
     '^@forge/react/router$':      'forge-sim/shims/forge-react-router',
     '^@forge/react$':             'forge-sim/shims/forge-react',
     '^@forge/bridge/realtime$':      'forge-sim/shims/forge-bridge-realtime',
@@ -1020,11 +1018,13 @@ await sim.sql.start();
 await sim.deploy('./my-app');
 ```
 
-### `@forge/sql`, `@forge/kvs`, `@forge/llm`, `@forge/object-store` and `@forge/realtime` have no shim, and that's intentional
+### Several `@forge/*` packages have no shim, and that's intentional
 
-Unlike `@forge/api` / `@forge/events` / etc., there is no shim alias for `@forge/sql`, `@forge/kvs`, `@forge/llm`, `@forge/object-store` or the backend `@forge/realtime`. These real packages talk to the simulator through a runtime hook (`global.__forge_fetch__`) that `createSimulator()` installs automatically — your app runs the same Atlassian code it runs in production, pointed at the sim's backends. If you add any of them to your `vitest.config.ts` alias map, you'll get module-resolution errors. Just leave them out.
+There is no shim alias for `@forge/sql`, `@forge/kvs`, `@forge/llm`, `@forge/object-store`, `@forge/events`, or the backend `@forge/realtime`. These real packages talk to the simulator through a runtime hook (`global.__forge_fetch__`) that `createSimulator()` installs automatically — your app runs the same Atlassian code it runs in production, pointed at the sim's backends. If you add any of them to your `vitest.config.ts` alias map, you'll get module-resolution errors. Just leave them out.
 
-`@forge/kvs`, `@forge/llm`, `@forge/object-store` and `@forge/realtime` gained this status in the backend seam migration; all four previously had shims. If you're upgrading and see `Cannot find module 'forge-sim/shims/forge-kvs'` (or `-llm`, `-object-store`), delete that alias line.
+`@forge/kvs`, `@forge/llm`, `@forge/object-store`, `@forge/realtime` and `@forge/events` gained this status in the backend seam migration; all five previously had shims. If you're upgrading and see `Cannot find module 'forge-sim/shims/forge-kvs'` (or `-llm`, `-object-store`), delete that alias line.
+
+The real `@forge/events` also validates **client-side**: queue keys must match `[a-zA-Z0-9-_]+`, a push must carry 1–50 events totalling under 200KB with object bodies, and `delayInSeconds` must be 0–900. Violations throw the real typed errors (`InvalidQueueNameError`, `NoEventsToPushError`, `TooManyEventsError`, `InvalidPushSettingsError`) — catchable by class, which the shim's look-alikes never were.
 
 With the real `@forge/object-store` there is also no `put()`/`download()` — those were sim-only helpers that never existed upstream. Use `createUploadUrl` + HTTP `PUT` and `createDownloadUrl` + HTTP `GET`, exactly as in production (the sim serves the minted URLs over real HTTP). For seeding test data directly, `sim.objectStore.put()` remains available on the simulator API.
 

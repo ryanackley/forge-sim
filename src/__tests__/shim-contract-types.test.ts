@@ -41,7 +41,6 @@ const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
  */
 const REAL_TYPES_ENTRY: Record<string, string> = {
   '@forge/api': 'node_modules/@forge/api/out/index.js',
-  '@forge/events': 'node_modules/@forge/events/out/index.js',
   '@forge/resolver': 'node_modules/@forge/resolver/out/index.js',
   '@forge/react': 'node_modules/@forge/react/out/index.js',
   '@forge/react/router': 'node_modules/@forge/react/out/router/index.js',
@@ -65,27 +64,6 @@ const REALTIME_ERRORS_REASON =
   'revisit at realtime GA.';
 
 const TYPE_DEVIATIONS: Record<string, Record<string, string>> = {
-  '@forge/events': {
-    Queue:
-      'Real Queue has private fields (queueParams, apiClient), making the class ' +
-      'nominally typed — no structural shim can satisfy it. Public surface ' +
-      '(push/getJob/cancel/getStats) is mirrored and covered by queue tests.',
-    JobProgress:
-      'Same nominal-typing problem as Queue (private queueParams/apiClient/id).',
-    QueueResponse:
-      'Real QueueResponse extends an unexported Response base with a protected ' +
-      '_retry field — nominal. Runtime behavior (retry() flipping the flag) is ' +
-      'pinned as quirk events-queue-response-retry-flag; see the index in ' +
-      'shim-contract-quirks.test.ts.',
-    InvocationError:
-      'Same nominal-typing problem as QueueResponse (protected _retry on the ' +
-      'unexported Response base).',
-    InvocationErrorCode:
-      'Real is a TS enum (enum member types are nominal); the shim ships a ' +
-      'frozen object with the identical runtime values, pinned as quirk ' +
-      'events-invocation-error-code-values; see the index in ' +
-      'shim-contract-quirks.test.ts.',
-  },
   '@forge/bridge/realtime': {
     realtime: REALTIME_ERRORS_REASON,
   },

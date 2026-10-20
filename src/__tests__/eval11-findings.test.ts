@@ -23,7 +23,7 @@ import {
   InvocationError,
   InvocationErrorCode,
   QueueResponse,
-} from '../shims/forge-events.js';
+} from '@forge/events';
 
 describe('F4: InvocationError shim parity with @forge/events v3', () => {
   it('InvocationErrorCode has exactly the real enum values', () => {

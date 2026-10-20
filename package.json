@@ -63,7 +63,7 @@
     "forge-sim-daemon": "./dist/daemon.js"
   },
   "scripts": {
-    "build": "npm run check:bridge-protocol && npm run check:bridge-browser && tsc && npm run build:bridge && chmod +x dist/cli.js dist/mcp-server.js dist/daemon.js",
+    "build": "npm run clean && npm run check:bridge-protocol && npm run check:bridge-browser && tsc && npm run build:bridge && chmod +x dist/cli.js dist/mcp-server.js dist/daemon.js",
     "check:bridge-protocol": "tsc -p tsconfig.bridge-protocol.json",
     "check:bridge-browser": "tsc -p tsconfig.bridge-browser.json",
     "build:bridge": "node scripts/build-bridge-bundle.mjs",
@@ -75,7 +75,8 @@
     "test:e2e:debug": "playwright test --debug",
     "docs": "typedoc",
     "docs:stats": "node scripts/update-stats.mjs",
-    "docs:stats:check": "node scripts/update-stats.mjs --check"
+    "docs:stats:check": "node scripts/update-stats.mjs --check",
+    "clean": "rm -rf dist"
   },
   "dependencies": {
     "@forge/api": "^8.2.0",
