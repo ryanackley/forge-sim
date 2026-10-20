@@ -93,7 +93,7 @@ describe('SimulatedForgeSQL', () => {
 
   it('should work through __fetchProduct shim', async () => {
     // Import the shim's __fetchProduct
-    const { __fetchProduct } = await import('../shims/forge-api.js');
+    const { __fetchProduct } = await import('@forge/api');
 
     // __fetchProduct with sql descriptor returns a fetch function
     const fetchFn = __fetchProduct({ provider: 'app', remote: 'sql', type: 'sql' });

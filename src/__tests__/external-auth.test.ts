@@ -11,7 +11,7 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import { createSimulator, ForgeSimulator } from '../simulator.js';
-import * as forgeApi from '../shims/forge-api.js';
+import * as forgeApi from '@forge/api';
 import { ExternalAuthStore } from '../external-auth-store.js';
 import type { ManifestAuthProvider, ManifestRemote } from '../types.js';
 
@@ -367,7 +367,7 @@ describe('withProvider() shim', () => {
     expect(await google.hasCredentials()).toBe(true);
   });
 
-  it('fetch falls through to mock routes when no token', async () => {
+  it('fetch reaches mock routes once the provider has a credential', async () => {
     sim.productApi.mockRoutes('google-apis', {
       'GET /userinfo/v2/me': {
         id: '12345',
@@ -375,11 +375,26 @@ describe('withProvider() shim', () => {
         name: 'Mock User',
       },
     });
+    // Real withProvider() is built from runtime.externalAuth: with no
+    // credential there is no account, and `fetch` is a thrower that never
+    // leaves the client (api/out/api/fetch.js:104-111) — see the companion
+    // test below. A token is what makes the request happen at all; the mock
+    // route then answers it, so no real HTTP occurs.
+    sim.externalAuth.setToken('google', { provider: 'google', accessToken: 'ya29.test' });
 
     const google = forgeApi.asUser().withProvider('google', 'google-apis');
     const response = await google.fetch('/userinfo/v2/me');
     const data = await response.json();
     expect(data.email).toBe('mock@gmail.com');
+  });
+
+  it('fetch without any credential throws client-side, like real Forge', () => {
+    sim.productApi.mockRoutes('google-apis', { 'GET /userinfo/v2/me': { ok: true } });
+    const google = forgeApi.asUser().withProvider('google', 'google-apis');
+    // Synchronous: the thrower is bound in place of fetch at construction.
+    expect(() => google.fetch('/userinfo/v2/me')).toThrow(
+      /no credentials previously requested/,
+    );
   });
 
   it('getAccount returns account info from token', async () => {
@@ -434,27 +449,32 @@ describe('withProvider() shim', () => {
     expect(data.email).toBe('test@gmail.com');
   });
 
-  it('requestCredentials returns true when token exists', async () => {
+  it('requestCredentials ALWAYS rejects with NeedsAuthenticationError, even with a token', async () => {
+    // Real requestCredentials never resolves — it is how the backend tells
+    // the frontend to start the 3LO flow (api/out/api/fetch.js:76-80). The
+    // old shim resolved true/false, so an app that called it and carried on
+    // worked here and broke in production. Authorizing a provider locally is
+    // a sim-side action (`forge-sim auth`, or setToken), not an app-side one.
     sim.externalAuth.setToken('google', {
       provider: 'google',
       accessToken: 'ya29.test',
       expiresAt: Date.now() + 3600_000,
     });
     const google = forgeApi.asUser().withProvider('google', 'google-apis');
-    expect(await google.requestCredentials()).toBe(true);
+    const err = await google.requestCredentials().then(
+      () => null,
+      (e: Error) => e,
+    );
+    expect(err?.constructor.name).toBe('NeedsAuthenticationError');
   });
 
-  it('requestCredentials returns false when no secret configured', async () => {
-    const warns: string[] = [];
-    const origWarn = console.warn;
-    console.warn = (...args: any[]) => warns.push(args.join(' '));
-
+  it('requestCredentials rejects the same way with no credential at all', async () => {
     const google = forgeApi.asUser().withProvider('google', 'google-apis');
-    const result = await google.requestCredentials();
-    expect(result).toBe(false);
-    expect(warns.some(w => w.includes('No client secret'))).toBe(true);
-
-    console.warn = origWarn;
+    const err = await google.requestCredentials().then(
+      () => null,
+      (e: Error) => e,
+    );
+    expect(err?.constructor.name).toBe('NeedsAuthenticationError');
   });
 
   it('mock routes work for different providers independently', async () => {
@@ -464,6 +484,9 @@ describe('withProvider() shim', () => {
     sim.productApi.mockRoutes('github-api', {
       'GET /user': { provider: 'github' },
     });
+
+    sim.externalAuth.setToken('google', { provider: 'google', accessToken: 'g' });
+    sim.externalAuth.setToken('github', { provider: 'github', accessToken: 'h' });
 
     const googleResp = await forgeApi.asUser()
       .withProvider('google', 'google-apis')

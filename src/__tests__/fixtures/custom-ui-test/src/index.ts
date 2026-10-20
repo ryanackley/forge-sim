@@ -1,10 +1,10 @@
 import Resolver from '@forge/resolver';
-import { storage } from '@forge/api';
+import { kvs } from '@forge/kvs';
 
 const resolver = new Resolver();
 
 resolver.define('getData', async ({ payload, context }) => {
-  const stored = await storage.get(`data:${payload.key}`);
+  const stored = await kvs.get(`data:${payload.key}`);
   return {
     value: stored ?? 'default-value',
     account: context.accountId,
@@ -13,7 +13,7 @@ resolver.define('getData', async ({ payload, context }) => {
 });
 
 resolver.define('setData', async ({ payload }) => {
-  await storage.set(`data:${payload.key}`, payload.value);
+  await kvs.set(`data:${payload.key}`, payload.value);
   return { success: true };
 });
 

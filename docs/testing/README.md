@@ -55,7 +55,6 @@ export default defineConfig({
   resolve: {
     alias: {
       '@forge/resolver':           'forge-sim/shims/forge-resolver',
-      '@forge/api':                'forge-sim/shims/forge-api',
       // Subpath first: Vite and Webpack match alias keys as prefixes, so a bare
       // '@forge/react' listed above this line would rewrite
       // '@forge/react/router' into 'forge-sim/shims/forge-react/router'.
@@ -77,7 +76,7 @@ export default defineConfig({
 
 > **Note:** You only need aliases for the `@forge/*` packages your app actually imports. The full list is shown above for reference.
 >
-> **`@forge/kvs`, `@forge/sql`, `@forge/llm`, `@forge/object-store`, `@forge/realtime` and `@forge/events` are deliberately absent.** They ship CJS and
+> **Every backend `@forge/*` package is deliberately absent** — `@forge/api`, `@forge/kvs`, `@forge/sql`, `@forge/llm`, `@forge/object-store`, `@forge/events` and the backend `@forge/realtime`. They ship CJS and
 > route all their I/O through `global.__forge_fetch__`, which `createSimulator()`
 > installs — so the REAL packages run unmodified against the simulator's
 > storage. Aliasing them will break module resolution. (`@forge/kvs`,
@@ -95,7 +94,6 @@ module.exports = {
   // Jest
   moduleNameMapper: {
     '^@forge/resolver$':          'forge-sim/shims/forge-resolver',
-    '^@forge/api$':               'forge-sim/shims/forge-api',
     '^@forge/react/router$':      'forge-sim/shims/forge-react-router',
     '^@forge/react$':             'forge-sim/shims/forge-react',
     '^@forge/bridge/realtime$':      'forge-sim/shims/forge-bridge-realtime',
@@ -109,7 +107,7 @@ module.exports = {
   // resolve: {
   //   alias: {
   //     '@forge/resolver': 'forge-sim/shims/forge-resolver',
-  //     '@forge/api':      'forge-sim/shims/forge-api',
+  //     '@forge/react':    'forge-sim/shims/forge-react',
   //     // ... same pattern
   //   },
   // },
@@ -1020,9 +1018,11 @@ await sim.deploy('./my-app');
 
 ### Several `@forge/*` packages have no shim, and that's intentional
 
-There is no shim alias for `@forge/sql`, `@forge/kvs`, `@forge/llm`, `@forge/object-store`, `@forge/events`, or the backend `@forge/realtime`. These real packages talk to the simulator through a runtime hook (`global.__forge_fetch__`) that `createSimulator()` installs automatically — your app runs the same Atlassian code it runs in production, pointed at the sim's backends. If you add any of them to your `vitest.config.ts` alias map, you'll get module-resolution errors. Just leave them out.
+There is no shim alias for any backend package: `@forge/api`, `@forge/sql`, `@forge/kvs`, `@forge/llm`, `@forge/object-store`, `@forge/events` or the backend `@forge/realtime`. What still needs an alias is `@forge/resolver` (it performs no I/O, so there is no seam to intercept) and the frontend surfaces (`@forge/react`, `@forge/bridge`, `@forge/bridge/realtime`, the `*-bridge` packages). These real packages talk to the simulator through a runtime hook (`global.__forge_fetch__`) that `createSimulator()` installs automatically — your app runs the same Atlassian code it runs in production, pointed at the sim's backends. If you add any of them to your `vitest.config.ts` alias map, you'll get module-resolution errors. Just leave them out.
 
-`@forge/kvs`, `@forge/llm`, `@forge/object-store`, `@forge/realtime` and `@forge/events` gained this status in the backend seam migration; all five previously had shims. If you're upgrading and see `Cannot find module 'forge-sim/shims/forge-kvs'` (or `-llm`, `-object-store`), delete that alias line.
+`@forge/api`, `@forge/kvs`, `@forge/llm`, `@forge/object-store`, `@forge/realtime` and `@forge/events` gained this status in the backend seam migration; all six previously had shims. If you're upgrading and see `Cannot find module 'forge-sim/shims/forge-kvs'` (or `-llm`, `-object-store`), delete that alias line.
+
+**`api.storage` is gone.** Atlassian removed the legacy `storage` export from `@forge/api` in June 2026, so the real package has no `storage` and neither does forge-sim. Migrate to `@forge/kvs` (`kvs.get` / `kvs.set` / `kvs.delete` / `kvs.query()` are drop-in for the common cases).
 
 The real `@forge/events` also validates **client-side**: queue keys must match `[a-zA-Z0-9-_]+`, a push must carry 1–50 events totalling under 200KB with object bodies, and `delayInSeconds` must be 0–900. Violations throw the real typed errors (`InvalidQueueNameError`, `NoEventsToPushError`, `TooManyEventsError`, `InvalidPushSettingsError`) — catchable by class, which the shim's look-alikes never were.
 

@@ -43,7 +43,7 @@ describe('UI ↔ Simulator Integration', () => {
   it('should render a UIKit app that calls a simulated resolver', async () => {
     // Register the resolver (normally done by deploy(), but manual here for clarity)
     // This imports the shims which route to our simulator
-    const { invoke: simInvoke } = await import('../shims/forge-api.js');
+    const { invoke: simInvoke } = await import('@forge/api');
     
     sim.resolver.define('getIssue', async (req) => {
       const { issueKey } = req.payload;

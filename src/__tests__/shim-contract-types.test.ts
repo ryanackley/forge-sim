@@ -40,7 +40,6 @@ const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
  * the coverage test below keeps it in lockstep with SHIM_NAMES.
  */
 const REAL_TYPES_ENTRY: Record<string, string> = {
-  '@forge/api': 'node_modules/@forge/api/out/index.js',
   '@forge/resolver': 'node_modules/@forge/resolver/out/index.js',
   '@forge/react': 'node_modules/@forge/react/out/index.js',
   '@forge/react/router': 'node_modules/@forge/react/out/router/index.js',

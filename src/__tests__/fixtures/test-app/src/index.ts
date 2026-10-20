@@ -1,5 +1,6 @@
 import Resolver from '@forge/resolver';
-import { storage, requestJira, route } from '@forge/api';
+import { requestJira, route } from '@forge/api';
+import { kvs } from '@forge/kvs';
 import { Queue } from '@forge/events';
 
 const resolver = new Resolver();
@@ -15,9 +16,9 @@ resolver.define('getIssue', async (req: any) => {
   const issue = await res.json();
 
   // Track views in KVS
-  const currentViews = (await storage.get(`views:${issueKey}`)) || 0;
+  const currentViews = (await kvs.get(`views:${issueKey}`)) || 0;
   const newViews = currentViews + 1;
-  await storage.set(`views:${issueKey}`, newViews);
+  await kvs.set(`views:${issueKey}`, newViews);
 
   // Push analytics event to queue
   await analyticsQueue.push({ body: { event: 'issue-viewed', issueKey, timestamp: Date.now() } });

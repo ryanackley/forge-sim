@@ -158,12 +158,12 @@ describe('F3: @forge/events 1.x consumer shape', () => {
 
   const V1_HANDLER = `
 import Resolver from '@forge/resolver';
-import { storage } from '@forge/api';
+import { kvs } from '@forge/kvs';
 
 const resolver = new Resolver();
 
 resolver.define('processEvent', async ({ payload, context }) => {
-  await storage.set('v1-received', {
+  await kvs.set('v1-received', {
     payload,
     hasJobId: typeof context?.jobId === 'string',
   });

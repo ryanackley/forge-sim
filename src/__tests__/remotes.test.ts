@@ -16,7 +16,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { createSimulator, ForgeSimulator } from '../simulator.js';
 
 import { parseManifestContent } from '../manifest.js';
-import * as forgeApi from '../shims/forge-api.js';
+import * as forgeApi from '@forge/api';
 import * as forgeBridge from '../shims/forge-bridge.js';
 import { FITProvider } from '../fit-provider.js';
 import { RemoteProxy } from '../remote-proxy.js';

@@ -2,7 +2,8 @@ import { defineConfig } from 'vitest/config';
 import { resolve } from 'path';
 import { tmpdir } from 'os';
 import { realpathSync, readFileSync } from 'fs';
-import { shimFileBase, shimNamesBySpecificity } from './src/shims/shim-registry.js';
+import { createRequire } from 'module';
+import { shimFileBase, shimNamesBySpecificity, PASSTHROUGH_OK } from './src/shims/shim-registry.js';
 
 /**
  * Mirror Node's native wasm-ESM integration under vite-node.
@@ -15,6 +16,39 @@ import { shimFileBase, shimNamesBySpecificity } from './src/shims/shim-registry.
  * sim itself. Named exports mirror the instance exports, same as Node.
  * Wasm modules with imports are rejected loudly (no silent stub).
  */
+/**
+ * Resolve PASSTHROUGH_OK `@forge/*` packages from forge-sim's own
+ * node_modules ONLY when normal resolution fails.
+ *
+ * Those packages have no shim since the bare-seam migration, so they must
+ * resolve to something real. An app deployed to a temp directory has no
+ * node_modules of its own, and Vite resolves the bare id against the project
+ * root — handing back a path that does not exist, so the package's own
+ * relative requires fail with a baffling "Cannot find module './kvs'".
+ *
+ * This is deliberately a FALLBACK and not an alias: an alias would OVERRIDE
+ * apps that ship their own copy, which is both wrong (a real Forge app runs
+ * the version it shipped) and the exact scenario
+ * migration-redeploy-parity.test.ts exists to guard. Node's loader hooks have
+ * the same precedence (resolvePassthroughPackage in src/loader/hooks.ts):
+ * importer first, forge-sim second.
+ */
+function forgeSimPassthroughFallback() {
+  return {
+    name: 'forge-sim-passthrough-fallback',
+    async resolveId(source: string, importer: string | undefined, options: any) {
+      if (!(PASSTHROUGH_OK as readonly string[]).includes(source)) return null;
+      const normal = await (this as any).resolve(source, importer, { ...options, skipSelf: true });
+      if (normal) return normal;
+      try {
+        return createRequire(import.meta.url).resolve(source);
+      } catch {
+        return null;
+      }
+    },
+  };
+}
+
 function forgeSimWasmPlugin() {
   return {
     name: 'forge-sim-wasm',
@@ -46,7 +80,7 @@ function forgeSimWasmPlugin() {
 }
 
 export default defineConfig({
-  plugins: [forgeSimWasmPlugin()],
+  plugins: [forgeSimWasmPlugin(), forgeSimPassthroughFallback()],
   // vite >= 6.4.2 (security backport) gates vite-node's fs reads on
   // server.fs.allow — including the rewritten dynamic import() in our
   // deployer, which loads per-deploy handler bundles written into the app
@@ -85,7 +119,9 @@ export default defineConfig({
     hookTimeout: 30_000,
   },
   resolve: {
-    alias: {
+    // Array form (not the object map) so passthrough packages can use an
+    // EXACT regex match — see below.
+    alias: [
       // Generated from the SAME registry the Node loader hooks use, so the two
       // resolution mechanisms cannot drift. This list used to be maintained by
       // hand and fell five entries behind: `@forge/realtime` and `@forge/llm`
@@ -94,20 +130,18 @@ export default defineConfig({
       // instead of the shim. See src/shims/shim-registry.ts.
       //
       // `shimNamesBySpecificity()` orders subpaths before their parent package,
-      // which is load-bearing: rollup matches alias keys as PREFIXES, so a
-      // bare '@forge/react' listed first would mangle '@forge/react/router'
+      // which is load-bearing: rollup matches string alias keys as PREFIXES, so
+      // a bare '@forge/react' listed first would mangle '@forge/react/router'
       // into '.../forge-react.ts/router'.
-      ...Object.fromEntries(
-        shimNamesBySpecificity().map((pkg) => [
-          pkg,
-          resolve(__dirname, 'src/shims', `${shimFileBase(pkg)}.ts`),
-        ]),
-      ),
+      ...shimNamesBySpecificity().map((pkg) => ({
+        find: pkg,
+        replacement: resolve(__dirname, 'src/shims', `${shimFileBase(pkg)}.ts`),
+      })),
       // Self-alias so doc-example tests can use the user-facing import
       // (`from 'forge-sim'`) while running against live source — the bare
       // self-reference would resolve to a possibly-stale dist/ build.
-      'forge-sim': resolve(__dirname, 'src/index.ts'),
-    },
+      { find: /^forge-sim$/, replacement: resolve(__dirname, 'src/index.ts') },
+    ],
   },
   esbuild: {
     jsx: 'automatic',

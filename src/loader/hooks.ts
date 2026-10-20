@@ -60,8 +60,40 @@ const PASSTHROUGH_OK = new Set(REGISTRY_PASSTHROUGH_OK);
 // facade the documented default-import style (`import kvs from '@forge/kvs'`,
 // `import fos from '@forge/object-store'`) yields the namespace object and
 // every method on it is undefined.
-const CJS_DEFAULT_FACADE = new Set(['@forge/sql', '@forge/kvs', '@forge/object-store']);
+const CJS_DEFAULT_FACADE = new Set([
+  '@forge/sql',
+  '@forge/kvs',
+  '@forge/object-store',
+  '@forge/api',
+]);
 const FACADE_QUERY = 'forge-sim-cjs-facade';
+
+/**
+ * Resolve a PASSTHROUGH_OK `@forge/*` specifier when Node's ESM resolver
+ * can't, trying the importer's location first and forge-sim's own copy
+ * second. Returns a file:// URL, or null when neither works.
+ *
+ * Two distinct failures land here:
+ *  - Extensionless deep imports (`@forge/sql/out/migration`): the package
+ *    ships no exports map, so ESM demands the literal `.js` while real
+ *    Forge's bundler infers it. CJS resolution shares the bundler's rules.
+ *  - Apps with no node_modules of their own (scratch apps written to a temp
+ *    directory, and most test fixtures). A real Forge app always ships the
+ *    `@forge/*` packages it imports, so the app's copy is tried first and
+ *    wins when present; forge-sim's copy is the safety net that keeps a
+ *    throwaway app runnable.
+ */
+function resolvePassthroughPackage(specifier: string, parentURL?: string): string | null {
+  const bases = parentURL?.startsWith('file://') ? [parentURL, import.meta.url] : [import.meta.url];
+  for (const base of bases) {
+    try {
+      return pathToFileURL(createRequire(base).resolve(specifier)).href;
+    } catch {
+      // try the next base
+    }
+  }
+  return null;
+}
 
 function buildCjsFacadeSource(realUrl: string): string {
   const spec = JSON.stringify(realUrl);
@@ -381,20 +413,10 @@ export async function resolve(
       // Extensionless deep import (`@forge/sql/out/migration`, eval-6 F1).
       // The package has no exports map, so Node's ESM resolver demands the
       // literal `.js` while real Forge's bundler infers it. CommonJS
-      // resolution shares the bundler's inference rules — resolve from the
-      // importer's location so the app's own node_modules wins, falling
-      // back to forge-sim's copy when there's no file:// parent.
-      const requireFrom = createRequire(
-        context.parentURL?.startsWith('file://') ? context.parentURL : import.meta.url
-      );
-      try {
-        resolved = {
-          url: pathToFileURL(requireFrom.resolve(specifier)).href,
-          shortCircuit: true,
-        };
-      } catch {
-        throw err; // original ESM error — clearer message for the user
-      }
+      // resolution shares the bundler's inference rules.
+      const found = resolvePassthroughPackage(specifier, context.parentURL);
+      if (!found) throw err; // original ESM error — clearer message for the user
+      resolved = { url: found, shortCircuit: true };
     }
     // Only wrap CJS. If the target is native ESM (format 'module' or an
     // .mjs file), interop is moot — pass it through untouched.
@@ -417,6 +439,20 @@ export async function resolve(
     const rootPkg = specifier.split('/').slice(0, 2).join('/');
     if (!PASSTHROUGH_OK.has(rootPkg)) {
       warnUnshimmedForgeImport(specifier);
+    } else {
+      // A passthrough package MUST resolve to something — there is no shim
+      // behind it any more. Apps with their own node_modules resolve
+      // natively (and win, since that's the copy they ship); scratch apps in
+      // a temp directory have none, so fall back to forge-sim's own copy
+      // rather than failing with a confusing "Cannot find module './api/...'"
+      // from a half-resolved path.
+      try {
+        return await nextResolve(specifier, context);
+      } catch (err) {
+        const found = resolvePassthroughPackage(specifier, context.parentURL);
+        if (!found) throw err;
+        return { url: found, shortCircuit: true };
+      }
     }
   }
 

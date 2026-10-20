@@ -37,7 +37,6 @@
  * `src/shims/<base>.ts` — `shim-registry.test.ts` enforces that.
  */
 export const SHIM_NAMES = [
-  '@forge/api',
   '@forge/resolver',
   '@forge/react',
   '@forge/react/router',
@@ -80,6 +79,10 @@ export type ShimName = (typeof SHIM_NAMES)[number];
  *                   `/webhook/queue/*` and `/forge/events/v1/app-events`
  *                   paths; it reaches the seam through @forge/api's
  *                   `__requestAtlassianAsApp`, not a seam call of its own)
+ *   `@forge/api`  → sim product APIs, remotes, web triggers, third-party
+ *                   OAuth and authorize() (`fpp` / `tpp` / `frc`). The last
+ *                   backend package to flip; what remains shimmed is the
+ *                   seamless `@forge/resolver` and the frontend bridges.
  *
  * Packages listed here that set `__esModule` AND `exports.default` must ALSO
  * be in `CJS_DEFAULT_FACADE` in `src/loader/hooks.ts`, or the documented
@@ -94,6 +97,7 @@ export const PASSTHROUGH_OK: readonly string[] = [
   '@forge/object-store',
   '@forge/realtime',
   '@forge/events',
+  '@forge/api',
 ];
 
 /**

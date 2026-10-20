@@ -253,7 +253,7 @@ describe('GraphQL (requestGraph)', () => {
 describe('GraphQL shim integration', () => {
   it('asApp().requestGraph and asUser().requestGraph are functions', async () => {
     // Import the shim directly to verify exports
-    const shim = await import('../shims/forge-api.js');
+    const shim = await import('@forge/api');
     const appClient = shim.asApp();
     const userClient = shim.asUser();
 

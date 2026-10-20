@@ -616,7 +616,7 @@ export class ForgeSimulator {
       const { result, console: captured } = await this.runInInvocationContext(
         invocationCtx,
         {
-          invocationId: randomUUID(),
+          invocationId: `sim-invocation-${randomUUID()}`,
           functionKey,
           moduleKey: invocationCtx.moduleKey,
           moduleType: fnType,
@@ -755,7 +755,7 @@ export class ForgeSimulator {
       this.runInInvocationContext(
         { kind: 'consumer', moduleKey: null },
         {
-          invocationId: randomUUID(),
+          invocationId: `sim-invocation-${randomUUID()}`,
           functionKey: null,
           moduleKey: queueKey,
           moduleType: 'consumer',
@@ -877,7 +877,7 @@ export class ForgeSimulator {
         const { result, console: captured } = await this.runInInvocationContext(
           { kind: 'trigger', moduleKey: null },
           {
-            invocationId: randomUUID(),
+            invocationId: `sim-invocation-${randomUUID()}`,
             functionKey: trigger.functionKey,
             moduleKey: trigger.key,
             moduleType: 'trigger',
@@ -954,7 +954,7 @@ export class ForgeSimulator {
       const { result, console: captured } = await this.runInInvocationContext(
         { kind: 'scheduledTrigger', moduleKey: null },
         {
-          invocationId: randomUUID(),
+          invocationId: `sim-invocation-${randomUUID()}`,
           functionKey: st.functionKey,
           moduleKey: triggerKey,
           moduleType: 'scheduledTrigger',
@@ -1047,7 +1047,7 @@ export class ForgeSimulator {
       const { result, console: captured } = await this.runInInvocationContext(
         { kind: 'webTrigger', moduleKey: null },
         {
-          invocationId: randomUUID(),
+          invocationId: `sim-invocation-${randomUUID()}`,
           functionKey: trigger.functionKey,
           moduleKey: triggerKey,
           moduleType: 'webTrigger',

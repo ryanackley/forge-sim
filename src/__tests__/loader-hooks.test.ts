@@ -20,7 +20,6 @@ const nextResolve = vi.fn(async (specifier: string) => ({
 }));
 
 const EXPECTED_SHIMS = [
-  '@forge/api',
   '@forge/resolver',
   '@forge/react',
   '@forge/bridge',

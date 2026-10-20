@@ -39,15 +39,15 @@ Apps run **completely unmodified**. `@forge/*` imports are intercepted by Node l
 └──────────┴──────────┴──────────┴──────────┴─────────┴──────────┘
          ▲                ▲                       ▲
          │                │                       │
-   @forge/* shims    Bridge (UIKit)         global.__forge_fetch__
-   (loader hooks)    (callBridge)            (real CJS @forge/sql,
-                                              @forge/kvs entry point)
+  resolver +        Bridge (UIKit)      __forge_fetch__ / __forge_runtime__
+  frontend shims     (callBridge)       (every REAL backend @forge/* package)
+   (loader hooks)
 ```
 
 Three integration paths into the sim, depending on which surface the app uses:
 
-1. **Loader hook shims** — `@forge/api`, `@forge/resolver`, `@forge/events`, etc. are aliased to `src/shims/*` at import time. App code never knows.
-2. **`global.__forge_fetch__` + `global.__forge_runtime__`** — the two backend seams real Forge injects; every real CJS backend `@forge/*` package calls them internally (sql, kvs, events, object-store, llm, realtime, api's product/webTrigger/remote traffic). `src/runtime/seam-fetch.ts` dispatches the 9 descriptor types to `sim.*`; `src/runtime/forge-runtime.ts` serves per-invocation identity. This is what makes BUNDLED backends work — there's no import left to alias, but the seams are still called.
+1. **Loader hook shims** — `@forge/resolver` and the frontend surfaces (`@forge/react`, `@forge/bridge`, the `*-bridge` packages) are aliased to `src/shims/*` at import time. App code never knows. Every BACKEND package left this list in the bare-seam migration — see path 2.
+2. **`global.__forge_fetch__` + `global.__forge_runtime__`** — the two backend seams real Forge injects. Apps run the REAL `@forge/api`, `@forge/kvs`, `@forge/sql`, `@forge/events`, `@forge/object-store`, `@forge/llm` and `@forge/realtime` (all in `PASSTHROUGH_OK`, no alias); `src/runtime/seam-fetch.ts` dispatches the 9 descriptor types to `sim.*` and `src/runtime/forge-runtime.ts` serves per-invocation identity. Running the real packages means the contract can't drift, their client-side validation applies, and BUNDLED backends work — there's no import left to alias, but the seams are still called.
 3. **`window.__bridge`** — the one seam real Forge gives a frontend. Apps run the **real** `@forge/bridge` (no alias, no app-facing shim); `src/bridge/protocol/` dispatches its ~34 commands to a `BridgeHost`: headless (`src/bridge/hosts/headless.ts`, calls `sim.*`) or browser (`src/bridge/hosts/browser/`, bundled to `dist/bridge.js`, served at `/__forge/bridge.js` ahead of app code on every dev page, speaks WebSocket RPC). `@forge/react`'s `reconcile` arrives the same way; the renderer turns ForgeDoc into Atlaskit.
 
 ## Where the code lives
@@ -139,7 +139,7 @@ These are the ones you'll forget and re-learn the hard way:
 - Concurrency keys are scoped to the **installation**, not the queue. The publisher sets concurrency on the event, not the subscriber. Per Forge spec, weird in practice.
 - Function timeouts vary by type: resolvers 25s, triggers 55s, scheduled/consumer up to 900s. We enforce these and warn when an invocation exceeds the limit.
 - `?theme=dark|light` query string is the real-Forge convention for telling the iframe which theme to render. Custom UI apps should read `window.location.search`. Auto = OS preference.
-- KVS uses `@forge/kvs` (new). `@forge/api`'s `storage` API is legacy.
+- KVS uses `@forge/kvs`. `@forge/api`'s legacy `storage` export was REMOVED by Atlassian in June 2026 and no longer exists here either — apps must use `@forge/kvs`.
 - Custom Entity Store uses `@forge/kvs.entity()`: separate API from plain KVS, but same `global.__forge_fetch__({ type: 'kvs' })` bridge underneath.
 - Real `@forge/bridge` is strict where our old shim was lenient: `showFlag` throws without an `id`; `router.getUrl` requires a `NavigationLocation` with `target` and runs `new URL()` on the host's answer (so hosts return absolute URLs); `requestJira` on the backend requires a `route` tagged template, never a plain string. Fixtures written against the old shim fail on the real package for these reasons, not because the sim is broken.
 - `@forge/bridge` i18n has **no bridge command**: it fetches `./__LOCALES__/i18n-info.json` and `./__LOCALES__/<locale>.json` relative to the page. The dev server answers `<page>/__LOCALES__/<file>`; headless patches `fetch`. The info file's real shape is `{ config: {...} }`.

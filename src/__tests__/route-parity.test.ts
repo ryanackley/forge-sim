@@ -22,7 +22,7 @@
 import { describe, it, expect } from 'vitest';
 import { join, resolve } from 'node:path';
 import { createRequire } from 'node:module';
-import * as shim from '../shims/forge-api.js';
+import * as shim from '@forge/api';
 import * as bridgeShim from '../shims/forge-bridge.js';
 import { installBridge, connectSimulator } from '../ui/bridge.js';
 import { createSimulator } from '../simulator.js';
@@ -104,11 +104,14 @@ describe('per-surface string policy (mirrors real wrapper functions)', () => {
     try {
       for (const fn of ['requestJira', 'requestConfluence', 'requestBitbucket'] as const) {
         // Bare export and asApp()/asUser() client methods share one path.
-        await expect((shim as any)[fn]('/rest/api/3/myself')).rejects.toThrow(
-          /route.*template literal.*@forge\/api/s,
+        // The REAL requireSafeUrl throws SYNCHRONOUSLY (before the promise
+        // exists) and with Atlassian's own wording — apps now see the exact
+        // production error instead of our paraphrase of it.
+        expect(() => (shim as any)[fn]('/rest/api/3/myself')).toThrow(
+          /must create your route using the 'route' export from '@forge\/api'/s,
         );
-        await expect((shim as any).asApp()[fn]('/rest/api/3/myself')).rejects.toThrow(
-          /instead of a Route/,
+        expect(() => (shim as any).asApp()[fn]('/rest/api/3/myself')).toThrow(
+          /must create your route using the 'route' export from '@forge\/api'/s,
         );
       }
     } finally {

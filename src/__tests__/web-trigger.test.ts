@@ -341,7 +341,7 @@ describe('webTrigger.getUrl() shim', () => {
   it('returns local URL when dev port is set', async () => {
     (globalThis as any).__forgeSim_devPort__ = 5173;
     // Import fresh to get the shim
-    const { webTrigger } = await import('../shims/forge-api.js').then(m => (m as any));
+    const { webTrigger } = await import('@forge/api').then(m => (m as any));
     // The shim reads from forge-api exports — let's test directly
     const url = `http://localhost:5173/__trigger/my-hook`;
     expect(getWebTriggerUrl('my-hook', 5173)).toBe(url);
@@ -512,7 +512,7 @@ describe('WebTriggerUrlRegistry — webTrigger.getUrl/deleteUrl/queryUrls', () =
   });
 
   it('shim webTrigger delegates getUrl/deleteUrl/queryUrls to the registry', async () => {
-    const { webTrigger } = (await import('../shims/forge-api.js')) as any;
+    const { webTrigger } = (await import('@forge/api')) as any;
     const url = await webTrigger.getUrl('hook-a');
     expect(url).toMatch(/\/x1\//);
     expect(await webTrigger.queryUrls('hook-a')).toEqual([{ moduleKey: 'hook-a', url }]);

@@ -70,18 +70,18 @@ node --import ./dist/loader/register.js app.js
 
 ```ts
 const SHIM_NAMES = [
-  '@forge/api', '@forge/resolver',
+  '@forge/resolver',
   '@forge/react', '@forge/react/router',
   '@forge/bridge', '@forge/bridge/realtime', '@forge/jira-bridge',
   '@forge/confluence-bridge', '@forge/dashboards-bridge',
 ];
 ```
 
-This list shrinks as the bare-seam migration proceeds: a backend package whose
-I/O the seam can serve moves to `PASSTHROUGH_OK` and the app runs the real
-Atlassian package (see "A few packages have no shim at all" below).
-`@forge/resolver` is the one that can never move — it performs no I/O, so
-there is no seam to intercept. When the app does
+The bare-seam migration emptied this list of BACKEND packages: every one whose
+I/O the seam can serve moved to `PASSTHROUGH_OK`, so the app runs the real
+Atlassian package (see "A few packages have no shim at all" below). What is
+left is the frontend surface plus `@forge/resolver`, the one that can never
+move — it performs no I/O, so there is no seam to intercept. When the app does
 `import Resolver from '@forge/resolver'`, the hook returns
 `dist/shims/forge-resolver.js` instead of the real package. That shim is a
 tiny file:
@@ -109,19 +109,21 @@ The real `@forge/llm` package still sits in `node_modules`. It just never loads.
 
 For programmatic use (`createSimulator()` in tests), `sim.deploy()` registers the hooks for you via `module.register()`. No `--import` flag needed.
 
-### A few packages have no shim at all
+### The backend packages have no shim at all
 
-`@forge/sql` and `@forge/kvs` ship CJS and route every call through
-`global.__forge_fetch__({ type: 'sql' | 'kvs', ... })` internally. They are
+Every backend `@forge/*` package ships CJS and routes its I/O through
+`global.__forge_fetch__({ type, ... })` internally. They are
 deliberately **not** aliased (`PASSTHROUGH_OK` in
 `src/shims/shim-registry.ts`): the app loads the real Atlassian package and
 `src/runtime/seam-fetch.ts` answers its I/O from the sim's MySQL / entity
 store. Same Atlassian code path, just pointed at our backing storage — and
 nothing to drift, because there is no second implementation.
 
-This is the end state the backend bare-seam migration is moving the remaining
-backend packages toward; `@forge/kvs` reached it first (all 15 of its
-`/api/v1/*` paths are served, transactions and batch ops included). A package
+This is now true of EVERY backend package — `@forge/api`, `@forge/kvs`,
+`@forge/sql`, `@forge/llm`, `@forge/object-store`, `@forge/events` and the
+backend `@forge/realtime`. Apps run the code Atlassian ships, pointed at the
+sim; the only app-facing impersonation left is the frontend bridge surface and
+`@forge/resolver`. A package
 listed in `PASSTHROUGH_OK` that sets `__esModule` + `exports.default` also
 needs an entry in `CJS_DEFAULT_FACADE` (`src/loader/hooks.ts`), or the
 documented default-import style breaks under Node's native CJS interop.

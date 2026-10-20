@@ -150,6 +150,62 @@ function unwrapMockResponse(value: unknown): {
 }
 
 /**
+ * Permissive answer for an UNMOCKED permission check, in the exact shape the
+ * real `@forge/auth` expects — so `authorize()` keeps its documented
+ * "unmocked → permissive true" posture (same as `hasScope()`).
+ *
+ * This used to live in the `@forge/api` shim, which could see the 501 status
+ * and short-circuit. The real `authorize()` only gets `res.json()` and so
+ * cannot tell "unmocked" from "denied"; it feeds whatever JSON it receives
+ * into @forge/auth's own logic. Moving the default here keeps the behavior
+ * while letting the REAL permission logic compute it — and, being at the
+ * product-API layer, it serves bundled apps too.
+ *
+ * Shapes measured from the shipped package:
+ *  - Jira (auth/out/jira/index.js:9-34): POST /rest/api/3/permissions/check
+ *    with {accountId, projectPermissions:[{permissions, issues|projects}]};
+ *    a check passes when the response's matching entry carries an entity
+ *    list EQUAL to the requested one — so echo the request back.
+ *  - Confluence (auth/out/confluence/index.js:7-25): POST
+ *    /rest/api/content/{id}/permission/check → {hasPermission}.
+ *
+ * Returns null when the route isn't a permission check, leaving the 501 (and
+ * its "register a handler" guidance) intact for everything else.
+ */
+function permissivePermissionCheck(
+  product: string,
+  path: string,
+  options?: ProductApiRequest,
+): ProductApiResponse | null {
+  const method = (options?.method ?? 'GET').toUpperCase();
+  if (method !== 'POST') return null;
+  const pathname = path.split('?')[0];
+
+  if (product === 'jira' && pathname === '/rest/api/3/permissions/check') {
+    let requested: Array<Record<string, any>> = [];
+    try {
+      requested = JSON.parse(String(options?.body ?? '{}')).projectPermissions ?? [];
+    } catch {
+      return null; // unparseable body isn't ours to answer
+    }
+    const projectPermissions = requested.flatMap((entry) =>
+      (entry.permissions ?? []).map((permission: string) => ({
+        permission,
+        ...(entry.issues !== undefined ? { issues: entry.issues } : {}),
+        ...(entry.projects !== undefined ? { projects: entry.projects } : {}),
+      })),
+    );
+    return makeResponse(200, { projectPermissions });
+  }
+
+  if (product === 'confluence' && /^\/rest\/api\/content\/[^/]+\/permission\/check$/.test(pathname)) {
+    return makeResponse(200, { hasPermission: true });
+  }
+
+  return null;
+}
+
+/**
  * Default handler that returns a helpful error for unmocked API calls.
  */
 function unmockedHandler(product: string): ProductApiHandler {
@@ -452,6 +508,15 @@ export class SimulatedProductApi {
       });
     }
     const result = await handler(path, options);
+
+    // Unmocked permission check → permissive default. Fires on both ways a
+    // request can go unanswered: 501 (no mocks registered for the product at
+    // all) and 404 (mockRoutes IS registered but nothing matched). An app
+    // that explicitly mocked the route keeps its own answer.
+    if ((result.status === 501 || result.status === 404) && !this.hasMockRoute(product, path, options)) {
+      const permissive = permissivePermissionCheck(product, path, options);
+      if (permissive) return permissive;
+    }
 
     // Current-user route override. When an acting user is set, the switcher's
     // pick is the authority on "who am I" — it must beat the REAL API too,

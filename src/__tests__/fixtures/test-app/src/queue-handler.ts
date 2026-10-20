@@ -1,4 +1,4 @@
-import { storage } from '@forge/api';
+import { kvs } from '@forge/kvs';
 
 export const handler = async (event: any) => {
   const { event: eventType, issueKey, timestamp } = event.body;
@@ -6,7 +6,7 @@ export const handler = async (event: any) => {
 
   // Store analytics record
   const key = `analytics:${issueKey}:${timestamp}`;
-  await storage.set(key, { eventType, issueKey, timestamp, processed: true });
+  await kvs.set(key, { eventType, issueKey, timestamp, processed: true });
 
   return { success: true };
 };

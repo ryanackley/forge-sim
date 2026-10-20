@@ -6,7 +6,7 @@
  * them) must change with it.
  */
 import Resolver from '@forge/resolver';
-import { storage } from '@forge/api';
+import { kvs } from '@forge/kvs';
 
 const resolver = new Resolver();
 
@@ -14,18 +14,18 @@ let nextId = 1;
 
 resolver.define('createItem', async (req: any) => {
   const id = `item-${nextId++}`;
-  await storage.set(`item:${id}`, { id, ...req.payload });
+  await kvs.set(`item:${id}`, { id, ...req.payload });
   return { success: true, id };
 });
 
 resolver.define('getItem', async (req: any) => {
-  const item = await storage.get(`item:${req.payload.id}`);
+  const item = await kvs.get(`item:${req.payload.id}`);
   if (!item) return { error: 'Not found' };
   return item;
 });
 
 resolver.define('getItems', async () => {
-  const page = await storage.query().getMany();
+  const page = await kvs.query().getMany();
   return { items: page.results.map((r: any) => r.value) };
 });
 

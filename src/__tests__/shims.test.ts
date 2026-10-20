@@ -13,7 +13,7 @@ import { setSimulator, getSimulator } from '../shims/globals.js';
 
 // Import the shims directly (in real usage, the loader hook does this mapping)
 import Resolver from '../shims/forge-resolver.js';
-import * as forgeApi from '../shims/forge-api.js';
+import * as forgeApi from '@forge/api';
 import * as forgeKvs from '@forge/kvs';
 import { Queue } from '@forge/events';
 
@@ -124,11 +124,11 @@ describe('Forge Shims', () => {
       expect(data).toEqual({ id: '123', title: 'My Page' });
     });
 
-    it('storage (legacy) should use simulator KVS', async () => {
-      await forgeApi.storage.set('foo', 'bar');
-      expect(await forgeApi.storage.get('foo')).toBe('bar');
-      await forgeApi.storage.delete('foo');
-      expect(await forgeApi.storage.get('foo')).toBeUndefined();
+    it('no longer exports the legacy `storage` API, like real @forge/api', () => {
+      // Atlassian removed `api.storage` in June 2026; apps use @forge/kvs.
+      // Keeping a sim-only `storage` would be the loudest kind of parity lie:
+      // code that works here and does not exist in production.
+      expect((forgeApi as any).storage).toBeUndefined();
     });
 
     describe('getAppContext()', () => {
@@ -289,11 +289,23 @@ resources:
       expect(result.translations?.greeting).toBe('Bonjour');
     });
 
-    it('getTranslations returns null when no translations loaded', async () => {
-      // Fresh simulator — no translations set
-      const result = await forgeApi.i18n.getTranslations('en-US');
+    it('getTranslations throws when the app ships no __LOCALES__ bundle, like real Forge', async () => {
+      // Backend i18n is a FILESYSTEM contract: it reads
+      // <appCodeDir>/__LOCALES__/i18n-info.json. An app with no bundle gets a
+      // TranslationGetterError in production, so it gets one here too. (The
+      // old shim answered {translations: null} — lenient, and a lie.)
+      await expect(forgeApi.i18n.getTranslations('en-US')).rejects.toThrow(
+        /Failed to get i18n info config/,
+      );
+    });
+
+    it('getTranslations falls back to the default locale for an unknown one', async () => {
+      sim.i18n.setTranslations('en-US', { greeting: 'Hello' });
+      const result = await forgeApi.i18n.getTranslations('de-DE');
+      // Bundle present, de-DE absent → the real getter walks its lookup order
+      // and answers with the default locale rather than throwing or nulling.
       expect(result.locale).toBe('en-US');
-      expect(result.translations).toBeNull();
+      expect(result.translations).toEqual({ greeting: 'Hello' });
     });
 
     it('createTranslationFunction translates keys', async () => {
@@ -307,29 +319,36 @@ resources:
       expect(t('nav.home')).toBe('Home');
     });
 
-    it('createTranslationFunction returns key/defaultValue when no translations', async () => {
+    it('createTranslationFunction returns key/defaultValue for missing keys', async () => {
+      // A bundle must exist (see the throw case above); within it, an absent
+      // key falls back to the key itself or the supplied default.
+      sim.i18n.setTranslations('en-US', { greeting: 'Hello' });
       const t = await forgeApi.i18n.createTranslationFunction('en-US');
       expect(t('missing.key')).toBe('missing.key');
       expect(t('missing.key', 'Fallback')).toBe('Fallback');
     });
 
-    it('resetTranslationsCache clears cache and store', async () => {
+    it('re-setting translations invalidates the real package\'s module-level cache', async () => {
       sim.i18n.setTranslations('en-US', { greeting: 'Hello' });
-
-      // Warm the cache
       const t1 = await forgeApi.i18n.createTranslationFunction('en-US');
       expect(t1('greeting')).toBe('Hello');
 
-      // Reset and verify store is cleared
-      forgeApi.i18n.resetTranslationsCache();
-      expect(sim.i18n.hasTranslations).toBe(false);
+      // @forge/api's TranslationsGetter is a module-level singleton that
+      // memoizes per locale, so without the store invalidating it this would
+      // still say 'Hello'. (The app-facing API has no reset of its own —
+      // resetTranslationsCache is internal to the package.)
+      sim.i18n.setTranslations('en-US', { greeting: 'Hello again' });
+      const t2 = await forgeApi.i18n.createTranslationFunction('en-US');
+      expect(t2('greeting')).toBe('Hello again');
     });
 
     it('i18n helpers are NOT exported top-level (real @forge/api only has the i18n namespace)', () => {
       expect('resetTranslationsCache' in forgeApi).toBe(false);
       expect('getTranslations' in forgeApi).toBe(false);
       expect('createTranslationFunction' in forgeApi).toBe(false);
-      expect(typeof forgeApi.i18n.resetTranslationsCache).toBe('function');
+      // resetTranslationsCache is NOT on the real namespace (nor exported at
+      // top level) — it is internal to @forge/api's i18n module.
+      expect((forgeApi.i18n as any).resetTranslationsCache).toBeUndefined();
       expect(typeof forgeApi.i18n.getTranslations).toBe('function');
       expect(typeof forgeApi.i18n.createTranslationFunction).toBe('function');
     });
@@ -339,7 +358,9 @@ resources:
 
   describe('privacy.reportPersonalData', () => {
     it('posts accounts to /app/report-accounts and returns updates', async () => {
-      sim.productApi.mockRoutes('jira', {
+      // requestAtlassian → stargate, NOT jira: the real privacy API posts to
+      // the Atlassian API gateway (api/out/privacy/index.js).
+      sim.productApi.mockRoutes('stargate', {
         'POST /app/report-accounts': (path: string, options: any) => {
           const body = JSON.parse(options.body);
           return {
@@ -370,7 +391,7 @@ resources:
     it('batches in groups of 90', async () => {
       const batches: number[] = [];
 
-      sim.productApi.mockRoutes('jira', {
+      sim.productApi.mockRoutes('stargate', {
         'POST /app/report-accounts': (path: string, options: any) => {
           const body = JSON.parse(options.body);
           batches.push(body.accounts.length);
@@ -395,21 +416,61 @@ resources:
   // ── permissions ─────────────────────────────────────────────────────
 
   describe('permissions', () => {
-    it('hasPermission returns granted: true', () => {
+    // Real @forge/api checks the MANIFEST's declared permissions
+    // (api/out/api/permissions.js) — it does not rubber-stamp. The old shim
+    // returned true unconditionally, so an app querying a scope it never
+    // declared was told yes here and no in production.
+    const MANIFEST = `
+app:
+  id: ari:cloud:ecosystem::app/perm-app
+  runtime:
+    name: nodejs22.x
+modules:
+  webtrigger:
+    - key: hook
+      function: resolver
+  function:
+    - key: resolver
+      handler: index.handler
+permissions:
+  scopes:
+    - read:jira-work
+  external:
+    fetch:
+      backend:
+        - https://api.example.com
+    scripts:
+      - https://cdn.example.com
+`;
+
+    beforeEach(async () => {
+      await sim.loadManifest(MANIFEST);
+    });
+
+    it('hasPermission grants a declared scope', () => {
       expect(forgeApi.permissions.hasPermission({ scopes: ['read:jira-work'] }))
         .toEqual({ granted: true });
     });
 
-    it('hasScope returns true', () => {
+    it('hasPermission REFUSES an undeclared scope, naming what is missing', () => {
+      const result = forgeApi.permissions.hasPermission({ scopes: ['write:jira-work'] });
+      expect(result.granted).toBe(false);
+      expect(JSON.stringify(result)).toContain('write:jira-work');
+    });
+
+    it('hasScope follows the manifest', () => {
       expect(forgeApi.permissions.hasScope('read:jira-work')).toBe(true);
+      expect(forgeApi.permissions.hasScope('write:jira-work')).toBe(false);
     });
 
-    it('canFetchFrom returns true', () => {
+    it('canFetchFrom follows the manifest egress list', () => {
       expect(forgeApi.permissions.canFetchFrom('backend', 'https://api.example.com')).toBe(true);
+      expect(forgeApi.permissions.canFetchFrom('backend', 'https://evil.example.net')).toBe(false);
     });
 
-    it('canLoadResource returns true', () => {
+    it('canLoadResource follows the manifest egress list', () => {
       expect(forgeApi.permissions.canLoadResource('scripts', 'https://cdn.example.com/app.js')).toBe(true);
+      expect(forgeApi.permissions.canLoadResource('scripts', 'https://evil.example.net/x.js')).toBe(false);
     });
   });
 });

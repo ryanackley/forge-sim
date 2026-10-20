@@ -1,4 +1,4 @@
-import { storage } from '@forge/api';
+import { kvs } from '@forge/kvs';
 import { Queue } from '@forge/events';
 import type { RetroBoard, RetroItem, Category, VoteEvent, NewItemEvent, SummaryEvent } from '../types/index.js';
 
@@ -11,7 +11,7 @@ function generateId(): string {
 }
 
 async function getBoardFromStorage(sprintId: string): Promise<RetroBoard> {
-  const board = await storage.get(`retro:${sprintId}`) as RetroBoard | undefined;
+  const board = await kvs.get(`retro:${sprintId}`) as RetroBoard | undefined;
   return board ?? {
     sprintId,
     sprintName: `Sprint ${sprintId}`,
@@ -87,7 +87,7 @@ export async function closeRetro({ payload, context }: {
   const sprintId = payload.sprintId || 'current';
   const board = await getBoardFromStorage(sprintId);
   board.closed = true;
-  await storage.set(`retro:${sprintId}`, board);
+  await kvs.set(`retro:${sprintId}`, board);
 
   const event: SummaryEvent = { sprintId };
   await summaryQueue.push({ body: event });

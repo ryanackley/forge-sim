@@ -23,7 +23,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { createRequire } from 'node:module';
 import { createSimulator, ForgeSimulator } from '../simulator.js';
 import { installForgeRuntime } from '../runtime/forge-runtime.js';
-import { authorize } from '../shims/forge-api.js';
+import { authorize } from '@forge/api';
 import Resolver from '../shims/forge-resolver.js';
 import {
   API_ISSUES_PERMISSIONS_MAP,

@@ -47,14 +47,6 @@ const KNOWN_MISSING: Record<string, Record<string, string>> = {};
  * KNOWN_MISSING. Anything not listed here fails the EXTRA check.
  */
 const SIM_ONLY_EXPORTS: Record<string, Record<string, string>> = {
-  '@forge/api': {
-    storage:
-      'Legacy @forge/api storage API — removed upstream in 8.x but older apps (and @forge/api <8 pins) still use it; keep until we version-gate shims',
-    WhereConditions: 'Query helper for the legacy storage API (see storage)',
-    FilterConditions: 'Query helper for the legacy storage API (see storage)',
-    SortOrder: 'Query helper for the legacy storage API (see storage)',
-    startsWith: 'Query helper for the legacy storage API (see storage)',
-  },
   '@forge/bridge': {
     BridgeAPIError:
       'Matches the error class real @forge/bridge throws; upstream does not export it but apps catch it by behavior, and the sim exporting it aids tests',

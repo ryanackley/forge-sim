@@ -1,8 +1,8 @@
-import { storage } from '@forge/api';
+import { kvs } from '@forge/kvs';
 import type { RetroBoard, VoteEvent, NewItemEvent, SummaryEvent, Category } from '../types/index.js';
 
 async function getBoardFromStorage(sprintId: string): Promise<RetroBoard> {
-  const board = await storage.get(`retro:${sprintId}`) as RetroBoard | undefined;
+  const board = await kvs.get(`retro:${sprintId}`) as RetroBoard | undefined;
   return board ?? {
     sprintId,
     sprintName: `Sprint ${sprintId}`,
@@ -30,7 +30,7 @@ export async function processVote(event: any) {
 
   // Check for duplicate votes (simple approach — track in a set stored per item)
   const voteKey = `votes:${sprintId}:${itemId}`;
-  const existingVotes = (await storage.get(voteKey) as string[] | undefined) ?? [];
+  const existingVotes = (await kvs.get(voteKey) as string[] | undefined) ?? [];
   
   if (existingVotes.includes(voterId)) {
     console.log(`[processVote] Duplicate vote from ${voterId} for ${itemId}, skipping`);
@@ -39,11 +39,11 @@ export async function processVote(event: any) {
 
   // Record the vote
   existingVotes.push(voterId);
-  await storage.set(voteKey, existingVotes);
+  await kvs.set(voteKey, existingVotes);
 
   // Increment vote count on the item
   item.votes += 1;
-  await storage.set(`retro:${sprintId}`, board);
+  await kvs.set(`retro:${sprintId}`, board);
 
   console.log(`[processVote] Item ${itemId} now has ${item.votes} votes`);
 }
@@ -76,7 +76,7 @@ export async function processItem(event: any) {
   }
 
   board.items.push(item);
-  await storage.set(`retro:${sprintId}`, board);
+  await kvs.set(`retro:${sprintId}`, board);
 
   console.log(`[processItem] Board now has ${board.items.length} items`);
 }
@@ -117,7 +117,7 @@ export async function generateSummary(event: any) {
   }
 
   board.summary = lines.join('\n');
-  await storage.set(`retro:${sprintId}`, board);
+  await kvs.set(`retro:${sprintId}`, board);
 
   console.log(`[generateSummary] Summary generated (${lines.length} lines)`);
 }

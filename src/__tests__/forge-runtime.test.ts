@@ -103,7 +103,7 @@ describe('global.__forge_runtime__', () => {
     expect(seen.aaid).toBe('alice'); // per-call override, not the sticky default
     expect(seen.functionKey).toBe('who');
     expect(seen.moduleType).toBe('resolver');
-    expect(seen.invocationId).toMatch(/^[0-9a-f-]{36}$/);
+    expect(seen.invocationId).toMatch(/^sim-invocation-[0-9a-f-]{36}$/);
     expect(seen.awsRequestId).toBe(seen.invocationId);
     expect(seen.tracing.traceId).not.toBe(runtime().tracing.traceId); // not the baseline ids
     // Budget: a resolver gets 25s, and the clock runs down while the handler does.
@@ -186,11 +186,12 @@ describe('global.__forge_runtime__', () => {
       };
     });
     const ctx = await sim.invoke('ctx');
-    expect(ctx.appAri).toBe('ari:cloud:ecosystem::app/sim-app-001');
+    expect(ctx.appAri).toBe('ari:cloud:ecosystem::app/sim-app');
     expect(ctx.environmentAri).toBe(
-      'ari:cloud:ecosystem::environment/sim-app-001/sim-env-development'
+      'ari:cloud:ecosystem::environment/sim-app/sim-env-sim-app'
     );
-    expect(ctx.installationAri).toBe('ari:cloud:ecosystem::installation/sim-installation-001');
+    // Derived from the appId so every ARI mentions the same app.
+    expect(ctx.installationAri).toBe('ari:cloud:ecosystem::installation/sim-install-sim-app');
     expect(ctx.remaining).toBeGreaterThan(0);
     expect(typeof ctx.permissions).toBe('string');
   });

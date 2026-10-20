@@ -87,9 +87,19 @@ describe('docs/testing/README.md — bundler snippet drift', () => {
     expect(content).not.toMatch(/require\.resolve\(\s*['"`]forge-sim['"`]\s*\)/);
   });
 
-  it('aliases @forge/api via the recommended subpath export', () => {
-    expect(content).toContain(`'@forge/api':`);
-    expect(content).toMatch(/['"]forge-sim\/shims\/forge-api['"]/);
+  it('does not alias the packages that now run for real', () => {
+    // Every backend package moved to PASSTHROUGH_OK by the bare-seam
+    // migration: aliasing one would break module resolution, so the docs
+    // must not show it. (`@forge/bridge/realtime` is the FRONTEND surface
+    // and keeps its alias, hence the word-boundary-ish patterns below.)
+    for (const gone of ['forge-api', 'forge-kvs', 'forge-llm', 'forge-object-store', 'forge-events']) {
+      // Scoped to alias-map syntax (`': 'forge-sim/shims/x'`) so prose that
+      // MENTIONS the old path — the upgrade note telling readers to delete
+      // exactly that line — doesn't trip it.
+      expect(content, `docs still alias ${gone}`).not.toMatch(
+        new RegExp(`:\\s*'forge-sim/shims/${gone}'`),
+      );
+    }
   });
 
   it('aliases @forge/resolver via the recommended subpath export', () => {
@@ -134,8 +144,12 @@ describe('skills/forge-local-dev/SKILL.md — bundler snippet drift', () => {
     expect(content).not.toMatch(/require\.resolve\(\s*['"`]forge-sim['"`]\s*\)/);
   });
 
-  it('aliases @forge/api via the recommended subpath export', () => {
-    expect(content).toMatch(/['"]forge-sim\/shims\/forge-api['"]/);
+  it('does not alias the packages that now run for real', () => {
+    for (const gone of ['forge-api', 'forge-kvs', 'forge-llm', 'forge-object-store', 'forge-events']) {
+      expect(content, `skill doc still aliases ${gone}`).not.toMatch(
+        new RegExp(`:\\s*'forge-sim/shims/${gone}'`),
+      );
+    }
   });
 
   it('does not compute a SHIMS dir variable with path math anymore', () => {

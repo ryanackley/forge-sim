@@ -68,7 +68,9 @@ const newTracing = () => ({
 /** Stable ids served outside any invocation (and for import-time reads). */
 const BASELINE = {
   tracing: newTracing(),
-  invocationId: `sim-no-invocation-${randomUUID()}`,
+  // Prefixed like every other sim-minted id so it reads as "no invocation is
+  // running" rather than as a real one.
+  invocationId: `sim-invocation-none-${randomUUID()}`,
 };
 
 /** Enter an invocation: every handler entry path in the simulator funnels through this. */
@@ -90,10 +92,14 @@ const noopMetrics: ForgeRuntime['metrics'] = {
   gauge: () => ({ set: () => {} }),
 };
 
-/** `ari:cloud:ecosystem::app/<uuid>` → `<uuid>`; sim fallback when no manifest is loaded. */
+/**
+ * `ari:cloud:ecosystem::app/<uuid>` → `<uuid>`; sim fallback when no manifest
+ * is loaded. The runtime's appId is the BARE uuid, not the full ARI — using
+ * the ARI double-prefixes every ARI the real builders derive from it.
+ */
 function appIdFrom(sim: ForgeSimulator): string {
   const ari = (sim.getManifest()?.raw.app as { id?: string } | undefined)?.id;
-  return ari?.split('/').pop() || 'sim-app-001';
+  return ari?.split('/').pop() || 'sim-app';
 }
 
 /**
@@ -107,20 +113,43 @@ function appIdFrom(sim: ForgeSimulator): string {
  * app with no providers configured in real Forge.
  */
 function projectExternalAuth(sim: ForgeSimulator): ExternalAuthMetaData[] {
-  return sim.externalAuth.listProviders().map((provider) => ({
-    service: provider.key,
-    remotes: (provider.remotes ?? []).map((key) => ({
-      key,
-      baseUrl: sim.externalAuth.getProviderBaseUrl(provider.key, key) ?? '',
-    })),
-    accounts: sim.externalAuth.listAccounts(provider.key).map((account) => ({
+  const store = sim.externalAuth;
+  return store.listProviders().map((provider) => {
+    let accounts = store.listAccounts(provider.key).map((account) => ({
       id: account.id,
       externalAccountId: account.id,
       displayName: account.displayName,
       ...(account.avatarUrl !== undefined ? { avatarUrl: account.avatarUrl } : {}),
       scopes: account.scopes ?? [],
-    })),
-  }));
+    }));
+
+    // Upstream couples the two: a provider the user has authorized always has
+    // an account, and withProvider() is built entirely from this list — no
+    // account means hasCredentials() is false and fetch() is a thrower. The
+    // sim's store lets a token be set WITHOUT an account record (the dev-token
+    // workflow does exactly that), so synthesize one; otherwise a developer
+    // who seeded a token would still be told they have no credentials.
+    const token = accounts.length === 0 ? store.getToken(provider.key) : null;
+    if (token) {
+      accounts = [
+        {
+          id: `${provider.key}-account`,
+          externalAccountId: `${provider.key}-account`,
+          displayName: provider.name ?? provider.key,
+          scopes: token.scopes ?? provider.scopes ?? [],
+        },
+      ];
+    }
+
+    return {
+      service: provider.key,
+      remotes: (provider.remotes ?? []).map((key) => ({
+        key,
+        baseUrl: store.getProviderBaseUrl(provider.key, key) ?? '',
+      })),
+      accounts,
+    };
+  });
 }
 
 /**
@@ -142,6 +171,12 @@ export function buildForgeRuntime(sim: ForgeSimulator): ForgeRuntime {
     };
 
   const manifest = sim.getManifest();
+  const appId = appIdFrom(sim);
+  // Derived from the appId so the ARIs the real builders produce stay
+  // self-consistent (an installation ARI that mentions a different app is
+  // the kind of detail that only bites once something inspects it).
+  const installationId = `sim-install-${appId}`;
+  const cloudId = (ctx.cloudId as string | undefined) ?? 'sim-cloud-001';
 
   return {
     // Required by the type but inert here: the token authenticates to Forge's
@@ -152,22 +187,43 @@ export function buildForgeRuntime(sim: ForgeSimulator): ForgeRuntime {
     contextAri: (ctx.installContext as string | undefined) ?? 'ari:cloud:jira::site/sim-site',
     container: {
       runtime: manifest?.raw.app?.runtime?.name,
-      // Backend i18n reads locale JSON from disk under here (__LOCALES__).
-      ...(sim.getAppDir() ? { appCodeDir: sim.getAppDir()! } : {}),
+      // Backend i18n reads locale JSON from DISK under <appCodeDir>/__LOCALES__
+      // (api/out/api/i18n.js:8-11). The i18n store knows where that actually
+      // is — the standard Forge layout nests it under src/, and programmatic
+      // translations have to be materialized — so let it answer; fall back to
+      // the deployed app directory when it has nothing to serve.
+      ...((() => {
+        const dir = sim.i18n.i18nRootDir() ?? sim.getAppDir();
+        return dir ? { appCodeDir: dir } : {};
+      })()),
     },
     appContext: {
-      appId: appIdFrom(sim),
-      appVersion: '1.0.0',
-      environmentId: 'sim-env-development',
+      appId,
+      appVersion: '0.0.1-dev',
+      environmentId: `sim-env-${appId}`,
       environmentType: 'DEVELOPMENT',
       invocationId: info?.invocationId ?? BASELINE.invocationId,
-      installationId: 'sim-installation-001',
+      installationId,
       functionKey: info?.functionKey ?? 'sim-no-function',
       moduleType: info?.moduleType ?? 'sim:none',
       // The entry path's attribution wins: the context's moduleKey is often
       // the 'sim-module' default, while info carries the trigger/queue/module
-      // key the invocation actually belongs to.
-      moduleKey: info?.moduleKey ?? (ctx.moduleKey as string | undefined) ?? 'sim-module',
+      // key the invocation actually belongs to. Outside an invocation,
+      // `sim.currentModuleKey` is what the dev server sets while rendering a
+      // module — the only "where am I" signal a server-side caller has.
+      moduleKey:
+        info?.moduleKey ??
+        sim.currentModuleKey ??
+        (ctx.moduleKey as string | undefined) ??
+        'sim-module',
+      installation: {
+        ari: {
+          installationId,
+          toString: () => `ari:cloud:ecosystem::installation/${installationId}`,
+          toJSON: () => `ari:cloud:ecosystem::installation/${installationId}`,
+        },
+        contexts: [{ cloudId, toString: () => `ari:cloud:jira::site/${cloudId}` }],
+      } as unknown as ForgeRuntime['appContext']['installation'],
       ...(ctx.license !== undefined ? { license: ctx.license as ForgeRuntime['appContext']['license'] } : {}),
       // getAppContext() re-wraps this in its own RuntimePermissions, reading
       // only .scopes/.external — a plain object satisfies it. Constructing
