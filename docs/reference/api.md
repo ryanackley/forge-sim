@@ -650,8 +650,9 @@ sim.objectStore.seedObject({ key: 'reports/q3.csv', data: 'a,b\n1,2', contentTyp
 const meta = await sim.objectStore.get('reports/q3.csv');   // { key, checksum, size, ... }
 ```
 
-In tests, alias `@forge/object-store` to `forge-sim/shims/forge-object-store`
-(see the [testing guide](../testing/README.md)).
+Do NOT alias `@forge/object-store` in tests — since the backend seam
+migration the real package runs against the sim through
+`global.__forge_fetch__` (see the [testing guide](../testing/README.md)).
 
 ---
 

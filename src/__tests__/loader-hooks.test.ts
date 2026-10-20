@@ -340,6 +340,41 @@ describe('Loader Hooks — resolve()', () => {
       }
     });
 
+    it('E2E: @forge/object-store default import yields the client, not the namespace', () => {
+      // Same __esModule + exports.default shape as @forge/sql and @forge/kvs;
+      // shimless since phase 3c, so the facade is what keeps the documented
+      // `import fos from '@forge/object-store'` style working under Node.
+      const repoRoot = pathResolve(fileURLToPath(import.meta.url), '..', '..', '..');
+      const scriptPath = join(repoRoot, `.tmp-os-facade-test-${process.pid}.mjs`);
+      writeFileSync(scriptPath, [
+        // The runtime global must exist before the import: @forge/object-store
+        // itself is lazy, but a real app only imports it with a simulator
+        // running. An inert stub keeps this a pure interop test.
+        `globalThis.__forge_runtime__ = { tracing: { traceId: 't', spanId: 's' } };`,
+        `const { default: fosDefault, objectStore, errorCodes } = await import('@forge/object-store');`,
+        `console.log(JSON.stringify({`,
+        `  defaultCreateUploadUrl: typeof fosDefault.createUploadUrl,`,
+        `  defaultIsNamedClient: fosDefault === objectStore,`,
+        `  errorCodes: typeof errorCodes.UNKNOWN_ERROR,`,
+        `}));`,
+      ].join('\n'));
+
+      try {
+        const out = execSync(
+          `node --import ./dist/loader/register.js ${JSON.stringify(scriptPath)}`,
+          { cwd: repoRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }
+        );
+        const parsed = JSON.parse(out.trim().split('\n').pop()!);
+        expect(parsed).toEqual({
+          defaultCreateUploadUrl: 'function', // 'undefined' without the facade
+          defaultIsNamedClient: true,         // exports.default === exports.objectStore
+          errorCodes: 'string',
+        });
+      } finally {
+        rmSync(scriptPath, { force: true });
+      }
+    });
+
     it('E2E: extensionless deep import of @forge/sql/out/migration works under the loader (eval-6 F1)', () => {
       // The exact eval-6 F1 repro: Atlassian's own migration docs use
       //   import { migrationRunner } from '@forge/sql/out/migration';

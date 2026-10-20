@@ -309,11 +309,31 @@ async function handleStargateGraphql(
  * SimulatedObjectStore already serves over real HTTP. The client treats 404
  * as undefined and an empty body as undefined (requestJson, :22-42).
  */
+/**
+ * Real Forge requires a `modules.objectStore` entry to enable Object Store.
+ * The exact module shape is undocumented (forge-spec open question #9), so
+ * the sim is permissive — warn once per simulator instead of failing. Lived
+ * in the @forge/object-store shim until phase 3c; at the seam it fires for
+ * bundled and unbundled apps alike.
+ */
+const warnedMissingObjectStoreModule = new WeakSet<ForgeSimulator>();
+
 async function handleObjectStore(
   sim: ForgeSimulator,
   path: string,
   init?: ForgeFetchInit,
 ): Promise<Response> {
+  if (!warnedMissingObjectStoreModule.has(sim)) {
+    warnedMissingObjectStoreModule.add(sim);
+    const manifest = sim.getManifest();
+    const modules = manifest?.raw?.modules as Record<string, unknown> | undefined;
+    if (manifest && (!modules || !('objectStore' in modules))) {
+      console.warn(
+        '[forge-sim] ⚠️ @forge/object-store used without an `objectStore` module in the manifest. ' +
+        'Real Forge requires one to enable Object Store — continuing anyway.'
+      );
+    }
+  }
   const body = parseJsonBody(init);
   const endpoint = path.replace(/^\//, '');
   const store = sim.objectStore;

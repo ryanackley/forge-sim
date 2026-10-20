@@ -54,12 +54,13 @@ const PASSTHROUGH_OK = new Set(REGISTRY_PASSTHROUGH_OK);
 // Node's ESM resolver demands the literal `.js` extension while webpack
 // (real Forge) infers it. CommonJS resolution has the same inference rules
 // as the bundler, so we fall back to require.resolve() from the importer.
-// `@forge/kvs` joined this set when its shim was removed (bare-seam migration
-// phase 3a): the real package has the same `__esModule` + `exports.default`
-// shape as @forge/sql, so without the facade `import kvs from '@forge/kvs'` —
-// the style Atlassian's own docs use — yields the namespace object and
-// `kvs.get` is undefined.
-const CJS_DEFAULT_FACADE = new Set(['@forge/sql', '@forge/kvs']);
+// `@forge/kvs` (phase 3a) and `@forge/object-store` (phase 3c) joined this
+// set when their shims were removed in the bare-seam migration: both have the
+// same `__esModule` + `exports.default` shape as @forge/sql, so without the
+// facade the documented default-import style (`import kvs from '@forge/kvs'`,
+// `import fos from '@forge/object-store'`) yields the namespace object and
+// every method on it is undefined.
+const CJS_DEFAULT_FACADE = new Set(['@forge/sql', '@forge/kvs', '@forge/object-store']);
 const FACADE_QUERY = 'forge-sim-cjs-facade';
 
 function buildCjsFacadeSource(realUrl: string): string {

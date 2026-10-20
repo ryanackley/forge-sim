@@ -68,7 +68,6 @@ export default defineConfig({
       '@forge/confluence-bridge':  'forge-sim/shims/forge-confluence-bridge',
       '@forge/dashboards-bridge':  'forge-sim/shims/forge-dashboards-bridge',
       '@forge/realtime':           'forge-sim/shims/forge-realtime',
-      '@forge/object-store':       'forge-sim/shims/forge-object-store',
     },
   },
   test: {
@@ -80,12 +79,12 @@ export default defineConfig({
 
 > **Note:** You only need aliases for the `@forge/*` packages your app actually imports. The full list is shown above for reference.
 >
-> **`@forge/kvs`, `@forge/sql` and `@forge/llm` are deliberately absent.** They ship CJS and
+> **`@forge/kvs`, `@forge/sql`, `@forge/llm` and `@forge/object-store` are deliberately absent.** They ship CJS and
 > route all their I/O through `global.__forge_fetch__`, which `createSimulator()`
 > installs — so the REAL packages run unmodified against the simulator's
-> storage. Aliasing them will break module resolution. (`@forge/kvs` and
-> `@forge/llm` had shims until the backend seam migration; if you're upgrading,
-> delete those lines.)
+> storage. Aliasing them will break module resolution. (`@forge/kvs`,
+> `@forge/llm` and `@forge/object-store` had shims until the backend seam
+> migration; if you're upgrading, delete those lines.)
 
 ### Webpack / Jest
 
@@ -106,7 +105,6 @@ module.exports = {
     '^@forge/confluence-bridge$': 'forge-sim/shims/forge-confluence-bridge',
     '^@forge/dashboards-bridge$': 'forge-sim/shims/forge-dashboards-bridge',
     '^@forge/realtime$':          'forge-sim/shims/forge-realtime',
-    '^@forge/object-store$':      'forge-sim/shims/forge-object-store',
   },
 
   // Webpack (resolve.alias section)
@@ -1022,11 +1020,13 @@ await sim.sql.start();
 await sim.deploy('./my-app');
 ```
 
-### `@forge/sql`, `@forge/kvs` and `@forge/llm` have no shim, and that's intentional
+### `@forge/sql`, `@forge/kvs`, `@forge/llm` and `@forge/object-store` have no shim, and that's intentional
 
-Unlike `@forge/api` / `@forge/events` / etc., there is no `forge-sim/shims/forge-sql`, `forge-sim/shims/forge-kvs` or `forge-sim/shims/forge-llm` alias. These real packages talk to the simulator through a runtime hook (`global.__forge_fetch__`) that `createSimulator()` installs automatically — your app runs the same Atlassian code it runs in production, pointed at the sim's backends. If you add any of them to your `vitest.config.ts` alias map, you'll get module-resolution errors. Just leave them out.
+Unlike `@forge/api` / `@forge/events` / etc., there is no shim alias for `@forge/sql`, `@forge/kvs`, `@forge/llm` or `@forge/object-store`. These real packages talk to the simulator through a runtime hook (`global.__forge_fetch__`) that `createSimulator()` installs automatically — your app runs the same Atlassian code it runs in production, pointed at the sim's backends. If you add any of them to your `vitest.config.ts` alias map, you'll get module-resolution errors. Just leave them out.
 
-`@forge/kvs` and `@forge/llm` gained this status in the backend seam migration; both previously had shims. If you're upgrading and see `Cannot find module 'forge-sim/shims/forge-kvs'` (or `-llm`), delete that alias line.
+`@forge/kvs`, `@forge/llm` and `@forge/object-store` gained this status in the backend seam migration; all three previously had shims. If you're upgrading and see `Cannot find module 'forge-sim/shims/forge-kvs'` (or `-llm`, `-object-store`), delete that alias line.
+
+With the real `@forge/object-store` there is also no `put()`/`download()` — those were sim-only helpers that never existed upstream. Use `createUploadUrl` + HTTP `PUT` and `createDownloadUrl` + HTTP `GET`, exactly as in production (the sim serves the minted URLs over real HTTP). For seeding test data directly, `sim.objectStore.put()` remains available on the simulator API.
 
 One behavior change comes with running the real `@forge/llm`: it validates prompts **client-side** before any request is made. A prompt with no `model`, no `messages`, or a `temperature` outside 0–1 now throws `PromptValidationError` — exactly as it would in production. The old shim accepted these, so a test that relied on that leniency was passing on behavior real Forge rejects.
 

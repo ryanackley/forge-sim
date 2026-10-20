@@ -51,7 +51,6 @@ const REAL_TYPES_ENTRY: Record<string, string> = {
   '@forge/confluence-bridge': 'node_modules/@forge/confluence-bridge/out/index.js',
   '@forge/dashboards-bridge': 'node_modules/@forge/dashboards-bridge/out/index.js',
   '@forge/realtime': 'node_modules/@forge/realtime/out/index.js',
-  '@forge/object-store': 'node_modules/@forge/object-store/out/index.js',
 };
 
 /**
@@ -87,12 +86,6 @@ const TYPE_DEVIATIONS: Record<string, Record<string, string>> = {
       'frozen object with the identical runtime values, pinned as quirk ' +
       'events-invocation-error-code-values; see the index in ' +
       'shim-contract-quirks.test.ts.',
-  },
-  '@forge/object-store': {
-    objectStore:
-      'Real ObjectStoreClient has private members (sendRequest, requestJson), ' +
-      'making it nominally typed. The public methods are mirrored and covered ' +
-      'by object-store tests.',
   },
   '@forge/realtime': {
     publish: REALTIME_ERRORS_REASON,

@@ -48,7 +48,6 @@ export const SHIM_NAMES = [
   '@forge/confluence-bridge',
   '@forge/dashboards-bridge',
   '@forge/realtime',
-  '@forge/object-store',
 ] as const;
 
 export type ShimName = (typeof SHIM_NAMES)[number];
@@ -71,14 +70,22 @@ export type ShimName = (typeof SHIM_NAMES)[number];
  *                   batch ops included)
  *   `@forge/llm`  → sim LLM mocks/history (`type: 'llm'`; chat, list and
  *                   newline-delimited streaming)
+ *   `@forge/object-store` → sim Object Store (`type: 'os'`; the seven JSON
+ *                   endpoints — content bytes travel over plain fetch to the
+ *                   minted URLs, which the sim serves over real HTTP)
  *
  * Packages listed here that set `__esModule` AND `exports.default` must ALSO
  * be in `CJS_DEFAULT_FACADE` in `src/loader/hooks.ts`, or the documented
  * `import kvs from '@forge/kvs'` default-import style breaks under Node's
- * native CJS interop. `@forge/sql` and `@forge/kvs` need it; `@forge/llm`
- * does not — it has no default export, only named ones.
+ * native CJS interop. `@forge/sql`, `@forge/kvs` and `@forge/object-store`
+ * need it; `@forge/llm` does not — it has no default export, only named ones.
  */
-export const PASSTHROUGH_OK: readonly string[] = ['@forge/sql', '@forge/kvs', '@forge/llm'];
+export const PASSTHROUGH_OK: readonly string[] = [
+  '@forge/sql',
+  '@forge/kvs',
+  '@forge/llm',
+  '@forge/object-store',
+];
 
 /**
  * Shim filename stem for a package name.

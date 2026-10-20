@@ -188,10 +188,11 @@ const COMPILER_OPTIONS: ts.CompilerOptions = {
     'forge-sim': ['src/index.ts'],
     'forge-sim/shims/*': ['src/shims/*'],
     '@forge/api': ['src/shims/forge-api.ts'],
-    '@forge/kvs': ['src/shims/forge-kvs.ts'],
     '@forge/events': ['src/shims/forge-events.ts'],
     '@forge/resolver': ['src/shims/forge-resolver.ts'],
-    '@forge/object-store': ['src/shims/forge-object-store.ts'],
+    // @forge/kvs, @forge/llm and @forge/object-store have no shim (bare-seam
+    // migration) — doc examples typecheck against the REAL packages' types,
+    // resolved from node_modules like any other dependency.
     '@forge/bridge': ['src/shims/forge-bridge.ts'],
     // Subpath before bare package — same ordering gotcha as vitest.config.ts.
     '@forge/react/router': ['src/shims/forge-react-router.ts'],
