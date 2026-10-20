@@ -16,6 +16,7 @@
  * fails here rather than surfacing as an `undefined` inside someone's app.
  */
 import { describe, it, expect } from 'vitest';
+import { createRequire } from 'node:module';
 import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import {
@@ -28,6 +29,8 @@ import {
 import { VERIFIED_FORGE_VERSIONS } from '../forge-package-versions.js';
 
 const REPO_ROOT = resolve(import.meta.dirname, '..', '..');
+// CJS require bypasses the vitest aliases — used by the internal-module pin.
+const require = createRequire(import.meta.url);
 
 // ── Derivation ─────────────────────────────────────────────────────────────
 
@@ -304,6 +307,18 @@ describe('import-time reads are still import-time', () => {
     // proxy is required by the ForgeRuntime type, so it's present-but-inert
     // (noop) rather than omitted; the kvs gate is what keeps it unread.
     expect(RUNTIME_FIELDS.proxy.plan).toBe('noop');
+  });
+
+  it('the @forge/api internal i18n module still exposes resetTranslationsCache', () => {
+    // src/i18n-store.ts reaches into @forge/api/out/api/i18n.js to clear the
+    // package's module-level TranslationsGetter cache (the package does not
+    // re-export it anywhere public). That call sits behind a best-effort
+    // catch, so if a bump moves or renames it the symptom would be STALE
+    // TRANSLATIONS, not an error — this pin turns that into a named CI
+    // failure instead. (@forge/api ships no exports map, so the deep require
+    // is legal resolution.)
+    const internal = require('@forge/api/out/api/i18n.js');
+    expect(typeof internal.resetTranslationsCache).toBe('function');
   });
 
   it('the unrouted set is exactly container services (a Forge developer preview)', () => {
