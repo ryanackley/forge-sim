@@ -43,8 +43,10 @@ function commandsEmittedBy(pkgOutDir: string): Set<string> {
       // A lowercase-only pattern silently misses those; it hid
       // getWidgetEditApi and getWidgetApi until this suite grew the product
       // bridges. The `[)(\s]*` run absorbs the `)()(`  between the two call
-      // forms.
-      for (const m of readFileSync(full, 'utf8').matchAll(/[cC]allBridge[)(\s]*\(\s*['"]([A-Za-z][A-Za-z0-9]*)['"]/g)) {
+      // forms. The `_` in the capture class is load-bearing too: the six
+      // permissions commands are `__permission__*` (out/permissions/
+      // permissions.js) and a letters-only first character hid every one.
+      for (const m of readFileSync(full, 'utf8').matchAll(/[cC]allBridge[)(\s]*\(\s*['"]([A-Za-z_][A-Za-z0-9_]*)['"]/g)) {
         found.add(m[1]);
       }
     }
@@ -76,6 +78,16 @@ describe('registry vs the installed seam packages', () => {
       const emitted = commandsEmittedBy(join(REPO_ROOT, 'node_modules', pkg, 'out'));
       expect(emitted.size, `${pkg} emitted no commands — did its layout change?`).toBeGreaterThan(0);
     }
+  });
+
+  it('finds the underscore-prefixed permissions commands', () => {
+    // Pins the `_` in commandsEmittedBy's capture class.
+    const bridge = commandsEmittedBy(join(REPO_ROOT, 'node_modules/@forge/bridge/out'));
+    expect([...bridge].filter((c) => c.startsWith('__permission__')).sort()).toEqual([
+      '__permission__egressDeleteDomain', '__permission__egressDeleteGroup',
+      '__permission__egressGet', '__permission__egressSet',
+      '__permission__remoteGet', '__permission__remoteSet',
+    ]);
   });
 
   it('finds the product-bridge commands that only appear in the inline getCallBridge()() form', () => {

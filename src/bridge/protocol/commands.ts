@@ -8,7 +8,8 @@
  * `@forge/react`, and the three product bridges — so a package bump that
  * adds a command fails CI here rather than surfacing as an `undefined`
  * inside some app. (Note the capital-C alternative: the product bridges call
- * `getCallBridge()('cmd')` inline, with no lowercase local to match.)
+ * `getCallBridge()('cmd')` inline, with no lowercase local to match — and
+ * the leading underscore: the permissions commands are `__permission__*`.)
  *
  * The dispatcher routes every listed command to a `BridgeHost` method, except
  * those marked `unsupported`, which throw with the stated reason. There is
@@ -88,6 +89,18 @@ export const BRIDGE_COMMANDS: Readonly<Record<string, BridgeCommandSpec>> = {
   getFrameId: { source: 'internal/index.js', summary: 'Opaque id for this frame' },
   emitFrontendCustomMetric: { source: 'frontendCustomMetrics/frontendCustomMetrics.js', summary: 'App performance metric — inert locally' },
   initFeatureFlags: { source: 'featureFlags/initFeatureFlags.js', summary: 'Feature-flag client bootstrap' },
+
+  // ── Runtime permission administration ────────────────────────────────
+  // permissions.egress.* / permissions.remote.* (out/permissions/permissions.js:7-22)
+  // manage an installation's runtime egress and remote rules. Nothing in the
+  // sim models those rules, so every one rejects with a reason — the posture
+  // the old shim had, now at the seam so bundled apps get it too.
+  __permission__egressGet: { source: 'permissions/permissions.js', summary: 'permissions.egress.get()', unsupported: 'runtime egress permission management is not simulated' },
+  __permission__egressSet: { source: 'permissions/permissions.js', summary: 'permissions.egress.set()', unsupported: 'runtime egress permission management is not simulated' },
+  __permission__egressDeleteDomain: { source: 'permissions/permissions.js', summary: 'permissions.egress.deleteDomain()', unsupported: 'runtime egress permission management is not simulated' },
+  __permission__egressDeleteGroup: { source: 'permissions/permissions.js', summary: 'permissions.egress.deleteGroup()', unsupported: 'runtime egress permission management is not simulated' },
+  __permission__remoteGet: { source: 'permissions/permissions.js', summary: 'permissions.remote.get()', unsupported: 'runtime remote permission management is not simulated' },
+  __permission__remoteSet: { source: 'permissions/permissions.js', summary: 'permissions.remote.set()', unsupported: 'runtime remote permission management is not simulated' },
 
   // ── Rovo / Teamwork Graph ────────────────────────────────────────────
   isRovoEnabled: { source: 'rovo/isEnabled.js', summary: 'Whether Rovo is available on the site' },
