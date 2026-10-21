@@ -1,18 +1,29 @@
 /**
- * Node module resolution hooks.
- * 
- * Intercepts imports of @forge/* packages and redirects them to our shims.
- * Used via: node --import ./dist/loader/register.js app.js
+ * Node module resolution hooks — what is left of them.
+ *
+ * Apps the simulator runs are BUNDLED first (src/bundler.ts): sim.deploy()
+ * inlines every dependency of the backend and headless sim.ui.render() bundles
+ * the UI Kit entry with its runtime pinned to absolute paths, so neither path
+ * performs any bare-specifier resolution at runtime and neither needs a hook.
+ * The CJS default-import facade, the extension inference for deep `@forge/*`
+ * imports, the `browser`-field mapping and the React dedup that used to live
+ * here all moved into the bundler, where Forge's own build step does them.
+ *
+ * These hooks apply to what is NOT bundled by forge-sim:
+ *  - manual-packaged (prebuilt) handlers and UI resources, imported as-is;
+ *  - a test script run under plain `node --import ./dist/loader/register.js`.
+ *
+ * For those they still: route `@forge/resolver` to the shim (the one package
+ * with no seam), warn once about an `@forge/*` import the sim does not
+ * simulate, force ESM for marked prebuilt UI bundles and their chunks,
+ * transpile stray .tsx/.jsx, and infer extensions on relative imports.
  */
 
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, resolve as pathResolve } from 'node:path';
-import { readFileSync } from 'node:fs';
-import { createRequire } from 'node:module';
 import {
   SHIM_NAMES,
   PASSTHROUGH_OK as REGISTRY_PASSTHROUGH_OK,
-  browserOnlyEntry,
   shimFileBase,
 } from '../shims/shim-registry.js';
 
@@ -35,95 +46,6 @@ const FORGE_SHIMS: Record<string, string> = Object.fromEntries(
 
 // Deliberate real-package passthroughs (see shim-registry for the why).
 const PASSTHROUGH_OK = new Set(REGISTRY_PASSTHROUGH_OK);
-
-// CJS default-export interop facade (parity fix).
-//
-// @forge/sql is TypeScript-compiled CJS: it sets `exports.__esModule = true`
-// and `exports.default = <the sql instance>`. Real Forge bundles apps with
-// tooling that HONORS `__esModule`, so `import sql from '@forge/sql'` gives
-// the sql instance — Atlassian's own docs use this default-import style.
-// Node's native ESM↔CJS interop IGNORES `__esModule` and hands back
-// `module.exports` (the namespace), so `sql.prepare` is undefined and the
-// documented import style breaks under the sim. That's an inverted parity
-// violation: works in Forge, fails here.
-//
-// Fix: resolve these packages to a synthesized ESM facade that re-exports
-// the named exports untouched and computes `default` with bundler semantics
-// (`__esModule` honored). Covers the root specifier AND deep subpaths
-// (`@forge/sql/out/migration`) — the 0.1.5 fix was scoped to roots only and
-// the motivating deep import slipped through raw (eval-6 F1). Subpaths also
-// get bundler-style extension inference: @forge/sql ships no exports map, so
-// Node's ESM resolver demands the literal `.js` extension while webpack
-// (real Forge) infers it. CommonJS resolution has the same inference rules
-// as the bundler, so we fall back to require.resolve() from the importer.
-// `@forge/kvs` (phase 3a) and `@forge/object-store` (phase 3c) joined this
-// set when their shims were removed in the bare-seam migration: both have the
-// same `__esModule` + `exports.default` shape as @forge/sql, so without the
-// facade the documented default-import style (`import kvs from '@forge/kvs'`,
-// `import fos from '@forge/object-store'`) yields the namespace object and
-// every method on it is undefined.
-const CJS_DEFAULT_FACADE = new Set([
-  '@forge/sql',
-  '@forge/kvs',
-  '@forge/object-store',
-  '@forge/api',
-  // `import ForgeReconciler from '@forge/react'` — the documented UI Kit
-  // entry style. out/index.js sets __esModule and exports.default.
-  '@forge/react',
-]);
-const FACADE_QUERY = 'forge-sim-cjs-facade';
-
-/**
- * Resolve a PASSTHROUGH_OK `@forge/*` specifier when Node's ESM resolver
- * can't, trying the importer's location first and forge-sim's own copy
- * second. Returns a file:// URL, or null when neither works.
- *
- * Two distinct failures land here:
- *  - Extensionless deep imports (`@forge/sql/out/migration`): the package
- *    ships no exports map, so ESM demands the literal `.js` while real
- *    Forge's bundler infers it. CJS resolution shares the bundler's rules.
- *  - Apps with no node_modules of their own (scratch apps written to a temp
- *    directory, and most test fixtures). A real Forge app always ships the
- *    `@forge/*` packages it imports, so the app's copy is tried first and
- *    wins when present; forge-sim's copy is the safety net that keeps a
- *    throwaway app runnable.
- */
-function resolvePassthroughPackage(specifier: string, parentURL?: string): string | null {
-  const bases = parentURL?.startsWith('file://') ? [parentURL, import.meta.url] : [import.meta.url];
-  for (const base of bases) {
-    const req = createRequire(base);
-    try {
-      return pathToFileURL(req.resolve(specifier)).href;
-    } catch {
-      // try the browser-only shape, then the next base
-    }
-    // Packages with no `main`/`exports`, only `browser` (the product
-    // bridges): require.resolve of the bare name fails, but package.json
-    // itself is always resolvable and names the entry.
-    if (!specifier.slice(specifier.indexOf('/') + 1).includes('/')) {
-      try {
-        const pkgJsonPath = req.resolve(`${specifier}/package.json`);
-        const entry = browserOnlyEntry(JSON.parse(readFileSync(pkgJsonPath, 'utf8')));
-        if (entry) return pathToFileURL(pathResolve(dirname(pkgJsonPath), entry)).href;
-      } catch {
-        // next base
-      }
-    }
-  }
-  return null;
-}
-
-function buildCjsFacadeSource(realUrl: string): string {
-  const spec = JSON.stringify(realUrl);
-  return [
-    `import cjs from ${spec};`,
-    `export * from ${spec};`,
-    // Bundler interop: __esModule set → default is exports.default;
-    // otherwise the whole module.exports object (Node's native behavior).
-    `export default (cjs && cjs.__esModule && 'default' in cjs) ? cjs.default : cjs;`,
-    '',
-  ].join('\n');
-}
 
 // Warn (once per specifier) when app code imports a @forge/* package that
 // forge-sim doesn't simulate. Without this, the REAL Atlassian package loads
@@ -158,98 +80,6 @@ function warnUnshimmedForgeImport(specifier: string): void {
       `into "${rootPkg}" fail or return unexpected results, this is why.`;
 
   console.warn(message);
-}
-
-// React deduplication.
-//
-// `@forge/react` is a custom React renderer — it sets up the hooks dispatcher
-// on whichever React instance it imported. If the user's app bundle resolves
-// `react` to a *different* copy (any project with its own node_modules/react,
-// which is most of them), the bundle's `useState` reads from a dispatcher
-// that was never set, and dies with `Cannot read properties of null
-// (reading 'useState')`.
-//
-// Real Forge dedupes via its build pipeline; we dedupe at module-resolution
-// time. Every `react` / `react-dom` / `react/jsx-*-runtime` import — whether
-// from forge-sim's own code, the shims, or the user's bundle — resolves to
-// forge-sim's installed copy. Single React instance across the whole graph.
-const require = createRequire(import.meta.url);
-
-function safeResolve(specifier: string): string | null {
-  try {
-    return require.resolve(specifier);
-  } catch {
-    return null;
-  }
-}
-
-const REACT_DEDUPE_NAMES = [
-  'react',
-  'react/jsx-runtime',
-  'react/jsx-dev-runtime',
-  'react-dom',
-  'react-dom/client',
-];
-
-const REACT_DEDUPE: Record<string, string> = {};
-for (const name of REACT_DEDUPE_NAMES) {
-  const resolved = safeResolve(name);
-  if (resolved) REACT_DEDUPE[name] = resolved;
-}
-
-// Forge-sim's own node_modules — paths inside this directory are already
-// canonical. Anything outside that resolves to react/* should be redirected.
-const FORGE_SIM_NODE_MODULES = (() => {
-  const reactPath = REACT_DEDUPE['react'];
-  if (!reactPath) return null;
-  // .../forge-sim/node_modules/react/index.js → .../forge-sim/node_modules
-  const idx = reactPath.lastIndexOf('/node_modules/');
-  return idx >= 0 ? reactPath.slice(0, idx + '/node_modules'.length) : null;
-})();
-
-/**
- * If a specifier is a pre-resolved absolute path (file:// URL or fs path)
- * pointing at a `react`, `react-dom`, or `react/jsx-*-runtime` entry from a
- * node_modules dir OTHER than forge-sim's, return the matching path inside
- * forge-sim's node_modules. Returns null if the specifier doesn't look like
- * a pre-resolved react import or already points at forge-sim's copy.
- */
-function matchPreResolvedReactPath(specifier: string): string | null {
-  if (!FORGE_SIM_NODE_MODULES) return null;
-
-  // Normalize: drop file:// prefix, drop query string
-  let path = specifier;
-  if (path.startsWith('file://')) {
-    try { path = fileURLToPath(path); } catch { return null; }
-  }
-  path = path.split('?')[0];
-
-  // Must be an absolute path inside *some* node_modules
-  if (!path.startsWith('/')) return null;
-  const nmIdx = path.lastIndexOf('/node_modules/');
-  if (nmIdx < 0) return null;
-
-  // Already forge-sim's copy — let it through unchanged
-  const importerNodeModules = path.slice(0, nmIdx + '/node_modules'.length);
-  if (importerNodeModules === FORGE_SIM_NODE_MODULES) return null;
-
-  // Match against the relative-to-node_modules tail
-  const subpath = path.slice(nmIdx + '/node_modules/'.length);
-
-  // Pick the longest matching dedupe entry. Subpath examples:
-  //   "react/index.js", "react/jsx-runtime.js", "react-dom/index.js",
-  //   "react-dom/client.js", "react/cjs/react.production.min.js"
-  // We only redirect the entry-point files; deep cjs/* paths are already
-  // resolved relative to whichever React's index loaded them, so by
-  // redirecting the entry we capture all transitive imports.
-  for (const [name, target] of Object.entries(REACT_DEDUPE)) {
-    // 'react' → matches 'react/index.js' (the package entry) AND 'react.js' edge
-    // 'react/jsx-runtime' → matches 'react/jsx-runtime.js'
-    // 'react-dom' → matches 'react-dom/index.js'
-    const expectedFiles = [`${name}/index.js`, `${name}.js`];
-    if (expectedFiles.includes(subpath)) return target;
-  }
-  return null;
 }
 
 // Extensions to try when resolving extensionless/directory imports from app code.
@@ -374,17 +204,6 @@ export async function load(
     return { source, format: 'module', shortCircuit: true };
   }
 
-  // CJS default-export facade — synthesize an ESM wrapper around the real
-  // CJS module. `cleanUrl` is the real on-disk entry; the facade imports it
-  // (Node loads it as plain CJS) and re-exports with bundler interop.
-  if (url.includes(FACADE_QUERY)) {
-    return {
-      source: buildCjsFacadeSource(cleanUrl),
-      format: 'module',
-      shortCircuit: true,
-    };
-  }
-
   if (cleanUrl.endsWith('.tsx')) {
     return transpileWithEsbuild(url, 'tsx', context, nextLoad);
   }
@@ -413,86 +232,14 @@ export async function resolve(
     };
   }
 
-  // 1a. CJS default-export facade — resolve the real package, then wrap it
-  // in a synthesized ESM module whose `default` follows bundler interop
-  // semantics (honors __esModule) instead of Node's. Applies to the root
-  // specifier and any subpath of a facade package. See CJS_DEFAULT_FACADE.
-  const facadeRoot = specifier.startsWith('@forge/')
-    ? specifier.split('/').slice(0, 2).join('/')
-    : null;
-  if (facadeRoot && CJS_DEFAULT_FACADE.has(facadeRoot)) {
-    let resolved: { url: string; format?: string; shortCircuit?: boolean };
-    try {
-      resolved = await nextResolve(specifier, context);
-    } catch (err: any) {
-      if (err?.code !== 'ERR_MODULE_NOT_FOUND' && err?.code !== 'ERR_UNSUPPORTED_DIR_IMPORT') {
-        throw err;
-      }
-      // Extensionless deep import (`@forge/sql/out/migration`, eval-6 F1).
-      // The package has no exports map, so Node's ESM resolver demands the
-      // literal `.js` while real Forge's bundler infers it. CommonJS
-      // resolution shares the bundler's inference rules.
-      const found = resolvePassthroughPackage(specifier, context.parentURL);
-      if (!found) throw err; // original ESM error — clearer message for the user
-      resolved = { url: found, shortCircuit: true };
-    }
-    // Only wrap CJS. If the target is native ESM (format 'module' or an
-    // .mjs file), interop is moot — pass it through untouched.
-    const cleanResolvedUrl = resolved.url.split('?')[0];
-    if (resolved.format === 'module' || cleanResolvedUrl.endsWith('.mjs')) {
-      return resolved;
-    }
-    const sep = resolved.url.includes('?') ? '&' : '?';
-    return {
-      url: resolved.url + sep + FACADE_QUERY,
-      format: 'module',
-      shortCircuit: true,
-    };
-  }
-
-  // 1b. Unshimmed @forge/* — warn once, then fall through to native
-  // resolution so the real package loads (matching previous behavior,
-  // but no longer silently).
+  // 1b. Unshimmed @forge/* — warn once (unless it is a package the sim
+  // answers through a seam), then fall through to native resolution so the
+  // real package loads. Nothing is rewritten: forge-sim-built bundles never
+  // reach this hook, and a manual-packaged app ships the dependencies it
+  // imports, exactly as Forge requires of it.
   if (specifier.startsWith('@forge/')) {
     const rootPkg = specifier.split('/').slice(0, 2).join('/');
-    if (!PASSTHROUGH_OK.has(rootPkg)) {
-      warnUnshimmedForgeImport(specifier);
-    } else {
-      // A passthrough package MUST resolve to something — there is no shim
-      // behind it any more. Apps with their own node_modules resolve
-      // natively (and win, since that's the copy they ship); scratch apps in
-      // a temp directory have none, so fall back to forge-sim's own copy
-      // rather than failing with a confusing "Cannot find module './api/...'"
-      // from a half-resolved path.
-      try {
-        return await nextResolve(specifier, context);
-      } catch (err) {
-        const found = resolvePassthroughPackage(specifier, context.parentURL);
-        if (!found) throw err;
-        return { url: found, shortCircuit: true };
-      }
-    }
-  }
-
-  // 2. React deduplication — every `react`/`react-dom`/`react/jsx-*-runtime`
-  // import resolves to forge-sim's copy regardless of where the importer
-  // lives. Without this, a project with its own node_modules/react gets a
-  // separate React instance from @forge/react's, and hooks crash with
-  // `Cannot read properties of null (reading 'useState')`.
-  //
-  // Match in two places:
-  //   (a) bare specifier ('react', 'react/jsx-runtime', etc.) — this is the
-  //       common case in production (Node's native dynamic import).
-  //   (b) absolute path ending in node_modules/react/<file> — this catches
-  //       the vitest/vite-node case, where the test runner pre-resolves
-  //       bare specifiers to absolute paths before invoking the loader.
-  //       Also catches any pre-resolved path coming from a different node_modules.
-  const reactDedupePath = REACT_DEDUPE[specifier] ?? matchPreResolvedReactPath(specifier);
-  if (reactDedupePath) {
-    return {
-      url: pathToFileURL(reactDedupePath).href,
-      shortCircuit: true,
-    };
+    if (!PASSTHROUGH_OK.has(rootPkg)) warnUnshimmedForgeImport(specifier);
   }
 
   // 2b. Propagate the forced-ESM marker to relative imports: a marked entry's

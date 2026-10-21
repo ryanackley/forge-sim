@@ -82,23 +82,25 @@ export type ShimName = (typeof SHIM_NAMES)[number];
  *                   and every surface — source-mode, prebuilt, Custom UI, dev
  *                   page, headless — runs the real package against it.
  *   `@forge/react` (and `/router`) → the real reconciler; its `reconcile`
- *                   frames ride the same `__bridge` seam. Needs
- *                   `CJS_DEFAULT_FACADE` (`exports.default` = ForgeReconciler).
+ *                   frames ride the same `__bridge` seam. Pinned into every
+ *                   frontend bundle behind the bundler's interop facade
+ *                   (`exports.default` = ForgeReconciler).
  *   `@forge/jira-bridge`, `@forge/confluence-bridge`, `@forge/dashboards-bridge`
  *                   → real product bridges against `__bridge`; the headless
  *                   and browser hosts answer their commands inertly
  *                   (`src/bridge/hosts/product-surfaces.ts`). They ship NO
  *                   `main` and NO `exports` — only a `browser` field — so bare
- *                   resolution needs the `browser`-field fallback in
- *                   `resolvePassthroughPackage` / the vitest plugin.
+ *                   resolution needs the `browser`-field fallback —
+ *                   `browserOnlyEntry` below, used by the vitest plugin for
+ *                   TEST files that import them; app bundles never resolve
+ *                   a bare specifier at runtime.
  *   What remains shimmed is `@forge/resolver` alone: it holds its handler
  *   map in a closure and performs no I/O, so there is no seam to answer.
  *
- * Packages listed here that set `__esModule` AND `exports.default` must ALSO
- * be in `CJS_DEFAULT_FACADE` in `src/loader/hooks.ts`, or the documented
- * `import kvs from '@forge/kvs'` default-import style breaks under Node's
- * native CJS interop. `@forge/sql`, `@forge/kvs` and `@forge/object-store`
- * need it; `@forge/llm` does not — it has no default export, only named ones.
+ * CommonJS default-import interop (`import kvs from '@forge/kvs'` giving the
+ * instance, not the namespace) is the BUNDLER's job: src/bundler.ts inlines
+ * these packages into every deploy and forces the bundler convention, and
+ * pins the frontend ones behind a generated facade. No loader-side list.
  */
 export const PASSTHROUGH_OK: readonly string[] = [
   '@forge/sql',
@@ -120,8 +122,9 @@ export const PASSTHROUGH_OK: readonly string[] = [
  * `exports` — Node's resolver has nothing to go on and fails with
  * MODULE_NOT_FOUND even though the files are right there. The three product
  * bridges ship only a `browser` field (they are bundler-only in real Forge),
- * so a bare import must be mapped to it by hand. Shared by the Node loader
- * hooks and the vitest resolve plugin so both environments agree.
+ * so a bare import must be mapped to it by hand. Used by the vitest resolve
+ * plugin (test files importing them directly); app bundles resolve them
+ * through esbuild, which honours the `browser` field itself.
  *
  * Returns a path relative to the package root, or null when the package
  * resolves normally.

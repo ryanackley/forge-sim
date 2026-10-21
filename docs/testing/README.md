@@ -120,9 +120,7 @@ node my-test-script.js   # deploy() registers the shims automatically
 
 ### Why is this needed?
 
-forge-sim uses [Node.js module loader hooks](https://nodejs.org/api/module.html#customization-hooks) to intercept `@forge/*` imports and redirect them to simulator shims. This works in plain Node.
-
-However, **bundler-based test runners** (Vitest, Jest, webpack) use their own module resolution pipelines and bypass Node's loader hooks entirely. The alias/mapper config tells the bundler where to find the shim modules.
+Your **app** never needs any of this: `sim.deploy()` and `sim.ui.render()` bundle it with esbuild first, the way `forge deploy` does, and the real `@forge/*` packages inside the bundle talk to the simulator through the globals it installs. The alias exists for your **test file**, which a bundler-based runner (Vitest, Jest, webpack) resolves with its own pipeline: if the test itself does `import Resolver from '@forge/resolver'`, that one package has no runtime seam and must point at the shim. Every other `@forge/*` import in a test file should be left alone — the real package works against the installed seams (import `forge-sim` first so they exist).
 
 > **`@forge/sql` note:** There is no shim for `@forge/sql`. The real `@forge/sql` package communicates with the simulator through a runtime hook (`global.__forge_fetch__`), which forge-sim installs automatically when you call `createSimulator()`. No alias needed for SQL.
 

@@ -9,9 +9,12 @@
  *   the bundle's useState reads from a null dispatcher and dies with
  *   `Cannot read properties of null (reading 'useState')`.
  *
- *   The loader hook deduplicates by intercepting any `react` /
- *   `react-dom` / `react/jsx-*-runtime` import and redirecting to
- *   forge-sim's installed copy. Single React instance across the graph.
+ *   The bundler deduplicates (src/bundler.ts, PINNED_FRONTEND): every
+ *   react / react-dom / react/jsx-*-runtime import in a headless render
+ *   bundle is resolved from wherever @forge/react itself resolves — the
+ *   app's copy when the app ships @forge/react, forge-sim's otherwise — so
+ *   there is exactly one React in the graph. (This used to be a loader hook
+ *   redirect; the loader no longer touches react.)
  *
  * The fixture's `node_modules/react` is copied in at test setup (not
  * committed) so we exercise the duplication path that real users hit.

@@ -58,15 +58,18 @@ The backend `@forge/*` packages are thin facades over this runtime object. By co
 
 Different model, different interception.
 
-## Backend: Node module loader hooks
+## Backend: bundle first, then inject the globals
 
-forge-sim does **not** install a fake `__forge_runtime__`. It intercepts at *import resolution*, before the real package can load:
+forge-sim runs an app the way Forge does: **bundled**. `sim.deploy()` runs esbuild over every handler file with every dependency inlined, and headless `sim.ui.render()` bundles the UI Kit entry with its runtime pinned (both in `src/bundler.ts`, details under "Bundle caching" below). The runtime then loads one file and the three seams are already in place — `global.__forge_fetch__`, `global.__forge_runtime__`, `globalThis.__bridge`. No bare specifier is resolved at runtime, so there is nothing for a module loader to intercept.
 
-```bash
-node --import ./dist/loader/register.js app.js
-```
+Node's loader hooks (`src/loader/hooks.ts`, registered by `sim.deploy()` via `module.register()` or by `node --import ./dist/loader/register.js`) are therefore small and apply only to what forge-sim does **not** bundle — manual-packaged handlers and UI resources, imported as-is, and a test script run under plain Node. For those they:
 
-`register.js` registers Node's loader hooks from `src/loader/hooks.ts`. The `resolve()` hook short-circuits any specifier in this list:
+- route `@forge/resolver` to `dist/shims/forge-resolver.js`, the one shimmed package (below);
+- warn once about an `@forge/*` import the sim does not simulate;
+- force ESM for marked prebuilt UI bundles and propagate the marker to their chunk imports;
+- transpile a stray `.tsx`/`.jsx` and infer extensions on relative imports.
+
+They no longer rewrite any `@forge/*` import, synthesize a CommonJS default-import facade, infer extensions on deep `@forge/*` imports, map the product bridges' browser-only entry, or deduplicate React. Each of those was a re-implementation of something Forge's bundler does, and the bundler does it here now (`loader-hooks.test.ts` pins that the hook hands those specifiers to Node untouched). A manual-packaged app that relied on any of them would have been relying on behaviour real Forge does not have.
 
 ```ts
 const SHIM_NAMES = ['@forge/resolver'];
@@ -74,27 +77,22 @@ const SHIM_NAMES = ['@forge/resolver'];
 
 The bare-seam migration emptied this list of BACKEND packages: every one whose
 I/O the seam can serve moved to `PASSTHROUGH_OK`, so the app runs the real
-Atlassian package (see "A few packages have no shim at all" below). The
+Atlassian package (see "Every package but `@forge/resolver`" below). The
 frontend seam migration then did the same for every frontend package:
 `@forge/bridge`, `@forge/react` and the three product bridges all run for real
 against `globalThis.__bridge`, which `src/ui/bridge.ts` installs the moment
-forge-sim is loaded. Two of them needed resolution help rather than a shim:
-`@forge/react` is in `CJS_DEFAULT_FACADE` (its `exports.default` is
-`ForgeReconciler`), and the product bridges ship no `main`/`exports` — only a
-`browser` field — so `resolvePassthroughPackage` and the vitest plugin map the
-bare name to it (`browserOnlyEntry` in the shim registry). What is left is
-`@forge/resolver`, the one that can never move — it holds its handler map in a
-closure and performs no I/O, so there is no seam to answer. When the app does
-`import Resolver from '@forge/resolver'`, the hook returns
-`dist/shims/forge-resolver.js` instead of the real package. That shim is a
-tiny file:
+forge-sim is loaded. What is left is `@forge/resolver`, the one that can never
+move — it holds its handler map in a closure and performs no I/O, so there is
+no seam to answer. Inside a forge-sim-built bundle the **bundler** routes
+`@forge/resolver` to the shim; the loader hook does the same for a
+manual-packaged ESM app, and `src/loader/cjs-interception.ts` for a
+manual-packaged CommonJS one. The shim is a tiny file:
 
 ```ts no-check
 // src/shims/forge-resolver.ts
-import { getSimulator } from './globals.js';
 class Resolver {
   define(functionKey, handler) {
-    getSimulator().resolver.define(functionKey, handler);
+    globalThis[Symbol.for('forge-sim.instance')].resolver.define(functionKey, handler);
   }
 }
 ```
@@ -103,14 +101,10 @@ So the call chain is:
 
 ```
 app code   → import Resolver from '@forge/resolver'
-loader     → resolves to dist/shims/forge-resolver.js
-shim       → getSimulator().resolver.define(key, handler)
+bundler    → inlines dist/shims/forge-resolver.js in its place
+shim       → sim.resolver.define(key, handler)
 simulator  → sim.invoke(key) can now reach the app's handler
 ```
-
-The real `@forge/llm` package still sits in `node_modules`. It just never loads. We bypass `__forge_runtime__` entirely; there is no runtime object to fake.
-
-For programmatic use (`createSimulator()` in tests), `sim.deploy()` registers the hooks for you via `module.register()`. No `--import` flag needed.
 
 ### Every package but `@forge/resolver` has no shim at all
 
@@ -129,9 +123,9 @@ FRONTEND package too: `@forge/bridge`, `@forge/react` and the three product
 bridges run against `globalThis.__bridge`. The only app-facing impersonation
 left is `@forge/resolver`, and since Phase 5 even that is applied by the
 bundler rather than a loader (next section). A package
-listed in `PASSTHROUGH_OK` that sets `__esModule` + `exports.default` also
-needs an entry in `CJS_DEFAULT_FACADE` (`src/loader/hooks.ts`), or the
-documented default-import style breaks under Node's native CJS interop.
+listed in `PASSTHROUGH_OK` that sets `__esModule` + `exports.default` gets
+the documented default-import style from the bundler (`forceBundlerInterop`
+and the pinned-import facade in `src/bundler.ts`), not from any loader list.
 
 Running the real `@forge/api` is also what keeps `route` / `routeFromAbsolute` / `assumeTrustedRoute` honest: a hand-rolled version once drifted in a security-relevant way (always-encoding instead of real `route()`'s mode-aware escaping, which *rejects* path-traversal shapes in path position) — pinned by the differential suite in `route-parity.test.ts`. Backend product requests (`requestJira` et al.) enforce the real package's Route-only policy; plain strings throw exactly as they do in Forge. The FRONTEND `requestJira` in `@forge/bridge` is a different API that takes a plain path string — two similar surfaces with a nuanced difference, and the bridge host must keep accepting the string.
 

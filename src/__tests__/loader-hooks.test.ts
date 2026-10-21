@@ -1,8 +1,9 @@
 /**
  * Tests for the module loader hooks (src/loader/hooks.ts).
  *
- * Validates that @forge/* imports resolve to compiled dist/shims/*.js files,
- * both when running from source (tsx) and from compiled dist.
+ * Validates that `@forge/resolver` — the one shimmed package — resolves to the
+ * compiled dist/shims file whether running from source or dist, and that the
+ * hook leaves every other package to Node (the bundler owns interop now).
  */
 
 import { describe, it, expect, vi, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
@@ -163,309 +164,29 @@ describe('Loader Hooks — resolve()', () => {
     });
   });
 
-  describe('@forge/sql CJS default-export facade (eval-5 F1 parity fix)', () => {
-    // Real Forge bundles apps with __esModule-honoring interop, so
-    // `import sql from '@forge/sql'` (Atlassian's documented style) yields
-    // the sql instance. Node's native interop yields module.exports instead.
-    // The facade papers over the difference.
+  describe('passthrough packages are left to Node (the bundler does interop now)', () => {
+    // Until Phase 5 this hook papered over Node's CJS default-import
+    // semantics for @forge/sql, @forge/kvs, @forge/object-store, @forge/api
+    // and @forge/react with a synthesized facade, inferred extensions on
+    // deep imports, mapped the product bridges' browser-only entry and
+    // deduplicated React. Every app the simulator runs is bundled first
+    // (src/bundler.ts), where esbuild does all of that, so the hook no longer
+    // rewrites these at all — and must not: a rewrite here would only ever
+    // apply to a manual-packaged app, which real Forge loads as-is.
+    it.each(['@forge/sql', '@forge/kvs', '@forge/api', '@forge/react', '@forge/sql/out/migration'])(
+      'hands %s to nextResolve untouched',
+      async (spec) => {
+        nextResolve.mockClear();
+        const result = await resolve(spec, {}, nextResolve);
+        expect(nextResolve).toHaveBeenCalledWith(spec, {});
+        expect(result.url).toBe(`passthrough://${spec}`);
+      },
+    );
 
-    it('wraps @forge/sql in a facade URL with format module', async () => {
-      const cjsNext = vi.fn(async () => ({
-        url: 'file:///app/node_modules/@forge/sql/out/index.js',
-        format: 'commonjs',
-      }));
-
-      const result = await resolve('@forge/sql', {}, cjsNext);
-
-      expect(result.shortCircuit).toBe(true);
-      expect(result.format).toBe('module');
-      expect(result.url).toBe(
-        'file:///app/node_modules/@forge/sql/out/index.js?forge-sim-cjs-facade'
-      );
-    });
-
-    it('does NOT wrap if the package resolves as native ESM', async () => {
-      const esmNext = vi.fn(async () => ({
-        url: 'file:///app/node_modules/@forge/sql/out/index.js',
-        format: 'module',
-      }));
-
-      const result = await resolve('@forge/sql', {}, esmNext);
-      expect(result.url).not.toContain('forge-sim-cjs-facade');
-    });
-
-    it('wraps @forge/sql subpaths in the facade too (eval-6 F1)', async () => {
-      // The 0.1.5 fix was consciously scoped to the root specifier while its
-      // own motivating repro was the deep import. Never again: subpaths of a
-      // facade package get the same bundler-interop wrapper.
-      const cjsNext = vi.fn(async () => ({
-        url: 'file:///app/node_modules/@forge/sql/out/migration.js',
-        format: 'commonjs',
-      }));
-
-      const result = await resolve('@forge/sql/out/migration', {}, cjsNext);
-
-      expect(result.shortCircuit).toBe(true);
-      expect(result.format).toBe('module');
-      expect(result.url).toBe(
-        'file:///app/node_modules/@forge/sql/out/migration.js?forge-sim-cjs-facade'
-      );
-    });
-
-    it('resolves extensionless subpaths via CommonJS inference when ESM resolution fails (eval-6 F1)', async () => {
-      // @forge/sql has no exports map, so Node's ESM resolver rejects the
-      // extensionless `@forge/sql/out/migration` (ERR_MODULE_NOT_FOUND) while
-      // real Forge's bundler infers the `.js`. The hook falls back to
-      // require.resolve(), which shares the bundler's inference rules.
-      const strictEsmNext = vi.fn(async () => {
-        const err = new Error(
-          "Cannot find module '/x/node_modules/@forge/sql/out/migration'"
-        ) as Error & { code: string };
-        err.code = 'ERR_MODULE_NOT_FOUND';
-        throw err;
-      });
-
-      // No file:// parentURL → resolution falls back to forge-sim's own
-      // node_modules, which has @forge/sql installed.
-      const result = await resolve('@forge/sql/out/migration', {}, strictEsmNext);
-
-      expect(result.shortCircuit).toBe(true);
-      expect(result.format).toBe('module');
-      expect(result.url).toMatch(/\/out\/migration\.js\?forge-sim-cjs-facade$/);
-    });
-
-    it('re-throws the original ESM error when CJS inference also fails', async () => {
-      const strictEsmNext = vi.fn(async () => {
-        const err = new Error('Cannot find module ghost') as Error & { code: string };
-        err.code = 'ERR_MODULE_NOT_FOUND';
-        throw err;
-      });
-
-      await expect(
-        resolve('@forge/sql/out/does-not-exist', {}, strictEsmNext)
-      ).rejects.toThrow('Cannot find module ghost');
-    });
-
-    it('load() synthesizes an ESM facade with bundler default semantics', async () => {
-      const realUrl = 'file:///app/node_modules/@forge/sql/out/index.js';
-      const facadeUrl = realUrl + '?forge-sim-cjs-facade';
-      const next = vi.fn(async () => { throw new Error('nextLoad must not be called'); });
-
-      const result = await load(facadeUrl, {}, next);
-
-      expect(result.shortCircuit).toBe(true);
-      expect(result.format).toBe('module');
-      const source = String(result.source);
-      // Imports the REAL entry (query stripped), not the facade URL
-      expect(source).toContain(`import cjs from ${JSON.stringify(realUrl)}`);
-      expect(source).toContain(`export * from ${JSON.stringify(realUrl)}`);
-      // Bundler interop: honor __esModule
-      expect(source).toContain('__esModule');
-      expect(source).toContain('export default');
-    });
-
-    it('E2E: default import of @forge/sql yields the sql instance under the loader', () => {
-      // Reproduces the eval-5 F1 repro exactly: run real Node with the
-      // registered loader and import @forge/sql the way Atlassian's docs do.
-      const repoRoot = pathResolve(fileURLToPath(import.meta.url), '..', '..', '..');
-      const scriptPath = join(repoRoot, `.tmp-sql-facade-test-${process.pid}.mjs`);
-      writeFileSync(scriptPath, [
-        `import sqlDefault from '@forge/sql';`,
-        `import { sql, migrationRunner } from '@forge/sql';`,
-        `import * as ns from '@forge/sql';`,
-        `console.log(JSON.stringify({`,
-        `  defaultPrepare: typeof sqlDefault.prepare,`,
-        `  defaultIsNamedSql: sqlDefault === sql,`,
-        `  migrationRunner: typeof migrationRunner,`,
-        `  nsDefaultPrepare: typeof ns.default.prepare,`,
-        `}));`,
-      ].join('\n'));
-
-      try {
-        const out = execSync(
-          `node --import ./dist/loader/register.js ${JSON.stringify(scriptPath)}`,
-          { cwd: repoRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }
-        );
-        const parsed = JSON.parse(out.trim().split('\n').pop()!);
-        expect(parsed).toEqual({
-          defaultPrepare: 'function',      // was 'undefined' before the facade
-          defaultIsNamedSql: true,         // exports.default === exports.sql
-          migrationRunner: 'object',       // named exports untouched (it's an instance)
-          nsDefaultPrepare: 'function',    // namespace default matches too
-        });
-      } finally {
-        rmSync(scriptPath, { force: true });
-      }
-    });
-
-    it('E2E: @forge/kvs default import yields the kvs instance, not the namespace', () => {
-      // @forge/kvs has no shim since the bare-seam migration (phase 3a) — the
-      // app runs the REAL package. It has the same __esModule + exports.default
-      // shape as @forge/sql, so without the facade `import kvs from '@forge/kvs'`
-      // (Atlassian's documented style) hands back module.exports and `kvs.get`
-      // is undefined: works in Forge, breaks in the sim.
-      const repoRoot = pathResolve(fileURLToPath(import.meta.url), '..', '..', '..');
-      const scriptPath = join(repoRoot, `.tmp-kvs-facade-test-${process.pid}.mjs`);
-      writeFileSync(scriptPath, [
-        `import kvsDefault from '@forge/kvs';`,
-        `import { kvs, WhereConditions, Filter } from '@forge/kvs';`,
-        `console.log(JSON.stringify({`,
-        `  defaultGet: typeof kvsDefault.get,`,
-        `  defaultIsNamedKvs: kvsDefault === kvs,`,
-        `  whereConditions: typeof WhereConditions.beginsWith,`,
-        `  filterConstructible: typeof Filter,`,
-        `}));`,
-      ].join('\n'));
-
-      try {
-        const out = execSync(
-          `node --import ./dist/loader/register.js ${JSON.stringify(scriptPath)}`,
-          { cwd: repoRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }
-        );
-        const parsed = JSON.parse(out.trim().split('\n').pop()!);
-        expect(parsed).toEqual({
-          defaultGet: 'function',        // would be 'undefined' without the facade
-          defaultIsNamedKvs: true,       // exports.default === exports.kvs
-          whereConditions: 'function',   // named exports untouched
-          filterConstructible: 'function',
-        });
-      } finally {
-        rmSync(scriptPath, { force: true });
-      }
-    });
-
-    it('E2E: @forge/react default import yields ForgeReconciler (render is callable)', () => {
-      // Phase 4e: no shim. out/index.js sets __esModule + exports.default, so
-      // the documented `import ForgeReconciler from '@forge/react'` needs the
-      // facade, exactly like @forge/sql. forge-sim is imported first so the
-      // real @forge/bridge (a dependency) finds the seam at evaluation.
-      const repoRoot = pathResolve(fileURLToPath(import.meta.url), '..', '..', '..');
-      const scriptPath = join(repoRoot, `.tmp-react-facade-test-${process.pid}.mjs`);
-      writeFileSync(scriptPath, [
-        `import './dist/simulator.js';`,
-        `import ForgeReconciler, { Text, useConfig } from '@forge/react';`,
-        `import { Router, useNavigate } from '@forge/react/router';`,
-        `console.log(JSON.stringify({`,
-        `  render: typeof ForgeReconciler.render,`,
-        `  addConfig: typeof ForgeReconciler.addConfig,`,
-        `  Text: typeof Text, useConfig: typeof useConfig,`,
-        `  Router: typeof Router, useNavigate: typeof useNavigate,`,
-        `}));`,
-      ].join('\n'));
-      try {
-        const out = execSync(
-          `node --import ./dist/loader/register.js ${JSON.stringify(scriptPath)}`,
-          { cwd: repoRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }
-        );
-        const parsed = JSON.parse(out.trim().split('\n').pop()!);
-        expect(parsed).toEqual({
-          render: 'function', addConfig: 'function',
-          // UI Kit components are STRING tags in the real package (the
-          // reconciler turns the tag into the ForgeDoc node type); only the
-          // hooks and the router pieces are functions.
-          Text: 'string', useConfig: 'function',
-          Router: 'function', useNavigate: 'function',
-        });
-      } finally {
-        rmSync(scriptPath, { force: true });
-      }
-    });
-
-    it('E2E: the three product bridges resolve by bare specifier despite having no main/exports', () => {
-      // Phase 4d: package.json has only a `browser` field, so Node alone says
-      // MODULE_NOT_FOUND. resolvePassthroughPackage maps the bare name to it.
-      const repoRoot = pathResolve(fileURLToPath(import.meta.url), '..', '..', '..');
-      const scriptPath = join(repoRoot, `.tmp-product-bridges-test-${process.pid}.mjs`);
-      writeFileSync(scriptPath, [
-        `import './dist/simulator.js';`,
-        `import { ViewIssueModal, uiModificationsApi } from '@forge/jira-bridge';`,
-        `import { getMacroContent } from '@forge/confluence-bridge';`,
-        `import { widgetEdit } from '@forge/dashboards-bridge';`,
-        `console.log(JSON.stringify({`,
-        `  ViewIssueModal: typeof ViewIssueModal, onInit: typeof uiModificationsApi.onInit,`,
-        `  getMacroContent: typeof getMacroContent, onSave: typeof widgetEdit.onSave,`,
-        `}));`,
-      ].join('\n'));
-      try {
-        const out = execSync(
-          `node --import ./dist/loader/register.js ${JSON.stringify(scriptPath)}`,
-          { cwd: repoRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }
-        );
-        const parsed = JSON.parse(out.trim().split('\n').pop()!);
-        expect(parsed).toEqual({
-          ViewIssueModal: 'function', onInit: 'function',
-          getMacroContent: 'function', onSave: 'function',
-        });
-      } finally {
-        rmSync(scriptPath, { force: true });
-      }
-    });
-
-    it('E2E: @forge/object-store default import yields the client, not the namespace', () => {
-      // Same __esModule + exports.default shape as @forge/sql and @forge/kvs;
-      // shimless since phase 3c, so the facade is what keeps the documented
-      // `import fos from '@forge/object-store'` style working under Node.
-      const repoRoot = pathResolve(fileURLToPath(import.meta.url), '..', '..', '..');
-      const scriptPath = join(repoRoot, `.tmp-os-facade-test-${process.pid}.mjs`);
-      writeFileSync(scriptPath, [
-        // The runtime global must exist before the import: @forge/object-store
-        // itself is lazy, but a real app only imports it with a simulator
-        // running. An inert stub keeps this a pure interop test.
-        `globalThis.__forge_runtime__ = { tracing: { traceId: 't', spanId: 's' } };`,
-        `const { default: fosDefault, objectStore, errorCodes } = await import('@forge/object-store');`,
-        `console.log(JSON.stringify({`,
-        `  defaultCreateUploadUrl: typeof fosDefault.createUploadUrl,`,
-        `  defaultIsNamedClient: fosDefault === objectStore,`,
-        `  errorCodes: typeof errorCodes.UNKNOWN_ERROR,`,
-        `}));`,
-      ].join('\n'));
-
-      try {
-        const out = execSync(
-          `node --import ./dist/loader/register.js ${JSON.stringify(scriptPath)}`,
-          { cwd: repoRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }
-        );
-        const parsed = JSON.parse(out.trim().split('\n').pop()!);
-        expect(parsed).toEqual({
-          defaultCreateUploadUrl: 'function', // 'undefined' without the facade
-          defaultIsNamedClient: true,         // exports.default === exports.objectStore
-          errorCodes: 'string',
-        });
-      } finally {
-        rmSync(scriptPath, { force: true });
-      }
-    });
-
-    it('E2E: extensionless deep import of @forge/sql/out/migration works under the loader (eval-6 F1)', () => {
-      // The exact eval-6 F1 repro: Atlassian's own migration docs use
-      //   import { migrationRunner } from '@forge/sql/out/migration';
-      // Works under real Forge's bundler, threw ERR_MODULE_NOT_FOUND under
-      // the sim (no exports map + no extension = strict ESM rejection).
-      const repoRoot = pathResolve(fileURLToPath(import.meta.url), '..', '..', '..');
-      const scriptPath = join(repoRoot, `.tmp-sql-migration-test-${process.pid}.mjs`);
-      writeFileSync(scriptPath, [
-        `import { migrationRunner, MigrationRunner } from '@forge/sql/out/migration';`,
-        `console.log(JSON.stringify({`,
-        `  migrationRunner: typeof migrationRunner,`,
-        `  hasEnqueue: typeof migrationRunner.enqueue,`,
-        `  isInstance: migrationRunner instanceof MigrationRunner,`,
-        `}));`,
-      ].join('\n'));
-
-      try {
-        const out = execSync(
-          `node --import ./dist/loader/register.js ${JSON.stringify(scriptPath)}`,
-          { cwd: repoRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }
-        );
-        const parsed = JSON.parse(out.trim().split('\n').pop()!);
-        expect(parsed).toEqual({
-          migrationRunner: 'object',
-          hasEnqueue: 'function',
-          isInstance: true,
-        });
-      } finally {
-        rmSync(scriptPath, { force: true });
-      }
+    it('does not rewrite react either', async () => {
+      nextResolve.mockClear();
+      const result = await resolve('react', {}, nextResolve);
+      expect(result.url).toBe('passthrough://react');
     });
   });
 

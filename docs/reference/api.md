@@ -20,7 +20,7 @@ const value = await sim.kvs.get('my-key');
 const logs = sim.getLogs();
 ```
 
-> **Edge case:** If your *test file itself* imports `@forge/*` packages at the top level (e.g. `import { storage } from '@forge/api'`), those imports run before `deploy()`. In that case, add the `--import` flag:
+> **Edge case:** If your *test file itself* imports `@forge/*` packages at the top level (e.g. `import { kvs } from '@forge/kvs'`), import `forge-sim` first — the real packages work against the seams `createSimulator()`'s module installs on load. Only `@forge/resolver` has no seam; a test file importing it directly needs the `--import` flag so the loader routes it to the shim:
 > ```bash
 > node --import forge-sim/dist/loader/register.js your-test.js
 > ```
