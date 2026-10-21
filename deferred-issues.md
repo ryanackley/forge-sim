@@ -89,16 +89,13 @@ users but adds a second thing to configure; the Node loader (`--import forge-sim
 could install it for the CLI path. A fix must decide whether to ship the setup entry, and
 whether to intercept that specific BridgeAPIError message somewhere to append a hint.
 
-## N9 for PREBUILT (manual-packaged) frontends under vite-node
+## Second headless render of a PREBUILT (manual-packaged) frontend under vite-node
 
-`installReconcilerCapture()` patches the `ForgeReconciler` object of whatever `@forge/react`
-copy an app's bundle imports — which works for source-mode apps because the bundle resolves
-the package at runtime. A prebuilt bundle has `@forge/react` INLINED, so there is no shared
-object to patch and no capture. Under native Node that is fine (the `?t=` cache-bust
-re-evaluates the bundle). Under vite-node, for a prebuilt app OUTSIDE the project root, the
-second `sim.ui.render()` of the same module in one process has nothing to replay and times
-out (see the tmpdir case in `forge-react-package.test.ts` for the shape-1 twin). Not hit by
-any current test. A fix must decide between: copying the bundle to a per-render path (busts
-every cache, but breaks relative chunk imports unless chunks are copied too), teaching the
-render path to call `vi.resetModules()`-equivalent invalidation when a vite-node runner is
-detected, or documenting `vi.resetModules()` for that case alone.
+Source UI Kit entries are bundled per render into a fresh directory (Phase 5b), so a 2nd+
+`sim.ui.render()` is always a real re-evaluation. Prebuilt resources are imported as-is with a
+`?t=` cache-bust, which native Node honours but vite-node strips for files it externalizes
+(anything outside the project root, e.g. an app in os.tmpdir()): the second render is a cache
+hit, no top-level render() runs, no reconcile frame arrives, and the render times out. Not hit
+by any current test. A fix must decide between copying the whole resource directory to a
+per-render path (chunks are relative to the entry, so the entry alone is not enough), or
+documenting `vi.resetModules()` between renders for that case alone.

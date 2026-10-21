@@ -70,10 +70,11 @@ export async function sweepStaleBundles(dir: string): Promise<void> {
     const cutoff = Date.now() - BUNDLE_SWEEP_MIN_AGE_MS;
     await Promise.all(
       names
-        // Per-deploy output DIRECTORIES (one esbuild build per deploy, shared
-        // chunks inside) and the single-file bundles of older versions. The
-        // `cache/` entry is the content-keyed bundle cache and is never swept here.
-        .filter((n) => n.startsWith('deploy-'))
+        // Per-deploy output directories, per-render directories that an
+        // interrupted render left behind (a completed render removes its own),
+        // and the single-file bundles of older versions. The `cache/` entry is
+        // the content-keyed bundle cache and is never swept here.
+        .filter((n) => n.startsWith('deploy-') || n.startsWith('render-'))
         .map(async (n) => {
           const path = join(dir, n);
           try {

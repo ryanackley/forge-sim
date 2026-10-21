@@ -169,6 +169,8 @@ describe('F3 fallout: age-gated bundle sweep', () => {
       // …per-deploy output DIRECTORIES (one esbuild build per deploy)…
       'bundles/deploy-fresh-dir/src/index.mjs': 'export const x = 3;\n',
       'bundles/deploy-old-dir/src/index.mjs': 'export const x = 4;\n',
+      // …per-render directories an interrupted render left behind…
+      'bundles/render-old-dir/bundle.mjs': 'export const x = 5;\n',
       // …and the content-keyed cache, which the sweep must never touch.
       'bundles/cache/0123abcd/meta.json': '{}\n',
       'bundles/not-a-bundle.txt': 'keep me\n',
@@ -178,6 +180,7 @@ describe('F3 fallout: age-gated bundle sweep', () => {
     const oldTime = (Date.now() - 10 * 60 * 1000) / 1000;
     utimesSync(join(bundleDir, 'deploy-old-def456.mjs'), oldTime, oldTime);
     utimesSync(join(bundleDir, 'deploy-old-dir'), oldTime, oldTime);
+    utimesSync(join(bundleDir, 'render-old-dir'), oldTime, oldTime);
     utimesSync(join(bundleDir, 'cache'), oldTime, oldTime);
 
     await sweepStaleBundles(bundleDir);

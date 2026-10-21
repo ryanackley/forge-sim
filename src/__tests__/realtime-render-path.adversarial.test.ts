@@ -169,7 +169,7 @@ import { publish, publishGlobal } from '@forge/realtime';
 const resolver = new Resolver();
 
 resolver.define('slowBoot${U}', async () => {
-  await new Promise((r) => setTimeout(r, 120));
+  await new Promise((r) => setTimeout(r, 2000)); // must outlast a whole render() of panel-b, bundle step included
   return 'booted';
 });
 
@@ -308,12 +308,13 @@ describe('realtime through the UIKit render path (adversarial)', () => {
   describe('subscribe-time module attribution race', () => {
     it('attributes a late (post-await) subscribe in panel-a to panel-a, not to the module rendered after it', async () => {
       setCfg({
-        a: { channel: 'chan-a', awaitInvokeFirst: true }, // awaits slowBootA (~120ms) THEN subscribes
+        a: { channel: 'chan-a', awaitInvokeFirst: true }, // awaits slowBootA (~2s) THEN subscribes
         b: { channel: 'chan-b' },                          // subscribes immediately on mount
       });
 
       // Render A; its effect (which fires async, AFTER render() resolves)
-      // kicks off invoke('slowBootA') and parks for ~120ms.
+      // kicks off invoke('slowBootA') and parks for ~2s — long enough that
+      // render('panel-b'), bundle step included, finishes first.
       await sim.ui.render('panel-a');
       await waitForSink('mount-a');
       expect(sim.ui.getActiveModule()).toBe('panel-a');

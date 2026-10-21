@@ -26,9 +26,6 @@ import {
   resetAll,
   setForgeContext,
   getForgeContext,
-  setActiveCaptureModule,
-  replayCapturedRender,
-  installReconcilerCapture,
   consumeRenderError,
   consumeMissingResolverError,
   setStubCurrentScript,
@@ -58,6 +55,9 @@ import type { ForgeSimulator } from '../simulator.js';
 import { setSimulator } from '../shims/globals.js';
 import { onViewEvent, resetViewEvents, type ViewEventType } from './view-events.js';
 import { pathToFileURL } from 'node:url';
+import { join as joinPath } from 'node:path';
+import { rm } from 'node:fs/promises';
+import { bundleEntries, importEntry } from '../bundler.js';
 import { AsyncLocalStorage } from 'node:async_hooks';
 
 /**
@@ -850,12 +850,6 @@ export class SimulatorUI {
 
     this.ensureBridge();
     this.setActiveModule(moduleKey);
-    // Patch the real ForgeReconciler (the app's copy first, then ours) so
-    // the element this render passes is captured, and say which module to
-    // file it under. This drives the replay path below when the module
-    // loader hands back a cached bundle (N9).
-    installReconcilerCapture(resourcePath);
-    setActiveCaptureModule(moduleKey);
     // Stash options so `refresh()` can replay them — but strip `macroConfig`,
     // which is a one-shot per-render override and would defeat its own
     // semantics if it persisted into refresh.
@@ -943,100 +937,87 @@ export class SimulatorUI {
 
       // Import the frontend module — this triggers ForgeReconciler.render()
       // which produces a ForgeDoc via the bridge.
-      // Cache-bust so refresh gets a fresh execution.
       //
-      // Prebuilt (manual-packaged) bundles additionally carry the
-      // forge-sim-esm marker: browsers load entry scripts as
-      // <script type="module"> — always ESM — while Node infers .js format
-      // from the app's package.json. The loader hooks force ESM for marked
-      // URLs (and propagate the marker to the bundle's relative chunk
-      // imports) so both environments agree. See hooks.ts.
-      // Prebuilt multi-entry HTML (Parcel) lists shared bundles before the
-      // entry bundle — a browser executes every module script in document
-      // order, so headless imports every one in order too (adversarial B2).
-      const scriptPaths = prebuilt
-        ? this.prebuiltScriptPaths.get(moduleKey) ?? [resourcePath]
-        : [resourcePath];
-      const marker = prebuilt ? '&forge-sim-esm=1' : '';
-      const stamp = Date.now();
-      for (const scriptPath of scriptPaths) {
-        const fileUrl = pathToFileURL(scriptPath).href;
-        try {
-          // Browser parity for bundler runtimes that derive publicPath from
-          // document.currentScript.src at module eval (adversarial A). Only
-          // touches our headless stub; cleared in finally like a browser
-          // clears it when script evaluation ends.
-          setStubCurrentScript(fileUrl);
-          await import(fileUrl + '?t=' + stamp + marker);
-        } catch (importErr: any) {
-          // Prebuilt bundles sometimes touch browser globals at module-eval
-          // time (CSS injection helpers, polyfills beyond the stubbed
-          // document). The raw ReferenceError points into minified code and
-          // says nothing about the cause — translate it.
-          const m = prebuilt && importErr instanceof ReferenceError
-            ? /^(\w+) is not defined/.exec(importErr.message)
-            : null;
-          if (m) {
-            throw new Error(
-              `Prebuilt bundle for module "${moduleKey}" accessed the browser global ` +
-              `"${m[1]}" while loading (headless rendering runs in Node, which doesn't have it). ` +
-              `Configure your bundler to defer DOM access until render, or test this module via ` +
-              `\`forge-sim dev\` in a real browser. Original error: ${importErr.message}`,
-              { cause: importErr },
-            );
+      // SOURCE entries are bundled first (src/bundler.ts, platform browser):
+      // @forge/react, @forge/bridge, react and everything else inlined, the
+      // way the resource would be built for Forge, into a fresh per-render
+      // directory. The fresh file is a URL no module cache has seen — Node's
+      // or vite-node's — so a 2nd+ render of the same module is a REAL
+      // re-evaluation (top-level ForgeReconciler.render() runs again), which
+      // is what retired the N9 capture-and-replay workaround. The file is
+      // removed as soon as the import resolves: the module is in memory, and
+      // its sourcemap is inline, so nothing reads it again.
+      //
+      // PREBUILT (manual-packaged) bundles are imported as-is — real Forge
+      // uploads them unmodified. They carry the forge-sim-esm marker:
+      // browsers load entry scripts as <script type="module"> — always ESM —
+      // while Node infers .js format from the app's package.json. The loader
+      // hooks force ESM for marked URLs (and propagate the marker to the
+      // bundle's relative chunk imports) so both environments agree. Parcel's
+      // multi-entry HTML lists shared bundles before the entry bundle — a
+      // browser executes every module script in document order, so headless
+      // imports every one in order too (adversarial B2).
+      if (prebuilt) {
+        const scriptPaths = this.prebuiltScriptPaths.get(moduleKey) ?? [resourcePath];
+        const stamp = Date.now();
+        for (const scriptPath of scriptPaths) {
+          const fileUrl = pathToFileURL(scriptPath).href;
+          try {
+            // Browser parity for bundler runtimes that derive publicPath from
+            // document.currentScript.src at module eval (adversarial A). Only
+            // touches our headless stub; cleared in finally like a browser
+            // clears it when script evaluation ends.
+            setStubCurrentScript(fileUrl);
+            await import(fileUrl + '?t=' + stamp + '&forge-sim-esm=1');
+          } catch (importErr: any) {
+            // Prebuilt bundles sometimes touch browser globals at module-eval
+            // time (CSS injection helpers, polyfills beyond the stubbed
+            // document). The raw ReferenceError points into minified code and
+            // says nothing about the cause — translate it.
+            const m = importErr instanceof ReferenceError
+              ? /^(\w+) is not defined/.exec(importErr.message)
+              : null;
+            if (m) {
+              throw new Error(
+                `Prebuilt bundle for module "${moduleKey}" accessed the browser global ` +
+                `"${m[1]}" while loading (headless rendering runs in Node, which doesn't have it). ` +
+                `Configure your bundler to defer DOM access until render, or test this module via ` +
+                `\`forge-sim dev\` in a real browser. Original error: ${importErr.message}`,
+                { cause: importErr },
+              );
+            }
+            throw importErr;
+          } finally {
+            setStubCurrentScript(null);
           }
-          throw importErr;
+        }
+      } else {
+        const outDir = joinPath(appDir, '.forge-sim', 'bundles', `render-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+        const bundle = await bundleEntries({ appDir, entryPoints: [resourcePath], platform: 'browser', outDir });
+        try {
+          setStubCurrentScript(bundle.url);
+          await importEntry(bundle, resourcePath);
         } finally {
           setStubCurrentScript(null);
+          // Not awaited: the window between "module evaluated" and "first
+          // reconcile observed" below is what callers see as the initial
+          // render (a loading state before effects land), and an fs round
+          // trip here would let effects resolve inside it.
+          void rm(outDir, { recursive: true, force: true }).catch(() => {});
         }
       }
 
-      // If the reconcile hasn't landed yet, wait for it — with a timeout
+      // Wait for the reconcile pulse the import triggers — with a timeout
       // safety net in case React's reconciler bails out on a tree it
       // considers unchanged (e.g. refresh of an identical UI), in which
-      // case `reconcile` may never fire and we'd otherwise hang.
-      //
-      // vite-node workaround (N9): for a bundle it externalizes (anything
-      // outside the project root, e.g. an app in os.tmpdir()) vite-node
-      // strips the `?t=` query, so the import returns the cached module:
-      // the bundle's top-level ForgeReconciler.render(<App />) does not
-      // re-run, no reconcile pulse fires, and we'd hang (or fail at the
-      // 100ms race and leave moduleDocs[key] null). The real
-      // ForgeReconciler is patched to capture the elements (see
-      // installReconcilerCapture); replay them here against a fresh
-      // container for a brand-new pulse equivalent to a re-evaluation.
-      if (!this.moduleDocs.has(moduleKey)) {
-        const replayed = await replayCapturedRender(moduleKey);
-        await Promise.race([
-          renderPromise,
-          new Promise<void>(resolve => setTimeout(resolve, replayed ? 200 : 100)),
-        ]);
-      } else {
-        // Already-rendered module: an explicit render() must be a fresh
-        // mount (re-runs effects, re-fetches data), never a silent no-op.
-        // Under native Node ESM the `?t=` cache-bust re-evaluated the
-        // bundle and a reconcile pulse is landing — wait for it. Under
-        // vite-node (vitest with a linked/inlined forge-sim, e.g.
-        // `npm link`) the import was cached and NO pulse arrives: without
-        // this branch the caller gets the STALE doc from the previous
-        // mount — old props, old fetched data — which silently defeats
-        // scenarios like "seed new KVS state, re-render, assert the UI
-        // picked it up". Detect the missing pulse and replay the captured
-        // element to force a real re-mount.
-        const gotFreshPulse = await Promise.race([
-          renderPromise.then(() => true),
-          new Promise<boolean>(resolve => setTimeout(() => resolve(false), 100)),
-        ]);
-        if (!gotFreshPulse) {
-          const replayed = await replayCapturedRender(moduleKey);
-          if (replayed) {
-            await Promise.race([
-              renderPromise,
-              new Promise<void>(resolve => setTimeout(resolve, 200)),
-            ]);
-          }
-        }
-      }
+      // case `reconcile` may never fire and we'd otherwise hang. An
+      // already-rendered module gets the same treatment: the fresh bundle
+      // above guarantees a fresh mount (effects re-run, data re-fetched),
+      // never a silent no-op handing back the previous doc.
+      await Promise.race([
+        renderPromise,
+        new Promise<void>(resolve => setTimeout(resolve, 100)),
+      ]);
 
       // UIK-003 hard fail: if the reconcile was rejected (raw HTML host
       // elements), surface it as a throw from render() — the doc was never
@@ -1049,10 +1030,6 @@ export class SimulatorUI {
       }
 
     } finally {
-      // Stop attributing further render() captures to this module — protects
-      // against unrelated ForgeReconciler.render calls (background scripts,
-      // multi-module apps) from clobbering the captured element.
-      setActiveCaptureModule(null);
       // NOTE: We intentionally leave both activeModuleKey AND context set.
       // React effects (useEffect) fire async invoke() calls that trigger
       // re-renders AFTER this function returns. Those calls need:

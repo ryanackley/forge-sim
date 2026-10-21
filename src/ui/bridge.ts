@@ -9,7 +9,7 @@
  *
  * This module owns what is specific to the render lifecycle and the test API:
  * ForgeDoc capture and waiters, raw-HTML rejection (UIK-003), the forge
- * context, the N9 replay workaround (a patch on the real ForgeReconciler), and the
+ * context, and the
  * Node-vs-browser shims a prebuilt bundle needs (document stub, relative
  * Request base, page-relative __LOCALES__ fetch).
  *
@@ -17,8 +17,6 @@
  */
 
 import type { ForgeSimulator } from '../simulator.js';
-import { createRequire } from 'node:module';
-import { pathToFileURL } from 'node:url';
 import { isRawHtmlType } from './html-elements.js';
 import { warnOnForgeReactMajorMismatch } from '../forge-package-versions.js';
 import { createBridgeDispatcher, normalizeBridgeHeaders } from '../bridge/protocol/index.js';
@@ -76,34 +74,6 @@ let latestMissingResolverError: Error | null = null;
 const bridgeCalls: BridgeCall[] = [];
 let tornDown = false;
 let currentForgeContext: ForgeContext | null = null;
-
-// ── Captured ForgeReconciler elements (N9: vite-node bundle-cache replay) ──
-//
-// sim.ui.render() loads a module with `import(fileUrl + '?t=' + stamp)` so a
-// 2nd+ render is a REAL re-evaluation: the bundle's top-level
-// `ForgeReconciler.render(<App />)` runs again and a fresh reconcile frame
-// lands. Native Node honours the query string. vite-node does too for files
-// it TRANSFORMS, but a bundle it EXTERNALIZES — anything outside the project
-// root, e.g. an app deployed to os.tmpdir(), the common pattern for scratch
-// apps and many fixtures — has the query stripped on the way to Node's
-// loader. The import returns the cached module, nothing re-runs, no frame
-// ever fires, and the render hangs or hands back a stale doc.
-//
-// Workaround: capture the React element the bundle passed to render() /
-// addConfig() on first evaluation, keyed by the module being rendered. When
-// simulator-ui sees "no fresh frame after import" it replays the element into
-// a fresh container — the same reconcile pulse a re-evaluation would produce.
-//
-// The capture is a PATCH ON THE REAL ForgeReconciler OBJECT, not a shim in
-// front of the package: `exports.ForgeReconciler` in @forge/react's
-// out/reconciler.js is a plain object with writable `render`/`addConfig`,
-// and CJS makes it a singleton per copy of the package, so wrapping those two
-// methods once reaches every importer of that copy — the app's bundle
-// included. See installReconcilerCapture().
-const capturedRenderElements = new Map<string, unknown>();
-const capturedAddConfigElements = new Map<string, unknown>();
-let activeCaptureModuleKey: string | null = null;
-
 
 // ── Raw HTML rejection (spec UIK-003) ───────────────────────────────────
 //
@@ -632,106 +602,6 @@ export function resetBridge(): void {
   bridgeCalls.length = 0;
   headlessHost.reset();
   currentForgeContext = null;
-}
-
-// ── Captured render element API (N9 workaround) ─────────────────────────
-
-const CAPTURE_MARK = Symbol.for('forge-sim.reconciler-capture');
-
-/**
- * Wrap `render` and `addConfig` on a copy of @forge/react's ForgeReconciler
- * so the elements apps pass can be captured. Idempotent per copy.
- *
- * `resolveFrom` is a file path whose node_modules should be searched first:
- * the app's own @forge/react is the copy ITS bundle imports (importer-first,
- * the same precedence the loader and the vitest plugin apply), so that copy
- * is the one that needs the patch. forge-sim's own copy is patched too, for
- * apps with no node_modules of their own, which resolve to it.
- */
-export function installReconcilerCapture(resolveFrom?: string): void {
-  const bases = resolveFrom ? [pathToFileURL(resolveFrom).href, import.meta.url] : [import.meta.url];
-  for (const base of bases) {
-    let mod: any;
-    try {
-      mod = createRequire(base)('@forge/react');
-    } catch {
-      continue; // no copy reachable from this base
-    }
-    const reconciler = mod?.default ?? mod?.ForgeReconciler;
-    if (!reconciler || typeof reconciler.render !== 'function' || reconciler[CAPTURE_MARK]) continue;
-    const realRender = reconciler.render;
-    const realAddConfig = reconciler.addConfig;
-    reconciler.render = (element: unknown) => { captureRenderElement(element); return realRender.call(reconciler, element); };
-    if (typeof realAddConfig === 'function') {
-      reconciler.addConfig = (element: unknown) => { captureAddConfigElement(element); return realAddConfig.call(reconciler, element); };
-    }
-    reconciler[CAPTURE_MARK] = true;
-  }
-}
-
-/**
- * Set the module key under which the next ForgeReconciler.render() /
- * .addConfig() call should be captured. simulator-ui.render() sets this
- * before the cache-busted dynamic import.
- */
-export function setActiveCaptureModule(moduleKey: string | null): void {
-  activeCaptureModuleKey = moduleKey;
-}
-
-/** Called by the @forge/react shim wrapper on every ForgeReconciler.render(). */
-export function captureRenderElement(element: unknown): void {
-  if (activeCaptureModuleKey !== null) {
-    capturedRenderElements.set(activeCaptureModuleKey, element);
-  }
-}
-
-/** Called by the @forge/react shim wrapper on every ForgeReconciler.addConfig(). */
-export function captureAddConfigElement(element: unknown): void {
-  if (activeCaptureModuleKey !== null) {
-    capturedAddConfigElements.set(activeCaptureModuleKey, element);
-  }
-}
-
-/** Whether we have a captured render element for the given module. */
-export function hasCapturedRenderElement(moduleKey: string): boolean {
-  return capturedRenderElements.has(moduleKey);
-}
-
-/**
- * Replay the captured render() and addConfig() elements for a module against
- * a fresh ForgeReconciler container. Used when the bundle was cached by the
- * test runner's module loader and the cache-busted re-import was a no-op.
- *
- * Returns true if a replay fired, false if nothing was captured for this key.
- *
- * The replay uses the SAME @forge/react instance the original bundle did
- * (resolved via createRequire from this file's location), so the singleton
- * react-reconciler inside is shared — exactly what the bundle would have
- * triggered on a fresh evaluation.
- */
-export async function replayCapturedRender(moduleKey: string): Promise<boolean> {
-  const renderElement = capturedRenderElements.get(moduleKey);
-  if (renderElement === undefined) return false;
-
-  const { createRequire } = await import('node:module');
-  const require = createRequire(import.meta.url);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const realModule: any = require('@forge/react');
-  const ForgeReconciler = realModule.default ?? realModule;
-
-  ForgeReconciler.render(renderElement);
-  const configElement = capturedAddConfigElements.get(moduleKey);
-  if (configElement !== undefined) {
-    ForgeReconciler.addConfig(configElement);
-  }
-  return true;
-}
-
-/** Test/debug only — wipe captured elements. */
-export function clearCapturedElements(): void {
-  capturedRenderElements.clear();
-  capturedAddConfigElements.clear();
-  activeCaptureModuleKey = null;
 }
 
 /**

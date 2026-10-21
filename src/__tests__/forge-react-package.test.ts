@@ -1,28 +1,28 @@
 /**
- * The REAL @forge/react, with no shim in front of it (Phase 4e).
+ * The REAL @forge/react, with no shim and no patch in front of it.
  *
- * What stands in for the shim is a patch on the real ForgeReconciler object
- * (installReconcilerCapture in src/ui/bridge.ts) that captures the element a
- * bundle passes to render()/addConfig(), so a 2nd+ sim.ui.render() of the
- * same module can be replayed when the test runner hands back a cached
- * bundle (N9). This file is the end-to-end regression for exactly the case
- * that triggers it, measured rather than assumed:
+ * Headless `sim.ui.render()` bundles a source UI Kit entry per render
+ * (src/bundler.ts, platform browser) into a fresh directory, so every render
+ * — first or fifth — is a real evaluation of the bundle: top-level
+ * `ForgeReconciler.render()` runs, a reconcile frame lands. That is what
+ * retired N9, the vite-node cache workaround that captured the React element
+ * on first evaluation and replayed it later. This file is the regression for
+ * the case N9 existed for, measured rather than assumed:
  *
- *   vite-node TRANSFORMS files inside the project root and honours the
- *   `?t=` cache-bust on them, so an in-repo fixture re-evaluates on its own.
- *   It EXTERNALIZES files outside the root — an app deployed to os.tmpdir(),
- *   the common pattern for scratch apps — and strips the query on the way to
- *   Node's loader, so the second import is a cache hit: no re-evaluation, no
- *   reconcile frame, a hang or a stale doc. The second suite below builds its
- *   fixture in tmpdir for that reason; the first proves the in-root case
- *   needs nothing.
+ *   vite-node TRANSFORMS files inside the project root and honours a `?t=`
+ *   cache-bust on them; it EXTERNALIZES files outside the root — an app
+ *   deployed to os.tmpdir(), the common pattern for scratch apps — and strips
+ *   the query, so a plain re-import was a cache hit. The second suite builds
+ *   its fixture in tmpdir for exactly that reason, and asserts a FRESH effect
+ *   result ("render-2"), which no stale doc can produce.
  */
 import { describe, it, expect, vi, beforeAll, afterAll, afterEach } from 'vitest';
-import { mkdirSync, writeFileSync, rmSync, symlinkSync } from 'node:fs';
+import { mkdirSync, writeFileSync, rmSync, symlinkSync, existsSync, readdirSync, cpSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { ForgeSimulator, createSimulator } from '../simulator.js';
-import { onRender, clearCapturedElements } from '../ui/bridge.js';
+import { onRender } from '../ui/bridge.js';
+import { listBundleCache } from '../bundler.js';
 
 const settle = () => new Promise((r) => setTimeout(r, 300));
 
@@ -38,7 +38,7 @@ async function renderAndCount(sim: ForgeSimulator, key: string): Promise<number>
 
 const text = (sim: ForgeSimulator, key: string) => sim.ui.getTextContent(sim.ui.getForgeDoc(key)!);
 
-// ── In-root fixture: the runner re-evaluates the bundle by itself ─────────
+// ── In-root fixture ───────────────────────────────────────────────────────
 
 describe('@forge/react runs for real — fixture inside the project root', () => {
   const APP_DIR = join(import.meta.dirname, 'fixtures/macro-inline-config');
@@ -66,7 +66,7 @@ describe('@forge/react runs for real — fixture inside the project root', () =>
     expect(text(sim, KEY)).not.toContain('Whiskers');
   });
 
-  it('vi.resetModules() between renders is a safe escape hatch', async () => {
+  it('vi.resetModules() between renders is harmless', async () => {
     sim = new ForgeSimulator();
     await sim.deploy(APP_DIR);
     sim.ui.setMacroConfig(KEY, { name: 'Whiskers', tier: 'gold' });
@@ -74,9 +74,31 @@ describe('@forge/react runs for real — fixture inside the project root', () =>
     vi.resetModules();
     expect(await renderAndCount(sim, KEY)).toBeGreaterThan(0);
   });
+
+  it('the render bundle is removed after import and the build is cached for the next render', async () => {
+    // A private copy of the fixture: other workers render the shared one
+    // concurrently and would have their own render-* dir in flight.
+    const own = join(tmpdir(), `forge-sim-render-cleanup-${Date.now()}`);
+    cpSync(APP_DIR, own, { recursive: true, filter: (p) => !p.includes('.forge-sim') });
+    try {
+      sim = new ForgeSimulator();
+      await sim.deploy(own);
+      sim.ui.setMacroConfig(KEY, { name: 'Whiskers', tier: 'gold' });
+      await sim.ui.render(KEY);
+      await settle();
+      const bundles = join(own, '.forge-sim', 'bundles');
+      expect(readdirSync(bundles).filter((n) => n.startsWith('render-'))).toEqual([]);
+      // The render's browser bundle is cached (plus the deploy's node bundle
+      // when the app has backend functions — this macro fixture has none).
+      expect((await listBundleCache(own)).length).toBeGreaterThanOrEqual(1);
+      expect(existsSync(bundles)).toBe(true);
+    } finally {
+      rmSync(own, { recursive: true, force: true });
+    }
+  });
 });
 
-// ── Out-of-root fixture: the N9 case, needs the capture + replay ──────────
+// ── Out-of-root fixture: the case vite-node externalizes (ex-N9) ─────────
 
 const MANIFEST = `
 modules:
@@ -95,7 +117,7 @@ resources:
   - key: fe
     path: src/fe.tsx
 app:
-  id: ari:cloud:ecosystem::app/n9-tmpdir
+  id: ari:cloud:ecosystem::app/render-bundle-tmpdir
   runtime:
     name: nodejs22.x
 permissions:
@@ -122,15 +144,14 @@ resolver.define('value', () => 'render-' + (++n));
 export const handler = resolver.getDefinitions();
 `;
 
-describe('@forge/react runs for real — fixture OUTSIDE the project root (the N9 case)', () => {
+describe('@forge/react runs for real — fixture OUTSIDE the project root', () => {
   let dir: string;
   let sim: ForgeSimulator;
 
   beforeAll(async () => {
-    dir = join(tmpdir(), `forge-sim-n9-tmpdir-${Date.now()}`);
+    dir = join(tmpdir(), `forge-sim-render-bundle-${Date.now()}`);
     mkdirSync(join(dir, 'src'), { recursive: true });
-    // Same shape realtime-doc-parity-round2 uses: repo node_modules so react
-    // and the JSX runtime resolve as they would in a real checkout.
+    // Repo node_modules so react and the JSX runtime resolve as in a real checkout.
     symlinkSync(join(import.meta.dirname, '..', '..', 'node_modules'), join(dir, 'node_modules'), 'dir');
     writeFileSync(join(dir, 'manifest.yml'), MANIFEST);
     writeFileSync(join(dir, 'src', 'fe.tsx'), FRONTEND);
@@ -146,22 +167,21 @@ describe('@forge/react runs for real — fixture OUTSIDE the project root (the N
 
   afterEach(() => { sim.ui.resetAll(); });
 
-  it('first render lands (and is captured for later replay)', async () => {
+  it('first render lands', async () => {
     await sim.ui.render('panel');
     await sim.ui.waitForContent('panel', 'value: render-1');
   });
 
-  it('second render of the same module, after a reset, lands with FRESH effects — this is N9', async () => {
-    // Without the capture + replay this hangs: the externalized bundle is a
-    // cache hit, its top-level render() never re-runs, no frame arrives.
+  it('second render of the same module, after a reset, lands with FRESH effects', async () => {
     // "render-2" proves the effect ran again, not that a stale doc was read.
+    // Under the old direct import this hung: the externalized bundle was a
+    // cache hit and no frame ever arrived.
     await sim.ui.render('panel');
     await sim.ui.waitForContent('panel', 'value: render-2');
   });
 
-  it('negative control: with the capture cleared, the same second render does NOT land (so the pin above is load-bearing)', async () => {
-    clearCapturedElements();
+  it('and a third', async () => {
     await sim.ui.render('panel');
-    await expect(sim.ui.waitForContent('panel', 'value: render-3', 800)).rejects.toThrow(/Timed out/);
+    await sim.ui.waitForContent('panel', 'value: render-3');
   });
 });

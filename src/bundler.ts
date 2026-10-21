@@ -1,7 +1,9 @@
 /**
- * App bundler — esbuild over an app's entry points with EVERY dependency
- * inlined, the way `forge deploy` builds a function before the Forge runtime
- * ever loads it.
+ * App bundler — esbuild over an app's entry points, the way `forge deploy`
+ * builds a function before the Forge runtime ever loads it. Backend bundles
+ * inline EVERY dependency; frontend bundles inline everything except the
+ * shared runtime packages, which are pinned to absolute paths (see
+ * PINNED_FRONTEND for why).
  *
  * Why inline instead of leaving dependencies external: real Forge never
  * performs module resolution at runtime. The bundler has already resolved
@@ -38,6 +40,7 @@
 
 import { createHash } from 'node:crypto';
 import { cp, mkdir, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { readFileSync } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import type { Metafile, Plugin } from 'esbuild';
@@ -83,6 +86,15 @@ const PKG_ROOT = resolve(dirname(HERE), '..');
 const RESOLVER_SHIM = join(PKG_ROOT, 'dist', 'shims', 'forge-resolver.js');
 /** Fallback resolution root for scratch apps that have no node_modules of their own. */
 const FORGE_SIM_NODE_MODULES = join(PKG_ROOT, 'node_modules');
+/**
+ * Fingerprint of THIS module's compiled source, mixed into every cache key so
+ * a change to how bundles are produced (plugins, banner, interop rewrite,
+ * output shape) invalidates every cache entry on disk. Without it a cache
+ * under a fixture kept serving bundles from a previous bundler version —
+ * found when a cache hit imported 20x slower than a fresh build of the same
+ * app, because the hit was an older output shape vite-node had to transform.
+ */
+const BUNDLER_FINGERPRINT = createHash('sha1').update(readFileSync(HERE)).digest('hex').slice(0, 12);
 
 /**
  * `require`, `__filename` and `__dirname` for the ESM output. Inlined CommonJS
@@ -129,8 +141,81 @@ export const I18N_RESET_REGISTRY_KEY = Symbol.for('forge-sim.i18n-cache-resets')
 
 // ── Plugins ───────────────────────────────────────────────────────────────
 
-function forgeSimPlugins(platform: BundlePlatform): Plugin[] {
+/**
+ * Frontend bundles PIN the shared runtime packages instead of inlining them.
+ *
+ * A fully self-contained browser bundle re-evaluates React, the reconciler
+ * and @forge/bridge (~1 MB) on EVERY headless render, where Node used to
+ * cache them once per process — measured at ~750 ms a render and a 4x slower
+ * suite. So react*, @forge/react*, @forge/bridge* and the product bridges are
+ * resolved at BUILD time to absolute paths (importer-first, forge-sim's copy
+ * as the fallback, React always from wherever @forge/react resolves so there
+ * is exactly one React) and left external as `file://` imports. Nothing is
+ * resolved at runtime, the per-render bundle is the app's own code, and the
+ * cache check stats only app files. Everything else is inlined.
+ *
+ * Each pinned import goes through a generated interop facade (namespace
+ * `forge-sim-pinned`): esbuild cannot apply CommonJS interop to a module it
+ * does not bundle, and Node's own default import of a CJS file is
+ * `module.exports`, so `import ForgeReconciler from '@forge/react'` would
+ * hand back the namespace and `.render` would be undefined. The facade
+ * applies the bundler convention — this is the loader hook's old
+ * CJS_DEFAULT_FACADE, now emitted by the bundler where it belongs.
+ */
+const PINNED_FRONTEND = /^(react|react-dom)(\/.*)?$|^@forge\/(react|bridge|jira-bridge|confluence-bridge|dashboards-bridge)(\/.*)?$/;
+const REACT_SPECIFIER = /^(react|react-dom)(\/.*)?$/;
+const PINNED_NS = 'forge-sim-pinned';
+
+async function reactResolveDir(appDir: string): Promise<string> {
+  const { createRequire } = await import('node:module');
+  try {
+    createRequire(join(appDir, 'package.json')).resolve('@forge/react/package.json');
+    return appDir;
+  } catch {
+    return PKG_ROOT;
+  }
+}
+
+function pinnedFacade(absPath: string): string {
+  // An absolute PATH, not a file:// URL. Node accepts both; vite-node
+  // externalizes `/…/node_modules/…` by path pattern and would otherwise
+  // transform the whole @forge/react graph on every render (measured:
+  // ~700 ms a render under vitest vs ~35 ms under plain Node).
+  const spec = JSON.stringify(absPath);
   return [
+    `import cjs from ${spec};`,
+    `export * from ${spec};`,
+    `export default (cjs && cjs.__esModule && 'default' in cjs) ? cjs.default : cjs;`,
+    '',
+  ].join('\n');
+}
+
+function forgeSimPlugins(platform: BundlePlatform, reactDir: string): Plugin[] {
+  return [
+    {
+      name: 'forge-sim-pinned-externals',
+      setup(build) {
+        if (platform !== 'browser') return;
+        // The facade's own imports are absolute paths: leave them external as-is.
+        build.onResolve({ filter: /^\// }, (args) =>
+          args.namespace === PINNED_NS ? { path: args.path, external: true } : undefined);
+        build.onResolve({ filter: PINNED_FRONTEND }, async (args) => {
+          if (args.pluginData?.forgeSimInternal) return undefined;
+          const r = await build.resolve(args.path, {
+            kind: args.kind,
+            resolveDir: REACT_SPECIFIER.test(args.path) ? reactDir : args.resolveDir,
+            importer: args.importer,
+            pluginData: { forgeSimInternal: true },
+          });
+          if (r.errors.length > 0) return undefined; // let the normal error surface
+          return { path: r.path, namespace: PINNED_NS };
+        });
+        build.onLoad({ filter: /.*/, namespace: PINNED_NS }, (args) => ({
+          contents: pinnedFacade(args.path),
+          loader: 'js',
+        }));
+      },
+    },
     {
       name: 'forge-sim-resolver-shim',
       setup(build) {
@@ -162,12 +247,12 @@ function forgeSimPlugins(platform: BundlePlatform): Plugin[] {
         // failure happens at call time, exactly as it would under Node, and
         // not at build time where it would block an app that never calls it.
         build.onResolve({ filter: /^[^./]/ }, async (args) => {
-          if (args.pluginData?.forgeSimProbe || args.kind === 'entry-point') return undefined;
+          if (args.pluginData?.forgeSimInternal || args.kind === 'entry-point') return undefined;
           const probe = await build.resolve(args.path, {
             kind: args.kind,
             resolveDir: args.resolveDir,
             importer: args.importer,
-            pluginData: { forgeSimProbe: true },
+            pluginData: { forgeSimInternal: true },
           });
           if (probe.errors.length > 0) return { path: args.path, external: true };
           return undefined;
@@ -234,6 +319,7 @@ function cacheKey(opts: BundleOptions): string {
   h.update(opts.platform);
   for (const e of [...opts.entryPoints].sort()) h.update('\0' + relative(opts.appDir, e));
   h.update('\0' + PKG_ROOT);
+  h.update('\0' + BUNDLER_FINGERPRINT);
   return h.digest('hex').slice(0, 16);
 }
 
@@ -304,7 +390,11 @@ export async function bundleEntries(opts: BundleOptions): Promise<BundleResult> 
     const hit = await readCache(cacheDir);
     if (hit) {
       await mkdir(opts.outDir, { recursive: true });
-      await cp(join(cacheDir, 'files'), opts.outDir, { recursive: true });
+      // read + write, NOT fs.cp: under vite-node a bundle produced by cp()
+      // took ~1.1 s to import where an identical freshly written file took
+      // ~30 ms (measured; cp's APFS clone / dir-event timing interacts badly
+      // with Vite's cached fs checks). A plain write behaves like the build.
+      await writeFile(outFile, await readFile(join(cacheDir, 'files', BUNDLE_FILE)));
       return {
         url: pathToFileURL(outFile).href,
         entryExports: new Map(hit.entries),
@@ -318,6 +408,7 @@ export async function bundleEntries(opts: BundleOptions): Promise<BundleResult> 
   const esbuild = await import('esbuild');
   const isNode = opts.platform === 'node';
   const entry = syntheticEntry(entries);
+  const reactDir = isNode ? appDir : await reactResolveDir(appDir);
   const result = await esbuild.build({
     stdin: { contents: entry.contents, resolveDir: appDir, sourcefile: 'forge-sim-entry.js', loader: 'js' },
     bundle: true,
@@ -332,7 +423,7 @@ export async function bundleEntries(opts: BundleOptions): Promise<BundleResult> 
     absWorkingDir: appDir,
     nodePaths: [FORGE_SIM_NODE_MODULES],
     banner: isNode ? { js: NODE_BANNER } : undefined,
-    plugins: forgeSimPlugins(opts.platform),
+    plugins: forgeSimPlugins(opts.platform, reactDir),
     logLevel: 'silent',
   });
 
