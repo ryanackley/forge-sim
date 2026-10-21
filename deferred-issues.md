@@ -71,3 +71,26 @@ hit, no top-level render() runs, no reconcile frame arrives, and the render time
 by any current test. A fix must decide between copying the whole resource directory to a
 per-render path (chunks are relative to the entry, so the entry alone is not enough), or
 documenting `vi.resetModules()` between renders for that case alone.
+
+## Every deploy and render retains its bundle in Node's ESM cache (~4 MB/deploy)
+
+`sim.deploy()` and headless `sim.ui.render()` each write a bundle to a fresh path and
+`import()` it, because a new URL is what guarantees fresh module state (it is what replaced
+`clearMigrationRegistry`). Node's ESM registry never evicts, so every deploy and render
+retains its whole module graph for the life of the process. Measured with a repeated-deploy
+probe: ~4 MB per deploy now, ~3 MB before Phase 5 — the delta is the inlined `@forge/*`
+(~240 kB of source per backend bundle, versus a 4 kB bundle with the packages external).
+
+Harmless for a test run, which is short-lived and peaks on worker count rather than this.
+It matters for a LONG-RUNNING process that redeploys repeatedly — `forge-sim dev` rebuilds
+on every file change, and the MCP daemon redeploys per `forge_deploy` call — where a long
+session accumulates hundreds of MB. Nothing observed it in practice yet; recorded because
+the measurement exists and the growth is unbounded by design.
+
+A fix must decide what to give up. Reusing one URL per app would cap the growth but
+reintroduce the stale-singleton bug the fresh URL fixed (edited migration DDL silently
+discarded across redeploys). Pinning the backend `@forge/*` to absolute paths the way
+frontend bundles pin their runtime would shrink each retained graph to app code only, but
+those packages' module state (notably `@forge/sql`'s migrationRunner) would then persist
+across deploys — which is exactly the thing a redeploy is supposed to reset. A worker/daemon
+recycle after N deploys sidesteps both but needs a policy and a way to hand off sim state.
