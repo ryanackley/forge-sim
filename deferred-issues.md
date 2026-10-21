@@ -88,3 +88,17 @@ Left as a documented rule because the alternatives each cost something: a vitest
 users but adds a second thing to configure; the Node loader (`--import forge-sim/register`)
 could install it for the CLI path. A fix must decide whether to ship the setup entry, and
 whether to intercept that specific BridgeAPIError message somewhere to append a hint.
+
+## N9 for PREBUILT (manual-packaged) frontends under vite-node
+
+`installReconcilerCapture()` patches the `ForgeReconciler` object of whatever `@forge/react`
+copy an app's bundle imports — which works for source-mode apps because the bundle resolves
+the package at runtime. A prebuilt bundle has `@forge/react` INLINED, so there is no shared
+object to patch and no capture. Under native Node that is fine (the `?t=` cache-bust
+re-evaluates the bundle). Under vite-node, for a prebuilt app OUTSIDE the project root, the
+second `sim.ui.render()` of the same module in one process has nothing to replay and times
+out (see the tmpdir case in `forge-react-package.test.ts` for the shape-1 twin). Not hit by
+any current test. A fix must decide between: copying the bundle to a per-render path (busts
+every cache, but breaks relative chunk imports unless chunks are copied too), teaching the
+render path to call `vi.resetModules()`-equivalent invalidation when a vite-node runner is
+detected, or documenting `vi.resetModules()` for that case alone.

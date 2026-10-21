@@ -1,15 +1,19 @@
 /**
- * N10 regression — waitForContent's "Did you forget setMacroConfig?" hint
- * should only fire for macros that actually call useConfig().
+ * N10 — waitForContent's "Did you forget setMacroConfig?" hint.
  *
- * Before the fix, the hint fired on EVERY macro timeout, including macros
- * that never touched inline config. The run-4 agent hit this and spent
- * ~5 minutes following the false lead.
+ * History: the hint once fired on EVERY macro timeout, and an agent spent
+ * minutes chasing it on a macro that never used inline config. The fix gated
+ * it on a useConfig() wrapper in the @forge/react shim. That shim is gone
+ * (the app runs the real @forge/react, which exposes no hook for "this
+ * bundle called useConfig"), so the gate is gone too. What replaces it is
+ * HONEST WORDING: the hint fires for any un-seeded macro, and says in the
+ * same breath that it only matters if the macro calls useConfig(). That is
+ * the red-herring guard now, and B pins it.
  *
  * Cases covered:
- *   A) Macro that uses useConfig but config wasn't seeded → hint fires (good)
- *   B) Macro that does NOT use useConfig → hint does NOT fire (the N10 fix)
- *   C) Macro that uses useConfig AND was seeded → hint does NOT fire (already worked)
+ *   A) Macro that uses useConfig but config wasn't seeded → hint fires
+ *   B) Macro that does NOT use useConfig → hint fires but is hedged
+ *   C) Macro that uses useConfig AND was seeded → hint does NOT fire
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { join } from 'node:path';
@@ -47,7 +51,7 @@ describe('N10 — useConfig hint gating', () => {
     expect(caught!.message).toMatch(/setMacroConfig\("pet-card"/);
   });
 
-  it('B: macro NOT using useConfig() → hint does NOT mention setMacroConfig (N10 fix)', async () => {
+  it('B: macro NOT using useConfig() → the setMacroConfig hint is hedged, not asserted', async () => {
     sim = new ForgeSimulator();
     await sim.deploy(NO_CONFIG_FIXTURE);
 
@@ -61,10 +65,10 @@ describe('N10 — useConfig hint gating', () => {
       caught = e as Error;
     }
     expect(caught).not.toBeNull();
-    // The misleading hint should NOT appear.
-    expect(caught!.message).not.toMatch(/setMacroConfig/);
-    expect(caught!.message).not.toMatch(/useConfig\(\) returns \{\}/);
-    // Should still give the generic "inspect the tree" hint since the doc rendered.
+    // The hint may appear, but must carry the hedge that keeps it from
+    // reading as a diagnosis for a macro that never uses config.
+    expect(caught!.message).toMatch(/Only relevant if the macro calls useConfig\(\)/);
+    // And the generic "inspect the tree" hint is still there, since the doc rendered.
     expect(caught!.message).toMatch(/sim\.ui\.getForgeDoc/);
   });
 

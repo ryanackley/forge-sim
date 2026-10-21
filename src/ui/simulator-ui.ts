@@ -28,7 +28,7 @@ import {
   getForgeContext,
   setActiveCaptureModule,
   replayCapturedRender,
-  moduleUsesConfig,
+  installReconcilerCapture,
   consumeRenderError,
   consumeMissingResolverError,
   setStubCurrentScript,
@@ -647,21 +647,20 @@ export class SimulatorUI {
     }
 
     // Hint 1: macro module with no saved config — likely missed setMacroConfig.
-    // Gated on (a) the bundle actually calling useConfig(), so we don't
-    // fire on macros that don't depend on inline config (N10), and
-    // (b) the doc rendering at all, since if useConfig was never called
-    // we can't make any claim about config dependence.
+    // The app runs the real @forge/react, which exposes no hook for "this
+    // bundle called useConfig()", so the hint cannot be gated on that any
+    // more (N10 used to wrap the shim's useConfig). It is hedged instead.
     try {
       const manifest = this.sim.getManifest();
       const uiModule = manifest?.uiModules.find(m => m.key === moduleKey);
-      if (uiModule?.type === 'macro' && moduleUsesConfig(moduleKey)) {
+      if (uiModule?.type === 'macro') {
         const baseKey = moduleKey.replace(/--(?:view|config)$/, '');
         const savedConfig = this.macroConfigs.get(baseKey);
         if (!savedConfig || Object.keys(savedConfig).length === 0) {
           hints.push(
-            `Module "${moduleKey}" calls useConfig() but no config has been seeded. ` +
+            `Module "${moduleKey}" is a macro and no config has been seeded. ` +
             `Did you forget sim.ui.setMacroConfig("${baseKey}", {...}) before render()? ` +
-            `useConfig() returns {} until setMacroConfig is called.`
+            `(Only relevant if the macro calls useConfig(), which returns {} until then.)`
           );
         }
       }
@@ -673,7 +672,9 @@ export class SimulatorUI {
     // and the escape-hatch path for composite/nested-data text that the
     // VISIBLE_TEXT_PROPS allowlist doesn't cover (Select.options[].label,
     // Comment.author.text-as-object, DynamicTable cells, etc.)
-    if (doc && !hints.length) {
+    // Always offered when a doc exists — the specific hints above are
+    // guesses, this one is the thing that actually settles it.
+    if (doc) {
       hints.push(
         `The module rendered, but its text content does not include "${text}". ` +
         `Inspect the tree with sim.ui.getForgeDoc("${moduleKey}") to see what's ` +
@@ -849,9 +850,11 @@ export class SimulatorUI {
 
     this.ensureBridge();
     this.setActiveModule(moduleKey);
-    // Tell the shim's wrapped ForgeReconciler which module to attribute the
-    // captured render/addConfig elements to. This drives the replay path
-    // below when the bundle is cached by the test runner's module loader.
+    // Patch the real ForgeReconciler (the app's copy first, then ours) so
+    // the element this render passes is captured, and say which module to
+    // file it under. This drives the replay path below when the module
+    // loader hands back a cached bundle (N9).
+    installReconcilerCapture(resourcePath);
     setActiveCaptureModule(moduleKey);
     // Stash options so `refresh()` can replay them — but strip `macroConfig`,
     // which is a one-shot per-render override and would defeat its own
@@ -993,15 +996,15 @@ export class SimulatorUI {
       // considers unchanged (e.g. refresh of an identical UI), in which
       // case `reconcile` may never fire and we'd otherwise hang.
       //
-      // Vitest workaround (N9): vitest's vite-node loader caches bundles
-      // by file path and ignores `?t=` query strings, so the cache-bust
-      // is a no-op. On 2nd+ renders the bundle's top-level
-      // ForgeReconciler.render(<App />) call doesn't re-run, no reconcile
-      // pulse fires, and we'd hang forever (or fail at the 100ms race
-      // and leave moduleDocs[key] null). The shim wraps render/addConfig
-      // and captures the React elements; we replay them here against a
-      // fresh container to produce a brand-new reconcile pulse equivalent
-      // to a real bundle re-evaluation.
+      // vite-node workaround (N9): for a bundle it externalizes (anything
+      // outside the project root, e.g. an app in os.tmpdir()) vite-node
+      // strips the `?t=` query, so the import returns the cached module:
+      // the bundle's top-level ForgeReconciler.render(<App />) does not
+      // re-run, no reconcile pulse fires, and we'd hang (or fail at the
+      // 100ms race and leave moduleDocs[key] null). The real
+      // ForgeReconciler is patched to capture the elements (see
+      // installReconcilerCapture); replay them here against a fresh
+      // container for a brand-new pulse equivalent to a re-evaluation.
       if (!this.moduleDocs.has(moduleKey)) {
         const replayed = await replayCapturedRender(moduleKey);
         await Promise.race([

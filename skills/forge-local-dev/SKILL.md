@@ -330,11 +330,10 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   resolve: {
     alias: {
+      // The only alias. Every other @forge/* package — backend and frontend —
+      // runs for real against seams the simulator installs; aliasing one
+      // breaks resolution.
       '@forge/resolver': 'forge-sim/shims/forge-resolver',
-      '@forge/react':    'forge-sim/shims/forge-react',
-      // add any other @forge/* the app actually imports — but NOT @forge/bridge
-      // or any backend package: those run for real against seams the
-      // simulator installs
     },
   },
   test: { testTimeout: 30_000, hookTimeout: 60_000 },

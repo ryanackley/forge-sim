@@ -38,11 +38,6 @@
  */
 export const SHIM_NAMES = [
   '@forge/resolver',
-  '@forge/react',
-  '@forge/react/router',
-  '@forge/jira-bridge',
-  '@forge/confluence-bridge',
-  '@forge/dashboards-bridge',
 ] as const;
 
 export type ShimName = (typeof SHIM_NAMES)[number];
@@ -85,10 +80,19 @@ export type ShimName = (typeof SHIM_NAMES)[number];
  *                   (`src/bridge/hosts/headless.ts`). Not a `__forge_fetch__`
  *                   package: this is the one seam real Forge gives an iframe,
  *                   and every surface — source-mode, prebuilt, Custom UI, dev
- *                   page, headless — runs the real package against it. What
- *                   remains shimmed is the seamless `@forge/resolver`, the
- *                   `@forge/react` capture wrappers, and (until 4d) the three
- *                   product bridges.
+ *                   page, headless — runs the real package against it.
+ *   `@forge/react` (and `/router`) → the real reconciler; its `reconcile`
+ *                   frames ride the same `__bridge` seam. Needs
+ *                   `CJS_DEFAULT_FACADE` (`exports.default` = ForgeReconciler).
+ *   `@forge/jira-bridge`, `@forge/confluence-bridge`, `@forge/dashboards-bridge`
+ *                   → real product bridges against `__bridge`; the headless
+ *                   and browser hosts answer their commands inertly
+ *                   (`src/bridge/hosts/product-surfaces.ts`). They ship NO
+ *                   `main` and NO `exports` — only a `browser` field — so bare
+ *                   resolution needs the `browser`-field fallback in
+ *                   `resolvePassthroughPackage` / the vitest plugin.
+ *   What remains shimmed is `@forge/resolver` alone: it holds its handler
+ *   map in a closure and performs no I/O, so there is no seam to answer.
  *
  * Packages listed here that set `__esModule` AND `exports.default` must ALSO
  * be in `CJS_DEFAULT_FACADE` in `src/loader/hooks.ts`, or the documented
@@ -105,7 +109,27 @@ export const PASSTHROUGH_OK: readonly string[] = [
   '@forge/events',
   '@forge/api',
   '@forge/bridge',
+  '@forge/react',
+  '@forge/jira-bridge',
+  '@forge/confluence-bridge',
+  '@forge/dashboards-bridge',
 ];
+
+/**
+ * Entry file for a package whose `package.json` has no `main` and no
+ * `exports` — Node's resolver has nothing to go on and fails with
+ * MODULE_NOT_FOUND even though the files are right there. The three product
+ * bridges ship only a `browser` field (they are bundler-only in real Forge),
+ * so a bare import must be mapped to it by hand. Shared by the Node loader
+ * hooks and the vitest resolve plugin so both environments agree.
+ *
+ * Returns a path relative to the package root, or null when the package
+ * resolves normally.
+ */
+export function browserOnlyEntry(pkgJson: { main?: unknown; exports?: unknown; browser?: unknown }): string | null {
+  if (pkgJson.main || pkgJson.exports) return null;
+  return typeof pkgJson.browser === 'string' ? pkgJson.browser : null;
+}
 
 /**
  * Shim filename stem for a package name.

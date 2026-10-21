@@ -46,7 +46,7 @@ Apps run **completely unmodified**. `@forge/*` imports are intercepted by Node l
 
 Three integration paths into the sim, depending on which surface the app uses:
 
-1. **Loader hook shims** — `@forge/resolver`, the `@forge/react` capture wrappers and (until Phase 4d) the three `*-bridge` product packages are aliased to `src/shims/*` at import time. App code never knows. Every BACKEND package left this list in the bare-seam migration (path 2), and `@forge/bridge` left it in the frontend seam migration (path 3).
+1. **Loader hook shims** — `@forge/resolver`, and only that, is aliased to `src/shims/*` at import time; it holds its handler map in a closure and performs no I/O, so there is no seam to answer. App code never knows. Every BACKEND package left this list in the bare-seam migration (path 2); every FRONTEND package — `@forge/bridge`, `@forge/react`, the three `*-bridge` product packages — left it in the frontend seam migration (path 3). Two needed resolution help instead: `@forge/react` is in `CJS_DEFAULT_FACADE`, and the product bridges (no `main`/`exports`, only `browser`) get a `browser`-field fallback.
 2. **`global.__forge_fetch__` + `global.__forge_runtime__`** — the two backend seams real Forge injects. Apps run the REAL `@forge/api`, `@forge/kvs`, `@forge/sql`, `@forge/events`, `@forge/object-store`, `@forge/llm` and `@forge/realtime` (all in `PASSTHROUGH_OK`, no alias); `src/runtime/seam-fetch.ts` dispatches the 9 descriptor types to `sim.*` and `src/runtime/forge-runtime.ts` serves per-invocation identity. Running the real packages means the contract can't drift, their client-side validation applies, and BUNDLED backends work — there's no import left to alias, but the seams are still called.
 3. **`window.__bridge`** — the one seam real Forge gives a frontend. Apps run the **real** `@forge/bridge` (no alias, no app-facing shim); `src/bridge/protocol/` dispatches its ~34 commands to a `BridgeHost`: headless (`src/bridge/hosts/headless.ts`, calls `sim.*`) or browser (`src/bridge/hosts/browser/`, bundled to `dist/bridge.js`, served at `/__forge/bridge.js` ahead of app code on every dev page, speaks WebSocket RPC). `@forge/react`'s `reconcile` arrives the same way; the renderer turns ForgeDoc into Atlaskit.
 
@@ -57,7 +57,7 @@ Three integration paths into the sim, depending on which surface the app uses:
 | Orchestrator + lifecycle | `src/simulator.ts`, `src/deployer.ts`, `src/manifest.ts` (parsing + validation) |
 | State | `src/kvs.ts` (KVS + Custom Entity Store, unified), `src/queue.ts`, `src/forge-sql.ts`, `src/persistence.ts` |
 | Backend | `src/resolver.ts`, `src/product-api.ts`, `src/web-trigger.ts`, `src/remote-proxy.ts`, `src/llm.ts`, `src/realtime.ts` (scheduled triggers wired in `src/deployer.ts`) |
-| Shims | `src/shims/` — drop-in replacements for `@forge/*` |
+| Shims | `src/shims/` — `forge-resolver.ts`, the one remaining app-facing shim, plus the registry (`SHIM_NAMES` / `PASSTHROUGH_OK`) and the seam installers (`globals.ts`) |
 | Loader | `src/loader/` — Node `--import` hooks (note: native TS type stripping is used now; tsx loader is a fallback) |
 | Bridge protocol + hosts | `src/bridge/protocol/` (dispatcher, `BridgeHost`, command registry), `src/bridge/hosts/headless.ts`, `src/bridge/hosts/browser/` (bundled to `dist/bridge.js`, served at `/__forge/bridge.js`) |
 | UIKit bridge (headless lifecycle) | `src/ui/bridge.ts`, `src/ui/simulator-ui.ts`, `src/ui/doc-utils.ts` |
@@ -106,7 +106,7 @@ Node 22+ required (native TS type stripping). MySQL-memory-server bundles its ow
 ## Conventions to follow
 
 - **No silent stubs.** If a Forge API returns data in production, our shim returns shaped data, not undefined. If we don't implement it, throw a clear "not yet implemented" error so the parity violation is visible.
-- **Shim → real package fallthrough.** Where possible, the shim imports the real CJS `@forge/*` package and only intercepts the bits that hit Atlassian's cloud. This keeps behavior aligned automatically when Atlassian ships a patch release.
+- **Real package first; a seam, not a shim.** Every `@forge/*` package except `@forge/resolver` runs as Atlassian ships it, against a seam the sim installs (`__forge_fetch__`/`__forge_runtime__` for the backend, `globalThis.__bridge` for the frontend). Don't add a shim for a package that has a seam; add the missing seam answer. The only sim-side hook on a real package is `installReconcilerCapture()` (a patch on `@forge/react`'s `ForgeReconciler` object for the vite-node bundle-cache replay, N9) — keep it that small.
 - **Test fixtures live in `src/__tests__/fixtures/<app-name>/`.** Each fixture is a tiny self-contained Forge app (`manifest.yml` + handler files). Real-world end-to-end apps live under `~/Projects/{retro-board, okr-tracker, my-issues, ...}` and have their own e2e test files.
 - **Manifest changes go through `src/manifest.ts` (parser + sim-side checks) and `src/manifest-validation.ts` (upstream `@forge/manifest` validator wrapper).** Those checks are what tell the user "your manifest is missing X" before deploy fails. Keep error messages copy-pasteable (include the YAML snippet they should add).
 - **Persistence is `entities.json` + `sql.dump`.** No more `kvs.json` (removed; everything goes through the entity store). State lives under `<app>/.forge-sim/state/`.

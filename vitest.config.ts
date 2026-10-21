@@ -1,9 +1,10 @@
 import { defineConfig } from 'vitest/config';
-import { resolve } from 'path';
+import { resolve, dirname } from 'path';
+import { fileURLToPath } from 'url';
 import { tmpdir } from 'os';
 import { realpathSync, readFileSync } from 'fs';
 import { createRequire } from 'module';
-import { shimFileBase, shimNamesBySpecificity, PASSTHROUGH_OK } from './src/shims/shim-registry.js';
+import { shimFileBase, shimNamesBySpecificity, PASSTHROUGH_OK, browserOnlyEntry } from './src/shims/shim-registry.js';
 
 /**
  * Mirror Node's native wasm-ESM integration under vite-node.
@@ -36,17 +37,36 @@ import { shimFileBase, shimNamesBySpecificity, PASSTHROUGH_OK } from './src/shim
 function forgeSimPassthroughFallback() {
   return {
     name: 'forge-sim-passthrough-fallback',
+    // 'pre': Vite's own resolver THROWS on a package with no main/exports
+    // (the product bridges), which aborts the chain before a later plugin
+    // can answer. Running first — and still trying normal resolution via
+    // this.resolve() before falling back — keeps importer-first precedence.
+    enforce: 'pre' as const,
     async resolveId(source: string, importer: string | undefined, options: any) {
       // Root package, so `@forge/bridge/realtime` falls back like `@forge/bridge`.
       const rootPkg = source.startsWith('@forge/') ? source.split('/').slice(0, 2).join('/') : source;
       if (!(PASSTHROUGH_OK as readonly string[]).includes(rootPkg)) return null;
-      const normal = await (this as any).resolve(source, importer, { ...options, skipSelf: true });
+      // Vite throws ("Failed to resolve entry for package") rather than
+      // returning null for a package with no main/exports — the product
+      // bridges — so a throw here means "fall back", not "fail".
+      let normal: unknown = null;
+      try { normal = await (this as any).resolve(source, importer, { ...options, skipSelf: true }); } catch { /* fall back */ }
       if (normal) return normal;
-      try {
-        return createRequire(import.meta.url).resolve(source);
-      } catch {
-        return null;
+      // Importer's copy first, forge-sim's second — same precedence as the
+      // Node loader (resolvePassthroughPackage in src/loader/hooks.ts).
+      const bases = [importer, fileURLToPath(import.meta.url)].filter((b): b is string => !!b);
+      for (const base of bases) {
+        const req = createRequire(base);
+        try { return req.resolve(source); } catch { /* try the browser-only shape */ }
+        if (source === rootPkg) {
+          try {
+            const pkgJsonPath = req.resolve(`${source}/package.json`);
+            const entry = browserOnlyEntry(JSON.parse(readFileSync(pkgJsonPath, 'utf8')));
+            if (entry) return resolve(dirname(pkgJsonPath), entry);
+          } catch { /* next base */ }
+        }
       }
+      return null;
     },
   };
 }

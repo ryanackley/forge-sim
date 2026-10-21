@@ -21,10 +21,6 @@ const nextResolve = vi.fn(async (specifier: string) => ({
 
 const EXPECTED_SHIMS = [
   '@forge/resolver',
-  '@forge/react',
-  '@forge/jira-bridge',
-  '@forge/confluence-bridge',
-  '@forge/dashboards-bridge',
 ];
 
 describe('Loader Hooks — resolve()', () => {
@@ -150,10 +146,11 @@ describe('Loader Hooks — resolve()', () => {
     });
 
     it('warns with a subpath-specific message for unshimmed subpaths of shimmed packages', async () => {
-      await resolve('@forge/react/some-internal-util', {}, nextResolve);
+      // @forge/resolver is the only shimmed package left.
+      await resolve('@forge/resolver/some-internal-util', {}, nextResolve);
 
       const warning = warnSpy.mock.calls.map(c => String(c[0])).find(m =>
-        m.includes('@forge/react/some-internal-util')
+        m.includes('@forge/resolver/some-internal-util')
       );
       expect(warning).toBeDefined();
       expect(warning).toContain('not this subpath');
@@ -331,6 +328,73 @@ describe('Loader Hooks — resolve()', () => {
           defaultIsNamedKvs: true,       // exports.default === exports.kvs
           whereConditions: 'function',   // named exports untouched
           filterConstructible: 'function',
+        });
+      } finally {
+        rmSync(scriptPath, { force: true });
+      }
+    });
+
+    it('E2E: @forge/react default import yields ForgeReconciler (render is callable)', () => {
+      // Phase 4e: no shim. out/index.js sets __esModule + exports.default, so
+      // the documented `import ForgeReconciler from '@forge/react'` needs the
+      // facade, exactly like @forge/sql. forge-sim is imported first so the
+      // real @forge/bridge (a dependency) finds the seam at evaluation.
+      const repoRoot = pathResolve(fileURLToPath(import.meta.url), '..', '..', '..');
+      const scriptPath = join(repoRoot, `.tmp-react-facade-test-${process.pid}.mjs`);
+      writeFileSync(scriptPath, [
+        `import './dist/simulator.js';`,
+        `import ForgeReconciler, { Text, useConfig } from '@forge/react';`,
+        `import { Router, useNavigate } from '@forge/react/router';`,
+        `console.log(JSON.stringify({`,
+        `  render: typeof ForgeReconciler.render,`,
+        `  addConfig: typeof ForgeReconciler.addConfig,`,
+        `  Text: typeof Text, useConfig: typeof useConfig,`,
+        `  Router: typeof Router, useNavigate: typeof useNavigate,`,
+        `}));`,
+      ].join('\n'));
+      try {
+        const out = execSync(
+          `node --import ./dist/loader/register.js ${JSON.stringify(scriptPath)}`,
+          { cwd: repoRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }
+        );
+        const parsed = JSON.parse(out.trim().split('\n').pop()!);
+        expect(parsed).toEqual({
+          render: 'function', addConfig: 'function',
+          // UI Kit components are STRING tags in the real package (the
+          // reconciler turns the tag into the ForgeDoc node type); only the
+          // hooks and the router pieces are functions.
+          Text: 'string', useConfig: 'function',
+          Router: 'function', useNavigate: 'function',
+        });
+      } finally {
+        rmSync(scriptPath, { force: true });
+      }
+    });
+
+    it('E2E: the three product bridges resolve by bare specifier despite having no main/exports', () => {
+      // Phase 4d: package.json has only a `browser` field, so Node alone says
+      // MODULE_NOT_FOUND. resolvePassthroughPackage maps the bare name to it.
+      const repoRoot = pathResolve(fileURLToPath(import.meta.url), '..', '..', '..');
+      const scriptPath = join(repoRoot, `.tmp-product-bridges-test-${process.pid}.mjs`);
+      writeFileSync(scriptPath, [
+        `import './dist/simulator.js';`,
+        `import { ViewIssueModal, uiModificationsApi } from '@forge/jira-bridge';`,
+        `import { getMacroContent } from '@forge/confluence-bridge';`,
+        `import { widgetEdit } from '@forge/dashboards-bridge';`,
+        `console.log(JSON.stringify({`,
+        `  ViewIssueModal: typeof ViewIssueModal, onInit: typeof uiModificationsApi.onInit,`,
+        `  getMacroContent: typeof getMacroContent, onSave: typeof widgetEdit.onSave,`,
+        `}));`,
+      ].join('\n'));
+      try {
+        const out = execSync(
+          `node --import ./dist/loader/register.js ${JSON.stringify(scriptPath)}`,
+          { cwd: repoRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }
+        );
+        const parsed = JSON.parse(out.trim().split('\n').pop()!);
+        expect(parsed).toEqual({
+          ViewIssueModal: 'function', onInit: 'function',
+          getMacroContent: 'function', onSave: 'function',
         });
       } finally {
         rmSync(scriptPath, { force: true });

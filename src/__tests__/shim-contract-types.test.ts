@@ -41,11 +41,6 @@ const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
  */
 const REAL_TYPES_ENTRY: Record<string, string> = {
   '@forge/resolver': 'node_modules/@forge/resolver/out/index.js',
-  '@forge/react': 'node_modules/@forge/react/out/index.js',
-  '@forge/react/router': 'node_modules/@forge/react/out/router/index.js',
-  '@forge/jira-bridge': 'node_modules/@forge/jira-bridge/out/index.js',
-  '@forge/confluence-bridge': 'node_modules/@forge/confluence-bridge/out/index.js',
-  '@forge/dashboards-bridge': 'node_modules/@forge/dashboards-bridge/out/index.js',
 };
 
 /**

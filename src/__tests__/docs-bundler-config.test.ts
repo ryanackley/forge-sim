@@ -92,7 +92,7 @@ describe('docs/testing/README.md — bundler snippet drift', () => {
     // migration: aliasing one would break module resolution, so the docs
     // must not show it. (`@forge/bridge/realtime` is the FRONTEND surface
     // and keeps its alias, hence the word-boundary-ish patterns below.)
-    for (const gone of ['forge-api', 'forge-kvs', 'forge-llm', 'forge-object-store', 'forge-events']) {
+    for (const gone of ['forge-api', 'forge-kvs', 'forge-llm', 'forge-object-store', 'forge-events', 'forge-bridge', 'forge-bridge-realtime', 'forge-react', 'forge-react-router', 'forge-jira-bridge', 'forge-confluence-bridge', 'forge-dashboards-bridge']) {
       // Scoped to alias-map syntax (`': 'forge-sim/shims/x'`) so prose that
       // MENTIONS the old path — the upgrade note telling readers to delete
       // exactly that line — doesn't trip it.

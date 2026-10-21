@@ -9,31 +9,23 @@
  * A shim-shaped answer that looks fine in isolation fails inside the package,
  * which is lesson #5 — only the real package proves the real path.
  *
- * Loaded with `createRequire` at the `out/index.js` subpath: CJS bypasses the
- * vitest alias to the shims, and these three packages ship no `main` and no
- * `exports`, so a bare specifier cannot resolve under Node at all until
- * Phase 4d teaches the loader about them. The seam itself is in place from
- * the ForgeSimulator constructor (Phase 4a) — the jira package captures
- * `callBridge` at module evaluation.
+ * Imported by BARE specifier (Phase 4d): these three packages ship no `main`
+ * and no `exports` — only a `browser` field — so resolving them is itself
+ * part of what this file proves. The vitest plugin in vitest.config.ts maps
+ * the bare name to that field; `loader-hooks.test.ts` pins the Node-loader
+ * twin. forge-sim is imported first so the seam exists when the jira package
+ * captures `callBridge` at module evaluation.
  */
 import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest';
-import { createRequire } from 'node:module';
 import { createSimulator, type ForgeSimulator } from '../simulator.js';
-
-const require = createRequire(import.meta.url);
+import * as jira from '@forge/jira-bridge';
+import * as confluence from '@forge/confluence-bridge';
+import * as dashboards from '@forge/dashboards-bridge';
 
 let sim: ForgeSimulator;
-let jira: any;
-let confluence: any;
-let dashboards: any;
 
 beforeAll(() => {
-  // Constructing the sim installs globalThis.__bridge, which the jira
-  // package reads at module scope on the next line.
   sim = createSimulator();
-  jira = require('@forge/jira-bridge/out/index.js');
-  confluence = require('@forge/confluence-bridge/out/index.js');
-  dashboards = require('@forge/dashboards-bridge/out/index.js');
 });
 
 beforeEach(() => {

@@ -7,10 +7,12 @@
 
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, resolve as pathResolve } from 'node:path';
+import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import {
   SHIM_NAMES,
   PASSTHROUGH_OK as REGISTRY_PASSTHROUGH_OK,
+  browserOnlyEntry,
   shimFileBase,
 } from '../shims/shim-registry.js';
 
@@ -65,6 +67,9 @@ const CJS_DEFAULT_FACADE = new Set([
   '@forge/kvs',
   '@forge/object-store',
   '@forge/api',
+  // `import ForgeReconciler from '@forge/react'` — the documented UI Kit
+  // entry style. out/index.js sets __esModule and exports.default.
+  '@forge/react',
 ]);
 const FACADE_QUERY = 'forge-sim-cjs-facade';
 
@@ -86,10 +91,23 @@ const FACADE_QUERY = 'forge-sim-cjs-facade';
 function resolvePassthroughPackage(specifier: string, parentURL?: string): string | null {
   const bases = parentURL?.startsWith('file://') ? [parentURL, import.meta.url] : [import.meta.url];
   for (const base of bases) {
+    const req = createRequire(base);
     try {
-      return pathToFileURL(createRequire(base).resolve(specifier)).href;
+      return pathToFileURL(req.resolve(specifier)).href;
     } catch {
-      // try the next base
+      // try the browser-only shape, then the next base
+    }
+    // Packages with no `main`/`exports`, only `browser` (the product
+    // bridges): require.resolve of the bare name fails, but package.json
+    // itself is always resolvable and names the entry.
+    if (!specifier.slice(specifier.indexOf('/') + 1).includes('/')) {
+      try {
+        const pkgJsonPath = req.resolve(`${specifier}/package.json`);
+        const entry = browserOnlyEntry(JSON.parse(readFileSync(pkgJsonPath, 'utf8')));
+        if (entry) return pathToFileURL(pathResolve(dirname(pkgJsonPath), entry)).href;
+      } catch {
+        // next base
+      }
     }
   }
   return null;

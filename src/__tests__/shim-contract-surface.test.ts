@@ -8,7 +8,8 @@
  *     using it works in Forge and crashes in forge-sim — the core parity bug.
  *   - EXTRA: a shim export the real package doesn't have. Worse in a way: code
  *     relying on it passes in forge-sim and explodes on real deploy (the
- *     Textfield/TextField trap — see forge-react-shim-parity.test.ts, which
+ *     Textfield/TextField trap — the real @forge/react now runs, so that trap
+ *     is the package's own; see forge-react-package.test.ts, which
  *     keeps the react-specific casing checks).
  *
  * Driven off SHIM_NAMES so a newly added shim is covered automatically; the

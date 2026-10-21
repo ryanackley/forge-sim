@@ -69,23 +69,22 @@ node --import ./dist/loader/register.js app.js
 `register.js` registers Node's loader hooks from `src/loader/hooks.ts`. The `resolve()` hook short-circuits any specifier in this list:
 
 ```ts
-const SHIM_NAMES = [
-  '@forge/resolver',
-  '@forge/react', '@forge/react/router',
-  '@forge/jira-bridge', '@forge/confluence-bridge', '@forge/dashboards-bridge',
-];
+const SHIM_NAMES = ['@forge/resolver'];
 ```
 
 The bare-seam migration emptied this list of BACKEND packages: every one whose
 I/O the seam can serve moved to `PASSTHROUGH_OK`, so the app runs the real
 Atlassian package (see "A few packages have no shim at all" below). The
-frontend seam migration then removed `@forge/bridge` (and `/realtime`) the
-same way: the real package runs against `globalThis.__bridge`, which
-`src/ui/bridge.ts` installs the moment forge-sim is loaded. What is left is
-`@forge/react`'s capture wrappers, the three product bridges (until Phase 4d
-teaches the loader to resolve them — they ship no `main`/`exports`), and
-`@forge/resolver`, the one that can never move — it performs no I/O, so there
-is no seam to intercept. When the app does
+frontend seam migration then did the same for every frontend package:
+`@forge/bridge`, `@forge/react` and the three product bridges all run for real
+against `globalThis.__bridge`, which `src/ui/bridge.ts` installs the moment
+forge-sim is loaded. Two of them needed resolution help rather than a shim:
+`@forge/react` is in `CJS_DEFAULT_FACADE` (its `exports.default` is
+`ForgeReconciler`), and the product bridges ship no `main`/`exports` — only a
+`browser` field — so `resolvePassthroughPackage` and the vitest plugin map the
+bare name to it (`browserOnlyEntry` in the shim registry). What is left is
+`@forge/resolver`, the one that can never move — it holds its handler map in a
+closure and performs no I/O, so there is no seam to answer. When the app does
 `import Resolver from '@forge/resolver'`, the hook returns
 `dist/shims/forge-resolver.js` instead of the real package. That shim is a
 tiny file:
@@ -113,7 +112,7 @@ The real `@forge/llm` package still sits in `node_modules`. It just never loads.
 
 For programmatic use (`createSimulator()` in tests), `sim.deploy()` registers the hooks for you via `module.register()`. No `--import` flag needed.
 
-### The backend packages have no shim at all
+### Every package but `@forge/resolver` has no shim at all
 
 Every backend `@forge/*` package ships CJS and routes its I/O through
 `global.__forge_fetch__({ type, ... })` internally. They are
@@ -125,18 +124,25 @@ nothing to drift, because there is no second implementation.
 
 This is now true of EVERY backend package — `@forge/api`, `@forge/kvs`,
 `@forge/sql`, `@forge/llm`, `@forge/object-store`, `@forge/events` and the
-backend `@forge/realtime`. Apps run the code Atlassian ships, pointed at the
-sim; the only app-facing impersonation left is the frontend bridge surface and
-`@forge/resolver`. A package
+backend `@forge/realtime` — and, since the frontend seam migration, of every
+FRONTEND package too: `@forge/bridge`, `@forge/react` and the three product
+bridges run against `globalThis.__bridge`. The only app-facing impersonation
+left is `@forge/resolver`. One sim-side hook touches a real package:
+`installReconcilerCapture()` (`src/ui/bridge.ts`) wraps `render`/`addConfig`
+on `@forge/react`'s `ForgeReconciler` object — a CJS singleton per copy, so
+the patch reaches the app's bundle without an alias — to capture the element
+for the N9 replay (below). A package
 listed in `PASSTHROUGH_OK` that sets `__esModule` + `exports.default` also
 needs an entry in `CJS_DEFAULT_FACADE` (`src/loader/hooks.ts`), or the
 documented default-import style breaks under Node's native CJS interop.
 
-The `@forge/api` shim applies the same convention to `route` / `routeFromAbsolute` / `assumeTrustedRoute`: pure functions with no cloud I/O, re-exported from the real package rather than reimplemented. The hand-rolled version had drifted in a security-relevant way (always-encoding instead of real `route()`'s mode-aware escaping, which *rejects* path-traversal shapes in path position) — pinned by the differential suite in `route-parity.test.ts`. Product-request surfaces (`requestJira` et al.) also enforce the real package's Route-only policy; plain strings throw exactly as they do in Forge, while the `fetch` surfaces keep accepting string-or-Route, which is the real policy there too.
+Running the real `@forge/api` is also what keeps `route` / `routeFromAbsolute` / `assumeTrustedRoute` honest: a hand-rolled version once drifted in a security-relevant way (always-encoding instead of real `route()`'s mode-aware escaping, which *rejects* path-traversal shapes in path position) — pinned by the differential suite in `route-parity.test.ts`. Backend product requests (`requestJira` et al.) enforce the real package's Route-only policy; plain strings throw exactly as they do in Forge. The FRONTEND `requestJira` in `@forge/bridge` is a different API that takes a plain path string — two similar surfaces with a nuanced difference, and the bridge host must keep accepting the string.
 
 ### Bundle caching for handler imports
 
-There's one place where Node's ESM cache fights the iterate loop: `sim.deploy()`. Node keys the dynamic-import cache on the full specifier URL, so appending `?t=Date.now()` to the entry-point URL busts the entry's cache, but **not** its transitive imports. Those resolve to plain URLs with no query string and stay cached forever across redeploys. The agent edits `validation.js`, redeploys, and the resolver still throws the old error message.
+There are two places where a module cache fights the iterate loop. The first is `sim.ui.render()`: it imports the module's bundle with a `?t=` query so a second render is a real re-evaluation. Native Node honours that, and so does vite-node for files it transforms (inside the project root), but vite-node strips the query from files it externalizes — an app deployed to `os.tmpdir()`, say — and hands back the cached module: no top-level `ForgeReconciler.render()`, no reconcile frame, a hang or a stale doc. That is N9, and `installReconcilerCapture()` + `replayCapturedRender()` in `src/ui/bridge.ts` are the workaround: the element is captured on first evaluation and replayed into a fresh container when no fresh frame arrives. `forge-react-package.test.ts` reproduces the case with a tmpdir fixture and a negative control. Prebuilt bundles with `@forge/react` inlined cannot be captured this way (see `deferred-issues.md`).
+
+The second is `sim.deploy()`. Node keys the dynamic-import cache on the full specifier URL, so appending `?t=Date.now()` to the entry-point URL busts the entry's cache, but **not** its transitive imports. Those resolve to plain URLs with no query string and stay cached forever across redeploys. The agent edits `validation.js`, redeploys, and the resolver still throws the old error message.
 
 The fix lives in `src/deployer.ts`. Before importing the handler, esbuild bundles the entry plus every relative-import descendant into a single ESM file at `<appDir>/.forge-sim/bundles/deploy-<timestamp>-<random>.mjs`. The bundle filename is per-deploy unique, so the resulting `file://` URL is a brand-new module specifier that neither Node's ESM cache nor vite-node's path-based cache has seen before. Stale bundles are swept at the start of each redeploy.
 

@@ -323,7 +323,7 @@ UIKit components and hooks. The reconciler produces ForgeDoc.
 | `DatePicker` | ✅ | — | |
 | `DonutChart` | ✅ | — | |
 | `EmptyState` | ✅ | — | |
-| `ErrorMessage` | ✅ | — | In renderer mapping, not in shim re-export |
+| `ErrorMessage` | ✅ | — | In renderer mapping |
 | `FileCard` | ✅ | — | In renderer mapping |
 | `FilePicker` | ✅ | — | In renderer mapping |
 | `Form` | ✅ | — | |
@@ -400,8 +400,8 @@ UIKit components and hooks. The reconciler produces ForgeDoc.
 | `Strike` | ✅ | — | Re-exported, renders `<s>` |
 | `Strong` | ✅ | — | Re-exported, renders `<strong>` |
 | `Frame` | ✅ | — | Re-exported, renders sandboxed `<iframe>` |
-| `InlineDialog` | ✅ | — | Already in shim (via Flag/InlineDialog) |
-| `Flag` | ✅ | — | Already in shim |
+| `InlineDialog` | ✅ | — | Real package export |
+| `Flag` | ✅ | — | Real package export |
 
 ### Types Only (no runtime needed)
 
@@ -533,9 +533,9 @@ Product-specific bridge APIs for Jira host UI. The host product isn't present, s
 | `workflowRules.onConfigure(fn)` | 🔇 | `product-bridges-package.test.ts` | Registers callback (host-driven, never fires in sim) |
 | `uiModificationsApi.onInit(cb, registerCb)` | 🔇 | `product-bridges-package.test.ts` | **Runs the app callbacks** against an empty form — the real package invokes them as soon as the internal API resolves, so "registered and waiting" isn't a state that exists. Submitted changes are dropped |
 | `uiModificationsApi.onChange(cb, registerCb)` | 🔇 | `product-bridges-package.test.ts` | Subscribes; the callback never fires (host-driven) |
-| `uiModificationsApi.onError(cb)` | 🔇 | `product-bridges.test.ts` | Registers error handler (host-driven); no bridge command of its own |
+| `uiModificationsApi.onError(cb)` | 🔇 | — | Real package; registers the handler locally, no bridge command of its own |
 | `customFieldApi.getFieldData(cb)` | 🔇 | `product-bridges-package.test.ts` | Registers callback (host pushes data, no host in sim) |
-| `REQUEST_TYPE_CF_TYPE` | ✅ | `product-bridges.test.ts` | String constant: `"com.atlassian.servicedesk:vp-origin"` |
+| `REQUEST_TYPE_CF_TYPE` | ✅ | — | Real package's constant: `"com.atlassian.servicedesk:vp-origin"` |
 
 ---
 

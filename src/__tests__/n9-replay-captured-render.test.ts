@@ -7,14 +7,18 @@
  * top-level `ForgeReconciler.render(<App/>)` call doesn't re-run, no
  * reconcile pulse fires, and moduleDocs[key] stays null forever.
  *
- * Fix: the @forge/react shim wraps ForgeReconciler.render/addConfig and
+ * Fix: installReconcilerCapture() patches render/addConfig on the REAL
+ * @forge/react's ForgeReconciler object (a CJS singleton per copy, so every
+ * importer of that copy is covered — no shim in front of the package) and
  * captures the React element under the active module key. simulator-ui
  * calls replayCapturedRender() when it sees "no doc after import" — re-
  * invoking the captured element against a fresh container produces a new
  * reconcile pulse equivalent to a real bundle re-evaluation.
  *
- * These tests pin down the primitives. The e2e regression (real vitest
- * bundle cache across `it` blocks) lives in the test apps (inside-jokes).
+ * These tests pin down the primitives. The end-to-end regression — a fixture
+ * OUTSIDE the project root rendered twice in one vitest process, the case
+ * vite-node externalizes and so strips the `?t=` on — is in
+ * forge-react-package.test.ts.
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { join } from 'node:path';
@@ -48,14 +52,14 @@ describe('N9 — ForgeReconciler element capture & replay', () => {
     await sim.stop();
   });
 
-  it('captures the render element when ForgeReconciler.render is called via shim', async () => {
+  it('captures the render element when the real ForgeReconciler.render is called', async () => {
     expect(hasCapturedRenderElement(MODULE_KEY)).toBe(false);
 
     sim.ui.setMacroConfig(MODULE_KEY, { name: 'Whiskers', tier: 'gold' });
     await sim.ui.render(MODULE_KEY);
 
     // The bundle's top-level ForgeReconciler.render(<App />) went through the
-    // shim wrapper, which captured the element.
+    // patched real ForgeReconciler, which captured the element.
     expect(hasCapturedRenderElement(MODULE_KEY)).toBe(true);
   });
 
