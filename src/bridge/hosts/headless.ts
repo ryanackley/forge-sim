@@ -9,13 +9,17 @@
  * test can assert that the app asked.
  *
  * State that belongs to the render lifecycle (ForgeDoc capture and waiters,
- * the forge context, history) stays in `src/ui/bridge.ts` and is supplied
- * here as dependencies; this file owns everything that touches the simulator.
+ * the forge context) stays in `src/ui/bridge.ts` and is supplied here as
+ * dependencies; this file owns everything that touches the simulator and
+ * every headless-specific answer. Nothing in `src/ui/bridge.ts` branches on
+ * "which host" — that is what this interface is for.
  */
 
 import type { ForgeSimulator } from '../../simulator.js';
 import { emitViewEvent } from '../../ui/view-events.js';
 import { createProductBridgeSurfaces } from './product-surfaces.js';
+import { resolveNavigationUrl } from './navigation-urls.js';
+import { createMemoryHistory } from '../memory-history.js';
 import type {
   BridgeHost,
   BridgeFetchResponse,
@@ -32,10 +36,8 @@ export interface HeadlessHostDeps {
   reconcile(forgeDoc: unknown, kind: 'view' | 'macroConfig'): Promise<void>;
   /** The context view.getContext() / useProductContext() report. */
   getContext(): Promise<unknown>;
-  /** The placement `extension` used to scope realtime channels, if a context is set. */
+  /** The placement `extension` of the render's forge context, if one is set. */
   getContextExtension(): Record<string, unknown> | null;
-  /** In-memory / WS-proxied history (owned by src/ui/bridge.ts). */
-  createHistory(): Promise<unknown>;
   /** Surface a "no resolver defined" invoke so waitForContent can hint at it. */
   recordMissingResolver(err: Error): void;
 }
@@ -80,6 +82,38 @@ export function createHeadlessHost(deps: HeadlessHostDeps): HeadlessHost {
     const s = deps.getSimulator();
     return s?.currentModuleKey ?? s?.ui?.getActiveModule?.() ?? undefined;
   };
+
+  /**
+   * Placement data for a frontend realtime call — what scopes the channel
+   * key. The explicit test knob wins (`sim.currentExtension`, paired with
+   * `currentModuleKey` for direct bridge calls with no render), then the
+   * render's forge context, then the rendered module's own context.
+   */
+  const placementExtension = (moduleKey: string | undefined): Record<string, unknown> | null => {
+    const s = deps.getSimulator();
+    if (s?.currentExtension) return s.currentExtension;
+    const fromRender = deps.getContextExtension();
+    if (fromRender) return fromRender;
+    if (moduleKey) return (s?.ui?.getContext?.(moduleKey)?.extension as Record<string, unknown> | undefined) ?? null;
+    return null;
+  };
+
+  /**
+   * Bind a realtime subscriber to the module that subscribed. The callback
+   * runs later, from a publish on the resolver side, outside any render
+   * scope; without this the setState re-render it causes is attributed to
+   * whichever module rendered most recently (ForgeDoc filed under the wrong
+   * key). Applies to global channels too: no module in the key, but the
+   * re-render still belongs to the subscriber.
+   */
+  const boundToModule = <F extends (...args: any[]) => any>(callback: F, moduleKey: string | undefined): F => {
+    const ui = deps.getSimulator()?.ui;
+    if (!ui?.runInModuleScope || moduleKey === undefined) return callback;
+    return ((...args: any[]) => ui.runInModuleScope(moduleKey, () => callback(...args))) as F;
+  };
+
+  /** The simulated site, so getUrl can hand the real package an absolute url. */
+  const siteOrigin = (): string => sim().getDefaultContext().siteUrl;
 
   /**
    * Same-frame listener registry for events.on / onPublic. Headless there are
@@ -169,20 +203,20 @@ export function createHeadlessHost(deps: HeadlessHostDeps): HeadlessHost {
     async refresh(payload) { emitViewEvent('refresh', payload); return true; },
     async open() { return true; },
     async onClose() { /* no host-driven close in a headless render */ },
-    createHistory: () => deps.createHistory(),
+    // In-memory, one instance per call (the shared implementation the
+    // browser host uses for UI Kit pages). Headless there is no URL to move
+    // and no browser to proxy to; the WebSocket-proxied history that used to
+    // live in src/ui/bridge.ts had no browser-side counterpart any more.
+    async createHistory() { return createMemoryHistory(); },
     async enableTheming() {},
     async changeWindowTitle() {},
     async emitReadyEvent() {},
 
     // ── Router ─────────────────────────────────────────────────────────
     async navigate() {},
-    async getUrl(location: BridgeNavigationLocation) {
-      // No site to resolve against headless; echo a string url so the real
-      // package's `new URL()` has something well-formed to parse.
-      if (typeof location === 'string') return location;
-      const url = (location as Record<string, unknown>).url;
-      return typeof url === 'string' ? url : null;
-    },
+    // Shared target table (navigation-urls.ts) against the simulated site:
+    // the real package runs `new URL()` on the answer and throws on null.
+    async getUrl(location: BridgeNavigationLocation) { return resolveNavigationUrl(location, siteOrigin()); },
     async reload() {},
 
     // ── Flags / modal ──────────────────────────────────────────────────
@@ -220,28 +254,31 @@ export function createHeadlessHost(deps: HeadlessHostDeps): HeadlessHost {
     async publishRealtime(channel, payload, options, global) {
       const s = sim();
       if (global) return s.realtime.publishGlobalFromBridge(channel, payload as any, options as any);
+      const moduleKey = activeModuleKey();
       return s.realtime.publishFromBridge(
         channel,
         payload as any,
-        activeModuleKey() ?? null,
+        moduleKey ?? null,
         options as any,
-        deps.getContextExtension(),
+        placementExtension(moduleKey),
       );
     },
     async subscribeRealtime(channel, onEvent, options, global) {
       const s = sim();
+      const moduleKey = activeModuleKey();
+      const callback = boundToModule(onEvent as (payload?: unknown) => unknown, moduleKey);
       // sim.realtime.subscribe/subscribeGlobal ARE the bridge-side API: they
       // throw on a bad channel/token exactly as the docs require, which
       // surfaces as the rejected Promise the app sees.
-      if (global) return s.realtime.subscribeGlobal(channel, onEvent as any, options as any);
+      if (global) return s.realtime.subscribeGlobal(channel, callback as any, options as any);
       // Same placement data view.getContext() reports, so a UI subscribe and
       // a backend publish derive the same scoped channel key.
       return s.realtime.subscribe(
         channel,
-        onEvent as any,
-        activeModuleKey() ?? null,
+        callback as any,
+        moduleKey ?? null,
         options as any,
-        deps.getContextExtension(),
+        placementExtension(moduleKey),
       );
     },
 

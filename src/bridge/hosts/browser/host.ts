@@ -25,6 +25,7 @@ import type { Transport } from './transport.js';
 import { createFlagSurface } from './flags.js';
 import { createBrowserHistory, createMemoryHistory } from './history.js';
 import { createProductBridgeSurfaces } from '../product-surfaces.js';
+import { resolveNavigationPath, resolveNavigationUrl } from '../navigation-urls.js';
 import { createModalSurface } from './modal.js';
 
 export interface BrowserHostOptions {
@@ -81,30 +82,6 @@ export function createBrowserHost(options: BrowserHostOptions): BridgeHost {
       try { cb(data.payload); } catch (err) { console.error('[forge-sim bridge] event handler error:', err); }
     }
   });
-
-  /**
-   * Map a NavigationLocation to a product path, same table the UI Kit shim
-   * used. Done in the frame rather than over RPC: these are static route
-   * shapes, and router.getUrl must stay synchronous-ish for the real
-   * package, which immediately runs `new URL()` on what we return.
-   */
-  const resolveUrl = (location: BridgeNavigationLocation): string | null => {
-    if (typeof location === 'string') return location;
-    const l = location as Record<string, any>;
-    if (typeof l.url === 'string') return l.url;
-    switch (l.target) {
-      case 'issue': return `/browse/${l.issueKey}`;
-      case 'contentView': return `/wiki/pages/${l.contentId}`;
-      case 'contentEdit': return `/wiki/pages/edit-v2/${l.contentId}`;
-      case 'contentList': return `/wiki/spaces/${l.spaceKey}/pages`;
-      case 'spaceView': return `/wiki/spaces/${l.spaceKey}`;
-      case 'dashboard': return `/jira/dashboards/${l.dashboardId}`;
-      case 'userProfile': return `/people/${l.accountId}`;
-      case 'projectSettingsDetails': return `/jira/software/projects/${l.projectKey}/settings`;
-      case 'module': return `/module/${l.moduleKey}/`;
-      default: return null;
-    }
-  };
 
   async function fetchVia(method: string, params: Record<string, unknown>): Promise<BridgeFetchResponse> {
     const r = await transport.rpc(method, params);
@@ -171,17 +148,13 @@ export function createBrowserHost(options: BrowserHostOptions): BridgeHost {
 
     // ── Router ─────────────────────────────────────────────────────────
     async navigate(location, tab) {
-      const url = resolveUrl(location);
+      const url = resolveNavigationPath(location);
       if (!url) return;
       if (tab === 'new-tab') window.open(url, '_blank');
       else window.location.href = url;
     },
-    async getUrl(location) {
-      const url = resolveUrl(location);
-      if (url === null) return null;
-      // Must be ABSOLUTE: the real package runs `new URL()` on the result.
-      try { return new URL(url, window.location.origin).toString(); } catch { return null; }
-    },
+    // Shared target table (navigation-urls.ts); the page's origin is the base.
+    async getUrl(location) { return resolveNavigationUrl(location, window.location.origin); },
     async reload() { window.location.reload(); },
 
     // ── Flags / modal ──────────────────────────────────────────────────

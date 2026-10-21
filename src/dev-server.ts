@@ -152,7 +152,6 @@ export type ServerEvent =
 export type ClientEvent =
   | { type: 'uiEvent'; requestId: string; handlerId: string; eventName: string; args: any[] }
   | { type: 'rpc'; requestId: string; method: string; params: any }
-  | { type: 'historyEvent'; action: string; location: any }
   | { type: 'ping' };
 
 // Keep the old name as an alias for backwards compat
@@ -719,73 +718,10 @@ export async function createDevServer(options: DevServerOptions = {}): Promise<D
 
   // ── Client event handling ───────────────────────────────────────────
 
-  // ── History WS proxy (headless/MCP mode only) ───────────────────
-  // In the normal dev server flow, both UIKit and Custom UI app code runs
-  // in the browser, so createHistory uses window.history directly (no WS needed).
-  // This WS proxy is only used when the server-side bridge (ui/bridge.ts)
-  // handles createHistory in headless/MCP mode without a browser.
-
-  let historyRequestCounter = 0;
-  const historyPendingRequests = new Map<string, { resolve: (v: any) => void; reject: (e: any) => void }>();
-
-  // Wire up the history WS sender (lazy — only loads bridge if history is used)
-  let historyBridgeWired = false;
-  function ensureHistoryBridge() {
-    if (historyBridgeWired) return;
-    historyBridgeWired = true;
-    import('./ui/bridge.js').then(({ setHistoryWsSender }) => {
-      setHistoryWsSender(async (cmd: string, data: any) => {
-        const client = [...clients].find(c => c.readyState === WebSocket.OPEN);
-        if (!client) {
-          console.warn(`[dev-server] No browser connected for ${cmd}`);
-          return;
-        }
-        const requestId = `hist-${++historyRequestCounter}`;
-        return new Promise((resolve, reject) => {
-          const timeout = setTimeout(() => {
-            historyPendingRequests.delete(requestId);
-            reject(new Error(`History command timeout: ${cmd}`));
-          }, 5000);
-          historyPendingRequests.set(requestId, {
-            resolve: (v) => { clearTimeout(timeout); resolve(v); },
-            reject: (e) => { clearTimeout(timeout); reject(e); },
-          });
-          client.send(JSON.stringify({ type: 'historyCommand', requestId, cmd, data }));
-        });
-      });
-    });
-  }
-
-  // Eagerly wire it if a simulator is connected (UIKit mode)
-  if (simulator) ensureHistoryBridge();
-
-  async function notifyHistoryFromBrowser(action: string, location: any) {
-    const { notifyHistoryListeners } = await import('./ui/bridge.js');
-    notifyHistoryListeners(action, location);
-  }
-
   async function handleClientEvent(event: ClientEvent, ws: WebSocket) {
     if (event.type === 'ping') return;
 
     // (forgeEvent relay removed — events now use postMessage between iframes)
-
-    // ── History events from browser (popstate → server) ─────────────
-    if (event.type === 'historyEvent') {
-      notifyHistoryFromBrowser(event.action, event.location);
-      return;
-    }
-
-    // ── History command acknowledgements (browser → server) ──────────
-    if ((event as any).type === 'historyAck') {
-      const { requestId, location, action } = event as any;
-      const pending = historyPendingRequests.get(requestId);
-      if (pending) {
-        historyPendingRequests.delete(requestId);
-        notifyHistoryFromBrowser(action, location);
-        pending.resolve(undefined);
-      }
-      return;
-    }
 
     // ── RPC from browser bridge shim ────────────────────────────────
     if (event.type === 'rpc') {

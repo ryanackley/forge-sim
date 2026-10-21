@@ -9,7 +9,7 @@
  *
  * This module owns what is specific to the render lifecycle and the test API:
  * ForgeDoc capture and waiters, raw-HTML rejection (UIK-003), the forge
- * context, in-memory / WS-proxied history, the N9 replay workaround, and the
+ * context, the N9 replay workaround, and the
  * Node-vs-browser shims a prebuilt bundle needs (document stub, relative
  * Request base, page-relative __LOCALES__ fetch).
  *
@@ -210,156 +210,6 @@ export function consumeMissingResolverError(): Error | null {
   return err;
 }
 
-// ── createHistory (server-side bridge — headless/MCP mode) ──────────────
-//
-// In the normal dev server flow, both UIKit and Custom UI app code runs in
-// the browser, so createHistory is handled by the inline bridge script
-// (dev-command.ts) using window.history directly — this code is NOT involved.
-//
-// This handler is only used when app code runs through the server-side bridge
-// (headless/MCP mode). It supports optional WS proxying to a browser if one
-// is connected, otherwise falls back to an in-memory history.
-
-/**
- * Listeners registered via history.listen().
- * Notified by notifyHistoryListeners() when location changes.
- *
- * Parity: real Forge's bridge history uses the history v4 listener signature
- * (location, action) — NOT v5's ({action, location}). @forge/react's Router
- * and @forge/bridge's createHistory wrapper both destructure the first arg
- * as the location, so v5-style notify breaks Route matching after navigation.
- */
-type HistoryListener = (location: any, action: string) => void;
-const historyListeners: HistoryListener[] = [];
-const initialHistoryLocation = () => ({ pathname: '/', search: '', hash: '', state: null, key: 'default' });
-let currentHistoryLocation: any = initialHistoryLocation();
-let currentHistoryAction = 'POP';
-
-// In-memory entries stack for the no-WS (headless/MCP) path — makes
-// go()/goBack()/goForward() actually navigate instead of silently no-oping,
-// so @forge/react/router's useNavigate(-1) works in headless renders.
-// In WS-proxy mode the browser's real history owns the stack instead.
-let historyEntries: any[] = [initialHistoryLocation()];
-let historyIndex = 0;
-
-/** Reset headless history state (called from resetBridge). */
-function resetHistoryState(): void {
-  historyListeners.length = 0;
-  historyEntries = [initialHistoryLocation()];
-  historyIndex = 0;
-  currentHistoryLocation = historyEntries[0];
-  currentHistoryAction = 'POP';
-}
-
-/**
- * Called by the dev server when the browser sends a history navigation event
- * (popstate, or acknowledgement of push/replace with updated location).
- */
-export function notifyHistoryListeners(action: string, location: any): void {
-  currentHistoryAction = action;
-  currentHistoryLocation = location;
-  for (const fn of historyListeners) {
-    try { fn(location, action); } catch (e) { console.error(e); }
-  }
-}
-
-/**
- * Send a history command to the browser via the dev server WS.
- * Returns a promise that resolves when the browser acknowledges.
- */
-let historyWsSender: ((cmd: string, data: any) => Promise<any>) | null = null;
-
-export function setHistoryWsSender(sender: (cmd: string, data: any) => Promise<any>): void {
-  historyWsSender = sender;
-}
-
-async function handleCreateHistory(): Promise<any> {
-  const history = {
-    get action() { return currentHistoryAction; },
-    get location() { return currentHistoryLocation; },
-    // No-op setter: @forge/bridge's createHistory wrapper assigns
-    // `history.location = location` inside its own listen callback. The
-    // getter above is already live, so the assignment is redundant — but
-    // without a setter it would throw in strict-mode callers.
-    set location(_loc: any) { /* getter is live */ },
-
-    createHref(to: string | Record<string, any>): string {
-      if (typeof to === 'string') return to;
-      return (to.pathname || '') + (to.search || '') + (to.hash || '');
-    },
-
-    async push(to: string | Record<string, any>, state?: any): Promise<void> {
-      if (historyWsSender) {
-        await historyWsSender('history.push', { to, state });
-      } else {
-        // No WS connection (e.g., MCP/headless mode) — update in-memory.
-        // Truncate the forward stack, then push (browser history semantics).
-        const loc = parseTo(to, state);
-        historyEntries.splice(historyIndex + 1);
-        historyEntries.push(loc);
-        historyIndex = historyEntries.length - 1;
-        notifyHistoryListeners('PUSH', loc);
-      }
-    },
-
-    async replace(to: string | Record<string, any>, state?: any): Promise<void> {
-      if (historyWsSender) {
-        await historyWsSender('history.replace', { to, state });
-      } else {
-        const loc = parseTo(to, state);
-        historyEntries[historyIndex] = loc;
-        notifyHistoryListeners('REPLACE', loc);
-      }
-    },
-
-    async go(delta: number): Promise<void> {
-      if (historyWsSender) {
-        await historyWsSender('history.go', { delta });
-      } else {
-        const nextIndex = Math.max(0, Math.min(historyEntries.length - 1, historyIndex + delta));
-        if (nextIndex === historyIndex) return;
-        historyIndex = nextIndex;
-        notifyHistoryListeners('POP', historyEntries[historyIndex]);
-      }
-    },
-
-    // v4 names (the documented Forge contract)
-    goBack(): void { history.go(-1); },
-    goForward(): void { history.go(1); },
-    // v5 names (what @forge/bridge's .d.ts promises)
-    back(): void { history.go(-1); },
-    forward(): void { history.go(1); },
-
-    listen(fn: HistoryListener): () => void {
-      historyListeners.push(fn);
-      return () => {
-        const idx = historyListeners.indexOf(fn);
-        if (idx >= 0) historyListeners.splice(idx, 1);
-      };
-    },
-
-    block(_fn: any): () => void {
-      // Blocking requires intercepting browser navigation — not supported in WS proxy mode
-      console.warn('[forge-sim] history.block() is not supported in UIKit mode');
-      return () => {};
-    },
-  };
-
-  return history;
-}
-
-function parseTo(to: string | Record<string, any>, state?: any): any {
-  if (typeof to === 'string') {
-    let pathname = to, search = '', hash = '';
-    const hashIdx = to.indexOf('#');
-    if (hashIdx >= 0) { hash = to.slice(hashIdx); to = to.slice(0, hashIdx); }
-    const searchIdx = to.indexOf('?');
-    if (searchIdx >= 0) { search = to.slice(searchIdx); pathname = to.slice(0, searchIdx); }
-    return { pathname, search, hash, state: state ?? null, key: Math.random().toString(36).slice(2, 10) };
-  }
-  return { pathname: to.pathname || '/', search: to.search || '', hash: to.hash || '', state: state ?? null, key: Math.random().toString(36).slice(2, 10) };
-}
-
 // ── Setup ───────────────────────────────────────────────────────────────
 
 /**
@@ -555,7 +405,6 @@ const headlessHost: HeadlessHost = createHeadlessHost({
   reconcile: (doc, kind) => handleReconcile(doc as ForgeDoc, kind),
   getContext: handleGetContext,
   getContextExtension: () => (currentForgeContext?.extension as Record<string, unknown> | undefined) ?? null,
-  createHistory: handleCreateHistory,
   recordMissingResolver: (err) => { latestMissingResolverError = err; },
 });
 
@@ -725,7 +574,6 @@ export function resetBridge(): void {
   bridgeCalls.length = 0;
   headlessHost.reset();
   currentForgeContext = null;
-  resetHistoryState();
 }
 
 // ── Captured render element API (N9 workaround) ─────────────────────────
