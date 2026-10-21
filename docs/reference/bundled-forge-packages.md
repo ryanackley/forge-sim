@@ -1,6 +1,18 @@
 # Bundled `@forge/*` packages: findings
 
-Reference notes on how forge-sim's interception interacts with apps that
+> **Status (Phase 5, October 2026).** The conclusion this document was written
+> to support — that backends bundling `@forge/*` were unsupported — has been
+> inverted twice over. Every `@forge/*` package now runs for real against a
+> seam (`__forge_fetch__`, `__forge_runtime__`, `globalThis.__bridge`), and
+> forge-sim *itself* bundles `@forge/*` into every deploy and render
+> (`src/bundler.ts`), so "shape 2" is the only shape the simulator runs.
+> §2's premise (interception keyed on the specifier) describes machinery that
+> no longer exists. The **measurements** below — descriptor shapes, package
+> internals, the 12 lessons — are still accurate and are what the seams were
+> built from; `bundled-app-e2e.test.ts` is the end-to-end proof. For the
+> current architecture read [`architecture.md`](./architecture.md).
+
+Reference notes on how forge-sim's interception interacted with apps that
 **bundle** the `@forge/*` packages into their output, gathered while
 investigating adversarial finding D (manual packaging, #40).
 

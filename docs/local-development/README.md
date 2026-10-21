@@ -74,7 +74,7 @@ Switching triggers a page reload (your app owns its own `invoke` calls in mount 
 
 ## Custom UI and proxy mode
 
-Custom UI pages that are already bundled and referenced in your manifest work out of the box; forge-sim serves them and injects the `@forge/bridge` shim.
+Custom UI pages that are already bundled and referenced in your manifest work out of the box; forge-sim serves them with `window.__bridge` installed ahead of your code, which the real `@forge/bridge` inside your bundle talks to.
 
 While developing, you'll usually run your Custom UI through its own webpack/Vite/Parcel dev server so you get hot reload. Point forge-sim at it with `--proxy`:
 
@@ -86,7 +86,7 @@ cd my-custom-ui-app && npm start  # → http://localhost:3000
 forge-sim dev --proxy http://localhost:3000
 ```
 
-forge-sim sits in front of your dev server and hosts it in an iframe with shimmed Forge APIs, so HMR and Chrome DevTools keep working.
+forge-sim sits in front of your dev server and hosts it in an iframe with `window.__bridge` provided, so your real `@forge/bridge` works and HMR and Chrome DevTools keep working.
 
 *🎬 Demo video placeholder — proxy mode: Vite dev server running, `forge-sim dev --proxy`, Custom UI inside the simulated Forge frame with HMR.*
 

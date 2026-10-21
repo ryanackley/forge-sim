@@ -48,34 +48,6 @@ let the page's next `useTranslation` fetch pick it up. Decide whether a locale
 change should also trigger a browser reload, since the real package caches
 translations per page load too.
 
-## `docs/reference/architecture.md` drifted from the backend it describes
-
-Found while mapping the backend seams for the `__forge_runtime__` migration
-(see `src/runtime/seam-registry.ts`). Four claims no longer match the code:
-
-- `:63`, `:99`, `:201` say forge-sim never builds a fake `__forge_runtime__`.
-  `src/shims/globals.ts:111-133` has installed a minimal one (no-op metrics,
-  empty `externalAuth`, a lazy `aaid` getter) for some time.
-- ~~`:105` says the KVS shim wraps the real package.~~ **Fixed** in phase 3a:
-  there is no KVS shim any more, and that section now describes the
-  `PASSTHROUGH_OK` + seam arrangement it actually uses.
-- `:72-77` lists 11 shims. `SHIM_NAMES` (`src/shims/shim-registry.ts:39-54`)
-  has 14 — missing object-store, react/router and bridge/realtime.
-- `:157` (and `docs/reference/renderer.md:42`) say the real `@forge/bridge`
-  looks up `window.__bridge` at call time. Every module captures it at
-  module-evaluation time (`node_modules/@forge/bridge/out/invoke/invoke.js:8`
-  and ~25 others), which is precisely why injection order is load-bearing in
-  the browser. `@forge/react`'s reconciler is the one call-time lookup.
-
-Also `docs/local-development/README.md:77` still describes injecting the
-`@forge/bridge` shim, which predates the bridge consolidation (`4e0f9c7`).
-
-Left alone because the backend migration will rewrite these sections anyway;
-the risk of fixing them now is writing a description of an architecture that
-changes again in Phase 2. Whoever does it should decide whether the
-interception-strategies section becomes "shims" vs "seams" or documents both
-during the transition.
-
 ## `@forge/bridge` must evaluate after forge-sim is loaded (import order in test files)
 
 The real `@forge/bridge` captures `globalThis.__bridge` at module evaluation and throws
