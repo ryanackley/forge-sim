@@ -17,7 +17,9 @@ import { createSimulator, ForgeSimulator } from '../simulator.js';
 
 import { parseManifestContent } from '../manifest.js';
 import * as forgeApi from '@forge/api';
-import * as forgeBridge from '../shims/forge-bridge.js';
+// The REAL @forge/bridge: its invokeRemote/requestRemote frames reach the
+// headless BridgeHost through globalThis.__bridge (installed by createSimulator).
+import * as forgeBridge from '@forge/bridge';
 import { FITProvider } from '../fit-provider.js';
 import { RemoteProxy } from '../remote-proxy.js';
 import { decodeJwt, decodeProtectedHeader } from 'jose';
@@ -368,7 +370,7 @@ describe('invokeRemote from @forge/bridge', () => {
     sim = createSimulator();
     await sim.loadManifest(FULL_MANIFEST);
     await sim.fit.initInMemory();
-    // Set active module so bridge shim can resolve endpoint
+    // Set active module so the headless host can resolve the endpoint
     sim.currentModuleKey = 'panel';
   });
 
@@ -394,12 +396,17 @@ describe('invokeRemote from @forge/bridge', () => {
     ).rejects.toThrow(/has no endpoint configured/);
   });
 
-  it('fails when no active module is set and no endpoint key provided', async () => {
+  it('auto-resolves the only endpoint when no module is active (same rule as the dev server)', async () => {
+    // sim.resolveModuleEndpoint(undefined) picks the single endpoint-bearing
+    // module; the old shim passed `undefined` straight through and rejected.
+    // In Forge an iframe always knows its module, so "no module" is a
+    // sim-only state and the friendly answer is the one the dev server gives.
     sim.currentModuleKey = undefined;
+    sim.mockProductRoutes('my-backend', { 'GET /api/v1/test': { ok: true } });
 
-    await expect(
-      forgeBridge.invokeRemote({ path: '/test' })
-    ).rejects.toThrow(/requires an endpoint key/);
+    const response = await forgeBridge.invokeRemote({ path: '/test' });
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({ ok: true });
   });
 });
 

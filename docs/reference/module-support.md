@@ -20,7 +20,7 @@ Every Forge module falls into one of these patterns:
 | Pattern | Description | How forge-sim handles it |
 |---------|-------------|------------------------|
 | **UI + Resolver** | Has `resource:` + `render: native` + `resolver.function` or `resolver.endpoint`. UIKit 2 server-rendered components. | ✅ Full render pipeline: deploy → ForgeDoc → Atlaskit renderer |
-| **UI + Custom UI** | Has `resource:` pointing to static HTML/JS/CSS. No `render: native`. Iframe with `@forge/bridge`. | ✅ Vite serves resource dir, bridge shim handles RPC |
+| **UI + Custom UI** | Has `resource:` pointing to static HTML/JS/CSS. No `render: native`. Iframe with `@forge/bridge`. | ✅ Vite serves resource dir, the browser bridge host handles RPC |
 | **UI + Proxy** | Same as Custom UI but dev uses external bundler. `forge-sim dev --proxy <url>` | ✅ Reverse proxy with bridge injection |
 | **Function (trigger)** | `trigger` module with `function:` and `events:[]`. Called as `(event, context)` | ✅ Fireable via MCP/CLI |
 | **Function (consumer)** | `consumer` module with `function:` and `queue:`. Called as `(event, context)` | ✅ Wired to SimulatedQueue |

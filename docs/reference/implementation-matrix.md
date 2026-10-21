@@ -416,7 +416,7 @@ UIKit components and hooks. The reconciler produces ForgeDoc.
 
 ## @forge/bridge
 
-Frontend API for Custom UI apps (runs in iframe).
+Frontend API for Custom UI and UI Kit apps (runs in the iframe). **The real package runs**, headless and in `forge-sim dev` alike: it talks to `globalThis.__bridge`, installed when forge-sim loads and answered by the headless `BridgeHost` (`src/bridge/hosts/headless.ts`) or the browser one. Status below is therefore the HOST's answer to each command; the package's own client-side validation (flag `id`, `getUrl` target, `requestJira` plain string, …) applies unchanged. Pinned by `bridge-protocol.test.ts` (every command routed), `bridge-headless-host.test.ts` and `bridge-features.test.ts` (both hosts, real frames).
 
 ### Core
 
@@ -499,7 +499,7 @@ Frontend API for Custom UI apps (runs in iframe).
 | `i18n.createTranslationFunction(locale)` | ✅ | e2e (see `useTranslation`) | Real package; same `__LOCALES__` path |
 | `i18n.resetTranslationsCache()` | ✅ | — | Real package; next `t()` refetches `__LOCALES__` |
 | `permissions` (egress/remote admin) | ❌ | — | Real shape ({ egress: get/set/deleteDomain/deleteGroup, remote: get/set }); all throw not-implemented. (The old sim-invented `permissions.check()` never existed upstream and was removed.) |
-| `FeatureFlags` class | ✅ | `shim-contract-surface.test.ts` | Matches real shape (initialize/checkFlag/shutdown); every flag evaluates to its defaultValue — no flag backend in the sim. (The old lowercase `featureFlags` object never existed in real @forge/bridge and was removed.) |
+| `FeatureFlags` class | ✅ | `bridge-protocol.test.ts` | Matches real shape (initialize/checkFlag/shutdown); every flag evaluates to its defaultValue — no flag backend in the sim. (The old lowercase `featureFlags` object never existed in real @forge/bridge and was removed.) |
 | `checkPermissions(required, runtime?)` | ✅ | `shim-contract-surface.test.ts` | Scope checks in full; external (egress URL) requirements throw not-implemented |
 | `createPermissionUtils(runtime)` | ✅ | — | hasScope/getScopes/etc. in full; canFetchFrom/canLoadResource throw not-implemented (need @forge/egress) |
 | `makeInvoke()` | ✅ | — | Typed factory over the same invoke function, like upstream |
@@ -507,7 +507,7 @@ Frontend API for Custom UI apps (runs in iframe).
 | `fetchUserRecommendations(input)` | ❌ | — | Exported, throws not-implemented |
 | `frontendCustomMetrics.counter(name)` | 🔇 | — | Real shape (incr/incrBy with validation); metrics are not aggregated anywhere |
 | `invokeRemote(key, options)` | ✅ | `remotes.test.ts`, `bridge-invoke-routing.test.ts` | Endpoint resolution, route prefix, FIT auth, mock-first |
-| `invokeService(input)` | ❌ | `shim-contract-types.test.ts` | Real signature is a single InvokeEndpointInput (since @forge/bridge 7.x); throws not-implemented — Container services are an Atlassian developer preview (#19) |
+| `invokeService(input)` | ❌ | `bridge-protocol.test.ts` | Real signature is a single InvokeEndpointInput (since @forge/bridge 7.x); throws not-implemented — Container services are an Atlassian developer preview (#19) |
 
 ---
 
@@ -572,7 +572,7 @@ Product-specific bridge APIs for Jira Dashboard widgets. Answered inertly by a b
 | Package | Status | Notes |
 |---------|--------|-------|
 | `@forge/auth` | ❌ | `authorizeJiraWithFetch`, `authorizeConfluenceWithFetch`. Not intercepted by loader hooks. |
-| `@forge/i18n` | ⚠️ | Not intercepted by loader hooks; the simulator's I18nStore backs the real `@forge/bridge` i18n (served `__LOCALES__` files) and the headless Node shim. Real package partially works for types/constants. |
+| `@forge/i18n` | ⚠️ | Not intercepted by loader hooks; the simulator's I18nStore backs the real `@forge/bridge` i18n (page-relative `__LOCALES__` fetches, answered headless and by the dev server). Real package partially works for types/constants. |
 | `@forge/egress` | ❌ | Egress filtering rules. Not intercepted. Not commonly imported directly by apps. |
 | `@forge/manifest` | ❌ | Manifest types. Not intercepted. Types-only usage would work at compile time. |
 | `@forge/storage` | ⚠️ | Not directly shimmed, but `@forge/api` re-exports its query types. Direct `import { storage } from '@forge/storage'` would load the real package. |

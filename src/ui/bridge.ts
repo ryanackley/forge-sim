@@ -419,15 +419,54 @@ async function handleGetContext(): Promise<ForgeContext> {
   return buildDefaultContext('sim-module');
 }
 
-export function installBridge(): void {
-  const bridge = { callBridge };
-  (globalThis as any).__bridge = bridge;
-  (globalThis as any).self = globalThis;
+// The dispatcher this module instance built, published under a global key so
+// the seam can find the CURRENT one. `globalThis.__bridge` itself is a stateless
+// trampoline that forwards to whatever is under this key. Why the indirection:
+// the real @forge/bridge captures `__bridge.callBridge` ONCE, at module
+// evaluation (out/bridge.js getCallBridge), and it is CJS, which vitest never
+// re-evaluates. This module, by contrast, is re-evaluated by `vi.resetModules()`
+// (and loaded twice when a compiled dist copy sits beside the src copy), each
+// instance with its own render waiters and attached simulator. Without the
+// trampoline the package keeps routing to the first, dead instance and every
+// render after a resetModules() hangs on a reconcile nobody is waiting for.
+// Same reason src/ui/view-events.ts keeps its store on globalThis.
+const DISPATCHER_KEY = Symbol.for('forge-sim.bridge-dispatcher');
+const TRAMPOLINE_MARK = Symbol.for('forge-sim.bridge-trampoline');
 
-  if (typeof (globalThis as any).window === 'undefined') {
-    (globalThis as any).window = globalThis;
+/**
+ * Make THIS module instance the live dispatcher and install the seam around
+ * it. Called whenever a simulator is attached (constructor via
+ * installBridgeSeam, sim.ui.ensureBridge, connectSimulator).
+ */
+export function installBridge(): void {
+  (globalThis as any)[DISPATCHER_KEY] = { callBridge };
+  ensureBridgeSeam();
+}
+
+/**
+ * Make sure a seam exists, WITHOUT claiming to be the live instance: only
+ * publish this module's dispatcher if nothing is published yet. This is what
+ * runs at module scope. The distinction matters under `vi.resetModules()`:
+ * the fresh @forge/react shim imports a fresh copy of this module while the
+ * test is still awaiting the ORIGINAL copy's render waiters. A copy that
+ * installed itself unconditionally would steal every frame from the copy a
+ * simulator is actually attached to, and the render would hang.
+ */
+function ensureBridgeSeam(): void {
+  const g = globalThis as any;
+  if (!g[DISPATCHER_KEY]) g[DISPATCHER_KEY] = { callBridge };
+  if (!g.__bridge?.[TRAMPOLINE_MARK]) {
+    g.__bridge = {
+      callBridge: (cmd: string, data?: unknown) => g[DISPATCHER_KEY].callBridge(cmd, data),
+      [TRAMPOLINE_MARK]: true,
+    };
   }
-  (globalThis as any).window.__bridge = bridge;
+  g.self = globalThis;
+
+  if (typeof g.window === 'undefined') {
+    g.window = globalThis;
+  }
+  g.window.__bridge = g.__bridge;
   installDocumentStub();
   installRelativeI18nFetch();
   installRelativeRequestBase();
@@ -444,8 +483,6 @@ export function connectSimulator(sim: ForgeSimulator): void {
 
 function attachSimulator(sim: ForgeSimulator): void {
   simulator = sim;
-  // Expose simulator on globalThis so the bridge shim can access i18n store etc.
-  (globalThis as any).__forgeSimulator = sim;
 }
 
 /**
@@ -470,6 +507,20 @@ export function installBridgeSeam(sim: ForgeSimulator): void {
   installBridge();
   attachSimulator(sim);
 }
+
+// The seam is a property of the ENVIRONMENT, not of a simulator instance: in
+// real Forge the iframe has `window.__bridge` before the first app script
+// runs, whether or not anything is listening yet. Install it as soon as
+// forge-sim itself is loaded, so a test file that does
+//
+//   import { createSimulator } from 'forge-sim';
+//   import { invoke } from '@forge/bridge';   // evaluates getCallBridge() NOW
+//
+// does not die inside the package before its first beforeEach can construct
+// a sim. ESM evaluates imports in source order, so forge-sim is loaded first.
+// Until a sim is attached, every command rejects with the host's "No
+// simulator connected" — loud, and one line away from the fix.
+ensureBridgeSeam();
 
 /**
  * Set the Forge context for the current render.
@@ -658,10 +709,15 @@ export function moduleUsesConfig(moduleKey: string): boolean {
   return modulesThatUseConfig.has(moduleKey);
 }
 
-/** Full reset — disconnects simulator too. */
+/**
+ * Full reset of render-lifecycle state. The attached simulator STAYS
+ * attached: it still exists and is still the active one, and the seam is
+ * always present now, so a direct `@forge/bridge` call right after a reset
+ * (a test's next case, say) must keep reaching it. A new simulator replaces
+ * it when constructed.
+ */
 export function resetAll(): void {
   resetBridge();
   renderListeners = [];
   macroConfigRenderListeners = [];
-  simulator = null;
 }

@@ -40,8 +40,6 @@ export const SHIM_NAMES = [
   '@forge/resolver',
   '@forge/react',
   '@forge/react/router',
-  '@forge/bridge/realtime',
-  '@forge/bridge',
   '@forge/jira-bridge',
   '@forge/confluence-bridge',
   '@forge/dashboards-bridge',
@@ -73,16 +71,24 @@ export type ShimName = (typeof SHIM_NAMES)[number];
  *   `@forge/realtime` → sim realtime (`type: 'realtime'`; publish /
  *                   publishGlobal / signRealtimeToken GraphQL, with the
  *                   scoped-publish invocation gate riding the same
- *                   AsyncLocalStorage the shim path used. NOT the frontend
- *                   `@forge/bridge/realtime`, which stays shimmed.)
+ *                   AsyncLocalStorage the shim path used.)
  *   `@forge/events` → sim queue + triggers (`type: 'fpp'` on the
  *                   `/webhook/queue/*` and `/forge/events/v1/app-events`
  *                   paths; it reaches the seam through @forge/api's
  *                   `__requestAtlassianAsApp`, not a seam call of its own)
  *   `@forge/api`  → sim product APIs, remotes, web triggers, third-party
  *                   OAuth and authorize() (`fpp` / `tpp` / `frc`). The last
- *                   backend package to flip; what remains shimmed is the
- *                   seamless `@forge/resolver` and the frontend bridges.
+ *                   backend package to flip.
+ *   `@forge/bridge` (and its `/realtime` subpath) → the FRONTEND seam,
+ *                   `globalThis.__bridge`, installed by the ForgeSimulator
+ *                   constructor and answered by the headless BridgeHost
+ *                   (`src/bridge/hosts/headless.ts`). Not a `__forge_fetch__`
+ *                   package: this is the one seam real Forge gives an iframe,
+ *                   and every surface — source-mode, prebuilt, Custom UI, dev
+ *                   page, headless — runs the real package against it. What
+ *                   remains shimmed is the seamless `@forge/resolver`, the
+ *                   `@forge/react` capture wrappers, and (until 4d) the three
+ *                   product bridges.
  *
  * Packages listed here that set `__esModule` AND `exports.default` must ALSO
  * be in `CJS_DEFAULT_FACADE` in `src/loader/hooks.ts`, or the documented
@@ -98,6 +104,7 @@ export const PASSTHROUGH_OK: readonly string[] = [
   '@forge/realtime',
   '@forge/events',
   '@forge/api',
+  '@forge/bridge',
 ];
 
 /**

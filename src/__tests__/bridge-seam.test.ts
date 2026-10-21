@@ -62,6 +62,24 @@ describe('globalThis.__bridge is installed by the ForgeSimulator constructor', (
 });
 
 describe('plain node, no loader (dist/)', () => {
+  const distReady0 = existsSync(join(REPO_ROOT, 'dist', 'simulator.js'));
+
+  it.skipIf(!distReady0)('loading forge-sim is enough for @forge/bridge to evaluate; a command without a sim rejects loudly', () => {
+    // Static-import order in a test file: forge-sim first, then the frontend
+    // package, then a sim is constructed in a hook. The seam must already be
+    // there at step two (src/ui/bridge.ts installs it at module scope).
+    const result = spawnNode([
+      `import './dist/simulator.js';`,
+      `import { createRequire } from 'node:module';`,
+      `const bridge = createRequire(import.meta.url)('@forge/bridge');`,
+      `let err = null;`,
+      `try { await bridge.invoke('fn'); } catch (e) { err = e.message; }`,
+      `console.log(JSON.stringify({ seam: typeof globalThis.__bridge?.callBridge, invoke: typeof bridge.invoke, err }));`,
+    ], 'load-only');
+    expect(result).toMatchObject({ seam: 'function', invoke: 'function' });
+    expect(String(result.err)).toMatch(/No simulator connected/);
+  });
+
   const distReady = existsSync(join(REPO_ROOT, 'dist', 'simulator.js'));
 
   it.skipIf(!distReady)('import @forge/bridge after constructing a sim: evaluates and answers', () => {

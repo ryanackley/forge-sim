@@ -23,9 +23,11 @@ import { describe, it, expect } from 'vitest';
 import { join, resolve } from 'node:path';
 import { createRequire } from 'node:module';
 import * as shim from '@forge/api';
-import * as bridgeShim from '../shims/forge-bridge.js';
+// forge-sim before @forge/bridge: the real package captures globalThis.__bridge
+// at module evaluation, and loading forge-sim is what installs it.
 import { installBridge, connectSimulator } from '../ui/bridge.js';
 import { createSimulator } from '../simulator.js';
+import * as forgeBridge from '@forge/bridge';
 
 const REPO_ROOT = resolve(import.meta.dirname, '..', '..');
 const real = createRequire(import.meta.url)(
@@ -141,14 +143,14 @@ describe('per-surface string policy (mirrors real wrapper functions)', () => {
     //                             concept exists in the package at all
     //
     // This guard exists so nobody sees the backend's Route requirement and
-    // "fixes" the bridge shim to match. That would be the INVERTED parity
+    // "fixes" the bridge host to match. That would be the INVERTED parity
     // violation — throwing where Forge succeeds — for every Custom UI app.
     const sim = createSimulator();
     installBridge();
     connectSimulator(sim);
     try {
       sim.mockProductRoutes('jira', { '/rest/api/3/myself': { accountId: 'u1' } });
-      const res = await bridgeShim.requestJira('/rest/api/3/myself');
+      const res = await forgeBridge.requestJira('/rest/api/3/myself');
       expect(res.status).toBe(200);
       expect(await res.json()).toEqual({ accountId: 'u1' });
     } finally {

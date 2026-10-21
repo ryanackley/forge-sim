@@ -29,7 +29,11 @@ import {
   type ProductContextName,
   type RealtimeTokenPermission,
 } from './realtime-channel-key.js';
-import type { ProductContext } from './shims/product-context.js';
+// The real package exports the three enums but not their union
+// (out/realtime/index.d.ts re-exports Jira/Confluence/Bitbucket only; the
+// `ProductContext` alias lives in productContext.d.ts behind the exports map).
+import type { Jira, Confluence, Bitbucket } from '@forge/bridge/realtime';
+type ProductContext = Jira | Confluence | Bitbucket;
 
 export type { ProductContextName, RealtimeTokenPermission };
 

@@ -37,7 +37,9 @@ function forgeSimPassthroughFallback() {
   return {
     name: 'forge-sim-passthrough-fallback',
     async resolveId(source: string, importer: string | undefined, options: any) {
-      if (!(PASSTHROUGH_OK as readonly string[]).includes(source)) return null;
+      // Root package, so `@forge/bridge/realtime` falls back like `@forge/bridge`.
+      const rootPkg = source.startsWith('@forge/') ? source.split('/').slice(0, 2).join('/') : source;
+      if (!(PASSTHROUGH_OK as readonly string[]).includes(rootPkg)) return null;
       const normal = await (this as any).resolve(source, importer, { ...options, skipSelf: true });
       if (normal) return normal;
       try {

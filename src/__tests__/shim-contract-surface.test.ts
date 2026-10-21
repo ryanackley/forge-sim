@@ -46,12 +46,7 @@ const KNOWN_MISSING: Record<string, Record<string, string>> = {};
  * Shim exports that don't exist upstream, on purpose. Same shape as
  * KNOWN_MISSING. Anything not listed here fails the EXTRA check.
  */
-const SIM_ONLY_EXPORTS: Record<string, Record<string, string>> = {
-  '@forge/bridge': {
-    BridgeAPIError:
-      'Matches the error class real @forge/bridge throws; upstream does not export it but apps catch it by behavior, and the sim exporting it aids tests',
-  },
-};
+const SIM_ONLY_EXPORTS: Record<string, Record<string, string>> = {};
 
 describe('shim export-surface contract (#10)', () => {
   it('every shim has a registered real-package reference', () => {

@@ -75,3 +75,16 @@ the risk of fixing them now is writing a description of an architecture that
 changes again in Phase 2. Whoever does it should decide whether the
 interception-strategies section becomes "shims" vs "seams" or documents both
 during the transition.
+
+## `@forge/bridge` must evaluate after forge-sim is loaded (import order in test files)
+
+The real `@forge/bridge` captures `globalThis.__bridge` at module evaluation and throws
+BridgeAPIError if it is absent. forge-sim installs the seam when `src/ui/bridge.ts`
+evaluates (module scope, Phase 4c), so `import 'forge-sim'` before `import '@forge/bridge'`
+works and the reverse order dies inside the package with Atlassian's "Unable to establish
+a connection with the Custom UI bridge" message — which does not mention forge-sim at all.
+Left as a documented rule because the alternatives each cost something: a vitest
+`setupFiles` entry (`forge-sim/setup`) that only installs the seam would fix it for vitest
+users but adds a second thing to configure; the Node loader (`--import forge-sim/register`)
+could install it for the CLI path. A fix must decide whether to ship the setup entry, and
+whether to intercept that specific BridgeAPIError message somewhere to append a hint.

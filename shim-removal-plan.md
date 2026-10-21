@@ -148,13 +148,39 @@ slice — frontend surface, unlike Phases 1–3 which could skip e2e)
   specifier cannot resolve until 4d). Mutation-tested six ways: registry
   entry removed/added, the `[cC]` fix reverted, and three host answers
   broken — each reproduces the real package's own BridgeAPIError.
-- **4c — drop `@forge/bridge` + `@forge/bridge/realtime`.** Real package runs
-  headless. Budget the lesson-10 fixture pass (flag `id`s,
-  `NavigationLocation`, the strictness list in CLAUDE.md's quirks). Sim-only
-  helpers formerly exported from the shim move to a `forge-sim` export.
-  Watch: the shim's LOCAL cross-module events map vs. the host's event
-  channel are two implementations — tests may depend on the shim's; `Modal`
-  / `FeatureFlags` `instanceof` identity.
+- **4c — drop `@forge/bridge` + `@forge/bridge/realtime`. DONE** in three
+  commits. (1) `b9c2efc`: the derivation had a SECOND blind spot — the six
+  `__permission__*` commands start with `_` and the capture class was
+  letters-only; `@forge/bridge` emits 40 commands, not 34. Registered
+  `unsupported:`. (2) `83b29be`: everything the shim did for the sim that the
+  headless host did not, moved INTO the host per Ryan (never a branch in
+  `ui/bridge.ts`): memory `createHistory` (the WS-proxied one in
+  `ui/bridge.ts` was DEAD — nothing browser-side has handled
+  `historyCommand` since the consolidation — and latently broken, since
+  dev-server still wired the sender); realtime subscriber module scoping;
+  the `sim.currentExtension` knob; `getUrl` against the simulated site via a
+  shared `navigation-urls.ts` (the browser host's table, moved up).
+  (3) the alias drop itself. Findings from the drop: the seam has to exist
+  BEFORE the real package evaluates, and test files static-import it at
+  module top, so `ui/bridge.ts` now installs the seam at module scope
+  (`ensureBridgeSeam`) — but must NOT claim to be the live dispatcher there:
+  `vi.resetModules()` makes the fresh `@forge/react` shim import a second
+  copy of `ui/bridge.ts`, and a copy that installed itself unconditionally
+  stole every frame from the one the sim was attached to (`ui-integration`
+  hung 30s). So `globalThis.__bridge` is a stateless trampoline to a
+  `Symbol.for`-keyed live dispatcher; module scope publishes only if none
+  exists; a simulator attach publishes unconditionally. `resetAll()` no
+  longer detaches the sim (the shim never depended on attachment; direct
+  bridge calls after `sim.ui.resetAll()` broke). Real-package deltas tests
+  had to absorb: no exported `BridgeAPIError` (match by name); `invokeRemote`
+  with no module auto-resolves a lone endpoint like the dev server; import
+  order (forge-sim first). The lesson-10 fixture pass cost nothing — no
+  fixture tripped the strictness list. The shim's local events map vs the
+  host's: identical semantics headless, plus public events now actually
+  deliver. Ryan's correction recorded: bridge `requestJira(path: string)`
+  and `@forge/api`'s `route`-tagged one are two APIs; the plain string is
+  correct on the bridge. Open: import-order rule is in `deferred-issues.md`
+  (setupFiles entry vs loader install).
 - **4d — drop the three product-bridge stubs.** Loader + vitest resolve the
   bare specifier → `out/index.js` (resolution assistance, kvs-facade spirit —
   real Forge also only loads these through a bundler). Real code then hits

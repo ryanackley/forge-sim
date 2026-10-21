@@ -10,7 +10,7 @@
  *     → SimulatedObjectStore validates length+checksum and stores it
  *
  * The bridge surface under test is our port of @forge/bridge 6.x's
- * object-store client (src/shims/forge-bridge.ts), running headless in
+ * object-store client (the real @forge/bridge out/object-store/*), running headless in
  * Node 22 (global Blob/fetch/crypto.subtle/atob/btoa). The pre-signed
  * URLs point at the store's lazily-started ephemeral HTTP server — real
  * sockets, no fetch mocking.
@@ -18,7 +18,7 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { createSimulator, ForgeSimulator } from '../simulator.js';
-import { objectStore, createUploadPromises, BridgeAPIError } from '@forge/bridge';
+import { objectStore, createUploadPromises } from '@forge/bridge';
 
 const fixtureDir = new URL('./fixtures/object-store-app', import.meta.url).pathname;
 
@@ -170,10 +170,11 @@ describe('Object Store bridge surface (headless)', () => {
       objectStore.delete({ functionKey: '', keys: ['k'] }),
     ).rejects.toThrow('functionKey is required to delete objects');
 
-    // And they're BridgeAPIError instances, like the real thing.
+    // And they're BridgeAPIError instances. The real package does not export
+    // the class (out/errors.js is internal), so match it by name.
     await expect(
       objectStore.getMetadata({ functionKey: '', keys: ['k'] }),
-    ).rejects.toBeInstanceOf(BridgeAPIError);
+    ).rejects.toMatchObject({ constructor: expect.objectContaining({ name: 'BridgeAPIError' }) });
   });
 
   it('useObjectStore-driven upload works end-to-end through the rendered panel', async () => {

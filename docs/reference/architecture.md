@@ -72,16 +72,20 @@ node --import ./dist/loader/register.js app.js
 const SHIM_NAMES = [
   '@forge/resolver',
   '@forge/react', '@forge/react/router',
-  '@forge/bridge', '@forge/bridge/realtime', '@forge/jira-bridge',
-  '@forge/confluence-bridge', '@forge/dashboards-bridge',
+  '@forge/jira-bridge', '@forge/confluence-bridge', '@forge/dashboards-bridge',
 ];
 ```
 
 The bare-seam migration emptied this list of BACKEND packages: every one whose
 I/O the seam can serve moved to `PASSTHROUGH_OK`, so the app runs the real
-Atlassian package (see "A few packages have no shim at all" below). What is
-left is the frontend surface plus `@forge/resolver`, the one that can never
-move — it performs no I/O, so there is no seam to intercept. When the app does
+Atlassian package (see "A few packages have no shim at all" below). The
+frontend seam migration then removed `@forge/bridge` (and `/realtime`) the
+same way: the real package runs against `globalThis.__bridge`, which
+`src/ui/bridge.ts` installs the moment forge-sim is loaded. What is left is
+`@forge/react`'s capture wrappers, the three product bridges (until Phase 4d
+teaches the loader to resolve them — they ship no `main`/`exports`), and
+`@forge/resolver`, the one that can never move — it performs no I/O, so there
+is no seam to intercept. When the app does
 `import Resolver from '@forge/resolver'`, the hook returns
 `dist/shims/forge-resolver.js` instead of the real package. That shim is a
 tiny file:
@@ -178,7 +182,7 @@ A manual-packaged UI Kit resource is built output with the app's own `@forge/rea
 
 ### The bridge: one protocol, two hosts
 
-Real Forge gives an app iframe exactly one seam: `window.__bridge.callBridge(command, frame)`. Real `@forge/bridge` looks it up at call time and sends ~34 distinct commands through it — every frontend host interaction, for UI Kit and Custom UI alike; `@forge/react` adds only `reconcile` and `onError`. forge-sim answers that seam with a protocol and two hosts, and **every surface runs the real `@forge/bridge`**: there is no alias, no app-facing shim, and no difference between a source-mode app, a prebuilt bundle, a Custom UI page, a page proxied with `--proxy`, or a headless render.
+Real Forge gives an app iframe exactly one seam: `window.__bridge.callBridge(command, frame)`. Real `@forge/bridge` captures it at module evaluation and sends 40 distinct commands through it (the three product bridges add 12 more) — every frontend host interaction, for UI Kit and Custom UI alike; `@forge/react` adds only `reconcile` and `onError`. forge-sim answers that seam with a protocol and two hosts, and **every surface runs the real `@forge/bridge`**: there is no alias, no app-facing shim, and no difference between a source-mode app, a prebuilt bundle, a Custom UI page, a page proxied with `--proxy`, or a headless render.
 
 - **`src/bridge/protocol/`** — dependency-free. The registry of every command (re-derived from the installed `@forge/bridge` and `@forge/react` by `src/__tests__/bridge-protocol.test.ts`, so a package bump that adds one fails CI), the frame normalizers, the `BridgeHost` interface, and `createBridgeDispatcher(host)`. The dispatcher normalizes each wire frame and calls one typed host method; a host never sees a frame. Unknown and unsupported commands **reject** — never resolve `undefined`, which is how a missing command used to surface as a failure somewhere unrelated in the app. `tsconfig.bridge-protocol.json` compiles the subtree with no DOM and no Node types, so an environment dependency is a build error.
 - **`src/bridge/hosts/headless.ts`** — answers against the simulator in process (test API, MCP). The seam it serves is installed the moment a `ForgeSimulator` is constructed (`installBridgeSeam()` in `src/ui/bridge.ts`, called from `setSimulator()` next to the two backend seams), not at the first render: the real `@forge/bridge` captures `globalThis.__bridge` at module evaluation and throws if it is absent, so it has to exist before any app module loads, exactly as in Forge. `src/__tests__/bridge-seam.test.ts` pins this with the real package under plain `node`. Backend calls go straight to `sim.*`. Surface calls with no window resolve inertly and are recorded in `getBridgeCalls()`; `Modal.open()` throws with a pointer to `forge-sim dev` (see `deferred-issues.md`). Render-lifecycle state (ForgeDoc capture and waiters, forge context, history, the N9 replay) stays in `src/ui/bridge.ts` and is passed in as dependencies.

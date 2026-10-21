@@ -43,8 +43,6 @@ const REAL_TYPES_ENTRY: Record<string, string> = {
   '@forge/resolver': 'node_modules/@forge/resolver/out/index.js',
   '@forge/react': 'node_modules/@forge/react/out/index.js',
   '@forge/react/router': 'node_modules/@forge/react/out/router/index.js',
-  '@forge/bridge': 'node_modules/@forge/bridge/out/index.js',
-  '@forge/bridge/realtime': 'node_modules/@forge/bridge/out/realtime/index.js',
   '@forge/jira-bridge': 'node_modules/@forge/jira-bridge/out/index.js',
   '@forge/confluence-bridge': 'node_modules/@forge/confluence-bridge/out/index.js',
   '@forge/dashboards-bridge': 'node_modules/@forge/dashboards-bridge/out/index.js',
@@ -55,26 +53,7 @@ const REAL_TYPES_ENTRY: Record<string, string> = {
  * "the types don't match yet" parking spots — each is either a deliberate
  * behavioral deviation or an upstream typing artifact we can't express.
  */
-const REALTIME_ERRORS_REASON =
-  "Upstream's own typings disagree with their docs: @forge/bridge/realtime " +
-  'declares errors?: string[] and @forge/realtime infers errors: any, but the ' +
-  'Forge realtime docs show { message } objects — which the doc-parity suite ' +
-  '(#11, v0.1.19) matched at runtime. Wire format is still Atlassian preview; ' +
-  'revisit at realtime GA.';
-
-const TYPE_DEVIATIONS: Record<string, Record<string, string>> = {
-  '@forge/bridge/realtime': {
-    realtime: REALTIME_ERRORS_REASON,
-  },
-  '@forge/bridge': {
-    realtime: REALTIME_ERRORS_REASON,
-    FeatureFlags:
-      'Real FeatureFlags has private fields (initialized, evaluator) — nominal ' +
-      'typing no structural shim can satisfy. The public surface (initialize/' +
-      'checkFlag/shutdown/isInitialized) is mirrored and covered by ' +
-      'bridge-features tests.',
-  },
-};
+const TYPE_DEVIATIONS: Record<string, Record<string, string>> = {};
 
 // ---------------------------------------------------------------------------
 // Probe construction

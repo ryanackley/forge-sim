@@ -293,7 +293,7 @@ describe('realtime through the UIKit render path (adversarial)', () => {
   // leaves `activeModuleKey` pointing at the module it just rendered so that
   // post-return useEffect work is attributed to it. But that slot is GLOBAL —
   // one per SimulatorUI — and `@forge/bridge` realtime.subscribe() reads it at
-  // SUBSCRIBE time via getCurrentModuleKeyForBridge() (src/shims/forge-bridge.ts
+  // SUBSCRIBE time via activeModuleKey() (src/bridge/hosts/headless.ts
   // ~L545: `sim.currentModuleKey ?? sim.ui.getActiveModule()`).
   //
   // So if panel-a's effect awaits a ~120ms resolver round-trip before it calls

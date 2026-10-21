@@ -22,7 +22,6 @@ const nextResolve = vi.fn(async (specifier: string) => ({
 const EXPECTED_SHIMS = [
   '@forge/resolver',
   '@forge/react',
-  '@forge/bridge',
   '@forge/jira-bridge',
   '@forge/confluence-bridge',
   '@forge/dashboards-bridge',
