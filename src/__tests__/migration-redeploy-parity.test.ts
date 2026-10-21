@@ -4,15 +4,17 @@
  * Background: `@forge/sql`'s migrationRunner is a process-level module singleton
  * whose `enqueue(name, ddl)` dedups by name and DISCARDS a re-enqueue's new DDL.
  * In forge-sim's long-lived process this meant an edited migration DDL never
- * took effect across redeploys (killing the daemon was the only cure). deploy()
- * now clears that singleton — resolved from the APP's own directory — before
- * re-importing app code. See deployer.ts::clearMigrationRegistry.
+ * took effect across redeploys (killing the daemon was the only cure). The
+ * first fix reached into the app's `@forge/sql` copy and cleared the singleton
+ * before each deploy. Since Phase 5 every deploy is a fresh esbuild bundle
+ * with `@forge/sql` INLINED (src/bundler.ts), so each deploy has a fresh
+ * singleton by construction — the cold-process parity the clear imitated —
+ * and the clear is gone.
  *
  * These tests pin three things the repro alone did not:
- *   A. IDENTITY: the fix reaches a real app's OWN node_modules/@forge/sql
- *      (a physically distinct module instance), not just the shared-node_modules
- *      case. This is the make-or-break risk — the app bundle resolves @forge/sql
- *      by walking up from appDir, and so must our clear.
+ *   A. IDENTITY: the behaviour holds when the app ships its OWN
+ *      node_modules/@forge/sql — the copy the bundle inlines is the app's
+ *      (importer-first), and it is still fresh per deploy.
  *   B. DX WIN: sim.reset() + redeploy of edited DDL lands the new schema (the
  *      forge_reset -> forge_deploy workflow, and the local "tweak until it lands
  *      without bumping version numbers" affordance).
@@ -85,10 +87,9 @@ afterEach(async () => {
 
 describe('migrationRunner stale-singleton fix', () => {
   // A. The identity proof. Give the app its OWN physical copy of @forge/sql in
-  //    appDir/node_modules, so its migrationRunner singleton is a DIFFERENT
-  //    module object than the project's. If clearMigrationRegistry resolved
-  //    @forge/sql from forge-sim instead of the app, it would clear the wrong
-  //    instance and this test would still show the stale ['id','a'].
+  //    appDir/node_modules — the copy the bundle must inline (importer-first).
+  //    A stale singleton from any copy would still show ['id','a'] after the
+  //    redeploy.
   it('lands edited DDL when the app has its OWN node_modules/@forge/sql (real-app identity)', async () => {
     appDir = await makeAppDir();
 
@@ -113,8 +114,8 @@ describe('migrationRunner stale-singleton fix', () => {
     expect(cols(await sim.sql.query('SHOW COLUMNS FROM widgets'))).toEqual(['id', 'a']);
 
     // Edit DDL to add column b; redeploy; drop both tables (fresh ledger);
-    // migrate. The app's OWN singleton must have been cleared for the new DDL
-    // to land.
+    // migrate. The redeploy's fresh bundle has a fresh singleton, so the new
+    // DDL lands.
     await writeApp(appDir, MANIFEST, indexWithCols('id BIGINT PRIMARY KEY AUTO_INCREMENT, a INT, b INT'));
     await sim.deploy(appDir);
     await sim.sql.query('DROP TABLE IF EXISTS widgets');

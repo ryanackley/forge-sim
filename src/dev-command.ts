@@ -22,7 +22,7 @@ import { resolve, join, relative, dirname, sep } from 'node:path';
 import { existsSync, mkdirSync, writeFileSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createSimulator, ForgeSimulator } from './simulator.js';
-import { deploy, bundleHandlerToFileUrl, sweepStaleBundles, deployBundleDir, wrapV1ConsumerHandler, parseHandlerString, resolveHandlerFile, clearAppRequireCache, extractEntryScripts, detectResolverDispatch } from './deployer.js';
+import { deploy, importBundledHandler, sweepStaleBundles, deployBundleDir, wrapV1ConsumerHandler, parseHandlerString, resolveHandlerFile, clearAppRequireCache, extractEntryScripts, detectResolverDispatch } from './deployer.js';
 import { interceptCjsForgeRequires } from './loader/cjs-interception.js';
 import { createDevServer } from './dev-server.js';
 import { parseManifest, type ParsedManifest, type ManifestUIModule, BACKGROUND_SCRIPT_TYPES, getCompatibleBackgroundScripts } from './manifest.js';
@@ -2398,8 +2398,7 @@ export async function deployResolversOnly(
             `?forge-sim-deploy=${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
           mod = await import(fileUrl);
         } else {
-          const fileUrl = await bundleHandlerToFileUrl(filePath, appDir);
-          mod = await import(fileUrl);
+          mod = await importBundledHandler(filePath, appDir);
         }
         moduleCache.set(filePath, mod);
       }

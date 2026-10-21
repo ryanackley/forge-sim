@@ -163,20 +163,28 @@ describe('F3 fallout: age-gated bundle sweep', () => {
     // not-yet-imported bundle. Silently absorbed into errors[] before the
     // F3 throw-by-default change; a hard DeployError after it.
     const dir = makeApp({
+      // Single-file bundles (older forge-sim versions)…
       'bundles/deploy-fresh-abc123.mjs': 'export const x = 1;\n',
       'bundles/deploy-old-def456.mjs': 'export const x = 2;\n',
+      // …per-deploy output DIRECTORIES (one esbuild build per deploy)…
+      'bundles/deploy-fresh-dir/src/index.mjs': 'export const x = 3;\n',
+      'bundles/deploy-old-dir/src/index.mjs': 'export const x = 4;\n',
+      // …and the content-keyed cache, which the sweep must never touch.
+      'bundles/cache/0123abcd/meta.json': '{}\n',
       'bundles/not-a-bundle.txt': 'keep me\n',
     });
     const bundleDir = join(dir, 'bundles');
-    // Backdate the "old" bundle past the sweep threshold (5 min).
+    // Backdate the "old" ones past the sweep threshold (5 min).
     const oldTime = (Date.now() - 10 * 60 * 1000) / 1000;
     utimesSync(join(bundleDir, 'deploy-old-def456.mjs'), oldTime, oldTime);
+    utimesSync(join(bundleDir, 'deploy-old-dir'), oldTime, oldTime);
+    utimesSync(join(bundleDir, 'cache'), oldTime, oldTime);
 
     await sweepStaleBundles(bundleDir);
 
     const { readdirSync } = await import('node:fs');
     const remaining = readdirSync(bundleDir).sort();
-    expect(remaining).toEqual(['deploy-fresh-abc123.mjs', 'not-a-bundle.txt']);
+    expect(remaining).toEqual(['cache', 'deploy-fresh-abc123.mjs', 'deploy-fresh-dir', 'not-a-bundle.txt']);
   });
 });
 

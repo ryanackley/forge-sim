@@ -9,11 +9,12 @@
  */
 
 import { resolve, join, dirname, sep as pathSep } from 'node:path';
-import { access, mkdir, writeFile, readFile, readdir, unlink, stat } from 'node:fs/promises';
+import { access, mkdir, writeFile, readFile, readdir, unlink, stat, rm } from 'node:fs/promises';
 import { realpathSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { createRequire } from 'node:module';
 import { interceptCjsForgeRequires } from './loader/cjs-interception.js';
+import { bundleEntries, importEntry, unsimulatedForgeImports, type BundleResult } from './bundler.js';
 import { parseManifest, type ParsedManifest, type ManifestFunction, type ManifestResource, type ManifestUIModule } from './manifest.js';
 import { validateManifestFile, printManifestWarnings } from './manifest-validation.js';
 import { checkAppForgeVersions, readAppForgeDeps } from './forge-package-versions.js';
@@ -48,61 +49,6 @@ export function deployBundleDir(appDir: string): string {
  */
 export { _resetPrintedManifestWarnings } from './manifest-validation.js';
 
-/**
- * Clear the `@forge/sql` migrationRunner singleton before re-importing app code.
- *
- * `@forge/sql`'s `migrationRunner` is a process-level module singleton, and its
- * `enqueue(name, ddl)` dedups by name: a second `enqueue('v001', <newDDL>)` is
- * IGNORED and the ORIGINAL ddl is retained. Real Forge runs every invocation in
- * a fresh process, so the singleton is always empty at enqueue time and edited
- * migration DDL applies. forge-sim's long-lived process accumulates the stale
- * registry instead: edit a migration's DDL, redeploy, and the app's top-level
- * `enqueue` silently keeps the old DDL, so the new schema never lands. Killing
- * the daemon only "fixed" it because a fresh process gets a fresh singleton.
- *
- * We resolve `@forge/sql` from the APP's own directory (not forge-sim's) so we
- * clear the exact module instance the app bundle touches at runtime. The two
- * share Node's CommonJS require.cache (keyed by absolute path) regardless of
- * which node_modules the package resolves from, so this reaches a real user
- * app's own copy, not just the shared-node_modules case. Only acts when the app
- * has already loaded `@forge/sql` in this process (i.e. a prior deploy); a cold
- * first deploy has an empty registry and nothing to clear. Apps that don't
- * depend on `@forge/sql` are a silent no-op.
- *
- * Effect: restores cold-process parity AND enables a local-first workflow win.
- * Iterate a migration's DDL in place and redeploy until it lands correctly,
- * without bumping version numbers (you never ship to the cloud from here).
- * Called at the top of deploy(), before any app top-level code (where `enqueue`
- * runs) is imported.
- */
-function clearMigrationRegistry(appDir: string): void {
-  let appRequire: ReturnType<typeof createRequire>;
-  try {
-    appRequire = createRequire(join(appDir, '<forge-sim>'));
-  } catch {
-    return;
-  }
-  // Cover both import styles: the documented root export and the deep subpath.
-  // Both point at the same singleton (root re-exports migration's), so clearing
-  // via whichever is cached reaches the same live array.
-  for (const spec of ['@forge/sql', '@forge/sql/out/migration']) {
-    let resolved: string;
-    try {
-      resolved = appRequire.resolve(spec);
-    } catch {
-      continue; // app doesn't depend on @forge/sql (or this subpath)
-    }
-    const cached = appRequire.cache?.[resolved];
-    if (!cached) continue; // not loaded yet — registry is empty, nothing stale
-    try {
-      const runner: any = (cached.exports as any)?.migrationRunner;
-      const enqueued = runner?.getEnqueued?.();
-      if (Array.isArray(enqueued)) enqueued.length = 0;
-    } catch {
-      // Unexpected @forge/sql shape (version drift) — never break deploy over it.
-    }
-  }
-}
 
 /** Only bundles at least this old are swept. Two simulators can deploy the
  *  same app dir concurrently (vitest runs test files in parallel workers, and
@@ -124,12 +70,17 @@ export async function sweepStaleBundles(dir: string): Promise<void> {
     const cutoff = Date.now() - BUNDLE_SWEEP_MIN_AGE_MS;
     await Promise.all(
       names
-        .filter((n) => n.startsWith('deploy-') && n.endsWith('.mjs'))
+        // Per-deploy output DIRECTORIES (one esbuild build per deploy, shared
+        // chunks inside) and the single-file bundles of older versions. The
+        // `cache/` entry is the content-keyed bundle cache and is never swept here.
+        .filter((n) => n.startsWith('deploy-'))
         .map(async (n) => {
           const path = join(dir, n);
           try {
-            const { mtimeMs } = await stat(path);
-            if (mtimeMs < cutoff) await unlink(path);
+            const s = await stat(path);
+            if (s.mtimeMs >= cutoff) return;
+            if (s.isDirectory()) await rm(path, { recursive: true, force: true });
+            else await unlink(path);
           } catch {
             // Already gone or unreadable — either way, not our problem.
           }
@@ -141,66 +92,33 @@ export async function sweepStaleBundles(dir: string): Promise<void> {
 }
 
 /**
- * Bundle a handler entry-point and all its relative-import dependencies into
- * a single ESM source file, returning a `file://` URL ready for `import()`.
+ * Bundle every handler file of a deploy in ONE esbuild build, every dependency
+ * inlined (src/bundler.ts), into a fresh per-deploy directory under
+ * `<appDir>/.forge-sim/bundles/`. Returns handler path → `file://` URL.
  *
- * Why: Node's ESM dynamic-import cache is keyed on the full specifier URL.
- * Appending `?t=Date.now()` to the entry-point busts the entry's cache, but
- * NOT its transitive imports — those resolve to plain URLs with no query and
- * stay cached forever across redeploys. The agent's iterate loop sees old
- * code after editing any transitive handler file (F3 from skill run #6).
+ * One build rather than one per file so that modules shared between handler
+ * files — and `@forge/*` is now one of those — become shared chunks and so
+ * single INSTANCES per deploy. `@forge/sql`'s migrationRunner is the case
+ * that matters: a migration enqueued in one handler file and run from another
+ * must see the same runner, as it does in Forge's single app bundle.
  *
- * The fix: esbuild bundles the entry plus every relative-import descendant
- * into one source. The bundle is written to `<appDir>/.forge-sim/bundles/`
- * with a per-deploy random filename, so the resulting URL is a brand-new
- * module specifier on every deploy. Bare-specifier imports (`@forge/*`,
- * react, axios, …) stay external — they're resolved by Node's loader
- * (which our hooks intercept for @forge/*) walking up from the bundle file
- * to the app's `node_modules`. The @forge/* shim interception still fires.
+ * A fresh directory per deploy is what makes a redeploy a real re-evaluation:
+ * the URL is one neither Node's ESM cache nor vite-node's path cache has
+ * seen. It is also what retires the old `clearMigrationRegistry` reach into
+ * the app's `@forge/sql` copy — a fresh bundle has a fresh singleton, which is
+ * the cold-process parity the clear was imitating.
  *
- * Works in both regular Node (MCP mode) and vitest (vite-node) because each
- * deploy writes a new file with a new URL — neither cache has seen it before.
- *
- * Why not `data:` URLs (the initial attempt): Node can't resolve bare
- * specifiers from a data: URL — no parent path means no node_modules walk.
- * A file URL inside the app dir gives bare imports a natural resolution root.
- *
- * Sourcemap is inline so stack traces still point back at user source.
+ * Why not `data:` URLs (the original attempt): no parent path, so no
+ * resolution root for anything left external (node builtins).
  */
-export async function bundleHandlerToFileUrl(entryPath: string, appDir: string): Promise<string> {
-  const esbuild = await import('esbuild');
-  const result = await esbuild.build({
-    entryPoints: [entryPath],
-    bundle: true,
-    format: 'esm',
-    target: 'node22',
-    platform: 'node',
-    write: false,
-    sourcemap: 'inline',
-    absWorkingDir: dirname(entryPath),
-    plugins: [
-      {
-        name: 'forge-sim-bare-externals',
-        setup(build) {
-          // Mark every non-relative, non-absolute specifier as external — they
-          // get resolved by Node's loader (which our hooks intercept for @forge/*).
-          // Keeps node_modules out of the bundle (faster + avoids bundling native
-          // addons) and preserves the @forge/* shim interception path.
-          build.onResolve({ filter: /^[^./]/ }, () => ({ external: true }));
-        },
-      },
-    ],
-  });
-  const code = result.outputFiles[0].text;
+export async function bundleHandlers(entryPaths: string[], appDir: string): Promise<BundleResult> {
+  const outDir = join(deployBundleDir(appDir), `deploy-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+  return bundleEntries({ appDir, entryPoints: entryPaths, platform: 'node', outDir });
+}
 
-  const cacheDir = deployBundleDir(appDir);
-  await mkdir(cacheDir, { recursive: true });
-  // Per-deploy random filename — what makes the resulting URL unique and
-  // therefore bypasses both Node's ESM cache and vite-node's path-based cache.
-  const fileName = `deploy-${Date.now()}-${Math.random().toString(36).slice(2)}.mjs`;
-  const outPath = join(cacheDir, fileName);
-  await writeFile(outPath, code, 'utf-8');
-  return pathToFileURL(outPath).href;
+/** One handler file, bundled and imported on its own (dev-server hot reload). Returns its module namespace. */
+export async function importBundledHandler(entryPath: string, appDir: string): Promise<any> {
+  return importEntry(await bundleHandlers([entryPath], appDir), entryPath);
 }
 // Bridge is now managed by sim.ui — no direct bridge imports needed here
 
@@ -388,6 +306,12 @@ export interface DeployResult {
    * `undefined` = type checking didn't run; `[]` = ran and found nothing.
    */
   typeErrors?: TypeCheckError[];
+  /**
+   * The esbuild build this deploy ran (default packaging only; manual
+   * packaging imports the shipped files as-is). `cached` is true when the
+   * content-keyed bundle cache answered instead of a fresh build.
+   */
+  bundle?: { cached: boolean; inlinedForgePackages: string[] };
 }
 
 /**
@@ -860,12 +784,6 @@ export async function deploy(sim: ForgeSimulator, appDir: string, options: Deplo
   // by Node — we generate a fresh one per deploy anyway.
   await sweepStaleBundles(deployBundleDir(absDir));
 
-  // Reset the @forge/sql migrationRunner singleton BEFORE re-importing app code
-  // (the app's top-level `enqueue` runs at bundle-import time in the loop below).
-  // Without this, an edited migration DDL is silently discarded across redeploys
-  // in the long-lived process — see clearMigrationRegistry for the full rationale.
-  clearMigrationRegistry(absDir);
-
   // 2. Register @forge/* loader hooks (redirects @forge/api etc. to our shims).
   //    Called lazily so users don't need --import. Hooks apply to all subsequent
   //    dynamic imports, which is exactly how we load app handler modules below.
@@ -915,6 +833,40 @@ export async function deploy(sim: ForgeSimulator, appDir: string, options: Deplo
   // function scope and dies when this call returns. (F8 root cause)
   const moduleCache = new Map<string, any>();
 
+  // Default packaging: resolve every handler file first and bundle them all
+  // in ONE esbuild build (see bundleHandlers), then import each entry's
+  // output below. Resolution failures are reported per function in the loop.
+  let bundle: BundleResult | null = null;
+  if (!manualPackaging) {
+    const files = new Set<string>();
+    for (const fnDef of manifest.functions.values()) {
+      try {
+        const { fileStem } = parseHandlerString(fnDef.handler);
+        const f = await resolveHandlerFile(absDir, fileStem, handlerResolution);
+        if (f) files.add(f);
+      } catch { /* reported in the per-function loop */ }
+    }
+    if (files.size > 0) {
+      bundle = await bundleHandlers([...files], absDir);
+      // Advisory: a DIRECT import of an @forge/* package the sim does not
+      // answer. The real package is inlined and runs, but outside the Forge
+      // runtime it may throw or misbehave when called — this is the #1
+      // "works in Forge, breaks mysteriously in the sim" footgun, so name it
+      // at deploy time. (Replaces the loader hook's import-time warning,
+      // which a bundle never triggered.)
+      for (const pkg of unsimulatedForgeImports(bundle)) {
+        const w = {
+          level: 'warning' as const,
+          message: `"${pkg}" is not simulated by forge-sim — the real Atlassian package is bundled ` +
+            `and will run, but outside the Forge runtime it may throw or return unexpected results ` +
+            `when called. If calls into "${pkg}" fail, this is why.`,
+        };
+        manifest.warnings.push(w);
+        printManifestWarnings([w]);
+      }
+    }
+  }
+
   for (const [fnKey, fnDef] of manifest.functions) {
     try {
       const { fileStem, exportName } = parseHandlerString(fnDef.handler);
@@ -959,8 +911,8 @@ export async function deploy(sim: ForgeSimulator, appDir: string, options: Deplo
             `?forge-sim-deploy=${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
           mod = await import(fileUrl);
         } else {
-          const fileUrl = await bundleHandlerToFileUrl(filePath, absDir);
-          mod = await import(fileUrl);
+          if (!bundle) throw new Error(`forge-sim: no bundle was built for ${filePath}`);
+          mod = await importEntry(bundle, filePath);
         }
         moduleCache.set(filePath, mod);
       }
@@ -1315,6 +1267,7 @@ export async function deploy(sim: ForgeSimulator, appDir: string, options: Deplo
     loadedFunctions,
     loadedResources,
     resolvers: sim.resolver.getDefinitions(),
+    bundle: bundle ? { cached: bundle.cached, inlinedForgePackages: bundle.inlinedForgePackages } : undefined,
     triggers: manifest.triggers.map((t) => ({
       key: t.key,
       events: t.events,

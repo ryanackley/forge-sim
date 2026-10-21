@@ -67,6 +67,17 @@ function invalidateRealI18nCache(): void {
     // previous contents; nothing here is load-bearing for correctness of the
     // store itself.
   }
+  // Copies of @forge/api that live INSIDE app bundles (src/bundler.ts inlines
+  // every dependency) register their own reset here at bundle-load time; the
+  // deep require above only ever reaches forge-sim's copy. WeakRefs, so a
+  // bundle that has been garbage-collected does not pin its module scope.
+  const registry = (globalThis as any)[Symbol.for('forge-sim.i18n-cache-resets')] as Set<WeakRef<() => void>> | undefined;
+  if (!registry) return;
+  for (const ref of registry) {
+    const reset = ref.deref();
+    if (!reset) { registry.delete(ref); continue; }
+    try { reset(); } catch { /* a bundle mid-teardown — nothing to keep fresh */ }
+  }
 }
 
 export class I18nStore {

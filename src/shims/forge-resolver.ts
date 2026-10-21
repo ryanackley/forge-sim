@@ -8,7 +8,18 @@
  *   export const handler = resolver.getDefinitions();
  */
 
-import { getSimulator } from './globals.js';
+// Read the active simulator off the global directly rather than importing
+// `./globals.js`: this file is inlined into every app bundle (src/bundler.ts
+// routes `@forge/resolver` here), and importing globals would drag the seam
+// installers and the runtime modules into the bundle with it. Same key as
+// src/shims/globals.ts.
+function getSimulator(): any {
+  const sim = (globalThis as any)[Symbol.for('forge-sim.instance')];
+  if (!sim) {
+    throw new Error('forge-sim: No simulator instance set. Call setSimulator() before loading app code.');
+  }
+  return sim;
+}
 
 class Resolver {
   private _definitions = new Map<string, Function>();

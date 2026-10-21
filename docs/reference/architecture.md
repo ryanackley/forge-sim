@@ -144,11 +144,21 @@ There are two places where a module cache fights the iterate loop. The first is 
 
 The second is `sim.deploy()`. Node keys the dynamic-import cache on the full specifier URL, so appending `?t=Date.now()` to the entry-point URL busts the entry's cache, but **not** its transitive imports. Those resolve to plain URLs with no query string and stay cached forever across redeploys. The agent edits `validation.js`, redeploys, and the resolver still throws the old error message.
 
-The fix lives in `src/deployer.ts`. Before importing the handler, esbuild bundles the entry plus every relative-import descendant into a single ESM file at `<appDir>/.forge-sim/bundles/deploy-<timestamp>-<random>.mjs`. The bundle filename is per-deploy unique, so the resulting `file://` URL is a brand-new module specifier that neither Node's ESM cache nor vite-node's path-based cache has seen before. Stale bundles are swept at the start of each redeploy.
+The fix lives in `src/deployer.ts` + `src/bundler.ts`, and since Phase 5 it does what `forge deploy` does: **one esbuild build per deploy, every dependency inlined**, written to a fresh `<appDir>/.forge-sim/bundles/deploy-<timestamp>-<random>/bundle.mjs`. A synthetic entry re-exports each handler file as its own namespace (`export * as e0 from '<file>'`), so there is one artifact per app, shared modules are single instances per deploy (`@forge/sql`'s migrationRunner across handler files, exactly as in Forge's single bundle), and the directory name makes the URL one that neither Node's ESM cache nor vite-node's path cache has seen. A fresh bundle also means a fresh `@forge/sql` singleton, which retired the old reach into the app's copy to clear it. Stale deploy directories are swept at the start of each redeploy.
 
-Bare specifiers (`@forge/*`, react, axios, …) stay external. The bundle file lives inside the app directory, so when Node resolves those externals it walks up into the app's `node_modules` normally, and our loader hooks still intercept `@forge/*` from there. The shim interception path survives bundling.
+Three bundler behaviours worth knowing, each because Forge's bundler has them and Node's loader does not:
 
-`data:` URLs were the obvious first attempt but don't work: Node can't resolve bare specifiers from a `data:` URL because there's no parent path to anchor the `node_modules` walk. A file URL inside the app dir is the cheapest fix that keeps the resolver behavior intact. Sourcemaps are inline, so stack traces still point at user source.
+- **Bundler-style CommonJS interop, forced.** esbuild gives an ESM importer inside a `"type": "module"` package *Node* default-import semantics (`import kvs from '@forge/kvs'` → the whole `module.exports`, `kvs.get` undefined), with no option to override; Forge's bundler applies the `__esModule`-aware convention to every app. `forceBundlerInterop()` drops the `isNodeMode` flag from esbuild's `__toESM` calls in the output. forge-sim's own `package.json` is `"type": "module"`, so every in-repo fixture without one would otherwise be in Node mode.
+- **A `require` banner.** Inlined CommonJS packages call `require('fs')`; in ESM output esbuild leaves a helper that throws "Dynamic require is not supported" unless a real `require` is in scope. The banner is esbuild's own documented fix, and esbuild renames an app's own top-level `require` so the two never collide. `__dirname`/`__filename` point at the bundle, as in Forge's output.
+- **Unresolvable bare specifiers stay external** (an optional dependency a package `require`s behind a try/catch), so the failure happens at call time as under Node, not at build time where it would block an app that never calls it. Native `.node` addons are external too; they do not run in Forge either.
+
+Scratch apps with no `node_modules` of their own resolve `@forge/*` from forge-sim's copy through esbuild's `nodePaths` fallback; an app's own copy always wins (importer-first, the same precedence everywhere in the sim).
+
+**Cache.** A build is keyed by its entry set and platform and stays fresh while every input file esbuild recorded (the metafile) has the same mtime and size — so an unchanged redeploy copies the cached output into the new unique directory instead of rebuilding, and editing *any* transitive file is a miss. Entries live under `.forge-sim/bundles/cache/<key>/` and are written atomically (temp dir + rename) because vitest workers share fixture directories. `DeployResult.bundle.cached` reports which happened.
+
+**Two sim-side touches on real packages happen at bundle time**, both named in `src/bundler.ts`: `@forge/resolver` is routed to forge-sim's shim *inside* the bundle (the real class keeps definitions private; the shim additionally registers each key with the simulator, which is what the resolver list, per-module ownership and the "No resolver defined for X" hint rest on), and `@forge/api/out/api/i18n.js` gets one appended line registering its module-level cache reset in a global set, so `sim.i18n.setTranslations()` still reaches the TranslationsGetter of a copy that lives inside an app bundle.
+
+`data:` URLs were the obvious first attempt but don't work: no parent path, so nothing left external (node builtins) can resolve. Sourcemaps are inline, so stack traces still point at user source.
 
 ### Manual packaging: no bundling at all
 
@@ -161,26 +171,11 @@ Three consequences the deployer handles:
 - **Handler extensions follow Forge lint**: `.js`/`.cjs` (plus TS sources with a parity warning). No `.mjs` — lint rejects it; ship ESM as `.js` + `"type": "module"`.
 - **Bundled `@forge/resolver`** — see below; the one shimmed package with no runtime seam.
 
-### Bundled `@forge/*` backends are not supported
+### Bundled `@forge/*` backends are the normal case
 
-Both interception mechanisms — the ESM resolve hook and the CJS `Module._resolveFilename` patch — key on the **specifier string** `@forge/<pkg>`. A bundler that inlines the package leaves no specifier behind, so there is nothing to intercept. That is true of *every* shim, not just one, and it is why **backends that bundle `@forge/*` are unsupported**: the supported recipe is `--external:@forge/*` plus a shipped `node_modules`, which real Forge requires anyway.
+This section used to say the opposite — that backends bundling `@forge/*` were unsupported because both interception mechanisms keyed on the specifier string, which a bundler erases. Two migrations inverted it. The bare-seam migration made every backend package run for real against `global.__forge_fetch__` / `global.__forge_runtime__`, so an inlined copy reaches the simulator the same way a resolved one does; the measurements behind that are in [`bundled-forge-packages.md`](./bundled-forge-packages.md). Then Phase 5 made the simulator *itself* bundle `@forge/*` into every deploy (previous section), so there is no "shape 1" left to distinguish from: every backend the sim runs is bundled output, as in Forge.
 
-Whether an inlined package still *happens* to reach the simulator depends on a second seam, and the answer differs per package — which is precisely why it isn't a guarantee:
-
-| Package (inlined) | Reaches a seam | Routed |
-|---|---|---|
-| `@forge/api`, `@forge/kvs`, `@forge/sql` | `global.__forge_fetch__` | yes — incidental, untested |
-| `@forge/events`, `@forge/object-store`, `@forge/llm`, `@forge/realtime` | `global.__forge_fetch__` | **no — throws a named error** |
-| `@forge/bridge`, `@forge/react`, `@forge/*-bridge` | `window.__bridge` | yes — *supported* (see below) |
-| **`@forge/resolver`** | **none — no I/O at all** | handled by dispatch detection |
-
-The four unrouted packages speak Atlassian-internal wire protocols (`/webhook/queue/publish/{contextAri}/…` and friends) that are undocumented, unversioned, and impossible to contract-test. `src/shims/globals.ts` detects them by descriptor and throws a message naming the package and the `--external` fix, rather than letting them fall through to the product-API mock and surface as a bare `501`. Measurements and descriptor shapes: [`bundled-forge-packages.md`](./bundled-forge-packages.md).
-
-Note the frontend row is different in kind: a UI resource is *always* built output, so inlined `@forge/react`/`@forge/bridge` is the normal case, not a misconfiguration. It works because `window.__bridge` is a narrow protocol we implement completely.
-
-`@forge/resolver` is the one package with no seam at all — pure in-process glue: `define()` stores a callback in a private map and `getDefinitions()` returns a closure over it. Our shim works by *side effect*, registering each key on `sim.resolver` as the app defines it. When the real package runs instead, the simulator cannot enumerate the app's keys. The deployer detects the dispatch shape by source inspection — `detectResolverDispatch()`, never by probing, since calling the function would execute app handlers at deploy time — and registers it via `resolver.registerDispatch()`. `invoke()` then consults registered dispatchers for any key with no explicit handler, passing a realistic `backendRuntimePayload` (the real package *overwrites* `context.accountId`, `installContext`, `license` and `installation` from that second argument, so passing `{}` blanks exactly the fields the app reads).
-
-That path exists for a reason unrelated to bundling: `852ea7b` added it when tsx's loader hooks short-circuited ours, so the real `@forge/resolver` loaded even for ordinary source apps. It covers bundled resolvers as a side effect. Either way the definition keys cannot be *enumerated* — they live in the app's private map — so they don't appear in `sim.resolver.getDefinitions()` or in "Available:" error text. Routing works; listing doesn't.
+The one package with no seam at all is `@forge/resolver` — pure in-process glue: `define()` stores a callback in a private map and `getDefinitions()` returns a closure over it. forge-sim's shim works by *side effect*, registering each key on `sim.resolver` as the app defines it, and the bundler routes `@forge/resolver` to that shim inside every bundle it builds, so source-mode apps keep full key enumeration. For a bundle forge-sim did **not** build — manual packaging, where the real class ran — the simulator cannot enumerate the keys. The deployer detects the dispatch shape by source inspection (`detectResolverDispatch()`, never by probing, since calling the function would execute app handlers at deploy time) and registers it via `resolver.registerDispatch()`. `invoke()` then consults registered dispatchers for any key with no explicit handler, passing a realistic `backendRuntimePayload` (the real package *overwrites* `context.accountId`, `installContext`, `license` and `installation` from that second argument, so passing `{}` blanks exactly the fields the app reads). Routing works; listing doesn't.
 
 ### Prebuilt UI bundles: the bridge seam survives where module interception can't
 
