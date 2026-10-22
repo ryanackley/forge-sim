@@ -529,10 +529,16 @@ const MODULE_TYPE_RE = /\btype\s*=\s*(?:"module"|'module'|module(?=[\s/>]|$))/i;
  * builds (Parcel) rely on that: the shared bundle is listed before the entry
  * bundle, and importing only one of them renders nothing with zero
  * diagnostic (adversarial B2 — an earlier version picked a single "best"
- * script). So: all module scripts, in order. Plain scripts (analytics,
- * polyfills) are still skipped — they don't mount the app (adversarial
- * finding #2) — with a fallback to the first script of any kind when no
- * module script exists.
+ * script). So: all module scripts, in order. When module scripts exist,
+ * plain scripts beside them (analytics, polyfills) are skipped — they don't
+ * mount the app (adversarial finding #2). When NO module script exists the
+ * page is a classic-script build — Forge's own `@forge/bundler` emits
+ * `<script defer>` via HtmlWebpackPlugin — and a browser runs every classic
+ * script in order too, so all of them are returned. webpack/Rspack
+ * `splitChunks` pages list the shared chunk first and the entry last;
+ * evaluating only the first (the previous fallback) ran the shared chunk and
+ * never the entry, rendering "(no doc)" with no diagnostic (bundler-matrix
+ * lab).
  *
  * Absolute srcs (`/assets/app.js` — Vite's default without `base: './'`)
  * draw a parity warning: forge-sim can resolve them against the resource
@@ -553,7 +559,7 @@ export function extractEntryScripts(
   if (scripts.length === 0) return [];
 
   const moduleScripts = scripts.filter((s) => s.isModule);
-  const chosen = moduleScripts.length > 0 ? moduleScripts : [scripts[0]];
+  const chosen = moduleScripts.length > 0 ? moduleScripts : scripts;
 
   if (warnContext) {
     const absolute = chosen.find((s) => s.src.startsWith('/'));
@@ -567,8 +573,9 @@ export function extractEntryScripts(
     }
     if (moduleScripts.length === 0) {
       warnEntryScriptOnce(
-        `${warnContext}: no <script type="module"> found; using "${scripts[0].src}". UI Kit entry HTML ` +
-        `should load the built bundle with a module script (the packaging standard's shape).`
+        `${warnContext}: no <script type="module"> found; evaluating ${scripts.length} classic ` +
+        `script${scripts.length === 1 ? '' : 's'} in document order (${scripts.map((s) => `"${s.src}"`).join(', ')}). ` +
+        `UI Kit entry HTML should load the built bundle with a module script (the packaging standard's shape).`
       );
     }
   }

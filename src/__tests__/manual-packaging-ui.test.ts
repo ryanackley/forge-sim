@@ -365,6 +365,25 @@ describe('extractEntryScript', () => {
     }
   });
 
+  it('with no module script, returns EVERY classic script in order (webpack/Rspack splitChunks pages)', () => {
+    // Forge's own @forge/bundler emits classic <script defer> tags, and a
+    // multi-entry build with splitChunks lists the shared chunk before the
+    // entry. A browser runs both in order; evaluating only the first ran the
+    // shared chunk and never mounted the app (bundler-matrix lab finding).
+    const spy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const html = `<!doctype html><html><head></head><body>
+        <script defer="defer" src="341.js"></script>
+        <script defer="defer" src="home.js"></script>
+      </body></html>`;
+      expect(extractEntryScripts(html, 'resource "multi" (home.html)')).toEqual(['341.js', 'home.js']);
+      expect(extractEntryScript(html)).toBe('home.js');
+      expect(spy.mock.calls.some((c) => /evaluating 2 classic scripts/.test(String(c[0])))).toBe(true);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
   it('falls back to a plain script with a warning when no module script exists', () => {
     const spy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     try {
