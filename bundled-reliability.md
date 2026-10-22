@@ -318,6 +318,105 @@ second headless render of a prebuilt frontend under vite-node; the ~4 MB
 per-deploy retention; and 5 pre-existing `~/Projects/okr-tracker` queue
 failures that predate this whole arc (verified against `9b2fcd6`).
 
+## Lab measurements (2026-10-22, next session)
+
+A bundler-matrix lab now exists at `lab/bundler-matrix/` (own package, not in
+the test suite — see its README). Before the second pass the canonical
+requirements were re-read from Atlassian's docs (both "Last updated Sep 24,
+2026"): `developer.atlassian.com/platform/forge/manifest-reference/packaging/`
+and `.../packaging/standard/`. What they require:
+
+- **Functions**: for handler `<path>.<export>`, an exported function in a
+  **CommonJS** module file `<path>.js` (or another extension Node can load)
+  inside `app.package.path`; nested paths allowed (`cucumber/two.handler`);
+  dependencies must be present in the package dir (`dist/node_modules`)
+  unless bundled in; names starting `__` reserved.
+- **UI Kit**: single-entry → `index.html`; multi-entry → one HTML per entry
+  named per the `entry` map. HTML holds only the needed script references,
+  in the body, **relative paths**, shape `<script type="module"
+  src="./index.js">`. JS must contain **no JSX — pre-transformed with the
+  `React.createElement` pragma**; exactly one file per resource defines the
+  app component; asset paths relative to the resource root (Vite/webpack need
+  `base: './'`). The docs' worked multi-entry example is Vite +
+  `@vitejs/plugin-react` + `base: './'` with `React.StrictMode` at the root.
+
+The lab builds one app seven ways — a faithful replica of `@forge/bundler`
+7.3.0's webpack config, Rspack, Vite (single = bare defaults; multi = the
+docs' canonical example; backend = the deliberate OFF-standard ESM `.js` +
+`type: module` probe), Rollup (single-file + code-split), Parcel 2, user-run
+esbuild (IIFE classic single + `splitting` multi), and **tsc-unbundled** (the
+docs' "plain TypeScript" shape: transpile-only CJS, nothing bundled,
+`node_modules` inside the package dir, nested `resolvers/main.handler`) —
+deploys each manual-packaged, and exercises resolver+kvs, product API, the
+single-entry render and a two-entry resource (home/settings, shared chunk).
+Two headless modes: today's stub DOM, and a jsdom-globals preload (slots in
+because `ensureBridgeSeam` only aliases `window` when undefined).
+
+Results (`results-{stub,jsdom}.json`):
+
+- **Backends: 7/7 in both modes**, including the unbundled shape (bare
+  `require('@forge/kvs')` resolved from `out/node_modules`, real package →
+  seam), `.cjs`, minified CJS, nested handler path, and the off-standard ESM
+  probe. The handoff's item 2 ("classic scripts likely skipped") is
+  **disproven** for single-entry — warn-and-fallback renders them.
+- **Single-entry frontends, stub mode: 6/7.** Sole failure: Rollup
+  single-file — its commonjs plugin **eagerly** evaluates `@forge/bridge`'s
+  dynamic `import('iframe-resizer')`, whose SSR guard
+  (`typeof window === 'undefined'`) is defeated by `src/ui/bridge.ts:443`
+  aliasing `window = globalThis` (no `addEventListener`; Node's global is
+  not an EventTarget) → `el.addEventListener is not a function`. Every other
+  bundler dodges it only because the chunk stays lazy and unloaded. The alias
+  couldn't be patched in place without polluting the backend realm, so the
+  **fix (landed)** replaces it: `createHeadlessWindow()` in `src/ui/bridge.ts`
+  — a distinct object with globalThis as prototype (reads fall through,
+  writes stay on the window), a real EventTarget behind add/remove/
+  dispatchEvent, self-referential `window`/`self`; nothing added to
+  globalThis. Why the alias existed at all: it predates the seam migration,
+  from when the sim's own bridge shim was published as `window.__bridge`. The
+  real `@forge/bridge` reads `globalThis.__bridge` (out/bridge.js:9,15); the
+  only `window.__bridge` in the shipped packages is `@forge/react`'s jest
+  setup. `self` carries webpack/Rspack's `self.webpackChunk<app>` runtime.
+- **Multi-entry frontends, stub mode: 4/6.** Vite-canonical (StrictMode
+  included), Rollup code-split (relative chunk imports → ESM-marker
+  propagation works), Parcel shared bundles and esbuild `splitting` all pass.
+  **webpack-replica and Rspack fail with "(no doc)"**: `splitChunks` gives
+  each page TWO classic scripts (shared chunk, then entry) and
+  `extractEntryScripts`' classic fallback is `[scripts[0]]` — only the shared
+  chunk is evaluated, the entry never runs. A browser runs every script in
+  order. **Fix (landed)**: the fallback returns every classic script in
+  document order (`extractEntryScripts`, `src/deployer.ts`), with the warning
+  now naming them. One-line parity bug, independent of the window alias.
+- **jsdom mode**: Rollup single passes (real `window`), but webpack-replica
+  and Rspack single fail with "Automatic publicPath is not supported in this
+  browser" — with a real document `setStubCurrentScript` no-ops and
+  `document.currentScript` is null during eval. The currentScript
+  choreography is load-bearing and must move with any jsdom design (real by
+  construction if jsdom executes the scripts; a `defineProperty` otherwise).
+  Multi-entry results identical to stub mode (same fallback bug).
+- With both fixes in, the stub-mode matrix is **all green: 7/7 backends,
+  7/7 single-entry renders, 6/6 multi-entry resources**. No evidence yet that
+  a Playwright tier is needed for UIKit frontends. jsdom mode remains an
+  experiment (its publicPath/currentScript trade-off above still holds).
+- **`type` in package.json**: the sim never reads it. Manual backends are
+  `import()`ed as-is (`deployer.ts` ~line 907), so **Node's** nearest-
+  `package.json` rule decides CJS vs ESM for `.js` — the same rule the Forge
+  runtime's Node applies. Prebuilt UI bundles deliberately IGNORE it: the
+  `forge-sim-esm=1` loader marker forces ESM because browsers load module
+  scripts as ESM regardless (`loader/hooks.ts` ~line 180); classic IIFE
+  scripts tolerate that. In the sim's OWN source-mode bundler `type: module`
+  flips esbuild to Node default-import interop, which `forceBundlerInterop`
+  undoes to match Forge's webpack (`bundler.ts` ~line 117). The lab tripped
+  the same esbuild interop on the USER side (`type: module` in the app's
+  package.json + `import Resolver from '@forge/resolver'` → "not a
+  constructor") — breaks identically on real Forge, user error, not a sim
+  gap. Open parity nit: the standard says **CommonJS**, yet the deploy error
+  hint (`deployer.ts` ~line 882) recommends "ship ESM as .js with type:
+  module", and the sim accepts it (Vite ESM backend passed). Whether real
+  Forge's `require()`-based loader accepts ESM on nodejs22 is unverified.
+- Not measured: Custom UI resources, the dev-server/browser path, repeated
+  renders, `__`-prefixed reserved names, Parcel's `<script type=importmap>`
+  in a browser.
+
 ## Conventions a next session needs
 
 - **Gates before any commit**: `npx vitest run` (core), `cd renderer &&
