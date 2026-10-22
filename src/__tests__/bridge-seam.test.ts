@@ -43,8 +43,35 @@ describe('globalThis.__bridge is installed by the ForgeSimulator constructor', (
     createSimulator();
     const bridge = (globalThis as any).__bridge;
     expect(typeof bridge?.callBridge).toBe('function');
-    // The real package also reads it off `window` in some paths; both must agree.
+    // The real @forge/bridge reads globalThis.__bridge (out/bridge.js), but
+    // bundled copies and @forge/react's own test setup use window.__bridge;
+    // both must agree.
     expect((globalThis as any).window.__bridge).toBe(bridge);
+  });
+
+  it('the headless window is a real EventTarget, not a globalThis alias', () => {
+    // Browser bundles gate on `typeof window === 'undefined'` and then call
+    // window methods. iframe-resizer's SSR guard did exactly that against
+    // the old `window = globalThis` alias and died on addEventListener
+    // (Node's global is not an EventTarget) — bundler-matrix lab, Rollup.
+    createSimulator();
+    const g = globalThis as any;
+    expect(typeof g.window).toBe('object');
+    expect(g.window).not.toBe(globalThis);
+    expect(g.self).toBe(g.window);
+    expect(g.window.window).toBe(g.window);
+    let seen: unknown = null;
+    g.window.addEventListener('message', (e: unknown) => { seen = e; });
+    g.window.dispatchEvent(new Event('message'));
+    expect(seen).toBeInstanceOf(Event);
+    // Reads fall through to globals; writes stay on the window (webpack's
+    // `self.webpackChunk = self.webpackChunk || []`).
+    expect(g.window.setTimeout).toBe(globalThis.setTimeout);
+    g.window.__labProbe = 1;
+    expect(g.__labProbe).toBeUndefined();
+    delete g.window.__labProbe;
+    // And nothing browser-shaped leaked onto globalThis for backend code.
+    expect(typeof g.addEventListener).toBe('undefined');
   });
 
   it('the REAL @forge/bridge evaluates and answers a frame, with no sim.ui.render() involved', async () => {

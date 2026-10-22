@@ -411,6 +411,42 @@ const DISPATCHER_KEY = Symbol.for('forge-sim.bridge-dispatcher');
 const TRAMPOLINE_MARK = Symbol.for('forge-sim.bridge-trampoline');
 
 /**
+ * Headless `window`/`self` for prebuilt browser bundles evaluated in Node.
+ * Only installed when no real window exists (browsers and jsdom test
+ * environments keep theirs).
+ *
+ * Browser bundles reach for these at module evaluation: webpack/Rspack's
+ * chunk runtime keys `self.webpackChunk<app>`, and libraries gate
+ * browser-only code on `typeof window === 'undefined'` (SSR guards). The old
+ * answer — `window = self = globalThis` — got bundles past the `typeof`
+ * check and then failed on the FIRST window method, because Node's global is
+ * not an EventTarget: iframe-resizer's SSR guard saw a window, proceeded, and
+ * died on `window.addEventListener` (bundler-matrix lab: Rollup's commonjs
+ * plugin evaluates @forge/bridge's dynamic `import('iframe-resizer')`
+ * eagerly, so it was the one bundler to hit it; the rest only dodge it
+ * because that chunk stays lazy). A half-window is worse than none.
+ *
+ * So: a distinct object whose prototype is globalThis — reads of globals
+ * fall through, writes stay on the window (`self.webpackChunk = …` lands
+ * here and every chunk reads it back from `self` too) — with a real
+ * EventTarget behind add/remove/dispatchEvent and self-referential
+ * `window`/`self`. Nothing is added to globalThis itself, so backend bundles
+ * sharing the process see no new browser API.
+ */
+function createHeadlessWindow(): any {
+  const events = new EventTarget();
+  const win: any = Object.create(globalThis, {
+    addEventListener: { value: events.addEventListener.bind(events) },
+    removeEventListener: { value: events.removeEventListener.bind(events) },
+    dispatchEvent: { value: events.dispatchEvent.bind(events) },
+    __forgeSimHeadlessWindow: { value: true },
+  });
+  Object.defineProperty(win, 'window', { value: win, enumerable: true });
+  Object.defineProperty(win, 'self', { value: win, enumerable: true });
+  return win;
+}
+
+/**
  * Make THIS module instance the live dispatcher and install the seam around
  * it. Called whenever a simulator is attached (constructor via
  * installBridgeSeam, sim.ui.ensureBridge, connectSimulator).
@@ -438,11 +474,11 @@ function ensureBridgeSeam(): void {
       [TRAMPOLINE_MARK]: true,
     };
   }
-  g.self = globalThis;
-
-  if (typeof g.window === 'undefined') {
-    g.window = globalThis;
-  }
+  if (typeof g.window === 'undefined') g.window = createHeadlessWindow();
+  if (typeof g.self === 'undefined') g.self = g.window;
+  // Kept on `window` too: the real @forge/bridge reads globalThis.__bridge
+  // (out/bridge.js getCallBridge), but bundled copies and @forge/react's own
+  // test setup reach for window.__bridge — both must agree.
   g.window.__bridge = g.__bridge;
   installDocumentStub();
   installRelativeI18nFetch();
