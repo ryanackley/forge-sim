@@ -124,6 +124,35 @@ describe('plain node, no loader (dist/)', () => {
     expect(String(result.err)).toMatch(/No simulator connected/);
   });
 
+  it.skipIf(!distReady0)('without the seam, importing @forge/bridge first dies inside the package (the trap forge-sim/setup exists for)', () => {
+    const result = spawnNode([
+      `import { createRequire } from 'node:module';`,
+      `let err = null;`,
+      `try { createRequire(import.meta.url)('@forge/bridge'); } catch (e) { err = e.message; }`,
+      `console.log(JSON.stringify({ err }));`,
+    ], 'bridge-first-no-setup');
+    // Atlassian's message — it never mentions forge-sim, which is why the
+    // import-order trap was so hard to diagnose.
+    expect(String(result.err)).toMatch(/Custom UI bridge/);
+  });
+
+  it.skipIf(!distReady0)("import 'forge-sim/setup' first makes import order irrelevant (vitest setupFiles)", () => {
+    // Exactly the setupFiles sequence: setup evaluates first, then the test
+    // file imports @forge/bridge BEFORE forge-sim, then a sim is constructed
+    // and a real frame round-trips. Resolved via the package's own exports
+    // map ("./setup"), so this also pins the subpath.
+    const result = spawnNode([
+      `import 'forge-sim/setup';`,
+      `import { createRequire } from 'node:module';`,
+      `const bridge = createRequire(import.meta.url)('@forge/bridge');`,
+      `const { createSimulator } = await import('./dist/index.js');`,
+      `createSimulator();`,
+      `const ctx = await bridge.view.getContext();`,
+      `console.log(JSON.stringify({ localId: typeof ctx.localId }));`,
+    ], 'setup-first');
+    expect(result).toMatchObject({ localId: 'string' });
+  });
+
   const distReady = existsSync(join(REPO_ROOT, 'dist', 'simulator.js'));
 
   it.skipIf(!distReady)('import @forge/bridge after constructing a sim: evaluates and answers', () => {

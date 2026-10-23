@@ -58,6 +58,11 @@ export default defineConfig({
     },
   },
   test: {
+    // Installs the frontend seam before any test file evaluates, so the
+    // order of `import 'forge-sim'` vs `import '@forge/bridge'` in a test
+    // file stops mattering (the real @forge/bridge captures
+    // globalThis.__bridge at module evaluation and throws without it).
+    setupFiles: ['forge-sim/setup'],
     testTimeout: 30_000,
     hookTimeout: 60_000,
   },
@@ -76,10 +81,12 @@ export default defineConfig({
 > **Every frontend package is absent for the same reason.** `@forge/bridge`,
 > `@forge/react` (and their `/realtime`, `/router` subpaths) and the three
 > product bridges all talk to `globalThis.__bridge`, which forge-sim installs
-> on load, and the headless bridge host answers it. Import `forge-sim` before
-> any of them in a test file — the real `@forge/bridge` captures the seam at
-> module evaluation. (All of these had shims until the frontend seam
-> migration; delete those alias lines when upgrading.)
+> on load, and the headless bridge host answers it. The real `@forge/bridge`
+> captures the seam at module evaluation, so either import `forge-sim` before
+> any of them in a test file, or — simpler — keep `setupFiles:
+> ['forge-sim/setup']` from the config above and forget about import order.
+> (All of these had shims until the frontend seam migration; delete those
+> alias lines when upgrading.)
 
 ### Webpack / Jest
 

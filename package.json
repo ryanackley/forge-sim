@@ -47,6 +47,10 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
+    "./setup": {
+      "types": "./dist/setup.d.ts",
+      "import": "./dist/setup.js"
+    },
     "./shims/*": {
       "types": "./dist/shims/*.d.ts",
       "import": "./dist/shims/*.js"
