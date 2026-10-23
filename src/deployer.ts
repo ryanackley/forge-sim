@@ -334,15 +334,20 @@ export function parseHandlerString(handler: string): { fileStem: string; exportN
 
 const FILE_EXTENSIONS = ['.js', '.ts', '.tsx', '.jsx', '.mjs', '.cjs'];
 
-// Manual packaging ships built output, so runnable JS comes first. TS/JSX
-// sources still resolve — the sim can execute them — but draw a parity
-// warning at deploy (real Forge uploads the file as-is to a Node runtime).
-// Deliberately NO .mjs: upstream lint's handler extension set is
-// (tsx|jsx|ts|js|cjs) and lint gates real deploys — resolving .mjs here
-// while the validator rejects it produced contradictory errors
-// (adversarial finding #6). The packaging standard requires CommonJS
-// handlers regardless (see nearestPackageType below).
-const MANUAL_FILE_EXTENSIONS = ['.js', '.cjs', '.ts', '.tsx', '.jsx'];
+// Manual packaging ships built output that the Forge runtime loads as-is,
+// and the packaging standard allows "<path>.js (or the same path with a
+// different extension that Node.js can load)". So: .js and .cjs, plus .ts —
+// Node 22.18+ strips types natively, so it IS loadable, but it draws a
+// parity warning at deploy (the Forge runtime's exact Node is not ours and
+// shipping source is almost never intended). Deliberately NOT .tsx/.jsx:
+// Node cannot load JSX, so a handler that resolved to one here (the sim's
+// loader hooks transpile them) would be found by forge-sim and crash on
+// Forge — the inverse parity violation. Deliberately NOT .mjs either:
+// upstream lint's handler extension set is (tsx|jsx|ts|js|cjs) and lint
+// gates real deploys — resolving .mjs here while the validator rejects it
+// produced contradictory errors (adversarial finding #6). The standard
+// requires CommonJS handlers regardless (see nearestPackageType below).
+const MANUAL_FILE_EXTENSIONS = ['.js', '.cjs', '.ts'];
 
 /**
  * Does Node load this `.js` file as an ES module? Mirrors Node's own rule:
@@ -909,8 +914,9 @@ export async function deploy(sim: ForgeSimulator, appDir: string, options: Deplo
           functionKey: fnKey,
           error: manualPackaging
             ? `Could not find handler file for "${fnDef.handler}" under app.package.path ` +
-              `(tried ${manifest.handlersDirectory}/${fileStem}.{js,cjs,ts,tsx,jsx} — .mjs is not ` +
-              `accepted by Forge lint, and the packaging standard requires CommonJS handlers). Manual packaging ` +
+              `(tried ${manifest.handlersDirectory}/${fileStem}.{js,cjs,ts} — .tsx/.jsx are not loadable ` +
+              `by Node, .mjs is not accepted by Forge lint, and the packaging standard requires CommonJS ` +
+              `handlers). Manual packaging ` +
               `resolves handlers ONLY inside the package directory — run your build so the ` +
               `compiled file exists there.`
             : `Could not find handler file for "${fnDef.handler}" (tried src/${fileStem}.{js,ts,mjs,cjs} and ${fileStem}.{js,ts,mjs,cjs})`,
@@ -918,13 +924,13 @@ export async function deploy(sim: ForgeSimulator, appDir: string, options: Deplo
         continue;
       }
 
-      if (manualPackaging && /\.(ts|tsx|jsx)$/.test(filePath)) {
+      if (manualPackaging && filePath.endsWith('.ts')) {
         const w = {
           level: 'warning' as const,
-          message: `Handler "${fnDef.handler}" resolved to a TypeScript/JSX source file ` +
-            `(${filePath.slice(absDir.length + 1)}). Manual packaging uploads files as-is and the ` +
-            `Forge runtime executes JavaScript — forge-sim runs this file, but real Forge likely ` +
-            `won't. Point app.package.path at your build output.`,
+          message: `Handler "${fnDef.handler}" resolved to a TypeScript source file ` +
+            `(${filePath.slice(absDir.length + 1)}). Manual packaging uploads files as-is; Node 22.18+ ` +
+            `can strip types, but the Forge runtime's Node is not yours and shipping source is rarely ` +
+            `intended — point app.package.path at your compiled CommonJS output.`,
         };
         manifest.warnings.push(w);
         printManifestWarnings([w]);

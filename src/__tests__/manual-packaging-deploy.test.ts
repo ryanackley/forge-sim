@@ -166,6 +166,23 @@ modules:
     expect(result.errors.some((e) => /Failed to load/.test(e.error))).toBe(false);
   });
 
+  it('does not resolve .tsx/.jsx handlers — Node cannot load JSX, so Forge would crash', async () => {
+    // Packaging standard: "<path>.js (or the same path with a different
+    // extension that Node.js can load)". The sim's loader hooks CAN
+    // transpile .tsx/.jsx, which is exactly why resolving them here would be
+    // the inverse parity violation: found by forge-sim, crashes on Forge.
+    await mkdir(join(appDir, 'out'), { recursive: true });
+    for (const ext of ['tsx', 'jsx']) {
+      await writeFile(join(appDir, 'out', `index.${ext}`), 'export const run = () => ({ statusCode: 200 });', 'utf8');
+    }
+    const result = await deploy(sim, appDir, { throwOnError: false });
+    const notFound = result.errors.find(
+      (e) => e.functionKey === 'main' && /Could not find handler file/.test(e.error)
+    );
+    expect(notFound?.error).toMatch(/\.tsx\/\.jsx are not loadable by Node/);
+    expect(result.errors.some((e) => /Failed to load/.test(e.error))).toBe(false);
+  });
+
   it('warns when a handler resolves to a TypeScript source under manual packaging', async () => {
     await mkdir(join(appDir, 'out'), { recursive: true });
     await writeFile(
@@ -176,7 +193,7 @@ modules:
     const result = await deploy(sim, appDir, { throwOnError: false });
     expect(result.errors).toEqual([]);
     expect(
-      result.warnings.some((w) => /resolved to a TypeScript\/JSX source file/.test(w.message))
+      result.warnings.some((w) => /resolved to a TypeScript source file/.test(w.message))
     ).toBe(true);
   });
 
