@@ -1,0 +1,48 @@
+
+app:
+  id: ari:cloud:ecosystem::app/aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee
+  runtime:
+    name: nodejs22.x
+  package:
+    bundler: manual@2026
+    path: out
+modules:
+  jira:issuePanel:
+    - key: panel
+      resource: main
+      render: native
+      title: Matrix Panel
+      icon: https://example.com/i.svg
+      resolver:
+        function: main-fn
+    - key: page-home
+      resource: multi/home
+      render: native
+      title: Home
+      icon: https://example.com/i.svg
+      resolver:
+        function: main-fn
+    - key: page-settings
+      resource: multi/settings
+      render: native
+      title: Settings
+      icon: https://example.com/i.svg
+      resolver:
+        function: main-fn
+  function:
+    - key: main-fn
+      handler: index.handler
+resources:
+  - key: main
+    bundler: manual@2026
+    path: frontend
+  - key: multi
+    bundler: manual@2026
+    path: frontend-multi
+    entry:
+      home: home.html
+      settings: settings.html
+permissions:
+  scopes:
+    - storage:app
+    - read:jira-work
