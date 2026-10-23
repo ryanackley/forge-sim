@@ -110,3 +110,13 @@ same residual (280 KB on the tiny app) underneath the module-graph retention it 
 Harmless for tests; it is the remaining unbounded term for long `forge-sim dev` / MCP daemon
 sessions. A fix needs a heap-snapshot retainer-path diff between deploy N and N+10 to name the
 holder before changing anything.
+
+## `getFrameDispatch` stays rejected — close by design unless a real app calls it
+
+The real package side is a pure passthrough: `node_modules/@forge/bridge/out/view/
+getFrameDispatch.js` is `callBridge('getFrameDispatch')` returned verbatim, so the only
+question was ever what the Atlassian host answers — an internal frame-dispatch handle for
+nested frames with no documented shape. Guessing a shape would violate no-silent-stubs
+worse than rejecting does, so the registry keeps `unsupported` with its current message.
+Revisit only if a real app is observed calling it (the command registry will say which
+module), in which case capture the real host's answer shape first.
