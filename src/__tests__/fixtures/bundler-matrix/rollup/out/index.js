@@ -18,7 +18,7 @@ function getAugmentedNamespace(n) {
 			var isInstance = false;
       try {
         isInstance = this instanceof a;
-      } catch (e) {}
+      } catch {}
 			if (isInstance) {
         return Reflect.construct(f, arguments, this.constructor);
 			}
@@ -1465,7 +1465,7 @@ function requireErrors () {
 	hasRequiredErrors = 1;
 	(function (exports) {
 		Object.defineProperty(exports, "__esModule", { value: true });
-		exports.ApiNotReadyError = exports.ProxyRequestError = exports.InvalidContainerServiceError = exports.InvalidRemoteError = exports.NeedsAuthenticationError = exports.InvalidWorkspaceRequestedError = exports.RequestProductNotAllowedError = exports.ProductEndpointNotAllowedError = exports.ExternalEndpointNotAllowedError = exports.NotAllowedError = exports.FetchError = exports.HttpError = exports.API_NOT_READY_ERR = exports.PROXY_ERR = exports.INVALID_CONTAINER_SERVICE_ERR = exports.INVALID_REMOTE_ERR = exports.NEEDS_AUTHENTICATION_ERR = exports.FUNCTION_FETCH_ERR = exports.REQUEST_EGRESS_ALLOWLIST_ERR = exports.FUNCTION_ERR = void 0;
+		exports.ApiNotReadyError = exports.SendEmailError = exports.ProxyRequestError = exports.InvalidContainerServiceError = exports.InvalidRemoteError = exports.NeedsAuthenticationError = exports.InvalidWorkspaceRequestedError = exports.RequestProductNotAllowedError = exports.ProductEndpointNotAllowedError = exports.ExternalEndpointNotAllowedError = exports.NotAllowedError = exports.FetchError = exports.HttpError = exports.API_NOT_READY_ERR = exports.SEND_EMAIL_ERR = exports.PROXY_ERR = exports.INVALID_CONTAINER_SERVICE_ERR = exports.INVALID_REMOTE_ERR = exports.NEEDS_AUTHENTICATION_ERR = exports.FUNCTION_FETCH_ERR = exports.REQUEST_EGRESS_ALLOWLIST_ERR = exports.FUNCTION_ERR = void 0;
 		exports.isForgePlatformError = isForgePlatformError;
 		exports.isHostedCodeError = isHostedCodeError;
 		exports.isExpectedError = isExpectedError;
@@ -1476,6 +1476,7 @@ function requireErrors () {
 		exports.INVALID_REMOTE_ERR = 'INVALID_REMOTE_ERR';
 		exports.INVALID_CONTAINER_SERVICE_ERR = 'INVALID_CONTAINER_SERVICE_ERR';
 		exports.PROXY_ERR = 'PROXY_ERR';
+		exports.SEND_EMAIL_ERR = 'SEND_EMAIL_ERR';
 		exports.API_NOT_READY_ERR = 'API_NOT_READY_ERR';
 		function isForgePlatformError(err) {
 		    return [
@@ -1483,11 +1484,18 @@ function requireErrors () {
 		        exports.FUNCTION_FETCH_ERR,
 		        exports.NEEDS_AUTHENTICATION_ERR,
 		        exports.PROXY_ERR,
+		        exports.SEND_EMAIL_ERR,
 		        exports.API_NOT_READY_ERR
 		    ].includes(err.name);
 		}
 		function isHostedCodeError(err) {
-		    return [exports.FUNCTION_ERR, exports.REQUEST_EGRESS_ALLOWLIST_ERR, exports.FUNCTION_FETCH_ERR, exports.NEEDS_AUTHENTICATION_ERR].includes(typeof err === 'string' ? err : err.name);
+		    return [
+		        exports.FUNCTION_ERR,
+		        exports.REQUEST_EGRESS_ALLOWLIST_ERR,
+		        exports.FUNCTION_FETCH_ERR,
+		        exports.NEEDS_AUTHENTICATION_ERR,
+		        exports.SEND_EMAIL_ERR
+		    ].includes(typeof err === 'string' ? err : err.name);
 		}
 		function isExpectedError(err) {
 		    return err.name === exports.NEEDS_AUTHENTICATION_ERR && !!err.options?.isExpectedError;
@@ -1584,6 +1592,23 @@ function requireErrors () {
 		    }
 		}
 		exports.ProxyRequestError = ProxyRequestError;
+		class SendEmailError extends HttpError {
+		    status;
+		    errorCode;
+		    code;
+		    responseCode;
+		    command;
+		    constructor(status, errorCode, code, responseCode, command) {
+		        super(`Failed to send email with error code: ${errorCode}`);
+		        this.status = status;
+		        this.errorCode = errorCode;
+		        this.code = code;
+		        this.responseCode = responseCode;
+		        this.command = command;
+		        this.name = exports.SEND_EMAIL_ERR;
+		    }
+		}
+		exports.SendEmailError = SendEmailError;
 		class ApiNotReadyError extends Error {
 		    constructor(message = 'Forge API currently not available') {
 		        super(message);

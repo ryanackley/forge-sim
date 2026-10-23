@@ -532,66 +532,6 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 
 /***/ },
 
-/***/ 8555
-(__unused_webpack_module, exports) {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-
-
-/***/ },
-
-/***/ 6682
-(__unused_webpack_module, exports) {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.NavigationTarget = void 0;
-// Constants for developer convenience. The JS Docs below will also be displayed in the IDE when the developer is using this object.
-exports.NavigationTarget = {
-    /**
-     * The view page for pages, blogs and custom content. Takes a contentId to identify the content.
-     */
-    ContentView: 'contentView',
-    /**
-     * The edit page for pages, blogs and custom content. Takes a contentId to identify the content.
-     */
-    ContentEdit: 'contentEdit',
-    /**
-     * The list/collector page for pages, blogs and custom content contained in a space. Takes a spaceKey and a contentType to identify the content type for pages and blogs. Takes a moduleKey for custom content.
-     */
-    ContentList: 'contentList',
-    /**
-     * The space view page. Takes a spaceKey to identify the space.
-     */
-    SpaceView: 'spaceView',
-    /**
-     * The page within a specific module. Takes a moduleKey to identify the correct module.
-     */
-    Module: 'module',
-    /**
-     * The profile page for a specific user. Takes an accountId to identify the user.
-     */
-    UserProfile: 'userProfile',
-    /**
-     * A dashboard in Jira. Takes a dashboardId to identify the dashboard.
-     */
-    Dashboard: 'dashboard',
-    /**
-     * An issue in Jira. Takes an issueKey to identify the issue.
-     */
-    Issue: 'issue',
-    /**
-     * The project settings details of a Jira project. Takes a projectKey to identify the project. Only accessible to administrators.
-     */
-    ProjectSettingsDetails: 'projectSettingsDetails'
-};
-
-
-/***/ },
-
 /***/ 8564
 (__unused_webpack_module, exports) {
 
@@ -1127,2834 +1067,6 @@ exports.EntityPropertyRequestFailedError = EntityPropertyRequestFailedError;
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-
-
-/***/ },
-
-/***/ 4126
-(module, __unused_webpack_exports, __webpack_require__) {
-
-const iframeResize = __webpack_require__(570)
-
-module.exports = {
-  iframeResize: iframeResize,
-  iframeResizer: iframeResize, // Backwards compatibility
-  contentWindow: __webpack_require__(481)
-}
-
-
-/***/ },
-
-/***/ 481
-(module) {
-
-/*
- * File: iframeResizer.contentWindow.js
- * Desc: Include this file in any page being loaded into an iframe
- *       to force the iframe to resize to the content size.
- * Requires: iframeResizer.js on host page.
- * Doc: https://iframe-resizer.com
- * Author: David J. Bradshaw - info@iframe-resizer.com
- *
- */
-
-// eslint-disable-next-line sonarjs/cognitive-complexity, no-shadow-restricted-names
-;(function (undefined) {
-  if (typeof window === 'undefined') return // don't run for server side render
-
-  var autoResize = true,
-    base = 10,
-    bodyBackground = '',
-    bodyMargin = 0,
-    bodyMarginStr = '',
-    bodyObserver = null,
-    bodyPadding = '',
-    calculateWidth = false,
-    doubleEventList = { resize: 1, click: 1 },
-    eventCancelTimer = 128,
-    firstRun = true,
-    height = 1,
-    heightCalcModeDefault = 'bodyOffset',
-    heightCalcMode = heightCalcModeDefault,
-    initLock = true,
-    initMsg = '',
-    inPageLinks = {},
-    interval = 32,
-    intervalTimer = null,
-    logging = false,
-    mouseEvents = false,
-    msgID = '[iFrameSizer]', // Must match host page msg ID
-    msgIdLen = msgID.length,
-    myID = '',
-    resetRequiredMethods = {
-      max: 1,
-      min: 1,
-      bodyScroll: 1,
-      documentElementScroll: 1
-    },
-    resizeFrom = 'child',
-    sendPermit = true,
-    target = window.parent,
-    targetOriginDefault = '*',
-    tolerance = 0,
-    triggerLocked = false,
-    triggerLockedTimer = null,
-    throttledTimer = 16,
-    width = 1,
-    widthCalcModeDefault = 'scroll',
-    widthCalcMode = widthCalcModeDefault,
-    win = window,
-    onMessage = function () {
-      warn('onMessage function not defined')
-    },
-    onReady = function () {},
-    onPageInfo = function () {},
-    customCalcMethods = {
-      height: function () {
-        warn('Custom height calculation function not defined')
-        return document.documentElement.offsetHeight
-      },
-      width: function () {
-        warn('Custom width calculation function not defined')
-        return document.body.scrollWidth
-      }
-    },
-    eventHandlersByName = {},
-    passiveSupported = false
-
-  function noop() {}
-
-  try {
-    var options = Object.create(
-      {},
-      {
-        passive: {
-          // eslint-disable-next-line getter-return
-          get: function () {
-            passiveSupported = true
-          }
-        }
-      }
-    )
-    window.addEventListener('test', noop, options)
-    window.removeEventListener('test', noop, options)
-  } catch (error) {
-    /* */
-  }
-
-  function addEventListener(el, evt, func, options) {
-    el.addEventListener(evt, func, passiveSupported ? options || {} : false)
-  }
-
-  function removeEventListener(el, evt, func) {
-    el.removeEventListener(evt, func, false)
-  }
-
-  function capitalizeFirstLetter(string) {
-    return string.charAt(0).toUpperCase() + string.slice(1)
-  }
-
-  // Based on underscore.js
-  function throttle(func) {
-    var context,
-      args,
-      result,
-      timeout = null,
-      previous = 0,
-      later = function () {
-        previous = Date.now()
-        timeout = null
-        result = func.apply(context, args)
-        if (!timeout) {
-          // eslint-disable-next-line no-multi-assign
-          context = args = null
-        }
-      }
-
-    return function () {
-      var now = Date.now()
-
-      if (!previous) {
-        previous = now
-      }
-
-      var remaining = throttledTimer - (now - previous)
-
-      context = this
-      args = arguments
-
-      if (remaining <= 0 || remaining > throttledTimer) {
-        if (timeout) {
-          clearTimeout(timeout)
-          timeout = null
-        }
-
-        previous = now
-        result = func.apply(context, args)
-
-        if (!timeout) {
-          // eslint-disable-next-line no-multi-assign
-          context = args = null
-        }
-      } else if (!timeout) {
-        timeout = setTimeout(later, remaining)
-      }
-
-      return result
-    }
-  }
-
-  function formatLogMsg(msg) {
-    return msgID + '[' + myID + '] ' + msg
-  }
-
-  function log(msg) {
-    if (logging && 'object' === typeof window.console) {
-      // eslint-disable-next-line no-console
-      console.log(formatLogMsg(msg))
-    }
-  }
-
-  function warn(msg) {
-    if ('object' === typeof window.console) {
-      // eslint-disable-next-line no-console
-      console.warn(formatLogMsg(msg))
-    }
-  }
-
-  function init() {
-    readDataFromParent()
-    log('Initialising iFrame (' + window.location.href + ')')
-    readDataFromPage()
-    setMargin()
-    setBodyStyle('background', bodyBackground)
-    setBodyStyle('padding', bodyPadding)
-    injectClearFixIntoBodyElement()
-    checkHeightMode()
-    checkWidthMode()
-    stopInfiniteResizingOfIFrame()
-    setupPublicMethods()
-    setupMouseEvents()
-    startEventListeners()
-    inPageLinks = setupInPageLinks()
-    sendSize('init', 'Init message from host page')
-    onReady()
-  }
-
-  function readDataFromParent() {
-    function strBool(str) {
-      return 'true' === str
-    }
-
-    var data = initMsg.slice(msgIdLen).split(':')
-
-    myID = data[0]
-    bodyMargin = undefined === data[1] ? bodyMargin : Number(data[1]) // For V1 compatibility
-    calculateWidth = undefined === data[2] ? calculateWidth : strBool(data[2])
-    logging = undefined === data[3] ? logging : strBool(data[3])
-    interval = undefined === data[4] ? interval : Number(data[4])
-    autoResize = undefined === data[6] ? autoResize : strBool(data[6])
-    bodyMarginStr = data[7]
-    heightCalcMode = undefined === data[8] ? heightCalcMode : data[8]
-    bodyBackground = data[9]
-    bodyPadding = data[10]
-    tolerance = undefined === data[11] ? tolerance : Number(data[11])
-    inPageLinks.enable = undefined === data[12] ? false : strBool(data[12])
-    resizeFrom = undefined === data[13] ? resizeFrom : data[13]
-    widthCalcMode = undefined === data[14] ? widthCalcMode : data[14]
-    mouseEvents = undefined === data[15] ? mouseEvents : strBool(data[15])
-  }
-
-  function depricate(key) {
-    var splitName = key.split('Callback')
-
-    if (splitName.length === 2) {
-      var name =
-        'on' + splitName[0].charAt(0).toUpperCase() + splitName[0].slice(1)
-      this[name] = this[key]
-      delete this[key]
-      warn(
-        "Deprecated: '" +
-          key +
-          "' has been renamed '" +
-          name +
-          "'. The old method will be removed in the next major version."
-      )
-    }
-  }
-
-  function readDataFromPage() {
-    function readData() {
-      var data = window.iFrameResizer
-
-      log('Reading data from page: ' + JSON.stringify(data))
-      Object.keys(data).forEach(depricate, data)
-
-      onMessage = 'onMessage' in data ? data.onMessage : onMessage
-      onReady = 'onReady' in data ? data.onReady : onReady
-      targetOriginDefault =
-        'targetOrigin' in data ? data.targetOrigin : targetOriginDefault
-      heightCalcMode =
-        'heightCalculationMethod' in data
-          ? data.heightCalculationMethod
-          : heightCalcMode
-      widthCalcMode =
-        'widthCalculationMethod' in data
-          ? data.widthCalculationMethod
-          : widthCalcMode
-    }
-
-    function setupCustomCalcMethods(calcMode, calcFunc) {
-      if ('function' === typeof calcMode) {
-        log('Setup custom ' + calcFunc + 'CalcMethod')
-        customCalcMethods[calcFunc] = calcMode
-        calcMode = 'custom'
-      }
-
-      return calcMode
-    }
-
-    if (
-      'iFrameResizer' in window &&
-      Object === window.iFrameResizer.constructor
-    ) {
-      readData()
-      heightCalcMode = setupCustomCalcMethods(heightCalcMode, 'height')
-      widthCalcMode = setupCustomCalcMethods(widthCalcMode, 'width')
-    }
-
-    log('TargetOrigin for parent set to: ' + targetOriginDefault)
-  }
-
-  function chkCSS(attr, value) {
-    if (-1 !== value.indexOf('-')) {
-      warn('Negative CSS value ignored for ' + attr)
-      value = ''
-    }
-    return value
-  }
-
-  function setBodyStyle(attr, value) {
-    if (undefined !== value && '' !== value && 'null' !== value) {
-      document.body.style[attr] = value
-      log('Body ' + attr + ' set to "' + value + '"')
-    }
-  }
-
-  function setMargin() {
-    // If called via V1 script, convert bodyMargin from int to str
-    if (undefined === bodyMarginStr) {
-      bodyMarginStr = bodyMargin + 'px'
-    }
-
-    setBodyStyle('margin', chkCSS('margin', bodyMarginStr))
-  }
-
-  function stopInfiniteResizingOfIFrame() {
-    document.documentElement.style.height = ''
-    document.body.style.height = ''
-    log('HTML & body height set to "auto"')
-  }
-
-  function manageTriggerEvent(options) {
-    var listener = {
-      add: function (eventName) {
-        function handleEvent() {
-          sendSize(options.eventName, options.eventType)
-        }
-
-        eventHandlersByName[eventName] = handleEvent
-
-        addEventListener(window, eventName, handleEvent, { passive: true })
-      },
-      remove: function (eventName) {
-        var handleEvent = eventHandlersByName[eventName]
-        delete eventHandlersByName[eventName]
-
-        removeEventListener(window, eventName, handleEvent)
-      }
-    }
-
-    if (options.eventNames && Array.prototype.map) {
-      options.eventName = options.eventNames[0]
-      options.eventNames.map(listener[options.method])
-    } else {
-      listener[options.method](options.eventName)
-    }
-
-    log(
-      capitalizeFirstLetter(options.method) +
-        ' event listener: ' +
-        options.eventType
-    )
-  }
-
-  function manageEventListeners(method) {
-    manageTriggerEvent({
-      method: method,
-      eventType: 'Animation Start',
-      eventNames: ['animationstart', 'webkitAnimationStart']
-    })
-    manageTriggerEvent({
-      method: method,
-      eventType: 'Animation Iteration',
-      eventNames: ['animationiteration', 'webkitAnimationIteration']
-    })
-    manageTriggerEvent({
-      method: method,
-      eventType: 'Animation End',
-      eventNames: ['animationend', 'webkitAnimationEnd']
-    })
-    manageTriggerEvent({
-      method: method,
-      eventType: 'Input',
-      eventName: 'input'
-    })
-    manageTriggerEvent({
-      method: method,
-      eventType: 'Mouse Up',
-      eventName: 'mouseup'
-    })
-    manageTriggerEvent({
-      method: method,
-      eventType: 'Mouse Down',
-      eventName: 'mousedown'
-    })
-    manageTriggerEvent({
-      method: method,
-      eventType: 'Orientation Change',
-      eventName: 'orientationchange'
-    })
-    manageTriggerEvent({
-      method: method,
-      eventType: 'Print',
-      eventNames: ['afterprint', 'beforeprint']
-    })
-    manageTriggerEvent({
-      method: method,
-      eventType: 'Ready State Change',
-      eventName: 'readystatechange'
-    })
-    manageTriggerEvent({
-      method: method,
-      eventType: 'Touch Start',
-      eventName: 'touchstart'
-    })
-    manageTriggerEvent({
-      method: method,
-      eventType: 'Touch End',
-      eventName: 'touchend'
-    })
-    manageTriggerEvent({
-      method: method,
-      eventType: 'Touch Cancel',
-      eventName: 'touchcancel'
-    })
-    manageTriggerEvent({
-      method: method,
-      eventType: 'Transition Start',
-      eventNames: [
-        'transitionstart',
-        'webkitTransitionStart',
-        'MSTransitionStart',
-        'oTransitionStart',
-        'otransitionstart'
-      ]
-    })
-    manageTriggerEvent({
-      method: method,
-      eventType: 'Transition Iteration',
-      eventNames: [
-        'transitioniteration',
-        'webkitTransitionIteration',
-        'MSTransitionIteration',
-        'oTransitionIteration',
-        'otransitioniteration'
-      ]
-    })
-    manageTriggerEvent({
-      method: method,
-      eventType: 'Transition End',
-      eventNames: [
-        'transitionend',
-        'webkitTransitionEnd',
-        'MSTransitionEnd',
-        'oTransitionEnd',
-        'otransitionend'
-      ]
-    })
-    if ('child' === resizeFrom) {
-      manageTriggerEvent({
-        method: method,
-        eventType: 'IFrame Resized',
-        eventName: 'resize'
-      })
-    }
-  }
-
-  function checkCalcMode(calcMode, calcModeDefault, modes, type) {
-    if (calcModeDefault !== calcMode) {
-      if (!(calcMode in modes)) {
-        warn(
-          calcMode + ' is not a valid option for ' + type + 'CalculationMethod.'
-        )
-        calcMode = calcModeDefault
-      }
-      log(type + ' calculation method set to "' + calcMode + '"')
-    }
-
-    return calcMode
-  }
-
-  function checkHeightMode() {
-    heightCalcMode = checkCalcMode(
-      heightCalcMode,
-      heightCalcModeDefault,
-      getHeight,
-      'height'
-    )
-  }
-
-  function checkWidthMode() {
-    widthCalcMode = checkCalcMode(
-      widthCalcMode,
-      widthCalcModeDefault,
-      getWidth,
-      'width'
-    )
-  }
-
-  function startEventListeners() {
-    if (true === autoResize) {
-      manageEventListeners('add')
-      setupMutationObserver()
-    } else {
-      log('Auto Resize disabled')
-    }
-  }
-
-  //   function stopMsgsToParent() {
-  //     log('Disable outgoing messages')
-  //     sendPermit = false
-  //   }
-
-  //   function removeMsgListener() {
-  //     log('Remove event listener: Message')
-  //     removeEventListener(window, 'message', receiver)
-  //   }
-
-  function disconnectMutationObserver() {
-    if (null !== bodyObserver) {
-      /* istanbul ignore next */ // Not testable in PhantonJS
-      bodyObserver.disconnect()
-    }
-  }
-
-  function stopEventListeners() {
-    manageEventListeners('remove')
-    disconnectMutationObserver()
-    clearInterval(intervalTimer)
-  }
-
-  //   function teardown() {
-  //     stopMsgsToParent()
-  //     removeMsgListener()
-  //     if (true === autoResize) stopEventListeners()
-  //   }
-
-  function injectClearFixIntoBodyElement() {
-    var clearFix = document.createElement('div')
-    clearFix.style.clear = 'both'
-    // Guard against the following having been globally redefined in CSS.
-    clearFix.style.display = 'block'
-    clearFix.style.height = '0'
-    document.body.appendChild(clearFix)
-  }
-
-  function setupInPageLinks() {
-    function getPagePosition() {
-      return {
-        x:
-          window.pageXOffset === undefined
-            ? document.documentElement.scrollLeft
-            : window.pageXOffset,
-        y:
-          window.pageYOffset === undefined
-            ? document.documentElement.scrollTop
-            : window.pageYOffset
-      }
-    }
-
-    function getElementPosition(el) {
-      var elPosition = el.getBoundingClientRect(),
-        pagePosition = getPagePosition()
-
-      return {
-        x: parseInt(elPosition.left, 10) + parseInt(pagePosition.x, 10),
-        y: parseInt(elPosition.top, 10) + parseInt(pagePosition.y, 10)
-      }
-    }
-
-    function findTarget(location) {
-      function jumpToTarget(target) {
-        var jumpPosition = getElementPosition(target)
-
-        log(
-          'Moving to in page link (#' +
-            hash +
-            ') at x: ' +
-            jumpPosition.x +
-            ' y: ' +
-            jumpPosition.y
-        )
-        sendMsg(jumpPosition.y, jumpPosition.x, 'scrollToOffset') // X&Y reversed at sendMsg uses height/width
-      }
-
-      var hash = location.split('#')[1] || location, // Remove # if present
-        hashData = decodeURIComponent(hash),
-        target =
-          document.getElementById(hashData) ||
-          document.getElementsByName(hashData)[0]
-
-      if (undefined === target) {
-        log(
-          'In page link (#' +
-            hash +
-            ') not found in iFrame, so sending to parent'
-        )
-        sendMsg(0, 0, 'inPageLink', '#' + hash)
-      } else {
-        jumpToTarget(target)
-      }
-    }
-
-    function checkLocationHash() {
-      var hash = window.location.hash
-      var href = window.location.href
-
-      if ('' !== hash && '#' !== hash) {
-        findTarget(href)
-      }
-    }
-
-    function bindAnchors() {
-      function setupLink(el) {
-        function linkClicked(e) {
-          e.preventDefault()
-
-          /* jshint validthis:true */
-          findTarget(this.getAttribute('href'))
-        }
-
-        if ('#' !== el.getAttribute('href')) {
-          addEventListener(el, 'click', linkClicked)
-        }
-      }
-
-      Array.prototype.forEach.call(
-        document.querySelectorAll('a[href^="#"]'),
-        setupLink
-      )
-    }
-
-    function bindLocationHash() {
-      addEventListener(window, 'hashchange', checkLocationHash)
-    }
-
-    function initCheck() {
-      // Check if page loaded with location hash after init resize
-      setTimeout(checkLocationHash, eventCancelTimer)
-    }
-
-    function enableInPageLinks() {
-      /* istanbul ignore else */ // Not testable in phantonJS
-      if (Array.prototype.forEach && document.querySelectorAll) {
-        log('Setting up location.hash handlers')
-        bindAnchors()
-        bindLocationHash()
-        initCheck()
-      } else {
-        warn(
-          'In page linking not fully supported in this browser! (See README.md for IE8 workaround)'
-        )
-      }
-    }
-
-    if (inPageLinks.enable) {
-      enableInPageLinks()
-    } else {
-      log('In page linking not enabled')
-    }
-
-    return {
-      findTarget: findTarget
-    }
-  }
-
-  function setupMouseEvents() {
-    if (mouseEvents !== true) return
-
-    function sendMouse(e) {
-      sendMsg(0, 0, e.type, e.screenY + ':' + e.screenX)
-    }
-
-    function addMouseListener(evt, name) {
-      log('Add event listener: ' + name)
-      addEventListener(window.document, evt, sendMouse)
-    }
-
-    addMouseListener('mouseenter', 'Mouse Enter')
-    addMouseListener('mouseleave', 'Mouse Leave')
-  }
-
-  function setupPublicMethods() {
-    log('Enable public methods')
-
-    win.parentIFrame = {
-      autoResize: function autoResizeF(resize) {
-        if (true === resize && false === autoResize) {
-          autoResize = true
-          startEventListeners()
-        } else if (false === resize && true === autoResize) {
-          autoResize = false
-          stopEventListeners()
-        }
-        sendMsg(0, 0, 'autoResize', JSON.stringify(autoResize))
-        return autoResize
-      },
-
-      close: function closeF() {
-        sendMsg(0, 0, 'close')
-        // teardown()
-      },
-
-      getId: function getIdF() {
-        return myID
-      },
-
-      getPageInfo: function getPageInfoF(callback) {
-        if ('function' === typeof callback) {
-          onPageInfo = callback
-          sendMsg(0, 0, 'pageInfo')
-        } else {
-          onPageInfo = function () {}
-          sendMsg(0, 0, 'pageInfoStop')
-        }
-      },
-
-      moveToAnchor: function moveToAnchorF(hash) {
-        inPageLinks.findTarget(hash)
-      },
-
-      reset: function resetF() {
-        resetIFrame('parentIFrame.reset')
-      },
-
-      scrollTo: function scrollToF(x, y) {
-        sendMsg(y, x, 'scrollTo') // X&Y reversed at sendMsg uses height/width
-      },
-
-      scrollToOffset: function scrollToF(x, y) {
-        sendMsg(y, x, 'scrollToOffset') // X&Y reversed at sendMsg uses height/width
-      },
-
-      sendMessage: function sendMessageF(msg, targetOrigin) {
-        sendMsg(0, 0, 'message', JSON.stringify(msg), targetOrigin)
-      },
-
-      setHeightCalculationMethod: function setHeightCalculationMethodF(
-        heightCalculationMethod
-      ) {
-        heightCalcMode = heightCalculationMethod
-        checkHeightMode()
-      },
-
-      setWidthCalculationMethod: function setWidthCalculationMethodF(
-        widthCalculationMethod
-      ) {
-        widthCalcMode = widthCalculationMethod
-        checkWidthMode()
-      },
-
-      setTargetOrigin: function setTargetOriginF(targetOrigin) {
-        log('Set targetOrigin: ' + targetOrigin)
-        targetOriginDefault = targetOrigin
-      },
-
-      size: function sizeF(customHeight, customWidth) {
-        var valString =
-          '' + (customHeight || '') + (customWidth ? ',' + customWidth : '')
-        sendSize(
-          'size',
-          'parentIFrame.size(' + valString + ')',
-          customHeight,
-          customWidth
-        )
-      }
-    }
-  }
-
-  function initInterval() {
-    if (0 !== interval) {
-      log('setInterval: ' + interval + 'ms')
-      intervalTimer = setInterval(function () {
-        sendSize('interval', 'setInterval: ' + interval)
-      }, Math.abs(interval))
-    }
-  }
-
-  // Not testable in PhantomJS
-  /* istanbul ignore next */
-  function setupBodyMutationObserver() {
-    function addImageLoadListners(mutation) {
-      function addImageLoadListener(element) {
-        if (false === element.complete) {
-          log('Attach listeners to ' + element.src)
-          element.addEventListener('load', imageLoaded, false)
-          element.addEventListener('error', imageError, false)
-          elements.push(element)
-        }
-      }
-
-      if (mutation.type === 'attributes' && mutation.attributeName === 'src') {
-        addImageLoadListener(mutation.target)
-      } else if (mutation.type === 'childList') {
-        Array.prototype.forEach.call(
-          mutation.target.querySelectorAll('img'),
-          addImageLoadListener
-        )
-      }
-    }
-
-    function removeFromArray(element) {
-      elements.splice(elements.indexOf(element), 1)
-    }
-
-    function removeImageLoadListener(element) {
-      log('Remove listeners from ' + element.src)
-      element.removeEventListener('load', imageLoaded, false)
-      element.removeEventListener('error', imageError, false)
-      removeFromArray(element)
-    }
-
-    function imageEventTriggered(event, type, typeDesc) {
-      removeImageLoadListener(event.target)
-      sendSize(type, typeDesc + ': ' + event.target.src)
-    }
-
-    function imageLoaded(event) {
-      imageEventTriggered(event, 'imageLoad', 'Image loaded')
-    }
-
-    function imageError(event) {
-      imageEventTriggered(event, 'imageLoadFailed', 'Image load failed')
-    }
-
-    function mutationObserved(mutations) {
-      sendSize(
-        'mutationObserver',
-        'mutationObserver: ' + mutations[0].target + ' ' + mutations[0].type
-      )
-
-      // Deal with WebKit / Blink asyncing image loading when tags are injected into the page
-      mutations.forEach(addImageLoadListners)
-    }
-
-    function createMutationObserver() {
-      var target = document.querySelector('body'),
-        config = {
-          attributes: true,
-          attributeOldValue: false,
-          characterData: true,
-          characterDataOldValue: false,
-          childList: true,
-          subtree: true
-        }
-
-      observer = new MutationObserver(mutationObserved)
-
-      log('Create body MutationObserver')
-      observer.observe(target, config)
-
-      return observer
-    }
-
-    var elements = [],
-      MutationObserver =
-        window.MutationObserver || window.WebKitMutationObserver,
-      observer = createMutationObserver()
-
-    return {
-      disconnect: function () {
-        if ('disconnect' in observer) {
-          log('Disconnect body MutationObserver')
-          observer.disconnect()
-          elements.forEach(removeImageLoadListener)
-        }
-      }
-    }
-  }
-
-  function setupMutationObserver() {
-    var forceIntervalTimer = 0 > interval
-
-    // Not testable in PhantomJS
-    /* istanbul ignore if */ if (
-      window.MutationObserver ||
-      window.WebKitMutationObserver
-    ) {
-      if (forceIntervalTimer) {
-        initInterval()
-      } else {
-        bodyObserver = setupBodyMutationObserver()
-      }
-    } else {
-      log('MutationObserver not supported in this browser!')
-      initInterval()
-    }
-  }
-
-  // document.documentElement.offsetHeight is not reliable, so
-  // we have to jump through hoops to get a better value.
-  function getComputedStyle(prop, el) {
-    var retVal = 0
-    el = el || document.body // Not testable in phantonJS
-
-    retVal = document.defaultView.getComputedStyle(el, null)
-    retVal = null === retVal ? 0 : retVal[prop]
-
-    return parseInt(retVal, base)
-  }
-
-  function chkEventThottle(timer) {
-    if (timer > throttledTimer / 2) {
-      throttledTimer = 2 * timer
-      log('Event throttle increased to ' + throttledTimer + 'ms')
-    }
-  }
-
-  // Idea from https://github.com/guardian/iframe-messenger
-  function getMaxElement(side, elements) {
-    var elementsLength = elements.length,
-      elVal = 0,
-      maxVal = 0,
-      Side = capitalizeFirstLetter(side),
-      timer = Date.now()
-
-    for (var i = 0; i < elementsLength; i++) {
-      elVal =
-        elements[i].getBoundingClientRect()[side] +
-        getComputedStyle('margin' + Side, elements[i])
-      if (elVal > maxVal) {
-        maxVal = elVal
-      }
-    }
-
-    timer = Date.now() - timer
-
-    log('Parsed ' + elementsLength + ' HTML elements')
-    log('Element position calculated in ' + timer + 'ms')
-
-    chkEventThottle(timer)
-
-    return maxVal
-  }
-
-  function getAllMeasurements(dimensions) {
-    return [
-      dimensions.bodyOffset(),
-      dimensions.bodyScroll(),
-      dimensions.documentElementOffset(),
-      dimensions.documentElementScroll()
-    ]
-  }
-
-  function getTaggedElements(side, tag) {
-    function noTaggedElementsFound() {
-      warn('No tagged elements (' + tag + ') found on page')
-      return document.querySelectorAll('body *')
-    }
-
-    var elements = document.querySelectorAll('[' + tag + ']')
-
-    if (elements.length === 0) noTaggedElementsFound()
-
-    return getMaxElement(side, elements)
-  }
-
-  function getAllElements() {
-    return document.querySelectorAll('body *')
-  }
-
-  var getHeight = {
-      bodyOffset: function getBodyOffsetHeight() {
-        return (
-          document.body.offsetHeight +
-          getComputedStyle('marginTop') +
-          getComputedStyle('marginBottom')
-        )
-      },
-
-      offset: function () {
-        return getHeight.bodyOffset() // Backwards compatibility
-      },
-
-      bodyScroll: function getBodyScrollHeight() {
-        return document.body.scrollHeight
-      },
-
-      custom: function getCustomWidth() {
-        return customCalcMethods.height()
-      },
-
-      documentElementOffset: function getDEOffsetHeight() {
-        return document.documentElement.offsetHeight
-      },
-
-      documentElementScroll: function getDEScrollHeight() {
-        return document.documentElement.scrollHeight
-      },
-
-      max: function getMaxHeight() {
-        return Math.max.apply(null, getAllMeasurements(getHeight))
-      },
-
-      min: function getMinHeight() {
-        return Math.min.apply(null, getAllMeasurements(getHeight))
-      },
-
-      grow: function growHeight() {
-        return getHeight.max() // Run max without the forced downsizing
-      },
-
-      lowestElement: function getBestHeight() {
-        return Math.max(
-          getHeight.bodyOffset() || getHeight.documentElementOffset(),
-          getMaxElement('bottom', getAllElements())
-        )
-      },
-
-      taggedElement: function getTaggedElementsHeight() {
-        return getTaggedElements('bottom', 'data-iframe-height')
-      }
-    },
-    getWidth = {
-      bodyScroll: function getBodyScrollWidth() {
-        return document.body.scrollWidth
-      },
-
-      bodyOffset: function getBodyOffsetWidth() {
-        return document.body.offsetWidth
-      },
-
-      custom: function getCustomWidth() {
-        return customCalcMethods.width()
-      },
-
-      documentElementScroll: function getDEScrollWidth() {
-        return document.documentElement.scrollWidth
-      },
-
-      documentElementOffset: function getDEOffsetWidth() {
-        return document.documentElement.offsetWidth
-      },
-
-      scroll: function getMaxWidth() {
-        return Math.max(getWidth.bodyScroll(), getWidth.documentElementScroll())
-      },
-
-      max: function getMaxWidth() {
-        return Math.max.apply(null, getAllMeasurements(getWidth))
-      },
-
-      min: function getMinWidth() {
-        return Math.min.apply(null, getAllMeasurements(getWidth))
-      },
-
-      rightMostElement: function rightMostElement() {
-        return getMaxElement('right', getAllElements())
-      },
-
-      taggedElement: function getTaggedElementsWidth() {
-        return getTaggedElements('right', 'data-iframe-width')
-      }
-    }
-
-  function sizeIFrame(
-    triggerEvent,
-    triggerEventDesc,
-    customHeight,
-    customWidth
-  ) {
-    function resizeIFrame() {
-      height = currentHeight
-      width = currentWidth
-
-      sendMsg(height, width, triggerEvent)
-    }
-
-    function isSizeChangeDetected() {
-      function checkTolarance(a, b) {
-        var retVal = Math.abs(a - b) <= tolerance
-        return !retVal
-      }
-
-      currentHeight =
-        undefined === customHeight ? getHeight[heightCalcMode]() : customHeight
-      currentWidth =
-        undefined === customWidth ? getWidth[widthCalcMode]() : customWidth
-
-      return (
-        checkTolarance(height, currentHeight) ||
-        (calculateWidth && checkTolarance(width, currentWidth))
-      )
-    }
-
-    function isForceResizableEvent() {
-      return !(triggerEvent in { init: 1, interval: 1, size: 1 })
-    }
-
-    function isForceResizableCalcMode() {
-      return (
-        heightCalcMode in resetRequiredMethods ||
-        (calculateWidth && widthCalcMode in resetRequiredMethods)
-      )
-    }
-
-    function logIgnored() {
-      log('No change in size detected')
-    }
-
-    function checkDownSizing() {
-      if (isForceResizableEvent() && isForceResizableCalcMode()) {
-        resetIFrame(triggerEventDesc)
-      } else if (!(triggerEvent in { interval: 1 })) {
-        logIgnored()
-      }
-    }
-
-    var currentHeight, currentWidth
-
-    if (isSizeChangeDetected() || 'init' === triggerEvent) {
-      lockTrigger()
-      resizeIFrame()
-    } else {
-      checkDownSizing()
-    }
-  }
-
-  var sizeIFrameThrottled = throttle(sizeIFrame)
-
-  function sendSize(triggerEvent, triggerEventDesc, customHeight, customWidth) {
-    function recordTrigger() {
-      if (!(triggerEvent in { reset: 1, resetPage: 1, init: 1 })) {
-        log('Trigger event: ' + triggerEventDesc)
-      }
-    }
-
-    function isDoubleFiredEvent() {
-      return triggerLocked && triggerEvent in doubleEventList
-    }
-
-    if (isDoubleFiredEvent()) {
-      log('Trigger event cancelled: ' + triggerEvent)
-    } else {
-      recordTrigger()
-      if (triggerEvent === 'init') {
-        sizeIFrame(triggerEvent, triggerEventDesc, customHeight, customWidth)
-      } else {
-        sizeIFrameThrottled(
-          triggerEvent,
-          triggerEventDesc,
-          customHeight,
-          customWidth
-        )
-      }
-    }
-  }
-
-  function lockTrigger() {
-    if (!triggerLocked) {
-      triggerLocked = true
-      log('Trigger event lock on')
-    }
-    clearTimeout(triggerLockedTimer)
-    triggerLockedTimer = setTimeout(function () {
-      triggerLocked = false
-      log('Trigger event lock off')
-      log('--')
-    }, eventCancelTimer)
-  }
-
-  function triggerReset(triggerEvent) {
-    height = getHeight[heightCalcMode]()
-    width = getWidth[widthCalcMode]()
-
-    sendMsg(height, width, triggerEvent)
-  }
-
-  function resetIFrame(triggerEventDesc) {
-    var hcm = heightCalcMode
-    heightCalcMode = heightCalcModeDefault
-
-    log('Reset trigger event: ' + triggerEventDesc)
-    lockTrigger()
-    triggerReset('reset')
-
-    heightCalcMode = hcm
-  }
-
-  function sendMsg(height, width, triggerEvent, msg, targetOrigin) {
-    function setTargetOrigin() {
-      if (undefined === targetOrigin) {
-        targetOrigin = targetOriginDefault
-      } else {
-        log('Message targetOrigin: ' + targetOrigin)
-      }
-    }
-
-    function sendToParent() {
-      var size = height + ':' + width,
-        message =
-          myID +
-          ':' +
-          size +
-          ':' +
-          triggerEvent +
-          (undefined === msg ? '' : ':' + msg)
-
-      log('Sending message to host page (' + message + ')')
-      target.postMessage(msgID + message, targetOrigin)
-    }
-
-    if (true === sendPermit) {
-      setTargetOrigin()
-      sendToParent()
-    }
-  }
-
-  function receiver(event) {
-    var processRequestFromParent = {
-      init: function initFromParent() {
-        initMsg = event.data
-        target = event.source
-
-        init()
-        firstRun = false
-        setTimeout(function () {
-          initLock = false
-        }, eventCancelTimer)
-      },
-
-      reset: function resetFromParent() {
-        if (initLock) {
-          log('Page reset ignored by init')
-        } else {
-          log('Page size reset by host page')
-          triggerReset('resetPage')
-        }
-      },
-
-      resize: function resizeFromParent() {
-        sendSize('resizeParent', 'Parent window requested size check')
-      },
-
-      moveToAnchor: function moveToAnchorF() {
-        inPageLinks.findTarget(getData())
-      },
-      inPageLink: function inPageLinkF() {
-        this.moveToAnchor()
-      }, // Backward compatibility
-
-      pageInfo: function pageInfoFromParent() {
-        var msgBody = getData()
-        log('PageInfoFromParent called from parent: ' + msgBody)
-        onPageInfo(JSON.parse(msgBody))
-        log(' --')
-      },
-
-      message: function messageFromParent() {
-        var msgBody = getData()
-
-        log('onMessage called from parent: ' + msgBody)
-        // eslint-disable-next-line sonarjs/no-extra-arguments
-        onMessage(JSON.parse(msgBody))
-        log(' --')
-      }
-    }
-
-    function isMessageForUs() {
-      return msgID === ('' + event.data).slice(0, msgIdLen) // ''+ Protects against non-string messages
-    }
-
-    function getMessageType() {
-      return event.data.split(']')[1].split(':')[0]
-    }
-
-    function getData() {
-      return event.data.slice(event.data.indexOf(':') + 1)
-    }
-
-    function isMiddleTier() {
-      return (
-        (!( true && module.exports) &&
-          'iFrameResize' in window) ||
-        (window.jQuery !== undefined &&
-          'iFrameResize' in window.jQuery.prototype)
-      )
-    }
-
-    function isInitMsg() {
-      // Test if this message is from a child below us. This is an ugly test, however, updating
-      // the message format would break backwards compatibility.
-      return event.data.split(':')[2] in { true: 1, false: 1 }
-    }
-
-    function callFromParent() {
-      var messageType = getMessageType()
-
-      if (messageType in processRequestFromParent) {
-        processRequestFromParent[messageType]()
-      } else if (!isMiddleTier() && !isInitMsg()) {
-        warn('Unexpected message (' + event.data + ')')
-      }
-    }
-
-    function processMessage() {
-      if (false === firstRun) {
-        callFromParent()
-      } else if (isInitMsg()) {
-        processRequestFromParent.init()
-      } else {
-        log(
-          'Ignored message of type "' +
-            getMessageType() +
-            '". Received before initialization.'
-        )
-      }
-    }
-
-    if (isMessageForUs()) {
-      processMessage()
-    }
-  }
-
-  // Normally the parent kicks things off when it detects the iFrame has loaded.
-  // If this script is async-loaded, then tell parent page to retry init.
-  function chkLateLoaded() {
-    if ('loading' !== document.readyState) {
-      window.parent.postMessage('[iFrameResizerChild]Ready', '*')
-    }
-  }
-
-  // Setup if not already running
-  if (!('iframeResizer' in window)) {
-    window.iframeChildListener = function (data) {
-      receiver({ data, sameDomian: true })
-    }
-    addEventListener(window, 'message', receiver)
-    addEventListener(window, 'readystatechange', chkLateLoaded)
-    chkLateLoaded()
-  }
-
-  
-})()
-
-
-/***/ },
-
-/***/ 570
-(module, exports) {
-
-var __WEBPACK_AMD_DEFINE_FACTORY__, __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;/*
- * File: iframeResizer.js
- * Desc: Force iframes to size to content.
- * Requires: iframeResizer.contentWindow.js to be loaded into the target frame.
- * Doc: https://iframe-resizer.com
- * Author: David J. Bradshaw - info@iframe-resizer.com
- */
-
-console.info(`
-IFRAME-RESIZER
-
-Iframe-Resizer 5 is now available via the following two packages:
-
- * @iframe-resizer/parent
- * @iframe-resizer/child
-
-Additionally their are also new versions of iframe-resizer for React, Vue, and jQuery.
-
-Version 5 of iframe-resizer has been extensively rewritten to use modern browser APIs, which has enabled significantly better performance and greater accuracy in the detection of content resizing events.
-
-Please see https://iframe-resizer.com/upgrade for more details.
-`)
-
-// eslint-disable-next-line sonarjs/cognitive-complexity, no-shadow-restricted-names
-;(function (undefined) {
-  if (typeof window === 'undefined') return // don't run for server side render
-
-  // var VERSION = '4.3.11'
-
-  var count = 0,
-    destroyObserver,
-    logEnabled = false,
-    hiddenCheckEnabled = false,
-    msgHeader = 'message',
-    msgHeaderLen = msgHeader.length,
-    msgId = '[iFrameSizer]', // Must match iframe msg ID
-    msgIdLen = msgId.length,
-    pagePosition = null,
-    requestAnimationFrame = window.requestAnimationFrame,
-    resetRequiredMethods = Object.freeze({
-      max: 1,
-      scroll: 1,
-      bodyScroll: 1,
-      documentElementScroll: 1
-    }),
-    settings = {},
-    timer = null,
-    defaults = Object.freeze({
-      autoResize: true,
-      bodyBackground: null,
-      bodyMargin: null,
-      bodyMarginV1: 8,
-      bodyPadding: null,
-      checkOrigin: true,
-      inPageLinks: false,
-      enablePublicMethods: true,
-      heightCalculationMethod: 'bodyOffset',
-      id: 'iFrameResizer',
-      interval: 32,
-      license: '1jqr0si6pnt',
-      log: false,
-      maxHeight: Infinity,
-      maxWidth: Infinity,
-      minHeight: 0,
-      minWidth: 0,
-      mouseEvents: true,
-      resizeFrom: 'parent',
-      scrolling: false,
-      sizeHeight: true,
-      sizeWidth: false,
-      warningTimeout: 5000,
-      tolerance: 0,
-      widthCalculationMethod: 'scroll',
-      onClose: function () {
-        return true
-      },
-      onClosed: function () {},
-      onInit: function () {},
-      onMessage: function () {
-        warn('onMessage function not defined')
-      },
-      onMouseEnter: function () {},
-      onMouseLeave: function () {},
-      onResized: function () {},
-      onScroll: function () {
-        return true
-      }
-    })
-
-  function getMutationObserver() {
-    return (
-      window.MutationObserver ||
-      window.WebKitMutationObserver ||
-      window.MozMutationObserver
-    )
-  }
-
-  function addEventListener(el, evt, func) {
-    el.addEventListener(evt, func, false)
-  }
-
-  function removeEventListener(el, evt, func) {
-    el.removeEventListener(evt, func, false)
-  }
-
-  function setupRequestAnimationFrame() {
-    var vendors = ['moz', 'webkit', 'o', 'ms']
-    var x
-
-    // Remove vendor prefixing if prefixed and break early if not
-    for (x = 0; x < vendors.length && !requestAnimationFrame; x += 1) {
-      requestAnimationFrame = window[vendors[x] + 'RequestAnimationFrame']
-    }
-
-    if (requestAnimationFrame) {
-      // Firefox extension content-scripts have a globalThis object that is not the same as window.
-      // Binding `requestAnimationFrame` to window allows the function to work and prevents errors
-      // being thrown when run in that context, and should be a no-op in every other context.
-      requestAnimationFrame = requestAnimationFrame.bind(window)
-    } else {
-      log('setup', 'RequestAnimationFrame not supported')
-    }
-  }
-
-  function getMyID(iframeId) {
-    var retStr = 'Host page: ' + iframeId
-
-    if (window.top !== window.self) {
-      retStr =
-        window.parentIFrame && window.parentIFrame.getId
-          ? window.parentIFrame.getId() + ': ' + iframeId
-          : 'Nested host page: ' + iframeId
-    }
-
-    return retStr
-  }
-
-  function formatLogHeader(iframeId) {
-    return msgId + '[' + getMyID(iframeId) + ']'
-  }
-
-  function isLogEnabled(iframeId) {
-    return settings[iframeId] ? settings[iframeId].log : logEnabled
-  }
-
-  function log(iframeId, msg) {
-    output('log', iframeId, msg, isLogEnabled(iframeId))
-  }
-
-  function info(iframeId, msg) {
-    output('info', iframeId, msg, isLogEnabled(iframeId))
-  }
-
-  function warn(iframeId, msg) {
-    output('warn', iframeId, msg, true)
-  }
-
-  function output(type, iframeId, msg, enabled) {
-    if (true === enabled && 'object' === typeof window.console) {
-      // eslint-disable-next-line no-console
-      console[type](formatLogHeader(iframeId), msg)
-    }
-  }
-
-  function iFrameListener(event) {
-    function resizeIFrame() {
-      function resize() {
-        setSize(messageData)
-        setPagePosition(iframeId)
-        on('onResized', messageData)
-      }
-
-      ensureInRange('Height')
-      ensureInRange('Width')
-
-      syncResize(resize, messageData, 'init')
-    }
-
-    function processMsg() {
-      var data = msg.slice(msgIdLen).split(':')
-      var height = data[1] ? parseInt(data[1], 10) : 0
-      var iframe = settings[data[0]] && settings[data[0]].iframe
-      var compStyle = getComputedStyle(iframe)
-
-      return {
-        iframe: iframe,
-        id: data[0],
-        height: height + getPaddingEnds(compStyle) + getBorderEnds(compStyle),
-        width: data[2],
-        type: data[3]
-      }
-    }
-
-    function getPaddingEnds(compStyle) {
-      if (compStyle.boxSizing !== 'border-box') {
-        return 0
-      }
-      var top = compStyle.paddingTop ? parseInt(compStyle.paddingTop, 10) : 0
-      var bot = compStyle.paddingBottom
-        ? parseInt(compStyle.paddingBottom, 10)
-        : 0
-      return top + bot
-    }
-
-    function getBorderEnds(compStyle) {
-      if (compStyle.boxSizing !== 'border-box') {
-        return 0
-      }
-      var top = compStyle.borderTopWidth
-        ? parseInt(compStyle.borderTopWidth, 10)
-        : 0
-      var bot = compStyle.borderBottomWidth
-        ? parseInt(compStyle.borderBottomWidth, 10)
-        : 0
-      return top + bot
-    }
-
-    function ensureInRange(Dimension) {
-      var max = Number(settings[iframeId]['max' + Dimension]),
-        min = Number(settings[iframeId]['min' + Dimension]),
-        dimension = Dimension.toLowerCase(),
-        size = Number(messageData[dimension])
-
-      log(iframeId, 'Checking ' + dimension + ' is in range ' + min + '-' + max)
-
-      if (size < min) {
-        size = min
-        log(iframeId, 'Set ' + dimension + ' to min value')
-      }
-
-      if (size > max) {
-        size = max
-        log(iframeId, 'Set ' + dimension + ' to max value')
-      }
-
-      messageData[dimension] = '' + size
-    }
-
-    function isMessageFromIFrame() {
-      function checkAllowedOrigin() {
-        function checkList() {
-          var i = 0,
-            retCode = false
-
-          log(
-            iframeId,
-            'Checking connection is from allowed list of origins: ' +
-              checkOrigin
-          )
-
-          for (; i < checkOrigin.length; i++) {
-            if (checkOrigin[i] === origin) {
-              retCode = true
-              break
-            }
-          }
-          return retCode
-        }
-
-        function checkSingle() {
-          var remoteHost = settings[iframeId] && settings[iframeId].remoteHost
-          log(iframeId, 'Checking connection is from: ' + remoteHost)
-          return origin === remoteHost
-        }
-
-        return checkOrigin.constructor === Array ? checkList() : checkSingle()
-      }
-
-      var origin = event.origin,
-        checkOrigin = settings[iframeId] && settings[iframeId].checkOrigin
-
-      if (checkOrigin && '' + origin !== 'null' && !checkAllowedOrigin()) {
-        throw new Error(
-          'Unexpected message received from: ' +
-            origin +
-            ' for ' +
-            messageData.iframe.id +
-            '. Message was: ' +
-            event.data +
-            '. This error can be disabled by setting the checkOrigin: false option or by providing of array of trusted domains.'
-        )
-      }
-
-      return true
-    }
-
-    function isMessageForUs() {
-      return (
-        msgId === ('' + msg).slice(0, msgIdLen) &&
-        msg.slice(msgIdLen).split(':')[0] in settings
-      ) // ''+Protects against non-string msg
-    }
-
-    function isMessageFromMetaParent() {
-      // Test if this message is from a parent above us. This is an ugly test, however, updating
-      // the message format would break backwards compatibility.
-      var retCode = messageData.type in { true: 1, false: 1, undefined: 1 }
-
-      if (retCode) {
-        log(iframeId, 'Ignoring init message from meta parent page')
-      }
-
-      return retCode
-    }
-
-    function getMsgBody(offset) {
-      return msg.slice(msg.indexOf(':') + msgHeaderLen + offset)
-    }
-
-    function forwardMsgFromIFrame(msgBody) {
-      log(
-        iframeId,
-        'onMessage passed: {iframe: ' +
-          messageData.iframe.id +
-          ', message: ' +
-          msgBody +
-          '}'
-      )
-
-      on('onMessage', {
-        iframe: messageData.iframe,
-        message: JSON.parse(msgBody)
-      })
-
-      log(iframeId, '--')
-    }
-
-    function getPageInfo() {
-      var bodyPosition = document.body.getBoundingClientRect(),
-        iFramePosition = messageData.iframe.getBoundingClientRect()
-
-      return JSON.stringify({
-        iframeHeight: iFramePosition.height,
-        iframeWidth: iFramePosition.width,
-        clientHeight: Math.max(
-          document.documentElement.clientHeight,
-          window.innerHeight || 0
-        ),
-        clientWidth: Math.max(
-          document.documentElement.clientWidth,
-          window.innerWidth || 0
-        ),
-        offsetTop: parseInt(iFramePosition.top - bodyPosition.top, 10),
-        offsetLeft: parseInt(iFramePosition.left - bodyPosition.left, 10),
-        scrollTop: window.pageYOffset,
-        scrollLeft: window.pageXOffset,
-        documentHeight: document.documentElement.clientHeight,
-        documentWidth: document.documentElement.clientWidth,
-        windowHeight: window.innerHeight,
-        windowWidth: window.innerWidth
-      })
-    }
-
-    function sendPageInfoToIframe(iframe, iframeId) {
-      function debouncedTrigger() {
-        trigger('Send Page Info', 'pageInfo:' + getPageInfo(), iframe, iframeId)
-      }
-      debounceFrameEvents(debouncedTrigger, 32, iframeId)
-    }
-
-    function startPageInfoMonitor() {
-      function setListener(type, func) {
-        function sendPageInfo() {
-          if (settings[id]) {
-            sendPageInfoToIframe(settings[id].iframe, id)
-          } else {
-            stop()
-          }
-        }
-
-        ;['scroll', 'resize'].forEach(function (evt) {
-          log(id, type + evt + ' listener for sendPageInfo')
-          func(window, evt, sendPageInfo)
-        })
-      }
-
-      function stop() {
-        setListener('Remove ', removeEventListener)
-      }
-
-      function start() {
-        setListener('Add ', addEventListener)
-      }
-
-      var id = iframeId // Create locally scoped copy of iFrame ID
-
-      start()
-
-      if (settings[id]) {
-        settings[id].stopPageInfo = stop
-      }
-    }
-
-    function stopPageInfoMonitor() {
-      if (settings[iframeId] && settings[iframeId].stopPageInfo) {
-        settings[iframeId].stopPageInfo()
-        delete settings[iframeId].stopPageInfo
-      }
-    }
-
-    function checkIFrameExists() {
-      var retBool = true
-
-      if (null === messageData.iframe) {
-        warn(iframeId, 'IFrame (' + messageData.id + ') not found')
-        retBool = false
-      }
-      return retBool
-    }
-
-    function getElementPosition(target) {
-      var iFramePosition = target.getBoundingClientRect()
-
-      getPagePosition(iframeId)
-
-      return {
-        x: Math.floor(Number(iFramePosition.left) + Number(pagePosition.x)),
-        y: Math.floor(Number(iFramePosition.top) + Number(pagePosition.y))
-      }
-    }
-
-    function scrollRequestFromChild(addOffset) {
-      /* istanbul ignore next */ // Not testable in Karma
-      function reposition() {
-        pagePosition = newPosition
-        scrollTo()
-        log(iframeId, '--')
-      }
-
-      function calcOffset() {
-        return {
-          x: Number(messageData.width) + offset.x,
-          y: Number(messageData.height) + offset.y
-        }
-      }
-
-      function scrollParent() {
-        if (window.parentIFrame) {
-          window.parentIFrame['scrollTo' + (addOffset ? 'Offset' : '')](
-            newPosition.x,
-            newPosition.y
-          )
-        } else {
-          warn(
-            iframeId,
-            'Unable to scroll to requested position, window.parentIFrame not found'
-          )
-        }
-      }
-
-      var offset = addOffset
-          ? getElementPosition(messageData.iframe)
-          : { x: 0, y: 0 },
-        newPosition = calcOffset()
-
-      log(
-        iframeId,
-        'Reposition requested from iFrame (offset x:' +
-          offset.x +
-          ' y:' +
-          offset.y +
-          ')'
-      )
-
-      if (window.top === window.self) {
-        reposition()
-      } else {
-        scrollParent()
-      }
-    }
-
-    function scrollTo() {
-      if (false === on('onScroll', pagePosition)) {
-        unsetPagePosition()
-      } else {
-        setPagePosition(iframeId)
-      }
-    }
-
-    function findTarget(location) {
-      function jumpToTarget() {
-        var jumpPosition = getElementPosition(target)
-
-        log(
-          iframeId,
-          'Moving to in page link (#' +
-            hash +
-            ') at x: ' +
-            jumpPosition.x +
-            ' y: ' +
-            jumpPosition.y
-        )
-        pagePosition = {
-          x: jumpPosition.x,
-          y: jumpPosition.y
-        }
-
-        scrollTo()
-        log(iframeId, '--')
-      }
-
-      function jumpToParent() {
-        if (window.parentIFrame) {
-          window.parentIFrame.moveToAnchor(hash)
-        } else {
-          log(
-            iframeId,
-            'In page link #' +
-              hash +
-              ' not found and window.parentIFrame not found'
-          )
-        }
-      }
-
-      var hash = location.split('#')[1] || '',
-        hashData = decodeURIComponent(hash),
-        target =
-          document.getElementById(hashData) ||
-          document.getElementsByName(hashData)[0]
-
-      if (target) {
-        jumpToTarget()
-      } else if (window.top === window.self) {
-        log(iframeId, 'In page link #' + hash + ' not found')
-      } else {
-        jumpToParent()
-      }
-    }
-
-    function onMouse(event) {
-      var mousePos = {}
-
-      if (Number(messageData.width) === 0 && Number(messageData.height) === 0) {
-        var data = getMsgBody(9).split(':')
-        mousePos = {
-          x: data[1],
-          y: data[0]
-        }
-      } else {
-        mousePos = {
-          x: messageData.width,
-          y: messageData.height
-        }
-      }
-
-      on(event, {
-        iframe: messageData.iframe,
-        screenX: Number(mousePos.x),
-        screenY: Number(mousePos.y),
-        type: messageData.type
-      })
-    }
-
-    function on(funcName, val) {
-      return chkEvent(iframeId, funcName, val)
-    }
-
-    function actionMsg() {
-      if (settings[iframeId] && settings[iframeId].firstRun) firstRun()
-
-      switch (messageData.type) {
-        case 'close': {
-          closeIFrame(messageData.iframe)
-          break
-        }
-
-        case 'message': {
-          forwardMsgFromIFrame(getMsgBody(6))
-          break
-        }
-
-        case 'mouseenter': {
-          onMouse('onMouseEnter')
-          break
-        }
-
-        case 'mouseleave': {
-          onMouse('onMouseLeave')
-          break
-        }
-
-        case 'autoResize': {
-          settings[iframeId].autoResize = JSON.parse(getMsgBody(9))
-          break
-        }
-
-        case 'scrollTo': {
-          scrollRequestFromChild(false)
-          break
-        }
-
-        case 'scrollToOffset': {
-          scrollRequestFromChild(true)
-          break
-        }
-
-        case 'pageInfo': {
-          sendPageInfoToIframe(
-            settings[iframeId] && settings[iframeId].iframe,
-            iframeId
-          )
-          startPageInfoMonitor()
-          break
-        }
-
-        case 'pageInfoStop': {
-          stopPageInfoMonitor()
-          break
-        }
-
-        case 'inPageLink': {
-          findTarget(getMsgBody(9))
-          break
-        }
-
-        case 'reset': {
-          resetIFrame(messageData)
-          break
-        }
-
-        case 'init': {
-          resizeIFrame()
-          on('onInit', messageData.iframe)
-          break
-        }
-
-        default: {
-          if (
-            Number(messageData.width) === 0 &&
-            Number(messageData.height) === 0
-          ) {
-            warn(
-              'Unsupported message received (' +
-                messageData.type +
-                '), this is likely due to the iframe containing a later ' +
-                'version of iframe-resizer than the parent page'
-            )
-          } else {
-            resizeIFrame()
-          }
-        }
-      }
-    }
-
-    function hasSettings(iframeId) {
-      var retBool = true
-
-      if (!settings[iframeId]) {
-        retBool = false
-        warn(
-          messageData.type +
-            ' No settings for ' +
-            iframeId +
-            '. Message was: ' +
-            msg
-        )
-      }
-
-      return retBool
-    }
-
-    function iFrameReadyMsgReceived() {
-      // eslint-disable-next-line no-restricted-syntax, guard-for-in
-      for (var iframeId in settings) {
-        trigger(
-          'iFrame requested init',
-          createOutgoingMsg(iframeId),
-          settings[iframeId].iframe,
-          iframeId
-        )
-      }
-    }
-
-    function firstRun() {
-      if (settings[iframeId]) {
-        settings[iframeId].firstRun = false
-      }
-    }
-
-    var msg = event.data,
-      messageData = {},
-      iframeId = null
-
-    if ('[iFrameResizerChild]Ready' === msg) {
-      iFrameReadyMsgReceived()
-    } else if (isMessageForUs()) {
-      messageData = processMsg()
-      iframeId = messageData.id
-      if (settings[iframeId]) {
-        settings[iframeId].loaded = true
-      }
-
-      if (!isMessageFromMetaParent() && hasSettings(iframeId)) {
-        log(iframeId, 'Received: ' + msg)
-
-        if (checkIFrameExists() && isMessageFromIFrame()) {
-          actionMsg()
-        }
-      }
-    } else {
-      info(iframeId, 'Ignored: ' + msg)
-    }
-  }
-
-  function chkEvent(iframeId, funcName, val) {
-    var func = null,
-      retVal = null
-
-    if (settings[iframeId]) {
-      func = settings[iframeId][funcName]
-
-      if ('function' === typeof func) {
-        retVal = func(val)
-      } else {
-        throw new TypeError(
-          funcName + ' on iFrame[' + iframeId + '] is not a function'
-        )
-      }
-    }
-
-    return retVal
-  }
-
-  function removeIframeListeners(iframe) {
-    var iframeId = iframe.id
-    delete settings[iframeId]
-  }
-
-  function closeIFrame(iframe) {
-    var iframeId = iframe.id
-    if (chkEvent(iframeId, 'onClose', iframeId) === false) {
-      log(iframeId, 'Close iframe cancelled by onClose event')
-      return
-    }
-    log(iframeId, 'Removing iFrame: ' + iframeId)
-
-    try {
-      // Catch race condition error with React
-      if (iframe.parentNode) {
-        iframe.parentNode.removeChild(iframe)
-      }
-    } catch (error) {
-      warn(error)
-    }
-
-    chkEvent(iframeId, 'onClosed', iframeId)
-    log(iframeId, '--')
-    removeIframeListeners(iframe)
-    if (destroyObserver) {
-      destroyObserver.disconnect()
-      destroyObserver = null
-    }
-  }
-
-  function getPagePosition(iframeId) {
-    if (null === pagePosition) {
-      pagePosition = {
-        x:
-          window.pageXOffset === undefined
-            ? document.documentElement.scrollLeft
-            : window.pageXOffset,
-        y:
-          window.pageYOffset === undefined
-            ? document.documentElement.scrollTop
-            : window.pageYOffset
-      }
-      log(
-        iframeId,
-        'Get page position: ' + pagePosition.x + ',' + pagePosition.y
-      )
-    }
-  }
-
-  function setPagePosition(iframeId) {
-    if (null !== pagePosition) {
-      window.scrollTo(pagePosition.x, pagePosition.y)
-      log(
-        iframeId,
-        'Set page position: ' + pagePosition.x + ',' + pagePosition.y
-      )
-      unsetPagePosition()
-    }
-  }
-
-  function unsetPagePosition() {
-    pagePosition = null
-  }
-
-  function resetIFrame(messageData) {
-    function reset() {
-      setSize(messageData)
-      trigger('reset', 'reset', messageData.iframe, messageData.id)
-    }
-
-    log(
-      messageData.id,
-      'Size reset requested by ' +
-        ('init' === messageData.type ? 'host page' : 'iFrame')
-    )
-    getPagePosition(messageData.id)
-    syncResize(reset, messageData, 'reset')
-  }
-
-  function setSize(messageData) {
-    function setDimension(dimension) {
-      if (!messageData.id) {
-        log('undefined', 'messageData id not set')
-        return
-      }
-      messageData.iframe.style[dimension] = messageData[dimension] + 'px'
-      log(
-        messageData.id,
-        'IFrame (' +
-          iframeId +
-          ') ' +
-          dimension +
-          ' set to ' +
-          messageData[dimension] +
-          'px'
-      )
-    }
-
-    function chkZero(dimension) {
-      // FireFox sets dimension of hidden iFrames to zero.
-      // So if we detect that set up an event to check for
-      // when iFrame becomes visible.
-
-      /* istanbul ignore next */ // Not testable in PhantomJS
-      if (!hiddenCheckEnabled && '0' === messageData[dimension]) {
-        hiddenCheckEnabled = true
-        log(iframeId, 'Hidden iFrame detected, creating visibility listener')
-        fixHiddenIFrames()
-      }
-    }
-
-    function processDimension(dimension) {
-      setDimension(dimension)
-      chkZero(dimension)
-    }
-
-    var iframeId = messageData.iframe.id
-
-    if (settings[iframeId]) {
-      if (settings[iframeId].sizeHeight) {
-        processDimension('height')
-      }
-      if (settings[iframeId].sizeWidth) {
-        processDimension('width')
-      }
-    }
-  }
-
-  function syncResize(func, messageData, doNotSync) {
-    /* istanbul ignore if */ // Not testable in PhantomJS
-    if (
-      doNotSync !== messageData.type &&
-      requestAnimationFrame &&
-      // including check for jasmine because had trouble getting spy to work in unit test using requestAnimationFrame
-      !window.jasmine
-    ) {
-      log(messageData.id, 'Requesting animation frame')
-      requestAnimationFrame(func)
-    } else {
-      func()
-    }
-  }
-
-  function trigger(calleeMsg, msg, iframe, id, noResponseWarning) {
-    function postMessageToIFrame() {
-      var target = settings[id] && settings[id].targetOrigin
-      log(
-        id,
-        '[' +
-          calleeMsg +
-          '] Sending msg to iframe[' +
-          id +
-          '] (' +
-          msg +
-          ') targetOrigin: ' +
-          target
-      )
-      iframe.contentWindow.postMessage(msgId + msg, target)
-    }
-
-    function iFrameNotFound() {
-      warn(id, '[' + calleeMsg + '] IFrame(' + id + ') not found')
-    }
-
-    function chkAndSend() {
-      if (
-        iframe &&
-        'contentWindow' in iframe &&
-        null !== iframe.contentWindow
-      ) {
-        // Null test for PhantomJS
-        postMessageToIFrame()
-      } else {
-        iFrameNotFound()
-      }
-    }
-
-    function warnOnNoResponse() {
-      function warning() {
-        if (settings[id] && !settings[id].loaded && !errorShown) {
-          errorShown = true
-          warn(
-            id,
-            'IFrame has not responded within ' +
-              settings[id].warningTimeout / 1000 +
-              ' seconds. Check iFrameResizer.contentWindow.js has been loaded in iFrame. This message can be ignored if everything is working, or you can set the warningTimeout option to a higher value or zero to suppress this warning.'
-          )
-        }
-      }
-
-      if (
-        !!noResponseWarning &&
-        settings[id] &&
-        !!settings[id].warningTimeout
-      ) {
-        settings[id].msgTimeout = setTimeout(
-          warning,
-          settings[id].warningTimeout
-        )
-      }
-    }
-
-    var errorShown = false
-
-    id = id || iframe.id
-
-    if (settings[id]) {
-      chkAndSend()
-      warnOnNoResponse()
-    }
-  }
-
-  function createOutgoingMsg(iframeId) {
-    return (
-      iframeId +
-      ':' +
-      settings[iframeId].bodyMarginV1 +
-      ':' +
-      settings[iframeId].sizeWidth +
-      ':' +
-      settings[iframeId].log +
-      ':' +
-      settings[iframeId].interval +
-      ':' +
-      settings[iframeId].enablePublicMethods +
-      ':' +
-      settings[iframeId].autoResize +
-      ':' +
-      settings[iframeId].bodyMargin +
-      ':' +
-      settings[iframeId].heightCalculationMethod +
-      ':' +
-      settings[iframeId].bodyBackground +
-      ':' +
-      settings[iframeId].bodyPadding +
-      ':' +
-      settings[iframeId].tolerance +
-      ':' +
-      settings[iframeId].inPageLinks +
-      ':' +
-      settings[iframeId].resizeFrom +
-      ':' +
-      settings[iframeId].widthCalculationMethod +
-      ':' +
-      settings[iframeId].mouseEvents
-    )
-  }
-
-  function isNumber(value) {
-    return typeof value === 'number'
-  }
-
-  function setupIFrame(iframe, options) {
-    function setLimits() {
-      function addStyle(style) {
-        var styleValue = settings[iframeId][style]
-        if (Infinity !== styleValue && 0 !== styleValue) {
-          iframe.style[style] = isNumber(styleValue)
-            ? styleValue + 'px'
-            : styleValue
-          log(iframeId, 'Set ' + style + ' = ' + iframe.style[style])
-        }
-      }
-
-      function chkMinMax(dimension) {
-        if (
-          settings[iframeId]['min' + dimension] >
-          settings[iframeId]['max' + dimension]
-        ) {
-          throw new Error(
-            'Value for min' +
-              dimension +
-              ' can not be greater than max' +
-              dimension
-          )
-        }
-      }
-
-      chkMinMax('Height')
-      chkMinMax('Width')
-
-      addStyle('maxHeight')
-      addStyle('minHeight')
-      addStyle('maxWidth')
-      addStyle('minWidth')
-    }
-
-    function newId() {
-      var id = (options && options.id) || defaults.id + count++
-      if (null !== document.getElementById(id)) {
-        id += count++
-      }
-      return id
-    }
-
-    function ensureHasId(iframeId) {
-      if (typeof iframeId !== 'string') {
-        throw new TypeError('Invaild id for iFrame. Expected String')
-      }
-
-      if ('' === iframeId) {
-        // eslint-disable-next-line no-multi-assign
-        iframe.id = iframeId = newId()
-        logEnabled = (options || {}).log
-        log(
-          iframeId,
-          'Added missing iframe ID: ' + iframeId + ' (' + iframe.src + ')'
-        )
-      }
-
-      return iframeId
-    }
-
-    function setScrolling() {
-      log(
-        iframeId,
-        'IFrame scrolling ' +
-          (settings[iframeId] && settings[iframeId].scrolling
-            ? 'enabled'
-            : 'disabled') +
-          ' for ' +
-          iframeId
-      )
-      iframe.style.overflow =
-        false === (settings[iframeId] && settings[iframeId].scrolling)
-          ? 'hidden'
-          : 'auto'
-      switch (settings[iframeId] && settings[iframeId].scrolling) {
-        case 'omit': {
-          break
-        }
-
-        case true: {
-          iframe.scrolling = 'yes'
-          break
-        }
-
-        case false: {
-          iframe.scrolling = 'no'
-          break
-        }
-
-        default: {
-          iframe.scrolling = settings[iframeId]
-            ? settings[iframeId].scrolling
-            : 'no'
-        }
-      }
-    }
-
-    // The V1 iFrame script expects an int, where as in V2 expects a CSS
-    // string value such as '1px 3em', so if we have an int for V2, set V1=V2
-    // and then convert V2 to a string PX value.
-    function setupBodyMarginValues() {
-      if (
-        'number' ===
-          typeof (settings[iframeId] && settings[iframeId].bodyMargin) ||
-        '0' === (settings[iframeId] && settings[iframeId].bodyMargin)
-      ) {
-        settings[iframeId].bodyMarginV1 = settings[iframeId].bodyMargin
-        settings[iframeId].bodyMargin =
-          '' + settings[iframeId].bodyMargin + 'px'
-      }
-    }
-
-    function checkReset() {
-      // Reduce scope of firstRun to function, because IE8's JS execution
-      // context stack is borked and this value gets externally
-      // changed midway through running this function!!!
-      var firstRun = settings[iframeId] && settings[iframeId].firstRun,
-        resetRequertMethod =
-          settings[iframeId] &&
-          settings[iframeId].heightCalculationMethod in resetRequiredMethods
-
-      if (!firstRun && resetRequertMethod) {
-        resetIFrame({ iframe: iframe, height: 0, width: 0, type: 'init' })
-      }
-    }
-
-    function setupIFrameObject() {
-      if (settings[iframeId]) {
-        settings[iframeId].iframe.iFrameResizer = {
-          close: closeIFrame.bind(null, settings[iframeId].iframe),
-
-          removeListeners: removeIframeListeners.bind(
-            null,
-            settings[iframeId].iframe
-          ),
-
-          resize: trigger.bind(
-            null,
-            'Window resize',
-            'resize',
-            settings[iframeId].iframe
-          ),
-
-          moveToAnchor: function (anchor) {
-            trigger(
-              'Move to anchor',
-              'moveToAnchor:' + anchor,
-              settings[iframeId].iframe,
-              iframeId
-            )
-          },
-
-          sendMessage: function (message) {
-            message = JSON.stringify(message)
-            trigger(
-              'Send Message',
-              'message:' + message,
-              settings[iframeId].iframe,
-              iframeId
-            )
-          }
-        }
-      }
-    }
-
-    // We have to call trigger twice, as we can not be sure if all
-    // iframes have completed loading when this code runs. The
-    // event listener also catches the page changing in the iFrame.
-    function init(msg) {
-      function iFrameLoaded() {
-        trigger('iFrame.onload', msg, iframe, undefined, true)
-        checkReset()
-      }
-
-      function createDestroyObserver(MutationObserver) {
-        if (!iframe.parentNode) {
-          return null
-        }
-
-        var destroyObserver = new MutationObserver(function (mutations) {
-          mutations.forEach(function (mutation) {
-            var removedNodes = Array.prototype.slice.call(mutation.removedNodes) // Transform NodeList into an Array
-            removedNodes.forEach(function (removedNode) {
-              if (removedNode === iframe) {
-                closeIFrame(iframe)
-              }
-            })
-          })
-        })
-        destroyObserver.observe(iframe.parentNode, {
-          childList: true
-        })
-        return destroyObserver
-      }
-
-      var MutationObserver = getMutationObserver()
-      if (MutationObserver) {
-        destroyObserver = createDestroyObserver(MutationObserver)
-      }
-
-      addEventListener(iframe, 'load', iFrameLoaded)
-      trigger('init', msg, iframe, undefined, true)
-    }
-
-    function checkOptions(options) {
-      if ('object' !== typeof options) {
-        throw new TypeError('Options is not an object')
-      }
-    }
-
-    function copyOptions(options) {
-      // eslint-disable-next-line no-restricted-syntax
-      for (var option in defaults) {
-        if (Object.prototype.hasOwnProperty.call(defaults, option)) {
-          settings[iframeId][option] = Object.prototype.hasOwnProperty.call(
-            options,
-            option
-          )
-            ? options[option]
-            : defaults[option]
-        }
-      }
-    }
-
-    function getTargetOrigin(remoteHost) {
-      return '' === remoteHost ||
-        null !== remoteHost.match(/^(about:blank|javascript:|file:\/\/)/)
-        ? '*'
-        : remoteHost
-    }
-
-    function depricate(key) {
-      var splitName = key.split('Callback')
-
-      if (splitName.length === 2) {
-        var name =
-          'on' + splitName[0].charAt(0).toUpperCase() + splitName[0].slice(1)
-        this[name] = this[key]
-        delete this[key]
-        warn(
-          iframeId,
-          "Deprecated: '" +
-            key +
-            "' has been renamed '" +
-            name +
-            "'. The old method will be removed in the next major version."
-        )
-      }
-    }
-
-    function processOptions(options) {
-      options = options || {}
-
-      settings[iframeId] = Object.create(null) // Protect against prototype attacks
-      settings[iframeId].iframe = iframe
-      settings[iframeId].firstRun = true
-      settings[iframeId].remoteHost =
-        iframe.src && iframe.src.split('/').slice(0, 3).join('/')
-
-      checkOptions(options)
-      Object.keys(options).forEach(depricate, options)
-      copyOptions(options)
-
-      if (settings[iframeId]) {
-        settings[iframeId].targetOrigin =
-          true === settings[iframeId].checkOrigin
-            ? getTargetOrigin(settings[iframeId].remoteHost)
-            : '*'
-      }
-    }
-
-    function beenHere() {
-      return iframeId in settings && 'iFrameResizer' in iframe
-    }
-
-    var iframeId = ensureHasId(iframe.id)
-
-    if (beenHere()) {
-      warn(iframeId, 'Ignored iFrame, already setup.')
-    } else {
-      processOptions(options)
-      setScrolling()
-      setLimits()
-      setupBodyMarginValues()
-      init(createOutgoingMsg(iframeId))
-      setupIFrameObject()
-    }
-  }
-
-  function debouce(fn, time) {
-    if (null === timer) {
-      timer = setTimeout(function () {
-        timer = null
-        fn()
-      }, time)
-    }
-  }
-
-  var frameTimer = {}
-  function debounceFrameEvents(fn, time, frameId) {
-    if (!frameTimer[frameId]) {
-      frameTimer[frameId] = setTimeout(function () {
-        frameTimer[frameId] = null
-        fn()
-      }, time)
-    }
-  }
-
-  // Not testable in PhantomJS
-  /* istanbul ignore next */
-
-  function fixHiddenIFrames() {
-    function checkIFrames() {
-      function checkIFrame(settingId) {
-        function chkDimension(dimension) {
-          return (
-            '0px' ===
-            (settings[settingId] && settings[settingId].iframe.style[dimension])
-          )
-        }
-
-        function isVisible(el) {
-          return null !== el.offsetParent
-        }
-
-        if (
-          settings[settingId] &&
-          isVisible(settings[settingId].iframe) &&
-          (chkDimension('height') || chkDimension('width'))
-        ) {
-          trigger(
-            'Visibility change',
-            'resize',
-            settings[settingId].iframe,
-            settingId
-          )
-        }
-      }
-
-      Object.keys(settings).forEach(function (key) {
-        checkIFrame(key)
-      })
-    }
-
-    function mutationObserved(mutations) {
-      log(
-        'window',
-        'Mutation observed: ' + mutations[0].target + ' ' + mutations[0].type
-      )
-      debouce(checkIFrames, 16)
-    }
-
-    function createMutationObserver() {
-      var target = document.querySelector('body'),
-        config = {
-          attributes: true,
-          attributeOldValue: false,
-          characterData: true,
-          characterDataOldValue: false,
-          childList: true,
-          subtree: true
-        },
-        observer = new MutationObserver(mutationObserved)
-
-      observer.observe(target, config)
-    }
-
-    var MutationObserver = getMutationObserver()
-    if (MutationObserver) {
-      createMutationObserver()
-    }
-  }
-
-  function resizeIFrames(event) {
-    function resize() {
-      sendTriggerMsg('Window ' + event, 'resize')
-    }
-
-    log('window', 'Trigger event: ' + event)
-    debouce(resize, 16)
-  }
-
-  // Not testable in PhantomJS
-  /* istanbul ignore next */
-  function tabVisible() {
-    function resize() {
-      sendTriggerMsg('Tab Visible', 'resize')
-    }
-
-    if ('hidden' !== document.visibilityState) {
-      log('document', 'Trigger event: Visibility change')
-      debouce(resize, 16)
-    }
-  }
-
-  function sendTriggerMsg(eventName, event) {
-    function isIFrameResizeEnabled(iframeId) {
-      return (
-        settings[iframeId] &&
-        'parent' === settings[iframeId].resizeFrom &&
-        settings[iframeId].autoResize &&
-        !settings[iframeId].firstRun
-      )
-    }
-
-    Object.keys(settings).forEach(function (iframeId) {
-      if (isIFrameResizeEnabled(iframeId)) {
-        trigger(eventName, event, settings[iframeId].iframe, iframeId)
-      }
-    })
-  }
-
-  function setupEventListeners() {
-    addEventListener(window, 'message', iFrameListener)
-
-    addEventListener(window, 'resize', function () {
-      resizeIFrames('resize')
-    })
-
-    addEventListener(document, 'visibilitychange', tabVisible)
-
-    addEventListener(document, '-webkit-visibilitychange', tabVisible)
-  }
-
-  function factory() {
-    function init(options, element) {
-      function chkType() {
-        if (!element.tagName) {
-          throw new TypeError('Object is not a valid DOM element')
-        } else if ('IFRAME' !== element.tagName.toUpperCase()) {
-          throw new TypeError(
-            'Expected <IFRAME> tag, found <' + element.tagName + '>'
-          )
-        }
-      }
-
-      if (element) {
-        chkType()
-        setupIFrame(element, options)
-        iFrames.push(element)
-      }
-    }
-
-    function warnDeprecatedOptions(options) {
-      if (options && options.enablePublicMethods) {
-        warn(
-          'enablePublicMethods option has been removed, public methods are now always available in the iFrame'
-        )
-      }
-    }
-
-    var iFrames
-
-    setupRequestAnimationFrame()
-    setupEventListeners()
-
-    return function iFrameResizeF(options, target) {
-      iFrames = [] // Only return iFrames past in on this call
-
-      warnDeprecatedOptions(options)
-
-      switch (typeof target) {
-        case 'undefined':
-        case 'string': {
-          Array.prototype.forEach.call(
-            document.querySelectorAll(target || 'iframe'),
-            init.bind(undefined, options)
-          )
-          break
-        }
-
-        case 'object': {
-          init(options, target)
-          break
-        }
-
-        default: {
-          throw new TypeError('Unexpected data type (' + typeof target + ')')
-        }
-      }
-
-      return iFrames
-    }
-  }
-
-  function createJQueryPublicMethod($) {
-    if (!$.fn) {
-      info('', 'Unable to bind to jQuery, it is not fully loaded.')
-    } else if (!$.fn.iFrameResize) {
-      $.fn.iFrameResize = function $iFrameResizeF(options) {
-        function init(index, element) {
-          setupIFrame(element, options)
-        }
-
-        return this.filter('iframe').each(init).end()
-      }
-    }
-  }
-
-  if (window.jQuery !== undefined) {
-    createJQueryPublicMethod(window.jQuery)
-  }
-
-  if (true) {
-    !(__WEBPACK_AMD_DEFINE_ARRAY__ = [], __WEBPACK_AMD_DEFINE_FACTORY__ = (factory),
-		__WEBPACK_AMD_DEFINE_RESULT__ = (typeof __WEBPACK_AMD_DEFINE_FACTORY__ === 'function' ?
-		(__WEBPACK_AMD_DEFINE_FACTORY__.apply(exports, __WEBPACK_AMD_DEFINE_ARRAY__)) : __WEBPACK_AMD_DEFINE_FACTORY__),
-		__WEBPACK_AMD_DEFINE_RESULT__ !== undefined && (module.exports = __WEBPACK_AMD_DEFINE_RESULT__))
-  } else // removed by dead control flow
-{}
-  window.iFrameResize = window.iFrameResize || factory()
-})()
 
 
 /***/ },
@@ -7694,6 +4806,9 @@ if (true) {
 /******/ 		return module.exports;
 /******/ 	}
 /******/ 	
+/******/ 	// expose the modules object (__webpack_modules__)
+/******/ 	__webpack_require__.m = __webpack_modules__;
+/******/ 	
 /************************************************************************/
 /******/ 	/* webpack/runtime/compat get default export */
 /******/ 	// getDefaultExport function for compatibility with non-harmony modules
@@ -7722,6 +4837,36 @@ if (true) {
 /******/ 		};
 /******/ 	};
 /******/ 	
+/******/ 	/* webpack/runtime/create fake namespace object */
+/******/ 	(() => {
+/******/ 		const getProto = Object.getPrototypeOf;
+/******/ 		let leafPrototypes;
+/******/ 		// create a fake namespace object
+/******/ 		// mode & 1: value is a module id, require it
+/******/ 		// mode & 2: merge all properties of value into the ns
+/******/ 		// mode & 4: return value when already ns object
+/******/ 		// mode & 16: return value when it's Promise-like
+/******/ 		// mode & 8|1: behave like require
+/******/ 		__webpack_require__.t = function(value, mode) {
+/******/ 			if(mode & 1) value = this(value);
+/******/ 			if(mode & 8) return value;
+/******/ 			if(typeof value === 'object' && value) {
+/******/ 				if((mode & 4) && value.__esModule) return value;
+/******/ 				if((mode & 16) && typeof value.then === 'function') return value;
+/******/ 			}
+/******/ 			const ns = Object.create(null);
+/******/ 			__webpack_require__.r(ns);
+/******/ 			const def = {};
+/******/ 			leafPrototypes = leafPrototypes || [null, getProto({}), getProto([]), getProto(getProto)];
+/******/ 			for(var current = mode & 2 && value; (typeof current == 'object' || typeof current == 'function') && !~leafPrototypes.indexOf(current); current = getProto(current)) {
+/******/ 				Object.getOwnPropertyNames(current).forEach((key) => (def[key] = () => (value[key])));
+/******/ 			}
+/******/ 			def['default'] = () => (value);
+/******/ 			__webpack_require__.d(ns, def);
+/******/ 			return ns;
+/******/ 		};
+/******/ 	})();
+/******/ 	
 /******/ 	/* webpack/runtime/define property getters */
 /******/ 	// define getter/value functions for harmony exports
 /******/ 	__webpack_require__.d = (exports, definition) => {
@@ -7731,6 +4876,20 @@ if (true) {
 /******/ 			}
 /******/ 		}
 /******/ 	};
+/******/ 	
+/******/ 	/* webpack/runtime/ensure chunk */
+/******/ 	__webpack_require__.f = {};
+/******/ 	// This file contains only the entry chunk.
+/******/ 	// The chunk loading function for additional chunks
+/******/ 	__webpack_require__.e = (chunkId) => {
+/******/ 		const promises = [];
+/******/ 		__webpack_require__.f.j(chunkId, promises);
+/******/ 		return Promise.all(promises);
+/******/ 	};
+/******/ 	
+/******/ 	/* webpack/runtime/get javascript chunk filename */
+/******/ 	// This function allow to reference async chunks
+/******/ 	__webpack_require__.u = (chunkId) => (chunkId + ".js");
 /******/ 	
 /******/ 	/* webpack/runtime/global */
 /******/ 	__webpack_require__.g = (function() {
@@ -7745,12 +4904,176 @@ if (true) {
 /******/ 	/* webpack/runtime/hasOwnProperty shorthand */
 /******/ 	__webpack_require__.o = (obj, prop) => (Object.prototype.hasOwnProperty.call(obj, prop));
 /******/ 	
+/******/ 	/* webpack/runtime/load script */
+/******/ 	(() => {
+/******/ 		const inProgress = {};
+/******/ 		const dataWebpackPrefix = "forge-sim-bundler-matrix-lab:";
+/******/ 		// loadScript function to load a script via script tag
+/******/ 		__webpack_require__.l = (url, done, key, chunkId) => {
+/******/ 			if(inProgress[url]) { inProgress[url].push(done); return; }
+/******/ 			let script, needAttach;
+/******/ 			if(key !== undefined) {
+/******/ 				const scripts = document.getElementsByTagName("script");
+/******/ 				for(var i = 0; i < scripts.length; i++) {
+/******/ 					const s = scripts[i];
+/******/ 					if(s.getAttribute("src") == url || s.getAttribute("data-webpack") == dataWebpackPrefix + key) { script = s; break; }
+/******/ 				}
+/******/ 			}
+/******/ 			if(!script) {
+/******/ 				needAttach = true;
+/******/ 				script = document.createElement('script');
+/******/ 		
+/******/ 				script.charset = 'utf-8';
+/******/ 				if (__webpack_require__.nc) {
+/******/ 					script.setAttribute("nonce", __webpack_require__.nc);
+/******/ 				}
+/******/ 				script.setAttribute("data-webpack", dataWebpackPrefix + key);
+/******/ 		
+/******/ 				script.src = url;
+/******/ 			}
+/******/ 			inProgress[url] = [done];
+/******/ 			const onScriptComplete = (prev, event) => {
+/******/ 				// avoid mem leaks in IE.
+/******/ 				script.onerror = script.onload = null;
+/******/ 				clearTimeout(timeout);
+/******/ 				const doneFns = inProgress[url];
+/******/ 				delete inProgress[url];
+/******/ 				script.parentNode?.removeChild(script);
+/******/ 				doneFns?.forEach((fn) => (fn(event)));
+/******/ 				if(prev) return prev(event);
+/******/ 			}
+/******/ 			const timeout = setTimeout(onScriptComplete.bind(null, undefined, { type: 'timeout', target: script }), 120000);
+/******/ 			script.onerror = onScriptComplete.bind(null, script.onerror);
+/******/ 			script.onload = onScriptComplete.bind(null, script.onload);
+/******/ 			needAttach && document.head.appendChild(script);
+/******/ 		};
+/******/ 	})();
+/******/ 	
+/******/ 	/* webpack/runtime/make namespace object */
+/******/ 	// define __esModule on exports
+/******/ 	__webpack_require__.r = (exports) => {
+/******/ 		Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
+/******/ 		Object.defineProperty(exports, '__esModule', { value: true });
+/******/ 	};
+/******/ 	
 /******/ 	/* webpack/runtime/node module decorator */
 /******/ 	__webpack_require__.nmd = (module) => {
 /******/ 		module.paths = [];
 /******/ 		if (!module.children) module.children = [];
 /******/ 		return module;
 /******/ 	};
+/******/ 	
+/******/ 	/* webpack/runtime/publicPath */
+/******/ 	(() => {
+/******/ 		let scriptUrl;
+/******/ 		if (__webpack_require__.g.importScripts) scriptUrl = __webpack_require__.g.location + "";
+/******/ 		const document = __webpack_require__.g.document;
+/******/ 		if (!scriptUrl && document) {
+/******/ 			if (document.currentScript?.tagName.toUpperCase() === 'SCRIPT')
+/******/ 				scriptUrl = document.currentScript.src;
+/******/ 			if (!scriptUrl) {
+/******/ 				const scripts = document.getElementsByTagName("script");
+/******/ 				if(scripts.length) {
+/******/ 					let i = scripts.length - 1;
+/******/ 					while (i > -1 && (!scriptUrl || !/^https?:/.test(scriptUrl))) scriptUrl = scripts[i--].src;
+/******/ 				}
+/******/ 			}
+/******/ 		}
+/******/ 		// When supporting browsers where an automatic publicPath is not supported you must specify an output.publicPath manually via configuration
+/******/ 		// or pass an empty string ("") and set the __webpack_public_path__ variable from your code to use your own logic.
+/******/ 		if (!scriptUrl) throw new Error("Automatic publicPath is not supported in this browser");
+/******/ 		scriptUrl = scriptUrl.replace(/^blob:|[?#].*$/g, "").replace(/\/[^/]+$/, "/");
+/******/ 		__webpack_require__.p = scriptUrl;
+/******/ 	})();
+/******/ 	
+/******/ 	/* webpack/runtime/jsonp chunk loading */
+/******/ 	(() => {
+/******/ 		// no baseURI
+/******/ 		
+/******/ 		// object to store loaded and loading chunks
+/******/ 		// undefined = chunk not loaded, null = chunk preloaded/prefetched
+/******/ 		// [resolve, reject, Promise] = chunk loading, 0 = chunk loaded
+/******/ 		const installedChunks = {
+/******/ 			792: 0
+/******/ 		};
+/******/ 		
+/******/ 		__webpack_require__.f.j = (chunkId, promises) => {
+/******/ 				// JSONP chunk loading for javascript
+/******/ 				let installedChunkData = __webpack_require__.o(installedChunks, chunkId) ? installedChunks[chunkId] : undefined;
+/******/ 				if(installedChunkData !== 0) { // 0 means "already installed".
+/******/ 		
+/******/ 					// a Promise means "currently loading".
+/******/ 					if(installedChunkData) {
+/******/ 						promises.push(installedChunkData[2]);
+/******/ 					} else {
+/******/ 						if(true) { // all chunks have JS
+/******/ 							// setup Promise in chunk cache
+/******/ 							const promise = new Promise((resolve, reject) => (installedChunkData = installedChunks[chunkId] = [resolve, reject]));
+/******/ 							promises.push(installedChunkData[2] = promise);
+/******/ 		
+/******/ 							// create error before stack unwound to get useful stacktrace later
+/******/ 							const error = new Error();
+/******/ 							const loadingEnded = (event) => {
+/******/ 								if(__webpack_require__.o(installedChunks, chunkId)) {
+/******/ 									installedChunkData = installedChunks[chunkId];
+/******/ 									if(installedChunkData !== 0) installedChunks[chunkId] = undefined;
+/******/ 									if(installedChunkData) {
+/******/ 										const errorType = event && (event.type === 'load' ? 'missing' : event.type);
+/******/ 										const realSrc = event && event.target && event.target.src;
+/******/ 										error.message = 'Loading chunk ' + chunkId + ' failed.\n(' + errorType + ': ' + realSrc + ')';
+/******/ 										error.name = 'ChunkLoadError';
+/******/ 										error.type = errorType;
+/******/ 										error.request = realSrc;
+/******/ 										error.event = event;
+/******/ 										installedChunkData[1](error);
+/******/ 									}
+/******/ 								}
+/******/ 							};
+/******/ 							__webpack_require__.l(__webpack_require__.p + __webpack_require__.u(chunkId), loadingEnded, "chunk-" + chunkId, chunkId);
+/******/ 						}
+/******/ 					}
+/******/ 				}
+/******/ 		};
+/******/ 		
+/******/ 		// no prefetching
+/******/ 		
+/******/ 		// no preloaded
+/******/ 		
+/******/ 		// no HMR
+/******/ 		
+/******/ 		// no HMR manifest
+/******/ 		
+/******/ 		// no on chunks loaded
+/******/ 		
+/******/ 		// install a JSONP callback for chunk loading
+/******/ 		const webpackJsonpCallback = (parentChunkLoadingFunction, data) => {
+/******/ 			let [chunkIds, moreModules, runtime] = data;
+/******/ 			// add "moreModules" to the modules object,
+/******/ 			// then flag all "chunkIds" as loaded and fire callback
+/******/ 			var moduleId, chunkId, i = 0;
+/******/ 			if(chunkIds.some((id) => (installedChunks[id] !== 0))) {
+/******/ 				for(moduleId in moreModules) {
+/******/ 					if(__webpack_require__.o(moreModules, moduleId)) {
+/******/ 						__webpack_require__.m[moduleId] = moreModules[moduleId];
+/******/ 					}
+/******/ 				}
+/******/ 				if(runtime) var result = runtime(__webpack_require__);
+/******/ 			}
+/******/ 			if(parentChunkLoadingFunction) parentChunkLoadingFunction(data);
+/******/ 			for(;i < chunkIds.length; i++) {
+/******/ 				chunkId = chunkIds[i];
+/******/ 				if(__webpack_require__.o(installedChunks, chunkId) && installedChunks[chunkId]) {
+/******/ 					installedChunks[chunkId][0]();
+/******/ 				}
+/******/ 				installedChunks[chunkId] = 0;
+/******/ 			}
+/******/ 		
+/******/ 		}
+/******/ 		
+/******/ 		const chunkLoadingGlobal = self["webpackChunkforge_sim_bundler_matrix_lab"] = self["webpackChunkforge_sim_bundler_matrix_lab"] || [];
+/******/ 		chunkLoadingGlobal.forEach(webpackJsonpCallback.bind(null, 0));
+/******/ 		chunkLoadingGlobal.push = webpackJsonpCallback.bind(null, chunkLoadingGlobal.push.bind(chunkLoadingGlobal));
+/******/ 	})();
 /******/ 	
 /************************************************************************/
 let __webpack_exports__ = {};
@@ -7777,13 +5100,11 @@ var traverse_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   h: () => (/* binding */ traverse)
 /* harmony export */ });
-/* unused harmony export validateVisitors */
+/* empty/unused harmony star reexport */
 
 function ownKeys(e, r) { var t = Object.keys(e); if (Object.getOwnPropertySymbols) { var o = Object.getOwnPropertySymbols(e); r && (o = o.filter(function (r) { return Object.getOwnPropertyDescriptor(e, r).enumerable; })), t.push.apply(t, o); } return t; }
 function _objectSpread(e) { for (var r = 1; r < arguments.length; r++) { var t = null != arguments[r] ? arguments[r] : {}; r % 2 ? ownKeys(Object(t), !0).forEach(function (r) { (0,defineProperty_namespaceFn().A)(e, r, t[r]); }) : Object.getOwnPropertyDescriptors ? Object.defineProperties(e, Object.getOwnPropertyDescriptors(t)) : ownKeys(Object(t)).forEach(function (r) { Object.defineProperty(e, r, Object.getOwnPropertyDescriptor(t, r)); }); } return e; }
-function validateVisitors(_visitors) {
-  return true;
-}
+;
 
 /**
  * Provides recursive, depth-first search document traversal. Use visitors collection to define nodes of interest.
@@ -7795,7 +5116,7 @@ function validateVisitors(_visitors) {
  * @param visitors Collection of visitors.
  */
 function traverse(adf, visitors) {
-  if (!validateVisitors(visitors)) {
+  if (!(0,validateVisitors_namespaceFn().K)(visitors)) {
     throw new Error("Visitors are not valid: \"".concat(Object.keys(visitors).join(', '), "\""));
   }
   return traverseNode(adf, {
@@ -7829,2400 +5150,22 @@ function traverseNode(adfNode, parent, visitors, index, depth) {
   }
   return newNode;
 }
+
+// eslint-disable-next-line @atlaskit/editor/no-re-export
+
+});
+
+// MODULE: ./node_modules/@atlaskit/adf-utils/dist/esm/traverse/validateVisitors.js
+var validateVisitors_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, __webpack_exports__) => {
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   K: () => (/* binding */ validateVisitors)
+/* harmony export */ });
+function validateVisitors(_visitors) {
+  return true;
+}
 });
 
 // MODULE: ./node_modules/@forge/bridge/out/bridge.js
-var out_bridge_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
-var __webpack_unused_export__;
-
-__webpack_unused_export__ = ({ value: true });
-exports.getCallBridge = void 0;
-const errors_1 = (out_errors_namespaceFn());
-function isBridgeAvailable(bridge) {
-    return !!(bridge === null || bridge === void 0 ? void 0 : bridge.callBridge);
-}
-const getCallBridge = () => {
-    if (!isBridgeAvailable(globalThis.__bridge)) {
-        throw new errors_1.BridgeAPIError(`
-      Unable to establish a connection with the Custom UI bridge.
-      If you are trying to run your app locally, Forge apps only work in the context of Atlassian products. Refer to https://go.atlassian.com/forge-tunneling-with-custom-ui for how to tunnel when using a local development server.
-    `);
-    }
-    return globalThis.__bridge.callBridge;
-};
-exports.getCallBridge = getCallBridge;
-
-});
-
-// MODULE: ./node_modules/@forge/bridge/out/errors.js
-var out_errors_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
-var __webpack_unused_export__;
-
-__webpack_unused_export__ = ({ value: true });
-exports.BridgeAPIError = void 0;
-class BridgeAPIError extends Error {
-}
-exports.BridgeAPIError = BridgeAPIError;
-
-});
-
-// MODULE: ./node_modules/@forge/bridge/out/events/events.js
-var events_events_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.events = void 0;
-const bridge_1 = (out_bridge_namespaceFn());
-const serialiseBlob_1 = (events_serialiseBlob_namespaceFn());
-const callBridge = (0, bridge_1.getCallBridge)();
-const wrapCallback = (callback) => {
-    return (payload) => {
-        let newPayload = payload;
-        if ((0, serialiseBlob_1.containsSerialisedBlobs)(payload)) {
-            newPayload = (0, serialiseBlob_1.deserialiseBlobsInPayload)(payload);
-        }
-        return callback(newPayload);
-    };
-};
-const emit = async (event, payload) => {
-    let newPayload = payload;
-    if ((0, serialiseBlob_1.containsBlobs)(payload)) {
-        newPayload = await (0, serialiseBlob_1.serialiseBlobsInPayload)(payload);
-    }
-    return callBridge('emit', { event, payload: newPayload });
-};
-const on = (event, callback) => {
-    return callBridge('on', { event, callback: wrapCallback(callback) });
-};
-const emitPublic = async (event, payload) => {
-    let newPayload = payload;
-    if ((0, serialiseBlob_1.containsBlobs)(payload)) {
-        newPayload = await (0, serialiseBlob_1.serialiseBlobsInPayload)(payload);
-    }
-    return callBridge('emitPublic', { event, payload: newPayload });
-};
-const onPublic = (event, callback) => {
-    return callBridge('onPublic', { event, callback: wrapCallback(callback) });
-};
-exports.events = {
-    emit,
-    on,
-    emitPublic,
-    onPublic
-};
-
-});
-
-// MODULE: ./node_modules/@forge/bridge/out/events/index.js
-var bridge_out_events_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-const tslib_1 = (tslib_es6_namespaceFn());
-tslib_1.__exportStar((events_events_namespaceFn()), exports);
-
-});
-
-// MODULE: ./node_modules/@forge/bridge/out/events/serialiseBlob.js
-var events_serialiseBlob_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
-var __webpack_unused_export__;
-
-__webpack_unused_export__ = ({ value: true });
-exports.containsSerialisedBlobs = exports.containsBlobs = exports.deserialiseBlobsInPayload = exports.serialiseBlobsInPayload = void 0;
-const blobParser_1 = (utils_blobParser_namespaceFn());
-// Copied from https://github.com/you-dont-need/You-Dont-Need-Lodash-Underscore?tab=readme-ov-file#_isplainobject
-const isPlainObject = (value) => {
-    if (typeof value !== 'object' || value === null)
-        return false;
-    if (Object.prototype.toString.call(value) !== '[object Object]')
-        return false;
-    const proto = Object.getPrototypeOf(value);
-    if (proto === null)
-        return true;
-    const Ctor = Object.prototype.hasOwnProperty.call(proto, 'constructor') && proto.constructor;
-    return (typeof Ctor === 'function' &&
-        Ctor instanceof Ctor &&
-        Function.prototype.call(Ctor) === Function.prototype.call(value));
-};
-const blobToBase64WithMetadata = async (blob) => {
-    const base64Data = await (0, blobParser_1.blobToBase64)(blob);
-    return {
-        data: base64Data,
-        type: blob.type
-    };
-};
-const base64WithMetadataToBlob = (metadata) => {
-    // typecasting as Blob since base64ToBlob returns Blob | null but this is only null if data is undefined which it won't be here
-    return (0, blobParser_1.base64ToBlob)(metadata.data, metadata.type);
-};
-// Recursively converts all Blobs in an object or array to base64 with metadata
-const serialiseBlobsInPayload = async (payload) => {
-    if (payload instanceof Blob) {
-        // Convert blob to base64 with metadata and mark it as a serialized blob
-        const blobData = await blobToBase64WithMetadata(payload);
-        return {
-            ...blobData,
-            // Custom property used to identify serialized blob data for deserialization
-            __isBlobData: true
-        };
-    }
-    if (Array.isArray(payload)) {
-        // Recursively process array elements
-        return Promise.all(payload.map((item) => (0, exports.serialiseBlobsInPayload)(item)));
-    }
-    if (payload && isPlainObject(payload)) {
-        // Recursively process object properties
-        const entries = await Promise.all(Object.entries(payload).map(async ([key, value]) => [key, await (0, exports.serialiseBlobsInPayload)(value)]));
-        return Object.fromEntries(entries);
-    }
-    return payload;
-};
-exports.serialiseBlobsInPayload = serialiseBlobsInPayload;
-// Recursively converts all serialized blob data back to Blobs in an object or array
-const deserialiseBlobsInPayload = (payload) => {
-    if (payload && isPlainObject(payload) && '__isBlobData' in payload) {
-        const typedData = payload;
-        // Convert serialized blob data back to Blob
-        return base64WithMetadataToBlob({
-            data: typedData.data,
-            type: typedData.type
-        });
-    }
-    if (Array.isArray(payload)) {
-        // Recursively process array elements
-        return payload.map((item) => (0, exports.deserialiseBlobsInPayload)(item));
-    }
-    if (payload && isPlainObject(payload)) {
-        // Recursively process object properties
-        const result = {};
-        for (const [key, value] of Object.entries(payload)) {
-            result[key] = (0, exports.deserialiseBlobsInPayload)(value);
-        }
-        return result;
-    }
-    return payload;
-};
-exports.deserialiseBlobsInPayload = deserialiseBlobsInPayload;
-const containsBlobs = (payload) => {
-    if (payload instanceof Blob) {
-        return true;
-    }
-    if (Array.isArray(payload)) {
-        return payload.some((item) => (0, exports.containsBlobs)(item));
-    }
-    if (payload && isPlainObject(payload)) {
-        return Object.values(payload).some((value) => (0, exports.containsBlobs)(value));
-    }
-    return false;
-};
-exports.containsBlobs = containsBlobs;
-const containsSerialisedBlobs = (payload) => {
-    if (payload && isPlainObject(payload) && '__isBlobData' in payload) {
-        return true;
-    }
-    if (Array.isArray(payload)) {
-        return payload.some((item) => (0, exports.containsSerialisedBlobs)(item));
-    }
-    if (payload && isPlainObject(payload)) {
-        return Object.values(payload).some((value) => (0, exports.containsSerialisedBlobs)(value));
-    }
-    return false;
-};
-exports.containsSerialisedBlobs = containsSerialisedBlobs;
-
-});
-
-// MODULE: ./node_modules/@forge/bridge/out/featureFlags/evaluator.js
-var featureFlags_evaluator_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
-var __webpack_unused_export__;
-
-__webpack_unused_export__ = ({ value: true });
-exports.Evaluator = void 0;
-class Evaluator {
-    constructor(results) {
-        this.results = results;
-    }
-    checkFlag(flagName, defaultValue) {
-        if (!this.results || !this.results.feature_flags) {
-            // fallback to default value
-            return defaultValue;
-        }
-        const featureFlags = this.results.feature_flags;
-        let hashedValue = '';
-        try {
-            hashedValue = this.getHashedValue(flagName);
-        }
-        catch (err) {
-            // eslint-disable-next-line no-console
-            console.error('Unexpected error occurred while evaluating flag ', err);
-            // If hashing fails for any reason, do not throw; safely return default
-            return defaultValue;
-        }
-        if (!hashedValue) {
-            return defaultValue;
-        }
-        const evaluatedFlag = featureFlags[hashedValue];
-        if (evaluatedFlag) {
-            // if flag being checked is disabled
-            if (evaluatedFlag.disabled) {
-                return false;
-            }
-            return evaluatedFlag.value;
-        }
-        // fallback to default value
-        return defaultValue;
-    }
-    shutDown() {
-        this.results = undefined;
-    }
-    // To be Updated with proper hashing function
-    getHashedValue(flagName) {
-        // Defensive: ensure stable, non-throwing behavior for unexpected inputs
-        if (typeof flagName !== 'string') {
-            return '';
-        }
-        const input = flagName.trim();
-        if (input.length === 0) {
-            return '';
-        }
-        // djb2 hashing (unsigned 32-bit), matches server-side encoding
-        let hash = 5381;
-        for (let i = 0; i < input.length; i += 1) {
-            const charCode = input.charCodeAt(i);
-            hash = (hash << 5) + hash + charCode; // hash * 33 + c
-            hash |= 0; // force 32-bit signed int
-        }
-        // Convert to unsigned 32-bit and return as a decimal string
-        return (hash >>> 0).toString();
-    }
-}
-exports.Evaluator = Evaluator;
-
-});
-
-// MODULE: ./node_modules/@forge/bridge/out/featureFlags/featureFlags.js
-var featureFlags_featureFlags_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.FeatureFlags = void 0;
-const evaluator_1 = (featureFlags_evaluator_namespaceFn());
-const initFeatureFlags_1 = (featureFlags_initFeatureFlags_namespaceFn());
-class FeatureFlags {
-    constructor() {
-        this.initialized = false;
-    }
-    /**
-     * Initialize the feature flags client
-     */
-    async initialize(user, config = { environment: 'development' }) {
-        if (this.isInitialized()) {
-            return;
-        }
-        if (!(config === null || config === void 0 ? void 0 : config.environment)) {
-            config.environment = 'development';
-        }
-        const result = await (0, initFeatureFlags_1.initFeatureFlags)({ user, config });
-        this.initialized = true;
-        this.evaluator = new evaluator_1.Evaluator(result);
-    }
-    /**
-     * Check if a feature flag is enabled for the user
-     */
-    checkFlag(flagName, defaultValue = false) {
-        if (!this.isInitialized() || !this.evaluator) {
-            throw new Error('FeatureFlags not initialized. Call initialize() first.');
-        }
-        return this.evaluator.checkFlag(flagName, defaultValue);
-    }
-    /**
-     * Shutdown the feature flags client
-     */
-    shutdown() {
-        if (!this.isInitialized()) {
-            return;
-        }
-        this.initialized = false;
-        this.evaluator.shutDown();
-    }
-    isInitialized() {
-        return this.initialized;
-    }
-}
-exports.FeatureFlags = FeatureFlags;
-
-});
-
-// MODULE: ./node_modules/@forge/bridge/out/featureFlags/index.js
-var bridge_out_featureFlags_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.FeatureFlags = void 0;
-var featureFlags_1 = (featureFlags_featureFlags_namespaceFn());
-Object.defineProperty(exports, "FeatureFlags", ({ enumerable: true, get: function () { return featureFlags_1.FeatureFlags; } }));
-
-});
-
-// MODULE: ./node_modules/@forge/bridge/out/featureFlags/initFeatureFlags.js
-var featureFlags_initFeatureFlags_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
-var __webpack_unused_export__;
-
-__webpack_unused_export__ = ({ value: true });
-exports.initFeatureFlags = void 0;
-const bridge_1 = (out_bridge_namespaceFn());
-const errors_1 = (out_errors_namespaceFn());
-const utils_1 = (out_utils_namespaceFn());
-const maxOps = 500;
-const intervalInMs = 1000 * 25;
-const callBridge = (0, bridge_1.getCallBridge)();
-const validatePayload = (payload) => {
-    if (!payload || !payload.user || !payload.config) {
-        throw new errors_1.BridgeAPIError('Missing required parameters. Parameter user is required in the payload.');
-    }
-    if (!payload.config.environment || !['development', 'staging', 'production'].includes(payload.config.environment)) {
-        throw new errors_1.BridgeAPIError('Invalid environment. Valid environments are: development, staging, production');
-    }
-    if (Object.values(payload).some((val) => typeof val === 'function')) {
-        throw new errors_1.BridgeAPIError('Passing functions as part of the payload is not supported!');
-    }
-};
-const _initFeatureFlags = (payload) => {
-    validatePayload(payload);
-    return callBridge('initFeatureFlags', { user: payload.user, config: payload.config });
-};
-exports.initFeatureFlags = (0, utils_1.withRateLimiter)(_initFeatureFlags, maxOps, intervalInMs, `Feature flags initialisation calls are rate limited at ${maxOps}req/${intervalInMs / 1000}s`);
-
-});
-
-// MODULE: ./node_modules/@forge/bridge/out/fetch/fetch.js
-var fetch_fetch_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
-var __webpack_unused_export__;
-
-__webpack_unused_export__ = ({ value: true });
-exports.productFetchApi = exports.remoteFetchApi = void 0;
-const blobParser_1 = (utils_blobParser_namespaceFn());
-const parseFormData = async (form, matchFilePrefix = false) => {
-    const parsed = {};
-    for (const [key, value] of form.entries()) {
-        // Jira and Confluence REST APIs requires that the field containing
-        // the file MUST be named exactly 'file'
-        const isFileKey = matchFilePrefix ? key.startsWith('file') : key === 'file';
-        if (isFileKey) {
-            const fileName = value.name;
-            const fileType = value.type;
-            // we parse the file as a base64 string so it
-            // can be properly transfered over the bridge.
-            // we'll parse it back to Blob in the host product
-            parsed[key] = await (0, blobParser_1.blobToBase64)(value);
-            // we also need to pass the file name and type,
-            // as those will be lost in the base64 conversion
-            parsed[`__${key}Name`] = fileName;
-            parsed[`__${key}Type`] = fileType;
-        }
-        else {
-            parsed[key] = value;
-        }
-    }
-    return JSON.stringify(parsed);
-};
-const validateFetchOptions = (init) => {
-    if (!init) {
-        return init;
-    }
-    if ('signal' in init) {
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const { signal: _signal, ...rest } = init;
-        // eslint-disable-next-line no-console
-        console.error('Signal is not supported in @forge/bridge and was removed from fetch options. Please use the fetch method from @forge/api for signal support.');
-        return rest;
-    }
-    return init;
-};
-const parseRequest = async (fetchType, init) => {
-    const isFormData = (init === null || init === void 0 ? void 0 : init.body) instanceof FormData ? true : false;
-    const requestBody = isFormData ? await parseFormData(init === null || init === void 0 ? void 0 : init.body, fetchType === 'remote') : init === null || init === void 0 ? void 0 : init.body;
-    const req = new Request('', { body: requestBody, method: init === null || init === void 0 ? void 0 : init.method, headers: init === null || init === void 0 ? void 0 : init.headers });
-    // If `init.body` is a `FormData`, a `content-type` header required for the body to be parsed by the
-    // API receiving this request will be generated in req.headers.
-    const headers = Object.fromEntries(req.headers.entries());
-    const body = req.method !== 'GET' ? await req.text() : null;
-    return {
-        body,
-        headers: new Headers(headers),
-        isMultipartFormData: isFormData
-    };
-};
-const remoteFetchApi = (callBridge) => {
-    const fetch = async (remoteKey, init) => {
-        const validatedInit = validateFetchOptions(init);
-        const { body: requestBody, headers: requestHeaders, isMultipartFormData } = await parseRequest('remote', validatedInit);
-        const fetchPayload = {
-            remoteKey,
-            fetchRequestInit: { ...validatedInit, body: requestBody, headers: [...requestHeaders.entries()] },
-            isMultipartFormData
-        };
-        const { body, headers, statusText, status, isAttachment } = await callBridge('fetchRemote', fetchPayload);
-        const responseBody = isAttachment ? (0, blobParser_1.base64ToBlob)(body, headers['content-type']) : body;
-        return new Response(responseBody || null, { headers, status, statusText });
-    };
-    return {
-        requestRemote: (remoteKey, fetchOptions) => fetch(remoteKey, fetchOptions)
-    };
-};
-exports.remoteFetchApi = remoteFetchApi;
-const productFetchApi = (callBridge) => {
-    const fetch = async (product, restPath, init) => {
-        const validatedInit = validateFetchOptions(init);
-        const { body: requestBody, headers: requestHeaders, isMultipartFormData } = await parseRequest('product', validatedInit);
-        // https://ecosystem.atlassian.net/browse/BUILD-1118 Skip xsrf check for oauth request
-        if (!requestHeaders.has('X-Atlassian-Token')) {
-            requestHeaders.set('X-Atlassian-Token', 'no-check');
-        }
-        const fetchPayload = {
-            product,
-            restPath,
-            fetchRequestInit: {
-                ...validatedInit,
-                body: requestBody,
-                headers: [...requestHeaders.entries()]
-            },
-            isMultipartFormData
-        };
-        const { body, headers, statusText, status, isAttachment } = await callBridge('fetchProduct', fetchPayload);
-        const responseBody = isAttachment ? (0, blobParser_1.base64ToBlob)(body, headers['content-type']) : body;
-        return new Response(responseBody || null, { headers, status, statusText });
-    };
-    return {
-        requestConfluence: (restPath, fetchOptions) => fetch('confluence', restPath, fetchOptions),
-        requestJira: (restPath, fetchOptions) => fetch('jira', restPath, fetchOptions),
-        requestBitbucket: (restPath, fetchOptions) => fetch('bitbucket', restPath, fetchOptions)
-    };
-};
-exports.productFetchApi = productFetchApi;
-
-});
-
-// MODULE: ./node_modules/@forge/bridge/out/fetch/index.js
-var bridge_out_fetch_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
-
-var _a;
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.fetchUserRecommendations = exports.requestRemote = exports.requestBitbucket = exports.requestJira = exports.requestConfluence = void 0;
-const bridge_1 = (out_bridge_namespaceFn());
-const fetch_1 = (fetch_fetch_namespaceFn());
-_a = (0, fetch_1.productFetchApi)((0, bridge_1.getCallBridge)()), exports.requestConfluence = _a.requestConfluence, exports.requestJira = _a.requestJira, exports.requestBitbucket = _a.requestBitbucket;
-exports.requestRemote = (0, fetch_1.remoteFetchApi)((0, bridge_1.getCallBridge)()).requestRemote;
-const fetchUserRecommendations = async (input) => {
-    const callBridge = (0, bridge_1.getCallBridge)();
-    return await callBridge('fetchUserRecommendations', input);
-};
-exports.fetchUserRecommendations = fetchUserRecommendations;
-
-});
-
-// MODULE: ./node_modules/@forge/bridge/out/flag/flag.js
-var flag_flag_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.showFlag = void 0;
-const bridge_1 = (out_bridge_namespaceFn());
-const errors_1 = (out_errors_namespaceFn());
-const callBridge = (0, bridge_1.getCallBridge)();
-const showFlag = (options) => {
-    var _a;
-    if (!options.id) {
-        throw new errors_1.BridgeAPIError('"id" must be defined in flag options');
-    }
-    const result = callBridge('showFlag', {
-        ...options,
-        type: (_a = options.type) !== null && _a !== void 0 ? _a : 'info'
-    });
-    return {
-        close: async () => {
-            await result;
-            return callBridge('closeFlag', { id: options.id });
-        }
-    };
-};
-exports.showFlag = showFlag;
-
-});
-
-// MODULE: ./node_modules/@forge/bridge/out/flag/index.js
-var bridge_out_flag_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.showFlag = void 0;
-var flag_1 = (flag_flag_namespaceFn());
-Object.defineProperty(exports, "showFlag", ({ enumerable: true, get: function () { return flag_1.showFlag; } }));
-
-});
-
-// MODULE: ./node_modules/@forge/bridge/out/frontendCustomMetrics/frontendCustomMetrics.js
-var frontendCustomMetrics_frontendCustomMetrics_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.frontendCustomMetrics = void 0;
-const bridge_1 = (out_bridge_namespaceFn());
-const errors_1 = (out_errors_namespaceFn());
-const callBridge = (0, bridge_1.getCallBridge)();
-const emit = async (customMetricName, value) => {
-    await callBridge('emitFrontendCustomMetric', {
-        customMetricName,
-        value
-    });
-};
-const MAX_METRIC_NAME_LENGTH = 50;
-// Must start and end with an alphanumeric character and may only contain
-// letters, numbers, dots (.) and hyphens (-) in between.
-const METRIC_NAME_REGEX = /^[a-zA-Z0-9]([a-zA-Z0-9.-]*[a-zA-Z0-9])?$/;
-/**
- * Validates a custom metric name against the same rules enforced when
- * registering a metric in the developer console. Throws synchronously so
- * developer errors fail fast without a wasted bridge round-trip.
- *
- * Note: this is a best-effort, client-side convenience check. The metric name
- * must still match a custom metric registered in the developer console, which
- * remains the source of truth and is validated by the backend.
- */
-const validateMetricName = (name) => {
-    if (name.trim().length === 0) {
-        throw new errors_1.BridgeAPIError('Custom metric name cannot be empty');
-    }
-    if (name.length > MAX_METRIC_NAME_LENGTH) {
-        throw new errors_1.BridgeAPIError(`Custom metric name cannot exceed ${MAX_METRIC_NAME_LENGTH} characters`);
-    }
-    if (!METRIC_NAME_REGEX.test(name)) {
-        throw new errors_1.BridgeAPIError('Custom metric name must start and end with alphanumeric characters and can only contain letters, numbers, dots (.), and hyphens (-)');
-    }
-    if (name.includes('..') || name.includes('--')) {
-        throw new errors_1.BridgeAPIError('Custom metric name cannot contain consecutive dots or hyphens');
-    }
-};
-const counter = (name) => {
-    validateMetricName(name);
-    return {
-        incr: () => emit(name, 1),
-        incrBy: (value) => {
-            if (value <= 0) {
-                throw new errors_1.BridgeAPIError('Counter value must be a positive number');
-            }
-            return emit(name, value);
-        }
-    };
-};
-/**
- * Public namespace for emitting Forge frontend custom metrics from a Forge UI app.
- *
- * @example
- * import { frontendCustomMetrics } from '@forge/bridge';
- * const c = frontendCustomMetrics.counter('button-click');
- * c.incr();        // increment by 1
- * c.incrBy(5);     // increment by 5 (rejects if value <= 0)
- */
-exports.frontendCustomMetrics = { counter };
-
-});
-
-// MODULE: ./node_modules/@forge/bridge/out/frontendCustomMetrics/index.js
-var bridge_out_frontendCustomMetrics_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-const tslib_1 = (tslib_es6_namespaceFn());
-tslib_1.__exportStar((frontendCustomMetrics_frontendCustomMetrics_namespaceFn()), exports);
-
-});
-
-// MODULE: ./node_modules/@forge/bridge/out/i18n/index.js
-var out_i18n_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.createTranslationFunction = exports.getTranslations = exports.resetTranslationsCache = void 0;
-const i18n_1 = (out_namespaceFn());
-const view_1 = (bridge_out_view_namespaceFn());
-const frontendResourcesAccessor = {
-    getI18nInfoConfig: async () => {
-        const resp = await fetch(`./${i18n_1.I18N_BUNDLE_FOLDER_NAME}/${i18n_1.I18N_INFO_FILE_NAME}`);
-        if (!resp.ok) {
-            throw new Error('Failed to get i18n info config: ' + resp.statusText);
-        }
-        const info = (await resp.json());
-        return info.config;
-    },
-    getTranslationResource: async (locale) => {
-        const resp = await fetch(`./${i18n_1.I18N_BUNDLE_FOLDER_NAME}/${locale}.json`);
-        if (!resp.ok) {
-            throw new Error(`Failed to get translation resource for locale: ${locale}`);
-        }
-        return resp.json();
-    }
-};
-const translationsGetter = new i18n_1.TranslationsGetter(frontendResourcesAccessor);
-const resetTranslationsCache = () => {
-    translationsGetter.reset();
-};
-exports.resetTranslationsCache = resetTranslationsCache;
-const getTranslations = async (locale = null, options = {
-    fallback: true
-}) => {
-    let targetLocale = locale;
-    if (!targetLocale) {
-        const context = await view_1.view.getContext();
-        targetLocale = context.locale;
-    }
-    return await translationsGetter.getTranslations(targetLocale, options);
-};
-exports.getTranslations = getTranslations;
-/**
- * Creates a translation function (i.e. `t`) for the given locale.
- * If no locale is provided, the locale from the current view context is used.
- *
- * @param locale The locale to create the translation function for.
- * @returns The translation function.
- */
-const createTranslationFunction = async (locale = null) => {
-    let targetLocale = locale;
-    if (!targetLocale) {
-        const context = await view_1.view.getContext();
-        targetLocale = context.locale;
-    }
-    const translator = new i18n_1.Translator(targetLocale, translationsGetter);
-    await translator.init();
-    return (i18nKey, defaultValue) => { var _a, _b; return (_b = (_a = translator.translate(i18nKey)) !== null && _a !== void 0 ? _a : defaultValue) !== null && _b !== void 0 ? _b : i18nKey; };
-};
-exports.createTranslationFunction = createTranslationFunction;
-
-});
-
-// MODULE: ./node_modules/@forge/bridge/out/index.js
-var _forge_bridge_out_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.i18n = exports.NavigationTarget = void 0;
-const tslib_1 = (tslib_es6_namespaceFn());
-var targets_1 = (router_targets_namespaceFn());
-Object.defineProperty(exports, "NavigationTarget", ({ enumerable: true, get: function () { return targets_1.NavigationTarget; } }));
-tslib_1.__exportStar((bridge_out_invoke_namespaceFn()), exports);
-tslib_1.__exportStar((bridge_out_invoke_endpoint_namespaceFn()), exports);
-tslib_1.__exportStar((bridge_out_view_namespaceFn()), exports);
-tslib_1.__exportStar((bridge_out_router_namespaceFn()), exports);
-tslib_1.__exportStar((bridge_out_modal_namespaceFn()), exports);
-tslib_1.__exportStar((bridge_out_fetch_namespaceFn()), exports);
-tslib_1.__exportStar((out_requestTeamworkGraph_namespaceFn()), exports);
-tslib_1.__exportStar((bridge_out_flag_namespaceFn()), exports);
-tslib_1.__exportStar((bridge_out_events_namespaceFn()), exports);
-tslib_1.__exportStar((bridge_out_realtime_namespaceFn()), exports);
-tslib_1.__exportStar((bridge_out_rovo_namespaceFn()), exports);
-exports.i18n = tslib_1.__importStar((out_i18n_namespaceFn()));
-tslib_1.__exportStar((bridge_out_permissions_namespaceFn()), exports);
-tslib_1.__exportStar((out_object_store_namespaceFn()), exports);
-tslib_1.__exportStar((bridge_out_featureFlags_namespaceFn()), exports);
-tslib_1.__exportStar((bridge_out_frontendCustomMetrics_namespaceFn()), exports);
-
-});
-
-// MODULE: ./node_modules/@forge/bridge/out/invoke-endpoint/index.js
-var bridge_out_invoke_endpoint_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-const tslib_1 = (tslib_es6_namespaceFn());
-tslib_1.__exportStar((invoke_endpoint_invoke_remote_namespaceFn()), exports);
-tslib_1.__exportStar((invoke_endpoint_invoke_service_namespaceFn()), exports);
-
-});
-
-// MODULE: ./node_modules/@forge/bridge/out/invoke-endpoint/invoke-endpoint.js
-var invoke_endpoint_invoke_endpoint_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
-var __webpack_unused_export__;
-
-__webpack_unused_export__ = ({ value: true });
-exports.InvokeType = void 0;
-exports._invokeEndpointFn = _invokeEndpointFn;
-const bridge_1 = (out_bridge_namespaceFn());
-const errors_1 = (out_errors_namespaceFn());
-const utils_1 = (out_utils_namespaceFn());
-const MAX_NUM_OPERATIONS = 500;
-const OPERATION_INTERVAL_SEC = 25;
-const OPERATION_INTERVAL_MS = 1000 * OPERATION_INTERVAL_SEC;
-var InvokeType;
-(function (InvokeType) {
-    InvokeType["REMOTE"] = "Remote";
-    InvokeType["SERVICE"] = "Container";
-})(InvokeType || (exports.InvokeType = InvokeType = {}));
-const callBridge = (0, bridge_1.getCallBridge)();
-const validatePayload = (payload) => {
-    if (!payload)
-        return;
-    if (Object.values(payload).some((val) => typeof val === 'function')) {
-        throw new errors_1.BridgeAPIError('Passing functions as part of the payload is not supported!');
-    }
-};
-const _setupInvokeEndpointFn = (invokeType) => async (input) => {
-    validatePayload(input);
-    const callBridgePayload = {
-        ...input,
-        invokeType: `ui-${invokeType.toLowerCase()}-fetch`
-    };
-    const bridgeResponse = await callBridge('invoke', callBridgePayload);
-    const { success, payload, error } = bridgeResponse !== null && bridgeResponse !== void 0 ? bridgeResponse : {};
-    const response = { ...(success ? payload : error) };
-    if (response && response.headers) {
-        for (const header in response.headers) {
-            if (Array.isArray(response.headers[header])) {
-                response.headers[header] = response.headers[header].join(',');
-            }
-        }
-    }
-    return response;
-};
-function _invokeEndpointFn(invokeType) {
-    const invokeEndpointFn = _setupInvokeEndpointFn(invokeType);
-    return (0, utils_1.withRateLimiter)(invokeEndpointFn, MAX_NUM_OPERATIONS, OPERATION_INTERVAL_MS, `${invokeType} invocation calls are rate limited at ${MAX_NUM_OPERATIONS}/${OPERATION_INTERVAL_SEC}s`);
-}
-
-});
-
-// MODULE: ./node_modules/@forge/bridge/out/invoke-endpoint/invoke-remote.js
-var invoke_endpoint_invoke_remote_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.invokeRemote = void 0;
-const invoke_endpoint_1 = (invoke_endpoint_invoke_endpoint_namespaceFn());
-const invokeRemote = (input) => {
-    const invokeEndpoint = (0, invoke_endpoint_1._invokeEndpointFn)(invoke_endpoint_1.InvokeType.REMOTE);
-    return invokeEndpoint(input);
-};
-exports.invokeRemote = invokeRemote;
-
-});
-
-// MODULE: ./node_modules/@forge/bridge/out/invoke-endpoint/invoke-service.js
-var invoke_endpoint_invoke_service_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.invokeService = void 0;
-const invoke_endpoint_1 = (invoke_endpoint_invoke_endpoint_namespaceFn());
-const invokeService = (input) => {
-    const invokeEndpoint = (0, invoke_endpoint_1._invokeEndpointFn)(invoke_endpoint_1.InvokeType.SERVICE);
-    return invokeEndpoint(input);
-};
-exports.invokeService = invokeService;
-
-});
-
-// MODULE: ./node_modules/@forge/bridge/out/invoke/index.js
-var bridge_out_invoke_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-const tslib_1 = (tslib_es6_namespaceFn());
-tslib_1.__exportStar((invoke_invoke_namespaceFn()), exports);
-
-});
-
-// MODULE: ./node_modules/@forge/bridge/out/invoke/invoke.js
-var invoke_invoke_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.invoke = invoke;
-exports.makeInvoke = makeInvoke;
-const bridge_1 = (out_bridge_namespaceFn());
-const errors_1 = (out_errors_namespaceFn());
-const utils_1 = (out_utils_namespaceFn());
-const callBridge = (0, bridge_1.getCallBridge)();
-const validatePayload = (payload) => {
-    if (!payload)
-        return;
-    if (Object.values(payload).some((val) => typeof val === 'function')) {
-        throw new errors_1.BridgeAPIError('Passing functions as part of the payload is not supported!');
-    }
-};
-const _invoke = async (functionKey, payload, metadata) => {
-    if (typeof functionKey !== 'string') {
-        throw new errors_1.BridgeAPIError('functionKey must be a string!');
-    }
-    validatePayload(payload);
-    // When metadata is defined, the bridge returns the response wrapped in metadata as { body, metadata }
-    // Otherwise, the bridge returns the response directly
-    return await callBridge('invoke', { functionKey, payload, metadata });
-};
-const limitedInvoke = (0, utils_1.withRateLimiter)(_invoke, 500, 1000 * 25, 'Resolver calls are rate limited at 500req/25s');
-/**
- * Calls a backend resolver function by key.
- */
-function invoke(functionKey, payload, metadata) {
-    return limitedInvoke(functionKey, payload, metadata);
-}
-/**
- * Specialises the invoke function to a given Definitions type.
- *
- * @returns An invoke function that can be used to call backend functions.
- */
-function makeInvoke() {
-    return invoke;
-}
-
-});
-
-// MODULE: ./node_modules/@forge/bridge/out/modal/index.js
-var bridge_out_modal_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-const tslib_1 = (tslib_es6_namespaceFn());
-tslib_1.__exportStar((modal_modal_namespaceFn()), exports);
-
-});
-
-// MODULE: ./node_modules/@forge/bridge/out/modal/modal.js
-var modal_modal_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.Modal = void 0;
-const bridge_1 = (out_bridge_namespaceFn());
-const errors_1 = (out_errors_namespaceFn());
-const callBridge = (0, bridge_1.getCallBridge)();
-const NAMED_MODAL_SIZES = ['small', 'medium', 'large', 'xlarge', 'max', 'fullscreen', 'resizable'];
-// eslint-disable-next-line @typescript-eslint/no-empty-function
-const noop = () => { };
-function isNamedModalSize(size) {
-    return typeof size === 'string' && NAMED_MODAL_SIZES.includes(size);
-}
-function isCustomModalSize(size) {
-    if (typeof size !== 'object' || size === null)
-        return false;
-    const s = size;
-    return typeof s.width === 'string' && (s.height === undefined || typeof s.height === 'string');
-}
-function isValidModalSize(size) {
-    return isNamedModalSize(size) || isCustomModalSize(size);
-}
-class Modal {
-    constructor(opts) {
-        var _a, _b;
-        this.resource = (opts === null || opts === void 0 ? void 0 : opts.resource) || null;
-        this.onClose = (opts === null || opts === void 0 ? void 0 : opts.onClose) || noop;
-        this.size = (opts === null || opts === void 0 ? void 0 : opts.size) || 'medium';
-        this.context = (opts === null || opts === void 0 ? void 0 : opts.context) || {};
-        this.closeOnEscape = (_a = opts === null || opts === void 0 ? void 0 : opts.closeOnEscape) !== null && _a !== void 0 ? _a : true;
-        this.closeOnOverlayClick = (_b = opts === null || opts === void 0 ? void 0 : opts.closeOnOverlayClick) !== null && _b !== void 0 ? _b : true;
-        this.title = (opts === null || opts === void 0 ? void 0 : opts.title) || '';
-        this.icon = (opts === null || opts === void 0 ? void 0 : opts.icon) || '';
-    }
-    async open() {
-        if (!isValidModalSize(this.size)) {
-            throw new errors_1.BridgeAPIError(`Invalid modal size: ${JSON.stringify(this.size)}. Must be one of the named sizes (${NAMED_MODAL_SIZES.join(', ')}) or a custom dimensions object with a "width" string property and an optional "height" string property.`);
-        }
-        try {
-            const success = await callBridge('openModal', {
-                resource: this.resource,
-                onClose: this.onClose,
-                size: this.size,
-                context: this.context,
-                closeOnEscape: this.closeOnEscape,
-                closeOnOverlayClick: this.closeOnOverlayClick,
-                title: this.title,
-                icon: this.icon
-            });
-            if (success === false) {
-                throw new errors_1.BridgeAPIError('Unable to open modal.');
-            }
-        }
-        catch (err) {
-            throw new errors_1.BridgeAPIError('Unable to open modal.');
-        }
-    }
-}
-exports.Modal = Modal;
-
-});
-
-// MODULE: ./node_modules/@forge/bridge/out/object-store/deleteObjects.js
-var object_store_deleteObjects_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
-var __webpack_unused_export__;
-
-__webpack_unused_export__ = ({ value: true });
-exports.deleteObjects = void 0;
-const invoke_1 = (bridge_out_invoke_namespaceFn());
-const errors_1 = (out_errors_namespaceFn());
-const bridge_1 = (out_bridge_namespaceFn());
-const callBridge = (0, bridge_1.getCallBridge)();
-/**
- * Delete multiple objects
- *
- * @param functionKey - Configuration object containing the backend function key to delete objects
- * @param keys - Array of object keys to delete
- * @returns Promise<void>
- * @throws {BridgeAPIError} When deleting fails
- */
-const deleteObjects = async ({ functionKey, keys }) => {
-    void callBridge('trackObjectStoreAction', { action: 'delete' });
-    if (!functionKey || functionKey.length === 0) {
-        throw new errors_1.BridgeAPIError('functionKey is required to delete objects');
-    }
-    if (!Array.isArray(keys) || keys.length === 0) {
-        throw new errors_1.BridgeAPIError('keys array is required and must not be empty');
-    }
-    await Promise.all(keys.map(async (key) => {
-        await (0, invoke_1.invoke)(functionKey, { key });
-    }));
-};
-exports.deleteObjects = deleteObjects;
-
-});
-
-// MODULE: ./node_modules/@forge/bridge/out/object-store/download.js
-var object_store_download_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
-var __webpack_unused_export__;
-
-__webpack_unused_export__ = ({ value: true });
-exports.download = void 0;
-const invoke_1 = (bridge_out_invoke_namespaceFn());
-const errors_1 = (out_errors_namespaceFn());
-const bridge_1 = (out_bridge_namespaceFn());
-const callBridge = (0, bridge_1.getCallBridge)();
-/**
- * Download multiple objects from pre-signed URLs
- *
- * @param functionKey - Configuration object containing the backend function key to filter and generate download URLs
- * @param keys - Array of object keys to download
- * @returns Promise resolving to DownloadResult[]
- * @throws {BridgeAPIError} When filtering fails or download encounters an error
- */
-const download = async ({ functionKey, keys }) => {
-    void callBridge('trackObjectStoreAction', { action: 'download' });
-    if (!functionKey || functionKey.length === 0) {
-        throw new errors_1.BridgeAPIError('functionKey is required to filter and generate download URLs');
-    }
-    if (!Array.isArray(keys) || keys.length === 0) {
-        throw new errors_1.BridgeAPIError('keys array is required and must not be empty');
-    }
-    const downloadUrlsTokeys = (await (0, invoke_1.invoke)(functionKey, {
-        keys
-    }));
-    if (!downloadUrlsTokeys || typeof downloadUrlsTokeys !== 'object') {
-        throw new errors_1.BridgeAPIError('Invalid response from functionKey');
-    }
-    const downloadPromises = Object.entries(downloadUrlsTokeys).map(async ([downloadUrl, key]) => {
-        try {
-            const response = await fetch(downloadUrl, {
-                method: 'GET'
-            });
-            if (!response.ok) {
-                return {
-                    success: false,
-                    key: key,
-                    status: response.status,
-                    error: `Download failed with status ${response.status}`
-                };
-            }
-            const blob = await response.blob();
-            return {
-                success: true,
-                key: key,
-                blob,
-                status: response.status
-            };
-        }
-        catch (error) {
-            return {
-                success: false,
-                key: key,
-                status: 503,
-                error: error instanceof Error ? error.message : 'Download failed'
-            };
-        }
-    });
-    const results = await Promise.all(downloadPromises);
-    return results;
-};
-exports.download = download;
-
-});
-
-// MODULE: ./node_modules/@forge/bridge/out/object-store/getMetadata.js
-var object_store_getMetadata_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
-var __webpack_unused_export__;
-
-__webpack_unused_export__ = ({ value: true });
-exports.getMetadata = void 0;
-const index_1 = (bridge_out_invoke_namespaceFn());
-const errors_1 = (out_errors_namespaceFn());
-const bridge_1 = (out_bridge_namespaceFn());
-const callBridge = (0, bridge_1.getCallBridge)();
-/**
- * Get metadata for multiple objectIds
- *
- * @param functionKey - Configuration object containing the backend function key to filter and generate object metadata
- * @param keys - Array of object keys to get metadata for
- * @returns Promise resolving to GetMetadataResult[]
- * @throws {BridgeAPIError} When filtering fails or download encounters an error
- */
-const getMetadata = async ({ functionKey, keys }) => {
-    void callBridge('trackObjectStoreAction', { action: 'getMetadata' });
-    if (!functionKey || functionKey.length === 0) {
-        throw new errors_1.BridgeAPIError('functionKey is required to filter and generate object metadata');
-    }
-    if (!Array.isArray(keys) || keys.length === 0) {
-        throw new errors_1.BridgeAPIError('keys array is required and must not be empty');
-    }
-    const results = await Promise.all(keys.map(async (key) => {
-        const result = (await (0, index_1.invoke)(functionKey, { key }));
-        if (!result || typeof result !== 'object') {
-            return {
-                key: key,
-                error: 'Invalid response from functionKey'
-            };
-        }
-        return result;
-    }));
-    return results;
-};
-exports.getMetadata = getMetadata;
-
-});
-
-// MODULE: ./node_modules/@forge/bridge/out/object-store/index.js
-var out_object_store_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-const tslib_1 = (tslib_es6_namespaceFn());
-tslib_1.__exportStar((object_store_objectStore_namespaceFn()), exports);
-tslib_1.__exportStar((out_object_store_types_namespaceFn()), exports);
-
-});
-
-// MODULE: ./node_modules/@forge/bridge/out/object-store/objectStore.js
-var object_store_objectStore_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.createUploadPromises = exports.objectStore = void 0;
-const upload_1 = (object_store_upload_namespaceFn());
-Object.defineProperty(exports, "createUploadPromises", { enumerable: true, get: function () { return upload_1.createUploadPromises; } });
-const deleteObjects_1 = (object_store_deleteObjects_namespaceFn());
-const download_1 = (object_store_download_namespaceFn());
-const getMetadata_1 = (object_store_getMetadata_namespaceFn());
-exports.objectStore = {
-    upload: upload_1.upload,
-    download: download_1.download,
-    getMetadata: getMetadata_1.getMetadata,
-    delete: deleteObjects_1.deleteObjects
-};
-
-});
-
-// EXTERNAL MODULE: ./node_modules/@forge/bridge/out/object-store/types.js
-var out_object_store_types_namespaceFn = () => {
-	return __webpack_require__(2572);
-};
-
-// MODULE: ./node_modules/@forge/bridge/out/object-store/upload.js
-var object_store_upload_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
-var __webpack_unused_export__;
-
-__webpack_unused_export__ = ({ value: true });
-exports.upload = exports.createUploadPromises = void 0;
-const invoke_1 = (bridge_out_invoke_namespaceFn());
-const errors_1 = (out_errors_namespaceFn());
-const bridge_1 = (out_bridge_namespaceFn());
-const callBridge = (0, bridge_1.getCallBridge)();
-/**
- * Convert base64 string to Blob
- */
-const base64ToBlob = (base64, mimeType) => {
-    const byteCharacters = atob(base64);
-    const byteNumbers = new Array(byteCharacters.length);
-    for (let i = 0; i < byteCharacters.length; i++) {
-        byteNumbers[i] = byteCharacters.charCodeAt(i);
-    }
-    const byteArray = new Uint8Array(byteNumbers);
-    return new Blob([byteArray], { type: mimeType || 'application/octet-stream' });
-};
-/**
- * Get metadata for a blob object including size and checksum
- */
-const getObjectMetadata = async (blob) => {
-    const length = blob.size;
-    // Calculate checksum using SubtleCrypto API
-    const arrayBuffer = await blob.arrayBuffer();
-    const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer);
-    const hashArray = new Uint8Array(hashBuffer);
-    // Convert to base64 format (required by OS API)
-    const checksum = btoa(String.fromCharCode(...hashArray));
-    const checksumType = 'SHA256';
-    return {
-        length,
-        checksum,
-        checksumType
-    };
-};
-/**
- * Start individual upload operations and return array of promises
- * This allows tracking per-file upload progress
- *
- * @param functionKey - Configuration object containing the backend function key to filter and generate presigned URLs
- * @param objects - Array of Blob objects or Base64Object (with data and optional mimeType) to upload
- * @returns Array of individual upload promises with their associated index
- * @throws {BridgeAPIError} When filtering fails or upload encounters an error
- */
-const createUploadPromises = async ({ functionKey, objects }) => {
-    if (!functionKey || functionKey.length === 0) {
-        throw new errors_1.BridgeAPIError('functionKey is required to filter and generate presigned URLs');
-    }
-    if (!Array.isArray(objects) || objects.length === 0) {
-        throw new errors_1.BridgeAPIError('objects array is required and must not be empty');
-    }
-    // Validate and convert objects to Blobs in a single pass
-    const blobs = objects.map((obj, index) => {
-        if (obj instanceof Blob) {
-            return obj;
-        }
-        const isBase64Object = obj && typeof obj === 'object' && 'data' in obj && typeof obj.data === 'string';
-        if (!isBase64Object) {
-            throw new errors_1.BridgeAPIError(`Invalid object type at index ${index}. Only Blob or Base64Object (with data string and optional mimeType) are accepted.`);
-        }
-        try {
-            return base64ToBlob(obj.data, obj.mimeType);
-        }
-        catch (e) {
-            throw new errors_1.BridgeAPIError(`Invalid base64 data at index ${index}. The data string must be valid base64 encoded.`);
-        }
-    });
-    const allObjectMetadata = await Promise.all(blobs.map((blob) => getObjectMetadata(blob)));
-    const presignedURLsToObjectMetadata = (await (0, invoke_1.invoke)(functionKey, {
-        allObjectMetadata
-    }));
-    if (!presignedURLsToObjectMetadata || typeof presignedURLsToObjectMetadata !== 'object') {
-        throw new errors_1.BridgeAPIError('Invalid response from functionKey');
-    }
-    const checksumToBlobMap = new Map();
-    const checksumToIndexMap = new Map();
-    blobs.forEach((blob, index) => {
-        const metadata = allObjectMetadata[index];
-        checksumToBlobMap.set(metadata.checksum, blob);
-        checksumToIndexMap.set(metadata.checksum, index);
-    });
-    const uploadPromises = Object.entries(presignedURLsToObjectMetadata).map(([presignedUrl, metadata]) => {
-        const { key, checksum } = metadata;
-        const object = checksumToBlobMap.get(checksum);
-        const index = checksumToIndexMap.get(checksum);
-        if (index === undefined) {
-            return {
-                promise: Promise.resolve({
-                    success: false,
-                    key: key,
-                    error: `Index not found for checksum ${checksum}`
-                }),
-                index: -1
-            };
-        }
-        if (!object) {
-            return {
-                promise: Promise.resolve({
-                    success: false,
-                    key: key,
-                    error: `Blob not found for checksum ${checksum}`
-                }),
-                index
-            };
-        }
-        const uploadPromise = (async () => {
-            try {
-                const response = await fetch(presignedUrl, {
-                    method: 'PUT',
-                    body: object,
-                    headers: {
-                        'Content-Type': object.type || 'application/octet-stream',
-                        'Content-Length': object.size.toString()
-                    }
-                });
-                return {
-                    success: response.ok,
-                    key: key,
-                    status: response.status,
-                    error: response.ok ? undefined : `Upload failed with status ${response.status}`
-                };
-            }
-            catch (error) {
-                return {
-                    success: false,
-                    key: key,
-                    status: 503,
-                    error: error instanceof Error ? error.message : 'Upload failed'
-                };
-            }
-        })();
-        return { promise: uploadPromise, index, objectType: object.type, objectSize: object.size };
-    });
-    return uploadPromises;
-};
-exports.createUploadPromises = createUploadPromises;
-/**
- * Upload multiple objects to pre-signed URLs
- *
- * @param functionKey - Configuration object containing the backend function key to filter and generate presigned URLs
- * @param objects - Array of Blob objects or Base64Object (with data and optional mimeType) to upload
- * @returns Promise resolving to UploadResult[]
- * @throws {BridgeAPIError} When filtering fails or upload encounters an error
- */
-const upload = async ({ functionKey, objects }) => {
-    void callBridge('trackObjectStoreAction', { action: 'upload' });
-    const uploadPromises = await (0, exports.createUploadPromises)({ functionKey, objects });
-    const results = await Promise.all(uploadPromises.map((item) => item.promise));
-    return results;
-};
-exports.upload = upload;
-
-});
-
-// MODULE: ./node_modules/@forge/bridge/out/permissions/index.js
-var bridge_out_permissions_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-const tslib_1 = (tslib_es6_namespaceFn());
-tslib_1.__exportStar((permissions_permissions_namespaceFn()), exports);
-tslib_1.__exportStar((permissions_permissionsUtil_namespaceFn()), exports);
-
-});
-
-// MODULE: ./node_modules/@forge/bridge/out/permissions/permissions.js
-var permissions_permissions_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.permissions = void 0;
-const bridge_1 = (out_bridge_namespaceFn());
-const callBridge = (0, bridge_1.getCallBridge)();
-const egressGet = async (payload) => {
-    return callBridge('__permission__egressGet', payload);
-};
-const egressSet = async (payload) => {
-    return callBridge('__permission__egressSet', payload);
-};
-const egressDeleteDomain = async (payload) => {
-    return callBridge('__permission__egressDeleteDomain', payload);
-};
-const egressDeleteGroup = async (payload) => {
-    return callBridge('__permission__egressDeleteGroup', payload);
-};
-const remoteGet = async (payload) => {
-    return callBridge('__permission__remoteGet', payload);
-};
-const remoteSet = async (payload) => {
-    return callBridge('__permission__remoteSet', payload);
-};
-exports.permissions = {
-    egress: {
-        get: egressGet,
-        set: egressSet,
-        deleteDomain: egressDeleteDomain,
-        deleteGroup: egressDeleteGroup
-    },
-    remote: {
-        get: remoteGet,
-        set: remoteSet
-    }
-};
-
-});
-
-// MODULE: ./node_modules/@forge/bridge/out/permissions/permissionsUtil.js
-var permissions_permissionsUtil_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.createPermissionUtils = createPermissionUtils;
-exports.checkPermissions = checkPermissions;
-const egress_1 = (egress_out_namespaceFn());
-const view_1 = (bridge_out_view_namespaceFn());
-/**
- * Helper function to extract URL string from external URL permissions.
- * Matches the implementation in @forge/api for consistency.
- */
-function extractUrlString(url) {
-    if (typeof url === 'string') {
-        return url;
-    }
-    if ('address' in url && url.address) {
-        return url.address;
-    }
-    return url.remote || '';
-}
-/**
- * Resource types that can be loaded externally
- */
-const RESOURCE_TYPES = ['fonts', 'styles', 'frames', 'images', 'media', 'scripts'];
-/**
- * Fetch types for external requests
- */
-const FETCH_TYPES = ['backend', 'client'];
-/**
- * Create permission utilities from runtime permissions
- * @param runtimePermissions - The runtime permissions from context
- * @returns Permission utilities or null if permissions are not available
- */
-function createPermissionUtils(runtimePermissions) {
-    if (!runtimePermissions) {
-        return null;
-    }
-    const { scopes, external = {} } = runtimePermissions;
-    const scopeArray = Array.isArray(scopes) ? scopes : Object.keys(scopes || {});
-    return {
-        hasScope: (scope) => scopeArray.includes(scope),
-        canFetchFrom: (type, url) => {
-            var _a;
-            const fetchUrls = (_a = external.fetch) === null || _a === void 0 ? void 0 : _a[type];
-            if (!(fetchUrls === null || fetchUrls === void 0 ? void 0 : fetchUrls.length))
-                return false;
-            // Extract URLs and create egress filter
-            const allowList = fetchUrls.map(extractUrlString).filter((u) => u.length > 0);
-            if (allowList.length === 0)
-                return false;
-            const egressFilter = new egress_1.EgressFilteringService(allowList);
-            // Backend: hostname-only matching, Client: CSP validation (includes paths)
-            // Type assertion needed because node_modules may have outdated types
-            const egressFilterWithCSP = egressFilter;
-            return type === 'client' ? egressFilterWithCSP.isValidUrlCSP(url) : egressFilter.isValidUrl(url);
-        },
-        canLoadResource: (type, url) => {
-            const resourceUrls = external[type];
-            if (!(resourceUrls === null || resourceUrls === void 0 ? void 0 : resourceUrls.length))
-                return false;
-            // Extract URLs and create egress filter
-            const allowList = resourceUrls.map(extractUrlString).filter((u) => u.length > 0);
-            if (allowList.length === 0)
-                return false;
-            const egressFilter = new egress_1.EgressFilteringService(allowList);
-            // All resources use CSP validation (checks protocol + hostname + paths)
-            // Type assertion needed because node_modules may have outdated types
-            const egressFilterWithCSP = egressFilter;
-            return egressFilterWithCSP.isValidUrlCSP(url);
-        },
-        getScopes: () => scopeArray,
-        getExternalPermissions: () => external,
-        hasAnyPermissions: () => scopeArray.length > 0 || Object.keys(external).length > 0
-    };
-}
-/**
- * Check if required scopes are granted
- */
-function checkScopes(requiredScopes, permissionUtils) {
-    if (!(requiredScopes === null || requiredScopes === void 0 ? void 0 : requiredScopes.length)) {
-        return undefined;
-    }
-    const missingScopes = requiredScopes.filter((scope) => !permissionUtils.hasScope(scope));
-    return missingScopes.length > 0 ? missingScopes : undefined;
-}
-/**
- * Check if required fetch permissions are granted
- */
-function checkFetchPermissions(requiredFetch, permissionUtils) {
-    if (!(requiredFetch === null || requiredFetch === void 0 ? void 0 : requiredFetch.fetch)) {
-        return undefined;
-    }
-    const missingFetch = {};
-    FETCH_TYPES.forEach((type) => {
-        var _a;
-        const requiredUrls = (_a = requiredFetch.fetch) === null || _a === void 0 ? void 0 : _a[type];
-        if (requiredUrls === null || requiredUrls === void 0 ? void 0 : requiredUrls.length) {
-            const missingUrls = requiredUrls.filter((url) => !permissionUtils.canFetchFrom(type, url));
-            if (missingUrls.length > 0) {
-                missingFetch[type] = missingUrls;
-            }
-        }
-    });
-    return Object.keys(missingFetch).length > 0 ? missingFetch : undefined;
-}
-/**
- * Check if required resource permissions are granted
- */
-function checkResourcePermissions(requiredExternal, permissionUtils) {
-    const missingResources = {};
-    RESOURCE_TYPES.forEach((type) => {
-        const requiredUrls = requiredExternal === null || requiredExternal === void 0 ? void 0 : requiredExternal[type];
-        if (requiredUrls === null || requiredUrls === void 0 ? void 0 : requiredUrls.length) {
-            const missingUrls = requiredUrls.filter((url) => !permissionUtils.canLoadResource(type, url));
-            if (missingUrls.length > 0) {
-                missingResources[type] = missingUrls;
-            }
-        }
-    });
-    return Object.keys(missingResources).length > 0 ? missingResources : undefined;
-}
-/**
- * Check if required external permissions are granted
- */
-function checkExternalPermissions(requiredExternal, permissionUtils) {
-    if (!requiredExternal) {
-        return undefined;
-    }
-    const missingFetch = checkFetchPermissions(requiredExternal, permissionUtils);
-    const missingResources = checkResourcePermissions(requiredExternal, permissionUtils);
-    if (!missingFetch && !missingResources) {
-        return undefined;
-    }
-    const missingExternal = {};
-    if (missingFetch) {
-        missingExternal.fetch = missingFetch;
-    }
-    if (missingResources) {
-        Object.assign(missingExternal, missingResources);
-    }
-    return missingExternal;
-}
-// Throws if a field that should be a plain object but is something else.
-// Only used for external and external.fetch, which are guarded above.
-function validateObjectField(value, fieldPath) {
-    if (value !== undefined) {
-        if (typeof value !== 'object' || value === null || Array.isArray(value)) {
-            throw new TypeError(`${fieldPath} should be an object, not ${Array.isArray(value) ? 'an array' : `a ${typeof value}`}`);
-        }
-    }
-}
-// Throws if a field that should be an array but is something else.
-function validateArrayField(value, fieldPath) {
-    if (value !== undefined && !Array.isArray(value)) {
-        throw new TypeError(`${fieldPath} should be an array, not a ${typeof value}`);
-    }
-}
-/**
- * Validates that fields in requiredPermissions have the correct types.
- */
-function validatePermissionShape(requiredPermissions) {
-    validateArrayField(requiredPermissions.scopes, 'scopes');
-    const external = requiredPermissions.external;
-    if (external === undefined)
-        return;
-    validateObjectField(external, 'external');
-    if (external.fetch !== undefined) {
-        validateObjectField(external.fetch, 'external.fetch');
-        for (const type of FETCH_TYPES) {
-            validateArrayField(external.fetch[type], `external.fetch.${type}`);
-        }
-    }
-    for (const type of RESOURCE_TYPES) {
-        validateArrayField(external[type], `external.${type}`);
-    }
-}
-/**
- * Check if required permissions are granted
- * @param requiredPermissions - The permissions required to check
- * @param runtimePermissions - The runtime permissions from context (optional, will be fetched from view.getContext() if not provided)
- * @returns Promise resolving to permission check result with granted status and missing permissions
- */
-async function checkPermissions(requiredPermissions, runtimePermissions) {
-    var _a;
-    // Early return for falsy required permissions
-    if (!requiredPermissions) {
-        return { granted: false, missing: null };
-    }
-    validatePermissionShape(requiredPermissions);
-    // Early return for empty permissions (no requirements = all granted)
-    if (!((_a = requiredPermissions.scopes) === null || _a === void 0 ? void 0 : _a.length) && !requiredPermissions.external) {
-        return { granted: true, missing: null };
-    }
-    // If runtimePermissions is not provided, fetch it from context
-    let permissionsToCheck = runtimePermissions;
-    if (!permissionsToCheck) {
-        const context = await view_1.view.getContext();
-        permissionsToCheck = context.permissions;
-    }
-    const permissionUtils = createPermissionUtils(permissionsToCheck);
-    if (!permissionUtils) {
-        // If permissions are not available, return not granted
-        return { granted: false, missing: null };
-    }
-    const missing = {};
-    let hasAllRequiredPermissions = true;
-    // Check scopes
-    const missingScopes = checkScopes(requiredPermissions.scopes, permissionUtils);
-    if (missingScopes) {
-        missing.scopes = missingScopes;
-        hasAllRequiredPermissions = false;
-    }
-    // Check external permissions
-    const missingExternal = checkExternalPermissions(requiredPermissions.external, permissionUtils);
-    if (missingExternal) {
-        missing.external = missingExternal;
-        hasAllRequiredPermissions = false;
-    }
-    // Note: Content permissions are not supported in the current RuntimePermissions type
-    return {
-        granted: hasAllRequiredPermissions,
-        missing: hasAllRequiredPermissions ? null : missing
-    };
-}
-
-});
-
-// MODULE: ./node_modules/@forge/bridge/out/realtime/index.js
-var bridge_out_realtime_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.Bitbucket = exports.Confluence = exports.Jira = exports.realtime = void 0;
-var realtime_1 = (realtime_realtime_namespaceFn());
-Object.defineProperty(exports, "realtime", ({ enumerable: true, get: function () { return realtime_1.realtime; } }));
-var productContext_1 = (realtime_productContext_namespaceFn());
-Object.defineProperty(exports, "Jira", ({ enumerable: true, get: function () { return productContext_1.Jira; } }));
-Object.defineProperty(exports, "Confluence", ({ enumerable: true, get: function () { return productContext_1.Confluence; } }));
-Object.defineProperty(exports, "Bitbucket", ({ enumerable: true, get: function () { return productContext_1.Bitbucket; } }));
-
-});
-
-// MODULE: ./node_modules/@forge/bridge/out/realtime/productContext.js
-var realtime_productContext_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
-
-// These enum values directly map to properties in the context.extension object in a product's FCT.
-// It allows a subset of properties to be specified for Realtime channel authorization.
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.Bitbucket = exports.Confluence = exports.Jira = void 0;
-var Jira;
-(function (Jira) {
-    Jira["Board"] = "board";
-    Jira["Issue"] = "issue";
-    Jira["Project"] = "project";
-})(Jira || (exports.Jira = Jira = {}));
-var Confluence;
-(function (Confluence) {
-    Confluence["Content"] = "content";
-    Confluence["Space"] = "space";
-})(Confluence || (exports.Confluence = Confluence = {}));
-var Bitbucket;
-(function (Bitbucket) {
-    Bitbucket["Repository"] = "repository";
-    Bitbucket["PullRequest"] = "pullRequest";
-})(Bitbucket || (exports.Bitbucket = Bitbucket = {}));
-
-});
-
-// MODULE: ./node_modules/@forge/bridge/out/realtime/realtime.js
-var realtime_realtime_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.realtime = void 0;
-const bridge_1 = (out_bridge_namespaceFn());
-const callBridge = (0, bridge_1.getCallBridge)();
-const publish = (channel, payload, options) => {
-    return callBridge('publishRealtimeChannel', { channelName: channel, eventPayload: payload, options });
-};
-const subscribe = (channel, callback, options) => {
-    return callBridge('subscribeRealtimeChannel', {
-        channelName: channel,
-        onEvent: callback,
-        options
-    });
-};
-const publishGlobal = (channel, payload, options) => {
-    return callBridge('publishRealtimeChannel', { channelName: channel, eventPayload: payload, options, isGlobal: true });
-};
-const subscribeGlobal = (channel, callback, options) => {
-    return callBridge('subscribeRealtimeChannel', {
-        channelName: channel,
-        onEvent: callback,
-        options,
-        isGlobal: true
-    });
-};
-exports.realtime = {
-    publish,
-    subscribe,
-    publishGlobal,
-    subscribeGlobal
-};
-
-});
-
-// MODULE: ./node_modules/@forge/bridge/out/requestTeamworkGraph/index.js
-var out_requestTeamworkGraph_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.requestTeamworkGraph = void 0;
-const bridge_1 = (out_bridge_namespaceFn());
-const callBridge = (0, bridge_1.getCallBridge)();
-const requestTeamworkGraph = async (query, variables) => {
-    const response = await callBridge('requestTeamworkGraph', { query, variables });
-    return response;
-};
-exports.requestTeamworkGraph = requestTeamworkGraph;
-
-});
-
-// MODULE: ./node_modules/@forge/bridge/out/router/index.js
-var bridge_out_router_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-const tslib_1 = (tslib_es6_namespaceFn());
-tslib_1.__exportStar((router_router_namespaceFn()), exports);
-
-});
-
-// MODULE: ./node_modules/@forge/bridge/out/router/router.js
-var router_router_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.router = void 0;
-const bridge_1 = (out_bridge_namespaceFn());
-const callBridge = (0, bridge_1.getCallBridge)();
-/**
- * Returns a URL object for a given location.
- *
- * @param location - The location to get the URL for
- * @returns A URL object for the given location
- */
-const getUrl = async (location) => {
-    if (!(location === null || location === void 0 ? void 0 : location.target)) {
-        throw new Error('target is required for getUrl');
-    }
-    const url = await callBridge('getUrl', location);
-    if (!url) {
-        throw new Error('Failed to get URL');
-    }
-    try {
-        return new URL(url);
-    }
-    catch (error) {
-        throw new Error(`Failed to parse URL: ${url} (${error})`);
-    }
-};
-/**
- * Navigates to a location within the same tab.
- *
- * @param location URL or `NavigationLocation` object
- * @returns a promise that resolves when navigation is complete
- */
-const navigate = (location) => {
-    if (typeof location === 'string') {
-        return callBridge('navigate', { url: location, type: 'same-tab' });
-    }
-    else {
-        if (!(location === null || location === void 0 ? void 0 : location.target)) {
-            throw new Error('target is required for navigation');
-        }
-        return callBridge('navigate', { ...location, type: 'same-tab' });
-    }
-};
-/**
- * Opens a new tab in the browser and navigates to the specified location.
- *
- * @param location URL or `NavigationLocation` object
- * @returns a promise that resolves when navigation is complete
- */
-const open = (location) => {
-    if (typeof location === 'string') {
-        return callBridge('navigate', { url: location, type: 'new-tab' });
-    }
-    else {
-        if (!(location === null || location === void 0 ? void 0 : location.target)) {
-            throw new Error('target is required for navigation');
-        }
-        return callBridge('navigate', { ...location, type: 'new-tab' });
-    }
-};
-/**
- * Reloads the page.
- *
- * @returns a promise that resolves to void when the page is reloaded
- */
-const reload = async () => callBridge('reload');
-exports.router = {
-    getUrl,
-    navigate,
-    open,
-    reload
-};
-
-});
-
-// EXTERNAL MODULE: ./node_modules/@forge/bridge/out/router/targets.js
-var router_targets_namespaceFn = () => {
-	return __webpack_require__(8325);
-};
-
-// MODULE: ./node_modules/@forge/bridge/out/rovo/index.js
-var bridge_out_rovo_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-const tslib_1 = (tslib_es6_namespaceFn());
-tslib_1.__exportStar((rovo_rovo_namespaceFn()), exports);
-
-});
-
-// MODULE: ./node_modules/@forge/bridge/out/rovo/isEnabled.js
-var rovo_isEnabled_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
-var __webpack_unused_export__;
-
-__webpack_unused_export__ = ({ value: true });
-exports.isEnabled = void 0;
-const bridge_1 = (out_bridge_namespaceFn());
-const callBridge = (0, bridge_1.getCallBridge)();
-/**
- * Checks if Rovo is enabled for the current tenant.
- *
- * @returns boolean
- */
-const isEnabled = () => {
-    return callBridge('isRovoEnabled');
-};
-exports.isEnabled = isEnabled;
-
-});
-
-// MODULE: ./node_modules/@forge/bridge/out/rovo/open.js
-var out_rovo_open_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
-var __webpack_unused_export__;
-
-__webpack_unused_export__ = ({ value: true });
-exports.open = exports.B = void 0;
-const bridge_1 = (out_bridge_namespaceFn());
-const errors_1 = (out_errors_namespaceFn());
-const MAX_AGENT_LENGTH = 30;
-const callBridge = (0, bridge_1.getCallBridge)();
-exports.B = 'Unable to open Rovo Chat due to usage in an unsupported product. Only Confluence, Jira and some Jira Service Management modules are supported at this point. See https://developer.atlassian.com/platform/forge/apis-reference/ui-api-bridge/rovo/';
-const transformRovoPayload = (openRovoPayload) => {
-    switch (openRovoPayload.type) {
-        case 'forge':
-            return {
-                agentName: openRovoPayload.agentName,
-                agentKey: openRovoPayload.agentKey,
-                prompt: openRovoPayload.prompt
-            };
-        case 'atlassian':
-            return {
-                agentName: openRovoPayload.agentName,
-                prompt: openRovoPayload.prompt
-            };
-        default:
-            return { prompt: openRovoPayload.prompt };
-    }
-};
-/**
- * Opens Rovo chat from the given Rovo agent name.
- *
- * @param {OpenRovoPayload} [openRovoPayload] - Payload to open chat.
- *   Can be one of:
- *     - ForgeAgentPayload: { agentName: string, agentKey: string, prompt?: string }
- *     - AtlassianAgentPayload: { agentName: string, prompt?: string }
- *     - DefaultAgentPayload: { prompt?: string }
- */
-const open = async (openRovoPayload) => {
-    if (openRovoPayload.type === 'forge') {
-        if (openRovoPayload.agentName.length > MAX_AGENT_LENGTH) {
-            throw new Error('rovo agent name too long');
-        }
-        if (openRovoPayload.agentKey.length > MAX_AGENT_LENGTH) {
-            throw new Error('rovo agent key too long');
-        }
-    }
-    const rovoArgs = transformRovoPayload(openRovoPayload);
-    const success = await callBridge('openRovo', rovoArgs);
-    if (success === false) {
-        throw new errors_1.BridgeAPIError(exports.B);
-    }
-};
-exports.open = open;
-
-});
-
-// MODULE: ./node_modules/@forge/bridge/out/rovo/rovo.js
-var rovo_rovo_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.rovo = void 0;
-const open_1 = (out_rovo_open_namespaceFn());
-const isEnabled_1 = (rovo_isEnabled_namespaceFn());
-exports.rovo = {
-    open: open_1.open,
-    isEnabled: isEnabled_1.isEnabled
-};
-
-});
-
-// MODULE: ./node_modules/@forge/bridge/out/utils/blobParser.js
-var utils_blobParser_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
-var __webpack_unused_export__;
-
-__webpack_unused_export__ = ({ value: true });
-exports.blobToBase64 = exports.base64ToBlob = void 0;
-const base64ToBlob = (b64string, mimeType) => {
-    if (!b64string) {
-        return null;
-    }
-    const base64Data = b64string.includes(';base64') ? b64string.split(',')[1] : b64string;
-    const byteCharacters = atob(base64Data);
-    const byteNumbers = new Array(byteCharacters.length);
-    for (let i = 0; i < byteCharacters.length; i++) {
-        byteNumbers[i] = byteCharacters.charCodeAt(i);
-    }
-    const byteArray = new Uint8Array(byteNumbers);
-    return new Blob([byteArray], { type: mimeType });
-};
-exports.base64ToBlob = base64ToBlob;
-const blobToBase64 = (blob) => {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-            resolve(reader.result);
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(blob);
-    });
-};
-exports.blobToBase64 = blobToBase64;
-
-});
-
-// MODULE: ./node_modules/@forge/bridge/out/utils/index.js
-var out_utils_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
-var __webpack_unused_export__;
-
-__webpack_unused_export__ = ({ value: true });
-exports.withRateLimiter = void 0;
-const errors_1 = (out_errors_namespaceFn());
-const withRateLimiter = (wrappedFn, maxOps, intervalInMs, exceededErrorMessage) => {
-    let start = Date.now();
-    let numOps = 0;
-    return async (...args) => {
-        const now = Date.now();
-        const elapsed = now - start;
-        if (elapsed > intervalInMs) {
-            start = now;
-            numOps = 0;
-        }
-        if (numOps >= maxOps) {
-            throw new errors_1.BridgeAPIError(exceededErrorMessage || 'Too many invocations.');
-        }
-        numOps = numOps + 1;
-        return wrappedFn(...args);
-    };
-};
-exports.withRateLimiter = withRateLimiter;
-
-});
-
-// MODULE: ./node_modules/@forge/bridge/out/view/adf-renderer.js
-var view_adf_renderer_namespaceFn = /*#__PURE__*/__webpack_require__.cw(function(__unused_webpack_module, exports) {
-
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || (function () {
-    var ownKeys = function(o) {
-        ownKeys = Object.getOwnPropertyNames || function (o) {
-            var ar = [];
-            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
-            return ar;
-        };
-        return ownKeys(o);
-    };
-    return function (mod) {
-        if (mod && mod.__esModule) return mod;
-        var result = {};
-        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
-        __setModuleDefault(result, mod);
-        return result;
-    };
-})();
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.createAdfRendererIframeProps = exports.sendMessageWhenReady = void 0;
-/**
- * Sends the ADF document message to the adf-renderer iframe once it signals readiness.
- */
-const READY_SIGNAL_FALLBACK_DELAY_MS = 10000;
-const sendMessageWhenReady = (iframe, message, origin) => {
-    const sendMessage = () => { var _a; return (_a = iframe === null || iframe === void 0 ? void 0 : iframe.contentWindow) === null || _a === void 0 ? void 0 : _a.postMessage(message, origin); };
-    const timeoutId = setTimeout(() => {
-        window.removeEventListener('message', handleReady);
-        sendMessage();
-    }, READY_SIGNAL_FALLBACK_DELAY_MS);
-    const handleReady = (event) => {
-        var _a;
-        if (event.source === (iframe === null || iframe === void 0 ? void 0 : iframe.contentWindow) && ((_a = event.data) === null || _a === void 0 ? void 0 : _a.source) === 'forge-adf-renderer-ready') {
-            clearTimeout(timeoutId);
-            window.removeEventListener('message', handleReady);
-            sendMessage();
-        }
-    };
-    window.addEventListener('message', handleReady);
-};
-exports.sendMessageWhenReady = sendMessageWhenReady;
-const createAdfRendererIframeProps = async (context, iframeId) => {
-    const IframeResizer = await Promise.resolve().then(() => __importStar((iframe_resizer_namespaceFn())));
-    const IframeResizerModule = IframeResizer.default || IframeResizer;
-    const origin = new URL(document.referrer).origin;
-    const src = `${origin}/forge-apps/adf-renderer`;
-    const id = iframeId || `forge-adf-renderer-iframe-${crypto.randomUUID()}`;
-    const onLoad = () => {
-        var _a, _b, _c, _d, _e;
-        const iframe = document.getElementById(id);
-        const message = {
-            type: 'adf-document',
-            document: (_a = context.extension.macro) === null || _a === void 0 ? void 0 : _a.body,
-            timestamp: Date.now(),
-            source: 'forge-adf-renderer',
-            localId: context.localId,
-            isEditing: (_c = (_b = context.extension) === null || _b === void 0 ? void 0 : _b.isEditing) !== null && _c !== void 0 ? _c : false,
-            contentId: (_e = (_d = context.extension) === null || _d === void 0 ? void 0 : _d.content) === null || _e === void 0 ? void 0 : _e.id
-        };
-        IframeResizerModule.iframeResizer({
-            heightCalculationMethod: 'taggedElement',
-            widthCalculationMethod: 'bodyScroll',
-            initCallback: (iframe) => {
-                var _a;
-                (_a = iframe === null || iframe === void 0 ? void 0 : iframe.iFrameResizer) === null || _a === void 0 ? void 0 : _a.resize();
-            }
-        }, iframe || '');
-        (0, exports.sendMessageWhenReady)(iframe, message, origin);
-    };
-    setTimeout(() => {
-        document.documentElement.style.height = 'auto';
-        document.body.style.height = 'auto';
-    }, 200);
-    return {
-        id,
-        src,
-        onLoad
-    };
-};
-exports.createAdfRendererIframeProps = createAdfRendererIframeProps;
-
-});
-
-// MODULE: ./node_modules/@forge/bridge/out/view/changeWindowTitle.js
-var view_changeWindowTitle_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
-var __webpack_unused_export__;
-
-__webpack_unused_export__ = ({ value: true });
-exports.changeWindowTitle = void 0;
-const bridge_1 = (out_bridge_namespaceFn());
-const errors_1 = (out_errors_namespaceFn());
-const callBridge = (0, bridge_1.getCallBridge)();
-const changeWindowTitle = async (title) => {
-    try {
-        await callBridge('changeWindowTitle', title);
-    }
-    catch (e) {
-        throw new errors_1.BridgeAPIError("the window title wasn't changed due to error.");
-    }
-};
-exports.changeWindowTitle = changeWindowTitle;
-
-});
-
-// MODULE: ./node_modules/@forge/bridge/out/view/close.js
-var view_close_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
-var __webpack_unused_export__;
-
-__webpack_unused_export__ = ({ value: true });
-exports.close = void 0;
-const bridge_1 = (out_bridge_namespaceFn());
-const errors_1 = (out_errors_namespaceFn());
-const callBridge = (0, bridge_1.getCallBridge)();
-const close = async (payload) => {
-    try {
-        const success = await callBridge('close', payload);
-        // TODO: Modify @atlassian/forge-ui to throw if close fails instead of returning boolean DEVO-680
-        if (success === false) {
-            throw new errors_1.BridgeAPIError("this resource's view is not closable.");
-        }
-    }
-    catch (e) {
-        throw new errors_1.BridgeAPIError("this resource's view is not closable.");
-    }
-};
-exports.close = close;
-
-});
-
-// MODULE: ./node_modules/@forge/bridge/out/view/createHistory.js
-var view_createHistory_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
-var __webpack_unused_export__;
-
-__webpack_unused_export__ = ({ value: true });
-exports.createHistory = void 0;
-const bridge_1 = (out_bridge_namespaceFn());
-const callBridge = (0, bridge_1.getCallBridge)();
-const createHistory = async () => {
-    const history = await callBridge('createHistory');
-    history.listen((location) => {
-        history.location = location;
-    });
-    return history;
-};
-exports.createHistory = createHistory;
-
-});
-
-// MODULE: ./node_modules/@forge/bridge/out/view/emitReadyEvent.js
-var view_emitReadyEvent_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
-var __webpack_unused_export__;
-
-__webpack_unused_export__ = ({ value: true });
-exports.emitReadyEvent = void 0;
-const events_1 = (events_events_namespaceFn());
-const view_1 = (view_view_namespaceFn());
-const bridge_1 = (out_bridge_namespaceFn());
-const callBridge = (0, bridge_1.getCallBridge)();
-const EXTENSION_READY = 'EXTENSION_READY';
-const emitReadyEvent = async () => {
-    // Confluence export relies on events instead of `callBridge`
-    const context = await view_1.view.getContext();
-    // dispatches event 'forge.bridge.EXTENSION_READY' on product window
-    await events_1.events.emit(EXTENSION_READY, {
-        localId: context.localId
-    });
-    // TODO: Consider using the above event for static macros as well for to avoid two calls
-    // `callBridge` is used for static macros in XEP to signal that the forgeDoc is ready to be snapshotted
-    try {
-        await callBridge('emitReadyEvent');
-    }
-    catch {
-        // Silently ignore the error as this app may be calling this method in Confluence view mode where the method is not supported.
-    }
-};
-exports.emitReadyEvent = emitReadyEvent;
-
-});
-
-// MODULE: ./node_modules/@forge/bridge/out/view/getContext.js
-var view_getContext_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
-var __webpack_unused_export__;
-
-__webpack_unused_export__ = ({ value: true });
-exports.getContext = void 0;
-const bridge_1 = (out_bridge_namespaceFn());
-const i18n_1 = (out_namespaceFn());
-const callBridge = (0, bridge_1.getCallBridge)();
-const getContext = async () => {
-    var _a;
-    const context = await callBridge('getContext');
-    const locale = context === null || context === void 0 ? void 0 : context.locale;
-    if (locale) {
-        // still fallback to the locale if it is not supported,
-        // this is to avoid breaking changes
-        context.locale = (_a = (0, i18n_1.ensureLocale)(locale)) !== null && _a !== void 0 ? _a : locale;
-    }
-    return context;
-};
-exports.getContext = getContext;
-
-});
-
-// MODULE: ./node_modules/@forge/bridge/out/view/getFrameDispatch.js
-var view_getFrameDispatch_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
-var __webpack_unused_export__;
-
-__webpack_unused_export__ = ({ value: true });
-exports.getFrameDispatch = void 0;
-const bridge_1 = (out_bridge_namespaceFn());
-const callBridge = (0, bridge_1.getCallBridge)();
-const getFrameDispatch = async () => {
-    return await callBridge('getFrameDispatch');
-};
-exports.getFrameDispatch = getFrameDispatch;
-
-});
-
-// MODULE: ./node_modules/@forge/bridge/out/view/index.js
-var bridge_out_view_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-const tslib_1 = (tslib_es6_namespaceFn());
-tslib_1.__exportStar((view_view_namespaceFn()), exports);
-
-});
-
-// MODULE: ./node_modules/@forge/bridge/out/view/onClose.js
-var view_onClose_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
-var __webpack_unused_export__;
-
-__webpack_unused_export__ = ({ value: true });
-exports.onClose = void 0;
-const bridge_1 = (out_bridge_namespaceFn());
-const errors_1 = (out_errors_namespaceFn());
-const callBridge = (0, bridge_1.getCallBridge)();
-const onClose = async (payload) => {
-    try {
-        const success = await callBridge('onClose', payload);
-        if (success === false) {
-            throw new errors_1.BridgeAPIError('`onClose` call has failed.');
-        }
-    }
-    catch (e) {
-        throw new errors_1.BridgeAPIError("`onClose` failed because this resource's view is not closable.");
-    }
-};
-exports.onClose = onClose;
-
-});
-
-// MODULE: ./node_modules/@forge/bridge/out/view/open.js
-var view_open_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
-var __webpack_unused_export__;
-
-__webpack_unused_export__ = ({ value: true });
-exports.open = void 0;
-const bridge_1 = (out_bridge_namespaceFn());
-const errors_1 = (out_errors_namespaceFn());
-const callBridge = (0, bridge_1.getCallBridge)();
-const open = async () => {
-    try {
-        const success = await callBridge('open');
-        // TODO: Modify @atlassian/forge-ui to throw if close fails instead of returning boolean DEVO-680
-        if (success === false) {
-            throw new errors_1.BridgeAPIError("this resource's view is not openable.");
-        }
-    }
-    catch (e) {
-        throw new errors_1.BridgeAPIError("this resource's view is not openable.");
-    }
-};
-exports.open = open;
-
-});
-
-// MODULE: ./node_modules/@forge/bridge/out/view/refresh.js
-var view_refresh_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
-var __webpack_unused_export__;
-
-__webpack_unused_export__ = ({ value: true });
-exports.refresh = void 0;
-const bridge_1 = (out_bridge_namespaceFn());
-const errors_1 = (out_errors_namespaceFn());
-const callBridge = (0, bridge_1.getCallBridge)();
-const refresh = async (payload) => {
-    const success = await callBridge('refresh', payload);
-    if (success === false) {
-        throw new errors_1.BridgeAPIError("this resource's view is not refreshable.");
-    }
-};
-exports.refresh = refresh;
-
-});
-
-// MODULE: ./node_modules/@forge/bridge/out/view/submit.js
-var view_submit_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
-var __webpack_unused_export__;
-
-__webpack_unused_export__ = ({ value: true });
-exports.submit = void 0;
-const bridge_1 = (out_bridge_namespaceFn());
-const errors_1 = (out_errors_namespaceFn());
-const callBridge = (0, bridge_1.getCallBridge)();
-const submit = async (payload) => {
-    const success = await callBridge('submit', payload);
-    if (success === false) {
-        throw new errors_1.BridgeAPIError("this resource's view is not submittable.");
-    }
-};
-exports.submit = submit;
-
-});
-
-// MODULE: ./node_modules/@forge/bridge/out/view/theme.js
-var view_theme_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
-var __webpack_unused_export__;
-
-__webpack_unused_export__ = ({ value: true });
-exports.theme = void 0;
-const bridge_1 = (out_bridge_namespaceFn());
-const callBridge = (0, bridge_1.getCallBridge)();
-exports.theme = {
-    enable: () => callBridge('enableTheming')
-};
-
-});
-
-// MODULE: ./node_modules/@forge/bridge/out/view/view.js
-var view_view_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.view = void 0;
-const submit_1 = (view_submit_namespaceFn());
-const close_1 = (view_close_namespaceFn());
-const open_1 = (view_open_namespaceFn());
-const refresh_1 = (view_refresh_namespaceFn());
-const createHistory_1 = (view_createHistory_namespaceFn());
-const getContext_1 = (view_getContext_namespaceFn());
-const changeWindowTitle_1 = (view_changeWindowTitle_namespaceFn());
-const theme_1 = (view_theme_namespaceFn());
-const emitReadyEvent_1 = (view_emitReadyEvent_namespaceFn());
-const adf_renderer_1 = (view_adf_renderer_namespaceFn());
-const onClose_1 = (view_onClose_namespaceFn());
-const getFrameDispatch_1 = (view_getFrameDispatch_namespaceFn());
-exports.view = {
-    submit: submit_1.submit,
-    close: close_1.close,
-    onClose: onClose_1.onClose,
-    open: open_1.open,
-    refresh: refresh_1.refresh,
-    createHistory: createHistory_1.createHistory,
-    getContext: getContext_1.getContext,
-    getFrameDispatch: getFrameDispatch_1.getFrameDispatch,
-    theme: theme_1.theme,
-    changeWindowTitle: changeWindowTitle_1.changeWindowTitle,
-    emitReadyEvent: emitReadyEvent_1.emitReadyEvent,
-    createAdfRendererIframeProps: adf_renderer_1.createAdfRendererIframeProps
-};
-
-});
-
-// EXTERNAL MODULE: ./node_modules/@forge/egress/out/egress/egress-filtering-service.js
-var egress_filtering_service_namespaceFn = () => {
-	return __webpack_require__(7953);
-};
-
-// MODULE: ./node_modules/@forge/egress/out/egress/index.js
-var egress_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-const tslib_1 = (tslib_es6_namespaceFn());
-tslib_1.__exportStar((egress_filtering_service_namespaceFn()), exports);
-tslib_1.__exportStar((url_parser_namespaceFn()), exports);
-tslib_1.__exportStar((egress_utils_namespaceFn()), exports);
-
-});
-
-// EXTERNAL MODULE: ./node_modules/@forge/egress/out/egress/url-parser.js
-var url_parser_namespaceFn = () => {
-	return __webpack_require__(6836);
-};
-
-// EXTERNAL MODULE: ./node_modules/@forge/egress/out/egress/utils.js
-var egress_utils_namespaceFn = () => {
-	return __webpack_require__(7194);
-};
-
-// MODULE: ./node_modules/@forge/egress/out/index.js
-var egress_out_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-const tslib_1 = (tslib_es6_namespaceFn());
-tslib_1.__exportStar((egress_namespaceFn()), exports);
-
-});
-
-// EXTERNAL MODULE: ./node_modules/@forge/i18n/out/constants.js
-var constants_namespaceFn = () => {
-	return __webpack_require__(6893);
-};
-
-// EXTERNAL MODULE: ./node_modules/@forge/i18n/out/ensureLocale.js
-var ensureLocale_namespaceFn = () => {
-	return __webpack_require__(7898);
-};
-
-// MODULE: ./node_modules/@forge/i18n/out/index.js
-var out_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.getI18nSupportedModuleEntries = exports.extractI18nPropertiesFromModules = exports.extractI18nKeysFromModules = exports.getTranslationValue = void 0;
-const tslib_1 = (tslib_es6_namespaceFn());
-tslib_1.__exportStar((constants_namespaceFn()), exports);
-tslib_1.__exportStar((translationsGetter_namespaceFn()), exports);
-tslib_1.__exportStar((translator_namespaceFn()), exports);
-tslib_1.__exportStar((ensureLocale_namespaceFn()), exports);
-var translationValueGetter_1 = (translationValueGetter_namespaceFn());
-Object.defineProperty(exports, "getTranslationValue", ({ enumerable: true, get: function () { return translationValueGetter_1.getTranslationValue; } }));
-var moduleI18nHelper_1 = (moduleI18nHelper_namespaceFn());
-Object.defineProperty(exports, "extractI18nKeysFromModules", ({ enumerable: true, get: function () { return moduleI18nHelper_1.extractI18nKeysFromModules; } }));
-Object.defineProperty(exports, "extractI18nPropertiesFromModules", ({ enumerable: true, get: function () { return moduleI18nHelper_1.extractI18nPropertiesFromModules; } }));
-Object.defineProperty(exports, "getI18nSupportedModuleEntries", ({ enumerable: true, get: function () { return moduleI18nHelper_1.getI18nSupportedModuleEntries; } }));
-tslib_1.__exportStar((types_namespaceFn()), exports);
-
-});
-
-// EXTERNAL MODULE: ./node_modules/@forge/i18n/out/moduleI18nHelper.js
-var moduleI18nHelper_namespaceFn = () => {
-	return __webpack_require__(9962);
-};
-
-// MODULE: ./node_modules/@forge/i18n/out/translationValueGetter.js
-var translationValueGetter_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.getTranslationValueFromContent = exports.getTranslationValue = void 0;
-const tslib_1 = (tslib_es6_namespaceFn());
-const get_1 = tslib_1.__importDefault((get_namespaceFn()));
-const getTranslationValue = (translationLookup, i18nKey, locale) => {
-    const translation = translationLookup[locale];
-    if (!translation) {
-        return null;
-    }
-    return (0, exports.getTranslationValueFromContent)(translation, i18nKey);
-};
-exports.getTranslationValue = getTranslationValue;
-const getTranslationValueFromContent = (translationContent, i18nKey) => {
-    let translationValue = translationContent[i18nKey];
-    if (!translationValue) {
-        const keyTokens = i18nKey.split('.');
-        if (keyTokens.length > 1) {
-            translationValue = (0, get_1.default)(translationContent, keyTokens, null);
-        }
-    }
-    return typeof translationValue === 'string' ? translationValue : null;
-};
-exports.getTranslationValueFromContent = getTranslationValueFromContent;
-
-});
-
-// EXTERNAL MODULE: ./node_modules/@forge/i18n/out/translationsGetter.js
-var translationsGetter_namespaceFn = () => {
-	return __webpack_require__(6829);
-};
-
-// MODULE: ./node_modules/@forge/i18n/out/translator.js
-var translator_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.Translator = void 0;
-const translationValueGetter_1 = (translationValueGetter_namespaceFn());
-class Translator {
-    locale;
-    translationsGetter;
-    localeLookupOrderedTranslations = null;
-    cache = new Map();
-    constructor(locale, translationsGetter) {
-        this.locale = locale;
-        this.translationsGetter = translationsGetter;
-    }
-    async init() {
-        this.localeLookupOrderedTranslations = await this.translationsGetter.getTranslationsByLocaleLookupOrder(this.locale);
-    }
-    translate(i18nKey) {
-        if (!this.localeLookupOrderedTranslations) {
-            throw new Error('TranslationLookup not initialized');
-        }
-        let result = this.cache.get(i18nKey);
-        if (result === undefined) {
-            for (const { translations } of this.localeLookupOrderedTranslations) {
-                const translationValue = (0, translationValueGetter_1.getTranslationValueFromContent)(translations, i18nKey);
-                if (translationValue !== null) {
-                    result = translationValue;
-                    break;
-                }
-            }
-            result = result ?? null;
-            this.cache.set(i18nKey, result);
-        }
-        return result;
-    }
-}
-exports.Translator = Translator;
-
-});
-
-// EXTERNAL MODULE: ./node_modules/@forge/i18n/out/types.js
-var types_namespaceFn = () => {
-	return __webpack_require__(5181);
-};
-
-// MODULE: ./node_modules/@forge/react/node_modules/@forge/bridge/out/bridge.js
 var bridge_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
 var __webpack_unused_export__;
 
@@ -10245,7 +5188,42 @@ exports.getCallBridge = getCallBridge;
 
 });
 
-// MODULE: ./node_modules/@forge/react/node_modules/@forge/bridge/out/errors.js
+// MODULE: ./node_modules/@forge/bridge/out/cookieConsent/getCookieConsentPreferences.js
+var getCookieConsentPreferences_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.getCookieConsentPreferences = void 0;
+const bridge_1 = (bridge_namespaceFn());
+const callBridge = (0, bridge_1.getCallBridge)();
+/**
+ * Gets the user's current cookie-consent preferences.
+ *
+ * Resolves to `null` if the host has not published preferences, or if the host doesn't support
+ * this API.
+ */
+const getCookieConsentPreferences = async () => {
+    var _a;
+    try {
+        return (_a = (await callBridge('getCookieConsentPreferences'))) !== null && _a !== void 0 ? _a : null;
+    }
+    catch {
+        return null;
+    }
+};
+exports.getCookieConsentPreferences = getCookieConsentPreferences;
+
+});
+
+// MODULE: ./node_modules/@forge/bridge/out/cookieConsent/index.js
+var cookieConsent_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+const tslib_1 = (tslib_es6_namespaceFn());
+tslib_1.__exportStar((getCookieConsentPreferences_namespaceFn()), exports);
+
+});
+
+// MODULE: ./node_modules/@forge/bridge/out/errors.js
 var errors_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
 var __webpack_unused_export__;
 
@@ -10257,7 +5235,7 @@ exports.BridgeAPIError = BridgeAPIError;
 
 });
 
-// MODULE: ./node_modules/@forge/react/node_modules/@forge/bridge/out/events/events.js
+// MODULE: ./node_modules/@forge/bridge/out/events/events.js
 var events_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
@@ -10303,7 +5281,7 @@ exports.events = {
 
 });
 
-// MODULE: ./node_modules/@forge/react/node_modules/@forge/bridge/out/events/index.js
+// MODULE: ./node_modules/@forge/bridge/out/events/index.js
 var out_events_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
@@ -10312,7 +5290,7 @@ tslib_1.__exportStar((events_namespaceFn()), exports);
 
 });
 
-// MODULE: ./node_modules/@forge/react/node_modules/@forge/bridge/out/events/serialiseBlob.js
+// MODULE: ./node_modules/@forge/bridge/out/events/serialiseBlob.js
 var serialiseBlob_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
 var __webpack_unused_export__;
 
@@ -10421,7 +5399,7 @@ exports.containsSerialisedBlobs = containsSerialisedBlobs;
 
 });
 
-// MODULE: ./node_modules/@forge/react/node_modules/@forge/bridge/out/featureFlags/evaluator.js
+// MODULE: ./node_modules/@forge/bridge/out/featureFlags/evaluator.js
 var evaluator_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
 var __webpack_unused_export__;
 
@@ -10489,7 +5467,7 @@ exports.Evaluator = Evaluator;
 
 });
 
-// MODULE: ./node_modules/@forge/react/node_modules/@forge/bridge/out/featureFlags/featureFlags.js
+// MODULE: ./node_modules/@forge/bridge/out/featureFlags/featureFlags.js
 var featureFlags_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
@@ -10541,7 +5519,7 @@ exports.FeatureFlags = FeatureFlags;
 
 });
 
-// MODULE: ./node_modules/@forge/react/node_modules/@forge/bridge/out/featureFlags/index.js
+// MODULE: ./node_modules/@forge/bridge/out/featureFlags/index.js
 var out_featureFlags_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
@@ -10551,7 +5529,7 @@ Object.defineProperty(exports, "FeatureFlags", ({ enumerable: true, get: functio
 
 });
 
-// MODULE: ./node_modules/@forge/react/node_modules/@forge/bridge/out/featureFlags/initFeatureFlags.js
+// MODULE: ./node_modules/@forge/bridge/out/featureFlags/initFeatureFlags.js
 var initFeatureFlags_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
 var __webpack_unused_export__;
 
@@ -10582,7 +5560,7 @@ exports.initFeatureFlags = (0, utils_1.withRateLimiter)(_initFeatureFlags, maxOp
 
 });
 
-// MODULE: ./node_modules/@forge/react/node_modules/@forge/bridge/out/fetch/fetch.js
+// MODULE: ./node_modules/@forge/bridge/out/fetch/fetch.js
 var fetch_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
 var __webpack_unused_export__;
 
@@ -10690,20 +5668,25 @@ exports.productFetchApi = productFetchApi;
 
 });
 
-// MODULE: ./node_modules/@forge/react/node_modules/@forge/bridge/out/fetch/index.js
+// MODULE: ./node_modules/@forge/bridge/out/fetch/index.js
 var out_fetch_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
 
 var _a;
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.requestRemote = exports.requestBitbucket = exports.requestJira = exports.requestConfluence = void 0;
+exports.fetchUserRecommendations = exports.requestRemote = exports.requestBitbucket = exports.requestJira = exports.requestConfluence = void 0;
 const bridge_1 = (bridge_namespaceFn());
 const fetch_1 = (fetch_namespaceFn());
 _a = (0, fetch_1.productFetchApi)((0, bridge_1.getCallBridge)()), exports.requestConfluence = _a.requestConfluence, exports.requestJira = _a.requestJira, exports.requestBitbucket = _a.requestBitbucket;
 exports.requestRemote = (0, fetch_1.remoteFetchApi)((0, bridge_1.getCallBridge)()).requestRemote;
+const fetchUserRecommendations = async (input) => {
+    const callBridge = (0, bridge_1.getCallBridge)();
+    return await callBridge('fetchUserRecommendations', input);
+};
+exports.fetchUserRecommendations = fetchUserRecommendations;
 
 });
 
-// MODULE: ./node_modules/@forge/react/node_modules/@forge/bridge/out/flag/flag.js
+// MODULE: ./node_modules/@forge/bridge/out/flag/flag.js
 var flag_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
@@ -10731,7 +5714,7 @@ exports.showFlag = showFlag;
 
 });
 
-// MODULE: ./node_modules/@forge/react/node_modules/@forge/bridge/out/flag/index.js
+// MODULE: ./node_modules/@forge/bridge/out/flag/index.js
 var out_flag_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
@@ -10741,7 +5724,7 @@ Object.defineProperty(exports, "showFlag", ({ enumerable: true, get: function ()
 
 });
 
-// MODULE: ./node_modules/@forge/react/node_modules/@forge/bridge/out/frontendCustomMetrics/frontendCustomMetrics.js
+// MODULE: ./node_modules/@forge/bridge/out/frontendCustomMetrics/frontendCustomMetrics.js
 var frontendCustomMetrics_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
@@ -10807,7 +5790,7 @@ exports.frontendCustomMetrics = { counter };
 
 });
 
-// MODULE: ./node_modules/@forge/react/node_modules/@forge/bridge/out/frontendCustomMetrics/index.js
+// MODULE: ./node_modules/@forge/bridge/out/frontendCustomMetrics/index.js
 var out_frontendCustomMetrics_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
@@ -10816,7 +5799,7 @@ tslib_1.__exportStar((frontendCustomMetrics_namespaceFn()), exports);
 
 });
 
-// MODULE: ./node_modules/@forge/react/node_modules/@forge/bridge/out/i18n/index.js
+// MODULE: ./node_modules/@forge/bridge/out/i18n/index.js
 var i18n_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
@@ -10877,7 +5860,7 @@ exports.createTranslationFunction = createTranslationFunction;
 
 });
 
-// MODULE: ./node_modules/@forge/react/node_modules/@forge/bridge/out/index.js
+// MODULE: ./node_modules/@forge/bridge/out/index.js
 var bridge_out_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
@@ -10896,6 +5879,7 @@ tslib_1.__exportStar((out_flag_namespaceFn()), exports);
 tslib_1.__exportStar((out_events_namespaceFn()), exports);
 tslib_1.__exportStar((out_realtime_namespaceFn()), exports);
 tslib_1.__exportStar((out_rovo_namespaceFn()), exports);
+tslib_1.__exportStar((cookieConsent_namespaceFn()), exports);
 exports.i18n = tslib_1.__importStar((i18n_namespaceFn()));
 tslib_1.__exportStar((out_permissions_namespaceFn()), exports);
 tslib_1.__exportStar((object_store_namespaceFn()), exports);
@@ -10904,7 +5888,7 @@ tslib_1.__exportStar((out_frontendCustomMetrics_namespaceFn()), exports);
 
 });
 
-// MODULE: ./node_modules/@forge/react/node_modules/@forge/bridge/out/invoke-endpoint/index.js
+// MODULE: ./node_modules/@forge/bridge/out/invoke-endpoint/index.js
 var out_invoke_endpoint_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
@@ -10914,7 +5898,7 @@ tslib_1.__exportStar((invoke_service_namespaceFn()), exports);
 
 });
 
-// MODULE: ./node_modules/@forge/react/node_modules/@forge/bridge/out/invoke-endpoint/invoke-endpoint.js
+// MODULE: ./node_modules/@forge/bridge/out/invoke-endpoint/invoke-endpoint.js
 var invoke_endpoint_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
 var __webpack_unused_export__;
 
@@ -10965,7 +5949,7 @@ function _invokeEndpointFn(invokeType) {
 
 });
 
-// MODULE: ./node_modules/@forge/react/node_modules/@forge/bridge/out/invoke-endpoint/invoke-remote.js
+// MODULE: ./node_modules/@forge/bridge/out/invoke-endpoint/invoke-remote.js
 var invoke_remote_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
@@ -10979,7 +5963,7 @@ exports.invokeRemote = invokeRemote;
 
 });
 
-// MODULE: ./node_modules/@forge/react/node_modules/@forge/bridge/out/invoke-endpoint/invoke-service.js
+// MODULE: ./node_modules/@forge/bridge/out/invoke-endpoint/invoke-service.js
 var invoke_service_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
@@ -10993,7 +5977,7 @@ exports.invokeService = invokeService;
 
 });
 
-// MODULE: ./node_modules/@forge/react/node_modules/@forge/bridge/out/invoke/index.js
+// MODULE: ./node_modules/@forge/bridge/out/invoke/index.js
 var out_invoke_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
@@ -11002,7 +5986,7 @@ tslib_1.__exportStar((invoke_namespaceFn()), exports);
 
 });
 
-// MODULE: ./node_modules/@forge/react/node_modules/@forge/bridge/out/invoke/invoke.js
+// MODULE: ./node_modules/@forge/bridge/out/invoke/invoke.js
 var invoke_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
@@ -11046,7 +6030,7 @@ function makeInvoke() {
 
 });
 
-// MODULE: ./node_modules/@forge/react/node_modules/@forge/bridge/out/modal/index.js
+// MODULE: ./node_modules/@forge/bridge/out/modal/index.js
 var out_modal_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
@@ -11055,7 +6039,7 @@ tslib_1.__exportStar((modal_namespaceFn()), exports);
 
 });
 
-// MODULE: ./node_modules/@forge/react/node_modules/@forge/bridge/out/modal/modal.js
+// MODULE: ./node_modules/@forge/bridge/out/modal/modal.js
 var modal_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
@@ -11118,7 +6102,7 @@ exports.Modal = Modal;
 
 });
 
-// MODULE: ./node_modules/@forge/react/node_modules/@forge/bridge/out/object-store/deleteObjects.js
+// MODULE: ./node_modules/@forge/bridge/out/object-store/deleteObjects.js
 var deleteObjects_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
 var __webpack_unused_export__;
 
@@ -11152,7 +6136,7 @@ exports.deleteObjects = deleteObjects;
 
 });
 
-// MODULE: ./node_modules/@forge/react/node_modules/@forge/bridge/out/object-store/download.js
+// MODULE: ./node_modules/@forge/bridge/out/object-store/download.js
 var download_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
 var __webpack_unused_export__;
 
@@ -11221,7 +6205,7 @@ exports.download = download;
 
 });
 
-// MODULE: ./node_modules/@forge/react/node_modules/@forge/bridge/out/object-store/getMetadata.js
+// MODULE: ./node_modules/@forge/bridge/out/object-store/getMetadata.js
 var getMetadata_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
 var __webpack_unused_export__;
 
@@ -11263,7 +6247,7 @@ exports.getMetadata = getMetadata;
 
 });
 
-// MODULE: ./node_modules/@forge/react/node_modules/@forge/bridge/out/object-store/index.js
+// MODULE: ./node_modules/@forge/bridge/out/object-store/index.js
 var object_store_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
@@ -11273,7 +6257,7 @@ tslib_1.__exportStar((object_store_types_namespaceFn()), exports);
 
 });
 
-// MODULE: ./node_modules/@forge/react/node_modules/@forge/bridge/out/object-store/objectStore.js
+// MODULE: ./node_modules/@forge/bridge/out/object-store/objectStore.js
 var objectStore_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
@@ -11292,12 +6276,12 @@ exports.objectStore = {
 
 });
 
-// EXTERNAL MODULE: ./node_modules/@forge/react/node_modules/@forge/bridge/out/object-store/types.js
+// EXTERNAL MODULE: ./node_modules/@forge/bridge/out/object-store/types.js
 var object_store_types_namespaceFn = () => {
-	return __webpack_require__(8555);
+	return __webpack_require__(2572);
 };
 
-// MODULE: ./node_modules/@forge/react/node_modules/@forge/bridge/out/object-store/upload.js
+// MODULE: ./node_modules/@forge/bridge/out/object-store/upload.js
 var upload_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
 var __webpack_unused_export__;
 
@@ -11456,7 +6440,7 @@ exports.upload = upload;
 
 });
 
-// MODULE: ./node_modules/@forge/react/node_modules/@forge/bridge/out/permissions/index.js
+// MODULE: ./node_modules/@forge/bridge/out/permissions/index.js
 var out_permissions_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
@@ -11466,7 +6450,7 @@ tslib_1.__exportStar((permissionsUtil_namespaceFn()), exports);
 
 });
 
-// MODULE: ./node_modules/@forge/react/node_modules/@forge/bridge/out/permissions/permissions.js
+// MODULE: ./node_modules/@forge/bridge/out/permissions/permissions.js
 var permissions_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
@@ -11506,7 +6490,7 @@ exports.permissions = {
 
 });
 
-// MODULE: ./node_modules/@forge/react/node_modules/@forge/bridge/out/permissions/permissionsUtil.js
+// MODULE: ./node_modules/@forge/bridge/out/permissions/permissionsUtil.js
 var permissionsUtil_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
@@ -11734,7 +6718,7 @@ async function checkPermissions(requiredPermissions, runtimePermissions) {
 
 });
 
-// MODULE: ./node_modules/@forge/react/node_modules/@forge/bridge/out/realtime/index.js
+// MODULE: ./node_modules/@forge/bridge/out/realtime/index.js
 var out_realtime_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
@@ -11748,7 +6732,7 @@ Object.defineProperty(exports, "Bitbucket", ({ enumerable: true, get: function (
 
 });
 
-// MODULE: ./node_modules/@forge/react/node_modules/@forge/bridge/out/realtime/productContext.js
+// MODULE: ./node_modules/@forge/bridge/out/realtime/productContext.js
 var productContext_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
 
 // These enum values directly map to properties in the context.extension object in a product's FCT.
@@ -11774,7 +6758,7 @@ var Bitbucket;
 
 });
 
-// MODULE: ./node_modules/@forge/react/node_modules/@forge/bridge/out/realtime/realtime.js
+// MODULE: ./node_modules/@forge/bridge/out/realtime/realtime.js
 var realtime_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
@@ -11811,7 +6795,7 @@ exports.realtime = {
 
 });
 
-// MODULE: ./node_modules/@forge/react/node_modules/@forge/bridge/out/requestTeamworkGraph/index.js
+// MODULE: ./node_modules/@forge/bridge/out/requestTeamworkGraph/index.js
 var requestTeamworkGraph_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
@@ -11826,7 +6810,7 @@ exports.requestTeamworkGraph = requestTeamworkGraph;
 
 });
 
-// MODULE: ./node_modules/@forge/react/node_modules/@forge/bridge/out/router/index.js
+// MODULE: ./node_modules/@forge/bridge/out/router/index.js
 var out_router_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
@@ -11835,7 +6819,7 @@ tslib_1.__exportStar((router_namespaceFn()), exports);
 
 });
 
-// MODULE: ./node_modules/@forge/react/node_modules/@forge/bridge/out/router/router.js
+// MODULE: ./node_modules/@forge/bridge/out/router/router.js
 var router_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
@@ -11912,12 +6896,12 @@ exports.router = {
 
 });
 
-// EXTERNAL MODULE: ./node_modules/@forge/react/node_modules/@forge/bridge/out/router/targets.js
+// EXTERNAL MODULE: ./node_modules/@forge/bridge/out/router/targets.js
 var targets_namespaceFn = () => {
-	return __webpack_require__(6682);
+	return __webpack_require__(8325);
 };
 
-// MODULE: ./node_modules/@forge/react/node_modules/@forge/bridge/out/rovo/index.js
+// MODULE: ./node_modules/@forge/bridge/out/rovo/index.js
 var out_rovo_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
@@ -11926,7 +6910,7 @@ tslib_1.__exportStar((rovo_namespaceFn()), exports);
 
 });
 
-// MODULE: ./node_modules/@forge/react/node_modules/@forge/bridge/out/rovo/isEnabled.js
+// MODULE: ./node_modules/@forge/bridge/out/rovo/isEnabled.js
 var isEnabled_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
 var __webpack_unused_export__;
 
@@ -11946,7 +6930,7 @@ exports.isEnabled = isEnabled;
 
 });
 
-// MODULE: ./node_modules/@forge/react/node_modules/@forge/bridge/out/rovo/open.js
+// MODULE: ./node_modules/@forge/bridge/out/rovo/open.js
 var rovo_open_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
 var __webpack_unused_export__;
 
@@ -12002,7 +6986,7 @@ exports.open = open;
 
 });
 
-// MODULE: ./node_modules/@forge/react/node_modules/@forge/bridge/out/rovo/rovo.js
+// MODULE: ./node_modules/@forge/bridge/out/rovo/rovo.js
 var rovo_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
@@ -12016,7 +7000,7 @@ exports.rovo = {
 
 });
 
-// MODULE: ./node_modules/@forge/react/node_modules/@forge/bridge/out/utils/blobParser.js
+// MODULE: ./node_modules/@forge/bridge/out/utils/blobParser.js
 var blobParser_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
 var __webpack_unused_export__;
 
@@ -12050,7 +7034,7 @@ exports.blobToBase64 = blobToBase64;
 
 });
 
-// MODULE: ./node_modules/@forge/react/node_modules/@forge/bridge/out/utils/index.js
+// MODULE: ./node_modules/@forge/bridge/out/utils/index.js
 var utils_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
 var __webpack_unused_export__;
 
@@ -12078,44 +7062,12 @@ exports.withRateLimiter = withRateLimiter;
 
 });
 
-// MODULE: ./node_modules/@forge/react/node_modules/@forge/bridge/out/view/adf-renderer.js
-var adf_renderer_namespaceFn = /*#__PURE__*/__webpack_require__.cw(function(__unused_webpack_module, exports) {
+// MODULE: ./node_modules/@forge/bridge/out/view/adf-renderer.js
+var adf_renderer_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
+var __webpack_unused_export__;
 
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || (function () {
-    var ownKeys = function(o) {
-        ownKeys = Object.getOwnPropertyNames || function (o) {
-            var ar = [];
-            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
-            return ar;
-        };
-        return ownKeys(o);
-    };
-    return function (mod) {
-        if (mod && mod.__esModule) return mod;
-        var result = {};
-        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
-        __setModuleDefault(result, mod);
-        return result;
-    };
-})();
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.createAdfRendererIframeProps = exports.sendMessageWhenReady = void 0;
+__webpack_unused_export__ = ({ value: true });
+exports.createAdfRendererIframeProps = exports.H = void 0;
 /**
  * Sends the ADF document message to the adf-renderer iframe once it signals readiness.
  */
@@ -12136,9 +7088,9 @@ const sendMessageWhenReady = (iframe, message, origin) => {
     };
     window.addEventListener('message', handleReady);
 };
-exports.sendMessageWhenReady = sendMessageWhenReady;
+exports.H = sendMessageWhenReady;
 const createAdfRendererIframeProps = async (context, iframeId) => {
-    const IframeResizer = await Promise.resolve().then(() => __importStar((iframe_resizer_namespaceFn())));
+    const IframeResizer = await __webpack_require__.e(/* import() */ 126).then(() => (__webpack_require__.t(4126, 19)));
     const IframeResizerModule = IframeResizer.default || IframeResizer;
     const origin = new URL(document.referrer).origin;
     const src = `${origin}/forge-apps/adf-renderer`;
@@ -12163,7 +7115,7 @@ const createAdfRendererIframeProps = async (context, iframeId) => {
                 (_a = iframe === null || iframe === void 0 ? void 0 : iframe.iFrameResizer) === null || _a === void 0 ? void 0 : _a.resize();
             }
         }, iframe || '');
-        (0, exports.sendMessageWhenReady)(iframe, message, origin);
+        (0, exports.H)(iframe, message, origin);
     };
     setTimeout(() => {
         document.documentElement.style.height = 'auto';
@@ -12179,7 +7131,7 @@ exports.createAdfRendererIframeProps = createAdfRendererIframeProps;
 
 });
 
-// MODULE: ./node_modules/@forge/react/node_modules/@forge/bridge/out/view/changeWindowTitle.js
+// MODULE: ./node_modules/@forge/bridge/out/view/changeWindowTitle.js
 var changeWindowTitle_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
 var __webpack_unused_export__;
 
@@ -12200,7 +7152,7 @@ exports.changeWindowTitle = changeWindowTitle;
 
 });
 
-// MODULE: ./node_modules/@forge/react/node_modules/@forge/bridge/out/view/close.js
+// MODULE: ./node_modules/@forge/bridge/out/view/close.js
 var close_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
 var __webpack_unused_export__;
 
@@ -12225,7 +7177,7 @@ exports.close = close;
 
 });
 
-// MODULE: ./node_modules/@forge/react/node_modules/@forge/bridge/out/view/createHistory.js
+// MODULE: ./node_modules/@forge/bridge/out/view/createHistory.js
 var createHistory_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
 var __webpack_unused_export__;
 
@@ -12244,7 +7196,7 @@ exports.createHistory = createHistory;
 
 });
 
-// MODULE: ./node_modules/@forge/react/node_modules/@forge/bridge/out/view/emitReadyEvent.js
+// MODULE: ./node_modules/@forge/bridge/out/view/emitReadyEvent.js
 var emitReadyEvent_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
 var __webpack_unused_export__;
 
@@ -12275,7 +7227,7 @@ exports.emitReadyEvent = emitReadyEvent;
 
 });
 
-// MODULE: ./node_modules/@forge/react/node_modules/@forge/bridge/out/view/getContext.js
+// MODULE: ./node_modules/@forge/bridge/out/view/getContext.js
 var getContext_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
 var __webpack_unused_export__;
 
@@ -12299,7 +7251,7 @@ exports.getContext = getContext;
 
 });
 
-// MODULE: ./node_modules/@forge/react/node_modules/@forge/bridge/out/view/getFrameDispatch.js
+// MODULE: ./node_modules/@forge/bridge/out/view/getFrameDispatch.js
 var getFrameDispatch_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
 var __webpack_unused_export__;
 
@@ -12314,7 +7266,7 @@ exports.getFrameDispatch = getFrameDispatch;
 
 });
 
-// MODULE: ./node_modules/@forge/react/node_modules/@forge/bridge/out/view/index.js
+// MODULE: ./node_modules/@forge/bridge/out/view/index.js
 var out_view_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
@@ -12323,7 +7275,7 @@ tslib_1.__exportStar((view_namespaceFn()), exports);
 
 });
 
-// MODULE: ./node_modules/@forge/react/node_modules/@forge/bridge/out/view/onClose.js
+// MODULE: ./node_modules/@forge/bridge/out/view/onClose.js
 var onClose_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
 var __webpack_unused_export__;
 
@@ -12347,7 +7299,7 @@ exports.onClose = onClose;
 
 });
 
-// MODULE: ./node_modules/@forge/react/node_modules/@forge/bridge/out/view/open.js
+// MODULE: ./node_modules/@forge/bridge/out/view/open.js
 var open_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
 var __webpack_unused_export__;
 
@@ -12372,7 +7324,7 @@ exports.open = open;
 
 });
 
-// MODULE: ./node_modules/@forge/react/node_modules/@forge/bridge/out/view/refresh.js
+// MODULE: ./node_modules/@forge/bridge/out/view/refresh.js
 var refresh_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
 var __webpack_unused_export__;
 
@@ -12391,7 +7343,7 @@ exports.refresh = refresh;
 
 });
 
-// MODULE: ./node_modules/@forge/react/node_modules/@forge/bridge/out/view/submit.js
+// MODULE: ./node_modules/@forge/bridge/out/view/submit.js
 var submit_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
 var __webpack_unused_export__;
 
@@ -12410,7 +7362,7 @@ exports.submit = submit;
 
 });
 
-// MODULE: ./node_modules/@forge/react/node_modules/@forge/bridge/out/view/theme.js
+// MODULE: ./node_modules/@forge/bridge/out/view/theme.js
 var theme_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
 var __webpack_unused_export__;
 
@@ -12424,7 +7376,7 @@ exports.theme = {
 
 });
 
-// MODULE: ./node_modules/@forge/react/node_modules/@forge/bridge/out/view/view.js
+// MODULE: ./node_modules/@forge/bridge/out/view/view.js
 var view_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
@@ -12458,917 +7410,155 @@ exports.view = {
 
 });
 
-// MODULE: ./node_modules/@forge/react/node_modules/uuid/dist/commonjs-browser/index.js
-var commonjs_browser_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
-var __webpack_unused_export__;
-
-
-__webpack_unused_export__ = ({
-  value: true
-});
-__webpack_unused_export__ = ({
-  enumerable: true,
-  get: function get() {
-    return _nil.default;
-  }
-});
-__webpack_unused_export__ = ({
-  enumerable: true,
-  get: function get() {
-    return _parse.default;
-  }
-});
-__webpack_unused_export__ = ({
-  enumerable: true,
-  get: function get() {
-    return _stringify.default;
-  }
-});
-__webpack_unused_export__ = ({
-  enumerable: true,
-  get: function get() {
-    return _v.default;
-  }
-});
-__webpack_unused_export__ = ({
-  enumerable: true,
-  get: function get() {
-    return _v2.default;
-  }
-});
-Object.defineProperty(exports, "v4", ({
-  enumerable: true,
-  get: function get() {
-    return _v3.default;
-  }
-}));
-__webpack_unused_export__ = ({
-  enumerable: true,
-  get: function get() {
-    return _v4.default;
-  }
-});
-Object.defineProperty(exports, "validate", ({
-  enumerable: true,
-  get: function get() {
-    return _validate.default;
-  }
-}));
-__webpack_unused_export__ = ({
-  enumerable: true,
-  get: function get() {
-    return _version.default;
-  }
-});
-
-var _v = _interopRequireDefault((v1_namespaceFn()));
-
-var _v2 = _interopRequireDefault((v3_namespaceFn()));
-
-var _v3 = _interopRequireDefault((v4_namespaceFn()));
-
-var _v4 = _interopRequireDefault((v5_namespaceFn()));
-
-var _nil = _interopRequireDefault((nil_namespaceFn()));
-
-var _version = _interopRequireDefault((version_namespaceFn()));
-
-var _validate = _interopRequireDefault((validate_namespaceFn()));
-
-var _stringify = _interopRequireDefault((stringify_namespaceFn()));
-
-var _parse = _interopRequireDefault((parse_namespaceFn()));
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-});
-
-// MODULE: ./node_modules/@forge/react/node_modules/uuid/dist/commonjs-browser/md5.js
-var md5_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
-
-
-Object.defineProperty(exports, "__esModule", ({
-  value: true
-}));
-exports["default"] = void 0;
-
-/*
- * Browser-compatible JavaScript MD5
- *
- * Modification of JavaScript MD5
- * https://github.com/blueimp/JavaScript-MD5
- *
- * Copyright 2011, Sebastian Tschan
- * https://blueimp.net
- *
- * Licensed under the MIT license:
- * https://opensource.org/licenses/MIT
- *
- * Based on
- * A JavaScript implementation of the RSA Data Security, Inc. MD5 Message
- * Digest Algorithm, as defined in RFC 1321.
- * Version 2.2 Copyright (C) Paul Johnston 1999 - 2009
- * Other contributors: Greg Holt, Andrew Kepert, Ydnar, Lostinet
- * Distributed under the BSD License
- * See http://pajhome.org.uk/crypt/md5 for more info.
- */
-function md5(bytes) {
-  if (typeof bytes === 'string') {
-    const msg = unescape(encodeURIComponent(bytes)); // UTF8 escape
-
-    bytes = new Uint8Array(msg.length);
-
-    for (let i = 0; i < msg.length; ++i) {
-      bytes[i] = msg.charCodeAt(i);
-    }
-  }
-
-  return md5ToHexEncodedArray(wordsToMd5(bytesToWords(bytes), bytes.length * 8));
-}
-/*
- * Convert an array of little-endian words to an array of bytes
- */
-
-
-function md5ToHexEncodedArray(input) {
-  const output = [];
-  const length32 = input.length * 32;
-  const hexTab = '0123456789abcdef';
-
-  for (let i = 0; i < length32; i += 8) {
-    const x = input[i >> 5] >>> i % 32 & 0xff;
-    const hex = parseInt(hexTab.charAt(x >>> 4 & 0x0f) + hexTab.charAt(x & 0x0f), 16);
-    output.push(hex);
-  }
-
-  return output;
-}
-/**
- * Calculate output length with padding and bit length
- */
-
-
-function getOutputLength(inputLength8) {
-  return (inputLength8 + 64 >>> 9 << 4) + 14 + 1;
-}
-/*
- * Calculate the MD5 of an array of little-endian words, and a bit length.
- */
-
-
-function wordsToMd5(x, len) {
-  /* append padding */
-  x[len >> 5] |= 0x80 << len % 32;
-  x[getOutputLength(len) - 1] = len;
-  let a = 1732584193;
-  let b = -271733879;
-  let c = -1732584194;
-  let d = 271733878;
-
-  for (let i = 0; i < x.length; i += 16) {
-    const olda = a;
-    const oldb = b;
-    const oldc = c;
-    const oldd = d;
-    a = md5ff(a, b, c, d, x[i], 7, -680876936);
-    d = md5ff(d, a, b, c, x[i + 1], 12, -389564586);
-    c = md5ff(c, d, a, b, x[i + 2], 17, 606105819);
-    b = md5ff(b, c, d, a, x[i + 3], 22, -1044525330);
-    a = md5ff(a, b, c, d, x[i + 4], 7, -176418897);
-    d = md5ff(d, a, b, c, x[i + 5], 12, 1200080426);
-    c = md5ff(c, d, a, b, x[i + 6], 17, -1473231341);
-    b = md5ff(b, c, d, a, x[i + 7], 22, -45705983);
-    a = md5ff(a, b, c, d, x[i + 8], 7, 1770035416);
-    d = md5ff(d, a, b, c, x[i + 9], 12, -1958414417);
-    c = md5ff(c, d, a, b, x[i + 10], 17, -42063);
-    b = md5ff(b, c, d, a, x[i + 11], 22, -1990404162);
-    a = md5ff(a, b, c, d, x[i + 12], 7, 1804603682);
-    d = md5ff(d, a, b, c, x[i + 13], 12, -40341101);
-    c = md5ff(c, d, a, b, x[i + 14], 17, -1502002290);
-    b = md5ff(b, c, d, a, x[i + 15], 22, 1236535329);
-    a = md5gg(a, b, c, d, x[i + 1], 5, -165796510);
-    d = md5gg(d, a, b, c, x[i + 6], 9, -1069501632);
-    c = md5gg(c, d, a, b, x[i + 11], 14, 643717713);
-    b = md5gg(b, c, d, a, x[i], 20, -373897302);
-    a = md5gg(a, b, c, d, x[i + 5], 5, -701558691);
-    d = md5gg(d, a, b, c, x[i + 10], 9, 38016083);
-    c = md5gg(c, d, a, b, x[i + 15], 14, -660478335);
-    b = md5gg(b, c, d, a, x[i + 4], 20, -405537848);
-    a = md5gg(a, b, c, d, x[i + 9], 5, 568446438);
-    d = md5gg(d, a, b, c, x[i + 14], 9, -1019803690);
-    c = md5gg(c, d, a, b, x[i + 3], 14, -187363961);
-    b = md5gg(b, c, d, a, x[i + 8], 20, 1163531501);
-    a = md5gg(a, b, c, d, x[i + 13], 5, -1444681467);
-    d = md5gg(d, a, b, c, x[i + 2], 9, -51403784);
-    c = md5gg(c, d, a, b, x[i + 7], 14, 1735328473);
-    b = md5gg(b, c, d, a, x[i + 12], 20, -1926607734);
-    a = md5hh(a, b, c, d, x[i + 5], 4, -378558);
-    d = md5hh(d, a, b, c, x[i + 8], 11, -2022574463);
-    c = md5hh(c, d, a, b, x[i + 11], 16, 1839030562);
-    b = md5hh(b, c, d, a, x[i + 14], 23, -35309556);
-    a = md5hh(a, b, c, d, x[i + 1], 4, -1530992060);
-    d = md5hh(d, a, b, c, x[i + 4], 11, 1272893353);
-    c = md5hh(c, d, a, b, x[i + 7], 16, -155497632);
-    b = md5hh(b, c, d, a, x[i + 10], 23, -1094730640);
-    a = md5hh(a, b, c, d, x[i + 13], 4, 681279174);
-    d = md5hh(d, a, b, c, x[i], 11, -358537222);
-    c = md5hh(c, d, a, b, x[i + 3], 16, -722521979);
-    b = md5hh(b, c, d, a, x[i + 6], 23, 76029189);
-    a = md5hh(a, b, c, d, x[i + 9], 4, -640364487);
-    d = md5hh(d, a, b, c, x[i + 12], 11, -421815835);
-    c = md5hh(c, d, a, b, x[i + 15], 16, 530742520);
-    b = md5hh(b, c, d, a, x[i + 2], 23, -995338651);
-    a = md5ii(a, b, c, d, x[i], 6, -198630844);
-    d = md5ii(d, a, b, c, x[i + 7], 10, 1126891415);
-    c = md5ii(c, d, a, b, x[i + 14], 15, -1416354905);
-    b = md5ii(b, c, d, a, x[i + 5], 21, -57434055);
-    a = md5ii(a, b, c, d, x[i + 12], 6, 1700485571);
-    d = md5ii(d, a, b, c, x[i + 3], 10, -1894986606);
-    c = md5ii(c, d, a, b, x[i + 10], 15, -1051523);
-    b = md5ii(b, c, d, a, x[i + 1], 21, -2054922799);
-    a = md5ii(a, b, c, d, x[i + 8], 6, 1873313359);
-    d = md5ii(d, a, b, c, x[i + 15], 10, -30611744);
-    c = md5ii(c, d, a, b, x[i + 6], 15, -1560198380);
-    b = md5ii(b, c, d, a, x[i + 13], 21, 1309151649);
-    a = md5ii(a, b, c, d, x[i + 4], 6, -145523070);
-    d = md5ii(d, a, b, c, x[i + 11], 10, -1120210379);
-    c = md5ii(c, d, a, b, x[i + 2], 15, 718787259);
-    b = md5ii(b, c, d, a, x[i + 9], 21, -343485551);
-    a = safeAdd(a, olda);
-    b = safeAdd(b, oldb);
-    c = safeAdd(c, oldc);
-    d = safeAdd(d, oldd);
-  }
-
-  return [a, b, c, d];
-}
-/*
- * Convert an array bytes to an array of little-endian words
- * Characters >255 have their high-byte silently ignored.
- */
-
-
-function bytesToWords(input) {
-  if (input.length === 0) {
-    return [];
-  }
-
-  const length8 = input.length * 8;
-  const output = new Uint32Array(getOutputLength(length8));
-
-  for (let i = 0; i < length8; i += 8) {
-    output[i >> 5] |= (input[i / 8] & 0xff) << i % 32;
-  }
-
-  return output;
-}
-/*
- * Add integers, wrapping at 2^32. This uses 16-bit operations internally
- * to work around bugs in some JS interpreters.
- */
-
-
-function safeAdd(x, y) {
-  const lsw = (x & 0xffff) + (y & 0xffff);
-  const msw = (x >> 16) + (y >> 16) + (lsw >> 16);
-  return msw << 16 | lsw & 0xffff;
-}
-/*
- * Bitwise rotate a 32-bit number to the left.
- */
-
-
-function bitRotateLeft(num, cnt) {
-  return num << cnt | num >>> 32 - cnt;
-}
-/*
- * These functions implement the four basic operations the algorithm uses.
- */
-
-
-function md5cmn(q, a, b, x, s, t) {
-  return safeAdd(bitRotateLeft(safeAdd(safeAdd(a, q), safeAdd(x, t)), s), b);
-}
-
-function md5ff(a, b, c, d, x, s, t) {
-  return md5cmn(b & c | ~b & d, a, b, x, s, t);
-}
-
-function md5gg(a, b, c, d, x, s, t) {
-  return md5cmn(b & d | c & ~d, a, b, x, s, t);
-}
-
-function md5hh(a, b, c, d, x, s, t) {
-  return md5cmn(b ^ c ^ d, a, b, x, s, t);
-}
-
-function md5ii(a, b, c, d, x, s, t) {
-  return md5cmn(c ^ (b | ~d), a, b, x, s, t);
-}
-
-var _default = md5;
-exports["default"] = _default;
-});
-
-// MODULE: ./node_modules/@forge/react/node_modules/uuid/dist/commonjs-browser/native.js
-var native_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
-
-
-Object.defineProperty(exports, "__esModule", ({
-  value: true
-}));
-exports["default"] = void 0;
-const randomUUID = typeof crypto !== 'undefined' && crypto.randomUUID && crypto.randomUUID.bind(crypto);
-var _default = {
-  randomUUID
+// EXTERNAL MODULE: ./node_modules/@forge/egress/out/egress/egress-filtering-service.js
+var egress_filtering_service_namespaceFn = () => {
+	return __webpack_require__(7953);
 };
-exports["default"] = _default;
+
+// MODULE: ./node_modules/@forge/egress/out/egress/index.js
+var egress_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+const tslib_1 = (tslib_es6_namespaceFn());
+tslib_1.__exportStar((egress_filtering_service_namespaceFn()), exports);
+tslib_1.__exportStar((url_parser_namespaceFn()), exports);
+tslib_1.__exportStar((egress_utils_namespaceFn()), exports);
+
 });
 
-// MODULE: ./node_modules/@forge/react/node_modules/uuid/dist/commonjs-browser/nil.js
-var nil_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
+// EXTERNAL MODULE: ./node_modules/@forge/egress/out/egress/url-parser.js
+var url_parser_namespaceFn = () => {
+	return __webpack_require__(6836);
+};
 
+// EXTERNAL MODULE: ./node_modules/@forge/egress/out/egress/utils.js
+var egress_utils_namespaceFn = () => {
+	return __webpack_require__(7194);
+};
 
-Object.defineProperty(exports, "__esModule", ({
-  value: true
-}));
-exports["default"] = void 0;
-var _default = '00000000-0000-0000-0000-000000000000';
-exports["default"] = _default;
+// MODULE: ./node_modules/@forge/egress/out/index.js
+var egress_out_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+const tslib_1 = (tslib_es6_namespaceFn());
+tslib_1.__exportStar((egress_namespaceFn()), exports);
+
 });
 
-// MODULE: ./node_modules/@forge/react/node_modules/uuid/dist/commonjs-browser/parse.js
-var parse_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
+// EXTERNAL MODULE: ./node_modules/@forge/i18n/out/constants.js
+var constants_namespaceFn = () => {
+	return __webpack_require__(6893);
+};
 
+// EXTERNAL MODULE: ./node_modules/@forge/i18n/out/ensureLocale.js
+var ensureLocale_namespaceFn = () => {
+	return __webpack_require__(7898);
+};
 
-Object.defineProperty(exports, "__esModule", ({
-  value: true
-}));
-exports["default"] = void 0;
+// MODULE: ./node_modules/@forge/i18n/out/index.js
+var out_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
 
-var _validate = _interopRequireDefault((validate_namespaceFn()));
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.getI18nSupportedModuleEntries = exports.extractI18nPropertiesFromModules = exports.extractI18nKeysFromModules = exports.getTranslationValue = void 0;
+const tslib_1 = (tslib_es6_namespaceFn());
+tslib_1.__exportStar((constants_namespaceFn()), exports);
+tslib_1.__exportStar((translationsGetter_namespaceFn()), exports);
+tslib_1.__exportStar((translator_namespaceFn()), exports);
+tslib_1.__exportStar((ensureLocale_namespaceFn()), exports);
+var translationValueGetter_1 = (translationValueGetter_namespaceFn());
+Object.defineProperty(exports, "getTranslationValue", ({ enumerable: true, get: function () { return translationValueGetter_1.getTranslationValue; } }));
+var moduleI18nHelper_1 = (moduleI18nHelper_namespaceFn());
+Object.defineProperty(exports, "extractI18nKeysFromModules", ({ enumerable: true, get: function () { return moduleI18nHelper_1.extractI18nKeysFromModules; } }));
+Object.defineProperty(exports, "extractI18nPropertiesFromModules", ({ enumerable: true, get: function () { return moduleI18nHelper_1.extractI18nPropertiesFromModules; } }));
+Object.defineProperty(exports, "getI18nSupportedModuleEntries", ({ enumerable: true, get: function () { return moduleI18nHelper_1.getI18nSupportedModuleEntries; } }));
+tslib_1.__exportStar((types_namespaceFn()), exports);
 
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function parse(uuid) {
-  if (!(0, _validate.default)(uuid)) {
-    throw TypeError('Invalid UUID');
-  }
-
-  let v;
-  const arr = new Uint8Array(16); // Parse ########-....-....-....-............
-
-  arr[0] = (v = parseInt(uuid.slice(0, 8), 16)) >>> 24;
-  arr[1] = v >>> 16 & 0xff;
-  arr[2] = v >>> 8 & 0xff;
-  arr[3] = v & 0xff; // Parse ........-####-....-....-............
-
-  arr[4] = (v = parseInt(uuid.slice(9, 13), 16)) >>> 8;
-  arr[5] = v & 0xff; // Parse ........-....-####-....-............
-
-  arr[6] = (v = parseInt(uuid.slice(14, 18), 16)) >>> 8;
-  arr[7] = v & 0xff; // Parse ........-....-....-####-............
-
-  arr[8] = (v = parseInt(uuid.slice(19, 23), 16)) >>> 8;
-  arr[9] = v & 0xff; // Parse ........-....-....-....-############
-  // (Use "/" to avoid 32-bit truncation when bit-shifting high-order bytes)
-
-  arr[10] = (v = parseInt(uuid.slice(24, 36), 16)) / 0x10000000000 & 0xff;
-  arr[11] = v / 0x100000000 & 0xff;
-  arr[12] = v >>> 24 & 0xff;
-  arr[13] = v >>> 16 & 0xff;
-  arr[14] = v >>> 8 & 0xff;
-  arr[15] = v & 0xff;
-  return arr;
-}
-
-var _default = parse;
-exports["default"] = _default;
 });
 
-// MODULE: ./node_modules/@forge/react/node_modules/uuid/dist/commonjs-browser/regex.js
-var regex_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
+// EXTERNAL MODULE: ./node_modules/@forge/i18n/out/moduleI18nHelper.js
+var moduleI18nHelper_namespaceFn = () => {
+	return __webpack_require__(9962);
+};
 
+// MODULE: ./node_modules/@forge/i18n/out/translationValueGetter.js
+var translationValueGetter_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
 
-Object.defineProperty(exports, "__esModule", ({
-  value: true
-}));
-exports["default"] = void 0;
-var _default = /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}|00000000-0000-0000-0000-000000000000)$/i;
-exports["default"] = _default;
-});
-
-// MODULE: ./node_modules/@forge/react/node_modules/uuid/dist/commonjs-browser/rng.js
-var rng_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
-
-
-Object.defineProperty(exports, "__esModule", ({
-  value: true
-}));
-exports["default"] = rng;
-// Unique ID creation requires a high quality random # generator. In the browser we therefore
-// require the crypto API and do not support built-in fallback to lower quality random number
-// generators (like Math.random()).
-let getRandomValues;
-const rnds8 = new Uint8Array(16);
-
-function rng() {
-  // lazy load so that environments that need to polyfill have a chance to do so
-  if (!getRandomValues) {
-    // getRandomValues needs to be invoked in a context where "this" is a Crypto implementation.
-    getRandomValues = typeof crypto !== 'undefined' && crypto.getRandomValues && crypto.getRandomValues.bind(crypto);
-
-    if (!getRandomValues) {
-      throw new Error('crypto.getRandomValues() not supported. See https://github.com/uuidjs/uuid#getrandomvalues-not-supported');
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.getTranslationValueFromContent = exports.getTranslationValue = void 0;
+const tslib_1 = (tslib_es6_namespaceFn());
+const get_1 = tslib_1.__importDefault((get_namespaceFn()));
+const getTranslationValue = (translationLookup, i18nKey, locale) => {
+    const translation = translationLookup[locale];
+    if (!translation) {
+        return null;
     }
-  }
+    return (0, exports.getTranslationValueFromContent)(translation, i18nKey);
+};
+exports.getTranslationValue = getTranslationValue;
+const getTranslationValueFromContent = (translationContent, i18nKey) => {
+    let translationValue = translationContent[i18nKey];
+    if (!translationValue) {
+        const keyTokens = i18nKey.split('.');
+        if (keyTokens.length > 1) {
+            translationValue = (0, get_1.default)(translationContent, keyTokens, null);
+        }
+    }
+    return typeof translationValue === 'string' ? translationValue : null;
+};
+exports.getTranslationValueFromContent = getTranslationValueFromContent;
 
-  return getRandomValues(rnds8);
-}
 });
 
-// MODULE: ./node_modules/@forge/react/node_modules/uuid/dist/commonjs-browser/sha1.js
-var sha1_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
+// EXTERNAL MODULE: ./node_modules/@forge/i18n/out/translationsGetter.js
+var translationsGetter_namespaceFn = () => {
+	return __webpack_require__(6829);
+};
 
+// MODULE: ./node_modules/@forge/i18n/out/translator.js
+var translator_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
 
-Object.defineProperty(exports, "__esModule", ({
-  value: true
-}));
-exports["default"] = void 0;
-
-// Adapted from Chris Veness' SHA1 code at
-// http://www.movable-type.co.uk/scripts/sha1.html
-function f(s, x, y, z) {
-  switch (s) {
-    case 0:
-      return x & y ^ ~x & z;
-
-    case 1:
-      return x ^ y ^ z;
-
-    case 2:
-      return x & y ^ x & z ^ y & z;
-
-    case 3:
-      return x ^ y ^ z;
-  }
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.Translator = void 0;
+const translationValueGetter_1 = (translationValueGetter_namespaceFn());
+class Translator {
+    locale;
+    translationsGetter;
+    localeLookupOrderedTranslations = null;
+    cache = new Map();
+    constructor(locale, translationsGetter) {
+        this.locale = locale;
+        this.translationsGetter = translationsGetter;
+    }
+    async init() {
+        this.localeLookupOrderedTranslations = await this.translationsGetter.getTranslationsByLocaleLookupOrder(this.locale);
+    }
+    translate(i18nKey) {
+        if (!this.localeLookupOrderedTranslations) {
+            throw new Error('TranslationLookup not initialized');
+        }
+        let result = this.cache.get(i18nKey);
+        if (result === undefined) {
+            for (const { translations } of this.localeLookupOrderedTranslations) {
+                const translationValue = (0, translationValueGetter_1.getTranslationValueFromContent)(translations, i18nKey);
+                if (translationValue !== null) {
+                    result = translationValue;
+                    break;
+                }
+            }
+            result = result ?? null;
+            this.cache.set(i18nKey, result);
+        }
+        return result;
+    }
 }
+exports.Translator = Translator;
 
-function ROTL(x, n) {
-  return x << n | x >>> 32 - n;
-}
-
-function sha1(bytes) {
-  const K = [0x5a827999, 0x6ed9eba1, 0x8f1bbcdc, 0xca62c1d6];
-  const H = [0x67452301, 0xefcdab89, 0x98badcfe, 0x10325476, 0xc3d2e1f0];
-
-  if (typeof bytes === 'string') {
-    const msg = unescape(encodeURIComponent(bytes)); // UTF8 escape
-
-    bytes = [];
-
-    for (let i = 0; i < msg.length; ++i) {
-      bytes.push(msg.charCodeAt(i));
-    }
-  } else if (!Array.isArray(bytes)) {
-    // Convert Array-like to Array
-    bytes = Array.prototype.slice.call(bytes);
-  }
-
-  bytes.push(0x80);
-  const l = bytes.length / 4 + 2;
-  const N = Math.ceil(l / 16);
-  const M = new Array(N);
-
-  for (let i = 0; i < N; ++i) {
-    const arr = new Uint32Array(16);
-
-    for (let j = 0; j < 16; ++j) {
-      arr[j] = bytes[i * 64 + j * 4] << 24 | bytes[i * 64 + j * 4 + 1] << 16 | bytes[i * 64 + j * 4 + 2] << 8 | bytes[i * 64 + j * 4 + 3];
-    }
-
-    M[i] = arr;
-  }
-
-  M[N - 1][14] = (bytes.length - 1) * 8 / Math.pow(2, 32);
-  M[N - 1][14] = Math.floor(M[N - 1][14]);
-  M[N - 1][15] = (bytes.length - 1) * 8 & 0xffffffff;
-
-  for (let i = 0; i < N; ++i) {
-    const W = new Uint32Array(80);
-
-    for (let t = 0; t < 16; ++t) {
-      W[t] = M[i][t];
-    }
-
-    for (let t = 16; t < 80; ++t) {
-      W[t] = ROTL(W[t - 3] ^ W[t - 8] ^ W[t - 14] ^ W[t - 16], 1);
-    }
-
-    let a = H[0];
-    let b = H[1];
-    let c = H[2];
-    let d = H[3];
-    let e = H[4];
-
-    for (let t = 0; t < 80; ++t) {
-      const s = Math.floor(t / 20);
-      const T = ROTL(a, 5) + f(s, b, c, d) + e + K[s] + W[t] >>> 0;
-      e = d;
-      d = c;
-      c = ROTL(b, 30) >>> 0;
-      b = a;
-      a = T;
-    }
-
-    H[0] = H[0] + a >>> 0;
-    H[1] = H[1] + b >>> 0;
-    H[2] = H[2] + c >>> 0;
-    H[3] = H[3] + d >>> 0;
-    H[4] = H[4] + e >>> 0;
-  }
-
-  return [H[0] >> 24 & 0xff, H[0] >> 16 & 0xff, H[0] >> 8 & 0xff, H[0] & 0xff, H[1] >> 24 & 0xff, H[1] >> 16 & 0xff, H[1] >> 8 & 0xff, H[1] & 0xff, H[2] >> 24 & 0xff, H[2] >> 16 & 0xff, H[2] >> 8 & 0xff, H[2] & 0xff, H[3] >> 24 & 0xff, H[3] >> 16 & 0xff, H[3] >> 8 & 0xff, H[3] & 0xff, H[4] >> 24 & 0xff, H[4] >> 16 & 0xff, H[4] >> 8 & 0xff, H[4] & 0xff];
-}
-
-var _default = sha1;
-exports["default"] = _default;
 });
 
-// MODULE: ./node_modules/@forge/react/node_modules/uuid/dist/commonjs-browser/stringify.js
-var stringify_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
-
-
-Object.defineProperty(exports, "__esModule", ({
-  value: true
-}));
-exports["default"] = void 0;
-exports.unsafeStringify = unsafeStringify;
-
-var _validate = _interopRequireDefault((validate_namespaceFn()));
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-/**
- * Convert array of 16 byte values to UUID string format of the form:
- * XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX
- */
-const byteToHex = [];
-
-for (let i = 0; i < 256; ++i) {
-  byteToHex.push((i + 0x100).toString(16).slice(1));
-}
-
-function unsafeStringify(arr, offset = 0) {
-  // Note: Be careful editing this code!  It's been tuned for performance
-  // and works in ways you may not expect. See https://github.com/uuidjs/uuid/pull/434
-  return byteToHex[arr[offset + 0]] + byteToHex[arr[offset + 1]] + byteToHex[arr[offset + 2]] + byteToHex[arr[offset + 3]] + '-' + byteToHex[arr[offset + 4]] + byteToHex[arr[offset + 5]] + '-' + byteToHex[arr[offset + 6]] + byteToHex[arr[offset + 7]] + '-' + byteToHex[arr[offset + 8]] + byteToHex[arr[offset + 9]] + '-' + byteToHex[arr[offset + 10]] + byteToHex[arr[offset + 11]] + byteToHex[arr[offset + 12]] + byteToHex[arr[offset + 13]] + byteToHex[arr[offset + 14]] + byteToHex[arr[offset + 15]];
-}
-
-function stringify(arr, offset = 0) {
-  const uuid = unsafeStringify(arr, offset); // Consistency check for valid UUID.  If this throws, it's likely due to one
-  // of the following:
-  // - One or more input array values don't map to a hex octet (leading to
-  // "undefined" in the uuid)
-  // - Invalid input values for the RFC `version` or `variant` fields
-
-  if (!(0, _validate.default)(uuid)) {
-    throw TypeError('Stringified UUID is invalid');
-  }
-
-  return uuid;
-}
-
-var _default = stringify;
-exports["default"] = _default;
-});
-
-// MODULE: ./node_modules/@forge/react/node_modules/uuid/dist/commonjs-browser/v1.js
-var v1_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
-
-
-Object.defineProperty(exports, "__esModule", ({
-  value: true
-}));
-exports["default"] = void 0;
-
-var _rng = _interopRequireDefault((rng_namespaceFn()));
-
-var _stringify = (stringify_namespaceFn());
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-// **`v1()` - Generate time-based UUID**
-//
-// Inspired by https://github.com/LiosK/UUID.js
-// and http://docs.python.org/library/uuid.html
-let _nodeId;
-
-let _clockseq; // Previous uuid creation time
-
-
-let _lastMSecs = 0;
-let _lastNSecs = 0; // See https://github.com/uuidjs/uuid for API details
-
-function v1(options, buf, offset) {
-  let i = buf && offset || 0;
-  const b = buf || new Array(16);
-  options = options || {};
-  let node = options.node || _nodeId;
-  let clockseq = options.clockseq !== undefined ? options.clockseq : _clockseq; // node and clockseq need to be initialized to random values if they're not
-  // specified.  We do this lazily to minimize issues related to insufficient
-  // system entropy.  See #189
-
-  if (node == null || clockseq == null) {
-    const seedBytes = options.random || (options.rng || _rng.default)();
-
-    if (node == null) {
-      // Per 4.5, create and 48-bit node id, (47 random bits + multicast bit = 1)
-      node = _nodeId = [seedBytes[0] | 0x01, seedBytes[1], seedBytes[2], seedBytes[3], seedBytes[4], seedBytes[5]];
-    }
-
-    if (clockseq == null) {
-      // Per 4.2.2, randomize (14 bit) clockseq
-      clockseq = _clockseq = (seedBytes[6] << 8 | seedBytes[7]) & 0x3fff;
-    }
-  } // UUID timestamps are 100 nano-second units since the Gregorian epoch,
-  // (1582-10-15 00:00).  JSNumbers aren't precise enough for this, so
-  // time is handled internally as 'msecs' (integer milliseconds) and 'nsecs'
-  // (100-nanoseconds offset from msecs) since unix epoch, 1970-01-01 00:00.
-
-
-  let msecs = options.msecs !== undefined ? options.msecs : Date.now(); // Per 4.2.1.2, use count of uuid's generated during the current clock
-  // cycle to simulate higher resolution clock
-
-  let nsecs = options.nsecs !== undefined ? options.nsecs : _lastNSecs + 1; // Time since last uuid creation (in msecs)
-
-  const dt = msecs - _lastMSecs + (nsecs - _lastNSecs) / 10000; // Per 4.2.1.2, Bump clockseq on clock regression
-
-  if (dt < 0 && options.clockseq === undefined) {
-    clockseq = clockseq + 1 & 0x3fff;
-  } // Reset nsecs if clock regresses (new clockseq) or we've moved onto a new
-  // time interval
-
-
-  if ((dt < 0 || msecs > _lastMSecs) && options.nsecs === undefined) {
-    nsecs = 0;
-  } // Per 4.2.1.2 Throw error if too many uuids are requested
-
-
-  if (nsecs >= 10000) {
-    throw new Error("uuid.v1(): Can't create more than 10M uuids/sec");
-  }
-
-  _lastMSecs = msecs;
-  _lastNSecs = nsecs;
-  _clockseq = clockseq; // Per 4.1.4 - Convert from unix epoch to Gregorian epoch
-
-  msecs += 12219292800000; // `time_low`
-
-  const tl = ((msecs & 0xfffffff) * 10000 + nsecs) % 0x100000000;
-  b[i++] = tl >>> 24 & 0xff;
-  b[i++] = tl >>> 16 & 0xff;
-  b[i++] = tl >>> 8 & 0xff;
-  b[i++] = tl & 0xff; // `time_mid`
-
-  const tmh = msecs / 0x100000000 * 10000 & 0xfffffff;
-  b[i++] = tmh >>> 8 & 0xff;
-  b[i++] = tmh & 0xff; // `time_high_and_version`
-
-  b[i++] = tmh >>> 24 & 0xf | 0x10; // include version
-
-  b[i++] = tmh >>> 16 & 0xff; // `clock_seq_hi_and_reserved` (Per 4.2.2 - include variant)
-
-  b[i++] = clockseq >>> 8 | 0x80; // `clock_seq_low`
-
-  b[i++] = clockseq & 0xff; // `node`
-
-  for (let n = 0; n < 6; ++n) {
-    b[i + n] = node[n];
-  }
-
-  return buf || (0, _stringify.unsafeStringify)(b);
-}
-
-var _default = v1;
-exports["default"] = _default;
-});
-
-// MODULE: ./node_modules/@forge/react/node_modules/uuid/dist/commonjs-browser/v3.js
-var v3_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
-
-
-Object.defineProperty(exports, "__esModule", ({
-  value: true
-}));
-exports["default"] = void 0;
-
-var _v = _interopRequireDefault((v35_namespaceFn()));
-
-var _md = _interopRequireDefault((md5_namespaceFn()));
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-const v3 = (0, _v.default)('v3', 0x30, _md.default);
-var _default = v3;
-exports["default"] = _default;
-});
-
-// MODULE: ./node_modules/@forge/react/node_modules/uuid/dist/commonjs-browser/v35.js
-var v35_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
-
-
-Object.defineProperty(exports, "__esModule", ({
-  value: true
-}));
-exports.URL = exports.DNS = void 0;
-exports["default"] = v35;
-
-var _stringify = (stringify_namespaceFn());
-
-var _parse = _interopRequireDefault((parse_namespaceFn()));
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function stringToBytes(str) {
-  str = unescape(encodeURIComponent(str)); // UTF8 escape
-
-  const bytes = [];
-
-  for (let i = 0; i < str.length; ++i) {
-    bytes.push(str.charCodeAt(i));
-  }
-
-  return bytes;
-}
-
-const DNS = '6ba7b810-9dad-11d1-80b4-00c04fd430c8';
-exports.DNS = DNS;
-const URL = '6ba7b811-9dad-11d1-80b4-00c04fd430c8';
-exports.URL = URL;
-
-function v35(name, version, hashfunc) {
-  function generateUUID(value, namespace, buf, offset) {
-    var _namespace;
-
-    if (typeof value === 'string') {
-      value = stringToBytes(value);
-    }
-
-    if (typeof namespace === 'string') {
-      namespace = (0, _parse.default)(namespace);
-    }
-
-    if (((_namespace = namespace) === null || _namespace === void 0 ? void 0 : _namespace.length) !== 16) {
-      throw TypeError('Namespace must be array-like (16 iterable integer values, 0-255)');
-    } // Compute hash of namespace and value, Per 4.3
-    // Future: Use spread syntax when supported on all platforms, e.g. `bytes =
-    // hashfunc([...namespace, ... value])`
-
-
-    let bytes = new Uint8Array(16 + value.length);
-    bytes.set(namespace);
-    bytes.set(value, namespace.length);
-    bytes = hashfunc(bytes);
-    bytes[6] = bytes[6] & 0x0f | version;
-    bytes[8] = bytes[8] & 0x3f | 0x80;
-
-    if (buf) {
-      offset = offset || 0;
-
-      for (let i = 0; i < 16; ++i) {
-        buf[offset + i] = bytes[i];
-      }
-
-      return buf;
-    }
-
-    return (0, _stringify.unsafeStringify)(bytes);
-  } // Function#name is not settable on some platforms (#270)
-
-
-  try {
-    generateUUID.name = name; // eslint-disable-next-line no-empty
-  } catch (err) {} // For CommonJS default export support
-
-
-  generateUUID.DNS = DNS;
-  generateUUID.URL = URL;
-  return generateUUID;
-}
-});
-
-// MODULE: ./node_modules/@forge/react/node_modules/uuid/dist/commonjs-browser/v4.js
-var v4_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
-
-
-Object.defineProperty(exports, "__esModule", ({
-  value: true
-}));
-exports["default"] = void 0;
-
-var _native = _interopRequireDefault((native_namespaceFn()));
-
-var _rng = _interopRequireDefault((rng_namespaceFn()));
-
-var _stringify = (stringify_namespaceFn());
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function v4(options, buf, offset) {
-  if (_native.default.randomUUID && !buf && !options) {
-    return _native.default.randomUUID();
-  }
-
-  options = options || {};
-
-  const rnds = options.random || (options.rng || _rng.default)(); // Per 4.4, set bits for version and `clock_seq_hi_and_reserved`
-
-
-  rnds[6] = rnds[6] & 0x0f | 0x40;
-  rnds[8] = rnds[8] & 0x3f | 0x80; // Copy bytes to buffer, if provided
-
-  if (buf) {
-    offset = offset || 0;
-
-    for (let i = 0; i < 16; ++i) {
-      buf[offset + i] = rnds[i];
-    }
-
-    return buf;
-  }
-
-  return (0, _stringify.unsafeStringify)(rnds);
-}
-
-var _default = v4;
-exports["default"] = _default;
-});
-
-// MODULE: ./node_modules/@forge/react/node_modules/uuid/dist/commonjs-browser/v5.js
-var v5_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
-
-
-Object.defineProperty(exports, "__esModule", ({
-  value: true
-}));
-exports["default"] = void 0;
-
-var _v = _interopRequireDefault((v35_namespaceFn()));
-
-var _sha = _interopRequireDefault((sha1_namespaceFn()));
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-const v5 = (0, _v.default)('v5', 0x50, _sha.default);
-var _default = v5;
-exports["default"] = _default;
-});
-
-// MODULE: ./node_modules/@forge/react/node_modules/uuid/dist/commonjs-browser/validate.js
-var validate_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
-
-
-Object.defineProperty(exports, "__esModule", ({
-  value: true
-}));
-exports["default"] = void 0;
-
-var _regex = _interopRequireDefault((regex_namespaceFn()));
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function validate(uuid) {
-  return typeof uuid === 'string' && _regex.default.test(uuid);
-}
-
-var _default = validate;
-exports["default"] = _default;
-});
-
-// MODULE: ./node_modules/@forge/react/node_modules/uuid/dist/commonjs-browser/version.js
-var version_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
-
-
-Object.defineProperty(exports, "__esModule", ({
-  value: true
-}));
-exports["default"] = void 0;
-
-var _validate = _interopRequireDefault((validate_namespaceFn()));
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function version(uuid) {
-  if (!(0, _validate.default)(uuid)) {
-    throw TypeError('Invalid UUID');
-  }
-
-  return parseInt(uuid.slice(14, 15), 16);
-}
-
-var _default = version;
-exports["default"] = _default;
-});
+// EXTERNAL MODULE: ./node_modules/@forge/i18n/out/types.js
+var types_namespaceFn = () => {
+	return __webpack_require__(5181);
+};
 
 // MODULE: ./node_modules/@forge/react/out/components/adf-renderer.js
 var components_adf_renderer_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
@@ -13657,7 +7847,7 @@ var replaceUnsupportedDocumentNodes_namespaceFn = /*#__PURE__*/__webpack_require
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.replaceUnsupportedMediaNodes = exports.replaceUnsupportedDocumentNodes = void 0;
-const uuid_1 = (commonjs_browser_namespaceFn());
+const uuid_1 = (cjs_browser_namespaceFn());
 const traverse_1 = (esm_traverse_namespaceFn());
 const replaceUnsupportedDocumentNodes = (document, replaceUnsupportedNode) => {
     const visitors = {
@@ -14830,7 +9020,7 @@ exports.ForgeReconciler = exports.hostConfig = exports.nonChildPropsAreEqual = e
 const tslib_1 = (tslib_es6_namespaceFn());
 const react_reconciler_1 = tslib_1.__importDefault((react_reconciler_namespaceFn()));
 const constants_1 = (react_reconciler_constants_namespaceFn());
-const uuid_1 = (commonjs_browser_namespaceFn());
+const uuid_1 = (cjs_browser_namespaceFn());
 // Only taking the first 5 characters of the uuid to keep the id shorter in the DOM to readability.
 // The chances of clashing with 5 characters is still 1 in 1 million.
 const idPropsPrefixAppUUID = (0, uuid_1.v4)().slice(0, 5);
@@ -14859,6 +9049,17 @@ const attachFunctionPropId = (props) => {
     }
     return props;
 };
+// Normalises raw React props into the props stored on a ForgeDoc: the `children`
+// prop is dropped (children are tracked separately on the ForgeDoc tree) and the
+// id/function-id transforms are applied. Keeping the `children` React element out
+// of the serialised props is important: in React's development build a React
+// element carries an `_owner` fiber reference, which produces a circular
+// structure when the reconcile payload is JSON-serialised over the bridge.
+const normaliseProps = (props) => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { children, ...restProps } = props;
+    return newPropsWithIdPrefix(attachFunctionPropId(restProps));
+};
 const handleReconcilerError = async (error) => {
     try {
         await self?.__bridge?.callBridge('onError', { error });
@@ -14875,9 +9076,7 @@ const callBridge = function (cmd, data) {
 };
 exports.callBridge = callBridge;
 const createElement = ({ type, props = {}, forgeReactMajorVersion }) => {
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { children, ...restProps } = props;
-    const newProps = newPropsWithIdPrefix(attachFunctionPropId(restProps));
+    const newProps = normaliseProps(props);
     const element = {
         type,
         children: [],
@@ -14964,8 +9163,9 @@ exports.hostConfig = {
         return false;
     },
     prepareUpdate(instance, type, oldProps, newProps) {
-        instance.props = newProps;
-        return newProps;
+        const normalisedProps = normaliseProps(newProps);
+        instance.props = normalisedProps;
+        return normalisedProps;
     },
     shouldSetTextContent() {
         return false;
@@ -15071,11 +9271,6 @@ exports["default"] = exports.ForgeReconciler;
 
 });
 
-// EXTERNAL MODULE: ./node_modules/iframe-resizer/index.js
-var iframe_resizer_namespaceFn = () => {
-	return __webpack_require__(4126);
-};
-
 // EXTERNAL MODULE: ./node_modules/lodash/get.js
 var get_namespaceFn = () => {
 	return __webpack_require__(8156);
@@ -15165,6 +9360,756 @@ if (true) {
   module.exports = (react_jsx_runtime_production_min_namespaceFn());
 } else // removed by dead control flow
 {}
+
+});
+
+// MODULE: ./node_modules/uuid/dist/cjs-browser/index.js
+var cjs_browser_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
+var __webpack_unused_export__;
+
+__webpack_unused_export__ = ({ value: true });
+__webpack_unused_export__ = exports.validate = __webpack_unused_export__ = __webpack_unused_export__ = __webpack_unused_export__ = __webpack_unused_export__ = exports.v4 = __webpack_unused_export__ = __webpack_unused_export__ = __webpack_unused_export__ = __webpack_unused_export__ = __webpack_unused_export__ = __webpack_unused_export__ = __webpack_unused_export__ = void 0;
+var max_js_1 = (max_namespaceFn());
+__webpack_unused_export__ = ({ enumerable: true, get: function () { return max_js_1.default; } });
+var nil_js_1 = (nil_namespaceFn());
+__webpack_unused_export__ = ({ enumerable: true, get: function () { return nil_js_1.default; } });
+var parse_js_1 = (parse_namespaceFn());
+__webpack_unused_export__ = ({ enumerable: true, get: function () { return parse_js_1.default; } });
+var stringify_js_1 = (stringify_namespaceFn());
+__webpack_unused_export__ = ({ enumerable: true, get: function () { return stringify_js_1.default; } });
+var v1_js_1 = (v1_namespaceFn());
+__webpack_unused_export__ = ({ enumerable: true, get: function () { return v1_js_1.default; } });
+var v1ToV6_js_1 = (v1ToV6_namespaceFn());
+__webpack_unused_export__ = ({ enumerable: true, get: function () { return v1ToV6_js_1.default; } });
+var v3_js_1 = (v3_namespaceFn());
+__webpack_unused_export__ = ({ enumerable: true, get: function () { return v3_js_1.default; } });
+var v4_js_1 = (v4_namespaceFn());
+Object.defineProperty(exports, "v4", ({ enumerable: true, get: function () { return v4_js_1.default; } }));
+var v5_js_1 = (v5_namespaceFn());
+__webpack_unused_export__ = ({ enumerable: true, get: function () { return v5_js_1.default; } });
+var v6_js_1 = (v6_namespaceFn());
+__webpack_unused_export__ = ({ enumerable: true, get: function () { return v6_js_1.default; } });
+var v6ToV1_js_1 = (v6ToV1_namespaceFn());
+__webpack_unused_export__ = ({ enumerable: true, get: function () { return v6ToV1_js_1.default; } });
+var v7_js_1 = (v7_namespaceFn());
+__webpack_unused_export__ = ({ enumerable: true, get: function () { return v7_js_1.default; } });
+var validate_js_1 = (validate_namespaceFn());
+Object.defineProperty(exports, "validate", ({ enumerable: true, get: function () { return validate_js_1.default; } }));
+var version_js_1 = (version_namespaceFn());
+__webpack_unused_export__ = ({ enumerable: true, get: function () { return version_js_1.default; } });
+
+});
+
+// MODULE: ./node_modules/uuid/dist/cjs-browser/max.js
+var max_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports["default"] = 'ffffffff-ffff-ffff-ffff-ffffffffffff';
+
+});
+
+// MODULE: ./node_modules/uuid/dist/cjs-browser/md5.js
+var md5_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
+var __webpack_unused_export__;
+
+__webpack_unused_export__ = ({ value: true });
+function md5(bytes) {
+    const words = uint8ToUint32(bytes);
+    const md5Bytes = wordsToMd5(words, bytes.length * 8);
+    return uint32ToUint8(md5Bytes);
+}
+function uint32ToUint8(input) {
+    const bytes = new Uint8Array(input.length * 4);
+    for (let i = 0; i < input.length * 4; i++) {
+        bytes[i] = (input[i >> 2] >>> ((i % 4) * 8)) & 0xff;
+    }
+    return bytes;
+}
+function getOutputLength(inputLength8) {
+    return (((inputLength8 + 64) >>> 9) << 4) + 14 + 1;
+}
+function wordsToMd5(x, len) {
+    const xpad = new Uint32Array(getOutputLength(len)).fill(0);
+    xpad.set(x);
+    xpad[len >> 5] |= 0x80 << len % 32;
+    xpad[xpad.length - 1] = len;
+    x = xpad;
+    let a = 1732584193;
+    let b = -271733879;
+    let c = -1732584194;
+    let d = 271733878;
+    for (let i = 0; i < x.length; i += 16) {
+        const olda = a;
+        const oldb = b;
+        const oldc = c;
+        const oldd = d;
+        a = md5ff(a, b, c, d, x[i], 7, -680876936);
+        d = md5ff(d, a, b, c, x[i + 1], 12, -389564586);
+        c = md5ff(c, d, a, b, x[i + 2], 17, 606105819);
+        b = md5ff(b, c, d, a, x[i + 3], 22, -1044525330);
+        a = md5ff(a, b, c, d, x[i + 4], 7, -176418897);
+        d = md5ff(d, a, b, c, x[i + 5], 12, 1200080426);
+        c = md5ff(c, d, a, b, x[i + 6], 17, -1473231341);
+        b = md5ff(b, c, d, a, x[i + 7], 22, -45705983);
+        a = md5ff(a, b, c, d, x[i + 8], 7, 1770035416);
+        d = md5ff(d, a, b, c, x[i + 9], 12, -1958414417);
+        c = md5ff(c, d, a, b, x[i + 10], 17, -42063);
+        b = md5ff(b, c, d, a, x[i + 11], 22, -1990404162);
+        a = md5ff(a, b, c, d, x[i + 12], 7, 1804603682);
+        d = md5ff(d, a, b, c, x[i + 13], 12, -40341101);
+        c = md5ff(c, d, a, b, x[i + 14], 17, -1502002290);
+        b = md5ff(b, c, d, a, x[i + 15], 22, 1236535329);
+        a = md5gg(a, b, c, d, x[i + 1], 5, -165796510);
+        d = md5gg(d, a, b, c, x[i + 6], 9, -1069501632);
+        c = md5gg(c, d, a, b, x[i + 11], 14, 643717713);
+        b = md5gg(b, c, d, a, x[i], 20, -373897302);
+        a = md5gg(a, b, c, d, x[i + 5], 5, -701558691);
+        d = md5gg(d, a, b, c, x[i + 10], 9, 38016083);
+        c = md5gg(c, d, a, b, x[i + 15], 14, -660478335);
+        b = md5gg(b, c, d, a, x[i + 4], 20, -405537848);
+        a = md5gg(a, b, c, d, x[i + 9], 5, 568446438);
+        d = md5gg(d, a, b, c, x[i + 14], 9, -1019803690);
+        c = md5gg(c, d, a, b, x[i + 3], 14, -187363961);
+        b = md5gg(b, c, d, a, x[i + 8], 20, 1163531501);
+        a = md5gg(a, b, c, d, x[i + 13], 5, -1444681467);
+        d = md5gg(d, a, b, c, x[i + 2], 9, -51403784);
+        c = md5gg(c, d, a, b, x[i + 7], 14, 1735328473);
+        b = md5gg(b, c, d, a, x[i + 12], 20, -1926607734);
+        a = md5hh(a, b, c, d, x[i + 5], 4, -378558);
+        d = md5hh(d, a, b, c, x[i + 8], 11, -2022574463);
+        c = md5hh(c, d, a, b, x[i + 11], 16, 1839030562);
+        b = md5hh(b, c, d, a, x[i + 14], 23, -35309556);
+        a = md5hh(a, b, c, d, x[i + 1], 4, -1530992060);
+        d = md5hh(d, a, b, c, x[i + 4], 11, 1272893353);
+        c = md5hh(c, d, a, b, x[i + 7], 16, -155497632);
+        b = md5hh(b, c, d, a, x[i + 10], 23, -1094730640);
+        a = md5hh(a, b, c, d, x[i + 13], 4, 681279174);
+        d = md5hh(d, a, b, c, x[i], 11, -358537222);
+        c = md5hh(c, d, a, b, x[i + 3], 16, -722521979);
+        b = md5hh(b, c, d, a, x[i + 6], 23, 76029189);
+        a = md5hh(a, b, c, d, x[i + 9], 4, -640364487);
+        d = md5hh(d, a, b, c, x[i + 12], 11, -421815835);
+        c = md5hh(c, d, a, b, x[i + 15], 16, 530742520);
+        b = md5hh(b, c, d, a, x[i + 2], 23, -995338651);
+        a = md5ii(a, b, c, d, x[i], 6, -198630844);
+        d = md5ii(d, a, b, c, x[i + 7], 10, 1126891415);
+        c = md5ii(c, d, a, b, x[i + 14], 15, -1416354905);
+        b = md5ii(b, c, d, a, x[i + 5], 21, -57434055);
+        a = md5ii(a, b, c, d, x[i + 12], 6, 1700485571);
+        d = md5ii(d, a, b, c, x[i + 3], 10, -1894986606);
+        c = md5ii(c, d, a, b, x[i + 10], 15, -1051523);
+        b = md5ii(b, c, d, a, x[i + 1], 21, -2054922799);
+        a = md5ii(a, b, c, d, x[i + 8], 6, 1873313359);
+        d = md5ii(d, a, b, c, x[i + 15], 10, -30611744);
+        c = md5ii(c, d, a, b, x[i + 6], 15, -1560198380);
+        b = md5ii(b, c, d, a, x[i + 13], 21, 1309151649);
+        a = md5ii(a, b, c, d, x[i + 4], 6, -145523070);
+        d = md5ii(d, a, b, c, x[i + 11], 10, -1120210379);
+        c = md5ii(c, d, a, b, x[i + 2], 15, 718787259);
+        b = md5ii(b, c, d, a, x[i + 9], 21, -343485551);
+        a = safeAdd(a, olda);
+        b = safeAdd(b, oldb);
+        c = safeAdd(c, oldc);
+        d = safeAdd(d, oldd);
+    }
+    return Uint32Array.of(a, b, c, d);
+}
+function uint8ToUint32(input) {
+    if (input.length === 0) {
+        return new Uint32Array();
+    }
+    const output = new Uint32Array(getOutputLength(input.length * 8)).fill(0);
+    for (let i = 0; i < input.length; i++) {
+        output[i >> 2] |= (input[i] & 0xff) << ((i % 4) * 8);
+    }
+    return output;
+}
+function safeAdd(x, y) {
+    const lsw = (x & 0xffff) + (y & 0xffff);
+    const msw = (x >> 16) + (y >> 16) + (lsw >> 16);
+    return (msw << 16) | (lsw & 0xffff);
+}
+function bitRotateLeft(num, cnt) {
+    return (num << cnt) | (num >>> (32 - cnt));
+}
+function md5cmn(q, a, b, x, s, t) {
+    return safeAdd(bitRotateLeft(safeAdd(safeAdd(a, q), safeAdd(x, t)), s), b);
+}
+function md5ff(a, b, c, d, x, s, t) {
+    return md5cmn((b & c) | (~b & d), a, b, x, s, t);
+}
+function md5gg(a, b, c, d, x, s, t) {
+    return md5cmn((b & d) | (c & ~d), a, b, x, s, t);
+}
+function md5hh(a, b, c, d, x, s, t) {
+    return md5cmn(b ^ c ^ d, a, b, x, s, t);
+}
+function md5ii(a, b, c, d, x, s, t) {
+    return md5cmn(c ^ (b | ~d), a, b, x, s, t);
+}
+exports["default"] = md5;
+
+});
+
+// MODULE: ./node_modules/uuid/dist/cjs-browser/native.js
+var native_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
+var __webpack_unused_export__;
+
+__webpack_unused_export__ = ({ value: true });
+const randomUUID = typeof crypto !== 'undefined' && crypto.randomUUID && crypto.randomUUID.bind(crypto);
+exports["default"] = { randomUUID };
+
+});
+
+// MODULE: ./node_modules/uuid/dist/cjs-browser/nil.js
+var nil_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports["default"] = '00000000-0000-0000-0000-000000000000';
+
+});
+
+// MODULE: ./node_modules/uuid/dist/cjs-browser/parse.js
+var parse_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+const validate_js_1 = (validate_namespaceFn());
+function parse(uuid) {
+    if (!(0, validate_js_1.default)(uuid)) {
+        throw TypeError('Invalid UUID');
+    }
+    let v;
+    return Uint8Array.of((v = parseInt(uuid.slice(0, 8), 16)) >>> 24, (v >>> 16) & 0xff, (v >>> 8) & 0xff, v & 0xff, (v = parseInt(uuid.slice(9, 13), 16)) >>> 8, v & 0xff, (v = parseInt(uuid.slice(14, 18), 16)) >>> 8, v & 0xff, (v = parseInt(uuid.slice(19, 23), 16)) >>> 8, v & 0xff, ((v = parseInt(uuid.slice(24, 36), 16)) / 0x10000000000) & 0xff, (v / 0x100000000) & 0xff, (v >>> 24) & 0xff, (v >>> 16) & 0xff, (v >>> 8) & 0xff, v & 0xff);
+}
+exports["default"] = parse;
+
+});
+
+// MODULE: ./node_modules/uuid/dist/cjs-browser/regex.js
+var regex_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
+var __webpack_unused_export__;
+
+__webpack_unused_export__ = ({ value: true });
+exports["default"] = /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$/i;
+
+});
+
+// MODULE: ./node_modules/uuid/dist/cjs-browser/rng.js
+var rng_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
+var __webpack_unused_export__;
+
+__webpack_unused_export__ = ({ value: true });
+let getRandomValues;
+const rnds8 = new Uint8Array(16);
+function rng() {
+    if (!getRandomValues) {
+        if (typeof crypto === 'undefined' || !crypto.getRandomValues) {
+            throw new Error('crypto.getRandomValues() not supported. See https://github.com/uuidjs/uuid#getrandomvalues-not-supported');
+        }
+        getRandomValues = crypto.getRandomValues.bind(crypto);
+    }
+    return getRandomValues(rnds8);
+}
+exports["default"] = rng;
+
+});
+
+// MODULE: ./node_modules/uuid/dist/cjs-browser/sha1.js
+var sha1_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
+var __webpack_unused_export__;
+
+__webpack_unused_export__ = ({ value: true });
+function f(s, x, y, z) {
+    switch (s) {
+        case 0:
+            return (x & y) ^ (~x & z);
+        case 1:
+            return x ^ y ^ z;
+        case 2:
+            return (x & y) ^ (x & z) ^ (y & z);
+        case 3:
+            return x ^ y ^ z;
+    }
+}
+function ROTL(x, n) {
+    return (x << n) | (x >>> (32 - n));
+}
+function sha1(bytes) {
+    const K = [0x5a827999, 0x6ed9eba1, 0x8f1bbcdc, 0xca62c1d6];
+    const H = [0x67452301, 0xefcdab89, 0x98badcfe, 0x10325476, 0xc3d2e1f0];
+    const newBytes = new Uint8Array(bytes.length + 1);
+    newBytes.set(bytes);
+    newBytes[bytes.length] = 0x80;
+    bytes = newBytes;
+    const l = bytes.length / 4 + 2;
+    const N = Math.ceil(l / 16);
+    const M = new Array(N);
+    for (let i = 0; i < N; ++i) {
+        const arr = new Uint32Array(16);
+        for (let j = 0; j < 16; ++j) {
+            arr[j] =
+                (bytes[i * 64 + j * 4] << 24) |
+                    (bytes[i * 64 + j * 4 + 1] << 16) |
+                    (bytes[i * 64 + j * 4 + 2] << 8) |
+                    bytes[i * 64 + j * 4 + 3];
+        }
+        M[i] = arr;
+    }
+    M[N - 1][14] = ((bytes.length - 1) * 8) / Math.pow(2, 32);
+    M[N - 1][14] = Math.floor(M[N - 1][14]);
+    M[N - 1][15] = ((bytes.length - 1) * 8) & 0xffffffff;
+    for (let i = 0; i < N; ++i) {
+        const W = new Uint32Array(80);
+        for (let t = 0; t < 16; ++t) {
+            W[t] = M[i][t];
+        }
+        for (let t = 16; t < 80; ++t) {
+            W[t] = ROTL(W[t - 3] ^ W[t - 8] ^ W[t - 14] ^ W[t - 16], 1);
+        }
+        let a = H[0];
+        let b = H[1];
+        let c = H[2];
+        let d = H[3];
+        let e = H[4];
+        for (let t = 0; t < 80; ++t) {
+            const s = Math.floor(t / 20);
+            const T = (ROTL(a, 5) + f(s, b, c, d) + e + K[s] + W[t]) >>> 0;
+            e = d;
+            d = c;
+            c = ROTL(b, 30) >>> 0;
+            b = a;
+            a = T;
+        }
+        H[0] = (H[0] + a) >>> 0;
+        H[1] = (H[1] + b) >>> 0;
+        H[2] = (H[2] + c) >>> 0;
+        H[3] = (H[3] + d) >>> 0;
+        H[4] = (H[4] + e) >>> 0;
+    }
+    return Uint8Array.of(H[0] >> 24, H[0] >> 16, H[0] >> 8, H[0], H[1] >> 24, H[1] >> 16, H[1] >> 8, H[1], H[2] >> 24, H[2] >> 16, H[2] >> 8, H[2], H[3] >> 24, H[3] >> 16, H[3] >> 8, H[3], H[4] >> 24, H[4] >> 16, H[4] >> 8, H[4]);
+}
+exports["default"] = sha1;
+
+});
+
+// MODULE: ./node_modules/uuid/dist/cjs-browser/stringify.js
+var stringify_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.unsafeStringify = void 0;
+const validate_js_1 = (validate_namespaceFn());
+const byteToHex = [];
+for (let i = 0; i < 256; ++i) {
+    byteToHex.push((i + 0x100).toString(16).slice(1));
+}
+function unsafeStringify(arr, offset = 0) {
+    return (byteToHex[arr[offset + 0]] +
+        byteToHex[arr[offset + 1]] +
+        byteToHex[arr[offset + 2]] +
+        byteToHex[arr[offset + 3]] +
+        '-' +
+        byteToHex[arr[offset + 4]] +
+        byteToHex[arr[offset + 5]] +
+        '-' +
+        byteToHex[arr[offset + 6]] +
+        byteToHex[arr[offset + 7]] +
+        '-' +
+        byteToHex[arr[offset + 8]] +
+        byteToHex[arr[offset + 9]] +
+        '-' +
+        byteToHex[arr[offset + 10]] +
+        byteToHex[arr[offset + 11]] +
+        byteToHex[arr[offset + 12]] +
+        byteToHex[arr[offset + 13]] +
+        byteToHex[arr[offset + 14]] +
+        byteToHex[arr[offset + 15]]).toLowerCase();
+}
+exports.unsafeStringify = unsafeStringify;
+function stringify(arr, offset = 0) {
+    const uuid = unsafeStringify(arr, offset);
+    if (!(0, validate_js_1.default)(uuid)) {
+        throw TypeError('Stringified UUID is invalid');
+    }
+    return uuid;
+}
+exports["default"] = stringify;
+
+});
+
+// MODULE: ./node_modules/uuid/dist/cjs-browser/v1.js
+var v1_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.updateV1State = void 0;
+const rng_js_1 = (rng_namespaceFn());
+const stringify_js_1 = (stringify_namespaceFn());
+const _state = {};
+function v1(options, buf, offset) {
+    let bytes;
+    const isV6 = options?._v6 ?? false;
+    if (options) {
+        const optionsKeys = Object.keys(options);
+        if (optionsKeys.length === 1 && optionsKeys[0] === '_v6') {
+            options = undefined;
+        }
+    }
+    if (options) {
+        bytes = v1Bytes(options.random ?? options.rng?.() ?? (0, rng_js_1.default)(), options.msecs, options.nsecs, options.clockseq, options.node, buf, offset);
+    }
+    else {
+        const now = Date.now();
+        const rnds = (0, rng_js_1.default)();
+        updateV1State(_state, now, rnds);
+        bytes = v1Bytes(rnds, _state.msecs, _state.nsecs, isV6 ? undefined : _state.clockseq, isV6 ? undefined : _state.node, buf, offset);
+    }
+    return buf ?? (0, stringify_js_1.unsafeStringify)(bytes);
+}
+function updateV1State(state, now, rnds) {
+    state.msecs ??= -Infinity;
+    state.nsecs ??= 0;
+    if (now === state.msecs) {
+        state.nsecs++;
+        if (state.nsecs >= 10000) {
+            state.node = undefined;
+            state.nsecs = 0;
+        }
+    }
+    else if (now > state.msecs) {
+        state.nsecs = 0;
+    }
+    else if (now < state.msecs) {
+        state.node = undefined;
+    }
+    if (!state.node) {
+        state.node = rnds.slice(10, 16);
+        state.node[0] |= 0x01;
+        state.clockseq = ((rnds[8] << 8) | rnds[9]) & 0x3fff;
+    }
+    state.msecs = now;
+    return state;
+}
+exports.updateV1State = updateV1State;
+function v1Bytes(rnds, msecs, nsecs, clockseq, node, buf, offset = 0) {
+    if (rnds.length < 16) {
+        throw new Error('Random bytes length must be >= 16');
+    }
+    if (!buf) {
+        buf = new Uint8Array(16);
+        offset = 0;
+    }
+    else {
+        if (offset < 0 || offset + 16 > buf.length) {
+            throw new RangeError(`UUID byte range ${offset}:${offset + 15} is out of buffer bounds`);
+        }
+    }
+    msecs ??= Date.now();
+    nsecs ??= 0;
+    clockseq ??= ((rnds[8] << 8) | rnds[9]) & 0x3fff;
+    node ??= rnds.slice(10, 16);
+    msecs += 12219292800000;
+    const tl = ((msecs & 0xfffffff) * 10000 + nsecs) % 0x100000000;
+    buf[offset++] = (tl >>> 24) & 0xff;
+    buf[offset++] = (tl >>> 16) & 0xff;
+    buf[offset++] = (tl >>> 8) & 0xff;
+    buf[offset++] = tl & 0xff;
+    const tmh = ((msecs / 0x100000000) * 10000) & 0xfffffff;
+    buf[offset++] = (tmh >>> 8) & 0xff;
+    buf[offset++] = tmh & 0xff;
+    buf[offset++] = ((tmh >>> 24) & 0xf) | 0x10;
+    buf[offset++] = (tmh >>> 16) & 0xff;
+    buf[offset++] = (clockseq >>> 8) | 0x80;
+    buf[offset++] = clockseq & 0xff;
+    for (let n = 0; n < 6; ++n) {
+        buf[offset++] = node[n];
+    }
+    return buf;
+}
+exports["default"] = v1;
+
+});
+
+// MODULE: ./node_modules/uuid/dist/cjs-browser/v1ToV6.js
+var v1ToV6_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+const parse_js_1 = (parse_namespaceFn());
+const stringify_js_1 = (stringify_namespaceFn());
+function v1ToV6(uuid) {
+    const v1Bytes = typeof uuid === 'string' ? (0, parse_js_1.default)(uuid) : uuid;
+    const v6Bytes = _v1ToV6(v1Bytes);
+    return typeof uuid === 'string' ? (0, stringify_js_1.unsafeStringify)(v6Bytes) : v6Bytes;
+}
+exports["default"] = v1ToV6;
+function _v1ToV6(v1Bytes) {
+    return Uint8Array.of(((v1Bytes[6] & 0x0f) << 4) | ((v1Bytes[7] >> 4) & 0x0f), ((v1Bytes[7] & 0x0f) << 4) | ((v1Bytes[4] & 0xf0) >> 4), ((v1Bytes[4] & 0x0f) << 4) | ((v1Bytes[5] & 0xf0) >> 4), ((v1Bytes[5] & 0x0f) << 4) | ((v1Bytes[0] & 0xf0) >> 4), ((v1Bytes[0] & 0x0f) << 4) | ((v1Bytes[1] & 0xf0) >> 4), ((v1Bytes[1] & 0x0f) << 4) | ((v1Bytes[2] & 0xf0) >> 4), 0x60 | (v1Bytes[2] & 0x0f), v1Bytes[3], v1Bytes[8], v1Bytes[9], v1Bytes[10], v1Bytes[11], v1Bytes[12], v1Bytes[13], v1Bytes[14], v1Bytes[15]);
+}
+
+});
+
+// MODULE: ./node_modules/uuid/dist/cjs-browser/v3.js
+var v3_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.URL = exports.DNS = void 0;
+const md5_js_1 = (md5_namespaceFn());
+const v35_js_1 = (v35_namespaceFn());
+var v35_js_2 = (v35_namespaceFn());
+Object.defineProperty(exports, "DNS", ({ enumerable: true, get: function () { return v35_js_2.DNS; } }));
+Object.defineProperty(exports, "URL", ({ enumerable: true, get: function () { return v35_js_2.URL; } }));
+function v3(value, namespace, buf, offset) {
+    return (0, v35_js_1.default)(0x30, md5_js_1.default, value, namespace, buf, offset);
+}
+v3.DNS = v35_js_1.DNS;
+v3.URL = v35_js_1.URL;
+exports["default"] = v3;
+
+});
+
+// MODULE: ./node_modules/uuid/dist/cjs-browser/v35.js
+var v35_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.URL = exports.DNS = exports.stringToBytes = void 0;
+const parse_js_1 = (parse_namespaceFn());
+const stringify_js_1 = (stringify_namespaceFn());
+function stringToBytes(str) {
+    str = unescape(encodeURIComponent(str));
+    const bytes = new Uint8Array(str.length);
+    for (let i = 0; i < str.length; ++i) {
+        bytes[i] = str.charCodeAt(i);
+    }
+    return bytes;
+}
+exports.stringToBytes = stringToBytes;
+exports.DNS = '6ba7b810-9dad-11d1-80b4-00c04fd430c8';
+exports.URL = '6ba7b811-9dad-11d1-80b4-00c04fd430c8';
+function v35(version, hash, value, namespace, buf, offset) {
+    const valueBytes = typeof value === 'string' ? stringToBytes(value) : value;
+    const namespaceBytes = typeof namespace === 'string' ? (0, parse_js_1.default)(namespace) : namespace;
+    if (typeof namespace === 'string') {
+        namespace = (0, parse_js_1.default)(namespace);
+    }
+    if (namespace?.length !== 16) {
+        throw TypeError('Namespace must be array-like (16 iterable integer values, 0-255)');
+    }
+    let bytes = new Uint8Array(16 + valueBytes.length);
+    bytes.set(namespaceBytes);
+    bytes.set(valueBytes, namespaceBytes.length);
+    bytes = hash(bytes);
+    bytes[6] = (bytes[6] & 0x0f) | version;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    if (buf) {
+        offset = offset || 0;
+        if (offset < 0 || offset + 16 > buf.length) {
+            throw new RangeError(`UUID byte range ${offset}:${offset + 15} is out of buffer bounds`);
+        }
+        for (let i = 0; i < 16; ++i) {
+            buf[offset + i] = bytes[i];
+        }
+        return buf;
+    }
+    return (0, stringify_js_1.unsafeStringify)(bytes);
+}
+exports["default"] = v35;
+
+});
+
+// MODULE: ./node_modules/uuid/dist/cjs-browser/v4.js
+var v4_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+const native_js_1 = (native_namespaceFn());
+const rng_js_1 = (rng_namespaceFn());
+const stringify_js_1 = (stringify_namespaceFn());
+function v4(options, buf, offset) {
+    if (native_js_1.default.randomUUID && !buf && !options) {
+        return native_js_1.default.randomUUID();
+    }
+    options = options || {};
+    const rnds = options.random ?? options.rng?.() ?? (0, rng_js_1.default)();
+    if (rnds.length < 16) {
+        throw new Error('Random bytes length must be >= 16');
+    }
+    rnds[6] = (rnds[6] & 0x0f) | 0x40;
+    rnds[8] = (rnds[8] & 0x3f) | 0x80;
+    if (buf) {
+        offset = offset || 0;
+        if (offset < 0 || offset + 16 > buf.length) {
+            throw new RangeError(`UUID byte range ${offset}:${offset + 15} is out of buffer bounds`);
+        }
+        for (let i = 0; i < 16; ++i) {
+            buf[offset + i] = rnds[i];
+        }
+        return buf;
+    }
+    return (0, stringify_js_1.unsafeStringify)(rnds);
+}
+exports["default"] = v4;
+
+});
+
+// MODULE: ./node_modules/uuid/dist/cjs-browser/v5.js
+var v5_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.URL = exports.DNS = void 0;
+const sha1_js_1 = (sha1_namespaceFn());
+const v35_js_1 = (v35_namespaceFn());
+var v35_js_2 = (v35_namespaceFn());
+Object.defineProperty(exports, "DNS", ({ enumerable: true, get: function () { return v35_js_2.DNS; } }));
+Object.defineProperty(exports, "URL", ({ enumerable: true, get: function () { return v35_js_2.URL; } }));
+function v5(value, namespace, buf, offset) {
+    return (0, v35_js_1.default)(0x50, sha1_js_1.default, value, namespace, buf, offset);
+}
+v5.DNS = v35_js_1.DNS;
+v5.URL = v35_js_1.URL;
+exports["default"] = v5;
+
+});
+
+// MODULE: ./node_modules/uuid/dist/cjs-browser/v6.js
+var v6_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+const stringify_js_1 = (stringify_namespaceFn());
+const v1_js_1 = (v1_namespaceFn());
+const v1ToV6_js_1 = (v1ToV6_namespaceFn());
+function v6(options, buf, offset) {
+    options ??= {};
+    offset ??= 0;
+    let bytes = (0, v1_js_1.default)({ ...options, _v6: true }, new Uint8Array(16));
+    bytes = (0, v1ToV6_js_1.default)(bytes);
+    if (buf) {
+        if (offset < 0 || offset + 16 > buf.length) {
+            throw new RangeError(`UUID byte range ${offset}:${offset + 15} is out of buffer bounds`);
+        }
+        for (let i = 0; i < 16; i++) {
+            buf[offset + i] = bytes[i];
+        }
+        return buf;
+    }
+    return (0, stringify_js_1.unsafeStringify)(bytes);
+}
+exports["default"] = v6;
+
+});
+
+// MODULE: ./node_modules/uuid/dist/cjs-browser/v6ToV1.js
+var v6ToV1_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+const parse_js_1 = (parse_namespaceFn());
+const stringify_js_1 = (stringify_namespaceFn());
+function v6ToV1(uuid) {
+    const v6Bytes = typeof uuid === 'string' ? (0, parse_js_1.default)(uuid) : uuid;
+    const v1Bytes = _v6ToV1(v6Bytes);
+    return typeof uuid === 'string' ? (0, stringify_js_1.unsafeStringify)(v1Bytes) : v1Bytes;
+}
+exports["default"] = v6ToV1;
+function _v6ToV1(v6Bytes) {
+    return Uint8Array.of(((v6Bytes[3] & 0x0f) << 4) | ((v6Bytes[4] >> 4) & 0x0f), ((v6Bytes[4] & 0x0f) << 4) | ((v6Bytes[5] & 0xf0) >> 4), ((v6Bytes[5] & 0x0f) << 4) | (v6Bytes[6] & 0x0f), v6Bytes[7], ((v6Bytes[1] & 0x0f) << 4) | ((v6Bytes[2] & 0xf0) >> 4), ((v6Bytes[2] & 0x0f) << 4) | ((v6Bytes[3] & 0xf0) >> 4), 0x10 | ((v6Bytes[0] & 0xf0) >> 4), ((v6Bytes[0] & 0x0f) << 4) | ((v6Bytes[1] & 0xf0) >> 4), v6Bytes[8], v6Bytes[9], v6Bytes[10], v6Bytes[11], v6Bytes[12], v6Bytes[13], v6Bytes[14], v6Bytes[15]);
+}
+
+});
+
+// MODULE: ./node_modules/uuid/dist/cjs-browser/v7.js
+var v7_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.updateV7State = void 0;
+const rng_js_1 = (rng_namespaceFn());
+const stringify_js_1 = (stringify_namespaceFn());
+const _state = {};
+function v7(options, buf, offset) {
+    let bytes;
+    if (options) {
+        bytes = v7Bytes(options.random ?? options.rng?.() ?? (0, rng_js_1.default)(), options.msecs, options.seq, buf, offset);
+    }
+    else {
+        const now = Date.now();
+        const rnds = (0, rng_js_1.default)();
+        updateV7State(_state, now, rnds);
+        bytes = v7Bytes(rnds, _state.msecs, _state.seq, buf, offset);
+    }
+    return buf ?? (0, stringify_js_1.unsafeStringify)(bytes);
+}
+function updateV7State(state, now, rnds) {
+    state.msecs ??= -Infinity;
+    state.seq ??= 0;
+    if (now > state.msecs) {
+        state.seq = (rnds[6] << 23) | (rnds[7] << 16) | (rnds[8] << 8) | rnds[9];
+        state.msecs = now;
+    }
+    else {
+        state.seq = (state.seq + 1) | 0;
+        if (state.seq === 0) {
+            state.msecs++;
+        }
+    }
+    return state;
+}
+exports.updateV7State = updateV7State;
+function v7Bytes(rnds, msecs, seq, buf, offset = 0) {
+    if (rnds.length < 16) {
+        throw new Error('Random bytes length must be >= 16');
+    }
+    if (!buf) {
+        buf = new Uint8Array(16);
+        offset = 0;
+    }
+    else {
+        if (offset < 0 || offset + 16 > buf.length) {
+            throw new RangeError(`UUID byte range ${offset}:${offset + 15} is out of buffer bounds`);
+        }
+    }
+    msecs ??= Date.now();
+    seq ??= ((rnds[6] * 0x7f) << 24) | (rnds[7] << 16) | (rnds[8] << 8) | rnds[9];
+    buf[offset++] = (msecs / 0x10000000000) & 0xff;
+    buf[offset++] = (msecs / 0x100000000) & 0xff;
+    buf[offset++] = (msecs / 0x1000000) & 0xff;
+    buf[offset++] = (msecs / 0x10000) & 0xff;
+    buf[offset++] = (msecs / 0x100) & 0xff;
+    buf[offset++] = msecs & 0xff;
+    buf[offset++] = 0x70 | ((seq >>> 28) & 0x0f);
+    buf[offset++] = (seq >>> 20) & 0xff;
+    buf[offset++] = 0x80 | ((seq >>> 14) & 0x3f);
+    buf[offset++] = (seq >>> 6) & 0xff;
+    buf[offset++] = ((seq << 2) & 0xff) | (rnds[10] & 0x03);
+    buf[offset++] = rnds[11];
+    buf[offset++] = rnds[12];
+    buf[offset++] = rnds[13];
+    buf[offset++] = rnds[14];
+    buf[offset++] = rnds[15];
+    return buf;
+}
+exports["default"] = v7;
+
+});
+
+// MODULE: ./node_modules/uuid/dist/cjs-browser/validate.js
+var validate_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+const regex_js_1 = (regex_namespaceFn());
+function validate(uuid) {
+    return typeof uuid === 'string' && regex_js_1.default.test(uuid);
+}
+exports["default"] = validate;
+
+});
+
+// MODULE: ./node_modules/uuid/dist/cjs-browser/version.js
+var version_namespaceFn = /*#__PURE__*/__webpack_require__.cw((__unused_webpack_module, exports) => {
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+const validate_js_1 = (validate_namespaceFn());
+function version(uuid) {
+    if (!(0, validate_js_1.default)(uuid)) {
+        throw TypeError('Invalid UUID');
+    }
+    return parseInt(uuid.slice(14, 15), 16);
+}
+exports["default"] = version;
 
 });
 
@@ -15650,13 +10595,13 @@ function __rewriteRelativeImportExtension(path, preserveJsx) {
 ;// EXTERNAL MODULE: ./node_modules/react/index.js
 react_namespaceFn();
 
+;// ./node_modules/@forge/bridge/out/index.js
+bridge_out_namespaceFn();
+
 ;// ./node_modules/@forge/react/out/index.js
 react_out_namespaceFn();
 
 function react_out_default() { return react_out_default.c || (react_out_default.c = __webpack_require__.n(react_out_namespaceFn())); }
-;// ./node_modules/@forge/bridge/out/index.js
-_forge_bridge_out_namespaceFn();
-
 ;// ./app/src/frontend.jsx
 
 
@@ -15664,9 +10609,9 @@ _forge_bridge_out_namespaceFn();
 const App = () => {
   const [text, setText] = (0,react_namespaceFn().useState)('Loading...');
   (0,react_namespaceFn().useEffect)(() => {
-    (0,_forge_bridge_out_namespaceFn().invoke)('save', {
+    (0,bridge_out_namespaceFn().invoke)('save', {
       id: 'ui'
-    }).then(() => (0,_forge_bridge_out_namespaceFn().invoke)('summary')).then(setText);
+    }).then(() => (0,bridge_out_namespaceFn().invoke)('summary')).then(setText);
   }, []);
   return /*#__PURE__*/(react_namespaceFn().createElement)((react_out_namespaceFn().Text), null, text);
 };

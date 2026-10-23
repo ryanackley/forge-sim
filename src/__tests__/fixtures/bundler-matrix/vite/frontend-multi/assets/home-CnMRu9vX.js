@@ -1,1 +1,0 @@
-import{F as s,R as e,l as c,r as t,o as m,a}from"./shared-CgRhcAFW.js";const u=({title:r})=>{const[l,n]=t.useState(null);return t.useEffect(()=>{m.invoke("summary").then(o=>n(o))},[]),e.createElement(e.Fragment,null,e.createElement(a.Text,null,r),e.createElement(a.Text,null,l??"Loading..."))};s.render(e.createElement(e.StrictMode,null,e.createElement(u,{title:c("home")})));

@@ -1,5 +1,3 @@
 node_modules/
 build/
 .parcel-cache/
-results-*.json
-RESULTS-*.md

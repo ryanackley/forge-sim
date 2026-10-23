@@ -1,0 +1,1 @@
+import{F as s,R as e,r as t,o,a,l as c}from"./shared-DcoCrICj.js";const u=()=>{const[n,r]=t.useState(null);return t.useEffect(()=>{o.invoke("summary").then(l=>r(l))},[]),e.createElement(e.Fragment,null,e.createElement(a.Text,null,c("settings")),e.createElement(a.Text,null,n??"Loading..."))};s.render(e.createElement(u,null));

@@ -842,9 +842,9 @@ var init_tslib_es6 = __esm({
   }
 });
 
-// node_modules/@forge/react/node_modules/@forge/bridge/out/router/targets.js
+// node_modules/@forge/bridge/out/router/targets.js
 var require_targets = __commonJS({
-  "node_modules/@forge/react/node_modules/@forge/bridge/out/router/targets.js"(exports) {
+  "node_modules/@forge/bridge/out/router/targets.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.NavigationTarget = void 0;
@@ -889,9 +889,9 @@ var require_targets = __commonJS({
   }
 });
 
-// node_modules/@forge/react/node_modules/@forge/bridge/out/errors.js
+// node_modules/@forge/bridge/out/errors.js
 var require_errors = __commonJS({
-  "node_modules/@forge/react/node_modules/@forge/bridge/out/errors.js"(exports) {
+  "node_modules/@forge/bridge/out/errors.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.BridgeAPIError = void 0;
@@ -901,9 +901,9 @@ var require_errors = __commonJS({
   }
 });
 
-// node_modules/@forge/react/node_modules/@forge/bridge/out/bridge.js
+// node_modules/@forge/bridge/out/bridge.js
 var require_bridge = __commonJS({
-  "node_modules/@forge/react/node_modules/@forge/bridge/out/bridge.js"(exports) {
+  "node_modules/@forge/bridge/out/bridge.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.getCallBridge = void 0;
@@ -924,9 +924,9 @@ var require_bridge = __commonJS({
   }
 });
 
-// node_modules/@forge/react/node_modules/@forge/bridge/out/utils/index.js
+// node_modules/@forge/bridge/out/utils/index.js
 var require_utils = __commonJS({
-  "node_modules/@forge/react/node_modules/@forge/bridge/out/utils/index.js"(exports) {
+  "node_modules/@forge/bridge/out/utils/index.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.withRateLimiter = void 0;
@@ -952,9 +952,9 @@ var require_utils = __commonJS({
   }
 });
 
-// node_modules/@forge/react/node_modules/@forge/bridge/out/invoke/invoke.js
+// node_modules/@forge/bridge/out/invoke/invoke.js
 var require_invoke = __commonJS({
-  "node_modules/@forge/react/node_modules/@forge/bridge/out/invoke/invoke.js"(exports) {
+  "node_modules/@forge/bridge/out/invoke/invoke.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.invoke = invoke2;
@@ -987,9 +987,9 @@ var require_invoke = __commonJS({
   }
 });
 
-// node_modules/@forge/react/node_modules/@forge/bridge/out/invoke/index.js
+// node_modules/@forge/bridge/out/invoke/index.js
 var require_invoke2 = __commonJS({
-  "node_modules/@forge/react/node_modules/@forge/bridge/out/invoke/index.js"(exports) {
+  "node_modules/@forge/bridge/out/invoke/index.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     var tslib_1 = (init_tslib_es6(), __toCommonJS(tslib_es6_exports));
@@ -997,9 +997,9 @@ var require_invoke2 = __commonJS({
   }
 });
 
-// node_modules/@forge/react/node_modules/@forge/bridge/out/invoke-endpoint/invoke-endpoint.js
+// node_modules/@forge/bridge/out/invoke-endpoint/invoke-endpoint.js
 var require_invoke_endpoint = __commonJS({
-  "node_modules/@forge/react/node_modules/@forge/bridge/out/invoke-endpoint/invoke-endpoint.js"(exports) {
+  "node_modules/@forge/bridge/out/invoke-endpoint/invoke-endpoint.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.InvokeType = void 0;
@@ -1048,9 +1048,9 @@ var require_invoke_endpoint = __commonJS({
   }
 });
 
-// node_modules/@forge/react/node_modules/@forge/bridge/out/invoke-endpoint/invoke-remote.js
+// node_modules/@forge/bridge/out/invoke-endpoint/invoke-remote.js
 var require_invoke_remote = __commonJS({
-  "node_modules/@forge/react/node_modules/@forge/bridge/out/invoke-endpoint/invoke-remote.js"(exports) {
+  "node_modules/@forge/bridge/out/invoke-endpoint/invoke-remote.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.invokeRemote = void 0;
@@ -1063,9 +1063,9 @@ var require_invoke_remote = __commonJS({
   }
 });
 
-// node_modules/@forge/react/node_modules/@forge/bridge/out/invoke-endpoint/invoke-service.js
+// node_modules/@forge/bridge/out/invoke-endpoint/invoke-service.js
 var require_invoke_service = __commonJS({
-  "node_modules/@forge/react/node_modules/@forge/bridge/out/invoke-endpoint/invoke-service.js"(exports) {
+  "node_modules/@forge/bridge/out/invoke-endpoint/invoke-service.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.invokeService = void 0;
@@ -1078,9 +1078,9 @@ var require_invoke_service = __commonJS({
   }
 });
 
-// node_modules/@forge/react/node_modules/@forge/bridge/out/invoke-endpoint/index.js
+// node_modules/@forge/bridge/out/invoke-endpoint/index.js
 var require_invoke_endpoint2 = __commonJS({
-  "node_modules/@forge/react/node_modules/@forge/bridge/out/invoke-endpoint/index.js"(exports) {
+  "node_modules/@forge/bridge/out/invoke-endpoint/index.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     var tslib_1 = (init_tslib_es6(), __toCommonJS(tslib_es6_exports));
@@ -1089,9 +1089,9 @@ var require_invoke_endpoint2 = __commonJS({
   }
 });
 
-// node_modules/@forge/react/node_modules/@forge/bridge/out/view/submit.js
+// node_modules/@forge/bridge/out/view/submit.js
 var require_submit = __commonJS({
-  "node_modules/@forge/react/node_modules/@forge/bridge/out/view/submit.js"(exports) {
+  "node_modules/@forge/bridge/out/view/submit.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.submit = void 0;
@@ -1108,9 +1108,9 @@ var require_submit = __commonJS({
   }
 });
 
-// node_modules/@forge/react/node_modules/@forge/bridge/out/view/close.js
+// node_modules/@forge/bridge/out/view/close.js
 var require_close = __commonJS({
-  "node_modules/@forge/react/node_modules/@forge/bridge/out/view/close.js"(exports) {
+  "node_modules/@forge/bridge/out/view/close.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.close = void 0;
@@ -1131,9 +1131,9 @@ var require_close = __commonJS({
   }
 });
 
-// node_modules/@forge/react/node_modules/@forge/bridge/out/view/open.js
+// node_modules/@forge/bridge/out/view/open.js
 var require_open = __commonJS({
-  "node_modules/@forge/react/node_modules/@forge/bridge/out/view/open.js"(exports) {
+  "node_modules/@forge/bridge/out/view/open.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.open = void 0;
@@ -1154,9 +1154,9 @@ var require_open = __commonJS({
   }
 });
 
-// node_modules/@forge/react/node_modules/@forge/bridge/out/view/refresh.js
+// node_modules/@forge/bridge/out/view/refresh.js
 var require_refresh = __commonJS({
-  "node_modules/@forge/react/node_modules/@forge/bridge/out/view/refresh.js"(exports) {
+  "node_modules/@forge/bridge/out/view/refresh.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.refresh = void 0;
@@ -1173,9 +1173,9 @@ var require_refresh = __commonJS({
   }
 });
 
-// node_modules/@forge/react/node_modules/@forge/bridge/out/view/createHistory.js
+// node_modules/@forge/bridge/out/view/createHistory.js
 var require_createHistory = __commonJS({
-  "node_modules/@forge/react/node_modules/@forge/bridge/out/view/createHistory.js"(exports) {
+  "node_modules/@forge/bridge/out/view/createHistory.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.createHistory = void 0;
@@ -2354,9 +2354,9 @@ var require_out = __commonJS({
   }
 });
 
-// node_modules/@forge/react/node_modules/@forge/bridge/out/view/getContext.js
+// node_modules/@forge/bridge/out/view/getContext.js
 var require_getContext = __commonJS({
-  "node_modules/@forge/react/node_modules/@forge/bridge/out/view/getContext.js"(exports) {
+  "node_modules/@forge/bridge/out/view/getContext.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.getContext = void 0;
@@ -2376,9 +2376,9 @@ var require_getContext = __commonJS({
   }
 });
 
-// node_modules/@forge/react/node_modules/@forge/bridge/out/view/changeWindowTitle.js
+// node_modules/@forge/bridge/out/view/changeWindowTitle.js
 var require_changeWindowTitle = __commonJS({
-  "node_modules/@forge/react/node_modules/@forge/bridge/out/view/changeWindowTitle.js"(exports) {
+  "node_modules/@forge/bridge/out/view/changeWindowTitle.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.changeWindowTitle = void 0;
@@ -2396,9 +2396,9 @@ var require_changeWindowTitle = __commonJS({
   }
 });
 
-// node_modules/@forge/react/node_modules/@forge/bridge/out/view/theme.js
+// node_modules/@forge/bridge/out/view/theme.js
 var require_theme = __commonJS({
-  "node_modules/@forge/react/node_modules/@forge/bridge/out/view/theme.js"(exports) {
+  "node_modules/@forge/bridge/out/view/theme.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.theme = void 0;
@@ -2410,9 +2410,9 @@ var require_theme = __commonJS({
   }
 });
 
-// node_modules/@forge/react/node_modules/@forge/bridge/out/utils/blobParser.js
+// node_modules/@forge/bridge/out/utils/blobParser.js
 var require_blobParser = __commonJS({
-  "node_modules/@forge/react/node_modules/@forge/bridge/out/utils/blobParser.js"(exports) {
+  "node_modules/@forge/bridge/out/utils/blobParser.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.blobToBase64 = exports.base64ToBlob = void 0;
@@ -2444,9 +2444,9 @@ var require_blobParser = __commonJS({
   }
 });
 
-// node_modules/@forge/react/node_modules/@forge/bridge/out/events/serialiseBlob.js
+// node_modules/@forge/bridge/out/events/serialiseBlob.js
 var require_serialiseBlob = __commonJS({
-  "node_modules/@forge/react/node_modules/@forge/bridge/out/events/serialiseBlob.js"(exports) {
+  "node_modules/@forge/bridge/out/events/serialiseBlob.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.containsSerialisedBlobs = exports.containsBlobs = exports.deserialiseBlobsInPayload = exports.serialiseBlobsInPayload = void 0;
@@ -2541,9 +2541,9 @@ var require_serialiseBlob = __commonJS({
   }
 });
 
-// node_modules/@forge/react/node_modules/@forge/bridge/out/events/events.js
+// node_modules/@forge/bridge/out/events/events.js
 var require_events = __commonJS({
-  "node_modules/@forge/react/node_modules/@forge/bridge/out/events/events.js"(exports) {
+  "node_modules/@forge/bridge/out/events/events.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.events = void 0;
@@ -2588,9 +2588,9 @@ var require_events = __commonJS({
   }
 });
 
-// node_modules/@forge/react/node_modules/@forge/bridge/out/view/emitReadyEvent.js
+// node_modules/@forge/bridge/out/view/emitReadyEvent.js
 var require_emitReadyEvent = __commonJS({
-  "node_modules/@forge/react/node_modules/@forge/bridge/out/view/emitReadyEvent.js"(exports) {
+  "node_modules/@forge/bridge/out/view/emitReadyEvent.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.emitReadyEvent = void 0;
@@ -4632,47 +4632,10 @@ var require_iframe_resizer = __commonJS({
   }
 });
 
-// node_modules/@forge/react/node_modules/@forge/bridge/out/view/adf-renderer.js
+// node_modules/@forge/bridge/out/view/adf-renderer.js
 var require_adf_renderer = __commonJS({
-  "node_modules/@forge/react/node_modules/@forge/bridge/out/view/adf-renderer.js"(exports) {
+  "node_modules/@forge/bridge/out/view/adf-renderer.js"(exports) {
     "use strict";
-    var __createBinding2 = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
-      if (k2 === void 0) k2 = k;
-      var desc = Object.getOwnPropertyDescriptor(m, k);
-      if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-        desc = { enumerable: true, get: function() {
-          return m[k];
-        } };
-      }
-      Object.defineProperty(o, k2, desc);
-    }) : (function(o, m, k, k2) {
-      if (k2 === void 0) k2 = k;
-      o[k2] = m[k];
-    }));
-    var __setModuleDefault2 = exports && exports.__setModuleDefault || (Object.create ? (function(o, v) {
-      Object.defineProperty(o, "default", { enumerable: true, value: v });
-    }) : function(o, v) {
-      o["default"] = v;
-    });
-    var __importStar2 = exports && exports.__importStar || /* @__PURE__ */ (function() {
-      var ownKeys2 = function(o) {
-        ownKeys2 = Object.getOwnPropertyNames || function(o2) {
-          var ar = [];
-          for (var k in o2) if (Object.prototype.hasOwnProperty.call(o2, k)) ar[ar.length] = k;
-          return ar;
-        };
-        return ownKeys2(o);
-      };
-      return function(mod) {
-        if (mod && mod.__esModule) return mod;
-        var result = {};
-        if (mod != null) {
-          for (var k = ownKeys2(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding2(result, mod, k[i]);
-        }
-        __setModuleDefault2(result, mod);
-        return result;
-      };
-    })();
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.createAdfRendererIframeProps = exports.sendMessageWhenReady = void 0;
     var READY_SIGNAL_FALLBACK_DELAY_MS = 1e4;
@@ -4697,7 +4660,7 @@ var require_adf_renderer = __commonJS({
     };
     exports.sendMessageWhenReady = sendMessageWhenReady;
     var createAdfRendererIframeProps = async (context, iframeId) => {
-      const IframeResizer = await Promise.resolve().then(() => __importStar2(require_iframe_resizer()));
+      const IframeResizer = await Promise.resolve().then(() => __toESM(require_iframe_resizer()));
       const IframeResizerModule = IframeResizer.default || IframeResizer;
       const origin = new URL(document.referrer).origin;
       const src = `${origin}/forge-apps/adf-renderer`;
@@ -4738,9 +4701,9 @@ var require_adf_renderer = __commonJS({
   }
 });
 
-// node_modules/@forge/react/node_modules/@forge/bridge/out/view/onClose.js
+// node_modules/@forge/bridge/out/view/onClose.js
 var require_onClose = __commonJS({
-  "node_modules/@forge/react/node_modules/@forge/bridge/out/view/onClose.js"(exports) {
+  "node_modules/@forge/bridge/out/view/onClose.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.onClose = void 0;
@@ -4761,9 +4724,9 @@ var require_onClose = __commonJS({
   }
 });
 
-// node_modules/@forge/react/node_modules/@forge/bridge/out/view/getFrameDispatch.js
+// node_modules/@forge/bridge/out/view/getFrameDispatch.js
 var require_getFrameDispatch = __commonJS({
-  "node_modules/@forge/react/node_modules/@forge/bridge/out/view/getFrameDispatch.js"(exports) {
+  "node_modules/@forge/bridge/out/view/getFrameDispatch.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.getFrameDispatch = void 0;
@@ -4776,9 +4739,9 @@ var require_getFrameDispatch = __commonJS({
   }
 });
 
-// node_modules/@forge/react/node_modules/@forge/bridge/out/view/view.js
+// node_modules/@forge/bridge/out/view/view.js
 var require_view = __commonJS({
-  "node_modules/@forge/react/node_modules/@forge/bridge/out/view/view.js"(exports) {
+  "node_modules/@forge/bridge/out/view/view.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.view = void 0;
@@ -4811,9 +4774,9 @@ var require_view = __commonJS({
   }
 });
 
-// node_modules/@forge/react/node_modules/@forge/bridge/out/view/index.js
+// node_modules/@forge/bridge/out/view/index.js
 var require_view2 = __commonJS({
-  "node_modules/@forge/react/node_modules/@forge/bridge/out/view/index.js"(exports) {
+  "node_modules/@forge/bridge/out/view/index.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     var tslib_1 = (init_tslib_es6(), __toCommonJS(tslib_es6_exports));
@@ -4821,9 +4784,9 @@ var require_view2 = __commonJS({
   }
 });
 
-// node_modules/@forge/react/node_modules/@forge/bridge/out/router/router.js
+// node_modules/@forge/bridge/out/router/router.js
 var require_router = __commonJS({
-  "node_modules/@forge/react/node_modules/@forge/bridge/out/router/router.js"(exports) {
+  "node_modules/@forge/bridge/out/router/router.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.router = void 0;
@@ -4873,9 +4836,9 @@ var require_router = __commonJS({
   }
 });
 
-// node_modules/@forge/react/node_modules/@forge/bridge/out/router/index.js
+// node_modules/@forge/bridge/out/router/index.js
 var require_router2 = __commonJS({
-  "node_modules/@forge/react/node_modules/@forge/bridge/out/router/index.js"(exports) {
+  "node_modules/@forge/bridge/out/router/index.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     var tslib_1 = (init_tslib_es6(), __toCommonJS(tslib_es6_exports));
@@ -4883,9 +4846,9 @@ var require_router2 = __commonJS({
   }
 });
 
-// node_modules/@forge/react/node_modules/@forge/bridge/out/modal/modal.js
+// node_modules/@forge/bridge/out/modal/modal.js
 var require_modal = __commonJS({
-  "node_modules/@forge/react/node_modules/@forge/bridge/out/modal/modal.js"(exports) {
+  "node_modules/@forge/bridge/out/modal/modal.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Modal = void 0;
@@ -4946,9 +4909,9 @@ var require_modal = __commonJS({
   }
 });
 
-// node_modules/@forge/react/node_modules/@forge/bridge/out/modal/index.js
+// node_modules/@forge/bridge/out/modal/index.js
 var require_modal2 = __commonJS({
-  "node_modules/@forge/react/node_modules/@forge/bridge/out/modal/index.js"(exports) {
+  "node_modules/@forge/bridge/out/modal/index.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     var tslib_1 = (init_tslib_es6(), __toCommonJS(tslib_es6_exports));
@@ -4956,9 +4919,9 @@ var require_modal2 = __commonJS({
   }
 });
 
-// node_modules/@forge/react/node_modules/@forge/bridge/out/fetch/fetch.js
+// node_modules/@forge/bridge/out/fetch/fetch.js
 var require_fetch = __commonJS({
-  "node_modules/@forge/react/node_modules/@forge/bridge/out/fetch/fetch.js"(exports) {
+  "node_modules/@forge/bridge/out/fetch/fetch.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.productFetchApi = exports.remoteFetchApi = void 0;
@@ -5051,23 +5014,28 @@ var require_fetch = __commonJS({
   }
 });
 
-// node_modules/@forge/react/node_modules/@forge/bridge/out/fetch/index.js
+// node_modules/@forge/bridge/out/fetch/index.js
 var require_fetch2 = __commonJS({
-  "node_modules/@forge/react/node_modules/@forge/bridge/out/fetch/index.js"(exports) {
+  "node_modules/@forge/bridge/out/fetch/index.js"(exports) {
     "use strict";
     var _a;
     Object.defineProperty(exports, "__esModule", { value: true });
-    exports.requestRemote = exports.requestBitbucket = exports.requestJira = exports.requestConfluence = void 0;
+    exports.fetchUserRecommendations = exports.requestRemote = exports.requestBitbucket = exports.requestJira = exports.requestConfluence = void 0;
     var bridge_1 = require_bridge();
     var fetch_1 = require_fetch();
     _a = (0, fetch_1.productFetchApi)((0, bridge_1.getCallBridge)()), exports.requestConfluence = _a.requestConfluence, exports.requestJira = _a.requestJira, exports.requestBitbucket = _a.requestBitbucket;
     exports.requestRemote = (0, fetch_1.remoteFetchApi)((0, bridge_1.getCallBridge)()).requestRemote;
+    var fetchUserRecommendations = async (input) => {
+      const callBridge = (0, bridge_1.getCallBridge)();
+      return await callBridge("fetchUserRecommendations", input);
+    };
+    exports.fetchUserRecommendations = fetchUserRecommendations;
   }
 });
 
-// node_modules/@forge/react/node_modules/@forge/bridge/out/requestTeamworkGraph/index.js
+// node_modules/@forge/bridge/out/requestTeamworkGraph/index.js
 var require_requestTeamworkGraph = __commonJS({
-  "node_modules/@forge/react/node_modules/@forge/bridge/out/requestTeamworkGraph/index.js"(exports) {
+  "node_modules/@forge/bridge/out/requestTeamworkGraph/index.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.requestTeamworkGraph = void 0;
@@ -5081,9 +5049,9 @@ var require_requestTeamworkGraph = __commonJS({
   }
 });
 
-// node_modules/@forge/react/node_modules/@forge/bridge/out/flag/flag.js
+// node_modules/@forge/bridge/out/flag/flag.js
 var require_flag = __commonJS({
-  "node_modules/@forge/react/node_modules/@forge/bridge/out/flag/flag.js"(exports) {
+  "node_modules/@forge/bridge/out/flag/flag.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.showFlag = void 0;
@@ -5110,9 +5078,9 @@ var require_flag = __commonJS({
   }
 });
 
-// node_modules/@forge/react/node_modules/@forge/bridge/out/flag/index.js
+// node_modules/@forge/bridge/out/flag/index.js
 var require_flag2 = __commonJS({
-  "node_modules/@forge/react/node_modules/@forge/bridge/out/flag/index.js"(exports) {
+  "node_modules/@forge/bridge/out/flag/index.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.showFlag = void 0;
@@ -5123,9 +5091,9 @@ var require_flag2 = __commonJS({
   }
 });
 
-// node_modules/@forge/react/node_modules/@forge/bridge/out/events/index.js
+// node_modules/@forge/bridge/out/events/index.js
 var require_events2 = __commonJS({
-  "node_modules/@forge/react/node_modules/@forge/bridge/out/events/index.js"(exports) {
+  "node_modules/@forge/bridge/out/events/index.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     var tslib_1 = (init_tslib_es6(), __toCommonJS(tslib_es6_exports));
@@ -5133,9 +5101,9 @@ var require_events2 = __commonJS({
   }
 });
 
-// node_modules/@forge/react/node_modules/@forge/bridge/out/realtime/realtime.js
+// node_modules/@forge/bridge/out/realtime/realtime.js
 var require_realtime = __commonJS({
-  "node_modules/@forge/react/node_modules/@forge/bridge/out/realtime/realtime.js"(exports) {
+  "node_modules/@forge/bridge/out/realtime/realtime.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.realtime = void 0;
@@ -5171,9 +5139,9 @@ var require_realtime = __commonJS({
   }
 });
 
-// node_modules/@forge/react/node_modules/@forge/bridge/out/realtime/productContext.js
+// node_modules/@forge/bridge/out/realtime/productContext.js
 var require_productContext = __commonJS({
-  "node_modules/@forge/react/node_modules/@forge/bridge/out/realtime/productContext.js"(exports) {
+  "node_modules/@forge/bridge/out/realtime/productContext.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Bitbucket = exports.Confluence = exports.Jira = void 0;
@@ -5196,9 +5164,9 @@ var require_productContext = __commonJS({
   }
 });
 
-// node_modules/@forge/react/node_modules/@forge/bridge/out/realtime/index.js
+// node_modules/@forge/bridge/out/realtime/index.js
 var require_realtime2 = __commonJS({
-  "node_modules/@forge/react/node_modules/@forge/bridge/out/realtime/index.js"(exports) {
+  "node_modules/@forge/bridge/out/realtime/index.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Bitbucket = exports.Confluence = exports.Jira = exports.realtime = void 0;
@@ -5219,9 +5187,9 @@ var require_realtime2 = __commonJS({
   }
 });
 
-// node_modules/@forge/react/node_modules/@forge/bridge/out/rovo/open.js
+// node_modules/@forge/bridge/out/rovo/open.js
 var require_open2 = __commonJS({
-  "node_modules/@forge/react/node_modules/@forge/bridge/out/rovo/open.js"(exports) {
+  "node_modules/@forge/bridge/out/rovo/open.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.open = exports.OPEN_ROVO_BRIDGE_ERROR_MESSAGE = void 0;
@@ -5266,9 +5234,9 @@ var require_open2 = __commonJS({
   }
 });
 
-// node_modules/@forge/react/node_modules/@forge/bridge/out/rovo/isEnabled.js
+// node_modules/@forge/bridge/out/rovo/isEnabled.js
 var require_isEnabled = __commonJS({
-  "node_modules/@forge/react/node_modules/@forge/bridge/out/rovo/isEnabled.js"(exports) {
+  "node_modules/@forge/bridge/out/rovo/isEnabled.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.isEnabled = void 0;
@@ -5281,9 +5249,9 @@ var require_isEnabled = __commonJS({
   }
 });
 
-// node_modules/@forge/react/node_modules/@forge/bridge/out/rovo/rovo.js
+// node_modules/@forge/bridge/out/rovo/rovo.js
 var require_rovo = __commonJS({
-  "node_modules/@forge/react/node_modules/@forge/bridge/out/rovo/rovo.js"(exports) {
+  "node_modules/@forge/bridge/out/rovo/rovo.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.rovo = void 0;
@@ -5296,9 +5264,9 @@ var require_rovo = __commonJS({
   }
 });
 
-// node_modules/@forge/react/node_modules/@forge/bridge/out/rovo/index.js
+// node_modules/@forge/bridge/out/rovo/index.js
 var require_rovo2 = __commonJS({
-  "node_modules/@forge/react/node_modules/@forge/bridge/out/rovo/index.js"(exports) {
+  "node_modules/@forge/bridge/out/rovo/index.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     var tslib_1 = (init_tslib_es6(), __toCommonJS(tslib_es6_exports));
@@ -5306,9 +5274,39 @@ var require_rovo2 = __commonJS({
   }
 });
 
-// node_modules/@forge/react/node_modules/@forge/bridge/out/i18n/index.js
+// node_modules/@forge/bridge/out/cookieConsent/getCookieConsentPreferences.js
+var require_getCookieConsentPreferences = __commonJS({
+  "node_modules/@forge/bridge/out/cookieConsent/getCookieConsentPreferences.js"(exports) {
+    "use strict";
+    Object.defineProperty(exports, "__esModule", { value: true });
+    exports.getCookieConsentPreferences = void 0;
+    var bridge_1 = require_bridge();
+    var callBridge = (0, bridge_1.getCallBridge)();
+    var getCookieConsentPreferences = async () => {
+      var _a;
+      try {
+        return (_a = await callBridge("getCookieConsentPreferences")) !== null && _a !== void 0 ? _a : null;
+      } catch {
+        return null;
+      }
+    };
+    exports.getCookieConsentPreferences = getCookieConsentPreferences;
+  }
+});
+
+// node_modules/@forge/bridge/out/cookieConsent/index.js
+var require_cookieConsent = __commonJS({
+  "node_modules/@forge/bridge/out/cookieConsent/index.js"(exports) {
+    "use strict";
+    Object.defineProperty(exports, "__esModule", { value: true });
+    var tslib_1 = (init_tslib_es6(), __toCommonJS(tslib_es6_exports));
+    tslib_1.__exportStar(require_getCookieConsentPreferences(), exports);
+  }
+});
+
+// node_modules/@forge/bridge/out/i18n/index.js
 var require_i18n = __commonJS({
-  "node_modules/@forge/react/node_modules/@forge/bridge/out/i18n/index.js"(exports) {
+  "node_modules/@forge/bridge/out/i18n/index.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.createTranslationFunction = exports.getTranslations = exports.resetTranslationsCache = void 0;
@@ -5364,9 +5362,9 @@ var require_i18n = __commonJS({
   }
 });
 
-// node_modules/@forge/react/node_modules/@forge/bridge/out/permissions/permissions.js
+// node_modules/@forge/bridge/out/permissions/permissions.js
 var require_permissions = __commonJS({
-  "node_modules/@forge/react/node_modules/@forge/bridge/out/permissions/permissions.js"(exports) {
+  "node_modules/@forge/bridge/out/permissions/permissions.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.permissions = void 0;
@@ -5601,9 +5599,9 @@ var require_out2 = __commonJS({
   }
 });
 
-// node_modules/@forge/react/node_modules/@forge/bridge/out/permissions/permissionsUtil.js
+// node_modules/@forge/bridge/out/permissions/permissionsUtil.js
 var require_permissionsUtil = __commonJS({
-  "node_modules/@forge/react/node_modules/@forge/bridge/out/permissions/permissionsUtil.js"(exports) {
+  "node_modules/@forge/bridge/out/permissions/permissionsUtil.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.createPermissionUtils = createPermissionUtils;
@@ -5778,9 +5776,9 @@ var require_permissionsUtil = __commonJS({
   }
 });
 
-// node_modules/@forge/react/node_modules/@forge/bridge/out/permissions/index.js
+// node_modules/@forge/bridge/out/permissions/index.js
 var require_permissions2 = __commonJS({
-  "node_modules/@forge/react/node_modules/@forge/bridge/out/permissions/index.js"(exports) {
+  "node_modules/@forge/bridge/out/permissions/index.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     var tslib_1 = (init_tslib_es6(), __toCommonJS(tslib_es6_exports));
@@ -5789,9 +5787,9 @@ var require_permissions2 = __commonJS({
   }
 });
 
-// node_modules/@forge/react/node_modules/@forge/bridge/out/object-store/upload.js
+// node_modules/@forge/bridge/out/object-store/upload.js
 var require_upload = __commonJS({
-  "node_modules/@forge/react/node_modules/@forge/bridge/out/object-store/upload.js"(exports) {
+  "node_modules/@forge/bridge/out/object-store/upload.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.upload = exports.createUploadPromises = void 0;
@@ -5920,9 +5918,9 @@ var require_upload = __commonJS({
   }
 });
 
-// node_modules/@forge/react/node_modules/@forge/bridge/out/object-store/deleteObjects.js
+// node_modules/@forge/bridge/out/object-store/deleteObjects.js
 var require_deleteObjects = __commonJS({
-  "node_modules/@forge/react/node_modules/@forge/bridge/out/object-store/deleteObjects.js"(exports) {
+  "node_modules/@forge/bridge/out/object-store/deleteObjects.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.deleteObjects = void 0;
@@ -5946,9 +5944,9 @@ var require_deleteObjects = __commonJS({
   }
 });
 
-// node_modules/@forge/react/node_modules/@forge/bridge/out/object-store/download.js
+// node_modules/@forge/bridge/out/object-store/download.js
 var require_download = __commonJS({
-  "node_modules/@forge/react/node_modules/@forge/bridge/out/object-store/download.js"(exports) {
+  "node_modules/@forge/bridge/out/object-store/download.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.download = void 0;
@@ -6006,9 +6004,9 @@ var require_download = __commonJS({
   }
 });
 
-// node_modules/@forge/react/node_modules/@forge/bridge/out/object-store/getMetadata.js
+// node_modules/@forge/bridge/out/object-store/getMetadata.js
 var require_getMetadata = __commonJS({
-  "node_modules/@forge/react/node_modules/@forge/bridge/out/object-store/getMetadata.js"(exports) {
+  "node_modules/@forge/bridge/out/object-store/getMetadata.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.getMetadata = void 0;
@@ -6040,9 +6038,9 @@ var require_getMetadata = __commonJS({
   }
 });
 
-// node_modules/@forge/react/node_modules/@forge/bridge/out/object-store/objectStore.js
+// node_modules/@forge/bridge/out/object-store/objectStore.js
 var require_objectStore = __commonJS({
-  "node_modules/@forge/react/node_modules/@forge/bridge/out/object-store/objectStore.js"(exports) {
+  "node_modules/@forge/bridge/out/object-store/objectStore.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.createUploadPromises = exports.objectStore = void 0;
@@ -6062,17 +6060,17 @@ var require_objectStore = __commonJS({
   }
 });
 
-// node_modules/@forge/react/node_modules/@forge/bridge/out/object-store/types.js
+// node_modules/@forge/bridge/out/object-store/types.js
 var require_types2 = __commonJS({
-  "node_modules/@forge/react/node_modules/@forge/bridge/out/object-store/types.js"(exports) {
+  "node_modules/@forge/bridge/out/object-store/types.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
   }
 });
 
-// node_modules/@forge/react/node_modules/@forge/bridge/out/object-store/index.js
+// node_modules/@forge/bridge/out/object-store/index.js
 var require_object_store = __commonJS({
-  "node_modules/@forge/react/node_modules/@forge/bridge/out/object-store/index.js"(exports) {
+  "node_modules/@forge/bridge/out/object-store/index.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     var tslib_1 = (init_tslib_es6(), __toCommonJS(tslib_es6_exports));
@@ -6081,9 +6079,9 @@ var require_object_store = __commonJS({
   }
 });
 
-// node_modules/@forge/react/node_modules/@forge/bridge/out/featureFlags/evaluator.js
+// node_modules/@forge/bridge/out/featureFlags/evaluator.js
 var require_evaluator = __commonJS({
-  "node_modules/@forge/react/node_modules/@forge/bridge/out/featureFlags/evaluator.js"(exports) {
+  "node_modules/@forge/bridge/out/featureFlags/evaluator.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Evaluator = void 0;
@@ -6140,9 +6138,9 @@ var require_evaluator = __commonJS({
   }
 });
 
-// node_modules/@forge/react/node_modules/@forge/bridge/out/featureFlags/initFeatureFlags.js
+// node_modules/@forge/bridge/out/featureFlags/initFeatureFlags.js
 var require_initFeatureFlags = __commonJS({
-  "node_modules/@forge/react/node_modules/@forge/bridge/out/featureFlags/initFeatureFlags.js"(exports) {
+  "node_modules/@forge/bridge/out/featureFlags/initFeatureFlags.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.initFeatureFlags = void 0;
@@ -6171,9 +6169,9 @@ var require_initFeatureFlags = __commonJS({
   }
 });
 
-// node_modules/@forge/react/node_modules/@forge/bridge/out/featureFlags/featureFlags.js
+// node_modules/@forge/bridge/out/featureFlags/featureFlags.js
 var require_featureFlags = __commonJS({
-  "node_modules/@forge/react/node_modules/@forge/bridge/out/featureFlags/featureFlags.js"(exports) {
+  "node_modules/@forge/bridge/out/featureFlags/featureFlags.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.FeatureFlags = void 0;
@@ -6224,9 +6222,9 @@ var require_featureFlags = __commonJS({
   }
 });
 
-// node_modules/@forge/react/node_modules/@forge/bridge/out/featureFlags/index.js
+// node_modules/@forge/bridge/out/featureFlags/index.js
 var require_featureFlags2 = __commonJS({
-  "node_modules/@forge/react/node_modules/@forge/bridge/out/featureFlags/index.js"(exports) {
+  "node_modules/@forge/bridge/out/featureFlags/index.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.FeatureFlags = void 0;
@@ -6237,9 +6235,9 @@ var require_featureFlags2 = __commonJS({
   }
 });
 
-// node_modules/@forge/react/node_modules/@forge/bridge/out/frontendCustomMetrics/frontendCustomMetrics.js
+// node_modules/@forge/bridge/out/frontendCustomMetrics/frontendCustomMetrics.js
 var require_frontendCustomMetrics = __commonJS({
-  "node_modules/@forge/react/node_modules/@forge/bridge/out/frontendCustomMetrics/frontendCustomMetrics.js"(exports) {
+  "node_modules/@forge/bridge/out/frontendCustomMetrics/frontendCustomMetrics.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.frontendCustomMetrics = void 0;
@@ -6284,9 +6282,9 @@ var require_frontendCustomMetrics = __commonJS({
   }
 });
 
-// node_modules/@forge/react/node_modules/@forge/bridge/out/frontendCustomMetrics/index.js
+// node_modules/@forge/bridge/out/frontendCustomMetrics/index.js
 var require_frontendCustomMetrics2 = __commonJS({
-  "node_modules/@forge/react/node_modules/@forge/bridge/out/frontendCustomMetrics/index.js"(exports) {
+  "node_modules/@forge/bridge/out/frontendCustomMetrics/index.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     var tslib_1 = (init_tslib_es6(), __toCommonJS(tslib_es6_exports));
@@ -6294,9 +6292,9 @@ var require_frontendCustomMetrics2 = __commonJS({
   }
 });
 
-// node_modules/@forge/react/node_modules/@forge/bridge/out/index.js
+// node_modules/@forge/bridge/out/index.js
 var require_out3 = __commonJS({
-  "node_modules/@forge/react/node_modules/@forge/bridge/out/index.js"(exports) {
+  "node_modules/@forge/bridge/out/index.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.i18n = exports.NavigationTarget = void 0;
@@ -6316,6 +6314,7 @@ var require_out3 = __commonJS({
     tslib_1.__exportStar(require_events2(), exports);
     tslib_1.__exportStar(require_realtime2(), exports);
     tslib_1.__exportStar(require_rovo2(), exports);
+    tslib_1.__exportStar(require_cookieConsent(), exports);
     exports.i18n = tslib_1.__importStar(require_i18n());
     tslib_1.__exportStar(require_permissions2(), exports);
     tslib_1.__exportStar(require_object_store(), exports);
@@ -12492,303 +12491,243 @@ var require_constants2 = __commonJS({
   }
 });
 
-// node_modules/@forge/react/node_modules/uuid/dist/commonjs-browser/rng.js
-var require_rng = __commonJS({
-  "node_modules/@forge/react/node_modules/uuid/dist/commonjs-browser/rng.js"(exports) {
+// node_modules/uuid/dist/cjs-browser/max.js
+var require_max = __commonJS({
+  "node_modules/uuid/dist/cjs-browser/max.js"(exports) {
     "use strict";
-    Object.defineProperty(exports, "__esModule", {
-      value: true
-    });
-    exports.default = rng;
-    var getRandomValues;
-    var rnds8 = new Uint8Array(16);
-    function rng() {
-      if (!getRandomValues) {
-        getRandomValues = typeof crypto !== "undefined" && crypto.getRandomValues && crypto.getRandomValues.bind(crypto);
-        if (!getRandomValues) {
-          throw new Error("crypto.getRandomValues() not supported. See https://github.com/uuidjs/uuid#getrandomvalues-not-supported");
-        }
-      }
-      return getRandomValues(rnds8);
-    }
+    Object.defineProperty(exports, "__esModule", { value: true });
+    exports.default = "ffffffff-ffff-ffff-ffff-ffffffffffff";
   }
 });
 
-// node_modules/@forge/react/node_modules/uuid/dist/commonjs-browser/regex.js
+// node_modules/uuid/dist/cjs-browser/nil.js
+var require_nil = __commonJS({
+  "node_modules/uuid/dist/cjs-browser/nil.js"(exports) {
+    "use strict";
+    Object.defineProperty(exports, "__esModule", { value: true });
+    exports.default = "00000000-0000-0000-0000-000000000000";
+  }
+});
+
+// node_modules/uuid/dist/cjs-browser/regex.js
 var require_regex = __commonJS({
-  "node_modules/@forge/react/node_modules/uuid/dist/commonjs-browser/regex.js"(exports) {
+  "node_modules/uuid/dist/cjs-browser/regex.js"(exports) {
     "use strict";
-    Object.defineProperty(exports, "__esModule", {
-      value: true
-    });
-    exports.default = void 0;
-    var _default = /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}|00000000-0000-0000-0000-000000000000)$/i;
-    exports.default = _default;
+    Object.defineProperty(exports, "__esModule", { value: true });
+    exports.default = /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$/i;
   }
 });
 
-// node_modules/@forge/react/node_modules/uuid/dist/commonjs-browser/validate.js
+// node_modules/uuid/dist/cjs-browser/validate.js
 var require_validate = __commonJS({
-  "node_modules/@forge/react/node_modules/uuid/dist/commonjs-browser/validate.js"(exports) {
+  "node_modules/uuid/dist/cjs-browser/validate.js"(exports) {
     "use strict";
-    Object.defineProperty(exports, "__esModule", {
-      value: true
-    });
-    exports.default = void 0;
-    var _regex = _interopRequireDefault(require_regex());
-    function _interopRequireDefault(obj) {
-      return obj && obj.__esModule ? obj : { default: obj };
-    }
+    Object.defineProperty(exports, "__esModule", { value: true });
+    var regex_js_1 = require_regex();
     function validate(uuid) {
-      return typeof uuid === "string" && _regex.default.test(uuid);
+      return typeof uuid === "string" && regex_js_1.default.test(uuid);
     }
-    var _default = validate;
-    exports.default = _default;
+    exports.default = validate;
   }
 });
 
-// node_modules/@forge/react/node_modules/uuid/dist/commonjs-browser/stringify.js
-var require_stringify = __commonJS({
-  "node_modules/@forge/react/node_modules/uuid/dist/commonjs-browser/stringify.js"(exports) {
+// node_modules/uuid/dist/cjs-browser/parse.js
+var require_parse = __commonJS({
+  "node_modules/uuid/dist/cjs-browser/parse.js"(exports) {
     "use strict";
-    Object.defineProperty(exports, "__esModule", {
-      value: true
-    });
-    exports.default = void 0;
-    exports.unsafeStringify = unsafeStringify;
-    var _validate = _interopRequireDefault(require_validate());
-    function _interopRequireDefault(obj) {
-      return obj && obj.__esModule ? obj : { default: obj };
+    Object.defineProperty(exports, "__esModule", { value: true });
+    var validate_js_1 = require_validate();
+    function parse(uuid) {
+      if (!(0, validate_js_1.default)(uuid)) {
+        throw TypeError("Invalid UUID");
+      }
+      let v;
+      return Uint8Array.of((v = parseInt(uuid.slice(0, 8), 16)) >>> 24, v >>> 16 & 255, v >>> 8 & 255, v & 255, (v = parseInt(uuid.slice(9, 13), 16)) >>> 8, v & 255, (v = parseInt(uuid.slice(14, 18), 16)) >>> 8, v & 255, (v = parseInt(uuid.slice(19, 23), 16)) >>> 8, v & 255, (v = parseInt(uuid.slice(24, 36), 16)) / 1099511627776 & 255, v / 4294967296 & 255, v >>> 24 & 255, v >>> 16 & 255, v >>> 8 & 255, v & 255);
     }
+    exports.default = parse;
+  }
+});
+
+// node_modules/uuid/dist/cjs-browser/stringify.js
+var require_stringify = __commonJS({
+  "node_modules/uuid/dist/cjs-browser/stringify.js"(exports) {
+    "use strict";
+    Object.defineProperty(exports, "__esModule", { value: true });
+    exports.unsafeStringify = void 0;
+    var validate_js_1 = require_validate();
     var byteToHex = [];
     for (let i = 0; i < 256; ++i) {
       byteToHex.push((i + 256).toString(16).slice(1));
     }
     function unsafeStringify(arr, offset = 0) {
-      return byteToHex[arr[offset + 0]] + byteToHex[arr[offset + 1]] + byteToHex[arr[offset + 2]] + byteToHex[arr[offset + 3]] + "-" + byteToHex[arr[offset + 4]] + byteToHex[arr[offset + 5]] + "-" + byteToHex[arr[offset + 6]] + byteToHex[arr[offset + 7]] + "-" + byteToHex[arr[offset + 8]] + byteToHex[arr[offset + 9]] + "-" + byteToHex[arr[offset + 10]] + byteToHex[arr[offset + 11]] + byteToHex[arr[offset + 12]] + byteToHex[arr[offset + 13]] + byteToHex[arr[offset + 14]] + byteToHex[arr[offset + 15]];
+      return (byteToHex[arr[offset + 0]] + byteToHex[arr[offset + 1]] + byteToHex[arr[offset + 2]] + byteToHex[arr[offset + 3]] + "-" + byteToHex[arr[offset + 4]] + byteToHex[arr[offset + 5]] + "-" + byteToHex[arr[offset + 6]] + byteToHex[arr[offset + 7]] + "-" + byteToHex[arr[offset + 8]] + byteToHex[arr[offset + 9]] + "-" + byteToHex[arr[offset + 10]] + byteToHex[arr[offset + 11]] + byteToHex[arr[offset + 12]] + byteToHex[arr[offset + 13]] + byteToHex[arr[offset + 14]] + byteToHex[arr[offset + 15]]).toLowerCase();
     }
+    exports.unsafeStringify = unsafeStringify;
     function stringify(arr, offset = 0) {
       const uuid = unsafeStringify(arr, offset);
-      if (!(0, _validate.default)(uuid)) {
+      if (!(0, validate_js_1.default)(uuid)) {
         throw TypeError("Stringified UUID is invalid");
       }
       return uuid;
     }
-    var _default = stringify;
-    exports.default = _default;
+    exports.default = stringify;
   }
 });
 
-// node_modules/@forge/react/node_modules/uuid/dist/commonjs-browser/v1.js
-var require_v1 = __commonJS({
-  "node_modules/@forge/react/node_modules/uuid/dist/commonjs-browser/v1.js"(exports) {
+// node_modules/uuid/dist/cjs-browser/rng.js
+var require_rng = __commonJS({
+  "node_modules/uuid/dist/cjs-browser/rng.js"(exports) {
     "use strict";
-    Object.defineProperty(exports, "__esModule", {
-      value: true
-    });
-    exports.default = void 0;
-    var _rng = _interopRequireDefault(require_rng());
-    var _stringify = require_stringify();
-    function _interopRequireDefault(obj) {
-      return obj && obj.__esModule ? obj : { default: obj };
+    Object.defineProperty(exports, "__esModule", { value: true });
+    var getRandomValues;
+    var rnds8 = new Uint8Array(16);
+    function rng() {
+      if (!getRandomValues) {
+        if (typeof crypto === "undefined" || !crypto.getRandomValues) {
+          throw new Error("crypto.getRandomValues() not supported. See https://github.com/uuidjs/uuid#getrandomvalues-not-supported");
+        }
+        getRandomValues = crypto.getRandomValues.bind(crypto);
+      }
+      return getRandomValues(rnds8);
     }
-    var _nodeId;
-    var _clockseq;
-    var _lastMSecs = 0;
-    var _lastNSecs = 0;
+    exports.default = rng;
+  }
+});
+
+// node_modules/uuid/dist/cjs-browser/v1.js
+var require_v1 = __commonJS({
+  "node_modules/uuid/dist/cjs-browser/v1.js"(exports) {
+    "use strict";
+    Object.defineProperty(exports, "__esModule", { value: true });
+    exports.updateV1State = void 0;
+    var rng_js_1 = require_rng();
+    var stringify_js_1 = require_stringify();
+    var _state = {};
     function v1(options, buf, offset) {
-      let i = buf && offset || 0;
-      const b = buf || new Array(16);
-      options = options || {};
-      let node = options.node || _nodeId;
-      let clockseq = options.clockseq !== void 0 ? options.clockseq : _clockseq;
-      if (node == null || clockseq == null) {
-        const seedBytes = options.random || (options.rng || _rng.default)();
-        if (node == null) {
-          node = _nodeId = [seedBytes[0] | 1, seedBytes[1], seedBytes[2], seedBytes[3], seedBytes[4], seedBytes[5]];
-        }
-        if (clockseq == null) {
-          clockseq = _clockseq = (seedBytes[6] << 8 | seedBytes[7]) & 16383;
+      let bytes;
+      const isV6 = options?._v6 ?? false;
+      if (options) {
+        const optionsKeys = Object.keys(options);
+        if (optionsKeys.length === 1 && optionsKeys[0] === "_v6") {
+          options = void 0;
         }
       }
-      let msecs = options.msecs !== void 0 ? options.msecs : Date.now();
-      let nsecs = options.nsecs !== void 0 ? options.nsecs : _lastNSecs + 1;
-      const dt = msecs - _lastMSecs + (nsecs - _lastNSecs) / 1e4;
-      if (dt < 0 && options.clockseq === void 0) {
-        clockseq = clockseq + 1 & 16383;
+      if (options) {
+        bytes = v1Bytes(options.random ?? options.rng?.() ?? (0, rng_js_1.default)(), options.msecs, options.nsecs, options.clockseq, options.node, buf, offset);
+      } else {
+        const now = Date.now();
+        const rnds = (0, rng_js_1.default)();
+        updateV1State(_state, now, rnds);
+        bytes = v1Bytes(rnds, _state.msecs, _state.nsecs, isV6 ? void 0 : _state.clockseq, isV6 ? void 0 : _state.node, buf, offset);
       }
-      if ((dt < 0 || msecs > _lastMSecs) && options.nsecs === void 0) {
-        nsecs = 0;
+      return buf ?? (0, stringify_js_1.unsafeStringify)(bytes);
+    }
+    function updateV1State(state, now, rnds) {
+      state.msecs ??= -Infinity;
+      state.nsecs ??= 0;
+      if (now === state.msecs) {
+        state.nsecs++;
+        if (state.nsecs >= 1e4) {
+          state.node = void 0;
+          state.nsecs = 0;
+        }
+      } else if (now > state.msecs) {
+        state.nsecs = 0;
+      } else if (now < state.msecs) {
+        state.node = void 0;
       }
-      if (nsecs >= 1e4) {
-        throw new Error("uuid.v1(): Can't create more than 10M uuids/sec");
+      if (!state.node) {
+        state.node = rnds.slice(10, 16);
+        state.node[0] |= 1;
+        state.clockseq = (rnds[8] << 8 | rnds[9]) & 16383;
       }
-      _lastMSecs = msecs;
-      _lastNSecs = nsecs;
-      _clockseq = clockseq;
+      state.msecs = now;
+      return state;
+    }
+    exports.updateV1State = updateV1State;
+    function v1Bytes(rnds, msecs, nsecs, clockseq, node, buf, offset = 0) {
+      if (rnds.length < 16) {
+        throw new Error("Random bytes length must be >= 16");
+      }
+      if (!buf) {
+        buf = new Uint8Array(16);
+        offset = 0;
+      } else {
+        if (offset < 0 || offset + 16 > buf.length) {
+          throw new RangeError(`UUID byte range ${offset}:${offset + 15} is out of buffer bounds`);
+        }
+      }
+      msecs ??= Date.now();
+      nsecs ??= 0;
+      clockseq ??= (rnds[8] << 8 | rnds[9]) & 16383;
+      node ??= rnds.slice(10, 16);
       msecs += 122192928e5;
       const tl = ((msecs & 268435455) * 1e4 + nsecs) % 4294967296;
-      b[i++] = tl >>> 24 & 255;
-      b[i++] = tl >>> 16 & 255;
-      b[i++] = tl >>> 8 & 255;
-      b[i++] = tl & 255;
+      buf[offset++] = tl >>> 24 & 255;
+      buf[offset++] = tl >>> 16 & 255;
+      buf[offset++] = tl >>> 8 & 255;
+      buf[offset++] = tl & 255;
       const tmh = msecs / 4294967296 * 1e4 & 268435455;
-      b[i++] = tmh >>> 8 & 255;
-      b[i++] = tmh & 255;
-      b[i++] = tmh >>> 24 & 15 | 16;
-      b[i++] = tmh >>> 16 & 255;
-      b[i++] = clockseq >>> 8 | 128;
-      b[i++] = clockseq & 255;
+      buf[offset++] = tmh >>> 8 & 255;
+      buf[offset++] = tmh & 255;
+      buf[offset++] = tmh >>> 24 & 15 | 16;
+      buf[offset++] = tmh >>> 16 & 255;
+      buf[offset++] = clockseq >>> 8 | 128;
+      buf[offset++] = clockseq & 255;
       for (let n = 0; n < 6; ++n) {
-        b[i + n] = node[n];
+        buf[offset++] = node[n];
       }
-      return buf || (0, _stringify.unsafeStringify)(b);
+      return buf;
     }
-    var _default = v1;
-    exports.default = _default;
+    exports.default = v1;
   }
 });
 
-// node_modules/@forge/react/node_modules/uuid/dist/commonjs-browser/parse.js
-var require_parse = __commonJS({
-  "node_modules/@forge/react/node_modules/uuid/dist/commonjs-browser/parse.js"(exports) {
+// node_modules/uuid/dist/cjs-browser/v1ToV6.js
+var require_v1ToV6 = __commonJS({
+  "node_modules/uuid/dist/cjs-browser/v1ToV6.js"(exports) {
     "use strict";
-    Object.defineProperty(exports, "__esModule", {
-      value: true
-    });
-    exports.default = void 0;
-    var _validate = _interopRequireDefault(require_validate());
-    function _interopRequireDefault(obj) {
-      return obj && obj.__esModule ? obj : { default: obj };
+    Object.defineProperty(exports, "__esModule", { value: true });
+    var parse_js_1 = require_parse();
+    var stringify_js_1 = require_stringify();
+    function v1ToV6(uuid) {
+      const v1Bytes = typeof uuid === "string" ? (0, parse_js_1.default)(uuid) : uuid;
+      const v6Bytes = _v1ToV6(v1Bytes);
+      return typeof uuid === "string" ? (0, stringify_js_1.unsafeStringify)(v6Bytes) : v6Bytes;
     }
-    function parse(uuid) {
-      if (!(0, _validate.default)(uuid)) {
-        throw TypeError("Invalid UUID");
-      }
-      let v;
-      const arr = new Uint8Array(16);
-      arr[0] = (v = parseInt(uuid.slice(0, 8), 16)) >>> 24;
-      arr[1] = v >>> 16 & 255;
-      arr[2] = v >>> 8 & 255;
-      arr[3] = v & 255;
-      arr[4] = (v = parseInt(uuid.slice(9, 13), 16)) >>> 8;
-      arr[5] = v & 255;
-      arr[6] = (v = parseInt(uuid.slice(14, 18), 16)) >>> 8;
-      arr[7] = v & 255;
-      arr[8] = (v = parseInt(uuid.slice(19, 23), 16)) >>> 8;
-      arr[9] = v & 255;
-      arr[10] = (v = parseInt(uuid.slice(24, 36), 16)) / 1099511627776 & 255;
-      arr[11] = v / 4294967296 & 255;
-      arr[12] = v >>> 24 & 255;
-      arr[13] = v >>> 16 & 255;
-      arr[14] = v >>> 8 & 255;
-      arr[15] = v & 255;
-      return arr;
+    exports.default = v1ToV6;
+    function _v1ToV6(v1Bytes) {
+      return Uint8Array.of((v1Bytes[6] & 15) << 4 | v1Bytes[7] >> 4 & 15, (v1Bytes[7] & 15) << 4 | (v1Bytes[4] & 240) >> 4, (v1Bytes[4] & 15) << 4 | (v1Bytes[5] & 240) >> 4, (v1Bytes[5] & 15) << 4 | (v1Bytes[0] & 240) >> 4, (v1Bytes[0] & 15) << 4 | (v1Bytes[1] & 240) >> 4, (v1Bytes[1] & 15) << 4 | (v1Bytes[2] & 240) >> 4, 96 | v1Bytes[2] & 15, v1Bytes[3], v1Bytes[8], v1Bytes[9], v1Bytes[10], v1Bytes[11], v1Bytes[12], v1Bytes[13], v1Bytes[14], v1Bytes[15]);
     }
-    var _default = parse;
-    exports.default = _default;
   }
 });
 
-// node_modules/@forge/react/node_modules/uuid/dist/commonjs-browser/v35.js
-var require_v35 = __commonJS({
-  "node_modules/@forge/react/node_modules/uuid/dist/commonjs-browser/v35.js"(exports) {
+// node_modules/uuid/dist/cjs-browser/md5.js
+var require_md5 = __commonJS({
+  "node_modules/uuid/dist/cjs-browser/md5.js"(exports) {
     "use strict";
-    Object.defineProperty(exports, "__esModule", {
-      value: true
-    });
-    exports.URL = exports.DNS = void 0;
-    exports.default = v35;
-    var _stringify = require_stringify();
-    var _parse = _interopRequireDefault(require_parse());
-    function _interopRequireDefault(obj) {
-      return obj && obj.__esModule ? obj : { default: obj };
+    Object.defineProperty(exports, "__esModule", { value: true });
+    function md5(bytes) {
+      const words = uint8ToUint32(bytes);
+      const md5Bytes = wordsToMd5(words, bytes.length * 8);
+      return uint32ToUint8(md5Bytes);
     }
-    function stringToBytes(str) {
-      str = unescape(encodeURIComponent(str));
-      const bytes = [];
-      for (let i = 0; i < str.length; ++i) {
-        bytes.push(str.charCodeAt(i));
+    function uint32ToUint8(input) {
+      const bytes = new Uint8Array(input.length * 4);
+      for (let i = 0; i < input.length * 4; i++) {
+        bytes[i] = input[i >> 2] >>> i % 4 * 8 & 255;
       }
       return bytes;
-    }
-    var DNS = "6ba7b810-9dad-11d1-80b4-00c04fd430c8";
-    exports.DNS = DNS;
-    var URL2 = "6ba7b811-9dad-11d1-80b4-00c04fd430c8";
-    exports.URL = URL2;
-    function v35(name, version, hashfunc) {
-      function generateUUID(value, namespace, buf, offset) {
-        var _namespace;
-        if (typeof value === "string") {
-          value = stringToBytes(value);
-        }
-        if (typeof namespace === "string") {
-          namespace = (0, _parse.default)(namespace);
-        }
-        if (((_namespace = namespace) === null || _namespace === void 0 ? void 0 : _namespace.length) !== 16) {
-          throw TypeError("Namespace must be array-like (16 iterable integer values, 0-255)");
-        }
-        let bytes = new Uint8Array(16 + value.length);
-        bytes.set(namespace);
-        bytes.set(value, namespace.length);
-        bytes = hashfunc(bytes);
-        bytes[6] = bytes[6] & 15 | version;
-        bytes[8] = bytes[8] & 63 | 128;
-        if (buf) {
-          offset = offset || 0;
-          for (let i = 0; i < 16; ++i) {
-            buf[offset + i] = bytes[i];
-          }
-          return buf;
-        }
-        return (0, _stringify.unsafeStringify)(bytes);
-      }
-      try {
-        generateUUID.name = name;
-      } catch (err) {
-      }
-      generateUUID.DNS = DNS;
-      generateUUID.URL = URL2;
-      return generateUUID;
-    }
-  }
-});
-
-// node_modules/@forge/react/node_modules/uuid/dist/commonjs-browser/md5.js
-var require_md5 = __commonJS({
-  "node_modules/@forge/react/node_modules/uuid/dist/commonjs-browser/md5.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", {
-      value: true
-    });
-    exports.default = void 0;
-    function md5(bytes) {
-      if (typeof bytes === "string") {
-        const msg = unescape(encodeURIComponent(bytes));
-        bytes = new Uint8Array(msg.length);
-        for (let i = 0; i < msg.length; ++i) {
-          bytes[i] = msg.charCodeAt(i);
-        }
-      }
-      return md5ToHexEncodedArray(wordsToMd5(bytesToWords(bytes), bytes.length * 8));
-    }
-    function md5ToHexEncodedArray(input) {
-      const output = [];
-      const length32 = input.length * 32;
-      const hexTab = "0123456789abcdef";
-      for (let i = 0; i < length32; i += 8) {
-        const x = input[i >> 5] >>> i % 32 & 255;
-        const hex = parseInt(hexTab.charAt(x >>> 4 & 15) + hexTab.charAt(x & 15), 16);
-        output.push(hex);
-      }
-      return output;
     }
     function getOutputLength(inputLength8) {
       return (inputLength8 + 64 >>> 9 << 4) + 14 + 1;
     }
     function wordsToMd5(x, len) {
-      x[len >> 5] |= 128 << len % 32;
-      x[getOutputLength(len) - 1] = len;
+      const xpad = new Uint32Array(getOutputLength(len)).fill(0);
+      xpad.set(x);
+      xpad[len >> 5] |= 128 << len % 32;
+      xpad[xpad.length - 1] = len;
+      x = xpad;
       let a = 1732584193;
       let b = -271733879;
       let c = -1732584194;
@@ -12867,16 +12806,15 @@ var require_md5 = __commonJS({
         c = safeAdd(c, oldc);
         d = safeAdd(d, oldd);
       }
-      return [a, b, c, d];
+      return Uint32Array.of(a, b, c, d);
     }
-    function bytesToWords(input) {
+    function uint8ToUint32(input) {
       if (input.length === 0) {
-        return [];
+        return new Uint32Array();
       }
-      const length8 = input.length * 8;
-      const output = new Uint32Array(getOutputLength(length8));
-      for (let i = 0; i < length8; i += 8) {
-        output[i >> 5] |= (input[i / 8] & 255) << i % 32;
+      const output = new Uint32Array(getOutputLength(input.length * 8)).fill(0);
+      for (let i = 0; i < input.length; i++) {
+        output[i >> 2] |= (input[i] & 255) << i % 4 * 8;
       }
       return output;
     }
@@ -12903,90 +12841,134 @@ var require_md5 = __commonJS({
     function md5ii(a, b, c, d, x, s, t) {
       return md5cmn(c ^ (b | ~d), a, b, x, s, t);
     }
-    var _default = md5;
-    exports.default = _default;
+    exports.default = md5;
   }
 });
 
-// node_modules/@forge/react/node_modules/uuid/dist/commonjs-browser/v3.js
+// node_modules/uuid/dist/cjs-browser/v35.js
+var require_v35 = __commonJS({
+  "node_modules/uuid/dist/cjs-browser/v35.js"(exports) {
+    "use strict";
+    Object.defineProperty(exports, "__esModule", { value: true });
+    exports.URL = exports.DNS = exports.stringToBytes = void 0;
+    var parse_js_1 = require_parse();
+    var stringify_js_1 = require_stringify();
+    function stringToBytes(str) {
+      str = unescape(encodeURIComponent(str));
+      const bytes = new Uint8Array(str.length);
+      for (let i = 0; i < str.length; ++i) {
+        bytes[i] = str.charCodeAt(i);
+      }
+      return bytes;
+    }
+    exports.stringToBytes = stringToBytes;
+    exports.DNS = "6ba7b810-9dad-11d1-80b4-00c04fd430c8";
+    exports.URL = "6ba7b811-9dad-11d1-80b4-00c04fd430c8";
+    function v35(version, hash, value, namespace, buf, offset) {
+      const valueBytes = typeof value === "string" ? stringToBytes(value) : value;
+      const namespaceBytes = typeof namespace === "string" ? (0, parse_js_1.default)(namespace) : namespace;
+      if (typeof namespace === "string") {
+        namespace = (0, parse_js_1.default)(namespace);
+      }
+      if (namespace?.length !== 16) {
+        throw TypeError("Namespace must be array-like (16 iterable integer values, 0-255)");
+      }
+      let bytes = new Uint8Array(16 + valueBytes.length);
+      bytes.set(namespaceBytes);
+      bytes.set(valueBytes, namespaceBytes.length);
+      bytes = hash(bytes);
+      bytes[6] = bytes[6] & 15 | version;
+      bytes[8] = bytes[8] & 63 | 128;
+      if (buf) {
+        offset = offset || 0;
+        if (offset < 0 || offset + 16 > buf.length) {
+          throw new RangeError(`UUID byte range ${offset}:${offset + 15} is out of buffer bounds`);
+        }
+        for (let i = 0; i < 16; ++i) {
+          buf[offset + i] = bytes[i];
+        }
+        return buf;
+      }
+      return (0, stringify_js_1.unsafeStringify)(bytes);
+    }
+    exports.default = v35;
+  }
+});
+
+// node_modules/uuid/dist/cjs-browser/v3.js
 var require_v3 = __commonJS({
-  "node_modules/@forge/react/node_modules/uuid/dist/commonjs-browser/v3.js"(exports) {
+  "node_modules/uuid/dist/cjs-browser/v3.js"(exports) {
     "use strict";
-    Object.defineProperty(exports, "__esModule", {
-      value: true
-    });
-    exports.default = void 0;
-    var _v = _interopRequireDefault(require_v35());
-    var _md = _interopRequireDefault(require_md5());
-    function _interopRequireDefault(obj) {
-      return obj && obj.__esModule ? obj : { default: obj };
+    Object.defineProperty(exports, "__esModule", { value: true });
+    exports.URL = exports.DNS = void 0;
+    var md5_js_1 = require_md5();
+    var v35_js_1 = require_v35();
+    var v35_js_2 = require_v35();
+    Object.defineProperty(exports, "DNS", { enumerable: true, get: function() {
+      return v35_js_2.DNS;
+    } });
+    Object.defineProperty(exports, "URL", { enumerable: true, get: function() {
+      return v35_js_2.URL;
+    } });
+    function v3(value, namespace, buf, offset) {
+      return (0, v35_js_1.default)(48, md5_js_1.default, value, namespace, buf, offset);
     }
-    var v3 = (0, _v.default)("v3", 48, _md.default);
-    var _default = v3;
-    exports.default = _default;
+    v3.DNS = v35_js_1.DNS;
+    v3.URL = v35_js_1.URL;
+    exports.default = v3;
   }
 });
 
-// node_modules/@forge/react/node_modules/uuid/dist/commonjs-browser/native.js
+// node_modules/uuid/dist/cjs-browser/native.js
 var require_native = __commonJS({
-  "node_modules/@forge/react/node_modules/uuid/dist/commonjs-browser/native.js"(exports) {
+  "node_modules/uuid/dist/cjs-browser/native.js"(exports) {
     "use strict";
-    Object.defineProperty(exports, "__esModule", {
-      value: true
-    });
-    exports.default = void 0;
+    Object.defineProperty(exports, "__esModule", { value: true });
     var randomUUID = typeof crypto !== "undefined" && crypto.randomUUID && crypto.randomUUID.bind(crypto);
-    var _default = {
-      randomUUID
-    };
-    exports.default = _default;
+    exports.default = { randomUUID };
   }
 });
 
-// node_modules/@forge/react/node_modules/uuid/dist/commonjs-browser/v4.js
+// node_modules/uuid/dist/cjs-browser/v4.js
 var require_v4 = __commonJS({
-  "node_modules/@forge/react/node_modules/uuid/dist/commonjs-browser/v4.js"(exports) {
+  "node_modules/uuid/dist/cjs-browser/v4.js"(exports) {
     "use strict";
-    Object.defineProperty(exports, "__esModule", {
-      value: true
-    });
-    exports.default = void 0;
-    var _native = _interopRequireDefault(require_native());
-    var _rng = _interopRequireDefault(require_rng());
-    var _stringify = require_stringify();
-    function _interopRequireDefault(obj) {
-      return obj && obj.__esModule ? obj : { default: obj };
-    }
+    Object.defineProperty(exports, "__esModule", { value: true });
+    var native_js_1 = require_native();
+    var rng_js_1 = require_rng();
+    var stringify_js_1 = require_stringify();
     function v4(options, buf, offset) {
-      if (_native.default.randomUUID && !buf && !options) {
-        return _native.default.randomUUID();
+      if (native_js_1.default.randomUUID && !buf && !options) {
+        return native_js_1.default.randomUUID();
       }
       options = options || {};
-      const rnds = options.random || (options.rng || _rng.default)();
+      const rnds = options.random ?? options.rng?.() ?? (0, rng_js_1.default)();
+      if (rnds.length < 16) {
+        throw new Error("Random bytes length must be >= 16");
+      }
       rnds[6] = rnds[6] & 15 | 64;
       rnds[8] = rnds[8] & 63 | 128;
       if (buf) {
         offset = offset || 0;
+        if (offset < 0 || offset + 16 > buf.length) {
+          throw new RangeError(`UUID byte range ${offset}:${offset + 15} is out of buffer bounds`);
+        }
         for (let i = 0; i < 16; ++i) {
           buf[offset + i] = rnds[i];
         }
         return buf;
       }
-      return (0, _stringify.unsafeStringify)(rnds);
+      return (0, stringify_js_1.unsafeStringify)(rnds);
     }
-    var _default = v4;
-    exports.default = _default;
+    exports.default = v4;
   }
 });
 
-// node_modules/@forge/react/node_modules/uuid/dist/commonjs-browser/sha1.js
+// node_modules/uuid/dist/cjs-browser/sha1.js
 var require_sha1 = __commonJS({
-  "node_modules/@forge/react/node_modules/uuid/dist/commonjs-browser/sha1.js"(exports) {
+  "node_modules/uuid/dist/cjs-browser/sha1.js"(exports) {
     "use strict";
-    Object.defineProperty(exports, "__esModule", {
-      value: true
-    });
-    exports.default = void 0;
+    Object.defineProperty(exports, "__esModule", { value: true });
     function f(s, x, y, z) {
       switch (s) {
         case 0:
@@ -13005,16 +12987,10 @@ var require_sha1 = __commonJS({
     function sha1(bytes) {
       const K = [1518500249, 1859775393, 2400959708, 3395469782];
       const H = [1732584193, 4023233417, 2562383102, 271733878, 3285377520];
-      if (typeof bytes === "string") {
-        const msg = unescape(encodeURIComponent(bytes));
-        bytes = [];
-        for (let i = 0; i < msg.length; ++i) {
-          bytes.push(msg.charCodeAt(i));
-        }
-      } else if (!Array.isArray(bytes)) {
-        bytes = Array.prototype.slice.call(bytes);
-      }
-      bytes.push(128);
+      const newBytes = new Uint8Array(bytes.length + 1);
+      newBytes.set(bytes);
+      newBytes[bytes.length] = 128;
+      bytes = newBytes;
       const l = bytes.length / 4 + 2;
       const N = Math.ceil(l / 16);
       const M = new Array(N);
@@ -13056,141 +13032,233 @@ var require_sha1 = __commonJS({
         H[3] = H[3] + d >>> 0;
         H[4] = H[4] + e >>> 0;
       }
-      return [H[0] >> 24 & 255, H[0] >> 16 & 255, H[0] >> 8 & 255, H[0] & 255, H[1] >> 24 & 255, H[1] >> 16 & 255, H[1] >> 8 & 255, H[1] & 255, H[2] >> 24 & 255, H[2] >> 16 & 255, H[2] >> 8 & 255, H[2] & 255, H[3] >> 24 & 255, H[3] >> 16 & 255, H[3] >> 8 & 255, H[3] & 255, H[4] >> 24 & 255, H[4] >> 16 & 255, H[4] >> 8 & 255, H[4] & 255];
+      return Uint8Array.of(H[0] >> 24, H[0] >> 16, H[0] >> 8, H[0], H[1] >> 24, H[1] >> 16, H[1] >> 8, H[1], H[2] >> 24, H[2] >> 16, H[2] >> 8, H[2], H[3] >> 24, H[3] >> 16, H[3] >> 8, H[3], H[4] >> 24, H[4] >> 16, H[4] >> 8, H[4]);
     }
-    var _default = sha1;
-    exports.default = _default;
+    exports.default = sha1;
   }
 });
 
-// node_modules/@forge/react/node_modules/uuid/dist/commonjs-browser/v5.js
+// node_modules/uuid/dist/cjs-browser/v5.js
 var require_v5 = __commonJS({
-  "node_modules/@forge/react/node_modules/uuid/dist/commonjs-browser/v5.js"(exports) {
+  "node_modules/uuid/dist/cjs-browser/v5.js"(exports) {
     "use strict";
-    Object.defineProperty(exports, "__esModule", {
-      value: true
-    });
-    exports.default = void 0;
-    var _v = _interopRequireDefault(require_v35());
-    var _sha = _interopRequireDefault(require_sha1());
-    function _interopRequireDefault(obj) {
-      return obj && obj.__esModule ? obj : { default: obj };
+    Object.defineProperty(exports, "__esModule", { value: true });
+    exports.URL = exports.DNS = void 0;
+    var sha1_js_1 = require_sha1();
+    var v35_js_1 = require_v35();
+    var v35_js_2 = require_v35();
+    Object.defineProperty(exports, "DNS", { enumerable: true, get: function() {
+      return v35_js_2.DNS;
+    } });
+    Object.defineProperty(exports, "URL", { enumerable: true, get: function() {
+      return v35_js_2.URL;
+    } });
+    function v5(value, namespace, buf, offset) {
+      return (0, v35_js_1.default)(80, sha1_js_1.default, value, namespace, buf, offset);
     }
-    var v5 = (0, _v.default)("v5", 80, _sha.default);
-    var _default = v5;
-    exports.default = _default;
+    v5.DNS = v35_js_1.DNS;
+    v5.URL = v35_js_1.URL;
+    exports.default = v5;
   }
 });
 
-// node_modules/@forge/react/node_modules/uuid/dist/commonjs-browser/nil.js
-var require_nil = __commonJS({
-  "node_modules/@forge/react/node_modules/uuid/dist/commonjs-browser/nil.js"(exports) {
+// node_modules/uuid/dist/cjs-browser/v6.js
+var require_v6 = __commonJS({
+  "node_modules/uuid/dist/cjs-browser/v6.js"(exports) {
     "use strict";
-    Object.defineProperty(exports, "__esModule", {
-      value: true
-    });
-    exports.default = void 0;
-    var _default = "00000000-0000-0000-0000-000000000000";
-    exports.default = _default;
+    Object.defineProperty(exports, "__esModule", { value: true });
+    var stringify_js_1 = require_stringify();
+    var v1_js_1 = require_v1();
+    var v1ToV6_js_1 = require_v1ToV6();
+    function v6(options, buf, offset) {
+      options ??= {};
+      offset ??= 0;
+      let bytes = (0, v1_js_1.default)({ ...options, _v6: true }, new Uint8Array(16));
+      bytes = (0, v1ToV6_js_1.default)(bytes);
+      if (buf) {
+        if (offset < 0 || offset + 16 > buf.length) {
+          throw new RangeError(`UUID byte range ${offset}:${offset + 15} is out of buffer bounds`);
+        }
+        for (let i = 0; i < 16; i++) {
+          buf[offset + i] = bytes[i];
+        }
+        return buf;
+      }
+      return (0, stringify_js_1.unsafeStringify)(bytes);
+    }
+    exports.default = v6;
   }
 });
 
-// node_modules/@forge/react/node_modules/uuid/dist/commonjs-browser/version.js
+// node_modules/uuid/dist/cjs-browser/v6ToV1.js
+var require_v6ToV1 = __commonJS({
+  "node_modules/uuid/dist/cjs-browser/v6ToV1.js"(exports) {
+    "use strict";
+    Object.defineProperty(exports, "__esModule", { value: true });
+    var parse_js_1 = require_parse();
+    var stringify_js_1 = require_stringify();
+    function v6ToV1(uuid) {
+      const v6Bytes = typeof uuid === "string" ? (0, parse_js_1.default)(uuid) : uuid;
+      const v1Bytes = _v6ToV1(v6Bytes);
+      return typeof uuid === "string" ? (0, stringify_js_1.unsafeStringify)(v1Bytes) : v1Bytes;
+    }
+    exports.default = v6ToV1;
+    function _v6ToV1(v6Bytes) {
+      return Uint8Array.of((v6Bytes[3] & 15) << 4 | v6Bytes[4] >> 4 & 15, (v6Bytes[4] & 15) << 4 | (v6Bytes[5] & 240) >> 4, (v6Bytes[5] & 15) << 4 | v6Bytes[6] & 15, v6Bytes[7], (v6Bytes[1] & 15) << 4 | (v6Bytes[2] & 240) >> 4, (v6Bytes[2] & 15) << 4 | (v6Bytes[3] & 240) >> 4, 16 | (v6Bytes[0] & 240) >> 4, (v6Bytes[0] & 15) << 4 | (v6Bytes[1] & 240) >> 4, v6Bytes[8], v6Bytes[9], v6Bytes[10], v6Bytes[11], v6Bytes[12], v6Bytes[13], v6Bytes[14], v6Bytes[15]);
+    }
+  }
+});
+
+// node_modules/uuid/dist/cjs-browser/v7.js
+var require_v7 = __commonJS({
+  "node_modules/uuid/dist/cjs-browser/v7.js"(exports) {
+    "use strict";
+    Object.defineProperty(exports, "__esModule", { value: true });
+    exports.updateV7State = void 0;
+    var rng_js_1 = require_rng();
+    var stringify_js_1 = require_stringify();
+    var _state = {};
+    function v7(options, buf, offset) {
+      let bytes;
+      if (options) {
+        bytes = v7Bytes(options.random ?? options.rng?.() ?? (0, rng_js_1.default)(), options.msecs, options.seq, buf, offset);
+      } else {
+        const now = Date.now();
+        const rnds = (0, rng_js_1.default)();
+        updateV7State(_state, now, rnds);
+        bytes = v7Bytes(rnds, _state.msecs, _state.seq, buf, offset);
+      }
+      return buf ?? (0, stringify_js_1.unsafeStringify)(bytes);
+    }
+    function updateV7State(state, now, rnds) {
+      state.msecs ??= -Infinity;
+      state.seq ??= 0;
+      if (now > state.msecs) {
+        state.seq = rnds[6] << 23 | rnds[7] << 16 | rnds[8] << 8 | rnds[9];
+        state.msecs = now;
+      } else {
+        state.seq = state.seq + 1 | 0;
+        if (state.seq === 0) {
+          state.msecs++;
+        }
+      }
+      return state;
+    }
+    exports.updateV7State = updateV7State;
+    function v7Bytes(rnds, msecs, seq, buf, offset = 0) {
+      if (rnds.length < 16) {
+        throw new Error("Random bytes length must be >= 16");
+      }
+      if (!buf) {
+        buf = new Uint8Array(16);
+        offset = 0;
+      } else {
+        if (offset < 0 || offset + 16 > buf.length) {
+          throw new RangeError(`UUID byte range ${offset}:${offset + 15} is out of buffer bounds`);
+        }
+      }
+      msecs ??= Date.now();
+      seq ??= rnds[6] * 127 << 24 | rnds[7] << 16 | rnds[8] << 8 | rnds[9];
+      buf[offset++] = msecs / 1099511627776 & 255;
+      buf[offset++] = msecs / 4294967296 & 255;
+      buf[offset++] = msecs / 16777216 & 255;
+      buf[offset++] = msecs / 65536 & 255;
+      buf[offset++] = msecs / 256 & 255;
+      buf[offset++] = msecs & 255;
+      buf[offset++] = 112 | seq >>> 28 & 15;
+      buf[offset++] = seq >>> 20 & 255;
+      buf[offset++] = 128 | seq >>> 14 & 63;
+      buf[offset++] = seq >>> 6 & 255;
+      buf[offset++] = seq << 2 & 255 | rnds[10] & 3;
+      buf[offset++] = rnds[11];
+      buf[offset++] = rnds[12];
+      buf[offset++] = rnds[13];
+      buf[offset++] = rnds[14];
+      buf[offset++] = rnds[15];
+      return buf;
+    }
+    exports.default = v7;
+  }
+});
+
+// node_modules/uuid/dist/cjs-browser/version.js
 var require_version = __commonJS({
-  "node_modules/@forge/react/node_modules/uuid/dist/commonjs-browser/version.js"(exports) {
+  "node_modules/uuid/dist/cjs-browser/version.js"(exports) {
     "use strict";
-    Object.defineProperty(exports, "__esModule", {
-      value: true
-    });
-    exports.default = void 0;
-    var _validate = _interopRequireDefault(require_validate());
-    function _interopRequireDefault(obj) {
-      return obj && obj.__esModule ? obj : { default: obj };
-    }
+    Object.defineProperty(exports, "__esModule", { value: true });
+    var validate_js_1 = require_validate();
     function version(uuid) {
-      if (!(0, _validate.default)(uuid)) {
+      if (!(0, validate_js_1.default)(uuid)) {
         throw TypeError("Invalid UUID");
       }
       return parseInt(uuid.slice(14, 15), 16);
     }
-    var _default = version;
-    exports.default = _default;
+    exports.default = version;
   }
 });
 
-// node_modules/@forge/react/node_modules/uuid/dist/commonjs-browser/index.js
-var require_commonjs_browser = __commonJS({
-  "node_modules/@forge/react/node_modules/uuid/dist/commonjs-browser/index.js"(exports) {
+// node_modules/uuid/dist/cjs-browser/index.js
+var require_cjs_browser = __commonJS({
+  "node_modules/uuid/dist/cjs-browser/index.js"(exports) {
     "use strict";
-    Object.defineProperty(exports, "__esModule", {
-      value: true
-    });
-    Object.defineProperty(exports, "NIL", {
-      enumerable: true,
-      get: function get() {
-        return _nil.default;
-      }
-    });
-    Object.defineProperty(exports, "parse", {
-      enumerable: true,
-      get: function get() {
-        return _parse.default;
-      }
-    });
-    Object.defineProperty(exports, "stringify", {
-      enumerable: true,
-      get: function get() {
-        return _stringify.default;
-      }
-    });
-    Object.defineProperty(exports, "v1", {
-      enumerable: true,
-      get: function get() {
-        return _v.default;
-      }
-    });
-    Object.defineProperty(exports, "v3", {
-      enumerable: true,
-      get: function get() {
-        return _v2.default;
-      }
-    });
-    Object.defineProperty(exports, "v4", {
-      enumerable: true,
-      get: function get() {
-        return _v3.default;
-      }
-    });
-    Object.defineProperty(exports, "v5", {
-      enumerable: true,
-      get: function get() {
-        return _v4.default;
-      }
-    });
-    Object.defineProperty(exports, "validate", {
-      enumerable: true,
-      get: function get() {
-        return _validate.default;
-      }
-    });
-    Object.defineProperty(exports, "version", {
-      enumerable: true,
-      get: function get() {
-        return _version.default;
-      }
-    });
-    var _v = _interopRequireDefault(require_v1());
-    var _v2 = _interopRequireDefault(require_v3());
-    var _v3 = _interopRequireDefault(require_v4());
-    var _v4 = _interopRequireDefault(require_v5());
-    var _nil = _interopRequireDefault(require_nil());
-    var _version = _interopRequireDefault(require_version());
-    var _validate = _interopRequireDefault(require_validate());
-    var _stringify = _interopRequireDefault(require_stringify());
-    var _parse = _interopRequireDefault(require_parse());
-    function _interopRequireDefault(obj) {
-      return obj && obj.__esModule ? obj : { default: obj };
-    }
+    Object.defineProperty(exports, "__esModule", { value: true });
+    exports.version = exports.validate = exports.v7 = exports.v6ToV1 = exports.v6 = exports.v5 = exports.v4 = exports.v3 = exports.v1ToV6 = exports.v1 = exports.stringify = exports.parse = exports.NIL = exports.MAX = void 0;
+    var max_js_1 = require_max();
+    Object.defineProperty(exports, "MAX", { enumerable: true, get: function() {
+      return max_js_1.default;
+    } });
+    var nil_js_1 = require_nil();
+    Object.defineProperty(exports, "NIL", { enumerable: true, get: function() {
+      return nil_js_1.default;
+    } });
+    var parse_js_1 = require_parse();
+    Object.defineProperty(exports, "parse", { enumerable: true, get: function() {
+      return parse_js_1.default;
+    } });
+    var stringify_js_1 = require_stringify();
+    Object.defineProperty(exports, "stringify", { enumerable: true, get: function() {
+      return stringify_js_1.default;
+    } });
+    var v1_js_1 = require_v1();
+    Object.defineProperty(exports, "v1", { enumerable: true, get: function() {
+      return v1_js_1.default;
+    } });
+    var v1ToV6_js_1 = require_v1ToV6();
+    Object.defineProperty(exports, "v1ToV6", { enumerable: true, get: function() {
+      return v1ToV6_js_1.default;
+    } });
+    var v3_js_1 = require_v3();
+    Object.defineProperty(exports, "v3", { enumerable: true, get: function() {
+      return v3_js_1.default;
+    } });
+    var v4_js_1 = require_v4();
+    Object.defineProperty(exports, "v4", { enumerable: true, get: function() {
+      return v4_js_1.default;
+    } });
+    var v5_js_1 = require_v5();
+    Object.defineProperty(exports, "v5", { enumerable: true, get: function() {
+      return v5_js_1.default;
+    } });
+    var v6_js_1 = require_v6();
+    Object.defineProperty(exports, "v6", { enumerable: true, get: function() {
+      return v6_js_1.default;
+    } });
+    var v6ToV1_js_1 = require_v6ToV1();
+    Object.defineProperty(exports, "v6ToV1", { enumerable: true, get: function() {
+      return v6ToV1_js_1.default;
+    } });
+    var v7_js_1 = require_v7();
+    Object.defineProperty(exports, "v7", { enumerable: true, get: function() {
+      return v7_js_1.default;
+    } });
+    var validate_js_1 = require_validate();
+    Object.defineProperty(exports, "validate", { enumerable: true, get: function() {
+      return validate_js_1.default;
+    } });
+    var version_js_1 = require_version();
+    Object.defineProperty(exports, "version", { enumerable: true, get: function() {
+      return version_js_1.default;
+    } });
   }
 });
 
@@ -13203,7 +13271,7 @@ var require_reconciler = __commonJS({
     var tslib_1 = (init_tslib_es6(), __toCommonJS(tslib_es6_exports));
     var react_reconciler_1 = tslib_1.__importDefault(require_react_reconciler());
     var constants_1 = require_constants2();
-    var uuid_1 = require_commonjs_browser();
+    var uuid_1 = require_cjs_browser();
     var idPropsPrefixAppUUID = (0, uuid_1.v4)().slice(0, 5);
     var idPropsPrefix = `forge-app-${idPropsPrefixAppUUID}`;
     var newPropsWithIdPrefix = (props) => {
@@ -13228,6 +13296,10 @@ var require_reconciler = __commonJS({
       }
       return props;
     };
+    var normaliseProps = (props) => {
+      const { children, ...restProps } = props;
+      return newPropsWithIdPrefix(attachFunctionPropId(restProps));
+    };
     var handleReconcilerError = async (error) => {
       try {
         await self?.__bridge?.callBridge("onError", { error });
@@ -13240,8 +13312,7 @@ var require_reconciler = __commonJS({
     };
     exports.callBridge = callBridge;
     var createElement = ({ type, props = {}, forgeReactMajorVersion }) => {
-      const { children, ...restProps } = props;
-      const newProps = newPropsWithIdPrefix(attachFunctionPropId(restProps));
+      const newProps = normaliseProps(props);
       const element = {
         type,
         children: [],
@@ -13315,8 +13386,9 @@ var require_reconciler = __commonJS({
         return false;
       },
       prepareUpdate(instance, type, oldProps, newProps) {
-        instance.props = newProps;
-        return newProps;
+        const normalisedProps = normaliseProps(newProps);
+        instance.props = normalisedProps;
+        return normalisedProps;
       },
       shouldSetTextContent() {
         return false;
@@ -13704,6 +13776,20 @@ var require_defineProperty = __commonJS({
   }
 });
 
+// node_modules/@atlaskit/adf-utils/dist/cjs/traverse/validateVisitors.js
+var require_validateVisitors = __commonJS({
+  "node_modules/@atlaskit/adf-utils/dist/cjs/traverse/validateVisitors.js"(exports) {
+    "use strict";
+    Object.defineProperty(exports, "__esModule", {
+      value: true
+    });
+    exports.validateVisitors = validateVisitors;
+    function validateVisitors(_visitors) {
+      return true;
+    }
+  }
+});
+
 // node_modules/@atlaskit/adf-utils/dist/cjs/traverse/traverse.js
 var require_traverse = __commonJS({
   "node_modules/@atlaskit/adf-utils/dist/cjs/traverse/traverse.js"(exports) {
@@ -13713,8 +13799,14 @@ var require_traverse = __commonJS({
       value: true
     });
     exports.traverse = traverse;
-    exports.validateVisitors = validateVisitors;
+    Object.defineProperty(exports, "validateVisitors", {
+      enumerable: true,
+      get: function get() {
+        return _validateVisitors.validateVisitors;
+      }
+    });
     var _defineProperty2 = _interopRequireDefault(require_defineProperty());
+    var _validateVisitors = require_validateVisitors();
     function ownKeys2(e, r) {
       var t = Object.keys(e);
       if (Object.getOwnPropertySymbols) {
@@ -13736,11 +13828,8 @@ var require_traverse = __commonJS({
       }
       return e;
     }
-    function validateVisitors(_visitors) {
-      return true;
-    }
     function traverse(adf, visitors) {
-      if (!validateVisitors(visitors)) {
+      if (!(0, _validateVisitors.validateVisitors)(visitors)) {
         throw new Error('Visitors are not valid: "'.concat(Object.keys(visitors).join(", "), '"'));
       }
       return traverseNode(adf, {
@@ -13886,7 +13975,7 @@ var require_replaceUnsupportedDocumentNodes = __commonJS({
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.replaceUnsupportedMediaNodes = exports.replaceUnsupportedDocumentNodes = void 0;
-    var uuid_1 = require_commonjs_browser();
+    var uuid_1 = require_cjs_browser();
     var traverse_1 = require_traverse2();
     var replaceUnsupportedDocumentNodes = (document2, replaceUnsupportedNode) => {
       const visitors = {
@@ -15626,2120 +15715,10 @@ var require_out4 = __commonJS({
   }
 });
 
-// node_modules/@forge/bridge/out/router/targets.js
-var require_targets2 = __commonJS({
-  "node_modules/@forge/bridge/out/router/targets.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.NavigationTarget = void 0;
-    exports.NavigationTarget = {
-      /**
-       * The view page for pages, blogs and custom content. Takes a contentId to identify the content.
-       */
-      ContentView: "contentView",
-      /**
-       * The edit page for pages, blogs and custom content. Takes a contentId to identify the content.
-       */
-      ContentEdit: "contentEdit",
-      /**
-       * The list/collector page for pages, blogs and custom content contained in a space. Takes a spaceKey and a contentType to identify the content type for pages and blogs. Takes a moduleKey for custom content.
-       */
-      ContentList: "contentList",
-      /**
-       * The space view page. Takes a spaceKey to identify the space.
-       */
-      SpaceView: "spaceView",
-      /**
-       * The page within a specific module. Takes a moduleKey to identify the correct module.
-       */
-      Module: "module",
-      /**
-       * The profile page for a specific user. Takes an accountId to identify the user.
-       */
-      UserProfile: "userProfile",
-      /**
-       * A dashboard in Jira. Takes a dashboardId to identify the dashboard.
-       */
-      Dashboard: "dashboard",
-      /**
-       * An issue in Jira. Takes an issueKey to identify the issue.
-       */
-      Issue: "issue",
-      /**
-       * The project settings details of a Jira project. Takes a projectKey to identify the project. Only accessible to administrators.
-       */
-      ProjectSettingsDetails: "projectSettingsDetails"
-    };
-  }
-});
-
-// node_modules/@forge/bridge/out/errors.js
-var require_errors2 = __commonJS({
-  "node_modules/@forge/bridge/out/errors.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.BridgeAPIError = void 0;
-    var BridgeAPIError = class extends Error {
-    };
-    exports.BridgeAPIError = BridgeAPIError;
-  }
-});
-
-// node_modules/@forge/bridge/out/bridge.js
-var require_bridge2 = __commonJS({
-  "node_modules/@forge/bridge/out/bridge.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.getCallBridge = void 0;
-    var errors_1 = require_errors2();
-    function isBridgeAvailable(bridge) {
-      return !!(bridge === null || bridge === void 0 ? void 0 : bridge.callBridge);
-    }
-    var getCallBridge = () => {
-      if (!isBridgeAvailable(globalThis.__bridge)) {
-        throw new errors_1.BridgeAPIError(`
-      Unable to establish a connection with the Custom UI bridge.
-      If you are trying to run your app locally, Forge apps only work in the context of Atlassian products. Refer to https://go.atlassian.com/forge-tunneling-with-custom-ui for how to tunnel when using a local development server.
-    `);
-      }
-      return globalThis.__bridge.callBridge;
-    };
-    exports.getCallBridge = getCallBridge;
-  }
-});
-
-// node_modules/@forge/bridge/out/utils/index.js
-var require_utils3 = __commonJS({
-  "node_modules/@forge/bridge/out/utils/index.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.withRateLimiter = void 0;
-    var errors_1 = require_errors2();
-    var withRateLimiter = (wrappedFn, maxOps, intervalInMs, exceededErrorMessage) => {
-      let start = Date.now();
-      let numOps = 0;
-      return async (...args) => {
-        const now = Date.now();
-        const elapsed = now - start;
-        if (elapsed > intervalInMs) {
-          start = now;
-          numOps = 0;
-        }
-        if (numOps >= maxOps) {
-          throw new errors_1.BridgeAPIError(exceededErrorMessage || "Too many invocations.");
-        }
-        numOps = numOps + 1;
-        return wrappedFn(...args);
-      };
-    };
-    exports.withRateLimiter = withRateLimiter;
-  }
-});
-
-// node_modules/@forge/bridge/out/invoke/invoke.js
-var require_invoke3 = __commonJS({
-  "node_modules/@forge/bridge/out/invoke/invoke.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.invoke = invoke2;
-    exports.makeInvoke = makeInvoke;
-    var bridge_1 = require_bridge2();
-    var errors_1 = require_errors2();
-    var utils_1 = require_utils3();
-    var callBridge = (0, bridge_1.getCallBridge)();
-    var validatePayload = (payload) => {
-      if (!payload)
-        return;
-      if (Object.values(payload).some((val) => typeof val === "function")) {
-        throw new errors_1.BridgeAPIError("Passing functions as part of the payload is not supported!");
-      }
-    };
-    var _invoke = async (functionKey, payload, metadata) => {
-      if (typeof functionKey !== "string") {
-        throw new errors_1.BridgeAPIError("functionKey must be a string!");
-      }
-      validatePayload(payload);
-      return await callBridge("invoke", { functionKey, payload, metadata });
-    };
-    var limitedInvoke = (0, utils_1.withRateLimiter)(_invoke, 500, 1e3 * 25, "Resolver calls are rate limited at 500req/25s");
-    function invoke2(functionKey, payload, metadata) {
-      return limitedInvoke(functionKey, payload, metadata);
-    }
-    function makeInvoke() {
-      return invoke2;
-    }
-  }
-});
-
-// node_modules/@forge/bridge/out/invoke/index.js
-var require_invoke4 = __commonJS({
-  "node_modules/@forge/bridge/out/invoke/index.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    var tslib_1 = (init_tslib_es6(), __toCommonJS(tslib_es6_exports));
-    tslib_1.__exportStar(require_invoke3(), exports);
-  }
-});
-
-// node_modules/@forge/bridge/out/invoke-endpoint/invoke-endpoint.js
-var require_invoke_endpoint3 = __commonJS({
-  "node_modules/@forge/bridge/out/invoke-endpoint/invoke-endpoint.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.InvokeType = void 0;
-    exports._invokeEndpointFn = _invokeEndpointFn;
-    var bridge_1 = require_bridge2();
-    var errors_1 = require_errors2();
-    var utils_1 = require_utils3();
-    var MAX_NUM_OPERATIONS = 500;
-    var OPERATION_INTERVAL_SEC = 25;
-    var OPERATION_INTERVAL_MS = 1e3 * OPERATION_INTERVAL_SEC;
-    var InvokeType;
-    (function(InvokeType2) {
-      InvokeType2["REMOTE"] = "Remote";
-      InvokeType2["SERVICE"] = "Container";
-    })(InvokeType || (exports.InvokeType = InvokeType = {}));
-    var callBridge = (0, bridge_1.getCallBridge)();
-    var validatePayload = (payload) => {
-      if (!payload)
-        return;
-      if (Object.values(payload).some((val) => typeof val === "function")) {
-        throw new errors_1.BridgeAPIError("Passing functions as part of the payload is not supported!");
-      }
-    };
-    var _setupInvokeEndpointFn = (invokeType) => async (input) => {
-      validatePayload(input);
-      const callBridgePayload = {
-        ...input,
-        invokeType: `ui-${invokeType.toLowerCase()}-fetch`
-      };
-      const bridgeResponse = await callBridge("invoke", callBridgePayload);
-      const { success, payload, error } = bridgeResponse !== null && bridgeResponse !== void 0 ? bridgeResponse : {};
-      const response = { ...success ? payload : error };
-      if (response && response.headers) {
-        for (const header in response.headers) {
-          if (Array.isArray(response.headers[header])) {
-            response.headers[header] = response.headers[header].join(",");
-          }
-        }
-      }
-      return response;
-    };
-    function _invokeEndpointFn(invokeType) {
-      const invokeEndpointFn = _setupInvokeEndpointFn(invokeType);
-      return (0, utils_1.withRateLimiter)(invokeEndpointFn, MAX_NUM_OPERATIONS, OPERATION_INTERVAL_MS, `${invokeType} invocation calls are rate limited at ${MAX_NUM_OPERATIONS}/${OPERATION_INTERVAL_SEC}s`);
-    }
-  }
-});
-
-// node_modules/@forge/bridge/out/invoke-endpoint/invoke-remote.js
-var require_invoke_remote2 = __commonJS({
-  "node_modules/@forge/bridge/out/invoke-endpoint/invoke-remote.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.invokeRemote = void 0;
-    var invoke_endpoint_1 = require_invoke_endpoint3();
-    var invokeRemote = (input) => {
-      const invokeEndpoint = (0, invoke_endpoint_1._invokeEndpointFn)(invoke_endpoint_1.InvokeType.REMOTE);
-      return invokeEndpoint(input);
-    };
-    exports.invokeRemote = invokeRemote;
-  }
-});
-
-// node_modules/@forge/bridge/out/invoke-endpoint/invoke-service.js
-var require_invoke_service2 = __commonJS({
-  "node_modules/@forge/bridge/out/invoke-endpoint/invoke-service.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.invokeService = void 0;
-    var invoke_endpoint_1 = require_invoke_endpoint3();
-    var invokeService = (input) => {
-      const invokeEndpoint = (0, invoke_endpoint_1._invokeEndpointFn)(invoke_endpoint_1.InvokeType.SERVICE);
-      return invokeEndpoint(input);
-    };
-    exports.invokeService = invokeService;
-  }
-});
-
-// node_modules/@forge/bridge/out/invoke-endpoint/index.js
-var require_invoke_endpoint4 = __commonJS({
-  "node_modules/@forge/bridge/out/invoke-endpoint/index.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    var tslib_1 = (init_tslib_es6(), __toCommonJS(tslib_es6_exports));
-    tslib_1.__exportStar(require_invoke_remote2(), exports);
-    tslib_1.__exportStar(require_invoke_service2(), exports);
-  }
-});
-
-// node_modules/@forge/bridge/out/view/submit.js
-var require_submit2 = __commonJS({
-  "node_modules/@forge/bridge/out/view/submit.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.submit = void 0;
-    var bridge_1 = require_bridge2();
-    var errors_1 = require_errors2();
-    var callBridge = (0, bridge_1.getCallBridge)();
-    var submit = async (payload) => {
-      const success = await callBridge("submit", payload);
-      if (success === false) {
-        throw new errors_1.BridgeAPIError("this resource's view is not submittable.");
-      }
-    };
-    exports.submit = submit;
-  }
-});
-
-// node_modules/@forge/bridge/out/view/close.js
-var require_close2 = __commonJS({
-  "node_modules/@forge/bridge/out/view/close.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.close = void 0;
-    var bridge_1 = require_bridge2();
-    var errors_1 = require_errors2();
-    var callBridge = (0, bridge_1.getCallBridge)();
-    var close = async (payload) => {
-      try {
-        const success = await callBridge("close", payload);
-        if (success === false) {
-          throw new errors_1.BridgeAPIError("this resource's view is not closable.");
-        }
-      } catch (e) {
-        throw new errors_1.BridgeAPIError("this resource's view is not closable.");
-      }
-    };
-    exports.close = close;
-  }
-});
-
-// node_modules/@forge/bridge/out/view/open.js
-var require_open3 = __commonJS({
-  "node_modules/@forge/bridge/out/view/open.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.open = void 0;
-    var bridge_1 = require_bridge2();
-    var errors_1 = require_errors2();
-    var callBridge = (0, bridge_1.getCallBridge)();
-    var open = async () => {
-      try {
-        const success = await callBridge("open");
-        if (success === false) {
-          throw new errors_1.BridgeAPIError("this resource's view is not openable.");
-        }
-      } catch (e) {
-        throw new errors_1.BridgeAPIError("this resource's view is not openable.");
-      }
-    };
-    exports.open = open;
-  }
-});
-
-// node_modules/@forge/bridge/out/view/refresh.js
-var require_refresh2 = __commonJS({
-  "node_modules/@forge/bridge/out/view/refresh.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.refresh = void 0;
-    var bridge_1 = require_bridge2();
-    var errors_1 = require_errors2();
-    var callBridge = (0, bridge_1.getCallBridge)();
-    var refresh = async (payload) => {
-      const success = await callBridge("refresh", payload);
-      if (success === false) {
-        throw new errors_1.BridgeAPIError("this resource's view is not refreshable.");
-      }
-    };
-    exports.refresh = refresh;
-  }
-});
-
-// node_modules/@forge/bridge/out/view/createHistory.js
-var require_createHistory2 = __commonJS({
-  "node_modules/@forge/bridge/out/view/createHistory.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.createHistory = void 0;
-    var bridge_1 = require_bridge2();
-    var callBridge = (0, bridge_1.getCallBridge)();
-    var createHistory = async () => {
-      const history = await callBridge("createHistory");
-      history.listen((location) => {
-        history.location = location;
-      });
-      return history;
-    };
-    exports.createHistory = createHistory;
-  }
-});
-
-// node_modules/@forge/bridge/out/view/getContext.js
-var require_getContext2 = __commonJS({
-  "node_modules/@forge/bridge/out/view/getContext.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.getContext = void 0;
-    var bridge_1 = require_bridge2();
-    var i18n_1 = require_out();
-    var callBridge = (0, bridge_1.getCallBridge)();
-    var getContext = async () => {
-      var _a;
-      const context = await callBridge("getContext");
-      const locale = context === null || context === void 0 ? void 0 : context.locale;
-      if (locale) {
-        context.locale = (_a = (0, i18n_1.ensureLocale)(locale)) !== null && _a !== void 0 ? _a : locale;
-      }
-      return context;
-    };
-    exports.getContext = getContext;
-  }
-});
-
-// node_modules/@forge/bridge/out/view/changeWindowTitle.js
-var require_changeWindowTitle2 = __commonJS({
-  "node_modules/@forge/bridge/out/view/changeWindowTitle.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.changeWindowTitle = void 0;
-    var bridge_1 = require_bridge2();
-    var errors_1 = require_errors2();
-    var callBridge = (0, bridge_1.getCallBridge)();
-    var changeWindowTitle = async (title) => {
-      try {
-        await callBridge("changeWindowTitle", title);
-      } catch (e) {
-        throw new errors_1.BridgeAPIError("the window title wasn't changed due to error.");
-      }
-    };
-    exports.changeWindowTitle = changeWindowTitle;
-  }
-});
-
-// node_modules/@forge/bridge/out/view/theme.js
-var require_theme2 = __commonJS({
-  "node_modules/@forge/bridge/out/view/theme.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.theme = void 0;
-    var bridge_1 = require_bridge2();
-    var callBridge = (0, bridge_1.getCallBridge)();
-    exports.theme = {
-      enable: () => callBridge("enableTheming")
-    };
-  }
-});
-
-// node_modules/@forge/bridge/out/utils/blobParser.js
-var require_blobParser2 = __commonJS({
-  "node_modules/@forge/bridge/out/utils/blobParser.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.blobToBase64 = exports.base64ToBlob = void 0;
-    var base64ToBlob = (b64string, mimeType) => {
-      if (!b64string) {
-        return null;
-      }
-      const base64Data = b64string.includes(";base64") ? b64string.split(",")[1] : b64string;
-      const byteCharacters = atob(base64Data);
-      const byteNumbers = new Array(byteCharacters.length);
-      for (let i = 0; i < byteCharacters.length; i++) {
-        byteNumbers[i] = byteCharacters.charCodeAt(i);
-      }
-      const byteArray = new Uint8Array(byteNumbers);
-      return new Blob([byteArray], { type: mimeType });
-    };
-    exports.base64ToBlob = base64ToBlob;
-    var blobToBase64 = (blob) => {
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          resolve(reader.result);
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(blob);
-      });
-    };
-    exports.blobToBase64 = blobToBase64;
-  }
-});
-
-// node_modules/@forge/bridge/out/events/serialiseBlob.js
-var require_serialiseBlob2 = __commonJS({
-  "node_modules/@forge/bridge/out/events/serialiseBlob.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.containsSerialisedBlobs = exports.containsBlobs = exports.deserialiseBlobsInPayload = exports.serialiseBlobsInPayload = void 0;
-    var blobParser_1 = require_blobParser2();
-    var isPlainObject = (value) => {
-      if (typeof value !== "object" || value === null)
-        return false;
-      if (Object.prototype.toString.call(value) !== "[object Object]")
-        return false;
-      const proto = Object.getPrototypeOf(value);
-      if (proto === null)
-        return true;
-      const Ctor = Object.prototype.hasOwnProperty.call(proto, "constructor") && proto.constructor;
-      return typeof Ctor === "function" && Ctor instanceof Ctor && Function.prototype.call(Ctor) === Function.prototype.call(value);
-    };
-    var blobToBase64WithMetadata = async (blob) => {
-      const base64Data = await (0, blobParser_1.blobToBase64)(blob);
-      return {
-        data: base64Data,
-        type: blob.type
-      };
-    };
-    var base64WithMetadataToBlob = (metadata) => {
-      return (0, blobParser_1.base64ToBlob)(metadata.data, metadata.type);
-    };
-    var serialiseBlobsInPayload = async (payload) => {
-      if (payload instanceof Blob) {
-        const blobData = await blobToBase64WithMetadata(payload);
-        return {
-          ...blobData,
-          // Custom property used to identify serialized blob data for deserialization
-          __isBlobData: true
-        };
-      }
-      if (Array.isArray(payload)) {
-        return Promise.all(payload.map((item) => (0, exports.serialiseBlobsInPayload)(item)));
-      }
-      if (payload && isPlainObject(payload)) {
-        const entries = await Promise.all(Object.entries(payload).map(async ([key, value]) => [key, await (0, exports.serialiseBlobsInPayload)(value)]));
-        return Object.fromEntries(entries);
-      }
-      return payload;
-    };
-    exports.serialiseBlobsInPayload = serialiseBlobsInPayload;
-    var deserialiseBlobsInPayload = (payload) => {
-      if (payload && isPlainObject(payload) && "__isBlobData" in payload) {
-        const typedData = payload;
-        return base64WithMetadataToBlob({
-          data: typedData.data,
-          type: typedData.type
-        });
-      }
-      if (Array.isArray(payload)) {
-        return payload.map((item) => (0, exports.deserialiseBlobsInPayload)(item));
-      }
-      if (payload && isPlainObject(payload)) {
-        const result = {};
-        for (const [key, value] of Object.entries(payload)) {
-          result[key] = (0, exports.deserialiseBlobsInPayload)(value);
-        }
-        return result;
-      }
-      return payload;
-    };
-    exports.deserialiseBlobsInPayload = deserialiseBlobsInPayload;
-    var containsBlobs = (payload) => {
-      if (payload instanceof Blob) {
-        return true;
-      }
-      if (Array.isArray(payload)) {
-        return payload.some((item) => (0, exports.containsBlobs)(item));
-      }
-      if (payload && isPlainObject(payload)) {
-        return Object.values(payload).some((value) => (0, exports.containsBlobs)(value));
-      }
-      return false;
-    };
-    exports.containsBlobs = containsBlobs;
-    var containsSerialisedBlobs = (payload) => {
-      if (payload && isPlainObject(payload) && "__isBlobData" in payload) {
-        return true;
-      }
-      if (Array.isArray(payload)) {
-        return payload.some((item) => (0, exports.containsSerialisedBlobs)(item));
-      }
-      if (payload && isPlainObject(payload)) {
-        return Object.values(payload).some((value) => (0, exports.containsSerialisedBlobs)(value));
-      }
-      return false;
-    };
-    exports.containsSerialisedBlobs = containsSerialisedBlobs;
-  }
-});
-
-// node_modules/@forge/bridge/out/events/events.js
-var require_events3 = __commonJS({
-  "node_modules/@forge/bridge/out/events/events.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.events = void 0;
-    var bridge_1 = require_bridge2();
-    var serialiseBlob_1 = require_serialiseBlob2();
-    var callBridge = (0, bridge_1.getCallBridge)();
-    var wrapCallback = (callback) => {
-      return (payload) => {
-        let newPayload = payload;
-        if ((0, serialiseBlob_1.containsSerialisedBlobs)(payload)) {
-          newPayload = (0, serialiseBlob_1.deserialiseBlobsInPayload)(payload);
-        }
-        return callback(newPayload);
-      };
-    };
-    var emit = async (event, payload) => {
-      let newPayload = payload;
-      if ((0, serialiseBlob_1.containsBlobs)(payload)) {
-        newPayload = await (0, serialiseBlob_1.serialiseBlobsInPayload)(payload);
-      }
-      return callBridge("emit", { event, payload: newPayload });
-    };
-    var on = (event, callback) => {
-      return callBridge("on", { event, callback: wrapCallback(callback) });
-    };
-    var emitPublic = async (event, payload) => {
-      let newPayload = payload;
-      if ((0, serialiseBlob_1.containsBlobs)(payload)) {
-        newPayload = await (0, serialiseBlob_1.serialiseBlobsInPayload)(payload);
-      }
-      return callBridge("emitPublic", { event, payload: newPayload });
-    };
-    var onPublic = (event, callback) => {
-      return callBridge("onPublic", { event, callback: wrapCallback(callback) });
-    };
-    exports.events = {
-      emit,
-      on,
-      emitPublic,
-      onPublic
-    };
-  }
-});
-
-// node_modules/@forge/bridge/out/view/emitReadyEvent.js
-var require_emitReadyEvent2 = __commonJS({
-  "node_modules/@forge/bridge/out/view/emitReadyEvent.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.emitReadyEvent = void 0;
-    var events_1 = require_events3();
-    var view_1 = require_view3();
-    var bridge_1 = require_bridge2();
-    var callBridge = (0, bridge_1.getCallBridge)();
-    var EXTENSION_READY = "EXTENSION_READY";
-    var emitReadyEvent = async () => {
-      const context = await view_1.view.getContext();
-      await events_1.events.emit(EXTENSION_READY, {
-        localId: context.localId
-      });
-      try {
-        await callBridge("emitReadyEvent");
-      } catch {
-      }
-    };
-    exports.emitReadyEvent = emitReadyEvent;
-  }
-});
-
-// node_modules/@forge/bridge/out/view/adf-renderer.js
-var require_adf_renderer3 = __commonJS({
-  "node_modules/@forge/bridge/out/view/adf-renderer.js"(exports) {
-    "use strict";
-    var __createBinding2 = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
-      if (k2 === void 0) k2 = k;
-      var desc = Object.getOwnPropertyDescriptor(m, k);
-      if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-        desc = { enumerable: true, get: function() {
-          return m[k];
-        } };
-      }
-      Object.defineProperty(o, k2, desc);
-    }) : (function(o, m, k, k2) {
-      if (k2 === void 0) k2 = k;
-      o[k2] = m[k];
-    }));
-    var __setModuleDefault2 = exports && exports.__setModuleDefault || (Object.create ? (function(o, v) {
-      Object.defineProperty(o, "default", { enumerable: true, value: v });
-    }) : function(o, v) {
-      o["default"] = v;
-    });
-    var __importStar2 = exports && exports.__importStar || /* @__PURE__ */ (function() {
-      var ownKeys2 = function(o) {
-        ownKeys2 = Object.getOwnPropertyNames || function(o2) {
-          var ar = [];
-          for (var k in o2) if (Object.prototype.hasOwnProperty.call(o2, k)) ar[ar.length] = k;
-          return ar;
-        };
-        return ownKeys2(o);
-      };
-      return function(mod) {
-        if (mod && mod.__esModule) return mod;
-        var result = {};
-        if (mod != null) {
-          for (var k = ownKeys2(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding2(result, mod, k[i]);
-        }
-        __setModuleDefault2(result, mod);
-        return result;
-      };
-    })();
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.createAdfRendererIframeProps = exports.sendMessageWhenReady = void 0;
-    var READY_SIGNAL_FALLBACK_DELAY_MS = 1e4;
-    var sendMessageWhenReady = (iframe, message, origin) => {
-      const sendMessage = () => {
-        var _a;
-        return (_a = iframe === null || iframe === void 0 ? void 0 : iframe.contentWindow) === null || _a === void 0 ? void 0 : _a.postMessage(message, origin);
-      };
-      const timeoutId = setTimeout(() => {
-        window.removeEventListener("message", handleReady);
-        sendMessage();
-      }, READY_SIGNAL_FALLBACK_DELAY_MS);
-      const handleReady = (event) => {
-        var _a;
-        if (event.source === (iframe === null || iframe === void 0 ? void 0 : iframe.contentWindow) && ((_a = event.data) === null || _a === void 0 ? void 0 : _a.source) === "forge-adf-renderer-ready") {
-          clearTimeout(timeoutId);
-          window.removeEventListener("message", handleReady);
-          sendMessage();
-        }
-      };
-      window.addEventListener("message", handleReady);
-    };
-    exports.sendMessageWhenReady = sendMessageWhenReady;
-    var createAdfRendererIframeProps = async (context, iframeId) => {
-      const IframeResizer = await Promise.resolve().then(() => __importStar2(require_iframe_resizer()));
-      const IframeResizerModule = IframeResizer.default || IframeResizer;
-      const origin = new URL(document.referrer).origin;
-      const src = `${origin}/forge-apps/adf-renderer`;
-      const id = iframeId || `forge-adf-renderer-iframe-${crypto.randomUUID()}`;
-      const onLoad = () => {
-        var _a, _b, _c, _d, _e;
-        const iframe = document.getElementById(id);
-        const message = {
-          type: "adf-document",
-          document: (_a = context.extension.macro) === null || _a === void 0 ? void 0 : _a.body,
-          timestamp: Date.now(),
-          source: "forge-adf-renderer",
-          localId: context.localId,
-          isEditing: (_c = (_b = context.extension) === null || _b === void 0 ? void 0 : _b.isEditing) !== null && _c !== void 0 ? _c : false,
-          contentId: (_e = (_d = context.extension) === null || _d === void 0 ? void 0 : _d.content) === null || _e === void 0 ? void 0 : _e.id
-        };
-        IframeResizerModule.iframeResizer({
-          heightCalculationMethod: "taggedElement",
-          widthCalculationMethod: "bodyScroll",
-          initCallback: (iframe2) => {
-            var _a2;
-            (_a2 = iframe2 === null || iframe2 === void 0 ? void 0 : iframe2.iFrameResizer) === null || _a2 === void 0 ? void 0 : _a2.resize();
-          }
-        }, iframe || "");
-        (0, exports.sendMessageWhenReady)(iframe, message, origin);
-      };
-      setTimeout(() => {
-        document.documentElement.style.height = "auto";
-        document.body.style.height = "auto";
-      }, 200);
-      return {
-        id,
-        src,
-        onLoad
-      };
-    };
-    exports.createAdfRendererIframeProps = createAdfRendererIframeProps;
-  }
-});
-
-// node_modules/@forge/bridge/out/view/onClose.js
-var require_onClose2 = __commonJS({
-  "node_modules/@forge/bridge/out/view/onClose.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.onClose = void 0;
-    var bridge_1 = require_bridge2();
-    var errors_1 = require_errors2();
-    var callBridge = (0, bridge_1.getCallBridge)();
-    var onClose = async (payload) => {
-      try {
-        const success = await callBridge("onClose", payload);
-        if (success === false) {
-          throw new errors_1.BridgeAPIError("`onClose` call has failed.");
-        }
-      } catch (e) {
-        throw new errors_1.BridgeAPIError("`onClose` failed because this resource's view is not closable.");
-      }
-    };
-    exports.onClose = onClose;
-  }
-});
-
-// node_modules/@forge/bridge/out/view/getFrameDispatch.js
-var require_getFrameDispatch2 = __commonJS({
-  "node_modules/@forge/bridge/out/view/getFrameDispatch.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.getFrameDispatch = void 0;
-    var bridge_1 = require_bridge2();
-    var callBridge = (0, bridge_1.getCallBridge)();
-    var getFrameDispatch = async () => {
-      return await callBridge("getFrameDispatch");
-    };
-    exports.getFrameDispatch = getFrameDispatch;
-  }
-});
-
-// node_modules/@forge/bridge/out/view/view.js
-var require_view3 = __commonJS({
-  "node_modules/@forge/bridge/out/view/view.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.view = void 0;
-    var submit_1 = require_submit2();
-    var close_1 = require_close2();
-    var open_1 = require_open3();
-    var refresh_1 = require_refresh2();
-    var createHistory_1 = require_createHistory2();
-    var getContext_1 = require_getContext2();
-    var changeWindowTitle_1 = require_changeWindowTitle2();
-    var theme_1 = require_theme2();
-    var emitReadyEvent_1 = require_emitReadyEvent2();
-    var adf_renderer_1 = require_adf_renderer3();
-    var onClose_1 = require_onClose2();
-    var getFrameDispatch_1 = require_getFrameDispatch2();
-    exports.view = {
-      submit: submit_1.submit,
-      close: close_1.close,
-      onClose: onClose_1.onClose,
-      open: open_1.open,
-      refresh: refresh_1.refresh,
-      createHistory: createHistory_1.createHistory,
-      getContext: getContext_1.getContext,
-      getFrameDispatch: getFrameDispatch_1.getFrameDispatch,
-      theme: theme_1.theme,
-      changeWindowTitle: changeWindowTitle_1.changeWindowTitle,
-      emitReadyEvent: emitReadyEvent_1.emitReadyEvent,
-      createAdfRendererIframeProps: adf_renderer_1.createAdfRendererIframeProps
-    };
-  }
-});
-
-// node_modules/@forge/bridge/out/view/index.js
-var require_view4 = __commonJS({
-  "node_modules/@forge/bridge/out/view/index.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    var tslib_1 = (init_tslib_es6(), __toCommonJS(tslib_es6_exports));
-    tslib_1.__exportStar(require_view3(), exports);
-  }
-});
-
-// node_modules/@forge/bridge/out/router/router.js
-var require_router3 = __commonJS({
-  "node_modules/@forge/bridge/out/router/router.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.router = void 0;
-    var bridge_1 = require_bridge2();
-    var callBridge = (0, bridge_1.getCallBridge)();
-    var getUrl = async (location) => {
-      if (!(location === null || location === void 0 ? void 0 : location.target)) {
-        throw new Error("target is required for getUrl");
-      }
-      const url = await callBridge("getUrl", location);
-      if (!url) {
-        throw new Error("Failed to get URL");
-      }
-      try {
-        return new URL(url);
-      } catch (error) {
-        throw new Error(`Failed to parse URL: ${url} (${error})`);
-      }
-    };
-    var navigate = (location) => {
-      if (typeof location === "string") {
-        return callBridge("navigate", { url: location, type: "same-tab" });
-      } else {
-        if (!(location === null || location === void 0 ? void 0 : location.target)) {
-          throw new Error("target is required for navigation");
-        }
-        return callBridge("navigate", { ...location, type: "same-tab" });
-      }
-    };
-    var open = (location) => {
-      if (typeof location === "string") {
-        return callBridge("navigate", { url: location, type: "new-tab" });
-      } else {
-        if (!(location === null || location === void 0 ? void 0 : location.target)) {
-          throw new Error("target is required for navigation");
-        }
-        return callBridge("navigate", { ...location, type: "new-tab" });
-      }
-    };
-    var reload = async () => callBridge("reload");
-    exports.router = {
-      getUrl,
-      navigate,
-      open,
-      reload
-    };
-  }
-});
-
-// node_modules/@forge/bridge/out/router/index.js
-var require_router4 = __commonJS({
-  "node_modules/@forge/bridge/out/router/index.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    var tslib_1 = (init_tslib_es6(), __toCommonJS(tslib_es6_exports));
-    tslib_1.__exportStar(require_router3(), exports);
-  }
-});
-
-// node_modules/@forge/bridge/out/modal/modal.js
-var require_modal3 = __commonJS({
-  "node_modules/@forge/bridge/out/modal/modal.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.Modal = void 0;
-    var bridge_1 = require_bridge2();
-    var errors_1 = require_errors2();
-    var callBridge = (0, bridge_1.getCallBridge)();
-    var NAMED_MODAL_SIZES = ["small", "medium", "large", "xlarge", "max", "fullscreen", "resizable"];
-    var noop = () => {
-    };
-    function isNamedModalSize(size) {
-      return typeof size === "string" && NAMED_MODAL_SIZES.includes(size);
-    }
-    function isCustomModalSize(size) {
-      if (typeof size !== "object" || size === null)
-        return false;
-      const s = size;
-      return typeof s.width === "string" && (s.height === void 0 || typeof s.height === "string");
-    }
-    function isValidModalSize(size) {
-      return isNamedModalSize(size) || isCustomModalSize(size);
-    }
-    var Modal = class {
-      constructor(opts) {
-        var _a, _b;
-        this.resource = (opts === null || opts === void 0 ? void 0 : opts.resource) || null;
-        this.onClose = (opts === null || opts === void 0 ? void 0 : opts.onClose) || noop;
-        this.size = (opts === null || opts === void 0 ? void 0 : opts.size) || "medium";
-        this.context = (opts === null || opts === void 0 ? void 0 : opts.context) || {};
-        this.closeOnEscape = (_a = opts === null || opts === void 0 ? void 0 : opts.closeOnEscape) !== null && _a !== void 0 ? _a : true;
-        this.closeOnOverlayClick = (_b = opts === null || opts === void 0 ? void 0 : opts.closeOnOverlayClick) !== null && _b !== void 0 ? _b : true;
-        this.title = (opts === null || opts === void 0 ? void 0 : opts.title) || "";
-        this.icon = (opts === null || opts === void 0 ? void 0 : opts.icon) || "";
-      }
-      async open() {
-        if (!isValidModalSize(this.size)) {
-          throw new errors_1.BridgeAPIError(`Invalid modal size: ${JSON.stringify(this.size)}. Must be one of the named sizes (${NAMED_MODAL_SIZES.join(", ")}) or a custom dimensions object with a "width" string property and an optional "height" string property.`);
-        }
-        try {
-          const success = await callBridge("openModal", {
-            resource: this.resource,
-            onClose: this.onClose,
-            size: this.size,
-            context: this.context,
-            closeOnEscape: this.closeOnEscape,
-            closeOnOverlayClick: this.closeOnOverlayClick,
-            title: this.title,
-            icon: this.icon
-          });
-          if (success === false) {
-            throw new errors_1.BridgeAPIError("Unable to open modal.");
-          }
-        } catch (err) {
-          throw new errors_1.BridgeAPIError("Unable to open modal.");
-        }
-      }
-    };
-    exports.Modal = Modal;
-  }
-});
-
-// node_modules/@forge/bridge/out/modal/index.js
-var require_modal4 = __commonJS({
-  "node_modules/@forge/bridge/out/modal/index.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    var tslib_1 = (init_tslib_es6(), __toCommonJS(tslib_es6_exports));
-    tslib_1.__exportStar(require_modal3(), exports);
-  }
-});
-
-// node_modules/@forge/bridge/out/fetch/fetch.js
-var require_fetch3 = __commonJS({
-  "node_modules/@forge/bridge/out/fetch/fetch.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.productFetchApi = exports.remoteFetchApi = void 0;
-    var blobParser_1 = require_blobParser2();
-    var parseFormData = async (form, matchFilePrefix = false) => {
-      const parsed = {};
-      for (const [key, value] of form.entries()) {
-        const isFileKey = matchFilePrefix ? key.startsWith("file") : key === "file";
-        if (isFileKey) {
-          const fileName = value.name;
-          const fileType = value.type;
-          parsed[key] = await (0, blobParser_1.blobToBase64)(value);
-          parsed[`__${key}Name`] = fileName;
-          parsed[`__${key}Type`] = fileType;
-        } else {
-          parsed[key] = value;
-        }
-      }
-      return JSON.stringify(parsed);
-    };
-    var validateFetchOptions = (init) => {
-      if (!init) {
-        return init;
-      }
-      if ("signal" in init) {
-        const { signal: _signal, ...rest } = init;
-        console.error("Signal is not supported in @forge/bridge and was removed from fetch options. Please use the fetch method from @forge/api for signal support.");
-        return rest;
-      }
-      return init;
-    };
-    var parseRequest = async (fetchType, init) => {
-      const isFormData = (init === null || init === void 0 ? void 0 : init.body) instanceof FormData ? true : false;
-      const requestBody = isFormData ? await parseFormData(init === null || init === void 0 ? void 0 : init.body, fetchType === "remote") : init === null || init === void 0 ? void 0 : init.body;
-      const req = new Request("", { body: requestBody, method: init === null || init === void 0 ? void 0 : init.method, headers: init === null || init === void 0 ? void 0 : init.headers });
-      const headers = Object.fromEntries(req.headers.entries());
-      const body = req.method !== "GET" ? await req.text() : null;
-      return {
-        body,
-        headers: new Headers(headers),
-        isMultipartFormData: isFormData
-      };
-    };
-    var remoteFetchApi = (callBridge) => {
-      const fetch2 = async (remoteKey, init) => {
-        const validatedInit = validateFetchOptions(init);
-        const { body: requestBody, headers: requestHeaders, isMultipartFormData } = await parseRequest("remote", validatedInit);
-        const fetchPayload = {
-          remoteKey,
-          fetchRequestInit: { ...validatedInit, body: requestBody, headers: [...requestHeaders.entries()] },
-          isMultipartFormData
-        };
-        const { body, headers, statusText, status, isAttachment } = await callBridge("fetchRemote", fetchPayload);
-        const responseBody = isAttachment ? (0, blobParser_1.base64ToBlob)(body, headers["content-type"]) : body;
-        return new Response(responseBody || null, { headers, status, statusText });
-      };
-      return {
-        requestRemote: (remoteKey, fetchOptions) => fetch2(remoteKey, fetchOptions)
-      };
-    };
-    exports.remoteFetchApi = remoteFetchApi;
-    var productFetchApi = (callBridge) => {
-      const fetch2 = async (product, restPath, init) => {
-        const validatedInit = validateFetchOptions(init);
-        const { body: requestBody, headers: requestHeaders, isMultipartFormData } = await parseRequest("product", validatedInit);
-        if (!requestHeaders.has("X-Atlassian-Token")) {
-          requestHeaders.set("X-Atlassian-Token", "no-check");
-        }
-        const fetchPayload = {
-          product,
-          restPath,
-          fetchRequestInit: {
-            ...validatedInit,
-            body: requestBody,
-            headers: [...requestHeaders.entries()]
-          },
-          isMultipartFormData
-        };
-        const { body, headers, statusText, status, isAttachment } = await callBridge("fetchProduct", fetchPayload);
-        const responseBody = isAttachment ? (0, blobParser_1.base64ToBlob)(body, headers["content-type"]) : body;
-        return new Response(responseBody || null, { headers, status, statusText });
-      };
-      return {
-        requestConfluence: (restPath, fetchOptions) => fetch2("confluence", restPath, fetchOptions),
-        requestJira: (restPath, fetchOptions) => fetch2("jira", restPath, fetchOptions),
-        requestBitbucket: (restPath, fetchOptions) => fetch2("bitbucket", restPath, fetchOptions)
-      };
-    };
-    exports.productFetchApi = productFetchApi;
-  }
-});
-
-// node_modules/@forge/bridge/out/fetch/index.js
-var require_fetch4 = __commonJS({
-  "node_modules/@forge/bridge/out/fetch/index.js"(exports) {
-    "use strict";
-    var _a;
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.fetchUserRecommendations = exports.requestRemote = exports.requestBitbucket = exports.requestJira = exports.requestConfluence = void 0;
-    var bridge_1 = require_bridge2();
-    var fetch_1 = require_fetch3();
-    _a = (0, fetch_1.productFetchApi)((0, bridge_1.getCallBridge)()), exports.requestConfluence = _a.requestConfluence, exports.requestJira = _a.requestJira, exports.requestBitbucket = _a.requestBitbucket;
-    exports.requestRemote = (0, fetch_1.remoteFetchApi)((0, bridge_1.getCallBridge)()).requestRemote;
-    var fetchUserRecommendations = async (input) => {
-      const callBridge = (0, bridge_1.getCallBridge)();
-      return await callBridge("fetchUserRecommendations", input);
-    };
-    exports.fetchUserRecommendations = fetchUserRecommendations;
-  }
-});
-
-// node_modules/@forge/bridge/out/requestTeamworkGraph/index.js
-var require_requestTeamworkGraph2 = __commonJS({
-  "node_modules/@forge/bridge/out/requestTeamworkGraph/index.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.requestTeamworkGraph = void 0;
-    var bridge_1 = require_bridge2();
-    var callBridge = (0, bridge_1.getCallBridge)();
-    var requestTeamworkGraph = async (query, variables) => {
-      const response = await callBridge("requestTeamworkGraph", { query, variables });
-      return response;
-    };
-    exports.requestTeamworkGraph = requestTeamworkGraph;
-  }
-});
-
-// node_modules/@forge/bridge/out/flag/flag.js
-var require_flag3 = __commonJS({
-  "node_modules/@forge/bridge/out/flag/flag.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.showFlag = void 0;
-    var bridge_1 = require_bridge2();
-    var errors_1 = require_errors2();
-    var callBridge = (0, bridge_1.getCallBridge)();
-    var showFlag = (options) => {
-      var _a;
-      if (!options.id) {
-        throw new errors_1.BridgeAPIError('"id" must be defined in flag options');
-      }
-      const result = callBridge("showFlag", {
-        ...options,
-        type: (_a = options.type) !== null && _a !== void 0 ? _a : "info"
-      });
-      return {
-        close: async () => {
-          await result;
-          return callBridge("closeFlag", { id: options.id });
-        }
-      };
-    };
-    exports.showFlag = showFlag;
-  }
-});
-
-// node_modules/@forge/bridge/out/flag/index.js
-var require_flag4 = __commonJS({
-  "node_modules/@forge/bridge/out/flag/index.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.showFlag = void 0;
-    var flag_1 = require_flag3();
-    Object.defineProperty(exports, "showFlag", { enumerable: true, get: function() {
-      return flag_1.showFlag;
-    } });
-  }
-});
-
-// node_modules/@forge/bridge/out/events/index.js
-var require_events4 = __commonJS({
-  "node_modules/@forge/bridge/out/events/index.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    var tslib_1 = (init_tslib_es6(), __toCommonJS(tslib_es6_exports));
-    tslib_1.__exportStar(require_events3(), exports);
-  }
-});
-
-// node_modules/@forge/bridge/out/realtime/realtime.js
-var require_realtime3 = __commonJS({
-  "node_modules/@forge/bridge/out/realtime/realtime.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.realtime = void 0;
-    var bridge_1 = require_bridge2();
-    var callBridge = (0, bridge_1.getCallBridge)();
-    var publish = (channel, payload, options) => {
-      return callBridge("publishRealtimeChannel", { channelName: channel, eventPayload: payload, options });
-    };
-    var subscribe = (channel, callback, options) => {
-      return callBridge("subscribeRealtimeChannel", {
-        channelName: channel,
-        onEvent: callback,
-        options
-      });
-    };
-    var publishGlobal = (channel, payload, options) => {
-      return callBridge("publishRealtimeChannel", { channelName: channel, eventPayload: payload, options, isGlobal: true });
-    };
-    var subscribeGlobal = (channel, callback, options) => {
-      return callBridge("subscribeRealtimeChannel", {
-        channelName: channel,
-        onEvent: callback,
-        options,
-        isGlobal: true
-      });
-    };
-    exports.realtime = {
-      publish,
-      subscribe,
-      publishGlobal,
-      subscribeGlobal
-    };
-  }
-});
-
-// node_modules/@forge/bridge/out/realtime/productContext.js
-var require_productContext2 = __commonJS({
-  "node_modules/@forge/bridge/out/realtime/productContext.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.Bitbucket = exports.Confluence = exports.Jira = void 0;
-    var Jira;
-    (function(Jira2) {
-      Jira2["Board"] = "board";
-      Jira2["Issue"] = "issue";
-      Jira2["Project"] = "project";
-    })(Jira || (exports.Jira = Jira = {}));
-    var Confluence;
-    (function(Confluence2) {
-      Confluence2["Content"] = "content";
-      Confluence2["Space"] = "space";
-    })(Confluence || (exports.Confluence = Confluence = {}));
-    var Bitbucket;
-    (function(Bitbucket2) {
-      Bitbucket2["Repository"] = "repository";
-      Bitbucket2["PullRequest"] = "pullRequest";
-    })(Bitbucket || (exports.Bitbucket = Bitbucket = {}));
-  }
-});
-
-// node_modules/@forge/bridge/out/realtime/index.js
-var require_realtime4 = __commonJS({
-  "node_modules/@forge/bridge/out/realtime/index.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.Bitbucket = exports.Confluence = exports.Jira = exports.realtime = void 0;
-    var realtime_1 = require_realtime3();
-    Object.defineProperty(exports, "realtime", { enumerable: true, get: function() {
-      return realtime_1.realtime;
-    } });
-    var productContext_1 = require_productContext2();
-    Object.defineProperty(exports, "Jira", { enumerable: true, get: function() {
-      return productContext_1.Jira;
-    } });
-    Object.defineProperty(exports, "Confluence", { enumerable: true, get: function() {
-      return productContext_1.Confluence;
-    } });
-    Object.defineProperty(exports, "Bitbucket", { enumerable: true, get: function() {
-      return productContext_1.Bitbucket;
-    } });
-  }
-});
-
-// node_modules/@forge/bridge/out/rovo/open.js
-var require_open4 = __commonJS({
-  "node_modules/@forge/bridge/out/rovo/open.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.open = exports.OPEN_ROVO_BRIDGE_ERROR_MESSAGE = void 0;
-    var bridge_1 = require_bridge2();
-    var errors_1 = require_errors2();
-    var MAX_AGENT_LENGTH = 30;
-    var callBridge = (0, bridge_1.getCallBridge)();
-    exports.OPEN_ROVO_BRIDGE_ERROR_MESSAGE = "Unable to open Rovo Chat due to usage in an unsupported product. Only Confluence, Jira and some Jira Service Management modules are supported at this point. See https://developer.atlassian.com/platform/forge/apis-reference/ui-api-bridge/rovo/";
-    var transformRovoPayload = (openRovoPayload) => {
-      switch (openRovoPayload.type) {
-        case "forge":
-          return {
-            agentName: openRovoPayload.agentName,
-            agentKey: openRovoPayload.agentKey,
-            prompt: openRovoPayload.prompt
-          };
-        case "atlassian":
-          return {
-            agentName: openRovoPayload.agentName,
-            prompt: openRovoPayload.prompt
-          };
-        default:
-          return { prompt: openRovoPayload.prompt };
-      }
-    };
-    var open = async (openRovoPayload) => {
-      if (openRovoPayload.type === "forge") {
-        if (openRovoPayload.agentName.length > MAX_AGENT_LENGTH) {
-          throw new Error("rovo agent name too long");
-        }
-        if (openRovoPayload.agentKey.length > MAX_AGENT_LENGTH) {
-          throw new Error("rovo agent key too long");
-        }
-      }
-      const rovoArgs = transformRovoPayload(openRovoPayload);
-      const success = await callBridge("openRovo", rovoArgs);
-      if (success === false) {
-        throw new errors_1.BridgeAPIError(exports.OPEN_ROVO_BRIDGE_ERROR_MESSAGE);
-      }
-    };
-    exports.open = open;
-  }
-});
-
-// node_modules/@forge/bridge/out/rovo/isEnabled.js
-var require_isEnabled2 = __commonJS({
-  "node_modules/@forge/bridge/out/rovo/isEnabled.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.isEnabled = void 0;
-    var bridge_1 = require_bridge2();
-    var callBridge = (0, bridge_1.getCallBridge)();
-    var isEnabled = () => {
-      return callBridge("isRovoEnabled");
-    };
-    exports.isEnabled = isEnabled;
-  }
-});
-
-// node_modules/@forge/bridge/out/rovo/rovo.js
-var require_rovo3 = __commonJS({
-  "node_modules/@forge/bridge/out/rovo/rovo.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.rovo = void 0;
-    var open_1 = require_open4();
-    var isEnabled_1 = require_isEnabled2();
-    exports.rovo = {
-      open: open_1.open,
-      isEnabled: isEnabled_1.isEnabled
-    };
-  }
-});
-
-// node_modules/@forge/bridge/out/rovo/index.js
-var require_rovo4 = __commonJS({
-  "node_modules/@forge/bridge/out/rovo/index.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    var tslib_1 = (init_tslib_es6(), __toCommonJS(tslib_es6_exports));
-    tslib_1.__exportStar(require_rovo3(), exports);
-  }
-});
-
-// node_modules/@forge/bridge/out/i18n/index.js
-var require_i18n2 = __commonJS({
-  "node_modules/@forge/bridge/out/i18n/index.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.createTranslationFunction = exports.getTranslations = exports.resetTranslationsCache = void 0;
-    var i18n_1 = require_out();
-    var view_1 = require_view4();
-    var frontendResourcesAccessor = {
-      getI18nInfoConfig: async () => {
-        const resp = await fetch(`./${i18n_1.I18N_BUNDLE_FOLDER_NAME}/${i18n_1.I18N_INFO_FILE_NAME}`);
-        if (!resp.ok) {
-          throw new Error("Failed to get i18n info config: " + resp.statusText);
-        }
-        const info = await resp.json();
-        return info.config;
-      },
-      getTranslationResource: async (locale) => {
-        const resp = await fetch(`./${i18n_1.I18N_BUNDLE_FOLDER_NAME}/${locale}.json`);
-        if (!resp.ok) {
-          throw new Error(`Failed to get translation resource for locale: ${locale}`);
-        }
-        return resp.json();
-      }
-    };
-    var translationsGetter = new i18n_1.TranslationsGetter(frontendResourcesAccessor);
-    var resetTranslationsCache = () => {
-      translationsGetter.reset();
-    };
-    exports.resetTranslationsCache = resetTranslationsCache;
-    var getTranslations = async (locale = null, options = {
-      fallback: true
-    }) => {
-      let targetLocale = locale;
-      if (!targetLocale) {
-        const context = await view_1.view.getContext();
-        targetLocale = context.locale;
-      }
-      return await translationsGetter.getTranslations(targetLocale, options);
-    };
-    exports.getTranslations = getTranslations;
-    var createTranslationFunction = async (locale = null) => {
-      let targetLocale = locale;
-      if (!targetLocale) {
-        const context = await view_1.view.getContext();
-        targetLocale = context.locale;
-      }
-      const translator = new i18n_1.Translator(targetLocale, translationsGetter);
-      await translator.init();
-      return (i18nKey, defaultValue) => {
-        var _a, _b;
-        return (_b = (_a = translator.translate(i18nKey)) !== null && _a !== void 0 ? _a : defaultValue) !== null && _b !== void 0 ? _b : i18nKey;
-      };
-    };
-    exports.createTranslationFunction = createTranslationFunction;
-  }
-});
-
-// node_modules/@forge/bridge/out/permissions/permissions.js
-var require_permissions3 = __commonJS({
-  "node_modules/@forge/bridge/out/permissions/permissions.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.permissions = void 0;
-    var bridge_1 = require_bridge2();
-    var callBridge = (0, bridge_1.getCallBridge)();
-    var egressGet = async (payload) => {
-      return callBridge("__permission__egressGet", payload);
-    };
-    var egressSet = async (payload) => {
-      return callBridge("__permission__egressSet", payload);
-    };
-    var egressDeleteDomain = async (payload) => {
-      return callBridge("__permission__egressDeleteDomain", payload);
-    };
-    var egressDeleteGroup = async (payload) => {
-      return callBridge("__permission__egressDeleteGroup", payload);
-    };
-    var remoteGet = async (payload) => {
-      return callBridge("__permission__remoteGet", payload);
-    };
-    var remoteSet = async (payload) => {
-      return callBridge("__permission__remoteSet", payload);
-    };
-    exports.permissions = {
-      egress: {
-        get: egressGet,
-        set: egressSet,
-        deleteDomain: egressDeleteDomain,
-        deleteGroup: egressDeleteGroup
-      },
-      remote: {
-        get: remoteGet,
-        set: remoteSet
-      }
-    };
-  }
-});
-
-// node_modules/@forge/bridge/out/permissions/permissionsUtil.js
-var require_permissionsUtil2 = __commonJS({
-  "node_modules/@forge/bridge/out/permissions/permissionsUtil.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.createPermissionUtils = createPermissionUtils;
-    exports.checkPermissions = checkPermissions;
-    var egress_1 = require_out2();
-    var view_1 = require_view4();
-    function extractUrlString(url) {
-      if (typeof url === "string") {
-        return url;
-      }
-      if ("address" in url && url.address) {
-        return url.address;
-      }
-      return url.remote || "";
-    }
-    var RESOURCE_TYPES = ["fonts", "styles", "frames", "images", "media", "scripts"];
-    var FETCH_TYPES = ["backend", "client"];
-    function createPermissionUtils(runtimePermissions) {
-      if (!runtimePermissions) {
-        return null;
-      }
-      const { scopes, external = {} } = runtimePermissions;
-      const scopeArray = Array.isArray(scopes) ? scopes : Object.keys(scopes || {});
-      return {
-        hasScope: (scope) => scopeArray.includes(scope),
-        canFetchFrom: (type, url) => {
-          var _a;
-          const fetchUrls = (_a = external.fetch) === null || _a === void 0 ? void 0 : _a[type];
-          if (!(fetchUrls === null || fetchUrls === void 0 ? void 0 : fetchUrls.length))
-            return false;
-          const allowList = fetchUrls.map(extractUrlString).filter((u) => u.length > 0);
-          if (allowList.length === 0)
-            return false;
-          const egressFilter = new egress_1.EgressFilteringService(allowList);
-          const egressFilterWithCSP = egressFilter;
-          return type === "client" ? egressFilterWithCSP.isValidUrlCSP(url) : egressFilter.isValidUrl(url);
-        },
-        canLoadResource: (type, url) => {
-          const resourceUrls = external[type];
-          if (!(resourceUrls === null || resourceUrls === void 0 ? void 0 : resourceUrls.length))
-            return false;
-          const allowList = resourceUrls.map(extractUrlString).filter((u) => u.length > 0);
-          if (allowList.length === 0)
-            return false;
-          const egressFilter = new egress_1.EgressFilteringService(allowList);
-          const egressFilterWithCSP = egressFilter;
-          return egressFilterWithCSP.isValidUrlCSP(url);
-        },
-        getScopes: () => scopeArray,
-        getExternalPermissions: () => external,
-        hasAnyPermissions: () => scopeArray.length > 0 || Object.keys(external).length > 0
-      };
-    }
-    function checkScopes(requiredScopes, permissionUtils) {
-      if (!(requiredScopes === null || requiredScopes === void 0 ? void 0 : requiredScopes.length)) {
-        return void 0;
-      }
-      const missingScopes = requiredScopes.filter((scope) => !permissionUtils.hasScope(scope));
-      return missingScopes.length > 0 ? missingScopes : void 0;
-    }
-    function checkFetchPermissions(requiredFetch, permissionUtils) {
-      if (!(requiredFetch === null || requiredFetch === void 0 ? void 0 : requiredFetch.fetch)) {
-        return void 0;
-      }
-      const missingFetch = {};
-      FETCH_TYPES.forEach((type) => {
-        var _a;
-        const requiredUrls = (_a = requiredFetch.fetch) === null || _a === void 0 ? void 0 : _a[type];
-        if (requiredUrls === null || requiredUrls === void 0 ? void 0 : requiredUrls.length) {
-          const missingUrls = requiredUrls.filter((url) => !permissionUtils.canFetchFrom(type, url));
-          if (missingUrls.length > 0) {
-            missingFetch[type] = missingUrls;
-          }
-        }
-      });
-      return Object.keys(missingFetch).length > 0 ? missingFetch : void 0;
-    }
-    function checkResourcePermissions(requiredExternal, permissionUtils) {
-      const missingResources = {};
-      RESOURCE_TYPES.forEach((type) => {
-        const requiredUrls = requiredExternal === null || requiredExternal === void 0 ? void 0 : requiredExternal[type];
-        if (requiredUrls === null || requiredUrls === void 0 ? void 0 : requiredUrls.length) {
-          const missingUrls = requiredUrls.filter((url) => !permissionUtils.canLoadResource(type, url));
-          if (missingUrls.length > 0) {
-            missingResources[type] = missingUrls;
-          }
-        }
-      });
-      return Object.keys(missingResources).length > 0 ? missingResources : void 0;
-    }
-    function checkExternalPermissions(requiredExternal, permissionUtils) {
-      if (!requiredExternal) {
-        return void 0;
-      }
-      const missingFetch = checkFetchPermissions(requiredExternal, permissionUtils);
-      const missingResources = checkResourcePermissions(requiredExternal, permissionUtils);
-      if (!missingFetch && !missingResources) {
-        return void 0;
-      }
-      const missingExternal = {};
-      if (missingFetch) {
-        missingExternal.fetch = missingFetch;
-      }
-      if (missingResources) {
-        Object.assign(missingExternal, missingResources);
-      }
-      return missingExternal;
-    }
-    function validateObjectField(value, fieldPath) {
-      if (value !== void 0) {
-        if (typeof value !== "object" || value === null || Array.isArray(value)) {
-          throw new TypeError(`${fieldPath} should be an object, not ${Array.isArray(value) ? "an array" : `a ${typeof value}`}`);
-        }
-      }
-    }
-    function validateArrayField(value, fieldPath) {
-      if (value !== void 0 && !Array.isArray(value)) {
-        throw new TypeError(`${fieldPath} should be an array, not a ${typeof value}`);
-      }
-    }
-    function validatePermissionShape(requiredPermissions) {
-      validateArrayField(requiredPermissions.scopes, "scopes");
-      const external = requiredPermissions.external;
-      if (external === void 0)
-        return;
-      validateObjectField(external, "external");
-      if (external.fetch !== void 0) {
-        validateObjectField(external.fetch, "external.fetch");
-        for (const type of FETCH_TYPES) {
-          validateArrayField(external.fetch[type], `external.fetch.${type}`);
-        }
-      }
-      for (const type of RESOURCE_TYPES) {
-        validateArrayField(external[type], `external.${type}`);
-      }
-    }
-    async function checkPermissions(requiredPermissions, runtimePermissions) {
-      var _a;
-      if (!requiredPermissions) {
-        return { granted: false, missing: null };
-      }
-      validatePermissionShape(requiredPermissions);
-      if (!((_a = requiredPermissions.scopes) === null || _a === void 0 ? void 0 : _a.length) && !requiredPermissions.external) {
-        return { granted: true, missing: null };
-      }
-      let permissionsToCheck = runtimePermissions;
-      if (!permissionsToCheck) {
-        const context = await view_1.view.getContext();
-        permissionsToCheck = context.permissions;
-      }
-      const permissionUtils = createPermissionUtils(permissionsToCheck);
-      if (!permissionUtils) {
-        return { granted: false, missing: null };
-      }
-      const missing = {};
-      let hasAllRequiredPermissions = true;
-      const missingScopes = checkScopes(requiredPermissions.scopes, permissionUtils);
-      if (missingScopes) {
-        missing.scopes = missingScopes;
-        hasAllRequiredPermissions = false;
-      }
-      const missingExternal = checkExternalPermissions(requiredPermissions.external, permissionUtils);
-      if (missingExternal) {
-        missing.external = missingExternal;
-        hasAllRequiredPermissions = false;
-      }
-      return {
-        granted: hasAllRequiredPermissions,
-        missing: hasAllRequiredPermissions ? null : missing
-      };
-    }
-  }
-});
-
-// node_modules/@forge/bridge/out/permissions/index.js
-var require_permissions4 = __commonJS({
-  "node_modules/@forge/bridge/out/permissions/index.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    var tslib_1 = (init_tslib_es6(), __toCommonJS(tslib_es6_exports));
-    tslib_1.__exportStar(require_permissions3(), exports);
-    tslib_1.__exportStar(require_permissionsUtil2(), exports);
-  }
-});
-
-// node_modules/@forge/bridge/out/object-store/upload.js
-var require_upload2 = __commonJS({
-  "node_modules/@forge/bridge/out/object-store/upload.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.upload = exports.createUploadPromises = void 0;
-    var invoke_1 = require_invoke4();
-    var errors_1 = require_errors2();
-    var bridge_1 = require_bridge2();
-    var callBridge = (0, bridge_1.getCallBridge)();
-    var base64ToBlob = (base64, mimeType) => {
-      const byteCharacters = atob(base64);
-      const byteNumbers = new Array(byteCharacters.length);
-      for (let i = 0; i < byteCharacters.length; i++) {
-        byteNumbers[i] = byteCharacters.charCodeAt(i);
-      }
-      const byteArray = new Uint8Array(byteNumbers);
-      return new Blob([byteArray], { type: mimeType || "application/octet-stream" });
-    };
-    var getObjectMetadata = async (blob) => {
-      const length = blob.size;
-      const arrayBuffer = await blob.arrayBuffer();
-      const hashBuffer = await crypto.subtle.digest("SHA-256", arrayBuffer);
-      const hashArray = new Uint8Array(hashBuffer);
-      const checksum = btoa(String.fromCharCode(...hashArray));
-      const checksumType = "SHA256";
-      return {
-        length,
-        checksum,
-        checksumType
-      };
-    };
-    var createUploadPromises = async ({ functionKey, objects }) => {
-      if (!functionKey || functionKey.length === 0) {
-        throw new errors_1.BridgeAPIError("functionKey is required to filter and generate presigned URLs");
-      }
-      if (!Array.isArray(objects) || objects.length === 0) {
-        throw new errors_1.BridgeAPIError("objects array is required and must not be empty");
-      }
-      const blobs = objects.map((obj, index) => {
-        if (obj instanceof Blob) {
-          return obj;
-        }
-        const isBase64Object = obj && typeof obj === "object" && "data" in obj && typeof obj.data === "string";
-        if (!isBase64Object) {
-          throw new errors_1.BridgeAPIError(`Invalid object type at index ${index}. Only Blob or Base64Object (with data string and optional mimeType) are accepted.`);
-        }
-        try {
-          return base64ToBlob(obj.data, obj.mimeType);
-        } catch (e) {
-          throw new errors_1.BridgeAPIError(`Invalid base64 data at index ${index}. The data string must be valid base64 encoded.`);
-        }
-      });
-      const allObjectMetadata = await Promise.all(blobs.map((blob) => getObjectMetadata(blob)));
-      const presignedURLsToObjectMetadata = await (0, invoke_1.invoke)(functionKey, {
-        allObjectMetadata
-      });
-      if (!presignedURLsToObjectMetadata || typeof presignedURLsToObjectMetadata !== "object") {
-        throw new errors_1.BridgeAPIError("Invalid response from functionKey");
-      }
-      const checksumToBlobMap = /* @__PURE__ */ new Map();
-      const checksumToIndexMap = /* @__PURE__ */ new Map();
-      blobs.forEach((blob, index) => {
-        const metadata = allObjectMetadata[index];
-        checksumToBlobMap.set(metadata.checksum, blob);
-        checksumToIndexMap.set(metadata.checksum, index);
-      });
-      const uploadPromises = Object.entries(presignedURLsToObjectMetadata).map(([presignedUrl, metadata]) => {
-        const { key, checksum } = metadata;
-        const object = checksumToBlobMap.get(checksum);
-        const index = checksumToIndexMap.get(checksum);
-        if (index === void 0) {
-          return {
-            promise: Promise.resolve({
-              success: false,
-              key,
-              error: `Index not found for checksum ${checksum}`
-            }),
-            index: -1
-          };
-        }
-        if (!object) {
-          return {
-            promise: Promise.resolve({
-              success: false,
-              key,
-              error: `Blob not found for checksum ${checksum}`
-            }),
-            index
-          };
-        }
-        const uploadPromise = (async () => {
-          try {
-            const response = await fetch(presignedUrl, {
-              method: "PUT",
-              body: object,
-              headers: {
-                "Content-Type": object.type || "application/octet-stream",
-                "Content-Length": object.size.toString()
-              }
-            });
-            return {
-              success: response.ok,
-              key,
-              status: response.status,
-              error: response.ok ? void 0 : `Upload failed with status ${response.status}`
-            };
-          } catch (error) {
-            return {
-              success: false,
-              key,
-              status: 503,
-              error: error instanceof Error ? error.message : "Upload failed"
-            };
-          }
-        })();
-        return { promise: uploadPromise, index, objectType: object.type, objectSize: object.size };
-      });
-      return uploadPromises;
-    };
-    exports.createUploadPromises = createUploadPromises;
-    var upload = async ({ functionKey, objects }) => {
-      void callBridge("trackObjectStoreAction", { action: "upload" });
-      const uploadPromises = await (0, exports.createUploadPromises)({ functionKey, objects });
-      const results = await Promise.all(uploadPromises.map((item) => item.promise));
-      return results;
-    };
-    exports.upload = upload;
-  }
-});
-
-// node_modules/@forge/bridge/out/object-store/deleteObjects.js
-var require_deleteObjects2 = __commonJS({
-  "node_modules/@forge/bridge/out/object-store/deleteObjects.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.deleteObjects = void 0;
-    var invoke_1 = require_invoke4();
-    var errors_1 = require_errors2();
-    var bridge_1 = require_bridge2();
-    var callBridge = (0, bridge_1.getCallBridge)();
-    var deleteObjects = async ({ functionKey, keys }) => {
-      void callBridge("trackObjectStoreAction", { action: "delete" });
-      if (!functionKey || functionKey.length === 0) {
-        throw new errors_1.BridgeAPIError("functionKey is required to delete objects");
-      }
-      if (!Array.isArray(keys) || keys.length === 0) {
-        throw new errors_1.BridgeAPIError("keys array is required and must not be empty");
-      }
-      await Promise.all(keys.map(async (key) => {
-        await (0, invoke_1.invoke)(functionKey, { key });
-      }));
-    };
-    exports.deleteObjects = deleteObjects;
-  }
-});
-
-// node_modules/@forge/bridge/out/object-store/download.js
-var require_download2 = __commonJS({
-  "node_modules/@forge/bridge/out/object-store/download.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.download = void 0;
-    var invoke_1 = require_invoke4();
-    var errors_1 = require_errors2();
-    var bridge_1 = require_bridge2();
-    var callBridge = (0, bridge_1.getCallBridge)();
-    var download = async ({ functionKey, keys }) => {
-      void callBridge("trackObjectStoreAction", { action: "download" });
-      if (!functionKey || functionKey.length === 0) {
-        throw new errors_1.BridgeAPIError("functionKey is required to filter and generate download URLs");
-      }
-      if (!Array.isArray(keys) || keys.length === 0) {
-        throw new errors_1.BridgeAPIError("keys array is required and must not be empty");
-      }
-      const downloadUrlsTokeys = await (0, invoke_1.invoke)(functionKey, {
-        keys
-      });
-      if (!downloadUrlsTokeys || typeof downloadUrlsTokeys !== "object") {
-        throw new errors_1.BridgeAPIError("Invalid response from functionKey");
-      }
-      const downloadPromises = Object.entries(downloadUrlsTokeys).map(async ([downloadUrl, key]) => {
-        try {
-          const response = await fetch(downloadUrl, {
-            method: "GET"
-          });
-          if (!response.ok) {
-            return {
-              success: false,
-              key,
-              status: response.status,
-              error: `Download failed with status ${response.status}`
-            };
-          }
-          const blob = await response.blob();
-          return {
-            success: true,
-            key,
-            blob,
-            status: response.status
-          };
-        } catch (error) {
-          return {
-            success: false,
-            key,
-            status: 503,
-            error: error instanceof Error ? error.message : "Download failed"
-          };
-        }
-      });
-      const results = await Promise.all(downloadPromises);
-      return results;
-    };
-    exports.download = download;
-  }
-});
-
-// node_modules/@forge/bridge/out/object-store/getMetadata.js
-var require_getMetadata2 = __commonJS({
-  "node_modules/@forge/bridge/out/object-store/getMetadata.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.getMetadata = void 0;
-    var index_1 = require_invoke4();
-    var errors_1 = require_errors2();
-    var bridge_1 = require_bridge2();
-    var callBridge = (0, bridge_1.getCallBridge)();
-    var getMetadata = async ({ functionKey, keys }) => {
-      void callBridge("trackObjectStoreAction", { action: "getMetadata" });
-      if (!functionKey || functionKey.length === 0) {
-        throw new errors_1.BridgeAPIError("functionKey is required to filter and generate object metadata");
-      }
-      if (!Array.isArray(keys) || keys.length === 0) {
-        throw new errors_1.BridgeAPIError("keys array is required and must not be empty");
-      }
-      const results = await Promise.all(keys.map(async (key) => {
-        const result = await (0, index_1.invoke)(functionKey, { key });
-        if (!result || typeof result !== "object") {
-          return {
-            key,
-            error: "Invalid response from functionKey"
-          };
-        }
-        return result;
-      }));
-      return results;
-    };
-    exports.getMetadata = getMetadata;
-  }
-});
-
-// node_modules/@forge/bridge/out/object-store/objectStore.js
-var require_objectStore2 = __commonJS({
-  "node_modules/@forge/bridge/out/object-store/objectStore.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.createUploadPromises = exports.objectStore = void 0;
-    var upload_1 = require_upload2();
-    Object.defineProperty(exports, "createUploadPromises", { enumerable: true, get: function() {
-      return upload_1.createUploadPromises;
-    } });
-    var deleteObjects_1 = require_deleteObjects2();
-    var download_1 = require_download2();
-    var getMetadata_1 = require_getMetadata2();
-    exports.objectStore = {
-      upload: upload_1.upload,
-      download: download_1.download,
-      getMetadata: getMetadata_1.getMetadata,
-      delete: deleteObjects_1.deleteObjects
-    };
-  }
-});
-
-// node_modules/@forge/bridge/out/object-store/types.js
-var require_types4 = __commonJS({
-  "node_modules/@forge/bridge/out/object-store/types.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-  }
-});
-
-// node_modules/@forge/bridge/out/object-store/index.js
-var require_object_store2 = __commonJS({
-  "node_modules/@forge/bridge/out/object-store/index.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    var tslib_1 = (init_tslib_es6(), __toCommonJS(tslib_es6_exports));
-    tslib_1.__exportStar(require_objectStore2(), exports);
-    tslib_1.__exportStar(require_types4(), exports);
-  }
-});
-
-// node_modules/@forge/bridge/out/featureFlags/evaluator.js
-var require_evaluator2 = __commonJS({
-  "node_modules/@forge/bridge/out/featureFlags/evaluator.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.Evaluator = void 0;
-    var Evaluator = class {
-      constructor(results) {
-        this.results = results;
-      }
-      checkFlag(flagName, defaultValue) {
-        if (!this.results || !this.results.feature_flags) {
-          return defaultValue;
-        }
-        const featureFlags = this.results.feature_flags;
-        let hashedValue = "";
-        try {
-          hashedValue = this.getHashedValue(flagName);
-        } catch (err) {
-          console.error("Unexpected error occurred while evaluating flag ", err);
-          return defaultValue;
-        }
-        if (!hashedValue) {
-          return defaultValue;
-        }
-        const evaluatedFlag = featureFlags[hashedValue];
-        if (evaluatedFlag) {
-          if (evaluatedFlag.disabled) {
-            return false;
-          }
-          return evaluatedFlag.value;
-        }
-        return defaultValue;
-      }
-      shutDown() {
-        this.results = void 0;
-      }
-      // To be Updated with proper hashing function
-      getHashedValue(flagName) {
-        if (typeof flagName !== "string") {
-          return "";
-        }
-        const input = flagName.trim();
-        if (input.length === 0) {
-          return "";
-        }
-        let hash = 5381;
-        for (let i = 0; i < input.length; i += 1) {
-          const charCode = input.charCodeAt(i);
-          hash = (hash << 5) + hash + charCode;
-          hash |= 0;
-        }
-        return (hash >>> 0).toString();
-      }
-    };
-    exports.Evaluator = Evaluator;
-  }
-});
-
-// node_modules/@forge/bridge/out/featureFlags/initFeatureFlags.js
-var require_initFeatureFlags2 = __commonJS({
-  "node_modules/@forge/bridge/out/featureFlags/initFeatureFlags.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.initFeatureFlags = void 0;
-    var bridge_1 = require_bridge2();
-    var errors_1 = require_errors2();
-    var utils_1 = require_utils3();
-    var maxOps = 500;
-    var intervalInMs = 1e3 * 25;
-    var callBridge = (0, bridge_1.getCallBridge)();
-    var validatePayload = (payload) => {
-      if (!payload || !payload.user || !payload.config) {
-        throw new errors_1.BridgeAPIError("Missing required parameters. Parameter user is required in the payload.");
-      }
-      if (!payload.config.environment || !["development", "staging", "production"].includes(payload.config.environment)) {
-        throw new errors_1.BridgeAPIError("Invalid environment. Valid environments are: development, staging, production");
-      }
-      if (Object.values(payload).some((val) => typeof val === "function")) {
-        throw new errors_1.BridgeAPIError("Passing functions as part of the payload is not supported!");
-      }
-    };
-    var _initFeatureFlags = (payload) => {
-      validatePayload(payload);
-      return callBridge("initFeatureFlags", { user: payload.user, config: payload.config });
-    };
-    exports.initFeatureFlags = (0, utils_1.withRateLimiter)(_initFeatureFlags, maxOps, intervalInMs, `Feature flags initialisation calls are rate limited at ${maxOps}req/${intervalInMs / 1e3}s`);
-  }
-});
-
-// node_modules/@forge/bridge/out/featureFlags/featureFlags.js
-var require_featureFlags3 = __commonJS({
-  "node_modules/@forge/bridge/out/featureFlags/featureFlags.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.FeatureFlags = void 0;
-    var evaluator_1 = require_evaluator2();
-    var initFeatureFlags_1 = require_initFeatureFlags2();
-    var FeatureFlags = class {
-      constructor() {
-        this.initialized = false;
-      }
-      /**
-       * Initialize the feature flags client
-       */
-      async initialize(user, config = { environment: "development" }) {
-        if (this.isInitialized()) {
-          return;
-        }
-        if (!(config === null || config === void 0 ? void 0 : config.environment)) {
-          config.environment = "development";
-        }
-        const result = await (0, initFeatureFlags_1.initFeatureFlags)({ user, config });
-        this.initialized = true;
-        this.evaluator = new evaluator_1.Evaluator(result);
-      }
-      /**
-       * Check if a feature flag is enabled for the user
-       */
-      checkFlag(flagName, defaultValue = false) {
-        if (!this.isInitialized() || !this.evaluator) {
-          throw new Error("FeatureFlags not initialized. Call initialize() first.");
-        }
-        return this.evaluator.checkFlag(flagName, defaultValue);
-      }
-      /**
-       * Shutdown the feature flags client
-       */
-      shutdown() {
-        if (!this.isInitialized()) {
-          return;
-        }
-        this.initialized = false;
-        this.evaluator.shutDown();
-      }
-      isInitialized() {
-        return this.initialized;
-      }
-    };
-    exports.FeatureFlags = FeatureFlags;
-  }
-});
-
-// node_modules/@forge/bridge/out/featureFlags/index.js
-var require_featureFlags4 = __commonJS({
-  "node_modules/@forge/bridge/out/featureFlags/index.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.FeatureFlags = void 0;
-    var featureFlags_1 = require_featureFlags3();
-    Object.defineProperty(exports, "FeatureFlags", { enumerable: true, get: function() {
-      return featureFlags_1.FeatureFlags;
-    } });
-  }
-});
-
-// node_modules/@forge/bridge/out/frontendCustomMetrics/frontendCustomMetrics.js
-var require_frontendCustomMetrics3 = __commonJS({
-  "node_modules/@forge/bridge/out/frontendCustomMetrics/frontendCustomMetrics.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.frontendCustomMetrics = void 0;
-    var bridge_1 = require_bridge2();
-    var errors_1 = require_errors2();
-    var callBridge = (0, bridge_1.getCallBridge)();
-    var emit = async (customMetricName, value) => {
-      await callBridge("emitFrontendCustomMetric", {
-        customMetricName,
-        value
-      });
-    };
-    var MAX_METRIC_NAME_LENGTH = 50;
-    var METRIC_NAME_REGEX = /^[a-zA-Z0-9]([a-zA-Z0-9.-]*[a-zA-Z0-9])?$/;
-    var validateMetricName = (name) => {
-      if (name.trim().length === 0) {
-        throw new errors_1.BridgeAPIError("Custom metric name cannot be empty");
-      }
-      if (name.length > MAX_METRIC_NAME_LENGTH) {
-        throw new errors_1.BridgeAPIError(`Custom metric name cannot exceed ${MAX_METRIC_NAME_LENGTH} characters`);
-      }
-      if (!METRIC_NAME_REGEX.test(name)) {
-        throw new errors_1.BridgeAPIError("Custom metric name must start and end with alphanumeric characters and can only contain letters, numbers, dots (.), and hyphens (-)");
-      }
-      if (name.includes("..") || name.includes("--")) {
-        throw new errors_1.BridgeAPIError("Custom metric name cannot contain consecutive dots or hyphens");
-      }
-    };
-    var counter = (name) => {
-      validateMetricName(name);
-      return {
-        incr: () => emit(name, 1),
-        incrBy: (value) => {
-          if (value <= 0) {
-            throw new errors_1.BridgeAPIError("Counter value must be a positive number");
-          }
-          return emit(name, value);
-        }
-      };
-    };
-    exports.frontendCustomMetrics = { counter };
-  }
-});
-
-// node_modules/@forge/bridge/out/frontendCustomMetrics/index.js
-var require_frontendCustomMetrics4 = __commonJS({
-  "node_modules/@forge/bridge/out/frontendCustomMetrics/index.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    var tslib_1 = (init_tslib_es6(), __toCommonJS(tslib_es6_exports));
-    tslib_1.__exportStar(require_frontendCustomMetrics3(), exports);
-  }
-});
-
-// node_modules/@forge/bridge/out/index.js
-var require_out5 = __commonJS({
-  "node_modules/@forge/bridge/out/index.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.i18n = exports.NavigationTarget = void 0;
-    var tslib_1 = (init_tslib_es6(), __toCommonJS(tslib_es6_exports));
-    var targets_1 = require_targets2();
-    Object.defineProperty(exports, "NavigationTarget", { enumerable: true, get: function() {
-      return targets_1.NavigationTarget;
-    } });
-    tslib_1.__exportStar(require_invoke4(), exports);
-    tslib_1.__exportStar(require_invoke_endpoint4(), exports);
-    tslib_1.__exportStar(require_view4(), exports);
-    tslib_1.__exportStar(require_router4(), exports);
-    tslib_1.__exportStar(require_modal4(), exports);
-    tslib_1.__exportStar(require_fetch4(), exports);
-    tslib_1.__exportStar(require_requestTeamworkGraph2(), exports);
-    tslib_1.__exportStar(require_flag4(), exports);
-    tslib_1.__exportStar(require_events4(), exports);
-    tslib_1.__exportStar(require_realtime4(), exports);
-    tslib_1.__exportStar(require_rovo4(), exports);
-    exports.i18n = tslib_1.__importStar(require_i18n2());
-    tslib_1.__exportStar(require_permissions4(), exports);
-    tslib_1.__exportStar(require_object_store2(), exports);
-    tslib_1.__exportStar(require_featureFlags4(), exports);
-    tslib_1.__exportStar(require_frontendCustomMetrics4(), exports);
-  }
-});
-
 // app/src/frontend.jsx
 var import_react = __toESM(require_react());
 var import_react2 = __toESM(require_out4());
-var import_bridge = __toESM(require_out5());
+var import_bridge = __toESM(require_out3());
 var import_jsx_runtime = __toESM(require_jsx_runtime());
 var App = () => {
   const [text, setText] = (0, import_react.useState)("Loading...");

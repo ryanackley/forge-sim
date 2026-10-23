@@ -1,42 +1,41 @@
-# Bundler-matrix lab
+# bundler-matrix fixture generator
 
-One tiny Forge app (`app/src/`: resolver + kvs + product-API backend; a
-single-entry UIKit frontend; a two-entry `home`/`settings` resource sharing a
-module), built by each popular bundler (`variants/*.mjs`), with every output
-deployed into forge-sim as a manual-packaged (shape 2) app and exercised end
-to end: deploy → resolver+kvs → product API → single render → multi-entry
-renders.
+This package exists to (re)generate `src/__tests__/fixtures/bundler-matrix/`
+— real output from every popular bundler, checked into the suite so
+`bundler-matrix-fixtures.test.ts` can deploy it in CI without installing a
+single bundler. The ~400 MB of webpack/Vite/Parcel/Rspack/Rollup dev
+dependencies live here, outside the root install, and the fixtures are
+unreproducible blobs without this directory: one tiny Forge app
+(`app/src/`: resolver + kvs + product-API backend, a single-entry UI Kit
+frontend, a two-entry `home`/`settings` resource sharing a module) built by
+each config under `variants/`.
 
-Variants: `forge-webpack` (replica of `@forge/bundler` 7.3.0's webpack
-config), `rspack`, `vite` (bare defaults + the canonical Forge docs
-multi-entry example + an off-standard ESM backend as a negative control:
-the sim must warn), `rollup`
-(single-file + code-split), `parcel`, `esbuild-user` (IIFE classic +
-`splitting`), `tsc-unbundled` (the docs' "plain TypeScript" shape: nothing
-bundled, `node_modules` inside the package dir, nested handler path).
+Variants: `forge-webpack` (replica of `@forge/bundler` 7.3.0's config, read
+off the installed package — the same modules `bundler-spec-contract.test.ts`
+asserts against), `rspack` (minified), `vite` (bare defaults + the Forge
+docs' canonical multi-entry example + a deliberately off-standard ESM
+backend, kept as the negative control for the CommonJS deploy warning),
+`rollup` (single-file + code-split), `parcel` (zero-config: unquoted
+attributes, importmaps, shared bundles), `esbuild-user` (minified IIFE
+classic script + `splitting`), `tsc-unbundled` (the docs' "plain TypeScript"
+layout: nothing bundled, `node_modules` inside `app.package.path`, nested
+handler path). Canonical requirements come from Atlassian's packaging docs
+(`manifest-reference/packaging/` and `/packaging/standard/`).
 
-Canonical requirements come from Atlassian's packaging docs
-(`manifest-reference/packaging/` and `/packaging/standard/`); variants note
-where they deliberately sit off-standard.
-
-This is a **lab**, not part of the test suite: it measures, on real bundler
-output, where shape-2 support stands — which failures are parity bugs, which
-are the irreducible "browser bundle evaluated in Node" residue, and whether
-that residue justifies new architecture.
-
-## Run it
+## Regenerate the fixtures
 
 ```bash
-npm run build          # repo root — the runner drives dist/
 cd lab/bundler-matrix
 npm install
-node --import ../../dist/loader/register.js run.mjs              # all variants, stub DOM
-node --import ../../dist/loader/register.js run.mjs vite rollup  # a subset
-LAB_DOM=jsdom node --import ../../dist/loader/register.js run.mjs  # jsdom globals instead of the stub
+node export-fixtures.mjs               # all variants
+node export-fixtures.mjs vite rollup   # a subset
 ```
 
-Results land in `RESULTS-<mode>.md` / `results-<mode>.json` (gitignored —
-per-machine measurements, not fixtures). Lasting findings live where they
-act: parity requirements in `bundler-spec-contract.test.ts`, real bundler
-output as `src/__tests__/fixtures/bundler-matrix/` (regenerated via
-`export-fixtures.mjs`), and open questions in `deferred-issues.md`.
+Then run the suite to verify: `npx vitest run src/__tests__/bundler-matrix-fixtures.test.ts`
+(from the repo root). Re-run after bumping `@forge/react`/`@forge/bridge`
+(their code is inlined in the fixtures) or a bundler here.
+
+History: this directory began as the measurement lab for the shape-2
+reliability arc — it also had a sim-driving runner and a jsdom-globals
+experiment, both retired once the findings landed as contract tests and
+fixes (see git history of `run.mjs` / `jsdom-preload.mjs` to revive them).

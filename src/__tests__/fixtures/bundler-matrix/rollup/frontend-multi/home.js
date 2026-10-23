@@ -1,4 +1,4 @@
-import { F as ForgeReconciler, R as React, l as label, r as reactExports, o as outExports, a as outExports$1 } from './chunks/shared-47Si1RVz.js';
+import { F as ForgeReconciler, R as React, l as label, r as reactExports, o as outExports, a as outExports$1 } from './chunks/shared-Dyv9WOwu.js';
 
 // Canonical multi-entry page, shaped after the Forge "Bundling multi-entry
 // frontend with Vite" example: named component, invoke in an effect,

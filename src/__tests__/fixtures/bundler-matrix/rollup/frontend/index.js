@@ -1,3 +1,18 @@
+function _mergeNamespaces(n, m) {
+	m.forEach(function (e) {
+		e && typeof e !== 'string' && !Array.isArray(e) && Object.keys(e).forEach(function (k) {
+			if (k !== 'default' && !(k in n)) {
+				var d = Object.getOwnPropertyDescriptor(e, k);
+				Object.defineProperty(n, k, d.get ? d : {
+					enumerable: true,
+					get: function () { return e[k]; }
+				});
+			}
+		});
+	});
+	return Object.freeze(n);
+}
+
 var commonjsGlobal = typeof globalThis !== 'undefined' ? globalThis : typeof window !== 'undefined' ? window : typeof global !== 'undefined' ? global : typeof self !== 'undefined' ? self : {};
 
 function getDefaultExportFromCjs (x) {
@@ -12,7 +27,7 @@ function getAugmentedNamespace(n) {
 			var isInstance = false;
       try {
         isInstance = this instanceof a;
-      } catch (e) {}
+      } catch {}
 			if (isInstance) {
         return Reflect.construct(f, arguments, this.constructor);
 			}
@@ -87,7 +102,7 @@ function requireReact () {
 var reactExports = requireReact();
 var React = /*@__PURE__*/getDefaultExportFromCjs(reactExports);
 
-var out$4 = {};
+var out$3 = {};
 
 /******************************************************************************
 Copyright (c) Microsoft Corporation.
@@ -527,19 +542,19 @@ var require$$0 = /*@__PURE__*/getAugmentedNamespace(tslib_es6$1);
 
 var useProductContext = {};
 
-var out$3 = {};
+var out$2 = {};
 
-var targets$1 = {};
+var targets = {};
 
-var hasRequiredTargets$1;
+var hasRequiredTargets;
 
-function requireTargets$1 () {
-	if (hasRequiredTargets$1) return targets$1;
-	hasRequiredTargets$1 = 1;
-	Object.defineProperty(targets$1, "__esModule", { value: true });
-	targets$1.NavigationTarget = void 0;
+function requireTargets () {
+	if (hasRequiredTargets) return targets;
+	hasRequiredTargets = 1;
+	Object.defineProperty(targets, "__esModule", { value: true });
+	targets.NavigationTarget = void 0;
 	// Constants for developer convenience. The JS Docs below will also be displayed in the IDE when the developer is using this object.
-	targets$1.NavigationTarget = {
+	targets.NavigationTarget = {
 	    /**
 	     * The view page for pages, blogs and custom content. Takes a contentId to identify the content.
 	     */
@@ -577,38 +592,38 @@ function requireTargets$1 () {
 	     */
 	    ProjectSettingsDetails: 'projectSettingsDetails'
 	};
-	return targets$1;
+	return targets;
 }
 
-var invoke$3 = {};
+var invoke$1 = {};
 
-var invoke$2 = {};
+var invoke = {};
 
-var bridge$1 = {};
+var bridge = {};
 
-var errors$1 = {};
+var errors = {};
 
-var hasRequiredErrors$1;
+var hasRequiredErrors;
 
-function requireErrors$1 () {
-	if (hasRequiredErrors$1) return errors$1;
-	hasRequiredErrors$1 = 1;
-	Object.defineProperty(errors$1, "__esModule", { value: true });
-	errors$1.BridgeAPIError = void 0;
+function requireErrors () {
+	if (hasRequiredErrors) return errors;
+	hasRequiredErrors = 1;
+	Object.defineProperty(errors, "__esModule", { value: true });
+	errors.BridgeAPIError = void 0;
 	class BridgeAPIError extends Error {
 	}
-	errors$1.BridgeAPIError = BridgeAPIError;
-	return errors$1;
+	errors.BridgeAPIError = BridgeAPIError;
+	return errors;
 }
 
-var hasRequiredBridge$1;
+var hasRequiredBridge;
 
-function requireBridge$1 () {
-	if (hasRequiredBridge$1) return bridge$1;
-	hasRequiredBridge$1 = 1;
-	Object.defineProperty(bridge$1, "__esModule", { value: true });
-	bridge$1.getCallBridge = void 0;
-	const errors_1 = requireErrors$1();
+function requireBridge () {
+	if (hasRequiredBridge) return bridge;
+	hasRequiredBridge = 1;
+	Object.defineProperty(bridge, "__esModule", { value: true });
+	bridge.getCallBridge = void 0;
+	const errors_1 = requireErrors();
 	function isBridgeAvailable(bridge) {
 	    return !!(bridge === null || bridge === void 0 ? void 0 : bridge.callBridge);
 	}
@@ -621,20 +636,20 @@ function requireBridge$1 () {
 	    }
 	    return globalThis.__bridge.callBridge;
 	};
-	bridge$1.getCallBridge = getCallBridge;
-	return bridge$1;
+	bridge.getCallBridge = getCallBridge;
+	return bridge;
 }
 
-var utils$2 = {};
+var utils$1 = {};
 
-var hasRequiredUtils$2;
+var hasRequiredUtils$1;
 
-function requireUtils$2 () {
-	if (hasRequiredUtils$2) return utils$2;
-	hasRequiredUtils$2 = 1;
-	Object.defineProperty(utils$2, "__esModule", { value: true });
-	utils$2.withRateLimiter = void 0;
-	const errors_1 = requireErrors$1();
+function requireUtils$1 () {
+	if (hasRequiredUtils$1) return utils$1;
+	hasRequiredUtils$1 = 1;
+	Object.defineProperty(utils$1, "__esModule", { value: true });
+	utils$1.withRateLimiter = void 0;
+	const errors_1 = requireErrors();
 	const withRateLimiter = (wrappedFn, maxOps, intervalInMs, exceededErrorMessage) => {
 	    let start = Date.now();
 	    let numOps = 0;
@@ -652,21 +667,21 @@ function requireUtils$2 () {
 	        return wrappedFn(...args);
 	    };
 	};
-	utils$2.withRateLimiter = withRateLimiter;
-	return utils$2;
+	utils$1.withRateLimiter = withRateLimiter;
+	return utils$1;
 }
 
-var hasRequiredInvoke$3;
+var hasRequiredInvoke$1;
 
-function requireInvoke$3 () {
-	if (hasRequiredInvoke$3) return invoke$2;
-	hasRequiredInvoke$3 = 1;
-	Object.defineProperty(invoke$2, "__esModule", { value: true });
-	invoke$2.invoke = invoke;
-	invoke$2.makeInvoke = makeInvoke;
-	const bridge_1 = requireBridge$1();
-	const errors_1 = requireErrors$1();
-	const utils_1 = requireUtils$2();
+function requireInvoke$1 () {
+	if (hasRequiredInvoke$1) return invoke;
+	hasRequiredInvoke$1 = 1;
+	Object.defineProperty(invoke, "__esModule", { value: true });
+	invoke.invoke = invoke$1;
+	invoke.makeInvoke = makeInvoke;
+	const bridge_1 = requireBridge();
+	const errors_1 = requireErrors();
+	const utils_1 = requireUtils$1();
 	const callBridge = (0, bridge_1.getCallBridge)();
 	const validatePayload = (payload) => {
 	    if (!payload)
@@ -688,7 +703,7 @@ function requireInvoke$3 () {
 	/**
 	 * Calls a backend resolver function by key.
 	 */
-	function invoke(functionKey, payload, metadata) {
+	function invoke$1(functionKey, payload, metadata) {
 	    return limitedInvoke(functionKey, payload, metadata);
 	}
 	/**
@@ -697,41 +712,41 @@ function requireInvoke$3 () {
 	 * @returns An invoke function that can be used to call backend functions.
 	 */
 	function makeInvoke() {
-	    return invoke;
+	    return invoke$1;
 	}
-	return invoke$2;
+	return invoke;
 }
 
-var hasRequiredInvoke$2;
+var hasRequiredInvoke;
 
-function requireInvoke$2 () {
-	if (hasRequiredInvoke$2) return invoke$3;
-	hasRequiredInvoke$2 = 1;
+function requireInvoke () {
+	if (hasRequiredInvoke) return invoke$1;
+	hasRequiredInvoke = 1;
 	(function (exports) {
 		Object.defineProperty(exports, "__esModule", { value: true });
 		const tslib_1 = require$$0;
-		tslib_1.__exportStar(requireInvoke$3(), exports); 
-	} (invoke$3));
-	return invoke$3;
+		tslib_1.__exportStar(requireInvoke$1(), exports); 
+	} (invoke$1));
+	return invoke$1;
 }
 
-var invokeEndpoint$3 = {};
+var invokeEndpoint$1 = {};
 
-var invokeRemote$1 = {};
+var invokeRemote = {};
 
-var invokeEndpoint$2 = {};
+var invokeEndpoint = {};
 
-var hasRequiredInvokeEndpoint$3;
+var hasRequiredInvokeEndpoint$1;
 
-function requireInvokeEndpoint$3 () {
-	if (hasRequiredInvokeEndpoint$3) return invokeEndpoint$2;
-	hasRequiredInvokeEndpoint$3 = 1;
-	Object.defineProperty(invokeEndpoint$2, "__esModule", { value: true });
-	invokeEndpoint$2.InvokeType = void 0;
-	invokeEndpoint$2._invokeEndpointFn = _invokeEndpointFn;
-	const bridge_1 = requireBridge$1();
-	const errors_1 = requireErrors$1();
-	const utils_1 = requireUtils$2();
+function requireInvokeEndpoint$1 () {
+	if (hasRequiredInvokeEndpoint$1) return invokeEndpoint;
+	hasRequiredInvokeEndpoint$1 = 1;
+	Object.defineProperty(invokeEndpoint, "__esModule", { value: true });
+	invokeEndpoint.InvokeType = void 0;
+	invokeEndpoint._invokeEndpointFn = _invokeEndpointFn;
+	const bridge_1 = requireBridge();
+	const errors_1 = requireErrors();
+	const utils_1 = requireUtils$1();
 	const MAX_NUM_OPERATIONS = 500;
 	const OPERATION_INTERVAL_SEC = 25;
 	const OPERATION_INTERVAL_MS = 1000 * OPERATION_INTERVAL_SEC;
@@ -739,7 +754,7 @@ function requireInvokeEndpoint$3 () {
 	(function (InvokeType) {
 	    InvokeType["REMOTE"] = "Remote";
 	    InvokeType["SERVICE"] = "Container";
-	})(InvokeType || (invokeEndpoint$2.InvokeType = InvokeType = {}));
+	})(InvokeType || (invokeEndpoint.InvokeType = InvokeType = {}));
 	const callBridge = (0, bridge_1.getCallBridge)();
 	const validatePayload = (payload) => {
 	    if (!payload)
@@ -770,96 +785,96 @@ function requireInvokeEndpoint$3 () {
 	    const invokeEndpointFn = _setupInvokeEndpointFn(invokeType);
 	    return (0, utils_1.withRateLimiter)(invokeEndpointFn, MAX_NUM_OPERATIONS, OPERATION_INTERVAL_MS, `${invokeType} invocation calls are rate limited at ${MAX_NUM_OPERATIONS}/${OPERATION_INTERVAL_SEC}s`);
 	}
-	return invokeEndpoint$2;
+	return invokeEndpoint;
 }
 
-var hasRequiredInvokeRemote$1;
+var hasRequiredInvokeRemote;
 
-function requireInvokeRemote$1 () {
-	if (hasRequiredInvokeRemote$1) return invokeRemote$1;
-	hasRequiredInvokeRemote$1 = 1;
-	Object.defineProperty(invokeRemote$1, "__esModule", { value: true });
-	invokeRemote$1.invokeRemote = void 0;
-	const invoke_endpoint_1 = requireInvokeEndpoint$3();
-	const invokeRemote = (input) => {
+function requireInvokeRemote () {
+	if (hasRequiredInvokeRemote) return invokeRemote;
+	hasRequiredInvokeRemote = 1;
+	Object.defineProperty(invokeRemote, "__esModule", { value: true });
+	invokeRemote.invokeRemote = void 0;
+	const invoke_endpoint_1 = requireInvokeEndpoint$1();
+	const invokeRemote$1 = (input) => {
 	    const invokeEndpoint = (0, invoke_endpoint_1._invokeEndpointFn)(invoke_endpoint_1.InvokeType.REMOTE);
 	    return invokeEndpoint(input);
 	};
-	invokeRemote$1.invokeRemote = invokeRemote;
-	return invokeRemote$1;
+	invokeRemote.invokeRemote = invokeRemote$1;
+	return invokeRemote;
 }
 
-var invokeService$1 = {};
+var invokeService = {};
 
-var hasRequiredInvokeService$1;
+var hasRequiredInvokeService;
 
-function requireInvokeService$1 () {
-	if (hasRequiredInvokeService$1) return invokeService$1;
-	hasRequiredInvokeService$1 = 1;
-	Object.defineProperty(invokeService$1, "__esModule", { value: true });
-	invokeService$1.invokeService = void 0;
-	const invoke_endpoint_1 = requireInvokeEndpoint$3();
-	const invokeService = (input) => {
+function requireInvokeService () {
+	if (hasRequiredInvokeService) return invokeService;
+	hasRequiredInvokeService = 1;
+	Object.defineProperty(invokeService, "__esModule", { value: true });
+	invokeService.invokeService = void 0;
+	const invoke_endpoint_1 = requireInvokeEndpoint$1();
+	const invokeService$1 = (input) => {
 	    const invokeEndpoint = (0, invoke_endpoint_1._invokeEndpointFn)(invoke_endpoint_1.InvokeType.SERVICE);
 	    return invokeEndpoint(input);
 	};
-	invokeService$1.invokeService = invokeService;
-	return invokeService$1;
+	invokeService.invokeService = invokeService$1;
+	return invokeService;
 }
 
-var hasRequiredInvokeEndpoint$2;
+var hasRequiredInvokeEndpoint;
 
-function requireInvokeEndpoint$2 () {
-	if (hasRequiredInvokeEndpoint$2) return invokeEndpoint$3;
-	hasRequiredInvokeEndpoint$2 = 1;
+function requireInvokeEndpoint () {
+	if (hasRequiredInvokeEndpoint) return invokeEndpoint$1;
+	hasRequiredInvokeEndpoint = 1;
 	(function (exports) {
 		Object.defineProperty(exports, "__esModule", { value: true });
 		const tslib_1 = require$$0;
-		tslib_1.__exportStar(requireInvokeRemote$1(), exports);
-		tslib_1.__exportStar(requireInvokeService$1(), exports); 
-	} (invokeEndpoint$3));
-	return invokeEndpoint$3;
+		tslib_1.__exportStar(requireInvokeRemote(), exports);
+		tslib_1.__exportStar(requireInvokeService(), exports); 
+	} (invokeEndpoint$1));
+	return invokeEndpoint$1;
 }
 
-var view$3 = {};
+var view$1 = {};
 
-var view$2 = {};
+var view = {};
 
-var submit$1 = {};
+var submit = {};
 
-var hasRequiredSubmit$1;
+var hasRequiredSubmit;
 
-function requireSubmit$1 () {
-	if (hasRequiredSubmit$1) return submit$1;
-	hasRequiredSubmit$1 = 1;
-	Object.defineProperty(submit$1, "__esModule", { value: true });
-	submit$1.submit = void 0;
-	const bridge_1 = requireBridge$1();
-	const errors_1 = requireErrors$1();
+function requireSubmit () {
+	if (hasRequiredSubmit) return submit;
+	hasRequiredSubmit = 1;
+	Object.defineProperty(submit, "__esModule", { value: true });
+	submit.submit = void 0;
+	const bridge_1 = requireBridge();
+	const errors_1 = requireErrors();
 	const callBridge = (0, bridge_1.getCallBridge)();
-	const submit = async (payload) => {
+	const submit$1 = async (payload) => {
 	    const success = await callBridge('submit', payload);
 	    if (success === false) {
 	        throw new errors_1.BridgeAPIError("this resource's view is not submittable.");
 	    }
 	};
-	submit$1.submit = submit;
-	return submit$1;
+	submit.submit = submit$1;
+	return submit;
 }
 
-var close$1 = {};
+var close = {};
 
-var hasRequiredClose$1;
+var hasRequiredClose;
 
-function requireClose$1 () {
-	if (hasRequiredClose$1) return close$1;
-	hasRequiredClose$1 = 1;
-	Object.defineProperty(close$1, "__esModule", { value: true });
-	close$1.close = void 0;
-	const bridge_1 = requireBridge$1();
-	const errors_1 = requireErrors$1();
+function requireClose () {
+	if (hasRequiredClose) return close;
+	hasRequiredClose = 1;
+	Object.defineProperty(close, "__esModule", { value: true });
+	close.close = void 0;
+	const bridge_1 = requireBridge();
+	const errors_1 = requireErrors();
 	const callBridge = (0, bridge_1.getCallBridge)();
-	const close = async (payload) => {
+	const close$1 = async (payload) => {
 	    try {
 	        const success = await callBridge('close', payload);
 	        // TODO: Modify @atlassian/forge-ui to throw if close fails instead of returning boolean DEVO-680
@@ -871,21 +886,21 @@ function requireClose$1 () {
 	        throw new errors_1.BridgeAPIError("this resource's view is not closable.");
 	    }
 	};
-	close$1.close = close;
-	return close$1;
+	close.close = close$1;
+	return close;
 }
 
-var open$3 = {};
+var open$1 = {};
 
-var hasRequiredOpen$3;
+var hasRequiredOpen$1;
 
-function requireOpen$3 () {
-	if (hasRequiredOpen$3) return open$3;
-	hasRequiredOpen$3 = 1;
-	Object.defineProperty(open$3, "__esModule", { value: true });
-	open$3.open = void 0;
-	const bridge_1 = requireBridge$1();
-	const errors_1 = requireErrors$1();
+function requireOpen$1 () {
+	if (hasRequiredOpen$1) return open$1;
+	hasRequiredOpen$1 = 1;
+	Object.defineProperty(open$1, "__esModule", { value: true });
+	open$1.open = void 0;
+	const bridge_1 = requireBridge();
+	const errors_1 = requireErrors();
 	const callBridge = (0, bridge_1.getCallBridge)();
 	const open = async () => {
 	    try {
@@ -899,57 +914,57 @@ function requireOpen$3 () {
 	        throw new errors_1.BridgeAPIError("this resource's view is not openable.");
 	    }
 	};
-	open$3.open = open;
-	return open$3;
+	open$1.open = open;
+	return open$1;
 }
 
-var refresh$1 = {};
+var refresh = {};
 
-var hasRequiredRefresh$1;
+var hasRequiredRefresh;
 
-function requireRefresh$1 () {
-	if (hasRequiredRefresh$1) return refresh$1;
-	hasRequiredRefresh$1 = 1;
-	Object.defineProperty(refresh$1, "__esModule", { value: true });
-	refresh$1.refresh = void 0;
-	const bridge_1 = requireBridge$1();
-	const errors_1 = requireErrors$1();
+function requireRefresh () {
+	if (hasRequiredRefresh) return refresh;
+	hasRequiredRefresh = 1;
+	Object.defineProperty(refresh, "__esModule", { value: true });
+	refresh.refresh = void 0;
+	const bridge_1 = requireBridge();
+	const errors_1 = requireErrors();
 	const callBridge = (0, bridge_1.getCallBridge)();
-	const refresh = async (payload) => {
+	const refresh$1 = async (payload) => {
 	    const success = await callBridge('refresh', payload);
 	    if (success === false) {
 	        throw new errors_1.BridgeAPIError("this resource's view is not refreshable.");
 	    }
 	};
-	refresh$1.refresh = refresh;
-	return refresh$1;
+	refresh.refresh = refresh$1;
+	return refresh;
 }
 
-var createHistory$1 = {};
+var createHistory = {};
 
-var hasRequiredCreateHistory$1;
+var hasRequiredCreateHistory;
 
-function requireCreateHistory$1 () {
-	if (hasRequiredCreateHistory$1) return createHistory$1;
-	hasRequiredCreateHistory$1 = 1;
-	Object.defineProperty(createHistory$1, "__esModule", { value: true });
-	createHistory$1.createHistory = void 0;
-	const bridge_1 = requireBridge$1();
+function requireCreateHistory () {
+	if (hasRequiredCreateHistory) return createHistory;
+	hasRequiredCreateHistory = 1;
+	Object.defineProperty(createHistory, "__esModule", { value: true });
+	createHistory.createHistory = void 0;
+	const bridge_1 = requireBridge();
 	const callBridge = (0, bridge_1.getCallBridge)();
-	const createHistory = async () => {
+	const createHistory$1 = async () => {
 	    const history = await callBridge('createHistory');
 	    history.listen((location) => {
 	        history.location = location;
 	    });
 	    return history;
 	};
-	createHistory$1.createHistory = createHistory;
-	return createHistory$1;
+	createHistory.createHistory = createHistory$1;
+	return createHistory;
 }
 
-var getContext$1 = {};
+var getContext = {};
 
-var out$2 = {};
+var out$1 = {};
 
 var constants$1 = {};
 
@@ -3021,22 +3036,22 @@ function requireModuleI18nHelper () {
 	return moduleI18nHelper;
 }
 
-var types$3 = {};
+var types$2 = {};
 
-var hasRequiredTypes$3;
+var hasRequiredTypes$2;
 
-function requireTypes$3 () {
-	if (hasRequiredTypes$3) return types$3;
-	hasRequiredTypes$3 = 1;
-	Object.defineProperty(types$3, "__esModule", { value: true });
-	return types$3;
+function requireTypes$2 () {
+	if (hasRequiredTypes$2) return types$2;
+	hasRequiredTypes$2 = 1;
+	Object.defineProperty(types$2, "__esModule", { value: true });
+	return types$2;
 }
 
-var hasRequiredOut$4;
+var hasRequiredOut$3;
 
-function requireOut$4 () {
-	if (hasRequiredOut$4) return out$2;
-	hasRequiredOut$4 = 1;
+function requireOut$3 () {
+	if (hasRequiredOut$3) return out$1;
+	hasRequiredOut$3 = 1;
 	(function (exports) {
 		Object.defineProperty(exports, "__esModule", { value: true });
 		exports.getI18nSupportedModuleEntries = exports.extractI18nPropertiesFromModules = exports.extractI18nKeysFromModules = exports.getTranslationValue = void 0;
@@ -3051,22 +3066,22 @@ function requireOut$4 () {
 		Object.defineProperty(exports, "extractI18nKeysFromModules", { enumerable: true, get: function () { return moduleI18nHelper_1.extractI18nKeysFromModules; } });
 		Object.defineProperty(exports, "extractI18nPropertiesFromModules", { enumerable: true, get: function () { return moduleI18nHelper_1.extractI18nPropertiesFromModules; } });
 		Object.defineProperty(exports, "getI18nSupportedModuleEntries", { enumerable: true, get: function () { return moduleI18nHelper_1.getI18nSupportedModuleEntries; } });
-		tslib_1.__exportStar(requireTypes$3(), exports); 
-	} (out$2));
-	return out$2;
+		tslib_1.__exportStar(requireTypes$2(), exports); 
+	} (out$1));
+	return out$1;
 }
 
-var hasRequiredGetContext$1;
+var hasRequiredGetContext;
 
-function requireGetContext$1 () {
-	if (hasRequiredGetContext$1) return getContext$1;
-	hasRequiredGetContext$1 = 1;
-	Object.defineProperty(getContext$1, "__esModule", { value: true });
-	getContext$1.getContext = void 0;
-	const bridge_1 = requireBridge$1();
-	const i18n_1 = requireOut$4();
+function requireGetContext () {
+	if (hasRequiredGetContext) return getContext;
+	hasRequiredGetContext = 1;
+	Object.defineProperty(getContext, "__esModule", { value: true });
+	getContext.getContext = void 0;
+	const bridge_1 = requireBridge();
+	const i18n_1 = requireOut$3();
 	const callBridge = (0, bridge_1.getCallBridge)();
-	const getContext = async () => {
+	const getContext$1 = async () => {
 	    var _a;
 	    const context = await callBridge('getContext');
 	    const locale = context === null || context === void 0 ? void 0 : context.locale;
@@ -3077,23 +3092,23 @@ function requireGetContext$1 () {
 	    }
 	    return context;
 	};
-	getContext$1.getContext = getContext;
-	return getContext$1;
+	getContext.getContext = getContext$1;
+	return getContext;
 }
 
-var changeWindowTitle$1 = {};
+var changeWindowTitle = {};
 
-var hasRequiredChangeWindowTitle$1;
+var hasRequiredChangeWindowTitle;
 
-function requireChangeWindowTitle$1 () {
-	if (hasRequiredChangeWindowTitle$1) return changeWindowTitle$1;
-	hasRequiredChangeWindowTitle$1 = 1;
-	Object.defineProperty(changeWindowTitle$1, "__esModule", { value: true });
-	changeWindowTitle$1.changeWindowTitle = void 0;
-	const bridge_1 = requireBridge$1();
-	const errors_1 = requireErrors$1();
+function requireChangeWindowTitle () {
+	if (hasRequiredChangeWindowTitle) return changeWindowTitle;
+	hasRequiredChangeWindowTitle = 1;
+	Object.defineProperty(changeWindowTitle, "__esModule", { value: true });
+	changeWindowTitle.changeWindowTitle = void 0;
+	const bridge_1 = requireBridge();
+	const errors_1 = requireErrors();
 	const callBridge = (0, bridge_1.getCallBridge)();
-	const changeWindowTitle = async (title) => {
+	const changeWindowTitle$1 = async (title) => {
 	    try {
 	        await callBridge('changeWindowTitle', title);
 	    }
@@ -3101,42 +3116,42 @@ function requireChangeWindowTitle$1 () {
 	        throw new errors_1.BridgeAPIError("the window title wasn't changed due to error.");
 	    }
 	};
-	changeWindowTitle$1.changeWindowTitle = changeWindowTitle;
-	return changeWindowTitle$1;
+	changeWindowTitle.changeWindowTitle = changeWindowTitle$1;
+	return changeWindowTitle;
 }
 
-var theme$1 = {};
+var theme = {};
 
-var hasRequiredTheme$1;
+var hasRequiredTheme;
 
-function requireTheme$1 () {
-	if (hasRequiredTheme$1) return theme$1;
-	hasRequiredTheme$1 = 1;
-	Object.defineProperty(theme$1, "__esModule", { value: true });
-	theme$1.theme = void 0;
-	const bridge_1 = requireBridge$1();
+function requireTheme () {
+	if (hasRequiredTheme) return theme;
+	hasRequiredTheme = 1;
+	Object.defineProperty(theme, "__esModule", { value: true });
+	theme.theme = void 0;
+	const bridge_1 = requireBridge();
 	const callBridge = (0, bridge_1.getCallBridge)();
-	theme$1.theme = {
+	theme.theme = {
 	    enable: () => callBridge('enableTheming')
 	};
-	return theme$1;
+	return theme;
 }
 
-var emitReadyEvent$1 = {};
+var emitReadyEvent = {};
 
-var events$3 = {};
+var events$1 = {};
 
-var serialiseBlob$1 = {};
+var serialiseBlob = {};
 
-var blobParser$1 = {};
+var blobParser = {};
 
-var hasRequiredBlobParser$1;
+var hasRequiredBlobParser;
 
-function requireBlobParser$1 () {
-	if (hasRequiredBlobParser$1) return blobParser$1;
-	hasRequiredBlobParser$1 = 1;
-	Object.defineProperty(blobParser$1, "__esModule", { value: true });
-	blobParser$1.blobToBase64 = blobParser$1.base64ToBlob = void 0;
+function requireBlobParser () {
+	if (hasRequiredBlobParser) return blobParser;
+	hasRequiredBlobParser = 1;
+	Object.defineProperty(blobParser, "__esModule", { value: true });
+	blobParser.blobToBase64 = blobParser.base64ToBlob = void 0;
 	const base64ToBlob = (b64string, mimeType) => {
 	    if (!b64string) {
 	        return null;
@@ -3150,7 +3165,7 @@ function requireBlobParser$1 () {
 	    const byteArray = new Uint8Array(byteNumbers);
 	    return new Blob([byteArray], { type: mimeType });
 	};
-	blobParser$1.base64ToBlob = base64ToBlob;
+	blobParser.base64ToBlob = base64ToBlob;
 	const blobToBase64 = (blob) => {
 	    return new Promise((resolve, reject) => {
 	        const reader = new FileReader();
@@ -3161,19 +3176,19 @@ function requireBlobParser$1 () {
 	        reader.readAsDataURL(blob);
 	    });
 	};
-	blobParser$1.blobToBase64 = blobToBase64;
-	return blobParser$1;
+	blobParser.blobToBase64 = blobToBase64;
+	return blobParser;
 }
 
-var hasRequiredSerialiseBlob$1;
+var hasRequiredSerialiseBlob;
 
-function requireSerialiseBlob$1 () {
-	if (hasRequiredSerialiseBlob$1) return serialiseBlob$1;
-	hasRequiredSerialiseBlob$1 = 1;
+function requireSerialiseBlob () {
+	if (hasRequiredSerialiseBlob) return serialiseBlob;
+	hasRequiredSerialiseBlob = 1;
 	(function (exports) {
 		Object.defineProperty(exports, "__esModule", { value: true });
 		exports.containsSerialisedBlobs = exports.containsBlobs = exports.deserialiseBlobsInPayload = exports.serialiseBlobsInPayload = void 0;
-		const blobParser_1 = requireBlobParser$1();
+		const blobParser_1 = requireBlobParser();
 		// Copied from https://github.com/you-dont-need/You-Dont-Need-Lodash-Underscore?tab=readme-ov-file#_isplainobject
 		const isPlainObject = (value) => {
 		    if (typeof value !== 'object' || value === null)
@@ -3273,19 +3288,19 @@ function requireSerialiseBlob$1 () {
 		    return false;
 		};
 		exports.containsSerialisedBlobs = containsSerialisedBlobs; 
-	} (serialiseBlob$1));
-	return serialiseBlob$1;
+	} (serialiseBlob));
+	return serialiseBlob;
 }
 
-var hasRequiredEvents$3;
+var hasRequiredEvents$1;
 
-function requireEvents$3 () {
-	if (hasRequiredEvents$3) return events$3;
-	hasRequiredEvents$3 = 1;
-	Object.defineProperty(events$3, "__esModule", { value: true });
-	events$3.events = void 0;
-	const bridge_1 = requireBridge$1();
-	const serialiseBlob_1 = requireSerialiseBlob$1();
+function requireEvents$1 () {
+	if (hasRequiredEvents$1) return events$1;
+	hasRequiredEvents$1 = 1;
+	Object.defineProperty(events$1, "__esModule", { value: true });
+	events$1.events = void 0;
+	const bridge_1 = requireBridge();
+	const serialiseBlob_1 = requireSerialiseBlob();
 	const callBridge = (0, bridge_1.getCallBridge)();
 	const wrapCallback = (callback) => {
 	    return (payload) => {
@@ -3316,28 +3331,28 @@ function requireEvents$3 () {
 	const onPublic = (event, callback) => {
 	    return callBridge('onPublic', { event, callback: wrapCallback(callback) });
 	};
-	events$3.events = {
+	events$1.events = {
 	    emit,
 	    on,
 	    emitPublic,
 	    onPublic
 	};
-	return events$3;
+	return events$1;
 }
 
-var hasRequiredEmitReadyEvent$1;
+var hasRequiredEmitReadyEvent;
 
-function requireEmitReadyEvent$1 () {
-	if (hasRequiredEmitReadyEvent$1) return emitReadyEvent$1;
-	hasRequiredEmitReadyEvent$1 = 1;
-	Object.defineProperty(emitReadyEvent$1, "__esModule", { value: true });
-	emitReadyEvent$1.emitReadyEvent = void 0;
-	const events_1 = requireEvents$3();
-	const view_1 = requireView$3();
-	const bridge_1 = requireBridge$1();
+function requireEmitReadyEvent () {
+	if (hasRequiredEmitReadyEvent) return emitReadyEvent;
+	hasRequiredEmitReadyEvent = 1;
+	Object.defineProperty(emitReadyEvent, "__esModule", { value: true });
+	emitReadyEvent.emitReadyEvent = void 0;
+	const events_1 = requireEvents$1();
+	const view_1 = requireView$1();
+	const bridge_1 = requireBridge();
 	const callBridge = (0, bridge_1.getCallBridge)();
 	const EXTENSION_READY = 'EXTENSION_READY';
-	const emitReadyEvent = async () => {
+	const emitReadyEvent$1 = async () => {
 	    // Confluence export relies on events instead of `callBridge`
 	    const context = await view_1.view.getContext();
 	    // dispatches event 'forge.bridge.EXTENSION_READY' on product window
@@ -3353,11 +3368,7674 @@ function requireEmitReadyEvent$1 () {
 	        // Silently ignore the error as this app may be calling this method in Confluence view mode where the method is not supported.
 	    }
 	};
-	emitReadyEvent$1.emitReadyEvent = emitReadyEvent;
-	return emitReadyEvent$1;
+	emitReadyEvent.emitReadyEvent = emitReadyEvent$1;
+	return emitReadyEvent;
 }
 
-var adfRenderer$2 = {};
+var adfRenderer$1 = {};
+
+var hasRequiredAdfRenderer$1;
+
+function requireAdfRenderer$1 () {
+	if (hasRequiredAdfRenderer$1) return adfRenderer$1;
+	hasRequiredAdfRenderer$1 = 1;
+	(function (exports) {
+		Object.defineProperty(exports, "__esModule", { value: true });
+		exports.createAdfRendererIframeProps = exports.sendMessageWhenReady = void 0;
+		/**
+		 * Sends the ADF document message to the adf-renderer iframe once it signals readiness.
+		 */
+		const READY_SIGNAL_FALLBACK_DELAY_MS = 10000;
+		const sendMessageWhenReady = (iframe, message, origin) => {
+		    const sendMessage = () => { var _a; return (_a = iframe === null || iframe === void 0 ? void 0 : iframe.contentWindow) === null || _a === void 0 ? void 0 : _a.postMessage(message, origin); };
+		    const timeoutId = setTimeout(() => {
+		        window.removeEventListener('message', handleReady);
+		        sendMessage();
+		    }, READY_SIGNAL_FALLBACK_DELAY_MS);
+		    const handleReady = (event) => {
+		        var _a;
+		        if (event.source === (iframe === null || iframe === void 0 ? void 0 : iframe.contentWindow) && ((_a = event.data) === null || _a === void 0 ? void 0 : _a.source) === 'forge-adf-renderer-ready') {
+		            clearTimeout(timeoutId);
+		            window.removeEventListener('message', handleReady);
+		            sendMessage();
+		        }
+		    };
+		    window.addEventListener('message', handleReady);
+		};
+		exports.sendMessageWhenReady = sendMessageWhenReady;
+		const createAdfRendererIframeProps = async (context, iframeId) => {
+		    const IframeResizer = await Promise.resolve().then(function () { return index$1; });
+		    const IframeResizerModule = IframeResizer.default || IframeResizer;
+		    const origin = new URL(document.referrer).origin;
+		    const src = `${origin}/forge-apps/adf-renderer`;
+		    const id = iframeId || `forge-adf-renderer-iframe-${crypto.randomUUID()}`;
+		    const onLoad = () => {
+		        var _a, _b, _c, _d, _e;
+		        const iframe = document.getElementById(id);
+		        const message = {
+		            type: 'adf-document',
+		            document: (_a = context.extension.macro) === null || _a === void 0 ? void 0 : _a.body,
+		            timestamp: Date.now(),
+		            source: 'forge-adf-renderer',
+		            localId: context.localId,
+		            isEditing: (_c = (_b = context.extension) === null || _b === void 0 ? void 0 : _b.isEditing) !== null && _c !== void 0 ? _c : false,
+		            contentId: (_e = (_d = context.extension) === null || _d === void 0 ? void 0 : _d.content) === null || _e === void 0 ? void 0 : _e.id
+		        };
+		        IframeResizerModule.iframeResizer({
+		            heightCalculationMethod: 'taggedElement',
+		            widthCalculationMethod: 'bodyScroll',
+		            initCallback: (iframe) => {
+		                var _a;
+		                (_a = iframe === null || iframe === void 0 ? void 0 : iframe.iFrameResizer) === null || _a === void 0 ? void 0 : _a.resize();
+		            }
+		        }, iframe || '');
+		        (0, exports.sendMessageWhenReady)(iframe, message, origin);
+		    };
+		    setTimeout(() => {
+		        document.documentElement.style.height = 'auto';
+		        document.body.style.height = 'auto';
+		    }, 200);
+		    return {
+		        id,
+		        src,
+		        onLoad
+		    };
+		};
+		exports.createAdfRendererIframeProps = createAdfRendererIframeProps; 
+	} (adfRenderer$1));
+	return adfRenderer$1;
+}
+
+var onClose = {};
+
+var hasRequiredOnClose;
+
+function requireOnClose () {
+	if (hasRequiredOnClose) return onClose;
+	hasRequiredOnClose = 1;
+	Object.defineProperty(onClose, "__esModule", { value: true });
+	onClose.onClose = void 0;
+	const bridge_1 = requireBridge();
+	const errors_1 = requireErrors();
+	const callBridge = (0, bridge_1.getCallBridge)();
+	const onClose$1 = async (payload) => {
+	    try {
+	        const success = await callBridge('onClose', payload);
+	        if (success === false) {
+	            throw new errors_1.BridgeAPIError('`onClose` call has failed.');
+	        }
+	    }
+	    catch (e) {
+	        throw new errors_1.BridgeAPIError("`onClose` failed because this resource's view is not closable.");
+	    }
+	};
+	onClose.onClose = onClose$1;
+	return onClose;
+}
+
+var getFrameDispatch = {};
+
+var hasRequiredGetFrameDispatch;
+
+function requireGetFrameDispatch () {
+	if (hasRequiredGetFrameDispatch) return getFrameDispatch;
+	hasRequiredGetFrameDispatch = 1;
+	Object.defineProperty(getFrameDispatch, "__esModule", { value: true });
+	getFrameDispatch.getFrameDispatch = void 0;
+	const bridge_1 = requireBridge();
+	const callBridge = (0, bridge_1.getCallBridge)();
+	const getFrameDispatch$1 = async () => {
+	    return await callBridge('getFrameDispatch');
+	};
+	getFrameDispatch.getFrameDispatch = getFrameDispatch$1;
+	return getFrameDispatch;
+}
+
+var hasRequiredView$1;
+
+function requireView$1 () {
+	if (hasRequiredView$1) return view;
+	hasRequiredView$1 = 1;
+	Object.defineProperty(view, "__esModule", { value: true });
+	view.view = void 0;
+	const submit_1 = requireSubmit();
+	const close_1 = requireClose();
+	const open_1 = requireOpen$1();
+	const refresh_1 = requireRefresh();
+	const createHistory_1 = requireCreateHistory();
+	const getContext_1 = requireGetContext();
+	const changeWindowTitle_1 = requireChangeWindowTitle();
+	const theme_1 = requireTheme();
+	const emitReadyEvent_1 = requireEmitReadyEvent();
+	const adf_renderer_1 = requireAdfRenderer$1();
+	const onClose_1 = requireOnClose();
+	const getFrameDispatch_1 = requireGetFrameDispatch();
+	view.view = {
+	    submit: submit_1.submit,
+	    close: close_1.close,
+	    onClose: onClose_1.onClose,
+	    open: open_1.open,
+	    refresh: refresh_1.refresh,
+	    createHistory: createHistory_1.createHistory,
+	    getContext: getContext_1.getContext,
+	    getFrameDispatch: getFrameDispatch_1.getFrameDispatch,
+	    theme: theme_1.theme,
+	    changeWindowTitle: changeWindowTitle_1.changeWindowTitle,
+	    emitReadyEvent: emitReadyEvent_1.emitReadyEvent,
+	    createAdfRendererIframeProps: adf_renderer_1.createAdfRendererIframeProps
+	};
+	return view;
+}
+
+var hasRequiredView;
+
+function requireView () {
+	if (hasRequiredView) return view$1;
+	hasRequiredView = 1;
+	(function (exports) {
+		Object.defineProperty(exports, "__esModule", { value: true });
+		const tslib_1 = require$$0;
+		tslib_1.__exportStar(requireView$1(), exports); 
+	} (view$1));
+	return view$1;
+}
+
+var router$1 = {};
+
+var router = {};
+
+var hasRequiredRouter$1;
+
+function requireRouter$1 () {
+	if (hasRequiredRouter$1) return router;
+	hasRequiredRouter$1 = 1;
+	Object.defineProperty(router, "__esModule", { value: true });
+	router.router = void 0;
+	const bridge_1 = requireBridge();
+	const callBridge = (0, bridge_1.getCallBridge)();
+	/**
+	 * Returns a URL object for a given location.
+	 *
+	 * @param location - The location to get the URL for
+	 * @returns A URL object for the given location
+	 */
+	const getUrl = async (location) => {
+	    if (!(location === null || location === void 0 ? void 0 : location.target)) {
+	        throw new Error('target is required for getUrl');
+	    }
+	    const url = await callBridge('getUrl', location);
+	    if (!url) {
+	        throw new Error('Failed to get URL');
+	    }
+	    try {
+	        return new URL(url);
+	    }
+	    catch (error) {
+	        throw new Error(`Failed to parse URL: ${url} (${error})`);
+	    }
+	};
+	/**
+	 * Navigates to a location within the same tab.
+	 *
+	 * @param location URL or `NavigationLocation` object
+	 * @returns a promise that resolves when navigation is complete
+	 */
+	const navigate = (location) => {
+	    if (typeof location === 'string') {
+	        return callBridge('navigate', { url: location, type: 'same-tab' });
+	    }
+	    else {
+	        if (!(location === null || location === void 0 ? void 0 : location.target)) {
+	            throw new Error('target is required for navigation');
+	        }
+	        return callBridge('navigate', { ...location, type: 'same-tab' });
+	    }
+	};
+	/**
+	 * Opens a new tab in the browser and navigates to the specified location.
+	 *
+	 * @param location URL or `NavigationLocation` object
+	 * @returns a promise that resolves when navigation is complete
+	 */
+	const open = (location) => {
+	    if (typeof location === 'string') {
+	        return callBridge('navigate', { url: location, type: 'new-tab' });
+	    }
+	    else {
+	        if (!(location === null || location === void 0 ? void 0 : location.target)) {
+	            throw new Error('target is required for navigation');
+	        }
+	        return callBridge('navigate', { ...location, type: 'new-tab' });
+	    }
+	};
+	/**
+	 * Reloads the page.
+	 *
+	 * @returns a promise that resolves to void when the page is reloaded
+	 */
+	const reload = async () => callBridge('reload');
+	router.router = {
+	    getUrl,
+	    navigate,
+	    open,
+	    reload
+	};
+	return router;
+}
+
+var hasRequiredRouter;
+
+function requireRouter () {
+	if (hasRequiredRouter) return router$1;
+	hasRequiredRouter = 1;
+	(function (exports) {
+		Object.defineProperty(exports, "__esModule", { value: true });
+		const tslib_1 = require$$0;
+		tslib_1.__exportStar(requireRouter$1(), exports); 
+	} (router$1));
+	return router$1;
+}
+
+var modal$1 = {};
+
+var modal = {};
+
+var hasRequiredModal$1;
+
+function requireModal$1 () {
+	if (hasRequiredModal$1) return modal;
+	hasRequiredModal$1 = 1;
+	Object.defineProperty(modal, "__esModule", { value: true });
+	modal.Modal = void 0;
+	const bridge_1 = requireBridge();
+	const errors_1 = requireErrors();
+	const callBridge = (0, bridge_1.getCallBridge)();
+	const NAMED_MODAL_SIZES = ['small', 'medium', 'large', 'xlarge', 'max', 'fullscreen', 'resizable'];
+	// eslint-disable-next-line @typescript-eslint/no-empty-function
+	const noop = () => { };
+	function isNamedModalSize(size) {
+	    return typeof size === 'string' && NAMED_MODAL_SIZES.includes(size);
+	}
+	function isCustomModalSize(size) {
+	    if (typeof size !== 'object' || size === null)
+	        return false;
+	    const s = size;
+	    return typeof s.width === 'string' && (s.height === undefined || typeof s.height === 'string');
+	}
+	function isValidModalSize(size) {
+	    return isNamedModalSize(size) || isCustomModalSize(size);
+	}
+	class Modal {
+	    constructor(opts) {
+	        var _a, _b;
+	        this.resource = (opts === null || opts === void 0 ? void 0 : opts.resource) || null;
+	        this.onClose = (opts === null || opts === void 0 ? void 0 : opts.onClose) || noop;
+	        this.size = (opts === null || opts === void 0 ? void 0 : opts.size) || 'medium';
+	        this.context = (opts === null || opts === void 0 ? void 0 : opts.context) || {};
+	        this.closeOnEscape = (_a = opts === null || opts === void 0 ? void 0 : opts.closeOnEscape) !== null && _a !== void 0 ? _a : true;
+	        this.closeOnOverlayClick = (_b = opts === null || opts === void 0 ? void 0 : opts.closeOnOverlayClick) !== null && _b !== void 0 ? _b : true;
+	        this.title = (opts === null || opts === void 0 ? void 0 : opts.title) || '';
+	        this.icon = (opts === null || opts === void 0 ? void 0 : opts.icon) || '';
+	    }
+	    async open() {
+	        if (!isValidModalSize(this.size)) {
+	            throw new errors_1.BridgeAPIError(`Invalid modal size: ${JSON.stringify(this.size)}. Must be one of the named sizes (${NAMED_MODAL_SIZES.join(', ')}) or a custom dimensions object with a "width" string property and an optional "height" string property.`);
+	        }
+	        try {
+	            const success = await callBridge('openModal', {
+	                resource: this.resource,
+	                onClose: this.onClose,
+	                size: this.size,
+	                context: this.context,
+	                closeOnEscape: this.closeOnEscape,
+	                closeOnOverlayClick: this.closeOnOverlayClick,
+	                title: this.title,
+	                icon: this.icon
+	            });
+	            if (success === false) {
+	                throw new errors_1.BridgeAPIError('Unable to open modal.');
+	            }
+	        }
+	        catch (err) {
+	            throw new errors_1.BridgeAPIError('Unable to open modal.');
+	        }
+	    }
+	}
+	modal.Modal = Modal;
+	return modal;
+}
+
+var hasRequiredModal;
+
+function requireModal () {
+	if (hasRequiredModal) return modal$1;
+	hasRequiredModal = 1;
+	(function (exports) {
+		Object.defineProperty(exports, "__esModule", { value: true });
+		const tslib_1 = require$$0;
+		tslib_1.__exportStar(requireModal$1(), exports); 
+	} (modal$1));
+	return modal$1;
+}
+
+var fetch$2 = {};
+
+var fetch$1 = {};
+
+var hasRequiredFetch$1;
+
+function requireFetch$1 () {
+	if (hasRequiredFetch$1) return fetch$1;
+	hasRequiredFetch$1 = 1;
+	Object.defineProperty(fetch$1, "__esModule", { value: true });
+	fetch$1.productFetchApi = fetch$1.remoteFetchApi = void 0;
+	const blobParser_1 = requireBlobParser();
+	const parseFormData = async (form, matchFilePrefix = false) => {
+	    const parsed = {};
+	    for (const [key, value] of form.entries()) {
+	        // Jira and Confluence REST APIs requires that the field containing
+	        // the file MUST be named exactly 'file'
+	        const isFileKey = matchFilePrefix ? key.startsWith('file') : key === 'file';
+	        if (isFileKey) {
+	            const fileName = value.name;
+	            const fileType = value.type;
+	            // we parse the file as a base64 string so it
+	            // can be properly transfered over the bridge.
+	            // we'll parse it back to Blob in the host product
+	            parsed[key] = await (0, blobParser_1.blobToBase64)(value);
+	            // we also need to pass the file name and type,
+	            // as those will be lost in the base64 conversion
+	            parsed[`__${key}Name`] = fileName;
+	            parsed[`__${key}Type`] = fileType;
+	        }
+	        else {
+	            parsed[key] = value;
+	        }
+	    }
+	    return JSON.stringify(parsed);
+	};
+	const validateFetchOptions = (init) => {
+	    if (!init) {
+	        return init;
+	    }
+	    if ('signal' in init) {
+	        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+	        const { signal: _signal, ...rest } = init;
+	        // eslint-disable-next-line no-console
+	        console.error('Signal is not supported in @forge/bridge and was removed from fetch options. Please use the fetch method from @forge/api for signal support.');
+	        return rest;
+	    }
+	    return init;
+	};
+	const parseRequest = async (fetchType, init) => {
+	    const isFormData = (init === null || init === void 0 ? void 0 : init.body) instanceof FormData ? true : false;
+	    const requestBody = isFormData ? await parseFormData(init === null || init === void 0 ? void 0 : init.body, fetchType === 'remote') : init === null || init === void 0 ? void 0 : init.body;
+	    const req = new Request('', { body: requestBody, method: init === null || init === void 0 ? void 0 : init.method, headers: init === null || init === void 0 ? void 0 : init.headers });
+	    // If `init.body` is a `FormData`, a `content-type` header required for the body to be parsed by the
+	    // API receiving this request will be generated in req.headers.
+	    const headers = Object.fromEntries(req.headers.entries());
+	    const body = req.method !== 'GET' ? await req.text() : null;
+	    return {
+	        body,
+	        headers: new Headers(headers),
+	        isMultipartFormData: isFormData
+	    };
+	};
+	const remoteFetchApi = (callBridge) => {
+	    const fetch = async (remoteKey, init) => {
+	        const validatedInit = validateFetchOptions(init);
+	        const { body: requestBody, headers: requestHeaders, isMultipartFormData } = await parseRequest('remote', validatedInit);
+	        const fetchPayload = {
+	            remoteKey,
+	            fetchRequestInit: { ...validatedInit, body: requestBody, headers: [...requestHeaders.entries()] },
+	            isMultipartFormData
+	        };
+	        const { body, headers, statusText, status, isAttachment } = await callBridge('fetchRemote', fetchPayload);
+	        const responseBody = isAttachment ? (0, blobParser_1.base64ToBlob)(body, headers['content-type']) : body;
+	        return new Response(responseBody || null, { headers, status, statusText });
+	    };
+	    return {
+	        requestRemote: (remoteKey, fetchOptions) => fetch(remoteKey, fetchOptions)
+	    };
+	};
+	fetch$1.remoteFetchApi = remoteFetchApi;
+	const productFetchApi = (callBridge) => {
+	    const fetch = async (product, restPath, init) => {
+	        const validatedInit = validateFetchOptions(init);
+	        const { body: requestBody, headers: requestHeaders, isMultipartFormData } = await parseRequest('product', validatedInit);
+	        // https://ecosystem.atlassian.net/browse/BUILD-1118 Skip xsrf check for oauth request
+	        if (!requestHeaders.has('X-Atlassian-Token')) {
+	            requestHeaders.set('X-Atlassian-Token', 'no-check');
+	        }
+	        const fetchPayload = {
+	            product,
+	            restPath,
+	            fetchRequestInit: {
+	                ...validatedInit,
+	                body: requestBody,
+	                headers: [...requestHeaders.entries()]
+	            },
+	            isMultipartFormData
+	        };
+	        const { body, headers, statusText, status, isAttachment } = await callBridge('fetchProduct', fetchPayload);
+	        const responseBody = isAttachment ? (0, blobParser_1.base64ToBlob)(body, headers['content-type']) : body;
+	        return new Response(responseBody || null, { headers, status, statusText });
+	    };
+	    return {
+	        requestConfluence: (restPath, fetchOptions) => fetch('confluence', restPath, fetchOptions),
+	        requestJira: (restPath, fetchOptions) => fetch('jira', restPath, fetchOptions),
+	        requestBitbucket: (restPath, fetchOptions) => fetch('bitbucket', restPath, fetchOptions)
+	    };
+	};
+	fetch$1.productFetchApi = productFetchApi;
+	return fetch$1;
+}
+
+var hasRequiredFetch;
+
+function requireFetch () {
+	if (hasRequiredFetch) return fetch$2;
+	hasRequiredFetch = 1;
+	var _a;
+	Object.defineProperty(fetch$2, "__esModule", { value: true });
+	fetch$2.fetchUserRecommendations = fetch$2.requestRemote = fetch$2.requestBitbucket = fetch$2.requestJira = fetch$2.requestConfluence = void 0;
+	const bridge_1 = requireBridge();
+	const fetch_1 = requireFetch$1();
+	_a = (0, fetch_1.productFetchApi)((0, bridge_1.getCallBridge)()), fetch$2.requestConfluence = _a.requestConfluence, fetch$2.requestJira = _a.requestJira, fetch$2.requestBitbucket = _a.requestBitbucket;
+	fetch$2.requestRemote = (0, fetch_1.remoteFetchApi)((0, bridge_1.getCallBridge)()).requestRemote;
+	const fetchUserRecommendations = async (input) => {
+	    const callBridge = (0, bridge_1.getCallBridge)();
+	    return await callBridge('fetchUserRecommendations', input);
+	};
+	fetch$2.fetchUserRecommendations = fetchUserRecommendations;
+	return fetch$2;
+}
+
+var requestTeamworkGraph = {};
+
+var hasRequiredRequestTeamworkGraph;
+
+function requireRequestTeamworkGraph () {
+	if (hasRequiredRequestTeamworkGraph) return requestTeamworkGraph;
+	hasRequiredRequestTeamworkGraph = 1;
+	Object.defineProperty(requestTeamworkGraph, "__esModule", { value: true });
+	requestTeamworkGraph.requestTeamworkGraph = void 0;
+	const bridge_1 = requireBridge();
+	const callBridge = (0, bridge_1.getCallBridge)();
+	const requestTeamworkGraph$1 = async (query, variables) => {
+	    const response = await callBridge('requestTeamworkGraph', { query, variables });
+	    return response;
+	};
+	requestTeamworkGraph.requestTeamworkGraph = requestTeamworkGraph$1;
+	return requestTeamworkGraph;
+}
+
+var flag$1 = {};
+
+var flag = {};
+
+var hasRequiredFlag$1;
+
+function requireFlag$1 () {
+	if (hasRequiredFlag$1) return flag;
+	hasRequiredFlag$1 = 1;
+	Object.defineProperty(flag, "__esModule", { value: true });
+	flag.showFlag = void 0;
+	const bridge_1 = requireBridge();
+	const errors_1 = requireErrors();
+	const callBridge = (0, bridge_1.getCallBridge)();
+	const showFlag = (options) => {
+	    var _a;
+	    if (!options.id) {
+	        throw new errors_1.BridgeAPIError('"id" must be defined in flag options');
+	    }
+	    const result = callBridge('showFlag', {
+	        ...options,
+	        type: (_a = options.type) !== null && _a !== void 0 ? _a : 'info'
+	    });
+	    return {
+	        close: async () => {
+	            await result;
+	            return callBridge('closeFlag', { id: options.id });
+	        }
+	    };
+	};
+	flag.showFlag = showFlag;
+	return flag;
+}
+
+var hasRequiredFlag;
+
+function requireFlag () {
+	if (hasRequiredFlag) return flag$1;
+	hasRequiredFlag = 1;
+	(function (exports) {
+		Object.defineProperty(exports, "__esModule", { value: true });
+		exports.showFlag = void 0;
+		var flag_1 = requireFlag$1();
+		Object.defineProperty(exports, "showFlag", { enumerable: true, get: function () { return flag_1.showFlag; } }); 
+	} (flag$1));
+	return flag$1;
+}
+
+var events = {};
+
+var hasRequiredEvents;
+
+function requireEvents () {
+	if (hasRequiredEvents) return events;
+	hasRequiredEvents = 1;
+	(function (exports) {
+		Object.defineProperty(exports, "__esModule", { value: true });
+		const tslib_1 = require$$0;
+		tslib_1.__exportStar(requireEvents$1(), exports); 
+	} (events));
+	return events;
+}
+
+var realtime$1 = {};
+
+var realtime = {};
+
+var hasRequiredRealtime$1;
+
+function requireRealtime$1 () {
+	if (hasRequiredRealtime$1) return realtime;
+	hasRequiredRealtime$1 = 1;
+	Object.defineProperty(realtime, "__esModule", { value: true });
+	realtime.realtime = void 0;
+	const bridge_1 = requireBridge();
+	const callBridge = (0, bridge_1.getCallBridge)();
+	const publish = (channel, payload, options) => {
+	    return callBridge('publishRealtimeChannel', { channelName: channel, eventPayload: payload, options });
+	};
+	const subscribe = (channel, callback, options) => {
+	    return callBridge('subscribeRealtimeChannel', {
+	        channelName: channel,
+	        onEvent: callback,
+	        options
+	    });
+	};
+	const publishGlobal = (channel, payload, options) => {
+	    return callBridge('publishRealtimeChannel', { channelName: channel, eventPayload: payload, options, isGlobal: true });
+	};
+	const subscribeGlobal = (channel, callback, options) => {
+	    return callBridge('subscribeRealtimeChannel', {
+	        channelName: channel,
+	        onEvent: callback,
+	        options,
+	        isGlobal: true
+	    });
+	};
+	realtime.realtime = {
+	    publish,
+	    subscribe,
+	    publishGlobal,
+	    subscribeGlobal
+	};
+	return realtime;
+}
+
+var productContext = {};
+
+var hasRequiredProductContext;
+
+function requireProductContext () {
+	if (hasRequiredProductContext) return productContext;
+	hasRequiredProductContext = 1;
+	// These enum values directly map to properties in the context.extension object in a product's FCT.
+	// It allows a subset of properties to be specified for Realtime channel authorization.
+	Object.defineProperty(productContext, "__esModule", { value: true });
+	productContext.Bitbucket = productContext.Confluence = productContext.Jira = void 0;
+	var Jira;
+	(function (Jira) {
+	    Jira["Board"] = "board";
+	    Jira["Issue"] = "issue";
+	    Jira["Project"] = "project";
+	})(Jira || (productContext.Jira = Jira = {}));
+	var Confluence;
+	(function (Confluence) {
+	    Confluence["Content"] = "content";
+	    Confluence["Space"] = "space";
+	})(Confluence || (productContext.Confluence = Confluence = {}));
+	var Bitbucket;
+	(function (Bitbucket) {
+	    Bitbucket["Repository"] = "repository";
+	    Bitbucket["PullRequest"] = "pullRequest";
+	})(Bitbucket || (productContext.Bitbucket = Bitbucket = {}));
+	return productContext;
+}
+
+var hasRequiredRealtime;
+
+function requireRealtime () {
+	if (hasRequiredRealtime) return realtime$1;
+	hasRequiredRealtime = 1;
+	(function (exports) {
+		Object.defineProperty(exports, "__esModule", { value: true });
+		exports.Bitbucket = exports.Confluence = exports.Jira = exports.realtime = void 0;
+		var realtime_1 = requireRealtime$1();
+		Object.defineProperty(exports, "realtime", { enumerable: true, get: function () { return realtime_1.realtime; } });
+		var productContext_1 = requireProductContext();
+		Object.defineProperty(exports, "Jira", { enumerable: true, get: function () { return productContext_1.Jira; } });
+		Object.defineProperty(exports, "Confluence", { enumerable: true, get: function () { return productContext_1.Confluence; } });
+		Object.defineProperty(exports, "Bitbucket", { enumerable: true, get: function () { return productContext_1.Bitbucket; } }); 
+	} (realtime$1));
+	return realtime$1;
+}
+
+var rovo$1 = {};
+
+var rovo = {};
+
+var open = {};
+
+var hasRequiredOpen;
+
+function requireOpen () {
+	if (hasRequiredOpen) return open;
+	hasRequiredOpen = 1;
+	(function (exports) {
+		Object.defineProperty(exports, "__esModule", { value: true });
+		exports.open = exports.OPEN_ROVO_BRIDGE_ERROR_MESSAGE = void 0;
+		const bridge_1 = requireBridge();
+		const errors_1 = requireErrors();
+		const MAX_AGENT_LENGTH = 30;
+		const callBridge = (0, bridge_1.getCallBridge)();
+		exports.OPEN_ROVO_BRIDGE_ERROR_MESSAGE = 'Unable to open Rovo Chat due to usage in an unsupported product. Only Confluence, Jira and some Jira Service Management modules are supported at this point. See https://developer.atlassian.com/platform/forge/apis-reference/ui-api-bridge/rovo/';
+		const transformRovoPayload = (openRovoPayload) => {
+		    switch (openRovoPayload.type) {
+		        case 'forge':
+		            return {
+		                agentName: openRovoPayload.agentName,
+		                agentKey: openRovoPayload.agentKey,
+		                prompt: openRovoPayload.prompt
+		            };
+		        case 'atlassian':
+		            return {
+		                agentName: openRovoPayload.agentName,
+		                prompt: openRovoPayload.prompt
+		            };
+		        default:
+		            return { prompt: openRovoPayload.prompt };
+		    }
+		};
+		/**
+		 * Opens Rovo chat from the given Rovo agent name.
+		 *
+		 * @param {OpenRovoPayload} [openRovoPayload] - Payload to open chat.
+		 *   Can be one of:
+		 *     - ForgeAgentPayload: { agentName: string, agentKey: string, prompt?: string }
+		 *     - AtlassianAgentPayload: { agentName: string, prompt?: string }
+		 *     - DefaultAgentPayload: { prompt?: string }
+		 */
+		const open = async (openRovoPayload) => {
+		    if (openRovoPayload.type === 'forge') {
+		        if (openRovoPayload.agentName.length > MAX_AGENT_LENGTH) {
+		            throw new Error('rovo agent name too long');
+		        }
+		        if (openRovoPayload.agentKey.length > MAX_AGENT_LENGTH) {
+		            throw new Error('rovo agent key too long');
+		        }
+		    }
+		    const rovoArgs = transformRovoPayload(openRovoPayload);
+		    const success = await callBridge('openRovo', rovoArgs);
+		    if (success === false) {
+		        throw new errors_1.BridgeAPIError(exports.OPEN_ROVO_BRIDGE_ERROR_MESSAGE);
+		    }
+		};
+		exports.open = open; 
+	} (open));
+	return open;
+}
+
+var isEnabled = {};
+
+var hasRequiredIsEnabled;
+
+function requireIsEnabled () {
+	if (hasRequiredIsEnabled) return isEnabled;
+	hasRequiredIsEnabled = 1;
+	Object.defineProperty(isEnabled, "__esModule", { value: true });
+	isEnabled.isEnabled = void 0;
+	const bridge_1 = requireBridge();
+	const callBridge = (0, bridge_1.getCallBridge)();
+	/**
+	 * Checks if Rovo is enabled for the current tenant.
+	 *
+	 * @returns boolean
+	 */
+	const isEnabled$1 = () => {
+	    return callBridge('isRovoEnabled');
+	};
+	isEnabled.isEnabled = isEnabled$1;
+	return isEnabled;
+}
+
+var hasRequiredRovo$1;
+
+function requireRovo$1 () {
+	if (hasRequiredRovo$1) return rovo;
+	hasRequiredRovo$1 = 1;
+	Object.defineProperty(rovo, "__esModule", { value: true });
+	rovo.rovo = void 0;
+	const open_1 = requireOpen();
+	const isEnabled_1 = requireIsEnabled();
+	rovo.rovo = {
+	    open: open_1.open,
+	    isEnabled: isEnabled_1.isEnabled
+	};
+	return rovo;
+}
+
+var hasRequiredRovo;
+
+function requireRovo () {
+	if (hasRequiredRovo) return rovo$1;
+	hasRequiredRovo = 1;
+	(function (exports) {
+		Object.defineProperty(exports, "__esModule", { value: true });
+		const tslib_1 = require$$0;
+		tslib_1.__exportStar(requireRovo$1(), exports); 
+	} (rovo$1));
+	return rovo$1;
+}
+
+var cookieConsent = {};
+
+var getCookieConsentPreferences = {};
+
+var hasRequiredGetCookieConsentPreferences;
+
+function requireGetCookieConsentPreferences () {
+	if (hasRequiredGetCookieConsentPreferences) return getCookieConsentPreferences;
+	hasRequiredGetCookieConsentPreferences = 1;
+	Object.defineProperty(getCookieConsentPreferences, "__esModule", { value: true });
+	getCookieConsentPreferences.getCookieConsentPreferences = void 0;
+	const bridge_1 = requireBridge();
+	const callBridge = (0, bridge_1.getCallBridge)();
+	/**
+	 * Gets the user's current cookie-consent preferences.
+	 *
+	 * Resolves to `null` if the host has not published preferences, or if the host doesn't support
+	 * this API.
+	 */
+	const getCookieConsentPreferences$1 = async () => {
+	    var _a;
+	    try {
+	        return (_a = (await callBridge('getCookieConsentPreferences'))) !== null && _a !== void 0 ? _a : null;
+	    }
+	    catch {
+	        return null;
+	    }
+	};
+	getCookieConsentPreferences.getCookieConsentPreferences = getCookieConsentPreferences$1;
+	return getCookieConsentPreferences;
+}
+
+var hasRequiredCookieConsent;
+
+function requireCookieConsent () {
+	if (hasRequiredCookieConsent) return cookieConsent;
+	hasRequiredCookieConsent = 1;
+	(function (exports) {
+		Object.defineProperty(exports, "__esModule", { value: true });
+		const tslib_1 = require$$0;
+		tslib_1.__exportStar(requireGetCookieConsentPreferences(), exports); 
+	} (cookieConsent));
+	return cookieConsent;
+}
+
+var i18n = {};
+
+var hasRequiredI18n;
+
+function requireI18n () {
+	if (hasRequiredI18n) return i18n;
+	hasRequiredI18n = 1;
+	Object.defineProperty(i18n, "__esModule", { value: true });
+	i18n.createTranslationFunction = i18n.getTranslations = i18n.resetTranslationsCache = void 0;
+	const i18n_1 = requireOut$3();
+	const view_1 = requireView();
+	const frontendResourcesAccessor = {
+	    getI18nInfoConfig: async () => {
+	        const resp = await fetch(`./${i18n_1.I18N_BUNDLE_FOLDER_NAME}/${i18n_1.I18N_INFO_FILE_NAME}`);
+	        if (!resp.ok) {
+	            throw new Error('Failed to get i18n info config: ' + resp.statusText);
+	        }
+	        const info = (await resp.json());
+	        return info.config;
+	    },
+	    getTranslationResource: async (locale) => {
+	        const resp = await fetch(`./${i18n_1.I18N_BUNDLE_FOLDER_NAME}/${locale}.json`);
+	        if (!resp.ok) {
+	            throw new Error(`Failed to get translation resource for locale: ${locale}`);
+	        }
+	        return resp.json();
+	    }
+	};
+	const translationsGetter = new i18n_1.TranslationsGetter(frontendResourcesAccessor);
+	const resetTranslationsCache = () => {
+	    translationsGetter.reset();
+	};
+	i18n.resetTranslationsCache = resetTranslationsCache;
+	const getTranslations = async (locale = null, options = {
+	    fallback: true
+	}) => {
+	    let targetLocale = locale;
+	    if (!targetLocale) {
+	        const context = await view_1.view.getContext();
+	        targetLocale = context.locale;
+	    }
+	    return await translationsGetter.getTranslations(targetLocale, options);
+	};
+	i18n.getTranslations = getTranslations;
+	/**
+	 * Creates a translation function (i.e. `t`) for the given locale.
+	 * If no locale is provided, the locale from the current view context is used.
+	 *
+	 * @param locale The locale to create the translation function for.
+	 * @returns The translation function.
+	 */
+	const createTranslationFunction = async (locale = null) => {
+	    let targetLocale = locale;
+	    if (!targetLocale) {
+	        const context = await view_1.view.getContext();
+	        targetLocale = context.locale;
+	    }
+	    const translator = new i18n_1.Translator(targetLocale, translationsGetter);
+	    await translator.init();
+	    return (i18nKey, defaultValue) => { var _a, _b; return (_b = (_a = translator.translate(i18nKey)) !== null && _a !== void 0 ? _a : defaultValue) !== null && _b !== void 0 ? _b : i18nKey; };
+	};
+	i18n.createTranslationFunction = createTranslationFunction;
+	return i18n;
+}
+
+var permissions$1 = {};
+
+var permissions = {};
+
+var hasRequiredPermissions$1;
+
+function requirePermissions$1 () {
+	if (hasRequiredPermissions$1) return permissions;
+	hasRequiredPermissions$1 = 1;
+	Object.defineProperty(permissions, "__esModule", { value: true });
+	permissions.permissions = void 0;
+	const bridge_1 = requireBridge();
+	const callBridge = (0, bridge_1.getCallBridge)();
+	const egressGet = async (payload) => {
+	    return callBridge('__permission__egressGet', payload);
+	};
+	const egressSet = async (payload) => {
+	    return callBridge('__permission__egressSet', payload);
+	};
+	const egressDeleteDomain = async (payload) => {
+	    return callBridge('__permission__egressDeleteDomain', payload);
+	};
+	const egressDeleteGroup = async (payload) => {
+	    return callBridge('__permission__egressDeleteGroup', payload);
+	};
+	const remoteGet = async (payload) => {
+	    return callBridge('__permission__remoteGet', payload);
+	};
+	const remoteSet = async (payload) => {
+	    return callBridge('__permission__remoteSet', payload);
+	};
+	permissions.permissions = {
+	    egress: {
+	        get: egressGet,
+	        set: egressSet,
+	        deleteDomain: egressDeleteDomain,
+	        deleteGroup: egressDeleteGroup
+	    },
+	    remote: {
+	        get: remoteGet,
+	        set: remoteSet
+	    }
+	};
+	return permissions;
+}
+
+var permissionsUtil = {};
+
+var out = {};
+
+var egress = {};
+
+var egressFilteringService = {};
+
+var urlParser = {};
+
+var hasRequiredUrlParser;
+
+function requireUrlParser () {
+	if (hasRequiredUrlParser) return urlParser;
+	hasRequiredUrlParser = 1;
+	Object.defineProperty(urlParser, "__esModule", { value: true });
+	urlParser.parseUrl = parseUrl;
+	function parseUrl(url) {
+	    var _a, _b;
+	    const protocol = (_b = (_a = url.match(/^(.*?:)/)) === null || _a === void 0 ? void 0 : _a[0]) !== null && _b !== void 0 ? _b : 'https:';
+	    const hostAndPath = url.replace(protocol, '').replace(/^\/*/, '').replace(/^\\*/, '').split('?')[0].split('#')[0];
+	    const hostname = hostAndPath.split('/')[0];
+	    const pathname = hostAndPath.slice(hostname.length) || '/';
+	    return { protocol, hostname, pathname };
+	}
+	return urlParser;
+}
+
+var utils = {};
+
+var hasRequiredUtils;
+
+function requireUtils () {
+	if (hasRequiredUtils) return utils;
+	hasRequiredUtils = 1;
+	Object.defineProperty(utils, "__esModule", { value: true });
+	utils.getEgressesBasedOnToggles = utils.sortAndGroupEgressPermissionsByDomain = utils.EgressCategory = utils.EgressType = void 0;
+	utils.globToRegex = globToRegex;
+	const url_parser_1 = requireUrlParser();
+	function globToRegex(pattern) {
+	    const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, '\\$&');
+	    const regexPattern = escaped.replace(/\*/g, '.*');
+	    return new RegExp(`^${regexPattern}$`);
+	}
+	const sortAndGroupEgressPermissionsByDomain = (egressAddresses) => {
+	    if ((egressAddresses === null || egressAddresses === void 0 ? void 0 : egressAddresses.length) === 0) {
+	        return [];
+	    }
+	    const protocolRegex = /^(.*?:\/\/)/;
+	    const domains = new Set();
+	    const wildcardDomains = [];
+	    egressAddresses.forEach((item) => {
+	        const itemWithProtocol = protocolRegex.test(item) ? item : `https://${item}`;
+	        const url = (0, url_parser_1.parseUrl)(itemWithProtocol);
+	        if (url.hostname.startsWith('*')) {
+	            domains.add(url.hostname.substring(2));
+	            wildcardDomains.push(globToRegex(url.hostname));
+	        }
+	        else {
+	            domains.add(url.hostname);
+	        }
+	    });
+	    return [...domains].sort().reduce((grouped, domain) => {
+	        if (!wildcardDomains.some((pattern) => pattern.test(domain))) {
+	            grouped.push(domain);
+	        }
+	        return grouped;
+	    }, []);
+	};
+	utils.sortAndGroupEgressPermissionsByDomain = sortAndGroupEgressPermissionsByDomain;
+	var EgressType;
+	(function (EgressType) {
+	    EgressType["FetchBackendSide"] = "FETCH_BACKEND_SIDE";
+	    EgressType["FetchClientSide"] = "FETCH_CLIENT_SIDE";
+	    EgressType["Fonts"] = "FONTS";
+	    EgressType["Frames"] = "FRAMES";
+	    EgressType["Images"] = "IMAGES";
+	    EgressType["Media"] = "MEDIA";
+	    EgressType["Scripts"] = "SCRIPTS";
+	    EgressType["Styles"] = "STYLES";
+	})(EgressType || (utils.EgressType = EgressType = {}));
+	var EgressCategory;
+	(function (EgressCategory) {
+	    EgressCategory["ANALYTICS"] = "ANALYTICS";
+	})(EgressCategory || (utils.EgressCategory = EgressCategory = {}));
+	const getEgressesBasedOnToggles = (input) => {
+	    const filteredEgresses = input.egress.filter((egress) => {
+	        var _a;
+	        if (((_a = egress.category) === null || _a === void 0 ? void 0 : _a.toUpperCase()) === EgressCategory.ANALYTICS) {
+	            if (input.installationConfig) {
+	                const analyticsConfig = input.installationConfig.find((config) => config.key.toUpperCase() === 'ALLOW_EGRESS_ANALYTICS');
+	                return (analyticsConfig === null || analyticsConfig === void 0 ? void 0 : analyticsConfig.value) !== false;
+	            }
+	            else {
+	                return input.overrides.ALLOW_EGRESS_ANALYTICS !== false;
+	            }
+	        }
+	        return true;
+	    });
+	    const egressByType = new Map();
+	    for (const egress of filteredEgresses) {
+	        if (!egressByType.has(egress.type)) {
+	            egressByType.set(egress.type, egress.addresses);
+	        }
+	        egressByType.set(egress.type, [...egressByType.get(egress.type), ...egress.addresses]);
+	    }
+	    return [...egressByType.entries()].map(([type, egresses]) => ({
+	        type,
+	        addresses: [...new Set(egresses)]
+	    }));
+	};
+	utils.getEgressesBasedOnToggles = getEgressesBasedOnToggles;
+	return utils;
+}
+
+var hasRequiredEgressFilteringService;
+
+function requireEgressFilteringService () {
+	if (hasRequiredEgressFilteringService) return egressFilteringService;
+	hasRequiredEgressFilteringService = 1;
+	Object.defineProperty(egressFilteringService, "__esModule", { value: true });
+	egressFilteringService.EgressFilteringService = void 0;
+	const url_parser_1 = requireUrlParser();
+	const utils_1 = requireUtils();
+	class EgressFilteringService {
+	    constructor(allowList) {
+	        this.URLs = allowList.filter((domainOrURL) => !domainOrURL.startsWith('*')).map((url) => this.parseUrl(url));
+	        this.wildcardDomains = allowList
+	            .filter((domainOrURL) => domainOrURL !== '*')
+	            .map((url) => this.parseUrl(url))
+	            .filter((url) => decodeURIComponent(url.hostname).startsWith('*'))
+	            .map((url) => ({
+	            ...url,
+	            regex: (0, utils_1.globToRegex)(decodeURIComponent(url.hostname))
+	        }));
+	        this.allowsEverything = allowList.includes('*');
+	    }
+	    parseUrl(url) {
+	        return (0, url_parser_1.parseUrl)(url);
+	    }
+	    containsWildCardEgress() {
+	        return this.allowsEverything;
+	    }
+	    isValidUrl(url) {
+	        if (this.allowsEverything) {
+	            return true;
+	        }
+	        const parsedUrl = this.parseUrl(url);
+	        return this.allowedDomainExact(parsedUrl, this.URLs) || this.allowedDomainPattern(parsedUrl, this.wildcardDomains);
+	    }
+	    isValidUrlCSP(url) {
+	        if (this.allowsEverything) {
+	            return true;
+	        }
+	        const parsedUrl = this.parseUrl(url);
+	        return (this.allowedDomainExactAndPath(parsedUrl, this.URLs) ||
+	            this.allowedDomainPatternAndPath(parsedUrl, this.wildcardDomains));
+	    }
+	    allowedDomainExact(domain, allowList) {
+	        return allowList
+	            .filter((allowed) => allowed.protocol === domain.protocol)
+	            .some((url) => url.hostname === domain.hostname);
+	    }
+	    allowedDomainExactAndPath(domain, allowList) {
+	        return allowList
+	            .filter((allowed) => this.protocolMatchesCSP(allowed.protocol, domain.protocol))
+	            .filter((allowed) => allowed.hostname === domain.hostname)
+	            .some((allowed) => this.pathMatches(allowed.pathname, domain.pathname));
+	    }
+	    allowedDomainPattern(domain, allowList) {
+	        return allowList
+	            .filter((allowed) => allowed.protocol === domain.protocol)
+	            .some((pattern) => pattern.regex.test(domain.hostname));
+	    }
+	    allowedDomainPatternAndPath(domain, allowList) {
+	        return allowList
+	            .filter((pattern) => this.protocolMatchesCSP(pattern.protocol, domain.protocol))
+	            .filter((pattern) => pattern.regex.test(domain.hostname))
+	            .some((allowed) => this.pathMatches(allowed.pathname, domain.pathname));
+	    }
+	    protocolMatchesCSP(allowedProtocol, requestProtocol) {
+	        if (allowedProtocol === requestProtocol) {
+	            return true;
+	        }
+	        if (allowedProtocol === 'http:' && requestProtocol === 'https:') {
+	            return true;
+	        }
+	        if (allowedProtocol === 'ws:' && requestProtocol === 'wss:') {
+	            return true;
+	        }
+	        return false;
+	    }
+	    pathMatches(allowedPath, requestPath) {
+	        if (allowedPath === '/') {
+	            return true;
+	        }
+	        if (allowedPath.endsWith('/')) {
+	            return requestPath.startsWith(allowedPath);
+	        }
+	        return requestPath === allowedPath;
+	    }
+	}
+	egressFilteringService.EgressFilteringService = EgressFilteringService;
+	return egressFilteringService;
+}
+
+var hasRequiredEgress;
+
+function requireEgress () {
+	if (hasRequiredEgress) return egress;
+	hasRequiredEgress = 1;
+	(function (exports) {
+		Object.defineProperty(exports, "__esModule", { value: true });
+		const tslib_1 = require$$0;
+		tslib_1.__exportStar(requireEgressFilteringService(), exports);
+		tslib_1.__exportStar(requireUrlParser(), exports);
+		tslib_1.__exportStar(requireUtils(), exports); 
+	} (egress));
+	return egress;
+}
+
+var hasRequiredOut$2;
+
+function requireOut$2 () {
+	if (hasRequiredOut$2) return out;
+	hasRequiredOut$2 = 1;
+	(function (exports) {
+		Object.defineProperty(exports, "__esModule", { value: true });
+		const tslib_1 = require$$0;
+		tslib_1.__exportStar(requireEgress(), exports); 
+	} (out));
+	return out;
+}
+
+var hasRequiredPermissionsUtil;
+
+function requirePermissionsUtil () {
+	if (hasRequiredPermissionsUtil) return permissionsUtil;
+	hasRequiredPermissionsUtil = 1;
+	Object.defineProperty(permissionsUtil, "__esModule", { value: true });
+	permissionsUtil.createPermissionUtils = createPermissionUtils;
+	permissionsUtil.checkPermissions = checkPermissions;
+	const egress_1 = requireOut$2();
+	const view_1 = requireView();
+	/**
+	 * Helper function to extract URL string from external URL permissions.
+	 * Matches the implementation in @forge/api for consistency.
+	 */
+	function extractUrlString(url) {
+	    if (typeof url === 'string') {
+	        return url;
+	    }
+	    if ('address' in url && url.address) {
+	        return url.address;
+	    }
+	    return url.remote || '';
+	}
+	/**
+	 * Resource types that can be loaded externally
+	 */
+	const RESOURCE_TYPES = ['fonts', 'styles', 'frames', 'images', 'media', 'scripts'];
+	/**
+	 * Fetch types for external requests
+	 */
+	const FETCH_TYPES = ['backend', 'client'];
+	/**
+	 * Create permission utilities from runtime permissions
+	 * @param runtimePermissions - The runtime permissions from context
+	 * @returns Permission utilities or null if permissions are not available
+	 */
+	function createPermissionUtils(runtimePermissions) {
+	    if (!runtimePermissions) {
+	        return null;
+	    }
+	    const { scopes, external = {} } = runtimePermissions;
+	    const scopeArray = Array.isArray(scopes) ? scopes : Object.keys(scopes || {});
+	    return {
+	        hasScope: (scope) => scopeArray.includes(scope),
+	        canFetchFrom: (type, url) => {
+	            var _a;
+	            const fetchUrls = (_a = external.fetch) === null || _a === void 0 ? void 0 : _a[type];
+	            if (!(fetchUrls === null || fetchUrls === void 0 ? void 0 : fetchUrls.length))
+	                return false;
+	            // Extract URLs and create egress filter
+	            const allowList = fetchUrls.map(extractUrlString).filter((u) => u.length > 0);
+	            if (allowList.length === 0)
+	                return false;
+	            const egressFilter = new egress_1.EgressFilteringService(allowList);
+	            // Backend: hostname-only matching, Client: CSP validation (includes paths)
+	            // Type assertion needed because node_modules may have outdated types
+	            const egressFilterWithCSP = egressFilter;
+	            return type === 'client' ? egressFilterWithCSP.isValidUrlCSP(url) : egressFilter.isValidUrl(url);
+	        },
+	        canLoadResource: (type, url) => {
+	            const resourceUrls = external[type];
+	            if (!(resourceUrls === null || resourceUrls === void 0 ? void 0 : resourceUrls.length))
+	                return false;
+	            // Extract URLs and create egress filter
+	            const allowList = resourceUrls.map(extractUrlString).filter((u) => u.length > 0);
+	            if (allowList.length === 0)
+	                return false;
+	            const egressFilter = new egress_1.EgressFilteringService(allowList);
+	            // All resources use CSP validation (checks protocol + hostname + paths)
+	            // Type assertion needed because node_modules may have outdated types
+	            const egressFilterWithCSP = egressFilter;
+	            return egressFilterWithCSP.isValidUrlCSP(url);
+	        },
+	        getScopes: () => scopeArray,
+	        getExternalPermissions: () => external,
+	        hasAnyPermissions: () => scopeArray.length > 0 || Object.keys(external).length > 0
+	    };
+	}
+	/**
+	 * Check if required scopes are granted
+	 */
+	function checkScopes(requiredScopes, permissionUtils) {
+	    if (!(requiredScopes === null || requiredScopes === void 0 ? void 0 : requiredScopes.length)) {
+	        return undefined;
+	    }
+	    const missingScopes = requiredScopes.filter((scope) => !permissionUtils.hasScope(scope));
+	    return missingScopes.length > 0 ? missingScopes : undefined;
+	}
+	/**
+	 * Check if required fetch permissions are granted
+	 */
+	function checkFetchPermissions(requiredFetch, permissionUtils) {
+	    if (!(requiredFetch === null || requiredFetch === void 0 ? void 0 : requiredFetch.fetch)) {
+	        return undefined;
+	    }
+	    const missingFetch = {};
+	    FETCH_TYPES.forEach((type) => {
+	        var _a;
+	        const requiredUrls = (_a = requiredFetch.fetch) === null || _a === void 0 ? void 0 : _a[type];
+	        if (requiredUrls === null || requiredUrls === void 0 ? void 0 : requiredUrls.length) {
+	            const missingUrls = requiredUrls.filter((url) => !permissionUtils.canFetchFrom(type, url));
+	            if (missingUrls.length > 0) {
+	                missingFetch[type] = missingUrls;
+	            }
+	        }
+	    });
+	    return Object.keys(missingFetch).length > 0 ? missingFetch : undefined;
+	}
+	/**
+	 * Check if required resource permissions are granted
+	 */
+	function checkResourcePermissions(requiredExternal, permissionUtils) {
+	    const missingResources = {};
+	    RESOURCE_TYPES.forEach((type) => {
+	        const requiredUrls = requiredExternal === null || requiredExternal === void 0 ? void 0 : requiredExternal[type];
+	        if (requiredUrls === null || requiredUrls === void 0 ? void 0 : requiredUrls.length) {
+	            const missingUrls = requiredUrls.filter((url) => !permissionUtils.canLoadResource(type, url));
+	            if (missingUrls.length > 0) {
+	                missingResources[type] = missingUrls;
+	            }
+	        }
+	    });
+	    return Object.keys(missingResources).length > 0 ? missingResources : undefined;
+	}
+	/**
+	 * Check if required external permissions are granted
+	 */
+	function checkExternalPermissions(requiredExternal, permissionUtils) {
+	    if (!requiredExternal) {
+	        return undefined;
+	    }
+	    const missingFetch = checkFetchPermissions(requiredExternal, permissionUtils);
+	    const missingResources = checkResourcePermissions(requiredExternal, permissionUtils);
+	    if (!missingFetch && !missingResources) {
+	        return undefined;
+	    }
+	    const missingExternal = {};
+	    if (missingFetch) {
+	        missingExternal.fetch = missingFetch;
+	    }
+	    if (missingResources) {
+	        Object.assign(missingExternal, missingResources);
+	    }
+	    return missingExternal;
+	}
+	// Throws if a field that should be a plain object but is something else.
+	// Only used for external and external.fetch, which are guarded above.
+	function validateObjectField(value, fieldPath) {
+	    if (value !== undefined) {
+	        if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+	            throw new TypeError(`${fieldPath} should be an object, not ${Array.isArray(value) ? 'an array' : `a ${typeof value}`}`);
+	        }
+	    }
+	}
+	// Throws if a field that should be an array but is something else.
+	function validateArrayField(value, fieldPath) {
+	    if (value !== undefined && !Array.isArray(value)) {
+	        throw new TypeError(`${fieldPath} should be an array, not a ${typeof value}`);
+	    }
+	}
+	/**
+	 * Validates that fields in requiredPermissions have the correct types.
+	 */
+	function validatePermissionShape(requiredPermissions) {
+	    validateArrayField(requiredPermissions.scopes, 'scopes');
+	    const external = requiredPermissions.external;
+	    if (external === undefined)
+	        return;
+	    validateObjectField(external, 'external');
+	    if (external.fetch !== undefined) {
+	        validateObjectField(external.fetch, 'external.fetch');
+	        for (const type of FETCH_TYPES) {
+	            validateArrayField(external.fetch[type], `external.fetch.${type}`);
+	        }
+	    }
+	    for (const type of RESOURCE_TYPES) {
+	        validateArrayField(external[type], `external.${type}`);
+	    }
+	}
+	/**
+	 * Check if required permissions are granted
+	 * @param requiredPermissions - The permissions required to check
+	 * @param runtimePermissions - The runtime permissions from context (optional, will be fetched from view.getContext() if not provided)
+	 * @returns Promise resolving to permission check result with granted status and missing permissions
+	 */
+	async function checkPermissions(requiredPermissions, runtimePermissions) {
+	    var _a;
+	    // Early return for falsy required permissions
+	    if (!requiredPermissions) {
+	        return { granted: false, missing: null };
+	    }
+	    validatePermissionShape(requiredPermissions);
+	    // Early return for empty permissions (no requirements = all granted)
+	    if (!((_a = requiredPermissions.scopes) === null || _a === void 0 ? void 0 : _a.length) && !requiredPermissions.external) {
+	        return { granted: true, missing: null };
+	    }
+	    // If runtimePermissions is not provided, fetch it from context
+	    let permissionsToCheck = runtimePermissions;
+	    if (!permissionsToCheck) {
+	        const context = await view_1.view.getContext();
+	        permissionsToCheck = context.permissions;
+	    }
+	    const permissionUtils = createPermissionUtils(permissionsToCheck);
+	    if (!permissionUtils) {
+	        // If permissions are not available, return not granted
+	        return { granted: false, missing: null };
+	    }
+	    const missing = {};
+	    let hasAllRequiredPermissions = true;
+	    // Check scopes
+	    const missingScopes = checkScopes(requiredPermissions.scopes, permissionUtils);
+	    if (missingScopes) {
+	        missing.scopes = missingScopes;
+	        hasAllRequiredPermissions = false;
+	    }
+	    // Check external permissions
+	    const missingExternal = checkExternalPermissions(requiredPermissions.external, permissionUtils);
+	    if (missingExternal) {
+	        missing.external = missingExternal;
+	        hasAllRequiredPermissions = false;
+	    }
+	    // Note: Content permissions are not supported in the current RuntimePermissions type
+	    return {
+	        granted: hasAllRequiredPermissions,
+	        missing: hasAllRequiredPermissions ? null : missing
+	    };
+	}
+	return permissionsUtil;
+}
+
+var hasRequiredPermissions;
+
+function requirePermissions () {
+	if (hasRequiredPermissions) return permissions$1;
+	hasRequiredPermissions = 1;
+	(function (exports) {
+		Object.defineProperty(exports, "__esModule", { value: true });
+		const tslib_1 = require$$0;
+		tslib_1.__exportStar(requirePermissions$1(), exports);
+		tslib_1.__exportStar(requirePermissionsUtil(), exports); 
+	} (permissions$1));
+	return permissions$1;
+}
+
+var objectStore$1 = {};
+
+var objectStore = {};
+
+var upload = {};
+
+var hasRequiredUpload;
+
+function requireUpload () {
+	if (hasRequiredUpload) return upload;
+	hasRequiredUpload = 1;
+	(function (exports) {
+		Object.defineProperty(exports, "__esModule", { value: true });
+		exports.upload = exports.createUploadPromises = void 0;
+		const invoke_1 = requireInvoke();
+		const errors_1 = requireErrors();
+		const bridge_1 = requireBridge();
+		const callBridge = (0, bridge_1.getCallBridge)();
+		/**
+		 * Convert base64 string to Blob
+		 */
+		const base64ToBlob = (base64, mimeType) => {
+		    const byteCharacters = atob(base64);
+		    const byteNumbers = new Array(byteCharacters.length);
+		    for (let i = 0; i < byteCharacters.length; i++) {
+		        byteNumbers[i] = byteCharacters.charCodeAt(i);
+		    }
+		    const byteArray = new Uint8Array(byteNumbers);
+		    return new Blob([byteArray], { type: mimeType || 'application/octet-stream' });
+		};
+		/**
+		 * Get metadata for a blob object including size and checksum
+		 */
+		const getObjectMetadata = async (blob) => {
+		    const length = blob.size;
+		    // Calculate checksum using SubtleCrypto API
+		    const arrayBuffer = await blob.arrayBuffer();
+		    const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer);
+		    const hashArray = new Uint8Array(hashBuffer);
+		    // Convert to base64 format (required by OS API)
+		    const checksum = btoa(String.fromCharCode(...hashArray));
+		    const checksumType = 'SHA256';
+		    return {
+		        length,
+		        checksum,
+		        checksumType
+		    };
+		};
+		/**
+		 * Start individual upload operations and return array of promises
+		 * This allows tracking per-file upload progress
+		 *
+		 * @param functionKey - Configuration object containing the backend function key to filter and generate presigned URLs
+		 * @param objects - Array of Blob objects or Base64Object (with data and optional mimeType) to upload
+		 * @returns Array of individual upload promises with their associated index
+		 * @throws {BridgeAPIError} When filtering fails or upload encounters an error
+		 */
+		const createUploadPromises = async ({ functionKey, objects }) => {
+		    if (!functionKey || functionKey.length === 0) {
+		        throw new errors_1.BridgeAPIError('functionKey is required to filter and generate presigned URLs');
+		    }
+		    if (!Array.isArray(objects) || objects.length === 0) {
+		        throw new errors_1.BridgeAPIError('objects array is required and must not be empty');
+		    }
+		    // Validate and convert objects to Blobs in a single pass
+		    const blobs = objects.map((obj, index) => {
+		        if (obj instanceof Blob) {
+		            return obj;
+		        }
+		        const isBase64Object = obj && typeof obj === 'object' && 'data' in obj && typeof obj.data === 'string';
+		        if (!isBase64Object) {
+		            throw new errors_1.BridgeAPIError(`Invalid object type at index ${index}. Only Blob or Base64Object (with data string and optional mimeType) are accepted.`);
+		        }
+		        try {
+		            return base64ToBlob(obj.data, obj.mimeType);
+		        }
+		        catch (e) {
+		            throw new errors_1.BridgeAPIError(`Invalid base64 data at index ${index}. The data string must be valid base64 encoded.`);
+		        }
+		    });
+		    const allObjectMetadata = await Promise.all(blobs.map((blob) => getObjectMetadata(blob)));
+		    const presignedURLsToObjectMetadata = (await (0, invoke_1.invoke)(functionKey, {
+		        allObjectMetadata
+		    }));
+		    if (!presignedURLsToObjectMetadata || typeof presignedURLsToObjectMetadata !== 'object') {
+		        throw new errors_1.BridgeAPIError('Invalid response from functionKey');
+		    }
+		    const checksumToBlobMap = new Map();
+		    const checksumToIndexMap = new Map();
+		    blobs.forEach((blob, index) => {
+		        const metadata = allObjectMetadata[index];
+		        checksumToBlobMap.set(metadata.checksum, blob);
+		        checksumToIndexMap.set(metadata.checksum, index);
+		    });
+		    const uploadPromises = Object.entries(presignedURLsToObjectMetadata).map(([presignedUrl, metadata]) => {
+		        const { key, checksum } = metadata;
+		        const object = checksumToBlobMap.get(checksum);
+		        const index = checksumToIndexMap.get(checksum);
+		        if (index === undefined) {
+		            return {
+		                promise: Promise.resolve({
+		                    success: false,
+		                    key: key,
+		                    error: `Index not found for checksum ${checksum}`
+		                }),
+		                index: -1
+		            };
+		        }
+		        if (!object) {
+		            return {
+		                promise: Promise.resolve({
+		                    success: false,
+		                    key: key,
+		                    error: `Blob not found for checksum ${checksum}`
+		                }),
+		                index
+		            };
+		        }
+		        const uploadPromise = (async () => {
+		            try {
+		                const response = await fetch(presignedUrl, {
+		                    method: 'PUT',
+		                    body: object,
+		                    headers: {
+		                        'Content-Type': object.type || 'application/octet-stream',
+		                        'Content-Length': object.size.toString()
+		                    }
+		                });
+		                return {
+		                    success: response.ok,
+		                    key: key,
+		                    status: response.status,
+		                    error: response.ok ? undefined : `Upload failed with status ${response.status}`
+		                };
+		            }
+		            catch (error) {
+		                return {
+		                    success: false,
+		                    key: key,
+		                    status: 503,
+		                    error: error instanceof Error ? error.message : 'Upload failed'
+		                };
+		            }
+		        })();
+		        return { promise: uploadPromise, index, objectType: object.type, objectSize: object.size };
+		    });
+		    return uploadPromises;
+		};
+		exports.createUploadPromises = createUploadPromises;
+		/**
+		 * Upload multiple objects to pre-signed URLs
+		 *
+		 * @param functionKey - Configuration object containing the backend function key to filter and generate presigned URLs
+		 * @param objects - Array of Blob objects or Base64Object (with data and optional mimeType) to upload
+		 * @returns Promise resolving to UploadResult[]
+		 * @throws {BridgeAPIError} When filtering fails or upload encounters an error
+		 */
+		const upload = async ({ functionKey, objects }) => {
+		    void callBridge('trackObjectStoreAction', { action: 'upload' });
+		    const uploadPromises = await (0, exports.createUploadPromises)({ functionKey, objects });
+		    const results = await Promise.all(uploadPromises.map((item) => item.promise));
+		    return results;
+		};
+		exports.upload = upload; 
+	} (upload));
+	return upload;
+}
+
+var deleteObjects = {};
+
+var hasRequiredDeleteObjects;
+
+function requireDeleteObjects () {
+	if (hasRequiredDeleteObjects) return deleteObjects;
+	hasRequiredDeleteObjects = 1;
+	Object.defineProperty(deleteObjects, "__esModule", { value: true });
+	deleteObjects.deleteObjects = void 0;
+	const invoke_1 = requireInvoke();
+	const errors_1 = requireErrors();
+	const bridge_1 = requireBridge();
+	const callBridge = (0, bridge_1.getCallBridge)();
+	/**
+	 * Delete multiple objects
+	 *
+	 * @param functionKey - Configuration object containing the backend function key to delete objects
+	 * @param keys - Array of object keys to delete
+	 * @returns Promise<void>
+	 * @throws {BridgeAPIError} When deleting fails
+	 */
+	const deleteObjects$1 = async ({ functionKey, keys }) => {
+	    void callBridge('trackObjectStoreAction', { action: 'delete' });
+	    if (!functionKey || functionKey.length === 0) {
+	        throw new errors_1.BridgeAPIError('functionKey is required to delete objects');
+	    }
+	    if (!Array.isArray(keys) || keys.length === 0) {
+	        throw new errors_1.BridgeAPIError('keys array is required and must not be empty');
+	    }
+	    await Promise.all(keys.map(async (key) => {
+	        await (0, invoke_1.invoke)(functionKey, { key });
+	    }));
+	};
+	deleteObjects.deleteObjects = deleteObjects$1;
+	return deleteObjects;
+}
+
+var download = {};
+
+var hasRequiredDownload;
+
+function requireDownload () {
+	if (hasRequiredDownload) return download;
+	hasRequiredDownload = 1;
+	Object.defineProperty(download, "__esModule", { value: true });
+	download.download = void 0;
+	const invoke_1 = requireInvoke();
+	const errors_1 = requireErrors();
+	const bridge_1 = requireBridge();
+	const callBridge = (0, bridge_1.getCallBridge)();
+	/**
+	 * Download multiple objects from pre-signed URLs
+	 *
+	 * @param functionKey - Configuration object containing the backend function key to filter and generate download URLs
+	 * @param keys - Array of object keys to download
+	 * @returns Promise resolving to DownloadResult[]
+	 * @throws {BridgeAPIError} When filtering fails or download encounters an error
+	 */
+	const download$1 = async ({ functionKey, keys }) => {
+	    void callBridge('trackObjectStoreAction', { action: 'download' });
+	    if (!functionKey || functionKey.length === 0) {
+	        throw new errors_1.BridgeAPIError('functionKey is required to filter and generate download URLs');
+	    }
+	    if (!Array.isArray(keys) || keys.length === 0) {
+	        throw new errors_1.BridgeAPIError('keys array is required and must not be empty');
+	    }
+	    const downloadUrlsTokeys = (await (0, invoke_1.invoke)(functionKey, {
+	        keys
+	    }));
+	    if (!downloadUrlsTokeys || typeof downloadUrlsTokeys !== 'object') {
+	        throw new errors_1.BridgeAPIError('Invalid response from functionKey');
+	    }
+	    const downloadPromises = Object.entries(downloadUrlsTokeys).map(async ([downloadUrl, key]) => {
+	        try {
+	            const response = await fetch(downloadUrl, {
+	                method: 'GET'
+	            });
+	            if (!response.ok) {
+	                return {
+	                    success: false,
+	                    key: key,
+	                    status: response.status,
+	                    error: `Download failed with status ${response.status}`
+	                };
+	            }
+	            const blob = await response.blob();
+	            return {
+	                success: true,
+	                key: key,
+	                blob,
+	                status: response.status
+	            };
+	        }
+	        catch (error) {
+	            return {
+	                success: false,
+	                key: key,
+	                status: 503,
+	                error: error instanceof Error ? error.message : 'Download failed'
+	            };
+	        }
+	    });
+	    const results = await Promise.all(downloadPromises);
+	    return results;
+	};
+	download.download = download$1;
+	return download;
+}
+
+var getMetadata = {};
+
+var hasRequiredGetMetadata;
+
+function requireGetMetadata () {
+	if (hasRequiredGetMetadata) return getMetadata;
+	hasRequiredGetMetadata = 1;
+	Object.defineProperty(getMetadata, "__esModule", { value: true });
+	getMetadata.getMetadata = void 0;
+	const index_1 = requireInvoke();
+	const errors_1 = requireErrors();
+	const bridge_1 = requireBridge();
+	const callBridge = (0, bridge_1.getCallBridge)();
+	/**
+	 * Get metadata for multiple objectIds
+	 *
+	 * @param functionKey - Configuration object containing the backend function key to filter and generate object metadata
+	 * @param keys - Array of object keys to get metadata for
+	 * @returns Promise resolving to GetMetadataResult[]
+	 * @throws {BridgeAPIError} When filtering fails or download encounters an error
+	 */
+	const getMetadata$1 = async ({ functionKey, keys }) => {
+	    void callBridge('trackObjectStoreAction', { action: 'getMetadata' });
+	    if (!functionKey || functionKey.length === 0) {
+	        throw new errors_1.BridgeAPIError('functionKey is required to filter and generate object metadata');
+	    }
+	    if (!Array.isArray(keys) || keys.length === 0) {
+	        throw new errors_1.BridgeAPIError('keys array is required and must not be empty');
+	    }
+	    const results = await Promise.all(keys.map(async (key) => {
+	        const result = (await (0, index_1.invoke)(functionKey, { key }));
+	        if (!result || typeof result !== 'object') {
+	            return {
+	                key: key,
+	                error: 'Invalid response from functionKey'
+	            };
+	        }
+	        return result;
+	    }));
+	    return results;
+	};
+	getMetadata.getMetadata = getMetadata$1;
+	return getMetadata;
+}
+
+var hasRequiredObjectStore$1;
+
+function requireObjectStore$1 () {
+	if (hasRequiredObjectStore$1) return objectStore;
+	hasRequiredObjectStore$1 = 1;
+	(function (exports) {
+		Object.defineProperty(exports, "__esModule", { value: true });
+		exports.createUploadPromises = exports.objectStore = void 0;
+		const upload_1 = requireUpload();
+		Object.defineProperty(exports, "createUploadPromises", { enumerable: true, get: function () { return upload_1.createUploadPromises; } });
+		const deleteObjects_1 = requireDeleteObjects();
+		const download_1 = requireDownload();
+		const getMetadata_1 = requireGetMetadata();
+		exports.objectStore = {
+		    upload: upload_1.upload,
+		    download: download_1.download,
+		    getMetadata: getMetadata_1.getMetadata,
+		    delete: deleteObjects_1.deleteObjects
+		}; 
+	} (objectStore));
+	return objectStore;
+}
+
+var types$1 = {};
+
+var hasRequiredTypes$1;
+
+function requireTypes$1 () {
+	if (hasRequiredTypes$1) return types$1;
+	hasRequiredTypes$1 = 1;
+	Object.defineProperty(types$1, "__esModule", { value: true });
+	return types$1;
+}
+
+var hasRequiredObjectStore;
+
+function requireObjectStore () {
+	if (hasRequiredObjectStore) return objectStore$1;
+	hasRequiredObjectStore = 1;
+	(function (exports) {
+		Object.defineProperty(exports, "__esModule", { value: true });
+		const tslib_1 = require$$0;
+		tslib_1.__exportStar(requireObjectStore$1(), exports);
+		tslib_1.__exportStar(requireTypes$1(), exports); 
+	} (objectStore$1));
+	return objectStore$1;
+}
+
+var featureFlags$1 = {};
+
+var featureFlags = {};
+
+var evaluator = {};
+
+var hasRequiredEvaluator;
+
+function requireEvaluator () {
+	if (hasRequiredEvaluator) return evaluator;
+	hasRequiredEvaluator = 1;
+	Object.defineProperty(evaluator, "__esModule", { value: true });
+	evaluator.Evaluator = void 0;
+	class Evaluator {
+	    constructor(results) {
+	        this.results = results;
+	    }
+	    checkFlag(flagName, defaultValue) {
+	        if (!this.results || !this.results.feature_flags) {
+	            // fallback to default value
+	            return defaultValue;
+	        }
+	        const featureFlags = this.results.feature_flags;
+	        let hashedValue = '';
+	        try {
+	            hashedValue = this.getHashedValue(flagName);
+	        }
+	        catch (err) {
+	            // eslint-disable-next-line no-console
+	            console.error('Unexpected error occurred while evaluating flag ', err);
+	            // If hashing fails for any reason, do not throw; safely return default
+	            return defaultValue;
+	        }
+	        if (!hashedValue) {
+	            return defaultValue;
+	        }
+	        const evaluatedFlag = featureFlags[hashedValue];
+	        if (evaluatedFlag) {
+	            // if flag being checked is disabled
+	            if (evaluatedFlag.disabled) {
+	                return false;
+	            }
+	            return evaluatedFlag.value;
+	        }
+	        // fallback to default value
+	        return defaultValue;
+	    }
+	    shutDown() {
+	        this.results = undefined;
+	    }
+	    // To be Updated with proper hashing function
+	    getHashedValue(flagName) {
+	        // Defensive: ensure stable, non-throwing behavior for unexpected inputs
+	        if (typeof flagName !== 'string') {
+	            return '';
+	        }
+	        const input = flagName.trim();
+	        if (input.length === 0) {
+	            return '';
+	        }
+	        // djb2 hashing (unsigned 32-bit), matches server-side encoding
+	        let hash = 5381;
+	        for (let i = 0; i < input.length; i += 1) {
+	            const charCode = input.charCodeAt(i);
+	            hash = (hash << 5) + hash + charCode; // hash * 33 + c
+	            hash |= 0; // force 32-bit signed int
+	        }
+	        // Convert to unsigned 32-bit and return as a decimal string
+	        return (hash >>> 0).toString();
+	    }
+	}
+	evaluator.Evaluator = Evaluator;
+	return evaluator;
+}
+
+var initFeatureFlags = {};
+
+var hasRequiredInitFeatureFlags;
+
+function requireInitFeatureFlags () {
+	if (hasRequiredInitFeatureFlags) return initFeatureFlags;
+	hasRequiredInitFeatureFlags = 1;
+	Object.defineProperty(initFeatureFlags, "__esModule", { value: true });
+	initFeatureFlags.initFeatureFlags = void 0;
+	const bridge_1 = requireBridge();
+	const errors_1 = requireErrors();
+	const utils_1 = requireUtils$1();
+	const maxOps = 500;
+	const intervalInMs = 1000 * 25;
+	const callBridge = (0, bridge_1.getCallBridge)();
+	const validatePayload = (payload) => {
+	    if (!payload || !payload.user || !payload.config) {
+	        throw new errors_1.BridgeAPIError('Missing required parameters. Parameter user is required in the payload.');
+	    }
+	    if (!payload.config.environment || !['development', 'staging', 'production'].includes(payload.config.environment)) {
+	        throw new errors_1.BridgeAPIError('Invalid environment. Valid environments are: development, staging, production');
+	    }
+	    if (Object.values(payload).some((val) => typeof val === 'function')) {
+	        throw new errors_1.BridgeAPIError('Passing functions as part of the payload is not supported!');
+	    }
+	};
+	const _initFeatureFlags = (payload) => {
+	    validatePayload(payload);
+	    return callBridge('initFeatureFlags', { user: payload.user, config: payload.config });
+	};
+	initFeatureFlags.initFeatureFlags = (0, utils_1.withRateLimiter)(_initFeatureFlags, maxOps, intervalInMs, `Feature flags initialisation calls are rate limited at ${maxOps}req/${intervalInMs / 1000}s`);
+	return initFeatureFlags;
+}
+
+var hasRequiredFeatureFlags$1;
+
+function requireFeatureFlags$1 () {
+	if (hasRequiredFeatureFlags$1) return featureFlags;
+	hasRequiredFeatureFlags$1 = 1;
+	Object.defineProperty(featureFlags, "__esModule", { value: true });
+	featureFlags.FeatureFlags = void 0;
+	const evaluator_1 = requireEvaluator();
+	const initFeatureFlags_1 = requireInitFeatureFlags();
+	class FeatureFlags {
+	    constructor() {
+	        this.initialized = false;
+	    }
+	    /**
+	     * Initialize the feature flags client
+	     */
+	    async initialize(user, config = { environment: 'development' }) {
+	        if (this.isInitialized()) {
+	            return;
+	        }
+	        if (!(config === null || config === void 0 ? void 0 : config.environment)) {
+	            config.environment = 'development';
+	        }
+	        const result = await (0, initFeatureFlags_1.initFeatureFlags)({ user, config });
+	        this.initialized = true;
+	        this.evaluator = new evaluator_1.Evaluator(result);
+	    }
+	    /**
+	     * Check if a feature flag is enabled for the user
+	     */
+	    checkFlag(flagName, defaultValue = false) {
+	        if (!this.isInitialized() || !this.evaluator) {
+	            throw new Error('FeatureFlags not initialized. Call initialize() first.');
+	        }
+	        return this.evaluator.checkFlag(flagName, defaultValue);
+	    }
+	    /**
+	     * Shutdown the feature flags client
+	     */
+	    shutdown() {
+	        if (!this.isInitialized()) {
+	            return;
+	        }
+	        this.initialized = false;
+	        this.evaluator.shutDown();
+	    }
+	    isInitialized() {
+	        return this.initialized;
+	    }
+	}
+	featureFlags.FeatureFlags = FeatureFlags;
+	return featureFlags;
+}
+
+var hasRequiredFeatureFlags;
+
+function requireFeatureFlags () {
+	if (hasRequiredFeatureFlags) return featureFlags$1;
+	hasRequiredFeatureFlags = 1;
+	(function (exports) {
+		Object.defineProperty(exports, "__esModule", { value: true });
+		exports.FeatureFlags = void 0;
+		var featureFlags_1 = requireFeatureFlags$1();
+		Object.defineProperty(exports, "FeatureFlags", { enumerable: true, get: function () { return featureFlags_1.FeatureFlags; } }); 
+	} (featureFlags$1));
+	return featureFlags$1;
+}
+
+var frontendCustomMetrics$1 = {};
+
+var frontendCustomMetrics = {};
+
+var hasRequiredFrontendCustomMetrics$1;
+
+function requireFrontendCustomMetrics$1 () {
+	if (hasRequiredFrontendCustomMetrics$1) return frontendCustomMetrics;
+	hasRequiredFrontendCustomMetrics$1 = 1;
+	Object.defineProperty(frontendCustomMetrics, "__esModule", { value: true });
+	frontendCustomMetrics.frontendCustomMetrics = void 0;
+	const bridge_1 = requireBridge();
+	const errors_1 = requireErrors();
+	const callBridge = (0, bridge_1.getCallBridge)();
+	const emit = async (customMetricName, value) => {
+	    await callBridge('emitFrontendCustomMetric', {
+	        customMetricName,
+	        value
+	    });
+	};
+	const MAX_METRIC_NAME_LENGTH = 50;
+	// Must start and end with an alphanumeric character and may only contain
+	// letters, numbers, dots (.) and hyphens (-) in between.
+	const METRIC_NAME_REGEX = /^[a-zA-Z0-9]([a-zA-Z0-9.-]*[a-zA-Z0-9])?$/;
+	/**
+	 * Validates a custom metric name against the same rules enforced when
+	 * registering a metric in the developer console. Throws synchronously so
+	 * developer errors fail fast without a wasted bridge round-trip.
+	 *
+	 * Note: this is a best-effort, client-side convenience check. The metric name
+	 * must still match a custom metric registered in the developer console, which
+	 * remains the source of truth and is validated by the backend.
+	 */
+	const validateMetricName = (name) => {
+	    if (name.trim().length === 0) {
+	        throw new errors_1.BridgeAPIError('Custom metric name cannot be empty');
+	    }
+	    if (name.length > MAX_METRIC_NAME_LENGTH) {
+	        throw new errors_1.BridgeAPIError(`Custom metric name cannot exceed ${MAX_METRIC_NAME_LENGTH} characters`);
+	    }
+	    if (!METRIC_NAME_REGEX.test(name)) {
+	        throw new errors_1.BridgeAPIError('Custom metric name must start and end with alphanumeric characters and can only contain letters, numbers, dots (.), and hyphens (-)');
+	    }
+	    if (name.includes('..') || name.includes('--')) {
+	        throw new errors_1.BridgeAPIError('Custom metric name cannot contain consecutive dots or hyphens');
+	    }
+	};
+	const counter = (name) => {
+	    validateMetricName(name);
+	    return {
+	        incr: () => emit(name, 1),
+	        incrBy: (value) => {
+	            if (value <= 0) {
+	                throw new errors_1.BridgeAPIError('Counter value must be a positive number');
+	            }
+	            return emit(name, value);
+	        }
+	    };
+	};
+	/**
+	 * Public namespace for emitting Forge frontend custom metrics from a Forge UI app.
+	 *
+	 * @example
+	 * import { frontendCustomMetrics } from '@forge/bridge';
+	 * const c = frontendCustomMetrics.counter('button-click');
+	 * c.incr();        // increment by 1
+	 * c.incrBy(5);     // increment by 5 (rejects if value <= 0)
+	 */
+	frontendCustomMetrics.frontendCustomMetrics = { counter };
+	return frontendCustomMetrics;
+}
+
+var hasRequiredFrontendCustomMetrics;
+
+function requireFrontendCustomMetrics () {
+	if (hasRequiredFrontendCustomMetrics) return frontendCustomMetrics$1;
+	hasRequiredFrontendCustomMetrics = 1;
+	(function (exports) {
+		Object.defineProperty(exports, "__esModule", { value: true });
+		const tslib_1 = require$$0;
+		tslib_1.__exportStar(requireFrontendCustomMetrics$1(), exports); 
+	} (frontendCustomMetrics$1));
+	return frontendCustomMetrics$1;
+}
+
+var hasRequiredOut$1;
+
+function requireOut$1 () {
+	if (hasRequiredOut$1) return out$2;
+	hasRequiredOut$1 = 1;
+	(function (exports) {
+		Object.defineProperty(exports, "__esModule", { value: true });
+		exports.i18n = exports.NavigationTarget = void 0;
+		const tslib_1 = require$$0;
+		var targets_1 = requireTargets();
+		Object.defineProperty(exports, "NavigationTarget", { enumerable: true, get: function () { return targets_1.NavigationTarget; } });
+		tslib_1.__exportStar(requireInvoke(), exports);
+		tslib_1.__exportStar(requireInvokeEndpoint(), exports);
+		tslib_1.__exportStar(requireView(), exports);
+		tslib_1.__exportStar(requireRouter(), exports);
+		tslib_1.__exportStar(requireModal(), exports);
+		tslib_1.__exportStar(requireFetch(), exports);
+		tslib_1.__exportStar(requireRequestTeamworkGraph(), exports);
+		tslib_1.__exportStar(requireFlag(), exports);
+		tslib_1.__exportStar(requireEvents(), exports);
+		tslib_1.__exportStar(requireRealtime(), exports);
+		tslib_1.__exportStar(requireRovo(), exports);
+		tslib_1.__exportStar(requireCookieConsent(), exports);
+		exports.i18n = tslib_1.__importStar(requireI18n());
+		tslib_1.__exportStar(requirePermissions(), exports);
+		tslib_1.__exportStar(requireObjectStore(), exports);
+		tslib_1.__exportStar(requireFeatureFlags(), exports);
+		tslib_1.__exportStar(requireFrontendCustomMetrics(), exports); 
+	} (out$2));
+	return out$2;
+}
+
+var hasRequiredUseProductContext;
+
+function requireUseProductContext () {
+	if (hasRequiredUseProductContext) return useProductContext;
+	hasRequiredUseProductContext = 1;
+	Object.defineProperty(useProductContext, "__esModule", { value: true });
+	useProductContext.useProductContext = void 0;
+	const bridge_1 = requireOut$1();
+	const react_1 = requireReact();
+	const useProductContext$1 = () => {
+	    const [productContext, setProductContext] = (0, react_1.useState)();
+	    (0, react_1.useEffect)(() => {
+	        bridge_1.view
+	            .getContext()
+	            .then(setProductContext)
+	            .catch((err) => {
+	            throw err;
+	        });
+	    }, []);
+	    return productContext;
+	};
+	useProductContext.useProductContext = useProductContext$1;
+	return useProductContext;
+}
+
+var useConfig = {};
+
+var hasRequiredUseConfig;
+
+function requireUseConfig () {
+	if (hasRequiredUseConfig) return useConfig;
+	hasRequiredUseConfig = 1;
+	Object.defineProperty(useConfig, "__esModule", { value: true });
+	useConfig.useConfig = void 0;
+	const react_1 = requireReact();
+	const bridge_1 = requireOut$1();
+	const updateConfig = (setConfig) => {
+	    bridge_1.view
+	        .getContext()
+	        .then((context) => {
+	        setConfig(context?.extension.config);
+	    })
+	        .catch((err) => {
+	        throw err;
+	    });
+	};
+	const useConfig$1 = () => {
+	    const [config, setConfig] = (0, react_1.useState)(undefined);
+	    (0, react_1.useEffect)(() => {
+	        updateConfig(setConfig);
+	    }, []);
+	    (0, react_1.useEffect)(() => {
+	        const sub = bridge_1.events.on('FORGE_CORE_MACRO_CONFIG_CHANGED', () => {
+	            updateConfig(setConfig);
+	        });
+	        return () => {
+	            void sub.then((subscription) => subscription.unsubscribe());
+	        };
+	    }, []);
+	    return config;
+	};
+	useConfig.useConfig = useConfig$1;
+	return useConfig;
+}
+
+var useTheme = {};
+
+var _stackClear;
+var hasRequired_stackClear;
+
+function require_stackClear () {
+	if (hasRequired_stackClear) return _stackClear;
+	hasRequired_stackClear = 1;
+	var ListCache = require_ListCache();
+
+	/**
+	 * Removes all key-value entries from the stack.
+	 *
+	 * @private
+	 * @name clear
+	 * @memberOf Stack
+	 */
+	function stackClear() {
+	  this.__data__ = new ListCache;
+	  this.size = 0;
+	}
+
+	_stackClear = stackClear;
+	return _stackClear;
+}
+
+/**
+ * Removes `key` and its value from the stack.
+ *
+ * @private
+ * @name delete
+ * @memberOf Stack
+ * @param {string} key The key of the value to remove.
+ * @returns {boolean} Returns `true` if the entry was removed, else `false`.
+ */
+
+var _stackDelete;
+var hasRequired_stackDelete;
+
+function require_stackDelete () {
+	if (hasRequired_stackDelete) return _stackDelete;
+	hasRequired_stackDelete = 1;
+	function stackDelete(key) {
+	  var data = this.__data__,
+	      result = data['delete'](key);
+
+	  this.size = data.size;
+	  return result;
+	}
+
+	_stackDelete = stackDelete;
+	return _stackDelete;
+}
+
+/**
+ * Gets the stack value for `key`.
+ *
+ * @private
+ * @name get
+ * @memberOf Stack
+ * @param {string} key The key of the value to get.
+ * @returns {*} Returns the entry value.
+ */
+
+var _stackGet;
+var hasRequired_stackGet;
+
+function require_stackGet () {
+	if (hasRequired_stackGet) return _stackGet;
+	hasRequired_stackGet = 1;
+	function stackGet(key) {
+	  return this.__data__.get(key);
+	}
+
+	_stackGet = stackGet;
+	return _stackGet;
+}
+
+/**
+ * Checks if a stack value for `key` exists.
+ *
+ * @private
+ * @name has
+ * @memberOf Stack
+ * @param {string} key The key of the entry to check.
+ * @returns {boolean} Returns `true` if an entry for `key` exists, else `false`.
+ */
+
+var _stackHas;
+var hasRequired_stackHas;
+
+function require_stackHas () {
+	if (hasRequired_stackHas) return _stackHas;
+	hasRequired_stackHas = 1;
+	function stackHas(key) {
+	  return this.__data__.has(key);
+	}
+
+	_stackHas = stackHas;
+	return _stackHas;
+}
+
+var _stackSet;
+var hasRequired_stackSet;
+
+function require_stackSet () {
+	if (hasRequired_stackSet) return _stackSet;
+	hasRequired_stackSet = 1;
+	var ListCache = require_ListCache(),
+	    Map = require_Map(),
+	    MapCache = require_MapCache();
+
+	/** Used as the size to enable large array optimizations. */
+	var LARGE_ARRAY_SIZE = 200;
+
+	/**
+	 * Sets the stack `key` to `value`.
+	 *
+	 * @private
+	 * @name set
+	 * @memberOf Stack
+	 * @param {string} key The key of the value to set.
+	 * @param {*} value The value to set.
+	 * @returns {Object} Returns the stack cache instance.
+	 */
+	function stackSet(key, value) {
+	  var data = this.__data__;
+	  if (data instanceof ListCache) {
+	    var pairs = data.__data__;
+	    if (!Map || (pairs.length < LARGE_ARRAY_SIZE - 1)) {
+	      pairs.push([key, value]);
+	      this.size = ++data.size;
+	      return this;
+	    }
+	    data = this.__data__ = new MapCache(pairs);
+	  }
+	  data.set(key, value);
+	  this.size = data.size;
+	  return this;
+	}
+
+	_stackSet = stackSet;
+	return _stackSet;
+}
+
+var _Stack;
+var hasRequired_Stack;
+
+function require_Stack () {
+	if (hasRequired_Stack) return _Stack;
+	hasRequired_Stack = 1;
+	var ListCache = require_ListCache(),
+	    stackClear = require_stackClear(),
+	    stackDelete = require_stackDelete(),
+	    stackGet = require_stackGet(),
+	    stackHas = require_stackHas(),
+	    stackSet = require_stackSet();
+
+	/**
+	 * Creates a stack cache object to store key-value pairs.
+	 *
+	 * @private
+	 * @constructor
+	 * @param {Array} [entries] The key-value pairs to cache.
+	 */
+	function Stack(entries) {
+	  var data = this.__data__ = new ListCache(entries);
+	  this.size = data.size;
+	}
+
+	// Add methods to `Stack`.
+	Stack.prototype.clear = stackClear;
+	Stack.prototype['delete'] = stackDelete;
+	Stack.prototype.get = stackGet;
+	Stack.prototype.has = stackHas;
+	Stack.prototype.set = stackSet;
+
+	_Stack = Stack;
+	return _Stack;
+}
+
+/** Used to stand-in for `undefined` hash values. */
+
+var _setCacheAdd;
+var hasRequired_setCacheAdd;
+
+function require_setCacheAdd () {
+	if (hasRequired_setCacheAdd) return _setCacheAdd;
+	hasRequired_setCacheAdd = 1;
+	var HASH_UNDEFINED = '__lodash_hash_undefined__';
+
+	/**
+	 * Adds `value` to the array cache.
+	 *
+	 * @private
+	 * @name add
+	 * @memberOf SetCache
+	 * @alias push
+	 * @param {*} value The value to cache.
+	 * @returns {Object} Returns the cache instance.
+	 */
+	function setCacheAdd(value) {
+	  this.__data__.set(value, HASH_UNDEFINED);
+	  return this;
+	}
+
+	_setCacheAdd = setCacheAdd;
+	return _setCacheAdd;
+}
+
+/**
+ * Checks if `value` is in the array cache.
+ *
+ * @private
+ * @name has
+ * @memberOf SetCache
+ * @param {*} value The value to search for.
+ * @returns {boolean} Returns `true` if `value` is found, else `false`.
+ */
+
+var _setCacheHas;
+var hasRequired_setCacheHas;
+
+function require_setCacheHas () {
+	if (hasRequired_setCacheHas) return _setCacheHas;
+	hasRequired_setCacheHas = 1;
+	function setCacheHas(value) {
+	  return this.__data__.has(value);
+	}
+
+	_setCacheHas = setCacheHas;
+	return _setCacheHas;
+}
+
+var _SetCache;
+var hasRequired_SetCache;
+
+function require_SetCache () {
+	if (hasRequired_SetCache) return _SetCache;
+	hasRequired_SetCache = 1;
+	var MapCache = require_MapCache(),
+	    setCacheAdd = require_setCacheAdd(),
+	    setCacheHas = require_setCacheHas();
+
+	/**
+	 *
+	 * Creates an array cache object to store unique values.
+	 *
+	 * @private
+	 * @constructor
+	 * @param {Array} [values] The values to cache.
+	 */
+	function SetCache(values) {
+	  var index = -1,
+	      length = values == null ? 0 : values.length;
+
+	  this.__data__ = new MapCache;
+	  while (++index < length) {
+	    this.add(values[index]);
+	  }
+	}
+
+	// Add methods to `SetCache`.
+	SetCache.prototype.add = SetCache.prototype.push = setCacheAdd;
+	SetCache.prototype.has = setCacheHas;
+
+	_SetCache = SetCache;
+	return _SetCache;
+}
+
+/**
+ * A specialized version of `_.some` for arrays without support for iteratee
+ * shorthands.
+ *
+ * @private
+ * @param {Array} [array] The array to iterate over.
+ * @param {Function} predicate The function invoked per iteration.
+ * @returns {boolean} Returns `true` if any element passes the predicate check,
+ *  else `false`.
+ */
+
+var _arraySome;
+var hasRequired_arraySome;
+
+function require_arraySome () {
+	if (hasRequired_arraySome) return _arraySome;
+	hasRequired_arraySome = 1;
+	function arraySome(array, predicate) {
+	  var index = -1,
+	      length = array == null ? 0 : array.length;
+
+	  while (++index < length) {
+	    if (predicate(array[index], index, array)) {
+	      return true;
+	    }
+	  }
+	  return false;
+	}
+
+	_arraySome = arraySome;
+	return _arraySome;
+}
+
+/**
+ * Checks if a `cache` value for `key` exists.
+ *
+ * @private
+ * @param {Object} cache The cache to query.
+ * @param {string} key The key of the entry to check.
+ * @returns {boolean} Returns `true` if an entry for `key` exists, else `false`.
+ */
+
+var _cacheHas;
+var hasRequired_cacheHas;
+
+function require_cacheHas () {
+	if (hasRequired_cacheHas) return _cacheHas;
+	hasRequired_cacheHas = 1;
+	function cacheHas(cache, key) {
+	  return cache.has(key);
+	}
+
+	_cacheHas = cacheHas;
+	return _cacheHas;
+}
+
+var _equalArrays;
+var hasRequired_equalArrays;
+
+function require_equalArrays () {
+	if (hasRequired_equalArrays) return _equalArrays;
+	hasRequired_equalArrays = 1;
+	var SetCache = require_SetCache(),
+	    arraySome = require_arraySome(),
+	    cacheHas = require_cacheHas();
+
+	/** Used to compose bitmasks for value comparisons. */
+	var COMPARE_PARTIAL_FLAG = 1,
+	    COMPARE_UNORDERED_FLAG = 2;
+
+	/**
+	 * A specialized version of `baseIsEqualDeep` for arrays with support for
+	 * partial deep comparisons.
+	 *
+	 * @private
+	 * @param {Array} array The array to compare.
+	 * @param {Array} other The other array to compare.
+	 * @param {number} bitmask The bitmask flags. See `baseIsEqual` for more details.
+	 * @param {Function} customizer The function to customize comparisons.
+	 * @param {Function} equalFunc The function to determine equivalents of values.
+	 * @param {Object} stack Tracks traversed `array` and `other` objects.
+	 * @returns {boolean} Returns `true` if the arrays are equivalent, else `false`.
+	 */
+	function equalArrays(array, other, bitmask, customizer, equalFunc, stack) {
+	  var isPartial = bitmask & COMPARE_PARTIAL_FLAG,
+	      arrLength = array.length,
+	      othLength = other.length;
+
+	  if (arrLength != othLength && !(isPartial && othLength > arrLength)) {
+	    return false;
+	  }
+	  // Check that cyclic values are equal.
+	  var arrStacked = stack.get(array);
+	  var othStacked = stack.get(other);
+	  if (arrStacked && othStacked) {
+	    return arrStacked == other && othStacked == array;
+	  }
+	  var index = -1,
+	      result = true,
+	      seen = (bitmask & COMPARE_UNORDERED_FLAG) ? new SetCache : undefined;
+
+	  stack.set(array, other);
+	  stack.set(other, array);
+
+	  // Ignore non-index properties.
+	  while (++index < arrLength) {
+	    var arrValue = array[index],
+	        othValue = other[index];
+
+	    if (customizer) {
+	      var compared = isPartial
+	        ? customizer(othValue, arrValue, index, other, array, stack)
+	        : customizer(arrValue, othValue, index, array, other, stack);
+	    }
+	    if (compared !== undefined) {
+	      if (compared) {
+	        continue;
+	      }
+	      result = false;
+	      break;
+	    }
+	    // Recursively compare arrays (susceptible to call stack limits).
+	    if (seen) {
+	      if (!arraySome(other, function(othValue, othIndex) {
+	            if (!cacheHas(seen, othIndex) &&
+	                (arrValue === othValue || equalFunc(arrValue, othValue, bitmask, customizer, stack))) {
+	              return seen.push(othIndex);
+	            }
+	          })) {
+	        result = false;
+	        break;
+	      }
+	    } else if (!(
+	          arrValue === othValue ||
+	            equalFunc(arrValue, othValue, bitmask, customizer, stack)
+	        )) {
+	      result = false;
+	      break;
+	    }
+	  }
+	  stack['delete'](array);
+	  stack['delete'](other);
+	  return result;
+	}
+
+	_equalArrays = equalArrays;
+	return _equalArrays;
+}
+
+var _Uint8Array;
+var hasRequired_Uint8Array;
+
+function require_Uint8Array () {
+	if (hasRequired_Uint8Array) return _Uint8Array;
+	hasRequired_Uint8Array = 1;
+	var root = require_root();
+
+	/** Built-in value references. */
+	var Uint8Array = root.Uint8Array;
+
+	_Uint8Array = Uint8Array;
+	return _Uint8Array;
+}
+
+/**
+ * Converts `map` to its key-value pairs.
+ *
+ * @private
+ * @param {Object} map The map to convert.
+ * @returns {Array} Returns the key-value pairs.
+ */
+
+var _mapToArray;
+var hasRequired_mapToArray;
+
+function require_mapToArray () {
+	if (hasRequired_mapToArray) return _mapToArray;
+	hasRequired_mapToArray = 1;
+	function mapToArray(map) {
+	  var index = -1,
+	      result = Array(map.size);
+
+	  map.forEach(function(value, key) {
+	    result[++index] = [key, value];
+	  });
+	  return result;
+	}
+
+	_mapToArray = mapToArray;
+	return _mapToArray;
+}
+
+/**
+ * Converts `set` to an array of its values.
+ *
+ * @private
+ * @param {Object} set The set to convert.
+ * @returns {Array} Returns the values.
+ */
+
+var _setToArray;
+var hasRequired_setToArray;
+
+function require_setToArray () {
+	if (hasRequired_setToArray) return _setToArray;
+	hasRequired_setToArray = 1;
+	function setToArray(set) {
+	  var index = -1,
+	      result = Array(set.size);
+
+	  set.forEach(function(value) {
+	    result[++index] = value;
+	  });
+	  return result;
+	}
+
+	_setToArray = setToArray;
+	return _setToArray;
+}
+
+var _equalByTag;
+var hasRequired_equalByTag;
+
+function require_equalByTag () {
+	if (hasRequired_equalByTag) return _equalByTag;
+	hasRequired_equalByTag = 1;
+	var Symbol = require_Symbol(),
+	    Uint8Array = require_Uint8Array(),
+	    eq = requireEq(),
+	    equalArrays = require_equalArrays(),
+	    mapToArray = require_mapToArray(),
+	    setToArray = require_setToArray();
+
+	/** Used to compose bitmasks for value comparisons. */
+	var COMPARE_PARTIAL_FLAG = 1,
+	    COMPARE_UNORDERED_FLAG = 2;
+
+	/** `Object#toString` result references. */
+	var boolTag = '[object Boolean]',
+	    dateTag = '[object Date]',
+	    errorTag = '[object Error]',
+	    mapTag = '[object Map]',
+	    numberTag = '[object Number]',
+	    regexpTag = '[object RegExp]',
+	    setTag = '[object Set]',
+	    stringTag = '[object String]',
+	    symbolTag = '[object Symbol]';
+
+	var arrayBufferTag = '[object ArrayBuffer]',
+	    dataViewTag = '[object DataView]';
+
+	/** Used to convert symbols to primitives and strings. */
+	var symbolProto = Symbol ? Symbol.prototype : undefined,
+	    symbolValueOf = symbolProto ? symbolProto.valueOf : undefined;
+
+	/**
+	 * A specialized version of `baseIsEqualDeep` for comparing objects of
+	 * the same `toStringTag`.
+	 *
+	 * **Note:** This function only supports comparing values with tags of
+	 * `Boolean`, `Date`, `Error`, `Number`, `RegExp`, or `String`.
+	 *
+	 * @private
+	 * @param {Object} object The object to compare.
+	 * @param {Object} other The other object to compare.
+	 * @param {string} tag The `toStringTag` of the objects to compare.
+	 * @param {number} bitmask The bitmask flags. See `baseIsEqual` for more details.
+	 * @param {Function} customizer The function to customize comparisons.
+	 * @param {Function} equalFunc The function to determine equivalents of values.
+	 * @param {Object} stack Tracks traversed `object` and `other` objects.
+	 * @returns {boolean} Returns `true` if the objects are equivalent, else `false`.
+	 */
+	function equalByTag(object, other, tag, bitmask, customizer, equalFunc, stack) {
+	  switch (tag) {
+	    case dataViewTag:
+	      if ((object.byteLength != other.byteLength) ||
+	          (object.byteOffset != other.byteOffset)) {
+	        return false;
+	      }
+	      object = object.buffer;
+	      other = other.buffer;
+
+	    case arrayBufferTag:
+	      if ((object.byteLength != other.byteLength) ||
+	          !equalFunc(new Uint8Array(object), new Uint8Array(other))) {
+	        return false;
+	      }
+	      return true;
+
+	    case boolTag:
+	    case dateTag:
+	    case numberTag:
+	      // Coerce booleans to `1` or `0` and dates to milliseconds.
+	      // Invalid dates are coerced to `NaN`.
+	      return eq(+object, +other);
+
+	    case errorTag:
+	      return object.name == other.name && object.message == other.message;
+
+	    case regexpTag:
+	    case stringTag:
+	      // Coerce regexes to strings and treat strings, primitives and objects,
+	      // as equal. See http://www.ecma-international.org/ecma-262/7.0/#sec-regexp.prototype.tostring
+	      // for more details.
+	      return object == (other + '');
+
+	    case mapTag:
+	      var convert = mapToArray;
+
+	    case setTag:
+	      var isPartial = bitmask & COMPARE_PARTIAL_FLAG;
+	      convert || (convert = setToArray);
+
+	      if (object.size != other.size && !isPartial) {
+	        return false;
+	      }
+	      // Assume cyclic values are equal.
+	      var stacked = stack.get(object);
+	      if (stacked) {
+	        return stacked == other;
+	      }
+	      bitmask |= COMPARE_UNORDERED_FLAG;
+
+	      // Recursively compare objects (susceptible to call stack limits).
+	      stack.set(object, other);
+	      var result = equalArrays(convert(object), convert(other), bitmask, customizer, equalFunc, stack);
+	      stack['delete'](object);
+	      return result;
+
+	    case symbolTag:
+	      if (symbolValueOf) {
+	        return symbolValueOf.call(object) == symbolValueOf.call(other);
+	      }
+	  }
+	  return false;
+	}
+
+	_equalByTag = equalByTag;
+	return _equalByTag;
+}
+
+/**
+ * Appends the elements of `values` to `array`.
+ *
+ * @private
+ * @param {Array} array The array to modify.
+ * @param {Array} values The values to append.
+ * @returns {Array} Returns `array`.
+ */
+
+var _arrayPush;
+var hasRequired_arrayPush;
+
+function require_arrayPush () {
+	if (hasRequired_arrayPush) return _arrayPush;
+	hasRequired_arrayPush = 1;
+	function arrayPush(array, values) {
+	  var index = -1,
+	      length = values.length,
+	      offset = array.length;
+
+	  while (++index < length) {
+	    array[offset + index] = values[index];
+	  }
+	  return array;
+	}
+
+	_arrayPush = arrayPush;
+	return _arrayPush;
+}
+
+var _baseGetAllKeys;
+var hasRequired_baseGetAllKeys;
+
+function require_baseGetAllKeys () {
+	if (hasRequired_baseGetAllKeys) return _baseGetAllKeys;
+	hasRequired_baseGetAllKeys = 1;
+	var arrayPush = require_arrayPush(),
+	    isArray = requireIsArray();
+
+	/**
+	 * The base implementation of `getAllKeys` and `getAllKeysIn` which uses
+	 * `keysFunc` and `symbolsFunc` to get the enumerable property names and
+	 * symbols of `object`.
+	 *
+	 * @private
+	 * @param {Object} object The object to query.
+	 * @param {Function} keysFunc The function to get the keys of `object`.
+	 * @param {Function} symbolsFunc The function to get the symbols of `object`.
+	 * @returns {Array} Returns the array of property names and symbols.
+	 */
+	function baseGetAllKeys(object, keysFunc, symbolsFunc) {
+	  var result = keysFunc(object);
+	  return isArray(object) ? result : arrayPush(result, symbolsFunc(object));
+	}
+
+	_baseGetAllKeys = baseGetAllKeys;
+	return _baseGetAllKeys;
+}
+
+/**
+ * A specialized version of `_.filter` for arrays without support for
+ * iteratee shorthands.
+ *
+ * @private
+ * @param {Array} [array] The array to iterate over.
+ * @param {Function} predicate The function invoked per iteration.
+ * @returns {Array} Returns the new filtered array.
+ */
+
+var _arrayFilter;
+var hasRequired_arrayFilter;
+
+function require_arrayFilter () {
+	if (hasRequired_arrayFilter) return _arrayFilter;
+	hasRequired_arrayFilter = 1;
+	function arrayFilter(array, predicate) {
+	  var index = -1,
+	      length = array == null ? 0 : array.length,
+	      resIndex = 0,
+	      result = [];
+
+	  while (++index < length) {
+	    var value = array[index];
+	    if (predicate(value, index, array)) {
+	      result[resIndex++] = value;
+	    }
+	  }
+	  return result;
+	}
+
+	_arrayFilter = arrayFilter;
+	return _arrayFilter;
+}
+
+/**
+ * This method returns a new empty array.
+ *
+ * @static
+ * @memberOf _
+ * @since 4.13.0
+ * @category Util
+ * @returns {Array} Returns the new empty array.
+ * @example
+ *
+ * var arrays = _.times(2, _.stubArray);
+ *
+ * console.log(arrays);
+ * // => [[], []]
+ *
+ * console.log(arrays[0] === arrays[1]);
+ * // => false
+ */
+
+var stubArray_1;
+var hasRequiredStubArray;
+
+function requireStubArray () {
+	if (hasRequiredStubArray) return stubArray_1;
+	hasRequiredStubArray = 1;
+	function stubArray() {
+	  return [];
+	}
+
+	stubArray_1 = stubArray;
+	return stubArray_1;
+}
+
+var _getSymbols;
+var hasRequired_getSymbols;
+
+function require_getSymbols () {
+	if (hasRequired_getSymbols) return _getSymbols;
+	hasRequired_getSymbols = 1;
+	var arrayFilter = require_arrayFilter(),
+	    stubArray = requireStubArray();
+
+	/** Used for built-in method references. */
+	var objectProto = Object.prototype;
+
+	/** Built-in value references. */
+	var propertyIsEnumerable = objectProto.propertyIsEnumerable;
+
+	/* Built-in method references for those with the same name as other `lodash` methods. */
+	var nativeGetSymbols = Object.getOwnPropertySymbols;
+
+	/**
+	 * Creates an array of the own enumerable symbols of `object`.
+	 *
+	 * @private
+	 * @param {Object} object The object to query.
+	 * @returns {Array} Returns the array of symbols.
+	 */
+	var getSymbols = !nativeGetSymbols ? stubArray : function(object) {
+	  if (object == null) {
+	    return [];
+	  }
+	  object = Object(object);
+	  return arrayFilter(nativeGetSymbols(object), function(symbol) {
+	    return propertyIsEnumerable.call(object, symbol);
+	  });
+	};
+
+	_getSymbols = getSymbols;
+	return _getSymbols;
+}
+
+/**
+ * The base implementation of `_.times` without support for iteratee shorthands
+ * or max array length checks.
+ *
+ * @private
+ * @param {number} n The number of times to invoke `iteratee`.
+ * @param {Function} iteratee The function invoked per iteration.
+ * @returns {Array} Returns the array of results.
+ */
+
+var _baseTimes;
+var hasRequired_baseTimes;
+
+function require_baseTimes () {
+	if (hasRequired_baseTimes) return _baseTimes;
+	hasRequired_baseTimes = 1;
+	function baseTimes(n, iteratee) {
+	  var index = -1,
+	      result = Array(n);
+
+	  while (++index < n) {
+	    result[index] = iteratee(index);
+	  }
+	  return result;
+	}
+
+	_baseTimes = baseTimes;
+	return _baseTimes;
+}
+
+var _baseIsArguments;
+var hasRequired_baseIsArguments;
+
+function require_baseIsArguments () {
+	if (hasRequired_baseIsArguments) return _baseIsArguments;
+	hasRequired_baseIsArguments = 1;
+	var baseGetTag = require_baseGetTag(),
+	    isObjectLike = requireIsObjectLike();
+
+	/** `Object#toString` result references. */
+	var argsTag = '[object Arguments]';
+
+	/**
+	 * The base implementation of `_.isArguments`.
+	 *
+	 * @private
+	 * @param {*} value The value to check.
+	 * @returns {boolean} Returns `true` if `value` is an `arguments` object,
+	 */
+	function baseIsArguments(value) {
+	  return isObjectLike(value) && baseGetTag(value) == argsTag;
+	}
+
+	_baseIsArguments = baseIsArguments;
+	return _baseIsArguments;
+}
+
+var isArguments_1;
+var hasRequiredIsArguments;
+
+function requireIsArguments () {
+	if (hasRequiredIsArguments) return isArguments_1;
+	hasRequiredIsArguments = 1;
+	var baseIsArguments = require_baseIsArguments(),
+	    isObjectLike = requireIsObjectLike();
+
+	/** Used for built-in method references. */
+	var objectProto = Object.prototype;
+
+	/** Used to check objects for own properties. */
+	var hasOwnProperty = objectProto.hasOwnProperty;
+
+	/** Built-in value references. */
+	var propertyIsEnumerable = objectProto.propertyIsEnumerable;
+
+	/**
+	 * Checks if `value` is likely an `arguments` object.
+	 *
+	 * @static
+	 * @memberOf _
+	 * @since 0.1.0
+	 * @category Lang
+	 * @param {*} value The value to check.
+	 * @returns {boolean} Returns `true` if `value` is an `arguments` object,
+	 *  else `false`.
+	 * @example
+	 *
+	 * _.isArguments(function() { return arguments; }());
+	 * // => true
+	 *
+	 * _.isArguments([1, 2, 3]);
+	 * // => false
+	 */
+	var isArguments = baseIsArguments(function() { return arguments; }()) ? baseIsArguments : function(value) {
+	  return isObjectLike(value) && hasOwnProperty.call(value, 'callee') &&
+	    !propertyIsEnumerable.call(value, 'callee');
+	};
+
+	isArguments_1 = isArguments;
+	return isArguments_1;
+}
+
+var isBuffer = {exports: {}};
+
+/**
+ * This method returns `false`.
+ *
+ * @static
+ * @memberOf _
+ * @since 4.13.0
+ * @category Util
+ * @returns {boolean} Returns `false`.
+ * @example
+ *
+ * _.times(2, _.stubFalse);
+ * // => [false, false]
+ */
+
+var stubFalse_1;
+var hasRequiredStubFalse;
+
+function requireStubFalse () {
+	if (hasRequiredStubFalse) return stubFalse_1;
+	hasRequiredStubFalse = 1;
+	function stubFalse() {
+	  return false;
+	}
+
+	stubFalse_1 = stubFalse;
+	return stubFalse_1;
+}
+
+isBuffer.exports;
+
+var hasRequiredIsBuffer;
+
+function requireIsBuffer () {
+	if (hasRequiredIsBuffer) return isBuffer.exports;
+	hasRequiredIsBuffer = 1;
+	(function (module, exports) {
+		var root = require_root(),
+		    stubFalse = requireStubFalse();
+
+		/** Detect free variable `exports`. */
+		var freeExports = exports && !exports.nodeType && exports;
+
+		/** Detect free variable `module`. */
+		var freeModule = freeExports && 'object' == 'object' && module && !module.nodeType && module;
+
+		/** Detect the popular CommonJS extension `module.exports`. */
+		var moduleExports = freeModule && freeModule.exports === freeExports;
+
+		/** Built-in value references. */
+		var Buffer = moduleExports ? root.Buffer : undefined;
+
+		/* Built-in method references for those with the same name as other `lodash` methods. */
+		var nativeIsBuffer = Buffer ? Buffer.isBuffer : undefined;
+
+		/**
+		 * Checks if `value` is a buffer.
+		 *
+		 * @static
+		 * @memberOf _
+		 * @since 4.3.0
+		 * @category Lang
+		 * @param {*} value The value to check.
+		 * @returns {boolean} Returns `true` if `value` is a buffer, else `false`.
+		 * @example
+		 *
+		 * _.isBuffer(new Buffer(2));
+		 * // => true
+		 *
+		 * _.isBuffer(new Uint8Array(2));
+		 * // => false
+		 */
+		var isBuffer = nativeIsBuffer || stubFalse;
+
+		module.exports = isBuffer; 
+	} (isBuffer, isBuffer.exports));
+	return isBuffer.exports;
+}
+
+/** Used as references for various `Number` constants. */
+
+var _isIndex;
+var hasRequired_isIndex;
+
+function require_isIndex () {
+	if (hasRequired_isIndex) return _isIndex;
+	hasRequired_isIndex = 1;
+	var MAX_SAFE_INTEGER = 9007199254740991;
+
+	/** Used to detect unsigned integer values. */
+	var reIsUint = /^(?:0|[1-9]\d*)$/;
+
+	/**
+	 * Checks if `value` is a valid array-like index.
+	 *
+	 * @private
+	 * @param {*} value The value to check.
+	 * @param {number} [length=MAX_SAFE_INTEGER] The upper bounds of a valid index.
+	 * @returns {boolean} Returns `true` if `value` is a valid index, else `false`.
+	 */
+	function isIndex(value, length) {
+	  var type = typeof value;
+	  length = length == null ? MAX_SAFE_INTEGER : length;
+
+	  return !!length &&
+	    (type == 'number' ||
+	      (type != 'symbol' && reIsUint.test(value))) &&
+	        (value > -1 && value % 1 == 0 && value < length);
+	}
+
+	_isIndex = isIndex;
+	return _isIndex;
+}
+
+/** Used as references for various `Number` constants. */
+
+var isLength_1;
+var hasRequiredIsLength;
+
+function requireIsLength () {
+	if (hasRequiredIsLength) return isLength_1;
+	hasRequiredIsLength = 1;
+	var MAX_SAFE_INTEGER = 9007199254740991;
+
+	/**
+	 * Checks if `value` is a valid array-like length.
+	 *
+	 * **Note:** This method is loosely based on
+	 * [`ToLength`](http://ecma-international.org/ecma-262/7.0/#sec-tolength).
+	 *
+	 * @static
+	 * @memberOf _
+	 * @since 4.0.0
+	 * @category Lang
+	 * @param {*} value The value to check.
+	 * @returns {boolean} Returns `true` if `value` is a valid length, else `false`.
+	 * @example
+	 *
+	 * _.isLength(3);
+	 * // => true
+	 *
+	 * _.isLength(Number.MIN_VALUE);
+	 * // => false
+	 *
+	 * _.isLength(Infinity);
+	 * // => false
+	 *
+	 * _.isLength('3');
+	 * // => false
+	 */
+	function isLength(value) {
+	  return typeof value == 'number' &&
+	    value > -1 && value % 1 == 0 && value <= MAX_SAFE_INTEGER;
+	}
+
+	isLength_1 = isLength;
+	return isLength_1;
+}
+
+var _baseIsTypedArray;
+var hasRequired_baseIsTypedArray;
+
+function require_baseIsTypedArray () {
+	if (hasRequired_baseIsTypedArray) return _baseIsTypedArray;
+	hasRequired_baseIsTypedArray = 1;
+	var baseGetTag = require_baseGetTag(),
+	    isLength = requireIsLength(),
+	    isObjectLike = requireIsObjectLike();
+
+	/** `Object#toString` result references. */
+	var argsTag = '[object Arguments]',
+	    arrayTag = '[object Array]',
+	    boolTag = '[object Boolean]',
+	    dateTag = '[object Date]',
+	    errorTag = '[object Error]',
+	    funcTag = '[object Function]',
+	    mapTag = '[object Map]',
+	    numberTag = '[object Number]',
+	    objectTag = '[object Object]',
+	    regexpTag = '[object RegExp]',
+	    setTag = '[object Set]',
+	    stringTag = '[object String]',
+	    weakMapTag = '[object WeakMap]';
+
+	var arrayBufferTag = '[object ArrayBuffer]',
+	    dataViewTag = '[object DataView]',
+	    float32Tag = '[object Float32Array]',
+	    float64Tag = '[object Float64Array]',
+	    int8Tag = '[object Int8Array]',
+	    int16Tag = '[object Int16Array]',
+	    int32Tag = '[object Int32Array]',
+	    uint8Tag = '[object Uint8Array]',
+	    uint8ClampedTag = '[object Uint8ClampedArray]',
+	    uint16Tag = '[object Uint16Array]',
+	    uint32Tag = '[object Uint32Array]';
+
+	/** Used to identify `toStringTag` values of typed arrays. */
+	var typedArrayTags = {};
+	typedArrayTags[float32Tag] = typedArrayTags[float64Tag] =
+	typedArrayTags[int8Tag] = typedArrayTags[int16Tag] =
+	typedArrayTags[int32Tag] = typedArrayTags[uint8Tag] =
+	typedArrayTags[uint8ClampedTag] = typedArrayTags[uint16Tag] =
+	typedArrayTags[uint32Tag] = true;
+	typedArrayTags[argsTag] = typedArrayTags[arrayTag] =
+	typedArrayTags[arrayBufferTag] = typedArrayTags[boolTag] =
+	typedArrayTags[dataViewTag] = typedArrayTags[dateTag] =
+	typedArrayTags[errorTag] = typedArrayTags[funcTag] =
+	typedArrayTags[mapTag] = typedArrayTags[numberTag] =
+	typedArrayTags[objectTag] = typedArrayTags[regexpTag] =
+	typedArrayTags[setTag] = typedArrayTags[stringTag] =
+	typedArrayTags[weakMapTag] = false;
+
+	/**
+	 * The base implementation of `_.isTypedArray` without Node.js optimizations.
+	 *
+	 * @private
+	 * @param {*} value The value to check.
+	 * @returns {boolean} Returns `true` if `value` is a typed array, else `false`.
+	 */
+	function baseIsTypedArray(value) {
+	  return isObjectLike(value) &&
+	    isLength(value.length) && !!typedArrayTags[baseGetTag(value)];
+	}
+
+	_baseIsTypedArray = baseIsTypedArray;
+	return _baseIsTypedArray;
+}
+
+/**
+ * The base implementation of `_.unary` without support for storing metadata.
+ *
+ * @private
+ * @param {Function} func The function to cap arguments for.
+ * @returns {Function} Returns the new capped function.
+ */
+
+var _baseUnary;
+var hasRequired_baseUnary;
+
+function require_baseUnary () {
+	if (hasRequired_baseUnary) return _baseUnary;
+	hasRequired_baseUnary = 1;
+	function baseUnary(func) {
+	  return function(value) {
+	    return func(value);
+	  };
+	}
+
+	_baseUnary = baseUnary;
+	return _baseUnary;
+}
+
+var _nodeUtil = {exports: {}};
+
+_nodeUtil.exports;
+
+var hasRequired_nodeUtil;
+
+function require_nodeUtil () {
+	if (hasRequired_nodeUtil) return _nodeUtil.exports;
+	hasRequired_nodeUtil = 1;
+	(function (module, exports) {
+		var freeGlobal = require_freeGlobal();
+
+		/** Detect free variable `exports`. */
+		var freeExports = exports && !exports.nodeType && exports;
+
+		/** Detect free variable `module`. */
+		var freeModule = freeExports && 'object' == 'object' && module && !module.nodeType && module;
+
+		/** Detect the popular CommonJS extension `module.exports`. */
+		var moduleExports = freeModule && freeModule.exports === freeExports;
+
+		/** Detect free variable `process` from Node.js. */
+		var freeProcess = moduleExports && freeGlobal.process;
+
+		/** Used to access faster Node.js helpers. */
+		var nodeUtil = (function() {
+		  try {
+		    // Use `util.types` for Node.js 10+.
+		    var types = freeModule && freeModule.require && freeModule.require('util').types;
+
+		    if (types) {
+		      return types;
+		    }
+
+		    // Legacy `process.binding('util')` for Node.js < 10.
+		    return freeProcess && freeProcess.binding && freeProcess.binding('util');
+		  } catch (e) {}
+		}());
+
+		module.exports = nodeUtil; 
+	} (_nodeUtil, _nodeUtil.exports));
+	return _nodeUtil.exports;
+}
+
+var isTypedArray_1;
+var hasRequiredIsTypedArray;
+
+function requireIsTypedArray () {
+	if (hasRequiredIsTypedArray) return isTypedArray_1;
+	hasRequiredIsTypedArray = 1;
+	var baseIsTypedArray = require_baseIsTypedArray(),
+	    baseUnary = require_baseUnary(),
+	    nodeUtil = require_nodeUtil();
+
+	/* Node.js helper references. */
+	var nodeIsTypedArray = nodeUtil && nodeUtil.isTypedArray;
+
+	/**
+	 * Checks if `value` is classified as a typed array.
+	 *
+	 * @static
+	 * @memberOf _
+	 * @since 3.0.0
+	 * @category Lang
+	 * @param {*} value The value to check.
+	 * @returns {boolean} Returns `true` if `value` is a typed array, else `false`.
+	 * @example
+	 *
+	 * _.isTypedArray(new Uint8Array);
+	 * // => true
+	 *
+	 * _.isTypedArray([]);
+	 * // => false
+	 */
+	var isTypedArray = nodeIsTypedArray ? baseUnary(nodeIsTypedArray) : baseIsTypedArray;
+
+	isTypedArray_1 = isTypedArray;
+	return isTypedArray_1;
+}
+
+var _arrayLikeKeys;
+var hasRequired_arrayLikeKeys;
+
+function require_arrayLikeKeys () {
+	if (hasRequired_arrayLikeKeys) return _arrayLikeKeys;
+	hasRequired_arrayLikeKeys = 1;
+	var baseTimes = require_baseTimes(),
+	    isArguments = requireIsArguments(),
+	    isArray = requireIsArray(),
+	    isBuffer = requireIsBuffer(),
+	    isIndex = require_isIndex(),
+	    isTypedArray = requireIsTypedArray();
+
+	/** Used for built-in method references. */
+	var objectProto = Object.prototype;
+
+	/** Used to check objects for own properties. */
+	var hasOwnProperty = objectProto.hasOwnProperty;
+
+	/**
+	 * Creates an array of the enumerable property names of the array-like `value`.
+	 *
+	 * @private
+	 * @param {*} value The value to query.
+	 * @param {boolean} inherited Specify returning inherited property names.
+	 * @returns {Array} Returns the array of property names.
+	 */
+	function arrayLikeKeys(value, inherited) {
+	  var isArr = isArray(value),
+	      isArg = !isArr && isArguments(value),
+	      isBuff = !isArr && !isArg && isBuffer(value),
+	      isType = !isArr && !isArg && !isBuff && isTypedArray(value),
+	      skipIndexes = isArr || isArg || isBuff || isType,
+	      result = skipIndexes ? baseTimes(value.length, String) : [],
+	      length = result.length;
+
+	  for (var key in value) {
+	    if ((inherited || hasOwnProperty.call(value, key)) &&
+	        !(skipIndexes && (
+	           // Safari 9 has enumerable `arguments.length` in strict mode.
+	           key == 'length' ||
+	           // Node.js 0.10 has enumerable non-index properties on buffers.
+	           (isBuff && (key == 'offset' || key == 'parent')) ||
+	           // PhantomJS 2 has enumerable non-index properties on typed arrays.
+	           (isType && (key == 'buffer' || key == 'byteLength' || key == 'byteOffset')) ||
+	           // Skip index properties.
+	           isIndex(key, length)
+	        ))) {
+	      result.push(key);
+	    }
+	  }
+	  return result;
+	}
+
+	_arrayLikeKeys = arrayLikeKeys;
+	return _arrayLikeKeys;
+}
+
+/** Used for built-in method references. */
+
+var _isPrototype;
+var hasRequired_isPrototype;
+
+function require_isPrototype () {
+	if (hasRequired_isPrototype) return _isPrototype;
+	hasRequired_isPrototype = 1;
+	var objectProto = Object.prototype;
+
+	/**
+	 * Checks if `value` is likely a prototype object.
+	 *
+	 * @private
+	 * @param {*} value The value to check.
+	 * @returns {boolean} Returns `true` if `value` is a prototype, else `false`.
+	 */
+	function isPrototype(value) {
+	  var Ctor = value && value.constructor,
+	      proto = (typeof Ctor == 'function' && Ctor.prototype) || objectProto;
+
+	  return value === proto;
+	}
+
+	_isPrototype = isPrototype;
+	return _isPrototype;
+}
+
+/**
+ * Creates a unary function that invokes `func` with its argument transformed.
+ *
+ * @private
+ * @param {Function} func The function to wrap.
+ * @param {Function} transform The argument transform.
+ * @returns {Function} Returns the new function.
+ */
+
+var _overArg;
+var hasRequired_overArg;
+
+function require_overArg () {
+	if (hasRequired_overArg) return _overArg;
+	hasRequired_overArg = 1;
+	function overArg(func, transform) {
+	  return function(arg) {
+	    return func(transform(arg));
+	  };
+	}
+
+	_overArg = overArg;
+	return _overArg;
+}
+
+var _nativeKeys;
+var hasRequired_nativeKeys;
+
+function require_nativeKeys () {
+	if (hasRequired_nativeKeys) return _nativeKeys;
+	hasRequired_nativeKeys = 1;
+	var overArg = require_overArg();
+
+	/* Built-in method references for those with the same name as other `lodash` methods. */
+	var nativeKeys = overArg(Object.keys, Object);
+
+	_nativeKeys = nativeKeys;
+	return _nativeKeys;
+}
+
+var _baseKeys;
+var hasRequired_baseKeys;
+
+function require_baseKeys () {
+	if (hasRequired_baseKeys) return _baseKeys;
+	hasRequired_baseKeys = 1;
+	var isPrototype = require_isPrototype(),
+	    nativeKeys = require_nativeKeys();
+
+	/** Used for built-in method references. */
+	var objectProto = Object.prototype;
+
+	/** Used to check objects for own properties. */
+	var hasOwnProperty = objectProto.hasOwnProperty;
+
+	/**
+	 * The base implementation of `_.keys` which doesn't treat sparse arrays as dense.
+	 *
+	 * @private
+	 * @param {Object} object The object to query.
+	 * @returns {Array} Returns the array of property names.
+	 */
+	function baseKeys(object) {
+	  if (!isPrototype(object)) {
+	    return nativeKeys(object);
+	  }
+	  var result = [];
+	  for (var key in Object(object)) {
+	    if (hasOwnProperty.call(object, key) && key != 'constructor') {
+	      result.push(key);
+	    }
+	  }
+	  return result;
+	}
+
+	_baseKeys = baseKeys;
+	return _baseKeys;
+}
+
+var isArrayLike_1;
+var hasRequiredIsArrayLike;
+
+function requireIsArrayLike () {
+	if (hasRequiredIsArrayLike) return isArrayLike_1;
+	hasRequiredIsArrayLike = 1;
+	var isFunction = requireIsFunction(),
+	    isLength = requireIsLength();
+
+	/**
+	 * Checks if `value` is array-like. A value is considered array-like if it's
+	 * not a function and has a `value.length` that's an integer greater than or
+	 * equal to `0` and less than or equal to `Number.MAX_SAFE_INTEGER`.
+	 *
+	 * @static
+	 * @memberOf _
+	 * @since 4.0.0
+	 * @category Lang
+	 * @param {*} value The value to check.
+	 * @returns {boolean} Returns `true` if `value` is array-like, else `false`.
+	 * @example
+	 *
+	 * _.isArrayLike([1, 2, 3]);
+	 * // => true
+	 *
+	 * _.isArrayLike(document.body.children);
+	 * // => true
+	 *
+	 * _.isArrayLike('abc');
+	 * // => true
+	 *
+	 * _.isArrayLike(_.noop);
+	 * // => false
+	 */
+	function isArrayLike(value) {
+	  return value != null && isLength(value.length) && !isFunction(value);
+	}
+
+	isArrayLike_1 = isArrayLike;
+	return isArrayLike_1;
+}
+
+var keys_1;
+var hasRequiredKeys;
+
+function requireKeys () {
+	if (hasRequiredKeys) return keys_1;
+	hasRequiredKeys = 1;
+	var arrayLikeKeys = require_arrayLikeKeys(),
+	    baseKeys = require_baseKeys(),
+	    isArrayLike = requireIsArrayLike();
+
+	/**
+	 * Creates an array of the own enumerable property names of `object`.
+	 *
+	 * **Note:** Non-object values are coerced to objects. See the
+	 * [ES spec](http://ecma-international.org/ecma-262/7.0/#sec-object.keys)
+	 * for more details.
+	 *
+	 * @static
+	 * @since 0.1.0
+	 * @memberOf _
+	 * @category Object
+	 * @param {Object} object The object to query.
+	 * @returns {Array} Returns the array of property names.
+	 * @example
+	 *
+	 * function Foo() {
+	 *   this.a = 1;
+	 *   this.b = 2;
+	 * }
+	 *
+	 * Foo.prototype.c = 3;
+	 *
+	 * _.keys(new Foo);
+	 * // => ['a', 'b'] (iteration order is not guaranteed)
+	 *
+	 * _.keys('hi');
+	 * // => ['0', '1']
+	 */
+	function keys(object) {
+	  return isArrayLike(object) ? arrayLikeKeys(object) : baseKeys(object);
+	}
+
+	keys_1 = keys;
+	return keys_1;
+}
+
+var _getAllKeys;
+var hasRequired_getAllKeys;
+
+function require_getAllKeys () {
+	if (hasRequired_getAllKeys) return _getAllKeys;
+	hasRequired_getAllKeys = 1;
+	var baseGetAllKeys = require_baseGetAllKeys(),
+	    getSymbols = require_getSymbols(),
+	    keys = requireKeys();
+
+	/**
+	 * Creates an array of own enumerable property names and symbols of `object`.
+	 *
+	 * @private
+	 * @param {Object} object The object to query.
+	 * @returns {Array} Returns the array of property names and symbols.
+	 */
+	function getAllKeys(object) {
+	  return baseGetAllKeys(object, keys, getSymbols);
+	}
+
+	_getAllKeys = getAllKeys;
+	return _getAllKeys;
+}
+
+var _equalObjects;
+var hasRequired_equalObjects;
+
+function require_equalObjects () {
+	if (hasRequired_equalObjects) return _equalObjects;
+	hasRequired_equalObjects = 1;
+	var getAllKeys = require_getAllKeys();
+
+	/** Used to compose bitmasks for value comparisons. */
+	var COMPARE_PARTIAL_FLAG = 1;
+
+	/** Used for built-in method references. */
+	var objectProto = Object.prototype;
+
+	/** Used to check objects for own properties. */
+	var hasOwnProperty = objectProto.hasOwnProperty;
+
+	/**
+	 * A specialized version of `baseIsEqualDeep` for objects with support for
+	 * partial deep comparisons.
+	 *
+	 * @private
+	 * @param {Object} object The object to compare.
+	 * @param {Object} other The other object to compare.
+	 * @param {number} bitmask The bitmask flags. See `baseIsEqual` for more details.
+	 * @param {Function} customizer The function to customize comparisons.
+	 * @param {Function} equalFunc The function to determine equivalents of values.
+	 * @param {Object} stack Tracks traversed `object` and `other` objects.
+	 * @returns {boolean} Returns `true` if the objects are equivalent, else `false`.
+	 */
+	function equalObjects(object, other, bitmask, customizer, equalFunc, stack) {
+	  var isPartial = bitmask & COMPARE_PARTIAL_FLAG,
+	      objProps = getAllKeys(object),
+	      objLength = objProps.length,
+	      othProps = getAllKeys(other),
+	      othLength = othProps.length;
+
+	  if (objLength != othLength && !isPartial) {
+	    return false;
+	  }
+	  var index = objLength;
+	  while (index--) {
+	    var key = objProps[index];
+	    if (!(isPartial ? key in other : hasOwnProperty.call(other, key))) {
+	      return false;
+	    }
+	  }
+	  // Check that cyclic values are equal.
+	  var objStacked = stack.get(object);
+	  var othStacked = stack.get(other);
+	  if (objStacked && othStacked) {
+	    return objStacked == other && othStacked == object;
+	  }
+	  var result = true;
+	  stack.set(object, other);
+	  stack.set(other, object);
+
+	  var skipCtor = isPartial;
+	  while (++index < objLength) {
+	    key = objProps[index];
+	    var objValue = object[key],
+	        othValue = other[key];
+
+	    if (customizer) {
+	      var compared = isPartial
+	        ? customizer(othValue, objValue, key, other, object, stack)
+	        : customizer(objValue, othValue, key, object, other, stack);
+	    }
+	    // Recursively compare objects (susceptible to call stack limits).
+	    if (!(compared === undefined
+	          ? (objValue === othValue || equalFunc(objValue, othValue, bitmask, customizer, stack))
+	          : compared
+	        )) {
+	      result = false;
+	      break;
+	    }
+	    skipCtor || (skipCtor = key == 'constructor');
+	  }
+	  if (result && !skipCtor) {
+	    var objCtor = object.constructor,
+	        othCtor = other.constructor;
+
+	    // Non `Object` object instances with different constructors are not equal.
+	    if (objCtor != othCtor &&
+	        ('constructor' in object && 'constructor' in other) &&
+	        !(typeof objCtor == 'function' && objCtor instanceof objCtor &&
+	          typeof othCtor == 'function' && othCtor instanceof othCtor)) {
+	      result = false;
+	    }
+	  }
+	  stack['delete'](object);
+	  stack['delete'](other);
+	  return result;
+	}
+
+	_equalObjects = equalObjects;
+	return _equalObjects;
+}
+
+var _DataView;
+var hasRequired_DataView;
+
+function require_DataView () {
+	if (hasRequired_DataView) return _DataView;
+	hasRequired_DataView = 1;
+	var getNative = require_getNative(),
+	    root = require_root();
+
+	/* Built-in method references that are verified to be native. */
+	var DataView = getNative(root, 'DataView');
+
+	_DataView = DataView;
+	return _DataView;
+}
+
+var _Promise;
+var hasRequired_Promise;
+
+function require_Promise () {
+	if (hasRequired_Promise) return _Promise;
+	hasRequired_Promise = 1;
+	var getNative = require_getNative(),
+	    root = require_root();
+
+	/* Built-in method references that are verified to be native. */
+	var Promise = getNative(root, 'Promise');
+
+	_Promise = Promise;
+	return _Promise;
+}
+
+var _Set;
+var hasRequired_Set;
+
+function require_Set () {
+	if (hasRequired_Set) return _Set;
+	hasRequired_Set = 1;
+	var getNative = require_getNative(),
+	    root = require_root();
+
+	/* Built-in method references that are verified to be native. */
+	var Set = getNative(root, 'Set');
+
+	_Set = Set;
+	return _Set;
+}
+
+var _WeakMap;
+var hasRequired_WeakMap;
+
+function require_WeakMap () {
+	if (hasRequired_WeakMap) return _WeakMap;
+	hasRequired_WeakMap = 1;
+	var getNative = require_getNative(),
+	    root = require_root();
+
+	/* Built-in method references that are verified to be native. */
+	var WeakMap = getNative(root, 'WeakMap');
+
+	_WeakMap = WeakMap;
+	return _WeakMap;
+}
+
+var _getTag;
+var hasRequired_getTag;
+
+function require_getTag () {
+	if (hasRequired_getTag) return _getTag;
+	hasRequired_getTag = 1;
+	var DataView = require_DataView(),
+	    Map = require_Map(),
+	    Promise = require_Promise(),
+	    Set = require_Set(),
+	    WeakMap = require_WeakMap(),
+	    baseGetTag = require_baseGetTag(),
+	    toSource = require_toSource();
+
+	/** `Object#toString` result references. */
+	var mapTag = '[object Map]',
+	    objectTag = '[object Object]',
+	    promiseTag = '[object Promise]',
+	    setTag = '[object Set]',
+	    weakMapTag = '[object WeakMap]';
+
+	var dataViewTag = '[object DataView]';
+
+	/** Used to detect maps, sets, and weakmaps. */
+	var dataViewCtorString = toSource(DataView),
+	    mapCtorString = toSource(Map),
+	    promiseCtorString = toSource(Promise),
+	    setCtorString = toSource(Set),
+	    weakMapCtorString = toSource(WeakMap);
+
+	/**
+	 * Gets the `toStringTag` of `value`.
+	 *
+	 * @private
+	 * @param {*} value The value to query.
+	 * @returns {string} Returns the `toStringTag`.
+	 */
+	var getTag = baseGetTag;
+
+	// Fallback for data views, maps, sets, and weak maps in IE 11 and promises in Node.js < 6.
+	if ((DataView && getTag(new DataView(new ArrayBuffer(1))) != dataViewTag) ||
+	    (Map && getTag(new Map) != mapTag) ||
+	    (Promise && getTag(Promise.resolve()) != promiseTag) ||
+	    (Set && getTag(new Set) != setTag) ||
+	    (WeakMap && getTag(new WeakMap) != weakMapTag)) {
+	  getTag = function(value) {
+	    var result = baseGetTag(value),
+	        Ctor = result == objectTag ? value.constructor : undefined,
+	        ctorString = Ctor ? toSource(Ctor) : '';
+
+	    if (ctorString) {
+	      switch (ctorString) {
+	        case dataViewCtorString: return dataViewTag;
+	        case mapCtorString: return mapTag;
+	        case promiseCtorString: return promiseTag;
+	        case setCtorString: return setTag;
+	        case weakMapCtorString: return weakMapTag;
+	      }
+	    }
+	    return result;
+	  };
+	}
+
+	_getTag = getTag;
+	return _getTag;
+}
+
+var _baseIsEqualDeep;
+var hasRequired_baseIsEqualDeep;
+
+function require_baseIsEqualDeep () {
+	if (hasRequired_baseIsEqualDeep) return _baseIsEqualDeep;
+	hasRequired_baseIsEqualDeep = 1;
+	var Stack = require_Stack(),
+	    equalArrays = require_equalArrays(),
+	    equalByTag = require_equalByTag(),
+	    equalObjects = require_equalObjects(),
+	    getTag = require_getTag(),
+	    isArray = requireIsArray(),
+	    isBuffer = requireIsBuffer(),
+	    isTypedArray = requireIsTypedArray();
+
+	/** Used to compose bitmasks for value comparisons. */
+	var COMPARE_PARTIAL_FLAG = 1;
+
+	/** `Object#toString` result references. */
+	var argsTag = '[object Arguments]',
+	    arrayTag = '[object Array]',
+	    objectTag = '[object Object]';
+
+	/** Used for built-in method references. */
+	var objectProto = Object.prototype;
+
+	/** Used to check objects for own properties. */
+	var hasOwnProperty = objectProto.hasOwnProperty;
+
+	/**
+	 * A specialized version of `baseIsEqual` for arrays and objects which performs
+	 * deep comparisons and tracks traversed objects enabling objects with circular
+	 * references to be compared.
+	 *
+	 * @private
+	 * @param {Object} object The object to compare.
+	 * @param {Object} other The other object to compare.
+	 * @param {number} bitmask The bitmask flags. See `baseIsEqual` for more details.
+	 * @param {Function} customizer The function to customize comparisons.
+	 * @param {Function} equalFunc The function to determine equivalents of values.
+	 * @param {Object} [stack] Tracks traversed `object` and `other` objects.
+	 * @returns {boolean} Returns `true` if the objects are equivalent, else `false`.
+	 */
+	function baseIsEqualDeep(object, other, bitmask, customizer, equalFunc, stack) {
+	  var objIsArr = isArray(object),
+	      othIsArr = isArray(other),
+	      objTag = objIsArr ? arrayTag : getTag(object),
+	      othTag = othIsArr ? arrayTag : getTag(other);
+
+	  objTag = objTag == argsTag ? objectTag : objTag;
+	  othTag = othTag == argsTag ? objectTag : othTag;
+
+	  var objIsObj = objTag == objectTag,
+	      othIsObj = othTag == objectTag,
+	      isSameTag = objTag == othTag;
+
+	  if (isSameTag && isBuffer(object)) {
+	    if (!isBuffer(other)) {
+	      return false;
+	    }
+	    objIsArr = true;
+	    objIsObj = false;
+	  }
+	  if (isSameTag && !objIsObj) {
+	    stack || (stack = new Stack);
+	    return (objIsArr || isTypedArray(object))
+	      ? equalArrays(object, other, bitmask, customizer, equalFunc, stack)
+	      : equalByTag(object, other, objTag, bitmask, customizer, equalFunc, stack);
+	  }
+	  if (!(bitmask & COMPARE_PARTIAL_FLAG)) {
+	    var objIsWrapped = objIsObj && hasOwnProperty.call(object, '__wrapped__'),
+	        othIsWrapped = othIsObj && hasOwnProperty.call(other, '__wrapped__');
+
+	    if (objIsWrapped || othIsWrapped) {
+	      var objUnwrapped = objIsWrapped ? object.value() : object,
+	          othUnwrapped = othIsWrapped ? other.value() : other;
+
+	      stack || (stack = new Stack);
+	      return equalFunc(objUnwrapped, othUnwrapped, bitmask, customizer, stack);
+	    }
+	  }
+	  if (!isSameTag) {
+	    return false;
+	  }
+	  stack || (stack = new Stack);
+	  return equalObjects(object, other, bitmask, customizer, equalFunc, stack);
+	}
+
+	_baseIsEqualDeep = baseIsEqualDeep;
+	return _baseIsEqualDeep;
+}
+
+var _baseIsEqual;
+var hasRequired_baseIsEqual;
+
+function require_baseIsEqual () {
+	if (hasRequired_baseIsEqual) return _baseIsEqual;
+	hasRequired_baseIsEqual = 1;
+	var baseIsEqualDeep = require_baseIsEqualDeep(),
+	    isObjectLike = requireIsObjectLike();
+
+	/**
+	 * The base implementation of `_.isEqual` which supports partial comparisons
+	 * and tracks traversed objects.
+	 *
+	 * @private
+	 * @param {*} value The value to compare.
+	 * @param {*} other The other value to compare.
+	 * @param {boolean} bitmask The bitmask flags.
+	 *  1 - Unordered comparison
+	 *  2 - Partial comparison
+	 * @param {Function} [customizer] The function to customize comparisons.
+	 * @param {Object} [stack] Tracks traversed `value` and `other` objects.
+	 * @returns {boolean} Returns `true` if the values are equivalent, else `false`.
+	 */
+	function baseIsEqual(value, other, bitmask, customizer, stack) {
+	  if (value === other) {
+	    return true;
+	  }
+	  if (value == null || other == null || (!isObjectLike(value) && !isObjectLike(other))) {
+	    return value !== value && other !== other;
+	  }
+	  return baseIsEqualDeep(value, other, bitmask, customizer, baseIsEqual, stack);
+	}
+
+	_baseIsEqual = baseIsEqual;
+	return _baseIsEqual;
+}
+
+var isEqual_1;
+var hasRequiredIsEqual;
+
+function requireIsEqual () {
+	if (hasRequiredIsEqual) return isEqual_1;
+	hasRequiredIsEqual = 1;
+	var baseIsEqual = require_baseIsEqual();
+
+	/**
+	 * Performs a deep comparison between two values to determine if they are
+	 * equivalent.
+	 *
+	 * **Note:** This method supports comparing arrays, array buffers, booleans,
+	 * date objects, error objects, maps, numbers, `Object` objects, regexes,
+	 * sets, strings, symbols, and typed arrays. `Object` objects are compared
+	 * by their own, not inherited, enumerable properties. Functions and DOM
+	 * nodes are compared by strict equality, i.e. `===`.
+	 *
+	 * @static
+	 * @memberOf _
+	 * @since 0.1.0
+	 * @category Lang
+	 * @param {*} value The value to compare.
+	 * @param {*} other The other value to compare.
+	 * @returns {boolean} Returns `true` if the values are equivalent, else `false`.
+	 * @example
+	 *
+	 * var object = { 'a': 1 };
+	 * var other = { 'a': 1 };
+	 *
+	 * _.isEqual(object, other);
+	 * // => true
+	 *
+	 * object === other;
+	 * // => false
+	 */
+	function isEqual(value, other) {
+	  return baseIsEqual(value, other);
+	}
+
+	isEqual_1 = isEqual;
+	return isEqual_1;
+}
+
+var hasRequiredUseTheme;
+
+function requireUseTheme () {
+	if (hasRequiredUseTheme) return useTheme;
+	hasRequiredUseTheme = 1;
+	Object.defineProperty(useTheme, "__esModule", { value: true });
+	useTheme.useTheme = void 0;
+	const tslib_1 = require$$0;
+	const react_1 = requireReact();
+	const bridge_1 = requireOut$1();
+	const isEqual_1 = tslib_1.__importDefault(requireIsEqual());
+	const useTheme$1 = () => {
+	    const [theme, setTheme] = (0, react_1.useState)(null);
+	    const themeRef = (0, react_1.useRef)(null);
+	    const themeLoadedRef = (0, react_1.useRef)(false);
+	    const loadingContextRef = (0, react_1.useRef)(false);
+	    const applyTheme = (0, react_1.useCallback)((nextTheme) => {
+	        if ((0, isEqual_1.default)(themeRef.current, nextTheme)) {
+	            return;
+	        }
+	        themeRef.current = nextTheme;
+	        setTheme((current) => ((0, isEqual_1.default)(current, nextTheme) ? current : nextTheme));
+	    }, []);
+	    (0, react_1.useEffect)(() => {
+	        let cancelled = false;
+	        void (async () => {
+	            if (themeLoadedRef.current || loadingContextRef.current) {
+	                return;
+	            }
+	            loadingContextRef.current = true;
+	            try {
+	                const context = await bridge_1.view.getContext();
+	                if (cancelled || !context?.theme || themeLoadedRef.current) {
+	                    return;
+	                }
+	                applyTheme(context.theme);
+	                themeLoadedRef.current = true;
+	            }
+	            finally {
+	                loadingContextRef.current = false;
+	            }
+	        })();
+	        return () => {
+	            cancelled = true;
+	        };
+	    }, [applyTheme]);
+	    (0, react_1.useEffect)(() => {
+	        let unsubscribeFn = null;
+	        let cancelled = false;
+	        const sub = bridge_1.events.on('FORGE_CORE_THEME_CHANGED', ({ theme: updatedTheme }) => {
+	            themeLoadedRef.current = true;
+	            applyTheme(updatedTheme);
+	        });
+	        void sub.then((subscription) => {
+	            if (cancelled) {
+	                subscription.unsubscribe();
+	            }
+	            else {
+	                unsubscribeFn = () => subscription.unsubscribe();
+	            }
+	        });
+	        return () => {
+	            cancelled = true;
+	            if (unsubscribeFn) {
+	                unsubscribeFn();
+	            }
+	        };
+	    }, [applyTheme]);
+	    return theme;
+	};
+	useTheme.useTheme = useTheme$1;
+	return useTheme;
+}
+
+var usePermissions = {};
+
+var hasRequiredUsePermissions;
+
+function requireUsePermissions () {
+	if (hasRequiredUsePermissions) return usePermissions;
+	hasRequiredUsePermissions = 1;
+	Object.defineProperty(usePermissions, "__esModule", { value: true });
+	usePermissions.usePermissions = void 0;
+	const react_1 = requireReact();
+	const bridge_1 = requireOut$1();
+	/**
+	 * Hook for checking permissions in Forge apps
+	 *
+	 * @param requiredPermissions - The permissions required for the component
+	 * @returns Object containing permission state, loading status, and error information
+	 * @returns hasPermission - Whether all required permissions are granted
+	 * @returns isLoading - Whether the permission check is still in progress
+	 * @returns missingPermissions - Details about which permissions are missing (null if all granted)
+	 * @returns error - Any error that occurred during permission checking (null if no error)
+	 *
+	 * @example
+	 * ```tsx
+	 * const MyComponent: React.FC = () => {
+	 *   const { hasPermission, isLoading, missingPermissions, error } = usePermissions({
+	 *     scopes: ['write:confluence-content'],
+	 *     external: {
+	 *       fetch: {
+	 *         backend: ['https://api.example.com']
+	 *       }
+	 *     }
+	 *   });
+	 *
+	 *   if (isLoading) return <LoadingSpinner />;
+	 *
+	 *   if (error) {
+	 *     return <ErrorMessage error={error} />;
+	 *   }
+	 *
+	 *   if (!hasPermission) {
+	 *     return <PermissionDenied missingPermissions={missingPermissions} />;
+	 *   }
+	 *
+	 *   return <ProtectedFeature />;
+	 * };
+	 * ```
+	 */
+	const usePermissions$1 = (requiredPermissions) => {
+	    const [context, setContext] = (0, react_1.useState)();
+	    const [isLoading, setIsLoading] = (0, react_1.useState)(true);
+	    const [error, setError] = (0, react_1.useState)(null);
+	    const [permissionResult, setPermissionResult] = (0, react_1.useState)({
+	        granted: false,
+	        missing: null
+	    });
+	    // Load context on mount
+	    (0, react_1.useEffect)(() => {
+	        const loadContext = async () => {
+	            try {
+	                setIsLoading(true);
+	                setError(null);
+	                const contextData = await bridge_1.view.getContext();
+	                setContext(contextData);
+	            }
+	            catch (err) {
+	                setError(err instanceof Error ? err : new Error('Failed to load context'));
+	            }
+	            finally {
+	                setIsLoading(false);
+	            }
+	        };
+	        void loadContext();
+	    }, []);
+	    // Check permissions using shared utility
+	    (0, react_1.useEffect)(() => {
+	        // Skip if still loading context
+	        if (isLoading) {
+	            return;
+	        }
+	        const checkPerms = async () => {
+	            if (!requiredPermissions) {
+	                setPermissionResult({ granted: false, missing: null });
+	                return;
+	            }
+	            if (!context?.permissions) {
+	                // If context loaded but has no permissions, set error
+	                if (context !== undefined) {
+	                    setError(new Error('This feature is not available yet'));
+	                    setPermissionResult({ granted: false, missing: null });
+	                }
+	                return;
+	            }
+	            try {
+	                setError(null); // Clear any previous errors
+	                const result = await (0, bridge_1.checkPermissions)(requiredPermissions, context.permissions);
+	                setPermissionResult(result);
+	            }
+	            catch (err) {
+	                setError(err instanceof Error ? err : new Error('Failed to check permissions'));
+	                setPermissionResult({ granted: false, missing: null });
+	            }
+	        };
+	        void checkPerms();
+	    }, [context, requiredPermissions, isLoading]);
+	    return {
+	        hasPermission: permissionResult.granted,
+	        isLoading,
+	        missingPermissions: permissionResult.missing,
+	        error
+	    };
+	};
+	usePermissions.usePermissions = usePermissions$1;
+	return usePermissions;
+}
+
+var reconciler = {};
+
+var reactReconciler = {exports: {}};
+
+var scheduler = {exports: {}};
+
+var scheduler_production_min = {};
+
+/**
+ * @license React
+ * scheduler.production.min.js
+ *
+ * Copyright (c) Facebook, Inc. and its affiliates.
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+var hasRequiredScheduler_production_min;
+
+function requireScheduler_production_min () {
+	if (hasRequiredScheduler_production_min) return scheduler_production_min;
+	hasRequiredScheduler_production_min = 1;
+	(function (exports) {
+function f(a,b){var c=a.length;a.push(b);a:for(;0<c;){var d=c-1>>>1,e=a[d];if(0<g(e,b))a[d]=b,a[c]=e,c=d;else break a}}function h(a){return 0===a.length?null:a[0]}function k(a){if(0===a.length)return null;var b=a[0],c=a.pop();if(c!==b){a[0]=c;a:for(var d=0,e=a.length,w=e>>>1;d<w;){var m=2*(d+1)-1,C=a[m],n=m+1,x=a[n];if(0>g(C,c))n<e&&0>g(x,C)?(a[d]=x,a[n]=c,d=n):(a[d]=C,a[m]=c,d=m);else if(n<e&&0>g(x,c))a[d]=x,a[n]=c,d=n;else break a}}return b}
+		function g(a,b){var c=a.sortIndex-b.sortIndex;return 0!==c?c:a.id-b.id}if("object"===typeof performance&&"function"===typeof performance.now){var l=performance;exports.unstable_now=function(){return l.now()};}else {var p=Date,q=p.now();exports.unstable_now=function(){return p.now()-q};}var r=[],t=[],u=1,v=null,y=3,z=false,A=false,B=false,D="function"===typeof setTimeout?setTimeout:null,E="function"===typeof clearTimeout?clearTimeout:null,F="undefined"!==typeof setImmediate?setImmediate:null;
+		"undefined"!==typeof navigator&&void 0!==navigator.scheduling&&void 0!==navigator.scheduling.isInputPending&&navigator.scheduling.isInputPending.bind(navigator.scheduling);function G(a){for(var b=h(t);null!==b;){if(null===b.callback)k(t);else if(b.startTime<=a)k(t),b.sortIndex=b.expirationTime,f(r,b);else break;b=h(t);}}function H(a){B=false;G(a);if(!A)if(null!==h(r))A=true,I(J);else {var b=h(t);null!==b&&K(H,b.startTime-a);}}
+		function J(a,b){A=false;B&&(B=false,E(L),L=-1);z=true;var c=y;try{G(b);for(v=h(r);null!==v&&(!(v.expirationTime>b)||a&&!M());){var d=v.callback;if("function"===typeof d){v.callback=null;y=v.priorityLevel;var e=d(v.expirationTime<=b);b=exports.unstable_now();"function"===typeof e?v.callback=e:v===h(r)&&k(r);G(b);}else k(r);v=h(r);}if(null!==v)var w=!0;else {var m=h(t);null!==m&&K(H,m.startTime-b);w=!1;}return w}finally{v=null,y=c,z=false;}}var N=false,O=null,L=-1,P=5,Q=-1;
+		function M(){return exports.unstable_now()-Q<P?false:true}function R(){if(null!==O){var a=exports.unstable_now();Q=a;var b=true;try{b=O(!0,a);}finally{b?S():(N=false,O=null);}}else N=false;}var S;if("function"===typeof F)S=function(){F(R);};else if("undefined"!==typeof MessageChannel){var T=new MessageChannel,U=T.port2;T.port1.onmessage=R;S=function(){U.postMessage(null);};}else S=function(){D(R,0);};function I(a){O=a;N||(N=true,S());}function K(a,b){L=D(function(){a(exports.unstable_now());},b);}
+		exports.unstable_IdlePriority=5;exports.unstable_ImmediatePriority=1;exports.unstable_LowPriority=4;exports.unstable_NormalPriority=3;exports.unstable_Profiling=null;exports.unstable_UserBlockingPriority=2;exports.unstable_cancelCallback=function(a){a.callback=null;};exports.unstable_continueExecution=function(){A||z||(A=true,I(J));};
+		exports.unstable_forceFrameRate=function(a){0>a||125<a?console.error("forceFrameRate takes a positive int between 0 and 125, forcing frame rates higher than 125 fps is not supported"):P=0<a?Math.floor(1E3/a):5;};exports.unstable_getCurrentPriorityLevel=function(){return y};exports.unstable_getFirstCallbackNode=function(){return h(r)};exports.unstable_next=function(a){switch(y){case 1:case 2:case 3:var b=3;break;default:b=y;}var c=y;y=b;try{return a()}finally{y=c;}};exports.unstable_pauseExecution=function(){};
+		exports.unstable_requestPaint=function(){};exports.unstable_runWithPriority=function(a,b){switch(a){case 1:case 2:case 3:case 4:case 5:break;default:a=3;}var c=y;y=a;try{return b()}finally{y=c;}};
+		exports.unstable_scheduleCallback=function(a,b,c){var d=exports.unstable_now();"object"===typeof c&&null!==c?(c=c.delay,c="number"===typeof c&&0<c?d+c:d):c=d;switch(a){case 1:var e=-1;break;case 2:e=250;break;case 5:e=1073741823;break;case 4:e=1E4;break;default:e=5E3;}e=c+e;a={id:u++,callback:b,priorityLevel:a,startTime:c,expirationTime:e,sortIndex:-1};c>d?(a.sortIndex=c,f(t,a),null===h(r)&&a===h(t)&&(B?(E(L),L=-1):B=true,K(H,c-d))):(a.sortIndex=e,f(r,a),A||z||(A=true,I(J)));return a};
+		exports.unstable_shouldYield=M;exports.unstable_wrapCallback=function(a){var b=y;return function(){var c=y;y=b;try{return a.apply(this,arguments)}finally{y=c;}}}; 
+	} (scheduler_production_min));
+	return scheduler_production_min;
+}
+
+var hasRequiredScheduler;
+
+function requireScheduler () {
+	if (hasRequiredScheduler) return scheduler.exports;
+	hasRequiredScheduler = 1;
+
+	{
+	  scheduler.exports = requireScheduler_production_min();
+	}
+	return scheduler.exports;
+}
+
+/**
+ * @license React
+ * react-reconciler.production.min.js
+ *
+ * Copyright (c) Facebook, Inc. and its affiliates.
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+var reactReconciler_production_min;
+var hasRequiredReactReconciler_production_min;
+
+function requireReactReconciler_production_min () {
+	if (hasRequiredReactReconciler_production_min) return reactReconciler_production_min;
+	hasRequiredReactReconciler_production_min = 1;
+	reactReconciler_production_min = function $$$reconciler($$$hostConfig) {
+	    var exports = {};
+var aa=requireReact(),ba=requireScheduler(),ca=Object.assign;function n(a){for(var b="https://reactjs.org/docs/error-decoder.html?invariant="+a,c=1;c<arguments.length;c++)b+="&args[]="+encodeURIComponent(arguments[c]);return "Minified React error #"+a+"; visit "+b+" for the full message or use the non-minified dev environment for full errors and additional helpful warnings."}
+	var da=aa.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED,ea=Symbol.for("react.element"),fa=Symbol.for("react.portal"),ha=Symbol.for("react.fragment"),ia=Symbol.for("react.strict_mode"),ja=Symbol.for("react.profiler"),ka=Symbol.for("react.provider"),la=Symbol.for("react.context"),ma=Symbol.for("react.forward_ref"),na=Symbol.for("react.suspense"),oa=Symbol.for("react.suspense_list"),pa=Symbol.for("react.memo"),qa=Symbol.for("react.lazy");	var ra=Symbol.for("react.offscreen");var sa=Symbol.iterator;function ta(a){if(null===a||"object"!==typeof a)return null;a=sa&&a[sa]||a["@@iterator"];return "function"===typeof a?a:null}
+	function ua(a){if(null==a)return null;if("function"===typeof a)return a.displayName||a.name||null;if("string"===typeof a)return a;switch(a){case ha:return "Fragment";case fa:return "Portal";case ja:return "Profiler";case ia:return "StrictMode";case na:return "Suspense";case oa:return "SuspenseList"}if("object"===typeof a)switch(a.$$typeof){case la:return (a.displayName||"Context")+".Consumer";case ka:return (a._context.displayName||"Context")+".Provider";case ma:var b=a.render;a=a.displayName;a||(a=b.displayName||
+	b.name||"",a=""!==a?"ForwardRef("+a+")":"ForwardRef");return a;case pa:return b=a.displayName||null,null!==b?b:ua(a.type)||"Memo";case qa:b=a._payload;a=a._init;try{return ua(a(b))}catch(c){}}return null}
+	function va(a){var b=a.type;switch(a.tag){case 24:return "Cache";case 9:return (b.displayName||"Context")+".Consumer";case 10:return (b._context.displayName||"Context")+".Provider";case 18:return "DehydratedFragment";case 11:return a=b.render,a=a.displayName||a.name||"",b.displayName||(""!==a?"ForwardRef("+a+")":"ForwardRef");case 7:return "Fragment";case 5:return b;case 4:return "Portal";case 3:return "Root";case 6:return "Text";case 16:return ua(b);case 8:return b===ia?"StrictMode":"Mode";case 22:return "Offscreen";
+	case 12:return "Profiler";case 21:return "Scope";case 13:return "Suspense";case 19:return "SuspenseList";case 25:return "TracingMarker";case 1:case 0:case 17:case 2:case 14:case 15:if("function"===typeof b)return b.displayName||b.name||null;if("string"===typeof b)return b}return null}function wa(a){var b=a,c=a;if(a.alternate)for(;b.return;)b=b.return;else {a=b;do b=a,0!==(b.flags&4098)&&(c=b.return),a=b.return;while(a)}return 3===b.tag?c:null}function xa(a){if(wa(a)!==a)throw Error(n(188));}
+	function za(a){var b=a.alternate;if(!b){b=wa(a);if(null===b)throw Error(n(188));return b!==a?null:a}for(var c=a,d=b;;){var e=c.return;if(null===e)break;var f=e.alternate;if(null===f){d=e.return;if(null!==d){c=d;continue}break}if(e.child===f.child){for(f=e.child;f;){if(f===c)return xa(e),a;if(f===d)return xa(e),b;f=f.sibling;}throw Error(n(188));}if(c.return!==d.return)c=e,d=f;else {for(var g=false,h=e.child;h;){if(h===c){g=true;c=e;d=f;break}if(h===d){g=true;d=e;c=f;break}h=h.sibling;}if(!g){for(h=f.child;h;){if(h===
+	c){g=true;c=f;d=e;break}if(h===d){g=true;d=f;c=e;break}h=h.sibling;}if(!g)throw Error(n(189));}}if(c.alternate!==d)throw Error(n(190));}if(3!==c.tag)throw Error(n(188));return c.stateNode.current===c?a:b}function Aa(a){a=za(a);return null!==a?Ba(a):null}function Ba(a){if(5===a.tag||6===a.tag)return a;for(a=a.child;null!==a;){var b=Ba(a);if(null!==b)return b;a=a.sibling;}return null}
+	function Ca(a){if(5===a.tag||6===a.tag)return a;for(a=a.child;null!==a;){if(4!==a.tag){var b=Ca(a);if(null!==b)return b}a=a.sibling;}return null}
+	var Da=Array.isArray,Ea=$$$hostConfig.getPublicInstance,Fa=$$$hostConfig.getRootHostContext,Ga=$$$hostConfig.getChildHostContext,Ha=$$$hostConfig.prepareForCommit,Ia=$$$hostConfig.resetAfterCommit,Ja=$$$hostConfig.createInstance,Ka=$$$hostConfig.appendInitialChild,La=$$$hostConfig.finalizeInitialChildren,Ma=$$$hostConfig.prepareUpdate,Na=$$$hostConfig.shouldSetTextContent,Oa=$$$hostConfig.createTextInstance,Pa=$$$hostConfig.scheduleTimeout,Qa=$$$hostConfig.cancelTimeout,Ra=$$$hostConfig.noTimeout,
+	Sa=$$$hostConfig.isPrimaryRenderer,Ta=$$$hostConfig.supportsMutation,Ua=$$$hostConfig.supportsPersistence,Va=$$$hostConfig.supportsHydration,Wa=$$$hostConfig.getInstanceFromNode,Xa=$$$hostConfig.preparePortalMount,Ya=$$$hostConfig.getCurrentEventPriority,Za=$$$hostConfig.detachDeletedInstance,$a=$$$hostConfig.supportsMicrotasks,ab=$$$hostConfig.scheduleMicrotask,bb=$$$hostConfig.supportsTestSelectors,cb=$$$hostConfig.findFiberRoot,db=$$$hostConfig.getBoundingRect,eb=$$$hostConfig.getTextContent,fb=
+	$$$hostConfig.isHiddenSubtree,gb=$$$hostConfig.matchAccessibilityRole,hb=$$$hostConfig.setFocusIfFocusable,ib=$$$hostConfig.setupIntersectionObserver,jb=$$$hostConfig.appendChild,kb=$$$hostConfig.appendChildToContainer,lb=$$$hostConfig.commitTextUpdate,mb=$$$hostConfig.commitMount,nb=$$$hostConfig.commitUpdate,ob=$$$hostConfig.insertBefore,pb=$$$hostConfig.insertInContainerBefore,qb=$$$hostConfig.removeChild,rb=$$$hostConfig.removeChildFromContainer,sb=$$$hostConfig.resetTextContent,tb=$$$hostConfig.hideInstance,
+	ub=$$$hostConfig.hideTextInstance,vb=$$$hostConfig.unhideInstance,wb=$$$hostConfig.unhideTextInstance,xb=$$$hostConfig.clearContainer,yb=$$$hostConfig.cloneInstance,zb=$$$hostConfig.createContainerChildSet,Ab=$$$hostConfig.appendChildToContainerChildSet,Bb=$$$hostConfig.finalizeContainerChildren,Cb=$$$hostConfig.replaceContainerChildren,Eb=$$$hostConfig.cloneHiddenInstance,Fb=$$$hostConfig.cloneHiddenTextInstance,Gb=$$$hostConfig.canHydrateInstance,Hb=$$$hostConfig.canHydrateTextInstance,Ib=$$$hostConfig.canHydrateSuspenseInstance,
+	Jb=$$$hostConfig.isSuspenseInstancePending,Kb=$$$hostConfig.isSuspenseInstanceFallback,Lb=$$$hostConfig.getSuspenseInstanceFallbackErrorDetails,Mb=$$$hostConfig.registerSuspenseInstanceRetry,Nb=$$$hostConfig.getNextHydratableSibling,Ob=$$$hostConfig.getFirstHydratableChild,Pb=$$$hostConfig.getFirstHydratableChildWithinContainer,Qb=$$$hostConfig.getFirstHydratableChildWithinSuspenseInstance,Rb=$$$hostConfig.hydrateInstance,Sb=$$$hostConfig.hydrateTextInstance,Tb=$$$hostConfig.hydrateSuspenseInstance,
+	Ub=$$$hostConfig.getNextHydratableInstanceAfterSuspenseInstance,Vb=$$$hostConfig.commitHydratedContainer,Wb=$$$hostConfig.commitHydratedSuspenseInstance,Xb=$$$hostConfig.clearSuspenseBoundary,Yb=$$$hostConfig.clearSuspenseBoundaryFromContainer,Zb=$$$hostConfig.shouldDeleteUnhydratedTailInstances,$b=$$$hostConfig.didNotMatchHydratedContainerTextInstance,ac=$$$hostConfig.didNotMatchHydratedTextInstance,bc;
+	function cc(a){if(void 0===bc)try{throw Error();}catch(c){var b=c.stack.trim().match(/\n( *(at )?)/);bc=b&&b[1]||"";}return "\n"+bc+a}var dc=false;
+	function ec(a,b){if(!a||dc)return "";dc=true;var c=Error.prepareStackTrace;Error.prepareStackTrace=void 0;try{if(b)if(b=function(){throw Error();},Object.defineProperty(b.prototype,"props",{set:function(){throw Error();}}),"object"===typeof Reflect&&Reflect.construct){try{Reflect.construct(b,[]);}catch(l){var d=l;}Reflect.construct(a,[],b);}else {try{b.call();}catch(l){d=l;}a.call(b.prototype);}else {try{throw Error();}catch(l){d=l;}a();}}catch(l){if(l&&d&&"string"===typeof l.stack){for(var e=l.stack.split("\n"),
+	f=d.stack.split("\n"),g=e.length-1,h=f.length-1;1<=g&&0<=h&&e[g]!==f[h];)h--;for(;1<=g&&0<=h;g--,h--)if(e[g]!==f[h]){if(1!==g||1!==h){do if(g--,h--,0>h||e[g]!==f[h]){var k="\n"+e[g].replace(" at new "," at ");a.displayName&&k.includes("<anonymous>")&&(k=k.replace("<anonymous>",a.displayName));return k}while(1<=g&&0<=h)}break}}}finally{dc=false,Error.prepareStackTrace=c;}return (a=a?a.displayName||a.name:"")?cc(a):""}var fc=Object.prototype.hasOwnProperty,gc=[],hc=-1;function ic(a){return {current:a}}
+	function q(a){0>hc||(a.current=gc[hc],gc[hc]=null,hc--);}function v(a,b){hc++;gc[hc]=a.current;a.current=b;}var jc={},x=ic(jc),z=ic(false),kc=jc;function mc(a,b){var c=a.type.contextTypes;if(!c)return jc;var d=a.stateNode;if(d&&d.__reactInternalMemoizedUnmaskedChildContext===b)return d.__reactInternalMemoizedMaskedChildContext;var e={},f;for(f in c)e[f]=b[f];d&&(a=a.stateNode,a.__reactInternalMemoizedUnmaskedChildContext=b,a.__reactInternalMemoizedMaskedChildContext=e);return e}
+	function A(a){a=a.childContextTypes;return null!==a&&void 0!==a}function nc(){q(z);q(x);}function oc(a,b,c){if(x.current!==jc)throw Error(n(168));v(x,b);v(z,c);}function pc(a,b,c){var d=a.stateNode;b=b.childContextTypes;if("function"!==typeof d.getChildContext)return c;d=d.getChildContext();for(var e in d)if(!(e in b))throw Error(n(108,va(a)||"Unknown",e));return ca({},c,d)}
+	function qc(a){a=(a=a.stateNode)&&a.__reactInternalMemoizedMergedChildContext||jc;kc=x.current;v(x,a);v(z,z.current);return  true}function rc(a,b,c){var d=a.stateNode;if(!d)throw Error(n(169));c?(a=pc(a,b,kc),d.__reactInternalMemoizedMergedChildContext=a,q(z),q(x),v(x,a)):q(z);v(z,c);}var tc=Math.clz32?Math.clz32:sc,uc=Math.log,vc=Math.LN2;function sc(a){a>>>=0;return 0===a?32:31-(uc(a)/vc|0)|0}var wc=64,xc=4194304;
+	function yc(a){switch(a&-a){case 1:return 1;case 2:return 2;case 4:return 4;case 8:return 8;case 16:return 16;case 32:return 32;case 64:case 128:case 256:case 512:case 1024:case 2048:case 4096:case 8192:case 16384:case 32768:case 65536:case 131072:case 262144:case 524288:case 1048576:case 2097152:return a&4194240;case 4194304:case 8388608:case 16777216:case 33554432:case 67108864:return a&130023424;case 134217728:return 134217728;case 268435456:return 268435456;case 536870912:return 536870912;case 1073741824:return 1073741824;
+	default:return a}}function zc(a,b){var c=a.pendingLanes;if(0===c)return 0;var d=0,e=a.suspendedLanes,f=a.pingedLanes,g=c&268435455;if(0!==g){var h=g&~e;0!==h?d=yc(h):(f&=g,0!==f&&(d=yc(f)));}else g=c&~e,0!==g?d=yc(g):0!==f&&(d=yc(f));if(0===d)return 0;if(0!==b&&b!==d&&0===(b&e)&&(e=d&-d,f=b&-b,e>=f||16===e&&0!==(f&4194240)))return b;0!==(d&4)&&(d|=c&16);b=a.entangledLanes;if(0!==b)for(a=a.entanglements,b&=d;0<b;)c=31-tc(b),e=1<<c,d|=a[c],b&=~e;return d}
+	function Ac(a,b){switch(a){case 1:case 2:case 4:return b+250;case 8:case 16:case 32:case 64:case 128:case 256:case 512:case 1024:case 2048:case 4096:case 8192:case 16384:case 32768:case 65536:case 131072:case 262144:case 524288:case 1048576:case 2097152:return b+5E3;case 4194304:case 8388608:case 16777216:case 33554432:case 67108864:return  -1;case 134217728:case 268435456:case 536870912:case 1073741824:return  -1;default:return  -1}}
+	function Bc(a,b){for(var c=a.suspendedLanes,d=a.pingedLanes,e=a.expirationTimes,f=a.pendingLanes;0<f;){var g=31-tc(f),h=1<<g,k=e[g];if(-1===k){if(0===(h&c)||0!==(h&d))e[g]=Ac(h,b);}else k<=b&&(a.expiredLanes|=h);f&=~h;}}function Cc(a){a=a.pendingLanes&-1073741825;return 0!==a?a:a&1073741824?1073741824:0}function Dc(){var a=wc;wc<<=1;0===(wc&4194240)&&(wc=64);return a}function Ec(a){for(var b=[],c=0;31>c;c++)b.push(a);return b}
+	function Fc(a,b,c){a.pendingLanes|=b;536870912!==b&&(a.suspendedLanes=0,a.pingedLanes=0);a=a.eventTimes;b=31-tc(b);a[b]=c;}function Gc(a,b){var c=a.pendingLanes&~b;a.pendingLanes=b;a.suspendedLanes=0;a.pingedLanes=0;a.expiredLanes&=b;a.mutableReadLanes&=b;a.entangledLanes&=b;b=a.entanglements;var d=a.eventTimes;for(a=a.expirationTimes;0<c;){var e=31-tc(c),f=1<<e;b[e]=0;d[e]=-1;a[e]=-1;c&=~f;}}
+	function Hc(a,b){var c=a.entangledLanes|=b;for(a=a.entanglements;c;){var d=31-tc(c),e=1<<d;e&b|a[d]&b&&(a[d]|=b);c&=~e;}}var C=0;function Ic(a){a&=-a;return 1<a?4<a?0!==(a&268435455)?16:536870912:4:1}var Jc=ba.unstable_scheduleCallback,Kc=ba.unstable_cancelCallback,Lc=ba.unstable_shouldYield,Mc=ba.unstable_requestPaint,D=ba.unstable_now,Nc=ba.unstable_ImmediatePriority,Oc=ba.unstable_UserBlockingPriority,Pc=ba.unstable_NormalPriority,Qc=ba.unstable_IdlePriority,Rc=null,Sc=null;
+	function Tc(a){if(Sc&&"function"===typeof Sc.onCommitFiberRoot)try{Sc.onCommitFiberRoot(Rc,a,void 0,128===(a.current.flags&128));}catch(b){}}function Uc(a,b){return a===b&&(0!==a||1/a===1/b)||a!==a&&b!==b}var Vc="function"===typeof Object.is?Object.is:Uc,Wc=null,Xc=false,Yc=false;function Zc(a){null===Wc?Wc=[a]:Wc.push(a);}function $c(a){Xc=true;Zc(a);}
+	function ad(){if(!Yc&&null!==Wc){Yc=true;var a=0,b=C;try{var c=Wc;for(C=1;a<c.length;a++){var d=c[a];do d=d(!0);while(null!==d)}Wc=null;Xc=!1;}catch(e){throw null!==Wc&&(Wc=Wc.slice(a+1)),Jc(Nc,ad),e;}finally{C=b,Yc=false;}}return null}var bd=[],cd=0,dd=null,ed=0,fd=[],gd=0,hd=null,id=1,jd="";function kd(a,b){bd[cd++]=ed;bd[cd++]=dd;dd=a;ed=b;}
+	function ld(a,b,c){fd[gd++]=id;fd[gd++]=jd;fd[gd++]=hd;hd=a;var d=id;a=jd;var e=32-tc(d)-1;d&=~(1<<e);c+=1;var f=32-tc(b)+e;if(30<f){var g=e-e%5;f=(d&(1<<g)-1).toString(32);d>>=g;e-=g;id=1<<32-tc(b)+e|c<<e|d;jd=f+a;}else id=1<<f|c<<e|d,jd=a;}function md(a){null!==a.return&&(kd(a,1),ld(a,1,0));}function nd(a){for(;a===dd;)dd=bd[--cd],bd[cd]=null,ed=bd[--cd],bd[cd]=null;for(;a===hd;)hd=fd[--gd],fd[gd]=null,jd=fd[--gd],fd[gd]=null,id=fd[--gd],fd[gd]=null;}var od=null,pd=null,F=false,qd=false,rd=null;
+	function sd(a,b){var c=td(5,null,null,0);c.elementType="DELETED";c.stateNode=b;c.return=a;b=a.deletions;null===b?(a.deletions=[c],a.flags|=16):b.push(c);}
+	function ud(a,b){switch(a.tag){case 5:return b=Gb(b,a.type,a.pendingProps),null!==b?(a.stateNode=b,od=a,pd=Ob(b),true):false;case 6:return b=Hb(b,a.pendingProps),null!==b?(a.stateNode=b,od=a,pd=null,true):false;case 13:b=Ib(b);if(null!==b){var c=null!==hd?{id:id,overflow:jd}:null;a.memoizedState={dehydrated:b,treeContext:c,retryLane:1073741824};c=td(18,null,null,0);c.stateNode=b;c.return=a;a.child=c;od=a;pd=null;return  true}return  false;default:return  false}}function vd(a){return 0!==(a.mode&1)&&0===(a.flags&128)}
+	function wd(a){if(F){var b=pd;if(b){var c=b;if(!ud(a,b)){if(vd(a))throw Error(n(418));b=Nb(c);var d=od;b&&ud(a,b)?sd(d,c):(a.flags=a.flags&-4097|2,F=false,od=a);}}else {if(vd(a))throw Error(n(418));a.flags=a.flags&-4097|2;F=false;od=a;}}}function xd(a){for(a=a.return;null!==a&&5!==a.tag&&3!==a.tag&&13!==a.tag;)a=a.return;od=a;}
+	function yd(a){if(!Va||a!==od)return  false;if(!F)return xd(a),F=true,false;if(3!==a.tag&&(5!==a.tag||Zb(a.type)&&!Na(a.type,a.memoizedProps))){var b=pd;if(b){if(vd(a))throw zd(),Error(n(418));for(;b;)sd(a,b),b=Nb(b);}}xd(a);if(13===a.tag){if(!Va)throw Error(n(316));a=a.memoizedState;a=null!==a?a.dehydrated:null;if(!a)throw Error(n(317));pd=Ub(a);}else pd=od?Nb(a.stateNode):null;return  true}function zd(){for(var a=pd;a;)a=Nb(a);}function Ad(){Va&&(pd=od=null,qd=F=false);}function Bd(a){null===rd?rd=[a]:rd.push(a);}
+	var Cd=da.ReactCurrentBatchConfig;function Dd(a,b){if(Vc(a,b))return  true;if("object"!==typeof a||null===a||"object"!==typeof b||null===b)return  false;var c=Object.keys(a),d=Object.keys(b);if(c.length!==d.length)return  false;for(d=0;d<c.length;d++){var e=c[d];if(!fc.call(b,e)||!Vc(a[e],b[e]))return  false}return  true}
+	function Ed(a){switch(a.tag){case 5:return cc(a.type);case 16:return cc("Lazy");case 13:return cc("Suspense");case 19:return cc("SuspenseList");case 0:case 2:case 15:return a=ec(a.type,false),a;case 11:return a=ec(a.type.render,false),a;case 1:return a=ec(a.type,true),a;default:return ""}}
+	function Fd(a,b,c){a=c.ref;if(null!==a&&"function"!==typeof a&&"object"!==typeof a){if(c._owner){c=c._owner;if(c){if(1!==c.tag)throw Error(n(309));var d=c.stateNode;}if(!d)throw Error(n(147,a));var e=d,f=""+a;if(null!==b&&null!==b.ref&&"function"===typeof b.ref&&b.ref._stringRef===f)return b.ref;b=function(a){var b=e.refs;null===a?delete b[f]:b[f]=a;};b._stringRef=f;return b}if("string"!==typeof a)throw Error(n(284));if(!c._owner)throw Error(n(290,a));}return a}
+	function Gd(a,b){a=Object.prototype.toString.call(b);throw Error(n(31,"[object Object]"===a?"object with keys {"+Object.keys(b).join(", ")+"}":a));}function Hd(a){var b=a._init;return b(a._payload)}
+	function Id(a){function b(b,c){if(a){var d=b.deletions;null===d?(b.deletions=[c],b.flags|=16):d.push(c);}}function c(c,d){if(!a)return null;for(;null!==d;)b(c,d),d=d.sibling;return null}function d(a,b){for(a=new Map;null!==b;)null!==b.key?a.set(b.key,b):a.set(b.index,b),b=b.sibling;return a}function e(a,b){a=Jd(a,b);a.index=0;a.sibling=null;return a}function f(b,c,d){b.index=d;if(!a)return b.flags|=1048576,c;d=b.alternate;if(null!==d)return d=d.index,d<c?(b.flags|=2,c):d;b.flags|=2;return c}function g(b){a&&
+	null===b.alternate&&(b.flags|=2);return b}function h(a,b,c,d){if(null===b||6!==b.tag)return b=Kd(c,a.mode,d),b.return=a,b;b=e(b,c);b.return=a;return b}function k(a,b,c,d){var f=c.type;if(f===ha)return m(a,b,c.props.children,d,c.key);if(null!==b&&(b.elementType===f||"object"===typeof f&&null!==f&&f.$$typeof===qa&&Hd(f)===b.type))return d=e(b,c.props),d.ref=Fd(a,b,c),d.return=a,d;d=Ld(c.type,c.key,c.props,null,a.mode,d);d.ref=Fd(a,b,c);d.return=a;return d}function l(a,b,c,d){if(null===b||4!==b.tag||
+	b.stateNode.containerInfo!==c.containerInfo||b.stateNode.implementation!==c.implementation)return b=Md(c,a.mode,d),b.return=a,b;b=e(b,c.children||[]);b.return=a;return b}function m(a,b,c,d,f){if(null===b||7!==b.tag)return b=Nd(c,a.mode,d,f),b.return=a,b;b=e(b,c);b.return=a;return b}function r(a,b,c){if("string"===typeof b&&""!==b||"number"===typeof b)return b=Kd(""+b,a.mode,c),b.return=a,b;if("object"===typeof b&&null!==b){switch(b.$$typeof){case ea:return c=Ld(b.type,b.key,b.props,null,a.mode,c),
+	c.ref=Fd(a,null,b),c.return=a,c;case fa:return b=Md(b,a.mode,c),b.return=a,b;case qa:var d=b._init;return r(a,d(b._payload),c)}if(Da(b)||ta(b))return b=Nd(b,a.mode,c,null),b.return=a,b;Gd(a,b);}return null}function p(a,b,c,d){var e=null!==b?b.key:null;if("string"===typeof c&&""!==c||"number"===typeof c)return null!==e?null:h(a,b,""+c,d);if("object"===typeof c&&null!==c){switch(c.$$typeof){case ea:return c.key===e?k(a,b,c,d):null;case fa:return c.key===e?l(a,b,c,d):null;case qa:return e=c._init,p(a,
+	b,e(c._payload),d)}if(Da(c)||ta(c))return null!==e?null:m(a,b,c,d,null);Gd(a,c);}return null}function B(a,b,c,d,e){if("string"===typeof d&&""!==d||"number"===typeof d)return a=a.get(c)||null,h(b,a,""+d,e);if("object"===typeof d&&null!==d){switch(d.$$typeof){case ea:return a=a.get(null===d.key?c:d.key)||null,k(b,a,d,e);case fa:return a=a.get(null===d.key?c:d.key)||null,l(b,a,d,e);case qa:var f=d._init;return B(a,b,c,f(d._payload),e)}if(Da(d)||ta(d))return a=a.get(c)||null,m(b,a,d,e,null);Gd(b,d);}return null}
+	function w(e,g,h,k){for(var l=null,m=null,u=g,t=g=0,E=null;null!==u&&t<h.length;t++){u.index>t?(E=u,u=null):E=u.sibling;var y=p(e,u,h[t],k);if(null===y){null===u&&(u=E);break}a&&u&&null===y.alternate&&b(e,u);g=f(y,g,t);null===m?l=y:m.sibling=y;m=y;u=E;}if(t===h.length)return c(e,u),F&&kd(e,t),l;if(null===u){for(;t<h.length;t++)u=r(e,h[t],k),null!==u&&(g=f(u,g,t),null===m?l=u:m.sibling=u,m=u);F&&kd(e,t);return l}for(u=d(e,u);t<h.length;t++)E=B(u,e,t,h[t],k),null!==E&&(a&&null!==E.alternate&&u.delete(null===
+	E.key?t:E.key),g=f(E,g,t),null===m?l=E:m.sibling=E,m=E);a&&u.forEach(function(a){return b(e,a)});F&&kd(e,t);return l}function Y(e,g,h,k){var l=ta(h);if("function"!==typeof l)throw Error(n(150));h=l.call(h);if(null==h)throw Error(n(151));for(var u=l=null,m=g,t=g=0,E=null,y=h.next();null!==m&&!y.done;t++,y=h.next()){m.index>t?(E=m,m=null):E=m.sibling;var w=p(e,m,y.value,k);if(null===w){null===m&&(m=E);break}a&&m&&null===w.alternate&&b(e,m);g=f(w,g,t);null===u?l=w:u.sibling=w;u=w;m=E;}if(y.done)return c(e,
+	m),F&&kd(e,t),l;if(null===m){for(;!y.done;t++,y=h.next())y=r(e,y.value,k),null!==y&&(g=f(y,g,t),null===u?l=y:u.sibling=y,u=y);F&&kd(e,t);return l}for(m=d(e,m);!y.done;t++,y=h.next())y=B(m,e,t,y.value,k),null!==y&&(a&&null!==y.alternate&&m.delete(null===y.key?t:y.key),g=f(y,g,t),null===u?l=y:u.sibling=y,u=y);a&&m.forEach(function(a){return b(e,a)});F&&kd(e,t);return l}function ya(a,d,f,h){"object"===typeof f&&null!==f&&f.type===ha&&null===f.key&&(f=f.props.children);if("object"===typeof f&&null!==
+	f){switch(f.$$typeof){case ea:a:{for(var k=f.key,l=d;null!==l;){if(l.key===k){k=f.type;if(k===ha){if(7===l.tag){c(a,l.sibling);d=e(l,f.props.children);d.return=a;a=d;break a}}else if(l.elementType===k||"object"===typeof k&&null!==k&&k.$$typeof===qa&&Hd(k)===l.type){c(a,l.sibling);d=e(l,f.props);d.ref=Fd(a,l,f);d.return=a;a=d;break a}c(a,l);break}else b(a,l);l=l.sibling;}f.type===ha?(d=Nd(f.props.children,a.mode,h,f.key),d.return=a,a=d):(h=Ld(f.type,f.key,f.props,null,a.mode,h),h.ref=Fd(a,d,f),h.return=
+	a,a=h);}return g(a);case fa:a:{for(l=f.key;null!==d;){if(d.key===l)if(4===d.tag&&d.stateNode.containerInfo===f.containerInfo&&d.stateNode.implementation===f.implementation){c(a,d.sibling);d=e(d,f.children||[]);d.return=a;a=d;break a}else {c(a,d);break}else b(a,d);d=d.sibling;}d=Md(f,a.mode,h);d.return=a;a=d;}return g(a);case qa:return l=f._init,ya(a,d,l(f._payload),h)}if(Da(f))return w(a,d,f,h);if(ta(f))return Y(a,d,f,h);Gd(a,f);}return "string"===typeof f&&""!==f||"number"===typeof f?(f=""+f,null!==d&&
+	6===d.tag?(c(a,d.sibling),d=e(d,f),d.return=a,a=d):(c(a,d),d=Kd(f,a.mode,h),d.return=a,a=d),g(a)):c(a,d)}return ya}var Od=Id(true),Pd=Id(false),Qd=ic(null),Rd=null,Sd=null,Td=null;function Ud(){Td=Sd=Rd=null;}function Vd(a,b,c){Sa?(v(Qd,b._currentValue),b._currentValue=c):(v(Qd,b._currentValue2),b._currentValue2=c);}function Wd(a){var b=Qd.current;q(Qd);Sa?a._currentValue=b:a._currentValue2=b;}
+	function Xd(a,b,c){for(;null!==a;){var d=a.alternate;(a.childLanes&b)!==b?(a.childLanes|=b,null!==d&&(d.childLanes|=b)):null!==d&&(d.childLanes&b)!==b&&(d.childLanes|=b);if(a===c)break;a=a.return;}}function Yd(a,b){Rd=a;Td=Sd=null;a=a.dependencies;null!==a&&null!==a.firstContext&&(0!==(a.lanes&b)&&(G=true),a.firstContext=null);}
+	function Zd(a){var b=Sa?a._currentValue:a._currentValue2;if(Td!==a)if(a={context:a,memoizedValue:b,next:null},null===Sd){if(null===Rd)throw Error(n(308));Sd=a;Rd.dependencies={lanes:0,firstContext:a};}else Sd=Sd.next=a;return b}var $d=null;function ae(a){null===$d?$d=[a]:$d.push(a);}function be(a,b,c,d){var e=b.interleaved;null===e?(c.next=c,ae(b)):(c.next=e.next,e.next=c);b.interleaved=c;return ce(a,d)}
+	function ce(a,b){a.lanes|=b;var c=a.alternate;null!==c&&(c.lanes|=b);c=a;for(a=a.return;null!==a;)a.childLanes|=b,c=a.alternate,null!==c&&(c.childLanes|=b),c=a,a=a.return;return 3===c.tag?c.stateNode:null}var de=false;function ee(a){a.updateQueue={baseState:a.memoizedState,firstBaseUpdate:null,lastBaseUpdate:null,shared:{pending:null,interleaved:null,lanes:0},effects:null};}
+	function fe(a,b){a=a.updateQueue;b.updateQueue===a&&(b.updateQueue={baseState:a.baseState,firstBaseUpdate:a.firstBaseUpdate,lastBaseUpdate:a.lastBaseUpdate,shared:a.shared,effects:a.effects});}function ge(a,b){return {eventTime:a,lane:b,tag:0,payload:null,callback:null,next:null}}
+	function he(a,b,c){var d=a.updateQueue;if(null===d)return null;d=d.shared;if(0!==(H&2)){var e=d.pending;null===e?b.next=b:(b.next=e.next,e.next=b);d.pending=b;return ce(a,c)}e=d.interleaved;null===e?(b.next=b,ae(d)):(b.next=e.next,e.next=b);d.interleaved=b;return ce(a,c)}function ie(a,b,c){b=b.updateQueue;if(null!==b&&(b=b.shared,0!==(c&4194240))){var d=b.lanes;d&=a.pendingLanes;c|=d;b.lanes=c;Hc(a,c);}}
+	function je(a,b){var c=a.updateQueue,d=a.alternate;if(null!==d&&(d=d.updateQueue,c===d)){var e=null,f=null;c=c.firstBaseUpdate;if(null!==c){do{var g={eventTime:c.eventTime,lane:c.lane,tag:c.tag,payload:c.payload,callback:c.callback,next:null};null===f?e=f=g:f=f.next=g;c=c.next;}while(null!==c);null===f?e=f=b:f=f.next=b;}else e=f=b;c={baseState:d.baseState,firstBaseUpdate:e,lastBaseUpdate:f,shared:d.shared,effects:d.effects};a.updateQueue=c;return}a=c.lastBaseUpdate;null===a?c.firstBaseUpdate=b:a.next=
+	b;c.lastBaseUpdate=b;}
+	function ke(a,b,c,d){var e=a.updateQueue;de=false;var f=e.firstBaseUpdate,g=e.lastBaseUpdate,h=e.shared.pending;if(null!==h){e.shared.pending=null;var k=h,l=k.next;k.next=null;null===g?f=l:g.next=l;g=k;var m=a.alternate;null!==m&&(m=m.updateQueue,h=m.lastBaseUpdate,h!==g&&(null===h?m.firstBaseUpdate=l:h.next=l,m.lastBaseUpdate=k));}if(null!==f){var r=e.baseState;g=0;m=l=k=null;h=f;do{var p=h.lane,B=h.eventTime;if((d&p)===p){null!==m&&(m=m.next={eventTime:B,lane:0,tag:h.tag,payload:h.payload,callback:h.callback,
+	next:null});a:{var w=a,Y=h;p=b;B=c;switch(Y.tag){case 1:w=Y.payload;if("function"===typeof w){r=w.call(B,r,p);break a}r=w;break a;case 3:w.flags=w.flags&-65537|128;case 0:w=Y.payload;p="function"===typeof w?w.call(B,r,p):w;if(null===p||void 0===p)break a;r=ca({},r,p);break a;case 2:de=true;}}null!==h.callback&&0!==h.lane&&(a.flags|=64,p=e.effects,null===p?e.effects=[h]:p.push(h));}else B={eventTime:B,lane:p,tag:h.tag,payload:h.payload,callback:h.callback,next:null},null===m?(l=m=B,k=r):m=m.next=B,g|=
+	p;h=h.next;if(null===h)if(h=e.shared.pending,null===h)break;else p=h,h=p.next,p.next=null,e.lastBaseUpdate=p,e.shared.pending=null;}while(1);null===m&&(k=r);e.baseState=k;e.firstBaseUpdate=l;e.lastBaseUpdate=m;b=e.shared.interleaved;if(null!==b){e=b;do g|=e.lane,e=e.next;while(e!==b)}else null===f&&(e.shared.lanes=0);le|=g;a.lanes=g;a.memoizedState=r;}}
+	function me(a,b,c){a=b.effects;b.effects=null;if(null!==a)for(b=0;b<a.length;b++){var d=a[b],e=d.callback;if(null!==e){d.callback=null;d=c;if("function"!==typeof e)throw Error(n(191,e));e.call(d);}}}var ne={},oe=ic(ne),pe=ic(ne),qe=ic(ne);function re(a){if(a===ne)throw Error(n(174));return a}function se(a,b){v(qe,b);v(pe,a);v(oe,ne);a=Fa(b);q(oe);v(oe,a);}function te(){q(oe);q(pe);q(qe);}function ue(a){var b=re(qe.current),c=re(oe.current);b=Ga(c,a.type,b);c!==b&&(v(pe,a),v(oe,b));}
+	function ve(a){pe.current===a&&(q(oe),q(pe));}var I=ic(0);function we(a){for(var b=a;null!==b;){if(13===b.tag){var c=b.memoizedState;if(null!==c&&(c=c.dehydrated,null===c||Jb(c)||Kb(c)))return b}else if(19===b.tag&&void 0!==b.memoizedProps.revealOrder){if(0!==(b.flags&128))return b}else if(null!==b.child){b.child.return=b;b=b.child;continue}if(b===a)break;for(;null===b.sibling;){if(null===b.return||b.return===a)return null;b=b.return;}b.sibling.return=b.return;b=b.sibling;}return null}var xe=[];
+	function ye(){for(var a=0;a<xe.length;a++){var b=xe[a];Sa?b._workInProgressVersionPrimary=null:b._workInProgressVersionSecondary=null;}xe.length=0;}var ze=da.ReactCurrentDispatcher,Ae=da.ReactCurrentBatchConfig,Be=0,J=null,K=null,L=null,Ce=false,De=false,Ee=0,Fe=0;function M(){throw Error(n(321));}function Ge(a,b){if(null===b)return  false;for(var c=0;c<b.length&&c<a.length;c++)if(!Vc(a[c],b[c]))return  false;return  true}
+	function He(a,b,c,d,e,f){Be=f;J=b;b.memoizedState=null;b.updateQueue=null;b.lanes=0;ze.current=null===a||null===a.memoizedState?Ie:Je;a=c(d,e);if(De){f=0;do{De=false;Ee=0;if(25<=f)throw Error(n(301));f+=1;L=K=null;b.updateQueue=null;ze.current=Ke;a=c(d,e);}while(De)}ze.current=Le;b=null!==K&&null!==K.next;Be=0;L=K=J=null;Ce=false;if(b)throw Error(n(300));return a}function Me(){var a=0!==Ee;Ee=0;return a}
+	function Ne(){var a={memoizedState:null,baseState:null,baseQueue:null,queue:null,next:null};null===L?J.memoizedState=L=a:L=L.next=a;return L}function Oe(){if(null===K){var a=J.alternate;a=null!==a?a.memoizedState:null;}else a=K.next;var b=null===L?J.memoizedState:L.next;if(null!==b)L=b,K=a;else {if(null===a)throw Error(n(310));K=a;a={memoizedState:K.memoizedState,baseState:K.baseState,baseQueue:K.baseQueue,queue:K.queue,next:null};null===L?J.memoizedState=L=a:L=L.next=a;}return L}
+	function Pe(a,b){return "function"===typeof b?b(a):b}
+	function Qe(a){var b=Oe(),c=b.queue;if(null===c)throw Error(n(311));c.lastRenderedReducer=a;var d=K,e=d.baseQueue,f=c.pending;if(null!==f){if(null!==e){var g=e.next;e.next=f.next;f.next=g;}d.baseQueue=e=f;c.pending=null;}if(null!==e){f=e.next;d=d.baseState;var h=g=null,k=null,l=f;do{var m=l.lane;if((Be&m)===m)null!==k&&(k=k.next={lane:0,action:l.action,hasEagerState:l.hasEagerState,eagerState:l.eagerState,next:null}),d=l.hasEagerState?l.eagerState:a(d,l.action);else {var r={lane:m,action:l.action,hasEagerState:l.hasEagerState,
+	eagerState:l.eagerState,next:null};null===k?(h=k=r,g=d):k=k.next=r;J.lanes|=m;le|=m;}l=l.next;}while(null!==l&&l!==f);null===k?g=d:k.next=h;Vc(d,b.memoizedState)||(G=true);b.memoizedState=d;b.baseState=g;b.baseQueue=k;c.lastRenderedState=d;}a=c.interleaved;if(null!==a){e=a;do f=e.lane,J.lanes|=f,le|=f,e=e.next;while(e!==a)}else null===e&&(c.lanes=0);return [b.memoizedState,c.dispatch]}
+	function Re(a){var b=Oe(),c=b.queue;if(null===c)throw Error(n(311));c.lastRenderedReducer=a;var d=c.dispatch,e=c.pending,f=b.memoizedState;if(null!==e){c.pending=null;var g=e=e.next;do f=a(f,g.action),g=g.next;while(g!==e);Vc(f,b.memoizedState)||(G=true);b.memoizedState=f;null===b.baseQueue&&(b.baseState=f);c.lastRenderedState=f;}return [f,d]}function Se(){}
+	function Te(a,b){var c=J,d=Oe(),e=b(),f=!Vc(d.memoizedState,e);f&&(d.memoizedState=e,G=true);d=d.queue;Ue(Ve.bind(null,c,d,a),[a]);if(d.getSnapshot!==b||f||null!==L&&L.memoizedState.tag&1){c.flags|=2048;We(9,Xe.bind(null,c,d,e,b),void 0,null);if(null===N)throw Error(n(349));0!==(Be&30)||Ye(c,b,e);}return e}function Ye(a,b,c){a.flags|=16384;a={getSnapshot:b,value:c};b=J.updateQueue;null===b?(b={lastEffect:null,stores:null},J.updateQueue=b,b.stores=[a]):(c=b.stores,null===c?b.stores=[a]:c.push(a));}
+	function Xe(a,b,c,d){b.value=c;b.getSnapshot=d;Ze(b)&&$e(a);}function Ve(a,b,c){return c(function(){Ze(b)&&$e(a);})}function Ze(a){var b=a.getSnapshot;a=a.value;try{var c=b();return !Vc(a,c)}catch(d){return  true}}function $e(a){var b=ce(a,1);null!==b&&af(b,a,1,-1);}
+	function bf(a){var b=Ne();"function"===typeof a&&(a=a());b.memoizedState=b.baseState=a;a={pending:null,interleaved:null,lanes:0,dispatch:null,lastRenderedReducer:Pe,lastRenderedState:a};b.queue=a;a=a.dispatch=cf.bind(null,J,a);return [b.memoizedState,a]}
+	function We(a,b,c,d){a={tag:a,create:b,destroy:c,deps:d,next:null};b=J.updateQueue;null===b?(b={lastEffect:null,stores:null},J.updateQueue=b,b.lastEffect=a.next=a):(c=b.lastEffect,null===c?b.lastEffect=a.next=a:(d=c.next,c.next=a,a.next=d,b.lastEffect=a));return a}function df(){return Oe().memoizedState}function ef(a,b,c,d){var e=Ne();J.flags|=a;e.memoizedState=We(1|b,c,void 0,void 0===d?null:d);}
+	function ff(a,b,c,d){var e=Oe();d=void 0===d?null:d;var f=void 0;if(null!==K){var g=K.memoizedState;f=g.destroy;if(null!==d&&Ge(d,g.deps)){e.memoizedState=We(b,c,f,d);return}}J.flags|=a;e.memoizedState=We(1|b,c,f,d);}function gf(a,b){return ef(8390656,8,a,b)}function Ue(a,b){return ff(2048,8,a,b)}function hf(a,b){return ff(4,2,a,b)}function jf(a,b){return ff(4,4,a,b)}
+	function kf(a,b){if("function"===typeof b)return a=a(),b(a),function(){b(null);};if(null!==b&&void 0!==b)return a=a(),b.current=a,function(){b.current=null;}}function lf(a,b,c){c=null!==c&&void 0!==c?c.concat([a]):null;return ff(4,4,kf.bind(null,b,a),c)}function mf(){}function nf(a,b){var c=Oe();b=void 0===b?null:b;var d=c.memoizedState;if(null!==d&&null!==b&&Ge(b,d[1]))return d[0];c.memoizedState=[a,b];return a}
+	function of(a,b){var c=Oe();b=void 0===b?null:b;var d=c.memoizedState;if(null!==d&&null!==b&&Ge(b,d[1]))return d[0];a=a();c.memoizedState=[a,b];return a}function pf(a,b,c){if(0===(Be&21))return a.baseState&&(a.baseState=false,G=true),a.memoizedState=c;Vc(c,b)||(c=Dc(),J.lanes|=c,le|=c,a.baseState=true);return b}function qf(a,b){var c=C;C=0!==c&&4>c?c:4;a(true);var d=Ae.transition;Ae.transition={};try{a(!1),b();}finally{C=c,Ae.transition=d;}}function rf(){return Oe().memoizedState}
+	function sf(a,b,c){var d=tf(a);c={lane:d,action:c,hasEagerState:false,eagerState:null,next:null};if(uf(a))vf(b,c);else if(c=be(a,b,c,d),null!==c){var e=O();af(c,a,d,e);wf(c,b,d);}}
+	function cf(a,b,c){var d=tf(a),e={lane:d,action:c,hasEagerState:false,eagerState:null,next:null};if(uf(a))vf(b,e);else {var f=a.alternate;if(0===a.lanes&&(null===f||0===f.lanes)&&(f=b.lastRenderedReducer,null!==f))try{var g=b.lastRenderedState,h=f(g,c);e.hasEagerState=!0;e.eagerState=h;if(Vc(h,g)){var k=b.interleaved;null===k?(e.next=e,ae(b)):(e.next=k.next,k.next=e);b.interleaved=e;return}}catch(l){}finally{}c=be(a,b,e,d);null!==c&&(e=O(),af(c,a,d,e),wf(c,b,d));}}
+	function uf(a){var b=a.alternate;return a===J||null!==b&&b===J}function vf(a,b){De=Ce=true;var c=a.pending;null===c?b.next=b:(b.next=c.next,c.next=b);a.pending=b;}function wf(a,b,c){if(0!==(c&4194240)){var d=b.lanes;d&=a.pendingLanes;c|=d;b.lanes=c;Hc(a,c);}}
+	var Le={readContext:Zd,useCallback:M,useContext:M,useEffect:M,useImperativeHandle:M,useInsertionEffect:M,useLayoutEffect:M,useMemo:M,useReducer:M,useRef:M,useState:M,useDebugValue:M,useDeferredValue:M,useTransition:M,useMutableSource:M,useSyncExternalStore:M,useId:M,unstable_isNewReconciler:false},Ie={readContext:Zd,useCallback:function(a,b){Ne().memoizedState=[a,void 0===b?null:b];return a},useContext:Zd,useEffect:gf,useImperativeHandle:function(a,b,c){c=null!==c&&void 0!==c?c.concat([a]):null;return ef(4194308,
+	4,kf.bind(null,b,a),c)},useLayoutEffect:function(a,b){return ef(4194308,4,a,b)},useInsertionEffect:function(a,b){return ef(4,2,a,b)},useMemo:function(a,b){var c=Ne();b=void 0===b?null:b;a=a();c.memoizedState=[a,b];return a},useReducer:function(a,b,c){var d=Ne();b=void 0!==c?c(b):b;d.memoizedState=d.baseState=b;a={pending:null,interleaved:null,lanes:0,dispatch:null,lastRenderedReducer:a,lastRenderedState:b};d.queue=a;a=a.dispatch=sf.bind(null,J,a);return [d.memoizedState,a]},useRef:function(a){var b=
+	Ne();a={current:a};return b.memoizedState=a},useState:bf,useDebugValue:mf,useDeferredValue:function(a){return Ne().memoizedState=a},useTransition:function(){var a=bf(false),b=a[0];a=qf.bind(null,a[1]);Ne().memoizedState=a;return [b,a]},useMutableSource:function(){},useSyncExternalStore:function(a,b,c){var d=J,e=Ne();if(F){if(void 0===c)throw Error(n(407));c=c();}else {c=b();if(null===N)throw Error(n(349));0!==(Be&30)||Ye(d,b,c);}e.memoizedState=c;var f={value:c,getSnapshot:b};e.queue=f;gf(Ve.bind(null,d,
+	f,a),[a]);d.flags|=2048;We(9,Xe.bind(null,d,f,c,b),void 0,null);return c},useId:function(){var a=Ne(),b=N.identifierPrefix;if(F){var c=jd;var d=id;c=(d&~(1<<32-tc(d)-1)).toString(32)+c;b=":"+b+"R"+c;c=Ee++;0<c&&(b+="H"+c.toString(32));b+=":";}else c=Fe++,b=":"+b+"r"+c.toString(32)+":";return a.memoizedState=b},unstable_isNewReconciler:false},Je={readContext:Zd,useCallback:nf,useContext:Zd,useEffect:Ue,useImperativeHandle:lf,useInsertionEffect:hf,useLayoutEffect:jf,useMemo:of,useReducer:Qe,useRef:df,useState:function(){return Qe(Pe)},
+	useDebugValue:mf,useDeferredValue:function(a){var b=Oe();return pf(b,K.memoizedState,a)},useTransition:function(){var a=Qe(Pe)[0],b=Oe().memoizedState;return [a,b]},useMutableSource:Se,useSyncExternalStore:Te,useId:rf,unstable_isNewReconciler:false},Ke={readContext:Zd,useCallback:nf,useContext:Zd,useEffect:Ue,useImperativeHandle:lf,useInsertionEffect:hf,useLayoutEffect:jf,useMemo:of,useReducer:Re,useRef:df,useState:function(){return Re(Pe)},useDebugValue:mf,useDeferredValue:function(a){var b=Oe();return null===
+	K?b.memoizedState=a:pf(b,K.memoizedState,a)},useTransition:function(){var a=Re(Pe)[0],b=Oe().memoizedState;return [a,b]},useMutableSource:Se,useSyncExternalStore:Te,useId:rf,unstable_isNewReconciler:false};function xf(a,b){if(a&&a.defaultProps){b=ca({},b);a=a.defaultProps;for(var c in a) void 0===b[c]&&(b[c]=a[c]);return b}return b}function yf(a,b,c,d){b=a.memoizedState;c=c(d,b);c=null===c||void 0===c?b:ca({},b,c);a.memoizedState=c;0===a.lanes&&(a.updateQueue.baseState=c);}
+	var zf={isMounted:function(a){return (a=a._reactInternals)?wa(a)===a:false},enqueueSetState:function(a,b,c){a=a._reactInternals;var d=O(),e=tf(a),f=ge(d,e);f.payload=b;void 0!==c&&null!==c&&(f.callback=c);b=he(a,f,e);null!==b&&(af(b,a,e,d),ie(b,a,e));},enqueueReplaceState:function(a,b,c){a=a._reactInternals;var d=O(),e=tf(a),f=ge(d,e);f.tag=1;f.payload=b;void 0!==c&&null!==c&&(f.callback=c);b=he(a,f,e);null!==b&&(af(b,a,e,d),ie(b,a,e));},enqueueForceUpdate:function(a,b){a=a._reactInternals;var c=O(),d=
+	tf(a),e=ge(c,d);e.tag=2;void 0!==b&&null!==b&&(e.callback=b);b=he(a,e,d);null!==b&&(af(b,a,d,c),ie(b,a,d));}};function Af(a,b,c,d,e,f,g){a=a.stateNode;return "function"===typeof a.shouldComponentUpdate?a.shouldComponentUpdate(d,f,g):b.prototype&&b.prototype.isPureReactComponent?!Dd(c,d)||!Dd(e,f):true}
+	function Bf(a,b,c){var d=false,e=jc;var f=b.contextType;"object"===typeof f&&null!==f?f=Zd(f):(e=A(b)?kc:x.current,d=b.contextTypes,f=(d=null!==d&&void 0!==d)?mc(a,e):jc);b=new b(c,f);a.memoizedState=null!==b.state&&void 0!==b.state?b.state:null;b.updater=zf;a.stateNode=b;b._reactInternals=a;d&&(a=a.stateNode,a.__reactInternalMemoizedUnmaskedChildContext=e,a.__reactInternalMemoizedMaskedChildContext=f);return b}
+	function Cf(a,b,c,d){a=b.state;"function"===typeof b.componentWillReceiveProps&&b.componentWillReceiveProps(c,d);"function"===typeof b.UNSAFE_componentWillReceiveProps&&b.UNSAFE_componentWillReceiveProps(c,d);b.state!==a&&zf.enqueueReplaceState(b,b.state,null);}
+	function Df(a,b,c,d){var e=a.stateNode;e.props=c;e.state=a.memoizedState;e.refs={};ee(a);var f=b.contextType;"object"===typeof f&&null!==f?e.context=Zd(f):(f=A(b)?kc:x.current,e.context=mc(a,f));e.state=a.memoizedState;f=b.getDerivedStateFromProps;"function"===typeof f&&(yf(a,b,f,c),e.state=a.memoizedState);"function"===typeof b.getDerivedStateFromProps||"function"===typeof e.getSnapshotBeforeUpdate||"function"!==typeof e.UNSAFE_componentWillMount&&"function"!==typeof e.componentWillMount||(b=e.state,
+	"function"===typeof e.componentWillMount&&e.componentWillMount(),"function"===typeof e.UNSAFE_componentWillMount&&e.UNSAFE_componentWillMount(),b!==e.state&&zf.enqueueReplaceState(e,e.state,null),ke(a,c,e,d),e.state=a.memoizedState);"function"===typeof e.componentDidMount&&(a.flags|=4194308);}function Ef(a,b){try{var c="",d=b;do c+=Ed(d),d=d.return;while(d);var e=c;}catch(f){e="\nError generating stack: "+f.message+"\n"+f.stack;}return {value:a,source:b,stack:e,digest:null}}
+	function Ff(a,b,c){return {value:a,source:null,stack:null!=c?c:null,digest:null!=b?b:null}}function Gf(a,b){try{console.error(b.value);}catch(c){setTimeout(function(){throw c;});}}var Hf="function"===typeof WeakMap?WeakMap:Map;function If(a,b,c){c=ge(-1,c);c.tag=3;c.payload={element:null};var d=b.value;c.callback=function(){Jf||(Jf=true,Kf=d);Gf(a,b);};return c}
+	function Lf(a,b,c){c=ge(-1,c);c.tag=3;var d=a.type.getDerivedStateFromError;if("function"===typeof d){var e=b.value;c.payload=function(){return d(e)};c.callback=function(){Gf(a,b);};}var f=a.stateNode;null!==f&&"function"===typeof f.componentDidCatch&&(c.callback=function(){Gf(a,b);"function"!==typeof d&&(null===Mf?Mf=new Set([this]):Mf.add(this));var c=b.stack;this.componentDidCatch(b.value,{componentStack:null!==c?c:""});});return c}
+	function Nf(a,b,c){var d=a.pingCache;if(null===d){d=a.pingCache=new Hf;var e=new Set;d.set(b,e);}else e=d.get(b),void 0===e&&(e=new Set,d.set(b,e));e.has(c)||(e.add(c),a=Of.bind(null,a,b,c),b.then(a,a));}function Pf(a){do{var b;if(b=13===a.tag)b=a.memoizedState,b=null!==b?null!==b.dehydrated?true:false:true;if(b)return a;a=a.return;}while(null!==a);return null}
+	function Qf(a,b,c,d,e){if(0===(a.mode&1))return a===b?a.flags|=65536:(a.flags|=128,c.flags|=131072,c.flags&=-52805,1===c.tag&&(null===c.alternate?c.tag=17:(b=ge(-1,1),b.tag=2,he(c,b,1))),c.lanes|=1),a;a.flags|=65536;a.lanes=e;return a}var Rf=da.ReactCurrentOwner,G=false;function P(a,b,c,d){b.child=null===a?Pd(b,null,c,d):Od(b,a.child,c,d);}
+	function Sf(a,b,c,d,e){c=c.render;var f=b.ref;Yd(b,e);d=He(a,b,c,d,f,e);c=Me();if(null!==a&&!G)return b.updateQueue=a.updateQueue,b.flags&=-2053,a.lanes&=~e,Tf(a,b,e);F&&c&&md(b);b.flags|=1;P(a,b,d,e);return b.child}
+	function Uf(a,b,c,d,e){if(null===a){var f=c.type;if("function"===typeof f&&!Vf(f)&&void 0===f.defaultProps&&null===c.compare&&void 0===c.defaultProps)return b.tag=15,b.type=f,Wf(a,b,f,d,e);a=Ld(c.type,null,d,b,b.mode,e);a.ref=b.ref;a.return=b;return b.child=a}f=a.child;if(0===(a.lanes&e)){var g=f.memoizedProps;c=c.compare;c=null!==c?c:Dd;if(c(g,d)&&a.ref===b.ref)return Tf(a,b,e)}b.flags|=1;a=Jd(f,d);a.ref=b.ref;a.return=b;return b.child=a}
+	function Wf(a,b,c,d,e){if(null!==a){var f=a.memoizedProps;if(Dd(f,d)&&a.ref===b.ref)if(G=false,b.pendingProps=d=f,0!==(a.lanes&e))0!==(a.flags&131072)&&(G=true);else return b.lanes=a.lanes,Tf(a,b,e)}return Xf(a,b,c,d,e)}
+	function Yf(a,b,c){var d=b.pendingProps,e=d.children,f=null!==a?a.memoizedState:null;if("hidden"===d.mode)if(0===(b.mode&1))b.memoizedState={baseLanes:0,cachePool:null,transitions:null},v(Zf,$f),$f|=c;else {if(0===(c&1073741824))return a=null!==f?f.baseLanes|c:c,b.lanes=b.childLanes=1073741824,b.memoizedState={baseLanes:a,cachePool:null,transitions:null},b.updateQueue=null,v(Zf,$f),$f|=a,null;b.memoizedState={baseLanes:0,cachePool:null,transitions:null};d=null!==f?f.baseLanes:c;v(Zf,$f);$f|=d;}else null!==
+	f?(d=f.baseLanes|c,b.memoizedState=null):d=c,v(Zf,$f),$f|=d;P(a,b,e,c);return b.child}function ag(a,b){var c=b.ref;if(null===a&&null!==c||null!==a&&a.ref!==c)b.flags|=512,b.flags|=2097152;}function Xf(a,b,c,d,e){var f=A(c)?kc:x.current;f=mc(b,f);Yd(b,e);c=He(a,b,c,d,f,e);d=Me();if(null!==a&&!G)return b.updateQueue=a.updateQueue,b.flags&=-2053,a.lanes&=~e,Tf(a,b,e);F&&d&&md(b);b.flags|=1;P(a,b,c,e);return b.child}
+	function bg(a,b,c,d,e){if(A(c)){var f=true;qc(b);}else f=false;Yd(b,e);if(null===b.stateNode)cg(a,b),Bf(b,c,d),Df(b,c,d,e),d=true;else if(null===a){var g=b.stateNode,h=b.memoizedProps;g.props=h;var k=g.context,l=c.contextType;"object"===typeof l&&null!==l?l=Zd(l):(l=A(c)?kc:x.current,l=mc(b,l));var m=c.getDerivedStateFromProps,r="function"===typeof m||"function"===typeof g.getSnapshotBeforeUpdate;r||"function"!==typeof g.UNSAFE_componentWillReceiveProps&&"function"!==typeof g.componentWillReceiveProps||(h!==
+	d||k!==l)&&Cf(b,g,d,l);de=false;var p=b.memoizedState;g.state=p;ke(b,d,g,e);k=b.memoizedState;h!==d||p!==k||z.current||de?("function"===typeof m&&(yf(b,c,m,d),k=b.memoizedState),(h=de||Af(b,c,h,d,p,k,l))?(r||"function"!==typeof g.UNSAFE_componentWillMount&&"function"!==typeof g.componentWillMount||("function"===typeof g.componentWillMount&&g.componentWillMount(),"function"===typeof g.UNSAFE_componentWillMount&&g.UNSAFE_componentWillMount()),"function"===typeof g.componentDidMount&&(b.flags|=4194308)):
+	("function"===typeof g.componentDidMount&&(b.flags|=4194308),b.memoizedProps=d,b.memoizedState=k),g.props=d,g.state=k,g.context=l,d=h):("function"===typeof g.componentDidMount&&(b.flags|=4194308),d=false);}else {g=b.stateNode;fe(a,b);h=b.memoizedProps;l=b.type===b.elementType?h:xf(b.type,h);g.props=l;r=b.pendingProps;p=g.context;k=c.contextType;"object"===typeof k&&null!==k?k=Zd(k):(k=A(c)?kc:x.current,k=mc(b,k));var B=c.getDerivedStateFromProps;(m="function"===typeof B||"function"===typeof g.getSnapshotBeforeUpdate)||
+	"function"!==typeof g.UNSAFE_componentWillReceiveProps&&"function"!==typeof g.componentWillReceiveProps||(h!==r||p!==k)&&Cf(b,g,d,k);de=false;p=b.memoizedState;g.state=p;ke(b,d,g,e);var w=b.memoizedState;h!==r||p!==w||z.current||de?("function"===typeof B&&(yf(b,c,B,d),w=b.memoizedState),(l=de||Af(b,c,l,d,p,w,k)||false)?(m||"function"!==typeof g.UNSAFE_componentWillUpdate&&"function"!==typeof g.componentWillUpdate||("function"===typeof g.componentWillUpdate&&g.componentWillUpdate(d,w,k),"function"===typeof g.UNSAFE_componentWillUpdate&&
+	g.UNSAFE_componentWillUpdate(d,w,k)),"function"===typeof g.componentDidUpdate&&(b.flags|=4),"function"===typeof g.getSnapshotBeforeUpdate&&(b.flags|=1024)):("function"!==typeof g.componentDidUpdate||h===a.memoizedProps&&p===a.memoizedState||(b.flags|=4),"function"!==typeof g.getSnapshotBeforeUpdate||h===a.memoizedProps&&p===a.memoizedState||(b.flags|=1024),b.memoizedProps=d,b.memoizedState=w),g.props=d,g.state=w,g.context=k,d=l):("function"!==typeof g.componentDidUpdate||h===a.memoizedProps&&p===
+	a.memoizedState||(b.flags|=4),"function"!==typeof g.getSnapshotBeforeUpdate||h===a.memoizedProps&&p===a.memoizedState||(b.flags|=1024),d=false);}return dg(a,b,c,d,f,e)}
+	function dg(a,b,c,d,e,f){ag(a,b);var g=0!==(b.flags&128);if(!d&&!g)return e&&rc(b,c,false),Tf(a,b,f);d=b.stateNode;Rf.current=b;var h=g&&"function"!==typeof c.getDerivedStateFromError?null:d.render();b.flags|=1;null!==a&&g?(b.child=Od(b,a.child,null,f),b.child=Od(b,null,h,f)):P(a,b,h,f);b.memoizedState=d.state;e&&rc(b,c,true);return b.child}function eg(a){var b=a.stateNode;b.pendingContext?oc(a,b.pendingContext,b.pendingContext!==b.context):b.context&&oc(a,b.context,false);se(a,b.containerInfo);}
+	function fg(a,b,c,d,e){Ad();Bd(e);b.flags|=256;P(a,b,c,d);return b.child}var gg={dehydrated:null,treeContext:null,retryLane:0};function hg(a){return {baseLanes:a,cachePool:null,transitions:null}}
+	function ig(a,b,c){var d=b.pendingProps,e=I.current,f=false,g=0!==(b.flags&128),h;(h=g)||(h=null!==a&&null===a.memoizedState?false:0!==(e&2));if(h)f=true,b.flags&=-129;else if(null===a||null!==a.memoizedState)e|=1;v(I,e&1);if(null===a){wd(b);a=b.memoizedState;if(null!==a&&(a=a.dehydrated,null!==a))return 0===(b.mode&1)?b.lanes=1:Kb(a)?b.lanes=8:b.lanes=1073741824,null;g=d.children;a=d.fallback;return f?(d=b.mode,f=b.child,g={mode:"hidden",children:g},0===(d&1)&&null!==f?(f.childLanes=0,f.pendingProps=g):
+	f=jg(g,d,0,null),a=Nd(a,d,c,null),f.return=b,a.return=b,f.sibling=a,b.child=f,b.child.memoizedState=hg(c),b.memoizedState=gg,a):kg(b,g)}e=a.memoizedState;if(null!==e&&(h=e.dehydrated,null!==h))return lg(a,b,g,d,h,e,c);if(f){f=d.fallback;g=b.mode;e=a.child;h=e.sibling;var k={mode:"hidden",children:d.children};0===(g&1)&&b.child!==e?(d=b.child,d.childLanes=0,d.pendingProps=k,b.deletions=null):(d=Jd(e,k),d.subtreeFlags=e.subtreeFlags&14680064);null!==h?f=Jd(h,f):(f=Nd(f,g,c,null),f.flags|=2);f.return=
+	b;d.return=b;d.sibling=f;b.child=d;d=f;f=b.child;g=a.child.memoizedState;g=null===g?hg(c):{baseLanes:g.baseLanes|c,cachePool:null,transitions:g.transitions};f.memoizedState=g;f.childLanes=a.childLanes&~c;b.memoizedState=gg;return d}f=a.child;a=f.sibling;d=Jd(f,{mode:"visible",children:d.children});0===(b.mode&1)&&(d.lanes=c);d.return=b;d.sibling=null;null!==a&&(c=b.deletions,null===c?(b.deletions=[a],b.flags|=16):c.push(a));b.child=d;b.memoizedState=null;return d}
+	function kg(a,b){b=jg({mode:"visible",children:b},a.mode,0,null);b.return=a;return a.child=b}function mg(a,b,c,d){null!==d&&Bd(d);Od(b,a.child,null,c);a=kg(b,b.pendingProps.children);a.flags|=2;b.memoizedState=null;return a}
+	function lg(a,b,c,d,e,f,g){if(c){if(b.flags&256)return b.flags&=-257,d=Ff(Error(n(422))),mg(a,b,g,d);if(null!==b.memoizedState)return b.child=a.child,b.flags|=128,null;f=d.fallback;e=b.mode;d=jg({mode:"visible",children:d.children},e,0,null);f=Nd(f,e,g,null);f.flags|=2;d.return=b;f.return=b;d.sibling=f;b.child=d;0!==(b.mode&1)&&Od(b,a.child,null,g);b.child.memoizedState=hg(g);b.memoizedState=gg;return f}if(0===(b.mode&1))return mg(a,b,g,null);if(Kb(e))return d=Lb(e).digest,f=Error(n(419)),d=Ff(f,
+	d,void 0),mg(a,b,g,d);c=0!==(g&a.childLanes);if(G||c){d=N;if(null!==d){switch(g&-g){case 4:e=2;break;case 16:e=8;break;case 64:case 128:case 256:case 512:case 1024:case 2048:case 4096:case 8192:case 16384:case 32768:case 65536:case 131072:case 262144:case 524288:case 1048576:case 2097152:case 4194304:case 8388608:case 16777216:case 33554432:case 67108864:e=32;break;case 536870912:e=268435456;break;default:e=0;}e=0!==(e&(d.suspendedLanes|g))?0:e;0!==e&&e!==f.retryLane&&(f.retryLane=e,ce(a,e),af(d,a,
+	e,-1));}ng();d=Ff(Error(n(421)));return mg(a,b,g,d)}if(Jb(e))return b.flags|=128,b.child=a.child,b=og.bind(null,a),Mb(e,b),null;a=f.treeContext;Va&&(pd=Qb(e),od=b,F=true,rd=null,qd=false,null!==a&&(fd[gd++]=id,fd[gd++]=jd,fd[gd++]=hd,id=a.id,jd=a.overflow,hd=b));b=kg(b,d.children);b.flags|=4096;return b}function pg(a,b,c){a.lanes|=b;var d=a.alternate;null!==d&&(d.lanes|=b);Xd(a.return,b,c);}
+	function qg(a,b,c,d,e){var f=a.memoizedState;null===f?a.memoizedState={isBackwards:b,rendering:null,renderingStartTime:0,last:d,tail:c,tailMode:e}:(f.isBackwards=b,f.rendering=null,f.renderingStartTime=0,f.last=d,f.tail=c,f.tailMode=e);}
+	function rg(a,b,c){var d=b.pendingProps,e=d.revealOrder,f=d.tail;P(a,b,d.children,c);d=I.current;if(0!==(d&2))d=d&1|2,b.flags|=128;else {if(null!==a&&0!==(a.flags&128))a:for(a=b.child;null!==a;){if(13===a.tag)null!==a.memoizedState&&pg(a,c,b);else if(19===a.tag)pg(a,c,b);else if(null!==a.child){a.child.return=a;a=a.child;continue}if(a===b)break a;for(;null===a.sibling;){if(null===a.return||a.return===b)break a;a=a.return;}a.sibling.return=a.return;a=a.sibling;}d&=1;}v(I,d);if(0===(b.mode&1))b.memoizedState=
+	null;else switch(e){case "forwards":c=b.child;for(e=null;null!==c;)a=c.alternate,null!==a&&null===we(a)&&(e=c),c=c.sibling;c=e;null===c?(e=b.child,b.child=null):(e=c.sibling,c.sibling=null);qg(b,false,e,c,f);break;case "backwards":c=null;e=b.child;for(b.child=null;null!==e;){a=e.alternate;if(null!==a&&null===we(a)){b.child=e;break}a=e.sibling;e.sibling=c;c=e;e=a;}qg(b,true,c,null,f);break;case "together":qg(b,false,null,null,void 0);break;default:b.memoizedState=null;}return b.child}
+	function cg(a,b){0===(b.mode&1)&&null!==a&&(a.alternate=null,b.alternate=null,b.flags|=2);}function Tf(a,b,c){null!==a&&(b.dependencies=a.dependencies);le|=b.lanes;if(0===(c&b.childLanes))return null;if(null!==a&&b.child!==a.child)throw Error(n(153));if(null!==b.child){a=b.child;c=Jd(a,a.pendingProps);b.child=c;for(c.return=b;null!==a.sibling;)a=a.sibling,c=c.sibling=Jd(a,a.pendingProps),c.return=b;c.sibling=null;}return b.child}
+	function sg(a,b,c){switch(b.tag){case 3:eg(b);Ad();break;case 5:ue(b);break;case 1:A(b.type)&&qc(b);break;case 4:se(b,b.stateNode.containerInfo);break;case 10:Vd(b,b.type._context,b.memoizedProps.value);break;case 13:var d=b.memoizedState;if(null!==d){if(null!==d.dehydrated)return v(I,I.current&1),b.flags|=128,null;if(0!==(c&b.child.childLanes))return ig(a,b,c);v(I,I.current&1);a=Tf(a,b,c);return null!==a?a.sibling:null}v(I,I.current&1);break;case 19:d=0!==(c&b.childLanes);if(0!==(a.flags&128)){if(d)return rg(a,
+	b,c);b.flags|=128;}var e=b.memoizedState;null!==e&&(e.rendering=null,e.tail=null,e.lastEffect=null);v(I,I.current);if(d)break;else return null;case 22:case 23:return b.lanes=0,Yf(a,b,c)}return Tf(a,b,c)}function tg(a){a.flags|=4;}function ug(a,b){if(null!==a&&a.child===b.child)return  true;if(0!==(b.flags&16))return  false;for(a=b.child;null!==a;){if(0!==(a.flags&12854)||0!==(a.subtreeFlags&12854))return  false;a=a.sibling;}return  true}var vg,wg,xg,yg;
+	if(Ta)vg=function(a,b){for(var c=b.child;null!==c;){if(5===c.tag||6===c.tag)Ka(a,c.stateNode);else if(4!==c.tag&&null!==c.child){c.child.return=c;c=c.child;continue}if(c===b)break;for(;null===c.sibling;){if(null===c.return||c.return===b)return;c=c.return;}c.sibling.return=c.return;c=c.sibling;}},wg=function(){},xg=function(a,b,c,d,e){a=a.memoizedProps;if(a!==d){var f=b.stateNode,g=re(oe.current);c=Ma(f,c,a,d,e,g);(b.updateQueue=c)&&tg(b);}},yg=function(a,b,c,d){c!==d&&tg(b);};else if(Ua){vg=function(a,
+	b,c,d){for(var e=b.child;null!==e;){if(5===e.tag){var f=e.stateNode;c&&d&&(f=Eb(f,e.type,e.memoizedProps,e));Ka(a,f);}else if(6===e.tag)f=e.stateNode,c&&d&&(f=Fb(f,e.memoizedProps,e)),Ka(a,f);else if(4!==e.tag)if(22===e.tag&&null!==e.memoizedState)f=e.child,null!==f&&(f.return=e),vg(a,e,true,true);else if(null!==e.child){e.child.return=e;e=e.child;continue}if(e===b)break;for(;null===e.sibling;){if(null===e.return||e.return===b)return;e=e.return;}e.sibling.return=e.return;e=e.sibling;}};var zg=function(a,
+	b,c,d){for(var e=b.child;null!==e;){if(5===e.tag){var f=e.stateNode;c&&d&&(f=Eb(f,e.type,e.memoizedProps,e));Ab(a,f);}else if(6===e.tag)f=e.stateNode,c&&d&&(f=Fb(f,e.memoizedProps,e)),Ab(a,f);else if(4!==e.tag)if(22===e.tag&&null!==e.memoizedState)f=e.child,null!==f&&(f.return=e),zg(a,e,true,true);else if(null!==e.child){e.child.return=e;e=e.child;continue}if(e===b)break;for(;null===e.sibling;){if(null===e.return||e.return===b)return;e=e.return;}e.sibling.return=e.return;e=e.sibling;}};wg=function(a,b){var c=
+	b.stateNode;if(!ug(a,b)){a=c.containerInfo;var d=zb(a);zg(d,b,false,false);c.pendingChildren=d;tg(b);Bb(a,d);}};xg=function(a,b,c,d,e){var f=a.stateNode,g=a.memoizedProps;if((a=ug(a,b))&&g===d)b.stateNode=f;else {var h=b.stateNode,k=re(oe.current),l=null;g!==d&&(l=Ma(h,c,g,d,e,k));a&&null===l?b.stateNode=f:(f=yb(f,l,c,g,d,b,a,h),La(f,c,d,e,k)&&tg(b),b.stateNode=f,a?tg(b):vg(f,b,false,false));}};yg=function(a,b,c,d){c!==d?(a=re(qe.current),c=re(oe.current),b.stateNode=Oa(d,a,c,b),tg(b)):b.stateNode=a.stateNode;};}else wg=
+	function(){},xg=function(){},yg=function(){};function Ag(a,b){if(!F)switch(a.tailMode){case "hidden":b=a.tail;for(var c=null;null!==b;)null!==b.alternate&&(c=b),b=b.sibling;null===c?a.tail=null:c.sibling=null;break;case "collapsed":c=a.tail;for(var d=null;null!==c;)null!==c.alternate&&(d=c),c=c.sibling;null===d?b||null===a.tail?a.tail=null:a.tail.sibling=null:d.sibling=null;}}
+	function Q(a){var b=null!==a.alternate&&a.alternate.child===a.child,c=0,d=0;if(b)for(var e=a.child;null!==e;)c|=e.lanes|e.childLanes,d|=e.subtreeFlags&14680064,d|=e.flags&14680064,e.return=a,e=e.sibling;else for(e=a.child;null!==e;)c|=e.lanes|e.childLanes,d|=e.subtreeFlags,d|=e.flags,e.return=a,e=e.sibling;a.subtreeFlags|=d;a.childLanes=c;return b}
+	function Bg(a,b,c){var d=b.pendingProps;nd(b);switch(b.tag){case 2:case 16:case 15:case 0:case 11:case 7:case 8:case 12:case 9:case 14:return Q(b),null;case 1:return A(b.type)&&nc(),Q(b),null;case 3:c=b.stateNode;te();q(z);q(x);ye();c.pendingContext&&(c.context=c.pendingContext,c.pendingContext=null);if(null===a||null===a.child)yd(b)?tg(b):null===a||a.memoizedState.isDehydrated&&0===(b.flags&256)||(b.flags|=1024,null!==rd&&(Cg(rd),rd=null));wg(a,b);Q(b);return null;case 5:ve(b);c=re(qe.current);var e=
+	b.type;if(null!==a&&null!=b.stateNode)xg(a,b,e,d,c),a.ref!==b.ref&&(b.flags|=512,b.flags|=2097152);else {if(!d){if(null===b.stateNode)throw Error(n(166));Q(b);return null}a=re(oe.current);if(yd(b)){if(!Va)throw Error(n(175));a=Rb(b.stateNode,b.type,b.memoizedProps,c,a,b,!qd);b.updateQueue=a;null!==a&&tg(b);}else {var f=Ja(e,d,c,a,b);vg(f,b,false,false);b.stateNode=f;La(f,e,d,c,a)&&tg(b);}null!==b.ref&&(b.flags|=512,b.flags|=2097152);}Q(b);return null;case 6:if(a&&null!=b.stateNode)yg(a,b,a.memoizedProps,d);
+	else {if("string"!==typeof d&&null===b.stateNode)throw Error(n(166));a=re(qe.current);c=re(oe.current);if(yd(b)){if(!Va)throw Error(n(176));a=b.stateNode;c=b.memoizedProps;if(d=Sb(a,c,b,!qd))if(e=od,null!==e)switch(e.tag){case 3:$b(e.stateNode.containerInfo,a,c,0!==(e.mode&1));break;case 5:ac(e.type,e.memoizedProps,e.stateNode,a,c,0!==(e.mode&1));}d&&tg(b);}else b.stateNode=Oa(d,a,c,b);}Q(b);return null;case 13:q(I);d=b.memoizedState;if(null===a||null!==a.memoizedState&&null!==a.memoizedState.dehydrated){if(F&&
+	null!==pd&&0!==(b.mode&1)&&0===(b.flags&128))zd(),Ad(),b.flags|=98560,e=false;else if(e=yd(b),null!==d&&null!==d.dehydrated){if(null===a){if(!e)throw Error(n(318));if(!Va)throw Error(n(344));e=b.memoizedState;e=null!==e?e.dehydrated:null;if(!e)throw Error(n(317));Tb(e,b);}else Ad(),0===(b.flags&128)&&(b.memoizedState=null),b.flags|=4;Q(b);e=false;}else null!==rd&&(Cg(rd),rd=null),e=true;if(!e)return b.flags&65536?b:null}if(0!==(b.flags&128))return b.lanes=c,b;c=null!==d;c!==(null!==a&&null!==a.memoizedState)&&
+	c&&(b.child.flags|=8192,0!==(b.mode&1)&&(null===a||0!==(I.current&1)?0===R&&(R=3):ng()));null!==b.updateQueue&&(b.flags|=4);Q(b);return null;case 4:return te(),wg(a,b),null===a&&Xa(b.stateNode.containerInfo),Q(b),null;case 10:return Wd(b.type._context),Q(b),null;case 17:return A(b.type)&&nc(),Q(b),null;case 19:q(I);e=b.memoizedState;if(null===e)return Q(b),null;d=0!==(b.flags&128);f=e.rendering;if(null===f)if(d)Ag(e,false);else {if(0!==R||null!==a&&0!==(a.flags&128))for(a=b.child;null!==a;){f=we(a);if(null!==
+	f){b.flags|=128;Ag(e,false);a=f.updateQueue;null!==a&&(b.updateQueue=a,b.flags|=4);b.subtreeFlags=0;a=c;for(c=b.child;null!==c;)d=c,e=a,d.flags&=14680066,f=d.alternate,null===f?(d.childLanes=0,d.lanes=e,d.child=null,d.subtreeFlags=0,d.memoizedProps=null,d.memoizedState=null,d.updateQueue=null,d.dependencies=null,d.stateNode=null):(d.childLanes=f.childLanes,d.lanes=f.lanes,d.child=f.child,d.subtreeFlags=0,d.deletions=null,d.memoizedProps=f.memoizedProps,d.memoizedState=f.memoizedState,d.updateQueue=f.updateQueue,
+	d.type=f.type,e=f.dependencies,d.dependencies=null===e?null:{lanes:e.lanes,firstContext:e.firstContext}),c=c.sibling;v(I,I.current&1|2);return b.child}a=a.sibling;}null!==e.tail&&D()>Dg&&(b.flags|=128,d=true,Ag(e,false),b.lanes=4194304);}else {if(!d)if(a=we(f),null!==a){if(b.flags|=128,d=true,a=a.updateQueue,null!==a&&(b.updateQueue=a,b.flags|=4),Ag(e,true),null===e.tail&&"hidden"===e.tailMode&&!f.alternate&&!F)return Q(b),null}else 2*D()-e.renderingStartTime>Dg&&1073741824!==c&&(b.flags|=128,d=true,Ag(e,false),b.lanes=
+	4194304);e.isBackwards?(f.sibling=b.child,b.child=f):(a=e.last,null!==a?a.sibling=f:b.child=f,e.last=f);}if(null!==e.tail)return b=e.tail,e.rendering=b,e.tail=b.sibling,e.renderingStartTime=D(),b.sibling=null,a=I.current,v(I,d?a&1|2:a&1),b;Q(b);return null;case 22:case 23:return Eg(),c=null!==b.memoizedState,null!==a&&null!==a.memoizedState!==c&&(b.flags|=8192),c&&0!==(b.mode&1)?0!==($f&1073741824)&&(Q(b),Ta&&b.subtreeFlags&6&&(b.flags|=8192)):Q(b),null;case 24:return null;case 25:return null}throw Error(n(156,
+	b.tag));}
+	function Fg(a,b){nd(b);switch(b.tag){case 1:return A(b.type)&&nc(),a=b.flags,a&65536?(b.flags=a&-65537|128,b):null;case 3:return te(),q(z),q(x),ye(),a=b.flags,0!==(a&65536)&&0===(a&128)?(b.flags=a&-65537|128,b):null;case 5:return ve(b),null;case 13:q(I);a=b.memoizedState;if(null!==a&&null!==a.dehydrated){if(null===b.alternate)throw Error(n(340));Ad();}a=b.flags;return a&65536?(b.flags=a&-65537|128,b):null;case 19:return q(I),null;case 4:return te(),null;case 10:return Wd(b.type._context),null;case 22:case 23:return Eg(),
+	null;case 24:return null;default:return null}}var Gg=false,S=false,Hg="function"===typeof WeakSet?WeakSet:Set,T=null;function Ig(a,b){var c=a.ref;if(null!==c)if("function"===typeof c)try{c(null);}catch(d){U(a,b,d);}else c.current=null;}function Jg(a,b,c){try{c();}catch(d){U(a,b,d);}}var Kg=false;
+	function Lg(a,b){Ha(a.containerInfo);for(T=b;null!==T;)if(a=T,b=a.child,0!==(a.subtreeFlags&1028)&&null!==b)b.return=a,T=b;else for(;null!==T;){a=T;try{var c=a.alternate;if(0!==(a.flags&1024))switch(a.tag){case 0:case 11:case 15:break;case 1:if(null!==c){var d=c.memoizedProps,e=c.memoizedState,f=a.stateNode,g=f.getSnapshotBeforeUpdate(a.elementType===a.type?d:xf(a.type,d),e);f.__reactInternalSnapshotBeforeUpdate=g;}break;case 3:Ta&&xb(a.stateNode.containerInfo);break;case 5:case 6:case 4:case 17:break;
+	default:throw Error(n(163));}}catch(h){U(a,a.return,h);}b=a.sibling;if(null!==b){b.return=a.return;T=b;break}T=a.return;}c=Kg;Kg=false;return c}function Mg(a,b,c){var d=b.updateQueue;d=null!==d?d.lastEffect:null;if(null!==d){var e=d=d.next;do{if((e.tag&a)===a){var f=e.destroy;e.destroy=void 0;void 0!==f&&Jg(b,c,f);}e=e.next;}while(e!==d)}}function Ng(a,b){b=b.updateQueue;b=null!==b?b.lastEffect:null;if(null!==b){var c=b=b.next;do{if((c.tag&a)===a){var d=c.create;c.destroy=d();}c=c.next;}while(c!==b)}}
+	function Og(a){var b=a.ref;if(null!==b){var c=a.stateNode;switch(a.tag){case 5:a=Ea(c);break;default:a=c;}"function"===typeof b?b(a):b.current=a;}}function Pg(a){var b=a.alternate;null!==b&&(a.alternate=null,Pg(b));a.child=null;a.deletions=null;a.sibling=null;5===a.tag&&(b=a.stateNode,null!==b&&Za(b));a.stateNode=null;a.return=null;a.dependencies=null;a.memoizedProps=null;a.memoizedState=null;a.pendingProps=null;a.stateNode=null;a.updateQueue=null;}
+	function Qg(a){return 5===a.tag||3===a.tag||4===a.tag}function Rg(a){a:for(;;){for(;null===a.sibling;){if(null===a.return||Qg(a.return))return null;a=a.return;}a.sibling.return=a.return;for(a=a.sibling;5!==a.tag&&6!==a.tag&&18!==a.tag;){if(a.flags&2)continue a;if(null===a.child||4===a.tag)continue a;else a.child.return=a,a=a.child;}if(!(a.flags&2))return a.stateNode}}
+	function Sg(a,b,c){var d=a.tag;if(5===d||6===d)a=a.stateNode,b?pb(c,a,b):kb(c,a);else if(4!==d&&(a=a.child,null!==a))for(Sg(a,b,c),a=a.sibling;null!==a;)Sg(a,b,c),a=a.sibling;}function Tg(a,b,c){var d=a.tag;if(5===d||6===d)a=a.stateNode,b?ob(c,a,b):jb(c,a);else if(4!==d&&(a=a.child,null!==a))for(Tg(a,b,c),a=a.sibling;null!==a;)Tg(a,b,c),a=a.sibling;}var V=null,Ug=false;function Vg(a,b,c){for(c=c.child;null!==c;)Wg(a,b,c),c=c.sibling;}
+	function Wg(a,b,c){if(Sc&&"function"===typeof Sc.onCommitFiberUnmount)try{Sc.onCommitFiberUnmount(Rc,c);}catch(h){}switch(c.tag){case 5:S||Ig(c,b);case 6:if(Ta){var d=V,e=Ug;V=null;Vg(a,b,c);V=d;Ug=e;null!==V&&(Ug?rb(V,c.stateNode):qb(V,c.stateNode));}else Vg(a,b,c);break;case 18:Ta&&null!==V&&(Ug?Yb(V,c.stateNode):Xb(V,c.stateNode));break;case 4:Ta?(d=V,e=Ug,V=c.stateNode.containerInfo,Ug=true,Vg(a,b,c),V=d,Ug=e):(Ua&&(d=c.stateNode.containerInfo,e=zb(d),Cb(d,e)),Vg(a,b,c));break;case 0:case 11:case 14:case 15:if(!S&&
+	(d=c.updateQueue,null!==d&&(d=d.lastEffect,null!==d))){e=d=d.next;do{var f=e,g=f.destroy;f=f.tag;void 0!==g&&(0!==(f&2)?Jg(c,b,g):0!==(f&4)&&Jg(c,b,g));e=e.next;}while(e!==d)}Vg(a,b,c);break;case 1:if(!S&&(Ig(c,b),d=c.stateNode,"function"===typeof d.componentWillUnmount))try{d.props=c.memoizedProps,d.state=c.memoizedState,d.componentWillUnmount();}catch(h){U(c,b,h);}Vg(a,b,c);break;case 21:Vg(a,b,c);break;case 22:c.mode&1?(S=(d=S)||null!==c.memoizedState,Vg(a,b,c),S=d):Vg(a,b,c);break;default:Vg(a,b,
+	c);}}function Xg(a){var b=a.updateQueue;if(null!==b){a.updateQueue=null;var c=a.stateNode;null===c&&(c=a.stateNode=new Hg);b.forEach(function(b){var d=Yg.bind(null,a,b);c.has(b)||(c.add(b),b.then(d,d));});}}
+	function Zg(a,b){var c=b.deletions;if(null!==c)for(var d=0;d<c.length;d++){var e=c[d];try{var f=a,g=b;if(Ta){var h=g;a:for(;null!==h;){switch(h.tag){case 5:V=h.stateNode;Ug=!1;break a;case 3:V=h.stateNode.containerInfo;Ug=!0;break a;case 4:V=h.stateNode.containerInfo;Ug=!0;break a}h=h.return;}if(null===V)throw Error(n(160));Wg(f,g,e);V=null;Ug=!1;}else Wg(f,g,e);var k=e.alternate;null!==k&&(k.return=null);e.return=null;}catch(l){U(e,b,l);}}if(b.subtreeFlags&12854)for(b=b.child;null!==b;)$g(b,a),b=b.sibling;}
+	function $g(a,b){var c=a.alternate,d=a.flags;switch(a.tag){case 0:case 11:case 14:case 15:Zg(b,a);ah(a);if(d&4){try{Mg(3,a,a.return),Ng(3,a);}catch(p){U(a,a.return,p);}try{Mg(5,a,a.return);}catch(p){U(a,a.return,p);}}break;case 1:Zg(b,a);ah(a);d&512&&null!==c&&Ig(c,c.return);break;case 5:Zg(b,a);ah(a);d&512&&null!==c&&Ig(c,c.return);if(Ta){if(a.flags&32){var e=a.stateNode;try{sb(e);}catch(p){U(a,a.return,p);}}if(d&4&&(e=a.stateNode,null!=e)){var f=a.memoizedProps;c=null!==c?c.memoizedProps:f;d=a.type;b=
+	a.updateQueue;a.updateQueue=null;if(null!==b)try{nb(e,b,d,c,f,a);}catch(p){U(a,a.return,p);}}}break;case 6:Zg(b,a);ah(a);if(d&4&&Ta){if(null===a.stateNode)throw Error(n(162));e=a.stateNode;f=a.memoizedProps;c=null!==c?c.memoizedProps:f;try{lb(e,c,f);}catch(p){U(a,a.return,p);}}break;case 3:Zg(b,a);ah(a);if(d&4){if(Ta&&Va&&null!==c&&c.memoizedState.isDehydrated)try{Vb(b.containerInfo);}catch(p){U(a,a.return,p);}if(Ua){e=b.containerInfo;f=b.pendingChildren;try{Cb(e,f);}catch(p){U(a,a.return,p);}}}break;case 4:Zg(b,
+	a);ah(a);if(d&4&&Ua){f=a.stateNode;e=f.containerInfo;f=f.pendingChildren;try{Cb(e,f);}catch(p){U(a,a.return,p);}}break;case 13:Zg(b,a);ah(a);e=a.child;e.flags&8192&&(f=null!==e.memoizedState,e.stateNode.isHidden=f,!f||null!==e.alternate&&null!==e.alternate.memoizedState||(bh=D()));d&4&&Xg(a);break;case 22:var g=null!==c&&null!==c.memoizedState;a.mode&1?(S=(c=S)||g,Zg(b,a),S=c):Zg(b,a);ah(a);if(d&8192){c=null!==a.memoizedState;if((a.stateNode.isHidden=c)&&!g&&0!==(a.mode&1))for(T=a,d=a.child;null!==
+	d;){for(b=T=d;null!==T;){g=T;var h=g.child;switch(g.tag){case 0:case 11:case 14:case 15:Mg(4,g,g.return);break;case 1:Ig(g,g.return);var k=g.stateNode;if("function"===typeof k.componentWillUnmount){var l=g,m=g.return;try{var r=l;k.props=r.memoizedProps;k.state=r.memoizedState;k.componentWillUnmount();}catch(p){U(l,m,p);}}break;case 5:Ig(g,g.return);break;case 22:if(null!==g.memoizedState){ch(b);continue}}null!==h?(h.return=g,T=h):ch(b);}d=d.sibling;}if(Ta)a:if(d=null,Ta)for(b=a;;){if(5===b.tag){if(null===
+	d){d=b;try{e=b.stateNode,c?tb(e):vb(b.stateNode,b.memoizedProps);}catch(p){U(a,a.return,p);}}}else if(6===b.tag){if(null===d)try{f=b.stateNode,c?ub(f):wb(f,b.memoizedProps);}catch(p){U(a,a.return,p);}}else if((22!==b.tag&&23!==b.tag||null===b.memoizedState||b===a)&&null!==b.child){b.child.return=b;b=b.child;continue}if(b===a)break a;for(;null===b.sibling;){if(null===b.return||b.return===a)break a;d===b&&(d=null);b=b.return;}d===b&&(d=null);b.sibling.return=b.return;b=b.sibling;}}break;case 19:Zg(b,a);ah(a);
+	d&4&&Xg(a);break;case 21:break;default:Zg(b,a),ah(a);}}function ah(a){var b=a.flags;if(b&2){try{if(Ta){b:{for(var c=a.return;null!==c;){if(Qg(c)){var d=c;break b}c=c.return;}throw Error(n(160));}switch(d.tag){case 5:var e=d.stateNode;d.flags&32&&(sb(e),d.flags&=-33);var f=Rg(a);Tg(a,f,e);break;case 3:case 4:var g=d.stateNode.containerInfo,h=Rg(a);Sg(a,h,g);break;default:throw Error(n(161));}}}catch(k){U(a,a.return,k);}a.flags&=-3;}b&4096&&(a.flags&=-4097);}function dh(a,b,c){T=a;eh(a);}
+	function eh(a,b,c){for(var d=0!==(a.mode&1);null!==T;){var e=T,f=e.child;if(22===e.tag&&d){var g=null!==e.memoizedState||Gg;if(!g){var h=e.alternate,k=null!==h&&null!==h.memoizedState||S;h=Gg;var l=S;Gg=g;if((S=k)&&!l)for(T=e;null!==T;)g=T,k=g.child,22===g.tag&&null!==g.memoizedState?fh(e):null!==k?(k.return=g,T=k):fh(e);for(;null!==f;)T=f,eh(f),f=f.sibling;T=e;Gg=h;S=l;}gh(a);}else 0!==(e.subtreeFlags&8772)&&null!==f?(f.return=e,T=f):gh(a);}}
+	function gh(a){for(;null!==T;){var b=T;if(0!==(b.flags&8772)){var c=b.alternate;try{if(0!==(b.flags&8772))switch(b.tag){case 0:case 11:case 15:S||Ng(5,b);break;case 1:var d=b.stateNode;if(b.flags&4&&!S)if(null===c)d.componentDidMount();else {var e=b.elementType===b.type?c.memoizedProps:xf(b.type,c.memoizedProps);d.componentDidUpdate(e,c.memoizedState,d.__reactInternalSnapshotBeforeUpdate);}var f=b.updateQueue;null!==f&&me(b,f,d);break;case 3:var g=b.updateQueue;if(null!==g){c=null;if(null!==b.child)switch(b.child.tag){case 5:c=
+	Ea(b.child.stateNode);break;case 1:c=b.child.stateNode;}me(b,g,c);}break;case 5:var h=b.stateNode;null===c&&b.flags&4&&mb(h,b.type,b.memoizedProps,b);break;case 6:break;case 4:break;case 12:break;case 13:if(Va&&null===b.memoizedState){var k=b.alternate;if(null!==k){var l=k.memoizedState;if(null!==l){var m=l.dehydrated;null!==m&&Wb(m);}}}break;case 19:case 17:case 21:case 22:case 23:case 25:break;default:throw Error(n(163));}S||b.flags&512&&Og(b);}catch(r){U(b,b.return,r);}}if(b===a){T=null;break}c=b.sibling;
+	if(null!==c){c.return=b.return;T=c;break}T=b.return;}}function ch(a){for(;null!==T;){var b=T;if(b===a){T=null;break}var c=b.sibling;if(null!==c){c.return=b.return;T=c;break}T=b.return;}}
+	function fh(a){for(;null!==T;){var b=T;try{switch(b.tag){case 0:case 11:case 15:var c=b.return;try{Ng(4,b);}catch(k){U(b,c,k);}break;case 1:var d=b.stateNode;if("function"===typeof d.componentDidMount){var e=b.return;try{d.componentDidMount();}catch(k){U(b,e,k);}}var f=b.return;try{Og(b);}catch(k){U(b,f,k);}break;case 5:var g=b.return;try{Og(b);}catch(k){U(b,g,k);}}}catch(k){U(b,b.return,k);}if(b===a){T=null;break}var h=b.sibling;if(null!==h){h.return=b.return;T=h;break}T=b.return;}}
+	var hh=0,ih=1,jh=2,kh=3,lh=4;if("function"===typeof Symbol&&Symbol.for){var mh=Symbol.for;hh=mh("selector.component");ih=mh("selector.has_pseudo_class");jh=mh("selector.role");kh=mh("selector.test_id");lh=mh("selector.text");}function nh(a){var b=Wa(a);if(null!=b){if("string"!==typeof b.memoizedProps["data-testname"])throw Error(n(364));return b}a=cb(a);if(null===a)throw Error(n(362));return a.stateNode.current}
+	function oh(a,b){switch(b.$$typeof){case hh:if(a.type===b.value)return  true;break;case ih:a:{b=b.value;a=[a,0];for(var c=0;c<a.length;){var d=a[c++],e=a[c++],f=b[e];if(5!==d.tag||!fb(d)){for(;null!=f&&oh(d,f);)e++,f=b[e];if(e===b.length){b=true;break a}else for(d=d.child;null!==d;)a.push(d,e),d=d.sibling;}}b=false;}return b;case jh:if(5===a.tag&&gb(a.stateNode,b.value))return  true;break;case lh:if(5===a.tag||6===a.tag)if(a=eb(a),null!==a&&0<=a.indexOf(b.value))return  true;break;case kh:if(5===a.tag&&(a=a.memoizedProps["data-testname"],
+	"string"===typeof a&&a.toLowerCase()===b.value.toLowerCase()))return  true;break;default:throw Error(n(365));}return  false}function ph(a){switch(a.$$typeof){case hh:return "<"+(ua(a.value)||"Unknown")+">";case ih:return ":has("+(ph(a)||"")+")";case jh:return '[role="'+a.value+'"]';case lh:return '"'+a.value+'"';case kh:return '[data-testname="'+a.value+'"]';default:throw Error(n(365));}}
+	function qh(a,b){var c=[];a=[a,0];for(var d=0;d<a.length;){var e=a[d++],f=a[d++],g=b[f];if(5!==e.tag||!fb(e)){for(;null!=g&&oh(e,g);)f++,g=b[f];if(f===b.length)c.push(e);else for(e=e.child;null!==e;)a.push(e,f),e=e.sibling;}}return c}function rh(a,b){if(!bb)throw Error(n(363));a=nh(a);a=qh(a,b);b=[];a=Array.from(a);for(var c=0;c<a.length;){var d=a[c++];if(5===d.tag)fb(d)||b.push(d.stateNode);else for(d=d.child;null!==d;)a.push(d),d=d.sibling;}return b}
+	var sh=Math.ceil,th=da.ReactCurrentDispatcher,uh=da.ReactCurrentOwner,W=da.ReactCurrentBatchConfig,H=0,N=null,X=null,Z=0,$f=0,Zf=ic(0),R=0,vh=null,le=0,wh=0,xh=0,yh=null,zh=null,bh=0,Dg=Infinity,Ah=null;function Bh(){Dg=D()+500;}var Jf=false,Kf=null,Mf=null,Ch=false,Dh=null,Eh=0,Fh=0,Gh=null,Hh=-1,Ih=0;function O(){return 0!==(H&6)?D():-1!==Hh?Hh:Hh=D()}function tf(a){if(0===(a.mode&1))return 1;if(0!==(H&2)&&0!==Z)return Z&-Z;if(null!==Cd.transition)return 0===Ih&&(Ih=Dc()),Ih;a=C;return 0!==a?a:Ya()}
+	function af(a,b,c,d){if(50<Fh)throw Fh=0,Gh=null,Error(n(185));Fc(a,c,d);if(0===(H&2)||a!==N)a===N&&(0===(H&2)&&(wh|=c),4===R&&Jh(a,Z)),Kh(a,d),1===c&&0===H&&0===(b.mode&1)&&(Bh(),Xc&&ad());}
+	function Kh(a,b){var c=a.callbackNode;Bc(a,b);var d=zc(a,a===N?Z:0);if(0===d)null!==c&&Kc(c),a.callbackNode=null,a.callbackPriority=0;else if(b=d&-d,a.callbackPriority!==b){null!=c&&Kc(c);if(1===b)0===a.tag?$c(Lh.bind(null,a)):Zc(Lh.bind(null,a)),$a?ab(function(){0===(H&6)&&ad();}):Jc(Nc,ad),c=null;else {switch(Ic(d)){case 1:c=Nc;break;case 4:c=Oc;break;case 16:c=Pc;break;case 536870912:c=Qc;break;default:c=Pc;}c=Mh(c,Nh.bind(null,a));}a.callbackPriority=b;a.callbackNode=c;}}
+	function Nh(a,b){Hh=-1;Ih=0;if(0!==(H&6))throw Error(n(327));var c=a.callbackNode;if(Oh()&&a.callbackNode!==c)return null;var d=zc(a,a===N?Z:0);if(0===d)return null;if(0!==(d&30)||0!==(d&a.expiredLanes)||b)b=Ph(a,d);else {b=d;var e=H;H|=2;var f=Qh();if(N!==a||Z!==b)Ah=null,Bh(),Rh(a,b);do try{Sh();break}catch(h){Th(a,h);}while(1);Ud();th.current=f;H=e;null!==X?b=0:(N=null,Z=0,b=R);}if(0!==b){2===b&&(e=Cc(a),0!==e&&(d=e,b=Uh(a,e)));if(1===b)throw c=vh,Rh(a,0),Jh(a,d),Kh(a,D()),c;if(6===b)Jh(a,d);else {e=
+	a.current.alternate;if(0===(d&30)&&!Vh(e)&&(b=Ph(a,d),2===b&&(f=Cc(a),0!==f&&(d=f,b=Uh(a,f))),1===b))throw c=vh,Rh(a,0),Jh(a,d),Kh(a,D()),c;a.finishedWork=e;a.finishedLanes=d;switch(b){case 0:case 1:throw Error(n(345));case 2:Wh(a,zh,Ah);break;case 3:Jh(a,d);if((d&130023424)===d&&(b=bh+500-D(),10<b)){if(0!==zc(a,0))break;e=a.suspendedLanes;if((e&d)!==d){O();a.pingedLanes|=a.suspendedLanes&e;break}a.timeoutHandle=Pa(Wh.bind(null,a,zh,Ah),b);break}Wh(a,zh,Ah);break;case 4:Jh(a,d);if((d&4194240)===d)break;
+	b=a.eventTimes;for(e=-1;0<d;){var g=31-tc(d);f=1<<g;g=b[g];g>e&&(e=g);d&=~f;}d=e;d=D()-d;d=(120>d?120:480>d?480:1080>d?1080:1920>d?1920:3E3>d?3E3:4320>d?4320:1960*sh(d/1960))-d;if(10<d){a.timeoutHandle=Pa(Wh.bind(null,a,zh,Ah),d);break}Wh(a,zh,Ah);break;case 5:Wh(a,zh,Ah);break;default:throw Error(n(329));}}}Kh(a,D());return a.callbackNode===c?Nh.bind(null,a):null}
+	function Uh(a,b){var c=yh;a.current.memoizedState.isDehydrated&&(Rh(a,b).flags|=256);a=Ph(a,b);2!==a&&(b=zh,zh=c,null!==b&&Cg(b));return a}function Cg(a){null===zh?zh=a:zh.push.apply(zh,a);}
+	function Vh(a){for(var b=a;;){if(b.flags&16384){var c=b.updateQueue;if(null!==c&&(c=c.stores,null!==c))for(var d=0;d<c.length;d++){var e=c[d],f=e.getSnapshot;e=e.value;try{if(!Vc(f(),e))return !1}catch(g){return  false}}}c=b.child;if(b.subtreeFlags&16384&&null!==c)c.return=b,b=c;else {if(b===a)break;for(;null===b.sibling;){if(null===b.return||b.return===a)return  true;b=b.return;}b.sibling.return=b.return;b=b.sibling;}}return  true}
+	function Jh(a,b){b&=~xh;b&=~wh;a.suspendedLanes|=b;a.pingedLanes&=~b;for(a=a.expirationTimes;0<b;){var c=31-tc(b),d=1<<c;a[c]=-1;b&=~d;}}function Lh(a){if(0!==(H&6))throw Error(n(327));Oh();var b=zc(a,0);if(0===(b&1))return Kh(a,D()),null;var c=Ph(a,b);if(0!==a.tag&&2===c){var d=Cc(a);0!==d&&(b=d,c=Uh(a,d));}if(1===c)throw c=vh,Rh(a,0),Jh(a,b),Kh(a,D()),c;if(6===c)throw Error(n(345));a.finishedWork=a.current.alternate;a.finishedLanes=b;Wh(a,zh,Ah);Kh(a,D());return null}
+	function Xh(a){null!==Dh&&0===Dh.tag&&0===(H&6)&&Oh();var b=H;H|=1;var c=W.transition,d=C;try{if(W.transition=null,C=1,a)return a()}finally{C=d,W.transition=c,H=b,0===(H&6)&&ad();}}function Eg(){$f=Zf.current;q(Zf);}
+	function Rh(a,b){a.finishedWork=null;a.finishedLanes=0;var c=a.timeoutHandle;c!==Ra&&(a.timeoutHandle=Ra,Qa(c));if(null!==X)for(c=X.return;null!==c;){var d=c;nd(d);switch(d.tag){case 1:d=d.type.childContextTypes;null!==d&&void 0!==d&&nc();break;case 3:te();q(z);q(x);ye();break;case 5:ve(d);break;case 4:te();break;case 13:q(I);break;case 19:q(I);break;case 10:Wd(d.type._context);break;case 22:case 23:Eg();}c=c.return;}N=a;X=a=Jd(a.current,null);Z=$f=b;R=0;vh=null;xh=wh=le=0;zh=yh=null;if(null!==$d){for(b=
+	0;b<$d.length;b++)if(c=$d[b],d=c.interleaved,null!==d){c.interleaved=null;var e=d.next,f=c.pending;if(null!==f){var g=f.next;f.next=e;d.next=g;}c.pending=d;}$d=null;}return a}
+	function Th(a,b){do{var c=X;try{Ud();ze.current=Le;if(Ce){for(var d=J.memoizedState;null!==d;){var e=d.queue;null!==e&&(e.pending=null);d=d.next;}Ce=!1;}Be=0;L=K=J=null;De=!1;Ee=0;uh.current=null;if(null===c||null===c.return){R=1;vh=b;X=null;break}a:{var f=a,g=c.return,h=c,k=b;b=Z;h.flags|=32768;if(null!==k&&"object"===typeof k&&"function"===typeof k.then){var l=k,m=h,r=m.tag;if(0===(m.mode&1)&&(0===r||11===r||15===r)){var p=m.alternate;p?(m.updateQueue=p.updateQueue,m.memoizedState=p.memoizedState,
+	m.lanes=p.lanes):(m.updateQueue=null,m.memoizedState=null);}var B=Pf(g);if(null!==B){B.flags&=-257;Qf(B,g,h,f,b);B.mode&1&&Nf(f,l,b);b=B;k=l;var w=b.updateQueue;if(null===w){var Y=new Set;Y.add(k);b.updateQueue=Y;}else w.add(k);break a}else {if(0===(b&1)){Nf(f,l,b);ng();break a}k=Error(n(426));}}else if(F&&h.mode&1){var ya=Pf(g);if(null!==ya){0===(ya.flags&65536)&&(ya.flags|=256);Qf(ya,g,h,f,b);Bd(Ef(k,h));break a}}f=k=Ef(k,h);4!==R&&(R=2);null===yh?yh=[f]:yh.push(f);f=g;do{switch(f.tag){case 3:f.flags|=
+	65536;b&=-b;f.lanes|=b;var E=If(f,k,b);je(f,E);break a;case 1:h=k;var u=f.type,t=f.stateNode;if(0===(f.flags&128)&&("function"===typeof u.getDerivedStateFromError||null!==t&&"function"===typeof t.componentDidCatch&&(null===Mf||!Mf.has(t)))){f.flags|=65536;b&=-b;f.lanes|=b;var Db=Lf(f,h,b);je(f,Db);break a}}f=f.return;}while(null!==f)}Yh(c);}catch(lc){b=lc;X===c&&null!==c&&(X=c=c.return);continue}break}while(1)}function Qh(){var a=th.current;th.current=Le;return null===a?Le:a}
+	function ng(){if(0===R||3===R||2===R)R=4;null===N||0===(le&268435455)&&0===(wh&268435455)||Jh(N,Z);}function Ph(a,b){var c=H;H|=2;var d=Qh();if(N!==a||Z!==b)Ah=null,Rh(a,b);do try{Zh();break}catch(e){Th(a,e);}while(1);Ud();H=c;th.current=d;if(null!==X)throw Error(n(261));N=null;Z=0;return R}function Zh(){for(;null!==X;)$h(X);}function Sh(){for(;null!==X&&!Lc();)$h(X);}function $h(a){var b=ai(a.alternate,a,$f);a.memoizedProps=a.pendingProps;null===b?Yh(a):X=b;uh.current=null;}
+	function Yh(a){var b=a;do{var c=b.alternate;a=b.return;if(0===(b.flags&32768)){if(c=Bg(c,b,$f),null!==c){X=c;return}}else {c=Fg(c,b);if(null!==c){c.flags&=32767;X=c;return}if(null!==a)a.flags|=32768,a.subtreeFlags=0,a.deletions=null;else {R=6;X=null;return}}b=b.sibling;if(null!==b){X=b;return}X=b=a;}while(null!==b);0===R&&(R=5);}function Wh(a,b,c){var d=C,e=W.transition;try{W.transition=null,C=1,bi(a,b,c,d);}finally{W.transition=e,C=d;}return null}
+	function bi(a,b,c,d){do Oh();while(null!==Dh);if(0!==(H&6))throw Error(n(327));c=a.finishedWork;var e=a.finishedLanes;if(null===c)return null;a.finishedWork=null;a.finishedLanes=0;if(c===a.current)throw Error(n(177));a.callbackNode=null;a.callbackPriority=0;var f=c.lanes|c.childLanes;Gc(a,f);a===N&&(X=N=null,Z=0);0===(c.subtreeFlags&2064)&&0===(c.flags&2064)||Ch||(Ch=true,Mh(Pc,function(){Oh();return null}));f=0!==(c.flags&15990);if(0!==(c.subtreeFlags&15990)||f){f=W.transition;W.transition=null;var g=
+	C;C=1;var h=H;H|=4;uh.current=null;Lg(a,c);$g(c,a);Ia(a.containerInfo);a.current=c;dh(c);Mc();H=h;C=g;W.transition=f;}else a.current=c;Ch&&(Ch=false,Dh=a,Eh=e);f=a.pendingLanes;0===f&&(Mf=null);Tc(c.stateNode);Kh(a,D());if(null!==b)for(d=a.onRecoverableError,c=0;c<b.length;c++)e=b[c],d(e.value,{componentStack:e.stack,digest:e.digest});if(Jf)throw Jf=false,a=Kf,Kf=null,a;0!==(Eh&1)&&0!==a.tag&&Oh();f=a.pendingLanes;0!==(f&1)?a===Gh?Fh++:(Fh=0,Gh=a):Fh=0;ad();return null}
+	function Oh(){if(null!==Dh){var a=Ic(Eh),b=W.transition,c=C;try{W.transition=null;C=16>a?16:a;if(null===Dh)var d=!1;else {a=Dh;Dh=null;Eh=0;if(0!==(H&6))throw Error(n(331));var e=H;H|=4;for(T=a.current;null!==T;){var f=T,g=f.child;if(0!==(T.flags&16)){var h=f.deletions;if(null!==h){for(var k=0;k<h.length;k++){var l=h[k];for(T=l;null!==T;){var m=T;switch(m.tag){case 0:case 11:case 15:Mg(8,m,f);}var r=m.child;if(null!==r)r.return=m,T=r;else for(;null!==T;){m=T;var p=m.sibling,B=m.return;Pg(m);if(m===
+	l){T=null;break}if(null!==p){p.return=B;T=p;break}T=B;}}}var w=f.alternate;if(null!==w){var Y=w.child;if(null!==Y){w.child=null;do{var ya=Y.sibling;Y.sibling=null;Y=ya;}while(null!==Y)}}T=f;}}if(0!==(f.subtreeFlags&2064)&&null!==g)g.return=f,T=g;else b:for(;null!==T;){f=T;if(0!==(f.flags&2048))switch(f.tag){case 0:case 11:case 15:Mg(9,f,f.return);}var E=f.sibling;if(null!==E){E.return=f.return;T=E;break b}T=f.return;}}var u=a.current;for(T=u;null!==T;){g=T;var t=g.child;if(0!==(g.subtreeFlags&2064)&&null!==
+	t)t.return=g,T=t;else b:for(g=u;null!==T;){h=T;if(0!==(h.flags&2048))try{switch(h.tag){case 0:case 11:case 15:Ng(9,h);}}catch(lc){U(h,h.return,lc);}if(h===g){T=null;break b}var Db=h.sibling;if(null!==Db){Db.return=h.return;T=Db;break b}T=h.return;}}H=e;ad();if(Sc&&"function"===typeof Sc.onPostCommitFiberRoot)try{Sc.onPostCommitFiberRoot(Rc,a);}catch(lc){}d=!0;}return d}finally{C=c,W.transition=b;}}return  false}function ci(a,b,c){b=Ef(c,b);b=If(a,b,1);a=he(a,b,1);b=O();null!==a&&(Fc(a,1,b),Kh(a,b));}
+	function U(a,b,c){if(3===a.tag)ci(a,a,c);else for(;null!==b;){if(3===b.tag){ci(b,a,c);break}else if(1===b.tag){var d=b.stateNode;if("function"===typeof b.type.getDerivedStateFromError||"function"===typeof d.componentDidCatch&&(null===Mf||!Mf.has(d))){a=Ef(c,a);a=Lf(b,a,1);b=he(b,a,1);a=O();null!==b&&(Fc(b,1,a),Kh(b,a));break}}b=b.return;}}
+	function Of(a,b,c){var d=a.pingCache;null!==d&&d.delete(b);b=O();a.pingedLanes|=a.suspendedLanes&c;N===a&&(Z&c)===c&&(4===R||3===R&&(Z&130023424)===Z&&500>D()-bh?Rh(a,0):xh|=c);Kh(a,b);}function di(a,b){0===b&&(0===(a.mode&1)?b=1:(b=xc,xc<<=1,0===(xc&130023424)&&(xc=4194304)));var c=O();a=ce(a,b);null!==a&&(Fc(a,b,c),Kh(a,c));}function og(a){var b=a.memoizedState,c=0;null!==b&&(c=b.retryLane);di(a,c);}
+	function Yg(a,b){var c=0;switch(a.tag){case 13:var d=a.stateNode;var e=a.memoizedState;null!==e&&(c=e.retryLane);break;case 19:d=a.stateNode;break;default:throw Error(n(314));}null!==d&&d.delete(b);di(a,c);}var ai;
+	ai=function(a,b,c){if(null!==a)if(a.memoizedProps!==b.pendingProps||z.current)G=true;else {if(0===(a.lanes&c)&&0===(b.flags&128))return G=false,sg(a,b,c);G=0!==(a.flags&131072)?true:false;}else G=false,F&&0!==(b.flags&1048576)&&ld(b,ed,b.index);b.lanes=0;switch(b.tag){case 2:var d=b.type;cg(a,b);a=b.pendingProps;var e=mc(b,x.current);Yd(b,c);e=He(null,b,d,a,e,c);var f=Me();b.flags|=1;"object"===typeof e&&null!==e&&"function"===typeof e.render&&void 0===e.$$typeof?(b.tag=1,b.memoizedState=null,b.updateQueue=null,
+	A(d)?(f=true,qc(b)):f=false,b.memoizedState=null!==e.state&&void 0!==e.state?e.state:null,ee(b),e.updater=zf,b.stateNode=e,e._reactInternals=b,Df(b,d,a,c),b=dg(null,b,d,true,f,c)):(b.tag=0,F&&f&&md(b),P(null,b,e,c),b=b.child);return b;case 16:d=b.elementType;a:{cg(a,b);a=b.pendingProps;e=d._init;d=e(d._payload);b.type=d;e=b.tag=ei(d);a=xf(d,a);switch(e){case 0:b=Xf(null,b,d,a,c);break a;case 1:b=bg(null,b,d,a,c);break a;case 11:b=Sf(null,b,d,a,c);break a;case 14:b=Uf(null,b,d,xf(d.type,a),c);break a}throw Error(n(306,
+	d,""));}return b;case 0:return d=b.type,e=b.pendingProps,e=b.elementType===d?e:xf(d,e),Xf(a,b,d,e,c);case 1:return d=b.type,e=b.pendingProps,e=b.elementType===d?e:xf(d,e),bg(a,b,d,e,c);case 3:a:{eg(b);if(null===a)throw Error(n(387));d=b.pendingProps;f=b.memoizedState;e=f.element;fe(a,b);ke(b,d,null,c);var g=b.memoizedState;d=g.element;if(Va&&f.isDehydrated)if(f={element:d,isDehydrated:false,cache:g.cache,pendingSuspenseBoundaries:g.pendingSuspenseBoundaries,transitions:g.transitions},b.updateQueue.baseState=
+	f,b.memoizedState=f,b.flags&256){e=Ef(Error(n(423)),b);b=fg(a,b,d,c,e);break a}else if(d!==e){e=Ef(Error(n(424)),b);b=fg(a,b,d,c,e);break a}else for(Va&&(pd=Pb(b.stateNode.containerInfo),od=b,F=true,rd=null,qd=false),c=Pd(b,null,d,c),b.child=c;c;)c.flags=c.flags&-3|4096,c=c.sibling;else {Ad();if(d===e){b=Tf(a,b,c);break a}P(a,b,d,c);}b=b.child;}return b;case 5:return ue(b),null===a&&wd(b),d=b.type,e=b.pendingProps,f=null!==a?a.memoizedProps:null,g=e.children,Na(d,e)?g=null:null!==f&&Na(d,f)&&(b.flags|=32),
+	ag(a,b),P(a,b,g,c),b.child;case 6:return null===a&&wd(b),null;case 13:return ig(a,b,c);case 4:return se(b,b.stateNode.containerInfo),d=b.pendingProps,null===a?b.child=Od(b,null,d,c):P(a,b,d,c),b.child;case 11:return d=b.type,e=b.pendingProps,e=b.elementType===d?e:xf(d,e),Sf(a,b,d,e,c);case 7:return P(a,b,b.pendingProps,c),b.child;case 8:return P(a,b,b.pendingProps.children,c),b.child;case 12:return P(a,b,b.pendingProps.children,c),b.child;case 10:a:{d=b.type._context;e=b.pendingProps;f=b.memoizedProps;
+	g=e.value;Vd(b,d,g);if(null!==f)if(Vc(f.value,g)){if(f.children===e.children&&!z.current){b=Tf(a,b,c);break a}}else for(f=b.child,null!==f&&(f.return=b);null!==f;){var h=f.dependencies;if(null!==h){g=f.child;for(var k=h.firstContext;null!==k;){if(k.context===d){if(1===f.tag){k=ge(-1,c&-c);k.tag=2;var l=f.updateQueue;if(null!==l){l=l.shared;var m=l.pending;null===m?k.next=k:(k.next=m.next,m.next=k);l.pending=k;}}f.lanes|=c;k=f.alternate;null!==k&&(k.lanes|=c);Xd(f.return,c,b);h.lanes|=c;break}k=k.next;}}else if(10===
+	f.tag)g=f.type===b.type?null:f.child;else if(18===f.tag){g=f.return;if(null===g)throw Error(n(341));g.lanes|=c;h=g.alternate;null!==h&&(h.lanes|=c);Xd(g,c,b);g=f.sibling;}else g=f.child;if(null!==g)g.return=f;else for(g=f;null!==g;){if(g===b){g=null;break}f=g.sibling;if(null!==f){f.return=g.return;g=f;break}g=g.return;}f=g;}P(a,b,e.children,c);b=b.child;}return b;case 9:return e=b.type,d=b.pendingProps.children,Yd(b,c),e=Zd(e),d=d(e),b.flags|=1,P(a,b,d,c),b.child;case 14:return d=b.type,e=xf(d,b.pendingProps),
+	e=xf(d.type,e),Uf(a,b,d,e,c);case 15:return Wf(a,b,b.type,b.pendingProps,c);case 17:return d=b.type,e=b.pendingProps,e=b.elementType===d?e:xf(d,e),cg(a,b),b.tag=1,A(d)?(a=true,qc(b)):a=false,Yd(b,c),Bf(b,d,e),Df(b,d,e,c),dg(null,b,d,true,a,c);case 19:return rg(a,b,c);case 22:return Yf(a,b,c)}throw Error(n(156,b.tag));};function Mh(a,b){return Jc(a,b)}
+	function fi(a,b,c,d){this.tag=a;this.key=c;this.sibling=this.child=this.return=this.stateNode=this.type=this.elementType=null;this.index=0;this.ref=null;this.pendingProps=b;this.dependencies=this.memoizedState=this.updateQueue=this.memoizedProps=null;this.mode=d;this.subtreeFlags=this.flags=0;this.deletions=null;this.childLanes=this.lanes=0;this.alternate=null;}function td(a,b,c,d){return new fi(a,b,c,d)}function Vf(a){a=a.prototype;return !(!a||!a.isReactComponent)}
+	function ei(a){if("function"===typeof a)return Vf(a)?1:0;if(void 0!==a&&null!==a){a=a.$$typeof;if(a===ma)return 11;if(a===pa)return 14}return 2}
+	function Jd(a,b){var c=a.alternate;null===c?(c=td(a.tag,b,a.key,a.mode),c.elementType=a.elementType,c.type=a.type,c.stateNode=a.stateNode,c.alternate=a,a.alternate=c):(c.pendingProps=b,c.type=a.type,c.flags=0,c.subtreeFlags=0,c.deletions=null);c.flags=a.flags&14680064;c.childLanes=a.childLanes;c.lanes=a.lanes;c.child=a.child;c.memoizedProps=a.memoizedProps;c.memoizedState=a.memoizedState;c.updateQueue=a.updateQueue;b=a.dependencies;c.dependencies=null===b?null:{lanes:b.lanes,firstContext:b.firstContext};
+	c.sibling=a.sibling;c.index=a.index;c.ref=a.ref;return c}
+	function Ld(a,b,c,d,e,f){var g=2;d=a;if("function"===typeof a)Vf(a)&&(g=1);else if("string"===typeof a)g=5;else a:switch(a){case ha:return Nd(c.children,e,f,b);case ia:g=8;e|=8;break;case ja:return a=td(12,c,b,e|2),a.elementType=ja,a.lanes=f,a;case na:return a=td(13,c,b,e),a.elementType=na,a.lanes=f,a;case oa:return a=td(19,c,b,e),a.elementType=oa,a.lanes=f,a;case ra:return jg(c,e,f,b);default:if("object"===typeof a&&null!==a)switch(a.$$typeof){case ka:g=10;break a;case la:g=9;break a;case ma:g=11;
+	break a;case pa:g=14;break a;case qa:g=16;d=null;break a}throw Error(n(130,null==a?a:typeof a,""));}b=td(g,c,b,e);b.elementType=a;b.type=d;b.lanes=f;return b}function Nd(a,b,c,d){a=td(7,a,d,b);a.lanes=c;return a}function jg(a,b,c,d){a=td(22,a,d,b);a.elementType=ra;a.lanes=c;a.stateNode={isHidden:false};return a}function Kd(a,b,c){a=td(6,a,null,b);a.lanes=c;return a}
+	function Md(a,b,c){b=td(4,null!==a.children?a.children:[],a.key,b);b.lanes=c;b.stateNode={containerInfo:a.containerInfo,pendingChildren:null,implementation:a.implementation};return b}
+	function gi(a,b,c,d,e){this.tag=b;this.containerInfo=a;this.finishedWork=this.pingCache=this.current=this.pendingChildren=null;this.timeoutHandle=Ra;this.callbackNode=this.pendingContext=this.context=null;this.callbackPriority=0;this.eventTimes=Ec(0);this.expirationTimes=Ec(-1);this.entangledLanes=this.finishedLanes=this.mutableReadLanes=this.expiredLanes=this.pingedLanes=this.suspendedLanes=this.pendingLanes=0;this.entanglements=Ec(0);this.identifierPrefix=d;this.onRecoverableError=e;Va&&(this.mutableSourceEagerHydrationData=
+	null);}function hi(a,b,c,d,e,f,g,h,k){a=new gi(a,b,c,h,k);1===b?(b=1,true===f&&(b|=8)):b=0;f=td(3,null,null,b);a.current=f;f.stateNode=a;f.memoizedState={element:d,isDehydrated:c,cache:null,transitions:null,pendingSuspenseBoundaries:null};ee(f);return a}
+	function ii(a){if(!a)return jc;a=a._reactInternals;a:{if(wa(a)!==a||1!==a.tag)throw Error(n(170));var b=a;do{switch(b.tag){case 3:b=b.stateNode.context;break a;case 1:if(A(b.type)){b=b.stateNode.__reactInternalMemoizedMergedChildContext;break a}}b=b.return;}while(null!==b);throw Error(n(171));}if(1===a.tag){var c=a.type;if(A(c))return pc(a,c,b)}return b}
+	function ji(a){var b=a._reactInternals;if(void 0===b){if("function"===typeof a.render)throw Error(n(188));a=Object.keys(a).join(",");throw Error(n(268,a));}a=Aa(b);return null===a?null:a.stateNode}function ki(a,b){a=a.memoizedState;if(null!==a&&null!==a.dehydrated){var c=a.retryLane;a.retryLane=0!==c&&c<b?c:b;}}function li(a,b){ki(a,b);(a=a.alternate)&&ki(a,b);}function mi(a){a=Aa(a);return null===a?null:a.stateNode}function ni(){return null}
+	exports.attemptContinuousHydration=function(a){if(13===a.tag){var b=ce(a,134217728);if(null!==b){var c=O();af(b,a,134217728,c);}li(a,134217728);}};exports.attemptDiscreteHydration=function(a){if(13===a.tag){var b=ce(a,1);if(null!==b){var c=O();af(b,a,1,c);}li(a,1);}};exports.attemptHydrationAtCurrentPriority=function(a){if(13===a.tag){var b=tf(a),c=ce(a,b);if(null!==c){var d=O();af(c,a,b,d);}li(a,b);}};
+	exports.attemptSynchronousHydration=function(a){switch(a.tag){case 3:var b=a.stateNode;if(b.current.memoizedState.isDehydrated){var c=yc(b.pendingLanes);0!==c&&(Hc(b,c|1),Kh(b,D()),0===(H&6)&&(Bh(),ad()));}break;case 13:Xh(function(){var b=ce(a,1);if(null!==b){var c=O();af(b,a,1,c);}}),li(a,1);}};exports.batchedUpdates=function(a,b){var c=H;H|=1;try{return a(b)}finally{H=c,0===H&&(Bh(),Xc&&ad());}};exports.createComponentSelector=function(a){return {$$typeof:hh,value:a}};
+	exports.createContainer=function(a,b,c,d,e,f,g){return hi(a,b,false,null,c,d,e,f,g)};exports.createHasPseudoClassSelector=function(a){return {$$typeof:ih,value:a}};exports.createHydrationContainer=function(a,b,c,d,e,f,g,h,k){a=hi(c,d,true,a,e,f,g,h,k);a.context=ii(null);c=a.current;d=O();e=tf(c);f=ge(d,e);f.callback=void 0!==b&&null!==b?b:null;he(c,f,e);a.current.lanes=e;Fc(a,e,d);Kh(a,d);return a};
+	exports.createPortal=function(a,b,c){var d=3<arguments.length&&void 0!==arguments[3]?arguments[3]:null;return {$$typeof:fa,key:null==d?null:""+d,children:a,containerInfo:b,implementation:c}};exports.createRoleSelector=function(a){return {$$typeof:jh,value:a}};exports.createTestNameSelector=function(a){return {$$typeof:kh,value:a}};exports.createTextSelector=function(a){return {$$typeof:lh,value:a}};
+	exports.deferredUpdates=function(a){var b=C,c=W.transition;try{return W.transition=null,C=16,a()}finally{C=b,W.transition=c;}};exports.discreteUpdates=function(a,b,c,d,e){var f=C,g=W.transition;try{return W.transition=null,C=1,a(b,c,d,e)}finally{C=f,W.transition=g,0===H&&Bh();}};exports.findAllNodes=rh;
+	exports.findBoundingRects=function(a,b){if(!bb)throw Error(n(363));b=rh(a,b);a=[];for(var c=0;c<b.length;c++)a.push(db(b[c]));for(b=a.length-1;0<b;b--){c=a[b];for(var d=c.x,e=d+c.width,f=c.y,g=f+c.height,h=b-1;0<=h;h--)if(b!==h){var k=a[h],l=k.x,m=l+k.width,r=k.y,p=r+k.height;if(d>=l&&f>=r&&e<=m&&g<=p){a.splice(b,1);break}else if(!(d!==l||c.width!==k.width||p<f||r>g)){r>f&&(k.height+=r-f,k.y=f);p<g&&(k.height=g-r);a.splice(b,1);break}else if(!(f!==r||c.height!==k.height||m<d||l>e)){l>d&&(k.width+=
+	l-d,k.x=d);m<e&&(k.width=e-l);a.splice(b,1);break}}}return a};exports.findHostInstance=ji;exports.findHostInstanceWithNoPortals=function(a){a=za(a);a=null!==a?Ca(a):null;return null===a?null:a.stateNode};exports.findHostInstanceWithWarning=function(a){return ji(a)};exports.flushControlled=function(a){var b=H;H|=1;var c=W.transition,d=C;try{W.transition=null,C=1,a();}finally{C=d,W.transition=c,H=b,0===H&&(Bh(),ad());}};exports.flushPassiveEffects=Oh;exports.flushSync=Xh;
+	exports.focusWithin=function(a,b){if(!bb)throw Error(n(363));a=nh(a);b=qh(a,b);b=Array.from(b);for(a=0;a<b.length;){var c=b[a++];if(!fb(c)){if(5===c.tag&&hb(c.stateNode))return  true;for(c=c.child;null!==c;)b.push(c),c=c.sibling;}}return  false};exports.getCurrentUpdatePriority=function(){return C};
+	exports.getFindAllNodesFailureDescription=function(a,b){if(!bb)throw Error(n(363));var c=0,d=[];a=[nh(a),0];for(var e=0;e<a.length;){var f=a[e++],g=a[e++],h=b[g];if(5!==f.tag||!fb(f))if(oh(f,h)&&(d.push(ph(h)),g++,g>c&&(c=g)),g<b.length)for(f=f.child;null!==f;)a.push(f,g),f=f.sibling;}if(c<b.length){for(a=[];c<b.length;c++)a.push(ph(b[c]));return "findAllNodes was able to match part of the selector:\n  "+(d.join(" > ")+"\n\nNo matching component was found for:\n  ")+a.join(" > ")}return null};
+	exports.getPublicRootInstance=function(a){a=a.current;if(!a.child)return null;switch(a.child.tag){case 5:return Ea(a.child.stateNode);default:return a.child.stateNode}};
+	exports.injectIntoDevTools=function(a){a={bundleType:a.bundleType,version:a.version,rendererPackageName:a.rendererPackageName,rendererConfig:a.rendererConfig,overrideHookState:null,overrideHookStateDeletePath:null,overrideHookStateRenamePath:null,overrideProps:null,overridePropsDeletePath:null,overridePropsRenamePath:null,setErrorHandler:null,setSuspenseHandler:null,scheduleUpdate:null,currentDispatcherRef:da.ReactCurrentDispatcher,findHostInstanceByFiber:mi,findFiberByHostInstance:a.findFiberByHostInstance||
+	ni,findHostInstancesForRefresh:null,scheduleRefresh:null,scheduleRoot:null,setRefreshHandler:null,getCurrentFiber:null,reconcilerVersion:"18.3.1"};if("undefined"===typeof __REACT_DEVTOOLS_GLOBAL_HOOK__)a=false;else {var b=__REACT_DEVTOOLS_GLOBAL_HOOK__;if(b.isDisabled||!b.supportsFiber)a=true;else {try{Rc=b.inject(a),Sc=b;}catch(c){}a=b.checkDCE?true:false;}}return a};exports.isAlreadyRendering=function(){return  false};
+	exports.observeVisibleRects=function(a,b,c,d){if(!bb)throw Error(n(363));a=rh(a,b);var e=ib(a,c,d).disconnect;return {disconnect:function(){e();}}};exports.registerMutableSourceForHydration=function(a,b){var c=b._getVersion;c=c(b._source);null==a.mutableSourceEagerHydrationData?a.mutableSourceEagerHydrationData=[b,c]:a.mutableSourceEagerHydrationData.push(b,c);};exports.runWithPriority=function(a,b){var c=C;try{return C=a,b()}finally{C=c;}};exports.shouldError=function(){return null};
+	exports.shouldSuspend=function(){return  false};exports.updateContainer=function(a,b,c,d){var e=b.current,f=O(),g=tf(e);c=ii(c);null===b.context?b.context=c:b.pendingContext=c;b=ge(f,g);b.payload={element:a};d=void 0===d?null:d;null!==d&&(b.callback=d);a=he(e,b,g);null!==a&&(af(a,e,g,f),ie(a,e,g));return g};
+
+	    return exports;
+	};
+	return reactReconciler_production_min;
+}
+
+var hasRequiredReactReconciler;
+
+function requireReactReconciler () {
+	if (hasRequiredReactReconciler) return reactReconciler.exports;
+	hasRequiredReactReconciler = 1;
+
+	{
+	  reactReconciler.exports = requireReactReconciler_production_min();
+	}
+	return reactReconciler.exports;
+}
+
+var constants = {exports: {}};
+
+var reactReconcilerConstants_production_min = {};
+
+/**
+ * @license React
+ * react-reconciler-constants.production.min.js
+ *
+ * Copyright (c) Facebook, Inc. and its affiliates.
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+var hasRequiredReactReconcilerConstants_production_min;
+
+function requireReactReconcilerConstants_production_min () {
+	if (hasRequiredReactReconcilerConstants_production_min) return reactReconcilerConstants_production_min;
+	hasRequiredReactReconcilerConstants_production_min = 1;
+reactReconcilerConstants_production_min.ConcurrentRoot=1;reactReconcilerConstants_production_min.ContinuousEventPriority=4;reactReconcilerConstants_production_min.DefaultEventPriority=16;reactReconcilerConstants_production_min.DiscreteEventPriority=1;reactReconcilerConstants_production_min.IdleEventPriority=536870912;reactReconcilerConstants_production_min.LegacyRoot=0;
+	return reactReconcilerConstants_production_min;
+}
+
+var hasRequiredConstants;
+
+function requireConstants () {
+	if (hasRequiredConstants) return constants.exports;
+	hasRequiredConstants = 1;
+
+	{
+	  constants.exports = requireReactReconcilerConstants_production_min();
+	}
+	return constants.exports;
+}
+
+var cjsBrowser = {};
+
+var max = {};
+
+var hasRequiredMax;
+
+function requireMax () {
+	if (hasRequiredMax) return max;
+	hasRequiredMax = 1;
+	Object.defineProperty(max, "__esModule", { value: true });
+	max.default = 'ffffffff-ffff-ffff-ffff-ffffffffffff';
+	return max;
+}
+
+var nil = {};
+
+var hasRequiredNil;
+
+function requireNil () {
+	if (hasRequiredNil) return nil;
+	hasRequiredNil = 1;
+	Object.defineProperty(nil, "__esModule", { value: true });
+	nil.default = '00000000-0000-0000-0000-000000000000';
+	return nil;
+}
+
+var parse = {};
+
+var validate = {};
+
+var regex = {};
+
+var hasRequiredRegex;
+
+function requireRegex () {
+	if (hasRequiredRegex) return regex;
+	hasRequiredRegex = 1;
+	Object.defineProperty(regex, "__esModule", { value: true });
+	regex.default = /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$/i;
+	return regex;
+}
+
+var hasRequiredValidate;
+
+function requireValidate () {
+	if (hasRequiredValidate) return validate;
+	hasRequiredValidate = 1;
+	Object.defineProperty(validate, "__esModule", { value: true });
+	const regex_js_1 = requireRegex();
+	function validate$1(uuid) {
+	    return typeof uuid === 'string' && regex_js_1.default.test(uuid);
+	}
+	validate.default = validate$1;
+	return validate;
+}
+
+var hasRequiredParse;
+
+function requireParse () {
+	if (hasRequiredParse) return parse;
+	hasRequiredParse = 1;
+	Object.defineProperty(parse, "__esModule", { value: true });
+	const validate_js_1 = requireValidate();
+	function parse$1(uuid) {
+	    if (!(0, validate_js_1.default)(uuid)) {
+	        throw TypeError('Invalid UUID');
+	    }
+	    let v;
+	    return Uint8Array.of((v = parseInt(uuid.slice(0, 8), 16)) >>> 24, (v >>> 16) & 0xff, (v >>> 8) & 0xff, v & 0xff, (v = parseInt(uuid.slice(9, 13), 16)) >>> 8, v & 0xff, (v = parseInt(uuid.slice(14, 18), 16)) >>> 8, v & 0xff, (v = parseInt(uuid.slice(19, 23), 16)) >>> 8, v & 0xff, ((v = parseInt(uuid.slice(24, 36), 16)) / 0x10000000000) & 0xff, (v / 0x100000000) & 0xff, (v >>> 24) & 0xff, (v >>> 16) & 0xff, (v >>> 8) & 0xff, v & 0xff);
+	}
+	parse.default = parse$1;
+	return parse;
+}
+
+var stringify = {};
+
+var hasRequiredStringify;
+
+function requireStringify () {
+	if (hasRequiredStringify) return stringify;
+	hasRequiredStringify = 1;
+	Object.defineProperty(stringify, "__esModule", { value: true });
+	stringify.unsafeStringify = void 0;
+	const validate_js_1 = requireValidate();
+	const byteToHex = [];
+	for (let i = 0; i < 256; ++i) {
+	    byteToHex.push((i + 0x100).toString(16).slice(1));
+	}
+	function unsafeStringify(arr, offset = 0) {
+	    return (byteToHex[arr[offset + 0]] +
+	        byteToHex[arr[offset + 1]] +
+	        byteToHex[arr[offset + 2]] +
+	        byteToHex[arr[offset + 3]] +
+	        '-' +
+	        byteToHex[arr[offset + 4]] +
+	        byteToHex[arr[offset + 5]] +
+	        '-' +
+	        byteToHex[arr[offset + 6]] +
+	        byteToHex[arr[offset + 7]] +
+	        '-' +
+	        byteToHex[arr[offset + 8]] +
+	        byteToHex[arr[offset + 9]] +
+	        '-' +
+	        byteToHex[arr[offset + 10]] +
+	        byteToHex[arr[offset + 11]] +
+	        byteToHex[arr[offset + 12]] +
+	        byteToHex[arr[offset + 13]] +
+	        byteToHex[arr[offset + 14]] +
+	        byteToHex[arr[offset + 15]]).toLowerCase();
+	}
+	stringify.unsafeStringify = unsafeStringify;
+	function stringify$1(arr, offset = 0) {
+	    const uuid = unsafeStringify(arr, offset);
+	    if (!(0, validate_js_1.default)(uuid)) {
+	        throw TypeError('Stringified UUID is invalid');
+	    }
+	    return uuid;
+	}
+	stringify.default = stringify$1;
+	return stringify;
+}
+
+var v1 = {};
+
+var rng = {};
+
+var hasRequiredRng;
+
+function requireRng () {
+	if (hasRequiredRng) return rng;
+	hasRequiredRng = 1;
+	Object.defineProperty(rng, "__esModule", { value: true });
+	let getRandomValues;
+	const rnds8 = new Uint8Array(16);
+	function rng$1() {
+	    if (!getRandomValues) {
+	        if (typeof crypto === 'undefined' || !crypto.getRandomValues) {
+	            throw new Error('crypto.getRandomValues() not supported. See https://github.com/uuidjs/uuid#getrandomvalues-not-supported');
+	        }
+	        getRandomValues = crypto.getRandomValues.bind(crypto);
+	    }
+	    return getRandomValues(rnds8);
+	}
+	rng.default = rng$1;
+	return rng;
+}
+
+var hasRequiredV1;
+
+function requireV1 () {
+	if (hasRequiredV1) return v1;
+	hasRequiredV1 = 1;
+	Object.defineProperty(v1, "__esModule", { value: true });
+	v1.updateV1State = void 0;
+	const rng_js_1 = requireRng();
+	const stringify_js_1 = requireStringify();
+	const _state = {};
+	function v1$1(options, buf, offset) {
+	    let bytes;
+	    const isV6 = options?._v6 ?? false;
+	    if (options) {
+	        const optionsKeys = Object.keys(options);
+	        if (optionsKeys.length === 1 && optionsKeys[0] === '_v6') {
+	            options = undefined;
+	        }
+	    }
+	    if (options) {
+	        bytes = v1Bytes(options.random ?? options.rng?.() ?? (0, rng_js_1.default)(), options.msecs, options.nsecs, options.clockseq, options.node, buf, offset);
+	    }
+	    else {
+	        const now = Date.now();
+	        const rnds = (0, rng_js_1.default)();
+	        updateV1State(_state, now, rnds);
+	        bytes = v1Bytes(rnds, _state.msecs, _state.nsecs, isV6 ? undefined : _state.clockseq, isV6 ? undefined : _state.node, buf, offset);
+	    }
+	    return buf ?? (0, stringify_js_1.unsafeStringify)(bytes);
+	}
+	function updateV1State(state, now, rnds) {
+	    state.msecs ??= -Infinity;
+	    state.nsecs ??= 0;
+	    if (now === state.msecs) {
+	        state.nsecs++;
+	        if (state.nsecs >= 10000) {
+	            state.node = undefined;
+	            state.nsecs = 0;
+	        }
+	    }
+	    else if (now > state.msecs) {
+	        state.nsecs = 0;
+	    }
+	    else if (now < state.msecs) {
+	        state.node = undefined;
+	    }
+	    if (!state.node) {
+	        state.node = rnds.slice(10, 16);
+	        state.node[0] |= 0x01;
+	        state.clockseq = ((rnds[8] << 8) | rnds[9]) & 0x3fff;
+	    }
+	    state.msecs = now;
+	    return state;
+	}
+	v1.updateV1State = updateV1State;
+	function v1Bytes(rnds, msecs, nsecs, clockseq, node, buf, offset = 0) {
+	    if (rnds.length < 16) {
+	        throw new Error('Random bytes length must be >= 16');
+	    }
+	    if (!buf) {
+	        buf = new Uint8Array(16);
+	        offset = 0;
+	    }
+	    else {
+	        if (offset < 0 || offset + 16 > buf.length) {
+	            throw new RangeError(`UUID byte range ${offset}:${offset + 15} is out of buffer bounds`);
+	        }
+	    }
+	    msecs ??= Date.now();
+	    nsecs ??= 0;
+	    clockseq ??= ((rnds[8] << 8) | rnds[9]) & 0x3fff;
+	    node ??= rnds.slice(10, 16);
+	    msecs += 12219292800000;
+	    const tl = ((msecs & 0xfffffff) * 10000 + nsecs) % 0x100000000;
+	    buf[offset++] = (tl >>> 24) & 0xff;
+	    buf[offset++] = (tl >>> 16) & 0xff;
+	    buf[offset++] = (tl >>> 8) & 0xff;
+	    buf[offset++] = tl & 0xff;
+	    const tmh = ((msecs / 0x100000000) * 10000) & 0xfffffff;
+	    buf[offset++] = (tmh >>> 8) & 0xff;
+	    buf[offset++] = tmh & 0xff;
+	    buf[offset++] = ((tmh >>> 24) & 0xf) | 0x10;
+	    buf[offset++] = (tmh >>> 16) & 0xff;
+	    buf[offset++] = (clockseq >>> 8) | 0x80;
+	    buf[offset++] = clockseq & 0xff;
+	    for (let n = 0; n < 6; ++n) {
+	        buf[offset++] = node[n];
+	    }
+	    return buf;
+	}
+	v1.default = v1$1;
+	return v1;
+}
+
+var v1ToV6 = {};
+
+var hasRequiredV1ToV6;
+
+function requireV1ToV6 () {
+	if (hasRequiredV1ToV6) return v1ToV6;
+	hasRequiredV1ToV6 = 1;
+	Object.defineProperty(v1ToV6, "__esModule", { value: true });
+	const parse_js_1 = requireParse();
+	const stringify_js_1 = requireStringify();
+	function v1ToV6$1(uuid) {
+	    const v1Bytes = typeof uuid === 'string' ? (0, parse_js_1.default)(uuid) : uuid;
+	    const v6Bytes = _v1ToV6(v1Bytes);
+	    return typeof uuid === 'string' ? (0, stringify_js_1.unsafeStringify)(v6Bytes) : v6Bytes;
+	}
+	v1ToV6.default = v1ToV6$1;
+	function _v1ToV6(v1Bytes) {
+	    return Uint8Array.of(((v1Bytes[6] & 0x0f) << 4) | ((v1Bytes[7] >> 4) & 0x0f), ((v1Bytes[7] & 0x0f) << 4) | ((v1Bytes[4] & 0xf0) >> 4), ((v1Bytes[4] & 0x0f) << 4) | ((v1Bytes[5] & 0xf0) >> 4), ((v1Bytes[5] & 0x0f) << 4) | ((v1Bytes[0] & 0xf0) >> 4), ((v1Bytes[0] & 0x0f) << 4) | ((v1Bytes[1] & 0xf0) >> 4), ((v1Bytes[1] & 0x0f) << 4) | ((v1Bytes[2] & 0xf0) >> 4), 0x60 | (v1Bytes[2] & 0x0f), v1Bytes[3], v1Bytes[8], v1Bytes[9], v1Bytes[10], v1Bytes[11], v1Bytes[12], v1Bytes[13], v1Bytes[14], v1Bytes[15]);
+	}
+	return v1ToV6;
+}
+
+var v3 = {};
+
+var md5 = {};
+
+var hasRequiredMd5;
+
+function requireMd5 () {
+	if (hasRequiredMd5) return md5;
+	hasRequiredMd5 = 1;
+	Object.defineProperty(md5, "__esModule", { value: true });
+	function md5$1(bytes) {
+	    const words = uint8ToUint32(bytes);
+	    const md5Bytes = wordsToMd5(words, bytes.length * 8);
+	    return uint32ToUint8(md5Bytes);
+	}
+	function uint32ToUint8(input) {
+	    const bytes = new Uint8Array(input.length * 4);
+	    for (let i = 0; i < input.length * 4; i++) {
+	        bytes[i] = (input[i >> 2] >>> ((i % 4) * 8)) & 0xff;
+	    }
+	    return bytes;
+	}
+	function getOutputLength(inputLength8) {
+	    return (((inputLength8 + 64) >>> 9) << 4) + 14 + 1;
+	}
+	function wordsToMd5(x, len) {
+	    const xpad = new Uint32Array(getOutputLength(len)).fill(0);
+	    xpad.set(x);
+	    xpad[len >> 5] |= 0x80 << len % 32;
+	    xpad[xpad.length - 1] = len;
+	    x = xpad;
+	    let a = 1732584193;
+	    let b = -271733879;
+	    let c = -1732584194;
+	    let d = 271733878;
+	    for (let i = 0; i < x.length; i += 16) {
+	        const olda = a;
+	        const oldb = b;
+	        const oldc = c;
+	        const oldd = d;
+	        a = md5ff(a, b, c, d, x[i], 7, -680876936);
+	        d = md5ff(d, a, b, c, x[i + 1], 12, -389564586);
+	        c = md5ff(c, d, a, b, x[i + 2], 17, 606105819);
+	        b = md5ff(b, c, d, a, x[i + 3], 22, -1044525330);
+	        a = md5ff(a, b, c, d, x[i + 4], 7, -176418897);
+	        d = md5ff(d, a, b, c, x[i + 5], 12, 1200080426);
+	        c = md5ff(c, d, a, b, x[i + 6], 17, -1473231341);
+	        b = md5ff(b, c, d, a, x[i + 7], 22, -45705983);
+	        a = md5ff(a, b, c, d, x[i + 8], 7, 1770035416);
+	        d = md5ff(d, a, b, c, x[i + 9], 12, -1958414417);
+	        c = md5ff(c, d, a, b, x[i + 10], 17, -42063);
+	        b = md5ff(b, c, d, a, x[i + 11], 22, -1990404162);
+	        a = md5ff(a, b, c, d, x[i + 12], 7, 1804603682);
+	        d = md5ff(d, a, b, c, x[i + 13], 12, -40341101);
+	        c = md5ff(c, d, a, b, x[i + 14], 17, -1502002290);
+	        b = md5ff(b, c, d, a, x[i + 15], 22, 1236535329);
+	        a = md5gg(a, b, c, d, x[i + 1], 5, -165796510);
+	        d = md5gg(d, a, b, c, x[i + 6], 9, -1069501632);
+	        c = md5gg(c, d, a, b, x[i + 11], 14, 643717713);
+	        b = md5gg(b, c, d, a, x[i], 20, -373897302);
+	        a = md5gg(a, b, c, d, x[i + 5], 5, -701558691);
+	        d = md5gg(d, a, b, c, x[i + 10], 9, 38016083);
+	        c = md5gg(c, d, a, b, x[i + 15], 14, -660478335);
+	        b = md5gg(b, c, d, a, x[i + 4], 20, -405537848);
+	        a = md5gg(a, b, c, d, x[i + 9], 5, 568446438);
+	        d = md5gg(d, a, b, c, x[i + 14], 9, -1019803690);
+	        c = md5gg(c, d, a, b, x[i + 3], 14, -187363961);
+	        b = md5gg(b, c, d, a, x[i + 8], 20, 1163531501);
+	        a = md5gg(a, b, c, d, x[i + 13], 5, -1444681467);
+	        d = md5gg(d, a, b, c, x[i + 2], 9, -51403784);
+	        c = md5gg(c, d, a, b, x[i + 7], 14, 1735328473);
+	        b = md5gg(b, c, d, a, x[i + 12], 20, -1926607734);
+	        a = md5hh(a, b, c, d, x[i + 5], 4, -378558);
+	        d = md5hh(d, a, b, c, x[i + 8], 11, -2022574463);
+	        c = md5hh(c, d, a, b, x[i + 11], 16, 1839030562);
+	        b = md5hh(b, c, d, a, x[i + 14], 23, -35309556);
+	        a = md5hh(a, b, c, d, x[i + 1], 4, -1530992060);
+	        d = md5hh(d, a, b, c, x[i + 4], 11, 1272893353);
+	        c = md5hh(c, d, a, b, x[i + 7], 16, -155497632);
+	        b = md5hh(b, c, d, a, x[i + 10], 23, -1094730640);
+	        a = md5hh(a, b, c, d, x[i + 13], 4, 681279174);
+	        d = md5hh(d, a, b, c, x[i], 11, -358537222);
+	        c = md5hh(c, d, a, b, x[i + 3], 16, -722521979);
+	        b = md5hh(b, c, d, a, x[i + 6], 23, 76029189);
+	        a = md5hh(a, b, c, d, x[i + 9], 4, -640364487);
+	        d = md5hh(d, a, b, c, x[i + 12], 11, -421815835);
+	        c = md5hh(c, d, a, b, x[i + 15], 16, 530742520);
+	        b = md5hh(b, c, d, a, x[i + 2], 23, -995338651);
+	        a = md5ii(a, b, c, d, x[i], 6, -198630844);
+	        d = md5ii(d, a, b, c, x[i + 7], 10, 1126891415);
+	        c = md5ii(c, d, a, b, x[i + 14], 15, -1416354905);
+	        b = md5ii(b, c, d, a, x[i + 5], 21, -57434055);
+	        a = md5ii(a, b, c, d, x[i + 12], 6, 1700485571);
+	        d = md5ii(d, a, b, c, x[i + 3], 10, -1894986606);
+	        c = md5ii(c, d, a, b, x[i + 10], 15, -1051523);
+	        b = md5ii(b, c, d, a, x[i + 1], 21, -2054922799);
+	        a = md5ii(a, b, c, d, x[i + 8], 6, 1873313359);
+	        d = md5ii(d, a, b, c, x[i + 15], 10, -30611744);
+	        c = md5ii(c, d, a, b, x[i + 6], 15, -1560198380);
+	        b = md5ii(b, c, d, a, x[i + 13], 21, 1309151649);
+	        a = md5ii(a, b, c, d, x[i + 4], 6, -145523070);
+	        d = md5ii(d, a, b, c, x[i + 11], 10, -1120210379);
+	        c = md5ii(c, d, a, b, x[i + 2], 15, 718787259);
+	        b = md5ii(b, c, d, a, x[i + 9], 21, -343485551);
+	        a = safeAdd(a, olda);
+	        b = safeAdd(b, oldb);
+	        c = safeAdd(c, oldc);
+	        d = safeAdd(d, oldd);
+	    }
+	    return Uint32Array.of(a, b, c, d);
+	}
+	function uint8ToUint32(input) {
+	    if (input.length === 0) {
+	        return new Uint32Array();
+	    }
+	    const output = new Uint32Array(getOutputLength(input.length * 8)).fill(0);
+	    for (let i = 0; i < input.length; i++) {
+	        output[i >> 2] |= (input[i] & 0xff) << ((i % 4) * 8);
+	    }
+	    return output;
+	}
+	function safeAdd(x, y) {
+	    const lsw = (x & 0xffff) + (y & 0xffff);
+	    const msw = (x >> 16) + (y >> 16) + (lsw >> 16);
+	    return (msw << 16) | (lsw & 0xffff);
+	}
+	function bitRotateLeft(num, cnt) {
+	    return (num << cnt) | (num >>> (32 - cnt));
+	}
+	function md5cmn(q, a, b, x, s, t) {
+	    return safeAdd(bitRotateLeft(safeAdd(safeAdd(a, q), safeAdd(x, t)), s), b);
+	}
+	function md5ff(a, b, c, d, x, s, t) {
+	    return md5cmn((b & c) | (~b & d), a, b, x, s, t);
+	}
+	function md5gg(a, b, c, d, x, s, t) {
+	    return md5cmn((b & d) | (c & ~d), a, b, x, s, t);
+	}
+	function md5hh(a, b, c, d, x, s, t) {
+	    return md5cmn(b ^ c ^ d, a, b, x, s, t);
+	}
+	function md5ii(a, b, c, d, x, s, t) {
+	    return md5cmn(c ^ (b | ~d), a, b, x, s, t);
+	}
+	md5.default = md5$1;
+	return md5;
+}
+
+var v35 = {};
+
+var hasRequiredV35;
+
+function requireV35 () {
+	if (hasRequiredV35) return v35;
+	hasRequiredV35 = 1;
+	Object.defineProperty(v35, "__esModule", { value: true });
+	v35.URL = v35.DNS = v35.stringToBytes = void 0;
+	const parse_js_1 = requireParse();
+	const stringify_js_1 = requireStringify();
+	function stringToBytes(str) {
+	    str = unescape(encodeURIComponent(str));
+	    const bytes = new Uint8Array(str.length);
+	    for (let i = 0; i < str.length; ++i) {
+	        bytes[i] = str.charCodeAt(i);
+	    }
+	    return bytes;
+	}
+	v35.stringToBytes = stringToBytes;
+	v35.DNS = '6ba7b810-9dad-11d1-80b4-00c04fd430c8';
+	v35.URL = '6ba7b811-9dad-11d1-80b4-00c04fd430c8';
+	function v35$1(version, hash, value, namespace, buf, offset) {
+	    const valueBytes = typeof value === 'string' ? stringToBytes(value) : value;
+	    const namespaceBytes = typeof namespace === 'string' ? (0, parse_js_1.default)(namespace) : namespace;
+	    if (typeof namespace === 'string') {
+	        namespace = (0, parse_js_1.default)(namespace);
+	    }
+	    if (namespace?.length !== 16) {
+	        throw TypeError('Namespace must be array-like (16 iterable integer values, 0-255)');
+	    }
+	    let bytes = new Uint8Array(16 + valueBytes.length);
+	    bytes.set(namespaceBytes);
+	    bytes.set(valueBytes, namespaceBytes.length);
+	    bytes = hash(bytes);
+	    bytes[6] = (bytes[6] & 0x0f) | version;
+	    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+	    if (buf) {
+	        offset = offset || 0;
+	        if (offset < 0 || offset + 16 > buf.length) {
+	            throw new RangeError(`UUID byte range ${offset}:${offset + 15} is out of buffer bounds`);
+	        }
+	        for (let i = 0; i < 16; ++i) {
+	            buf[offset + i] = bytes[i];
+	        }
+	        return buf;
+	    }
+	    return (0, stringify_js_1.unsafeStringify)(bytes);
+	}
+	v35.default = v35$1;
+	return v35;
+}
+
+var hasRequiredV3;
+
+function requireV3 () {
+	if (hasRequiredV3) return v3;
+	hasRequiredV3 = 1;
+	(function (exports) {
+		Object.defineProperty(exports, "__esModule", { value: true });
+		exports.URL = exports.DNS = void 0;
+		const md5_js_1 = requireMd5();
+		const v35_js_1 = requireV35();
+		var v35_js_2 = requireV35();
+		Object.defineProperty(exports, "DNS", { enumerable: true, get: function () { return v35_js_2.DNS; } });
+		Object.defineProperty(exports, "URL", { enumerable: true, get: function () { return v35_js_2.URL; } });
+		function v3(value, namespace, buf, offset) {
+		    return (0, v35_js_1.default)(0x30, md5_js_1.default, value, namespace, buf, offset);
+		}
+		v3.DNS = v35_js_1.DNS;
+		v3.URL = v35_js_1.URL;
+		exports.default = v3; 
+	} (v3));
+	return v3;
+}
+
+var v4 = {};
+
+var native = {};
+
+var hasRequiredNative;
+
+function requireNative () {
+	if (hasRequiredNative) return native;
+	hasRequiredNative = 1;
+	Object.defineProperty(native, "__esModule", { value: true });
+	const randomUUID = typeof crypto !== 'undefined' && crypto.randomUUID && crypto.randomUUID.bind(crypto);
+	native.default = { randomUUID };
+	return native;
+}
+
+var hasRequiredV4;
+
+function requireV4 () {
+	if (hasRequiredV4) return v4;
+	hasRequiredV4 = 1;
+	Object.defineProperty(v4, "__esModule", { value: true });
+	const native_js_1 = requireNative();
+	const rng_js_1 = requireRng();
+	const stringify_js_1 = requireStringify();
+	function v4$1(options, buf, offset) {
+	    if (native_js_1.default.randomUUID && !buf && !options) {
+	        return native_js_1.default.randomUUID();
+	    }
+	    options = options || {};
+	    const rnds = options.random ?? options.rng?.() ?? (0, rng_js_1.default)();
+	    if (rnds.length < 16) {
+	        throw new Error('Random bytes length must be >= 16');
+	    }
+	    rnds[6] = (rnds[6] & 0x0f) | 0x40;
+	    rnds[8] = (rnds[8] & 0x3f) | 0x80;
+	    if (buf) {
+	        offset = offset || 0;
+	        if (offset < 0 || offset + 16 > buf.length) {
+	            throw new RangeError(`UUID byte range ${offset}:${offset + 15} is out of buffer bounds`);
+	        }
+	        for (let i = 0; i < 16; ++i) {
+	            buf[offset + i] = rnds[i];
+	        }
+	        return buf;
+	    }
+	    return (0, stringify_js_1.unsafeStringify)(rnds);
+	}
+	v4.default = v4$1;
+	return v4;
+}
+
+var v5 = {};
+
+var sha1 = {};
+
+var hasRequiredSha1;
+
+function requireSha1 () {
+	if (hasRequiredSha1) return sha1;
+	hasRequiredSha1 = 1;
+	Object.defineProperty(sha1, "__esModule", { value: true });
+	function f(s, x, y, z) {
+	    switch (s) {
+	        case 0:
+	            return (x & y) ^ (~x & z);
+	        case 1:
+	            return x ^ y ^ z;
+	        case 2:
+	            return (x & y) ^ (x & z) ^ (y & z);
+	        case 3:
+	            return x ^ y ^ z;
+	    }
+	}
+	function ROTL(x, n) {
+	    return (x << n) | (x >>> (32 - n));
+	}
+	function sha1$1(bytes) {
+	    const K = [0x5a827999, 0x6ed9eba1, 0x8f1bbcdc, 0xca62c1d6];
+	    const H = [0x67452301, 0xefcdab89, 0x98badcfe, 0x10325476, 0xc3d2e1f0];
+	    const newBytes = new Uint8Array(bytes.length + 1);
+	    newBytes.set(bytes);
+	    newBytes[bytes.length] = 0x80;
+	    bytes = newBytes;
+	    const l = bytes.length / 4 + 2;
+	    const N = Math.ceil(l / 16);
+	    const M = new Array(N);
+	    for (let i = 0; i < N; ++i) {
+	        const arr = new Uint32Array(16);
+	        for (let j = 0; j < 16; ++j) {
+	            arr[j] =
+	                (bytes[i * 64 + j * 4] << 24) |
+	                    (bytes[i * 64 + j * 4 + 1] << 16) |
+	                    (bytes[i * 64 + j * 4 + 2] << 8) |
+	                    bytes[i * 64 + j * 4 + 3];
+	        }
+	        M[i] = arr;
+	    }
+	    M[N - 1][14] = ((bytes.length - 1) * 8) / Math.pow(2, 32);
+	    M[N - 1][14] = Math.floor(M[N - 1][14]);
+	    M[N - 1][15] = ((bytes.length - 1) * 8) & 0xffffffff;
+	    for (let i = 0; i < N; ++i) {
+	        const W = new Uint32Array(80);
+	        for (let t = 0; t < 16; ++t) {
+	            W[t] = M[i][t];
+	        }
+	        for (let t = 16; t < 80; ++t) {
+	            W[t] = ROTL(W[t - 3] ^ W[t - 8] ^ W[t - 14] ^ W[t - 16], 1);
+	        }
+	        let a = H[0];
+	        let b = H[1];
+	        let c = H[2];
+	        let d = H[3];
+	        let e = H[4];
+	        for (let t = 0; t < 80; ++t) {
+	            const s = Math.floor(t / 20);
+	            const T = (ROTL(a, 5) + f(s, b, c, d) + e + K[s] + W[t]) >>> 0;
+	            e = d;
+	            d = c;
+	            c = ROTL(b, 30) >>> 0;
+	            b = a;
+	            a = T;
+	        }
+	        H[0] = (H[0] + a) >>> 0;
+	        H[1] = (H[1] + b) >>> 0;
+	        H[2] = (H[2] + c) >>> 0;
+	        H[3] = (H[3] + d) >>> 0;
+	        H[4] = (H[4] + e) >>> 0;
+	    }
+	    return Uint8Array.of(H[0] >> 24, H[0] >> 16, H[0] >> 8, H[0], H[1] >> 24, H[1] >> 16, H[1] >> 8, H[1], H[2] >> 24, H[2] >> 16, H[2] >> 8, H[2], H[3] >> 24, H[3] >> 16, H[3] >> 8, H[3], H[4] >> 24, H[4] >> 16, H[4] >> 8, H[4]);
+	}
+	sha1.default = sha1$1;
+	return sha1;
+}
+
+var hasRequiredV5;
+
+function requireV5 () {
+	if (hasRequiredV5) return v5;
+	hasRequiredV5 = 1;
+	(function (exports) {
+		Object.defineProperty(exports, "__esModule", { value: true });
+		exports.URL = exports.DNS = void 0;
+		const sha1_js_1 = requireSha1();
+		const v35_js_1 = requireV35();
+		var v35_js_2 = requireV35();
+		Object.defineProperty(exports, "DNS", { enumerable: true, get: function () { return v35_js_2.DNS; } });
+		Object.defineProperty(exports, "URL", { enumerable: true, get: function () { return v35_js_2.URL; } });
+		function v5(value, namespace, buf, offset) {
+		    return (0, v35_js_1.default)(0x50, sha1_js_1.default, value, namespace, buf, offset);
+		}
+		v5.DNS = v35_js_1.DNS;
+		v5.URL = v35_js_1.URL;
+		exports.default = v5; 
+	} (v5));
+	return v5;
+}
+
+var v6 = {};
+
+var hasRequiredV6;
+
+function requireV6 () {
+	if (hasRequiredV6) return v6;
+	hasRequiredV6 = 1;
+	Object.defineProperty(v6, "__esModule", { value: true });
+	const stringify_js_1 = requireStringify();
+	const v1_js_1 = requireV1();
+	const v1ToV6_js_1 = requireV1ToV6();
+	function v6$1(options, buf, offset) {
+	    options ??= {};
+	    offset ??= 0;
+	    let bytes = (0, v1_js_1.default)({ ...options, _v6: true }, new Uint8Array(16));
+	    bytes = (0, v1ToV6_js_1.default)(bytes);
+	    if (buf) {
+	        if (offset < 0 || offset + 16 > buf.length) {
+	            throw new RangeError(`UUID byte range ${offset}:${offset + 15} is out of buffer bounds`);
+	        }
+	        for (let i = 0; i < 16; i++) {
+	            buf[offset + i] = bytes[i];
+	        }
+	        return buf;
+	    }
+	    return (0, stringify_js_1.unsafeStringify)(bytes);
+	}
+	v6.default = v6$1;
+	return v6;
+}
+
+var v6ToV1 = {};
+
+var hasRequiredV6ToV1;
+
+function requireV6ToV1 () {
+	if (hasRequiredV6ToV1) return v6ToV1;
+	hasRequiredV6ToV1 = 1;
+	Object.defineProperty(v6ToV1, "__esModule", { value: true });
+	const parse_js_1 = requireParse();
+	const stringify_js_1 = requireStringify();
+	function v6ToV1$1(uuid) {
+	    const v6Bytes = typeof uuid === 'string' ? (0, parse_js_1.default)(uuid) : uuid;
+	    const v1Bytes = _v6ToV1(v6Bytes);
+	    return typeof uuid === 'string' ? (0, stringify_js_1.unsafeStringify)(v1Bytes) : v1Bytes;
+	}
+	v6ToV1.default = v6ToV1$1;
+	function _v6ToV1(v6Bytes) {
+	    return Uint8Array.of(((v6Bytes[3] & 0x0f) << 4) | ((v6Bytes[4] >> 4) & 0x0f), ((v6Bytes[4] & 0x0f) << 4) | ((v6Bytes[5] & 0xf0) >> 4), ((v6Bytes[5] & 0x0f) << 4) | (v6Bytes[6] & 0x0f), v6Bytes[7], ((v6Bytes[1] & 0x0f) << 4) | ((v6Bytes[2] & 0xf0) >> 4), ((v6Bytes[2] & 0x0f) << 4) | ((v6Bytes[3] & 0xf0) >> 4), 0x10 | ((v6Bytes[0] & 0xf0) >> 4), ((v6Bytes[0] & 0x0f) << 4) | ((v6Bytes[1] & 0xf0) >> 4), v6Bytes[8], v6Bytes[9], v6Bytes[10], v6Bytes[11], v6Bytes[12], v6Bytes[13], v6Bytes[14], v6Bytes[15]);
+	}
+	return v6ToV1;
+}
+
+var v7 = {};
+
+var hasRequiredV7;
+
+function requireV7 () {
+	if (hasRequiredV7) return v7;
+	hasRequiredV7 = 1;
+	Object.defineProperty(v7, "__esModule", { value: true });
+	v7.updateV7State = void 0;
+	const rng_js_1 = requireRng();
+	const stringify_js_1 = requireStringify();
+	const _state = {};
+	function v7$1(options, buf, offset) {
+	    let bytes;
+	    if (options) {
+	        bytes = v7Bytes(options.random ?? options.rng?.() ?? (0, rng_js_1.default)(), options.msecs, options.seq, buf, offset);
+	    }
+	    else {
+	        const now = Date.now();
+	        const rnds = (0, rng_js_1.default)();
+	        updateV7State(_state, now, rnds);
+	        bytes = v7Bytes(rnds, _state.msecs, _state.seq, buf, offset);
+	    }
+	    return buf ?? (0, stringify_js_1.unsafeStringify)(bytes);
+	}
+	function updateV7State(state, now, rnds) {
+	    state.msecs ??= -Infinity;
+	    state.seq ??= 0;
+	    if (now > state.msecs) {
+	        state.seq = (rnds[6] << 23) | (rnds[7] << 16) | (rnds[8] << 8) | rnds[9];
+	        state.msecs = now;
+	    }
+	    else {
+	        state.seq = (state.seq + 1) | 0;
+	        if (state.seq === 0) {
+	            state.msecs++;
+	        }
+	    }
+	    return state;
+	}
+	v7.updateV7State = updateV7State;
+	function v7Bytes(rnds, msecs, seq, buf, offset = 0) {
+	    if (rnds.length < 16) {
+	        throw new Error('Random bytes length must be >= 16');
+	    }
+	    if (!buf) {
+	        buf = new Uint8Array(16);
+	        offset = 0;
+	    }
+	    else {
+	        if (offset < 0 || offset + 16 > buf.length) {
+	            throw new RangeError(`UUID byte range ${offset}:${offset + 15} is out of buffer bounds`);
+	        }
+	    }
+	    msecs ??= Date.now();
+	    seq ??= ((rnds[6] * 0x7f) << 24) | (rnds[7] << 16) | (rnds[8] << 8) | rnds[9];
+	    buf[offset++] = (msecs / 0x10000000000) & 0xff;
+	    buf[offset++] = (msecs / 0x100000000) & 0xff;
+	    buf[offset++] = (msecs / 0x1000000) & 0xff;
+	    buf[offset++] = (msecs / 0x10000) & 0xff;
+	    buf[offset++] = (msecs / 0x100) & 0xff;
+	    buf[offset++] = msecs & 0xff;
+	    buf[offset++] = 0x70 | ((seq >>> 28) & 0x0f);
+	    buf[offset++] = (seq >>> 20) & 0xff;
+	    buf[offset++] = 0x80 | ((seq >>> 14) & 0x3f);
+	    buf[offset++] = (seq >>> 6) & 0xff;
+	    buf[offset++] = ((seq << 2) & 0xff) | (rnds[10] & 0x03);
+	    buf[offset++] = rnds[11];
+	    buf[offset++] = rnds[12];
+	    buf[offset++] = rnds[13];
+	    buf[offset++] = rnds[14];
+	    buf[offset++] = rnds[15];
+	    return buf;
+	}
+	v7.default = v7$1;
+	return v7;
+}
+
+var version = {};
+
+var hasRequiredVersion;
+
+function requireVersion () {
+	if (hasRequiredVersion) return version;
+	hasRequiredVersion = 1;
+	Object.defineProperty(version, "__esModule", { value: true });
+	const validate_js_1 = requireValidate();
+	function version$1(uuid) {
+	    if (!(0, validate_js_1.default)(uuid)) {
+	        throw TypeError('Invalid UUID');
+	    }
+	    return parseInt(uuid.slice(14, 15), 16);
+	}
+	version.default = version$1;
+	return version;
+}
+
+var hasRequiredCjsBrowser;
+
+function requireCjsBrowser () {
+	if (hasRequiredCjsBrowser) return cjsBrowser;
+	hasRequiredCjsBrowser = 1;
+	(function (exports) {
+		Object.defineProperty(exports, "__esModule", { value: true });
+		exports.version = exports.validate = exports.v7 = exports.v6ToV1 = exports.v6 = exports.v5 = exports.v4 = exports.v3 = exports.v1ToV6 = exports.v1 = exports.stringify = exports.parse = exports.NIL = exports.MAX = void 0;
+		var max_js_1 = requireMax();
+		Object.defineProperty(exports, "MAX", { enumerable: true, get: function () { return max_js_1.default; } });
+		var nil_js_1 = requireNil();
+		Object.defineProperty(exports, "NIL", { enumerable: true, get: function () { return nil_js_1.default; } });
+		var parse_js_1 = requireParse();
+		Object.defineProperty(exports, "parse", { enumerable: true, get: function () { return parse_js_1.default; } });
+		var stringify_js_1 = requireStringify();
+		Object.defineProperty(exports, "stringify", { enumerable: true, get: function () { return stringify_js_1.default; } });
+		var v1_js_1 = requireV1();
+		Object.defineProperty(exports, "v1", { enumerable: true, get: function () { return v1_js_1.default; } });
+		var v1ToV6_js_1 = requireV1ToV6();
+		Object.defineProperty(exports, "v1ToV6", { enumerable: true, get: function () { return v1ToV6_js_1.default; } });
+		var v3_js_1 = requireV3();
+		Object.defineProperty(exports, "v3", { enumerable: true, get: function () { return v3_js_1.default; } });
+		var v4_js_1 = requireV4();
+		Object.defineProperty(exports, "v4", { enumerable: true, get: function () { return v4_js_1.default; } });
+		var v5_js_1 = requireV5();
+		Object.defineProperty(exports, "v5", { enumerable: true, get: function () { return v5_js_1.default; } });
+		var v6_js_1 = requireV6();
+		Object.defineProperty(exports, "v6", { enumerable: true, get: function () { return v6_js_1.default; } });
+		var v6ToV1_js_1 = requireV6ToV1();
+		Object.defineProperty(exports, "v6ToV1", { enumerable: true, get: function () { return v6ToV1_js_1.default; } });
+		var v7_js_1 = requireV7();
+		Object.defineProperty(exports, "v7", { enumerable: true, get: function () { return v7_js_1.default; } });
+		var validate_js_1 = requireValidate();
+		Object.defineProperty(exports, "validate", { enumerable: true, get: function () { return validate_js_1.default; } });
+		var version_js_1 = requireVersion();
+		Object.defineProperty(exports, "version", { enumerable: true, get: function () { return version_js_1.default; } }); 
+	} (cjsBrowser));
+	return cjsBrowser;
+}
+
+var hasRequiredReconciler;
+
+function requireReconciler () {
+	if (hasRequiredReconciler) return reconciler;
+	hasRequiredReconciler = 1;
+	(function (exports) {
+		Object.defineProperty(exports, "__esModule", { value: true });
+		exports.ForgeReconciler = exports.hostConfig = exports.nonChildPropsAreEqual = exports.insertBefore = exports.appendChild = exports.createElement = exports.callBridge = void 0;
+		const tslib_1 = require$$0;
+		const react_reconciler_1 = tslib_1.__importDefault(requireReactReconciler());
+		const constants_1 = requireConstants();
+		const uuid_1 = /*@__PURE__*/ requireCjsBrowser();
+		// Only taking the first 5 characters of the uuid to keep the id shorter in the DOM to readability.
+		// The chances of clashing with 5 characters is still 1 in 1 million.
+		const idPropsPrefixAppUUID = (0, uuid_1.v4)().slice(0, 5);
+		const idPropsPrefix = `forge-app-${idPropsPrefixAppUUID}`;
+		// Checks the props of the component to see if it has an id prop. If so prefixes the value with the idPropsPrefix\
+		// This is done to avoid id conflicts with components in host product and other forge apps in the same page
+		const newPropsWithIdPrefix = (props) => {
+		    const idProps = ['id', 'labelFor', 'inputId'];
+		    const newProps = idProps.reduce((acc, idProp) => {
+		        if (props[idProp]) {
+		            return {
+		                ...acc,
+		                [idProp]: `${idPropsPrefix}-${props[idProp]}`
+		            };
+		        }
+		        return acc;
+		    }, props);
+		    return newProps;
+		};
+		const attachFunctionPropId = (props) => {
+		    for (const key in props) {
+		        const propValue = props[key];
+		        if (typeof propValue === 'function' && !propValue.__id__) {
+		            propValue.__id__ = (0, uuid_1.v4)();
+		        }
+		    }
+		    return props;
+		};
+		// Normalises raw React props into the props stored on a ForgeDoc: the `children`
+		// prop is dropped (children are tracked separately on the ForgeDoc tree) and the
+		// id/function-id transforms are applied. Keeping the `children` React element out
+		// of the serialised props is important: in React's development build a React
+		// element carries an `_owner` fiber reference, which produces a circular
+		// structure when the reconcile payload is JSON-serialised over the bridge.
+		const normaliseProps = (props) => {
+		    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+		    const { children, ...restProps } = props;
+		    return newPropsWithIdPrefix(attachFunctionPropId(restProps));
+		};
+		const handleReconcilerError = async (error) => {
+		    try {
+		        await self?.__bridge?.callBridge('onError', { error });
+		    }
+		    catch (e) {
+		        // eslint-disable-next-line no-console
+		        console.log('error calling bridge onError', e);
+		    }
+		};
+		const callBridge = function (cmd, data) {
+		    // @ts-ignore
+		    // eslint-disable-next-line @typescript-eslint/no-floating-promises
+		    self?.__bridge?.callBridge(cmd, data);
+		};
+		exports.callBridge = callBridge;
+		const createElement = ({ type, props = {}, forgeReactMajorVersion }) => {
+		    const newProps = normaliseProps(props);
+		    const element = {
+		        type,
+		        children: [],
+		        props: newProps,
+		        key: (0, uuid_1.v4)()
+		    };
+		    if (forgeReactMajorVersion) {
+		        element.forgeReactMajorVersion = forgeReactMajorVersion;
+		    }
+		    return element;
+		};
+		exports.createElement = createElement;
+		const appendChild = (parent, child) => {
+		    if (parent.children.includes(child)) {
+		        const removeIndex = parent.children.indexOf(child);
+		        parent.children.splice(removeIndex, 1);
+		    }
+		    parent.children.push(child);
+		};
+		exports.appendChild = appendChild;
+		const insertBefore = (parent, child, beforeChild) => {
+		    const insertIndex = parent.children.indexOf(beforeChild);
+		    if (parent.children.includes(child)) {
+		        const removeIndex = parent.children.indexOf(child);
+		        parent.children.splice(removeIndex, 1);
+		    }
+		    parent.children.splice(insertIndex, 0, child);
+		};
+		exports.insertBefore = insertBefore;
+		/**
+		 * Performs a shallow comparison of the old and new props for a component, but doesn't
+		 * compare the "children" prop. This works because the custom reconciler extracts the
+		 * "children" prop from the ForgeDoc and includes it separately.
+		 *
+		 * This function is used in prepareUpdate to determine whether or not to increment the
+		 * reconciliationCount for the component - the reconciliationCount should only be incremented
+		 * if the props have changed.
+		 *
+		 * @param newProps The new props being passed to the component
+		 * @param oldProps The old props the component previously had
+		 * @returns True if the props are equal and false otherwise
+		 */
+		const nonChildPropsAreEqual = (oldProps, newProps) => {
+		    const newPropsKey = Object.keys(newProps).filter((key) => key !== 'children');
+		    const oldPropsKey = Object.keys(oldProps).filter((key) => key !== 'children');
+		    if (newPropsKey.length !== oldPropsKey.length) {
+		        return false;
+		    }
+		    for (const key of newPropsKey) {
+		        if (newProps[key] !== oldProps[key]) {
+		            return false;
+		        }
+		    }
+		    return true;
+		};
+		exports.nonChildPropsAreEqual = nonChildPropsAreEqual;
+		exports.hostConfig = {
+		    supportsMutation: true,
+		    supportsPersistence: false,
+		    noTimeout: -1,
+		    isPrimaryRenderer: false,
+		    supportsHydration: false,
+		    resetAfterCommit(containerInfo) {
+		        (0, exports.callBridge)('reconcile', { forgeDoc: containerInfo });
+		    },
+		    createInstance(type, instanceProps) {
+		        const element = (0, exports.createElement)({ type, props: instanceProps });
+		        return element;
+		    },
+		    createTextInstance(text) {
+		        const element = (0, exports.createElement)({ type: 'String', props: { text } });
+		        return element;
+		    },
+		    appendInitialChild(parentInstance, child) {
+		        (0, exports.appendChild)(parentInstance, child);
+		    },
+		    appendChild(parent, child) {
+		        (0, exports.appendChild)(parent, child);
+		    },
+		    appendChildToContainer(container, child) {
+		        (0, exports.appendChild)(container, child);
+		    },
+		    finalizeInitialChildren() {
+		        return false;
+		    },
+		    prepareUpdate(instance, type, oldProps, newProps) {
+		        const normalisedProps = normaliseProps(newProps);
+		        instance.props = normalisedProps;
+		        return normalisedProps;
+		    },
+		    shouldSetTextContent() {
+		        return false;
+		    },
+		    getRootHostContext() {
+		        return {};
+		    },
+		    getChildHostContext() {
+		        return null;
+		    },
+		    getPublicInstance(instance) {
+		        return instance;
+		    },
+		    prepareForCommit() {
+		        return null;
+		    },
+		    // eslint-disable-next-line @typescript-eslint/no-empty-function
+		    preparePortalMount() { },
+		    scheduleTimeout(fn, delay) {
+		        return setTimeout(fn, delay);
+		    },
+		    cancelTimeout(id) {
+		        clearTimeout(id);
+		    },
+		    insertBefore(parentInstance, child, beforeChild) {
+		        (0, exports.insertBefore)(parentInstance, child, beforeChild);
+		    },
+		    insertInContainerBefore(container, child, beforeChild) {
+		        (0, exports.insertBefore)(container, child, beforeChild);
+		    },
+		    removeChild(parent, child) {
+		        const removeIndex = parent.children.indexOf(child);
+		        parent.children.splice(removeIndex, 1);
+		    },
+		    removeChildFromContainer(container, child) {
+		        const removeIndex = container.children.indexOf(child);
+		        container.children.splice(removeIndex, 1);
+		    },
+		    // eslint-disable-next-line @typescript-eslint/no-empty-function
+		    resetTextContent() { },
+		    commitTextUpdate(textInstance, oldText, newText) {
+		        textInstance.props.text = newText;
+		    },
+		    // eslint-disable-next-line @typescript-eslint/no-empty-function
+		    commitMount() { },
+		    // eslint-disable-next-line @typescript-eslint/no-empty-function
+		    commitUpdate() { },
+		    // eslint-disable-next-line @typescript-eslint/no-empty-function
+		    hideInstance() { },
+		    // eslint-disable-next-line @typescript-eslint/no-empty-function
+		    hideTextInstance() { },
+		    // eslint-disable-next-line @typescript-eslint/no-empty-function
+		    unhideInstance() { },
+		    // eslint-disable-next-line @typescript-eslint/no-empty-function
+		    unhideTextInstance() { },
+		    // eslint-disable-next-line @typescript-eslint/no-empty-function
+		    clearContainer() { },
+		    // eslint-disable-next-line @typescript-eslint/no-empty-function
+		    detachDeletedInstance() { },
+		    getCurrentEventPriority() {
+		        return constants_1.DefaultEventPriority;
+		    },
+		    getInstanceFromNode() {
+		        return null;
+		    },
+		    // eslint-disable-next-line @typescript-eslint/no-empty-function
+		    beforeActiveInstanceBlur() { },
+		    // eslint-disable-next-line @typescript-eslint/no-empty-function
+		    afterActiveInstanceBlur() { },
+		    // eslint-disable-next-line @typescript-eslint/no-empty-function
+		    prepareScopeUpdate() { },
+		    getInstanceFromScope() {
+		        return null;
+		    }
+		};
+		const reconciler = (0, react_reconciler_1.default)(exports.hostConfig);
+		exports.ForgeReconciler = {
+		    render: (element) => {
+		        const rootElement = (0, exports.createElement)({ type: 'Root', props: {}, forgeReactMajorVersion: 11 });
+		        const container = reconciler.createContainer(rootElement, 0, null, false, null, 'root', (err) => {
+		            // eslint-disable-next-line no-console
+		            console.log(err);
+		        }, null);
+		        try {
+		            reconciler.updateContainer(element, container, null, null);
+		        }
+		        catch (e) {
+		            // only report errors that are not recoverable
+		            void handleReconcilerError(e);
+		            throw e;
+		        }
+		    },
+		    addConfig: (element) => {
+		        const macroConfigElement = (0, exports.createElement)({ type: 'MacroConfig', props: {}, forgeReactMajorVersion: 11 });
+		        const container = reconciler.createContainer(macroConfigElement, 0, null, false, null, 'macroConfig', (err) => {
+		            // eslint-disable-next-line no-console
+		            console.log(err);
+		        }, null);
+		        reconciler.updateContainer(element, container, null, null);
+		    }
+		};
+		exports.default = exports.ForgeReconciler; 
+	} (reconciler));
+	return reconciler;
+}
+
+var components = {};
+
+var dynamicTable = {};
+
+var jsxRuntime = {exports: {}};
+
+var reactJsxRuntime_production_min = {};
+
+/**
+ * @license React
+ * react-jsx-runtime.production.min.js
+ *
+ * Copyright (c) Facebook, Inc. and its affiliates.
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+var hasRequiredReactJsxRuntime_production_min;
+
+function requireReactJsxRuntime_production_min () {
+	if (hasRequiredReactJsxRuntime_production_min) return reactJsxRuntime_production_min;
+	hasRequiredReactJsxRuntime_production_min = 1;
+var f=requireReact(),k=Symbol.for("react.element"),l=Symbol.for("react.fragment"),m=Object.prototype.hasOwnProperty,n=f.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED.ReactCurrentOwner,p={key:true,ref:true,__self:true,__source:true};
+	function q(c,a,g){var b,d={},e=null,h=null;void 0!==g&&(e=""+g);void 0!==a.key&&(e=""+a.key);void 0!==a.ref&&(h=a.ref);for(b in a)m.call(a,b)&&!p.hasOwnProperty(b)&&(d[b]=a[b]);if(c&&c.defaultProps)for(b in a=c.defaultProps,a) void 0===d[b]&&(d[b]=a[b]);return {$$typeof:k,type:c,key:e,ref:h,props:d,_owner:n.current}}reactJsxRuntime_production_min.Fragment=l;reactJsxRuntime_production_min.jsx=q;reactJsxRuntime_production_min.jsxs=q;
+	return reactJsxRuntime_production_min;
+}
+
+var hasRequiredJsxRuntime;
+
+function requireJsxRuntime () {
+	if (hasRequiredJsxRuntime) return jsxRuntime.exports;
+	hasRequiredJsxRuntime = 1;
+
+	{
+	  jsxRuntime.exports = requireReactJsxRuntime_production_min();
+	}
+	return jsxRuntime.exports;
+}
+
+var contentWrapper = {};
+
+var hasRequiredContentWrapper;
+
+function requireContentWrapper () {
+	if (hasRequiredContentWrapper) return contentWrapper;
+	hasRequiredContentWrapper = 1;
+	Object.defineProperty(contentWrapper, "__esModule", { value: true });
+	contentWrapper.ContentWrapper = void 0;
+	// ContentWrapper is an internal component that allows us to workaround the limitation of the Forge architecture
+	// Functions in Forge apps are invoked from within the runtime and it's definition cannot be passed across the bridge.
+	// For ADS components that accept a call back function that returns a ReactNode as a prop, these must be evaluated within the runtime to return a ForgeDoc before being passed to the Renderer. Otherwise the Renderer would not be able to render the component at all.
+	// The ContentWrapper component should be used to wrap around any callback function that returns a ReactNode so that it will evaluate the callback within the runtime and pass back the evaluated ForgeDoc
+	contentWrapper.ContentWrapper = 'ContentWrapper';
+	return contentWrapper;
+}
+
+var hasRequiredDynamicTable;
+
+function requireDynamicTable () {
+	if (hasRequiredDynamicTable) return dynamicTable;
+	hasRequiredDynamicTable = 1;
+	Object.defineProperty(dynamicTable, "__esModule", { value: true });
+	dynamicTable.DynamicTable = void 0;
+	const jsx_runtime_1 = requireJsxRuntime();
+	const react_1 = requireReact();
+	const content_wrapper_1 = requireContentWrapper();
+	/**
+	 * These are internal components that the table head and rows are converted into.
+	 * This is to ensure that they are correctly reconciled into ForgeDoc before being sent over
+	 * the bridge. On the product frontend, the ForgeDoc is transformed back into the props the
+	 * ADS DynamicTable expects.
+	 * */
+	const DynamicTablePrimitive = 'DynamicTable';
+	const Cell = 'Cell';
+	const Row = 'Row';
+	/**
+	 * A dynamic table displays rows of data with built-in pagination, sorting, and re-ordering functionality.
+	 *
+	 * @see [DynamicTable](https://developer.atlassian.com/platform/forge/ui-kit/components/dynamic-table/) in UI Kit documentation for more information
+	 */
+	const DynamicTable = ({ head, rows, ...tableProps }) => {
+	    const transformedHead = head?.cells.map((cell) => {
+	        const { content, key: cellKey, ...cellProps } = cell;
+	        const reconciledContent = 
+	        // @ts-ignore Not all constituents of type JSXElementConstructor are callable.
+	        (0, react_1.isValidElement)(content) && typeof content.type === 'function' ? content.type(content.props) : content;
+	        return (
+	        // The 'key' prop needs to be renamed as it is a reserved keyword in React, and won't
+	        // get included in the props object otherwise.
+	        (0, jsx_runtime_1.jsx)(Cell, { cellKey: cellKey, ...cellProps, children: reconciledContent }, cellKey));
+	    });
+	    const transformedRows = rows?.map((row) => {
+	        const { cells, key: rowKey, ...rowProps } = row;
+	        const transformedCells = cells.map((cell) => {
+	            const { content, key: cellKey, ...cellProps } = cell;
+	            const reconciledContent = 
+	            // @ts-ignore Not all constituents of type JSXElementConstructor are callable.
+	            (0, react_1.isValidElement)(content) && typeof content.type === 'function' ? content.type(content.props) : content;
+	            return ((0, jsx_runtime_1.jsx)(Cell, { cellKey: cellKey, ...cellProps, children: reconciledContent }, cellKey));
+	        });
+	        return ((0, jsx_runtime_1.jsx)(Row, { rowKey: rowKey, ...rowProps, children: transformedCells }, rowKey));
+	    });
+	    return ((0, jsx_runtime_1.jsxs)(DynamicTablePrimitive, { ...tableProps, children: [(0, jsx_runtime_1.jsx)(content_wrapper_1.ContentWrapper, { name: "head", children: transformedHead }), (0, jsx_runtime_1.jsx)(content_wrapper_1.ContentWrapper, { name: "rows", children: transformedRows })] }));
+	};
+	dynamicTable.DynamicTable = DynamicTable;
+	return dynamicTable;
+}
+
+var inlineEdit = {};
+
+var hasRequiredInlineEdit;
+
+function requireInlineEdit () {
+	if (hasRequiredInlineEdit) return inlineEdit;
+	hasRequiredInlineEdit = 1;
+	Object.defineProperty(inlineEdit, "__esModule", { value: true });
+	inlineEdit.InlineEdit = void 0;
+	const jsx_runtime_1 = requireJsxRuntime();
+	const react_1 = requireReact();
+	const content_wrapper_1 = requireContentWrapper();
+	/**
+	 * The following workaround is required because functions cannot be passed outside of the runtime.
+	 * The Renderer will invoke the function from within the runtime
+	 * Instead of passing the function, we are reimplementing validation and confirmation here to provide the same behaviour as the ADS version.
+	 *
+	 * The reimplemented functions include:
+	 * - validate
+	 * - onConfirm
+	 * - onCancel
+	 * - onEdit
+	 *
+	 * readView and editView also need to be evaluated here so that into a primitive type(JS object) to be rendered by the Renderer. Otherwise the Renderer will not be able to evaluate them on the product side.
+	 *
+	 */
+	const InlineEditPrimitive = 'InlineEdit';
+	/**
+	 * An inline edit displays a custom input component that switches between reading and editing on the same page.
+	 *
+	 * @see [InlineEdit](https://developer.atlassian.com/platform/forge/ui-kit/components/inline-edit/) in UI Kit documentation for more information
+	 */
+	const InlineEdit = ({ label, readView, editView, validate, startWithEditViewOpen, keepEditViewOpenOnBlur, hideActionButtons, isRequired, readViewFitContainerWidth, editButtonLabel, confirmButtonLabel, cancelButtonLabel, defaultValue, isEditing, onConfirm, onCancel, onEdit }) => {
+	    const [prevValue, setPrevValue] = (0, react_1.useState)();
+	    const [value, setValue] = (0, react_1.useState)(defaultValue);
+	    const [_isEditing, _setIsEditing] = (0, react_1.useState)(startWithEditViewOpen ? startWithEditViewOpen : false);
+	    const [errorMessage, setErrorMessage] = (0, react_1.useState)(undefined);
+	    const internalValidate = (newValue, setEdit, onConfirm) => {
+	        if (validate !== undefined) {
+	            const errorMessageFromValidation = validate(newValue, {}, {});
+	            const handleValidationResult = (error) => {
+	                setErrorMessage(error || undefined);
+	                // If no error and onConfirm is being called
+	                if (error === undefined && onConfirm) {
+	                    onConfirm(newValue);
+	                }
+	                if (setEdit) {
+	                    setEdit(error !== undefined);
+	                }
+	            };
+	            if (errorMessageFromValidation instanceof Promise) {
+	                void errorMessageFromValidation.then(handleValidationResult);
+	            }
+	            else {
+	                handleValidationResult(errorMessageFromValidation);
+	            }
+	        }
+	        else {
+	            if (setEdit) {
+	                setEdit(false);
+	            }
+	            if (onConfirm) {
+	                onConfirm(newValue);
+	            }
+	        }
+	    };
+	    const internalOnConfirm = () => {
+	        if (value === prevValue) {
+	            _setIsEditing(false);
+	            return;
+	        }
+	        internalValidate(value, _setIsEditing, onConfirm);
+	    };
+	    const internalOnChange = (e) => {
+	        const newValue = e.target ? e.target.value : e;
+	        setValue(newValue);
+	        internalValidate(newValue);
+	    };
+	    const internalOnEdit = () => {
+	        // Reset error state on first open
+	        setErrorMessage(undefined);
+	        _setIsEditing(true);
+	        setPrevValue(value);
+	        onEdit?.();
+	    };
+	    const internalOnCancel = () => {
+	        _setIsEditing(false);
+	        setValue(prevValue);
+	        onCancel?.();
+	    };
+	    return ((0, jsx_runtime_1.jsx)(jsx_runtime_1.Fragment, { children: (0, jsx_runtime_1.jsxs)(InlineEditPrimitive, { label: label, onConfirm: () => internalOnConfirm(), onEdit: () => internalOnEdit(), onCancel: () => internalOnCancel(), isEditing: isEditing !== undefined ? isEditing : _isEditing, startWithEditViewOpen: startWithEditViewOpen, keepEditViewOpenOnBlur: keepEditViewOpenOnBlur, hideActionButtons: hideActionButtons, isRequired: isRequired, readViewFitContainerWidth: readViewFitContainerWidth, editButtonLabel: editButtonLabel, confirmButtonLabel: confirmButtonLabel, cancelButtonLabel: cancelButtonLabel, children: [(0, jsx_runtime_1.jsx)(content_wrapper_1.ContentWrapper, { name: "editView", children: editView({
+	                        onChange: internalOnChange,
+	                        value,
+	                        errorMessage,
+	                        isInvalid: errorMessage !== undefined,
+	                        'aria-invalid': errorMessage !== undefined ? 'true' : 'false',
+	                        isRequired: isRequired || false
+	                    }) }), (0, jsx_runtime_1.jsx)(content_wrapper_1.ContentWrapper, { name: "readView", children: readView() })] }) }));
+	};
+	inlineEdit.InlineEdit = InlineEdit;
+	return inlineEdit;
+}
+
+var popup = {};
+
+var hasRequiredPopup;
+
+function requirePopup () {
+	if (hasRequiredPopup) return popup;
+	hasRequiredPopup = 1;
+	Object.defineProperty(popup, "__esModule", { value: true });
+	popup.Popup = void 0;
+	const jsx_runtime_1 = requireJsxRuntime();
+	const content_wrapper_1 = requireContentWrapper();
+	const PopupPrimitive = 'Popup';
+	/**
+	 * A popup displays brief content in an overlay.
+	 *
+	 * @see [Popup](https://developer.atlassian.com/platform/forge/ui-kit/components/popup/) in UI Kit documentation for more information
+	 */
+	const Popup = ({ content, trigger, isOpen, id, testId, onClose, boundary, rootBoundary, shouldFlip, placement, fallbackPlacements, autoFocus, shouldUseCaptureOnOutsideClick, shouldFitContainer, shouldDisableFocusLock, strategy, role, label, titleId, shouldRenderToParent }) => {
+	    return ((0, jsx_runtime_1.jsxs)(PopupPrimitive, { isOpen: isOpen, id: id, testId: testId, onClose: onClose, boundary: boundary, rootBoundary: rootBoundary, shouldFlip: shouldFlip, placement: placement, fallbackPlacements: fallbackPlacements, autoFocus: autoFocus, shouldUseCaptureOnOutsideClick: shouldUseCaptureOnOutsideClick, shouldFitContainer: shouldFitContainer, shouldDisableFocusLock: shouldDisableFocusLock, shouldRenderToParent: shouldRenderToParent, strategy: strategy, role: role, label: label, titleId: titleId, children: [(0, jsx_runtime_1.jsx)(content_wrapper_1.ContentWrapper, { name: "content", children: content() }), (0, jsx_runtime_1.jsx)(content_wrapper_1.ContentWrapper, { name: "trigger", children: trigger() })] }));
+	};
+	popup.Popup = Popup;
+	return popup;
+}
+
+var comment = {};
+
+var hasRequiredComment;
+
+function requireComment () {
+	if (hasRequiredComment) return comment;
+	hasRequiredComment = 1;
+	Object.defineProperty(comment, "__esModule", { value: true });
+	comment.Comment = void 0;
+	const jsx_runtime_1 = requireJsxRuntime();
+	const content_wrapper_1 = requireContentWrapper();
+	const CommentPrimitive = 'Comment';
+	/**
+	 * A comment displays discussions and user feedback.
+	 *
+	 * @see [Comment](https://developer.atlassian.com/platform/forge/ui-kit/components/comment/) in UI Kit documentation for more information
+	 */
+	const Comment = ({ avatar, content, ...rest }) => {
+	    return ((0, jsx_runtime_1.jsxs)(CommentPrimitive, { ...rest, children: [(0, jsx_runtime_1.jsx)(content_wrapper_1.ContentWrapper, { name: "avatar", children: avatar }), (0, jsx_runtime_1.jsx)(content_wrapper_1.ContentWrapper, { name: "content", children: content })] }));
+	};
+	comment.Comment = Comment;
+	return comment;
+}
+
+var adfRenderer = {};
+
+var replaceUnsupportedDocumentNodes = {};
+
+function _typeof(o) {
+  "@babel/helpers - typeof";
+
+  return _typeof = "function" == typeof Symbol && "symbol" == typeof Symbol.iterator ? function (o) {
+    return typeof o;
+  } : function (o) {
+    return o && "function" == typeof Symbol && o.constructor === Symbol && o !== Symbol.prototype ? "symbol" : typeof o;
+  }, _typeof(o);
+}
+
+function toPrimitive(t, e) {
+  if ("object" != _typeof(t) || !t) return t;
+  var r;
+  if ("undefined" != typeof Symbol && void 0 !== (r = t[Symbol.toPrimitive])) {
+    var i = r.call(t, e);
+    if ("object" != _typeof(i)) return i;
+    throw new TypeError("@@toPrimitive must return a primitive value.");
+  }
+  return ("string" === e ? String : Number)(t);
+}
+
+function toPropertyKey(t) {
+  var i = toPrimitive(t, "string");
+  return "symbol" == _typeof(i) ? i : i + "";
+}
+
+function _defineProperty(e, r, t) {
+  return (r = toPropertyKey(r)) in e ? Object.defineProperty(e, r, {
+    value: t,
+    enumerable: true,
+    configurable: true,
+    writable: true
+  }) : e[r] = t, e;
+}
+
+function ownKeys(e, r) { var t = Object.keys(e); if (Object.getOwnPropertySymbols) { var o = Object.getOwnPropertySymbols(e); r && (o = o.filter(function (r) { return Object.getOwnPropertyDescriptor(e, r).enumerable; })), t.push.apply(t, o); } return t; }
+function _objectSpread(e) { for (var r = 1; r < arguments.length; r++) { var t = null != arguments[r] ? arguments[r] : {}; r % 2 ? ownKeys(Object(t), true).forEach(function (r) { _defineProperty(e, r, t[r]); }) : Object.getOwnPropertyDescriptors ? Object.defineProperties(e, Object.getOwnPropertyDescriptors(t)) : ownKeys(Object(t)).forEach(function (r) { Object.defineProperty(e, r, Object.getOwnPropertyDescriptor(t, r)); }); } return e; }
+
+/**
+ * Provides recursive, depth-first search document traversal. Use visitors collection to define nodes of interest.
+ * If no visitor for given node is defined, no-op happens.
+ * If visitor returns new node, the old node is replaced.
+ * If visitor returns false, node is dropped from the document.
+ * If visitor returns null/undefined/void, original node is used.
+ * @param adf Document to traverse.
+ * @param visitors Collection of visitors.
+ */
+function traverse$1(adf, visitors) {
+  return traverseNode(adf, {
+    node: undefined
+  }, visitors, 0, 0);
+}
+function traverseNode(adfNode, parent, visitors, index, depth) {
+  var visitor = visitors[adfNode.type] || visitors['any'];
+  var newNode = _objectSpread({}, adfNode);
+  if (visitor) {
+    var processedNode = visitor(_objectSpread({}, newNode), parent, index, depth);
+    if (processedNode === false) {
+      return false;
+    }
+    newNode = processedNode || adfNode;
+  }
+  if (newNode.content) {
+    newNode.content = newNode.content.reduce(function (acc, node, idx) {
+      if (!node) {
+        return acc;
+      }
+      var processedNode = traverseNode(node, {
+        node: newNode,
+        parent: parent
+      }, visitors, idx, depth + 1);
+      if (processedNode !== false) {
+        acc.push(processedNode);
+      }
+      return acc;
+    }, []);
+  }
+  return newNode;
+}
+
+// Ignored via go/ees005
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function map(adf, callback) {
+  var result = [];
+  traverse$1(adf, {
+    any: function any(node) {
+      result.push(callback(node));
+    }
+  });
+  return result;
+}
+
+// Ignored via go/ees005
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function reduce(adf, callback, initial) {
+  var result = initial;
+  traverse$1(adf, {
+    any: function any(node) {
+      result = callback(result, node);
+    }
+  });
+  return result;
+}
+
+function filter(adf, callback) {
+  var result = [];
+  traverse$1(adf, {
+    any: function any(node) {
+      if (callback(node)) {
+        result.push(node);
+      }
+    }
+  });
+  return result;
+}
+
+// Disable no-re-export rule for entry point files
+/* eslint-disable @atlaskit/editor/no-re-export */
+
+var traverse = /*#__PURE__*/Object.freeze({
+	__proto__: null,
+	filter: filter,
+	map: map,
+	reduce: reduce,
+	traverse: traverse$1
+});
+
+var require$$1 = /*@__PURE__*/getAugmentedNamespace(traverse);
+
+var hasRequiredReplaceUnsupportedDocumentNodes;
+
+function requireReplaceUnsupportedDocumentNodes () {
+	if (hasRequiredReplaceUnsupportedDocumentNodes) return replaceUnsupportedDocumentNodes;
+	hasRequiredReplaceUnsupportedDocumentNodes = 1;
+	Object.defineProperty(replaceUnsupportedDocumentNodes, "__esModule", { value: true });
+	replaceUnsupportedDocumentNodes.replaceUnsupportedMediaNodes = replaceUnsupportedDocumentNodes.replaceUnsupportedDocumentNodes = void 0;
+	const uuid_1 = /*@__PURE__*/ requireCjsBrowser();
+	const traverse_1 = require$$1;
+	const replaceUnsupportedDocumentNodes$1 = (document, replaceUnsupportedNode) => {
+	    const visitors = {
+	        // Partially supported nodes
+	        emoji: (node, parent, index, depth) => {
+	            if (node?.attrs?.id) {
+	                // Custom Atlassian generated emoji
+	                if (node.attrs.id.includes('atlassian')) {
+	                    return replaceUnsupportedNode(node, parent, index, depth);
+	                }
+	                // Custom user generated emoji
+	                const isIdGuid = (0, uuid_1.validate)(node.attrs.id);
+	                if (isIdGuid) {
+	                    return replaceUnsupportedNode(node, parent, index, depth);
+	                }
+	            }
+	        },
+	        // Fully unsupported nodes
+	        extension: replaceUnsupportedNode,
+	        bodiedExtension: replaceUnsupportedNode,
+	        inlineExtension: replaceUnsupportedNode,
+	        // Nodes shown when a bad node is passed
+	        confluenceUnsupportedBlock: replaceUnsupportedNode,
+	        confluenceUnsupportedInline: replaceUnsupportedNode,
+	        confluenceJiraIssue: replaceUnsupportedNode,
+	        unsupportedBlock: replaceUnsupportedNode,
+	        unsupportedInline: replaceUnsupportedNode,
+	        unknownBlock: replaceUnsupportedNode
+	    };
+	    return replaceDocumentWithVisitor(document, visitors);
+	};
+	replaceUnsupportedDocumentNodes.replaceUnsupportedDocumentNodes = replaceUnsupportedDocumentNodes$1;
+	const replaceUnsupportedMediaNodes = (document, replaceUnsupportedNode) => {
+	    const mediaVisitor = (node, parent, index, depth) => {
+	        if (!node?.attrs?.url) {
+	            return replaceUnsupportedNode(node, parent, index, depth);
+	        }
+	    };
+	    const visitors = {
+	        media: mediaVisitor,
+	        mediaInline: mediaVisitor
+	    };
+	    return replaceDocumentWithVisitor(document, visitors);
+	};
+	replaceUnsupportedDocumentNodes.replaceUnsupportedMediaNodes = replaceUnsupportedMediaNodes;
+	const replaceDocumentWithVisitor = (document, visitors) => {
+	    const updatedDoc = (0, traverse_1.traverse)(document, visitors);
+	    return updatedDoc ? { ...updatedDoc, version: document.version } : document;
+	};
+	return replaceUnsupportedDocumentNodes;
+}
+
+var hasRequiredAdfRenderer;
+
+function requireAdfRenderer () {
+	if (hasRequiredAdfRenderer) return adfRenderer;
+	hasRequiredAdfRenderer = 1;
+	Object.defineProperty(adfRenderer, "__esModule", { value: true });
+	adfRenderer.AdfRenderer = void 0;
+	const jsx_runtime_1 = requireJsxRuntime();
+	const replaceUnsupportedDocumentNodes_1 = requireReplaceUnsupportedDocumentNodes();
+	const PlatformAdfRenderer = 'AdfRenderer';
+	/**
+	 * The AdfRenderer component provides a way to render a valid ADF document, using the same renderer that Atlassian uses internally to render ADF content in Confluence pages, Jira work items, and so on.
+	 * It allows you to replace node types that are unsupported in the context of a Forge app with replacement content, or remove them entirely.
+	 * See [Atlassian Document Format](https://developer.atlassian.com/cloud/jira/platform/apis/document/structure/) for information on valid nodes.
+	 *
+	 * This component uses [@atlaskit/renderer](https://www.npmjs.com/package/@atlaskit/renderer) under the hood.
+	 *
+	 * Visit [Renderer editor](https://atlaskit.atlassian.com/examples/editor/renderer/basic) for a comprehensive list of different ADF document examples
+	 *
+	 * @see [AdfRenderer](https://developer.atlassian.com/platform/forge/ui-kit/components/adfRenderer/) in UI Kit documentation for more information
+	 */
+	const AdfRenderer = (props) => {
+	    const { replaceUnsupportedNode, document, ...adfRendererProps } = props;
+	    const documentWithMedia = replaceUnsupportedNode
+	        ? (0, replaceUnsupportedDocumentNodes_1.replaceUnsupportedDocumentNodes)(document, replaceUnsupportedNode)
+	        : document;
+	    const documentWithoutMedia = replaceUnsupportedNode
+	        ? (0, replaceUnsupportedDocumentNodes_1.replaceUnsupportedMediaNodes)(documentWithMedia, replaceUnsupportedNode)
+	        : documentWithMedia;
+	    return ((0, jsx_runtime_1.jsx)(PlatformAdfRenderer, { ...adfRendererProps, document: documentWithMedia, documentWithoutMedia: documentWithoutMedia }));
+	};
+	adfRenderer.AdfRenderer = AdfRenderer;
+	return adfRenderer;
+}
+
+var uiKitComponents = {};
+
+var hasRequiredUiKitComponents;
+
+function requireUiKitComponents () {
+	if (hasRequiredUiKitComponents) return uiKitComponents;
+	hasRequiredUiKitComponents = 1;
+	// This file is partially generated by the `yarn run add-component-jsdoc` command (also the prebuild script in the package.json).
+	// The manual step involved is to:
+	//   1. import the new component type from the forge-react-types package, e.g. `TBadge`
+	//   2. add the export statement for the new component, e.g. `export const Badge = 'Badge' as unknown as TBadge<ForgeElement>;`
+	//   3. either run the `yarn run add-component-jsdoc` command or manually add the JSDoc comment for the new component
+	//      or the build process will automatically add the JSDoc comment during `bolt build`
+	// For more information, please see: https://hello.atlassian.net/wiki/x/SI2n0w?atlOrigin=eyJpIjoiYjJhOTliZmZmYWE1NDE5ZjgzOWU1Y2ViZWI3Yjk3NTMiLCJwIjoiYyJ9
+	Object.defineProperty(uiKitComponents, "__esModule", { value: true });
+	uiKitComponents.Stack = uiKitComponents.Spinner = uiKitComponents.SectionMessageAction = uiKitComponents.SectionMessage = uiKitComponents.Select = uiKitComponents.Range = uiKitComponents.RadioGroup = uiKitComponents.Radio = uiKitComponents.ProgressTracker = uiKitComponents.ProgressBar = uiKitComponents.PieChart = uiKitComponents.ModalTransition = uiKitComponents.ModalTitle = uiKitComponents.ModalHeader = uiKitComponents.ModalFooter = uiKitComponents.ModalBody = uiKitComponents.Modal = uiKitComponents.Lozenge = uiKitComponents.LoadingButton = uiKitComponents.ListItem = uiKitComponents.List = uiKitComponents.LinkButton = uiKitComponents.LineChart = uiKitComponents.Label = uiKitComponents.Inline = uiKitComponents.Image = uiKitComponents.Icon = uiKitComponents.HorizontalStackBarChart = uiKitComponents.HorizontalBarChart = uiKitComponents.HelperMessage = uiKitComponents.Heading = uiKitComponents.FormSection = uiKitComponents.FormHeader = uiKitComponents.FormFooter = uiKitComponents.Form = uiKitComponents.FilePicker = uiKitComponents.FileCard = uiKitComponents.ErrorMessage = uiKitComponents.EmptyState = uiKitComponents.DonutChart = uiKitComponents.DatePicker = uiKitComponents.CodeBlock = uiKitComponents.Code = uiKitComponents.Checkbox = uiKitComponents.Calendar = uiKitComponents.ButtonGroup = uiKitComponents.Button = uiKitComponents.Box = uiKitComponents.BarChart = uiKitComponents.Badge = void 0;
+	uiKitComponents.Pagination = uiKitComponents.BreadcrumbsItem = uiKitComponents.Breadcrumbs = uiKitComponents.Bleed = uiKitComponents.UserGroup = uiKitComponents.Frame = uiKitComponents.UserPicker = uiKitComponents.Link = uiKitComponents.AtlassianIcon = uiKitComponents.AtlassianTile = uiKitComponents.User = uiKitComponents.Tile = uiKitComponents.ChromelessEditor = uiKitComponents.CommentEditor = uiKitComponents.Pressable = uiKitComponents.RequiredAsterisk = uiKitComponents.ValidMessage = uiKitComponents.Text = uiKitComponents.Tooltip = uiKitComponents.Toggle = uiKitComponents.TimePicker = uiKitComponents.Textfield = uiKitComponents.TextArea = uiKitComponents.TagGroup = uiKitComponents.Tag = uiKitComponents.Tabs = uiKitComponents.TabPanel = uiKitComponents.TabList = uiKitComponents.Tab = uiKitComponents.StackBarChart = void 0;
+	/**
+	 * A badge is a visual indicator for numeric values such as tallies and scores.
+	 *
+	 * @see [Badge](https://developer.atlassian.com/platform/forge/ui-kit/components/badge/) in UI Kit documentation for more information
+	 */
+	uiKitComponents.Badge = 'Badge';
+	/**
+	 * A visual representation of data using rectangular bars of varying heights to compare different categories or values.
+	 *
+	 * @see [BarChart](https://developer.atlassian.com/platform/forge/ui-kit/components/bar-chart/) in UI Kit documentation for more information
+	 */
+	uiKitComponents.BarChart = 'BarChart';
+	/**
+	 * A box is a generic container that provides managed access to design tokens.
+	 *
+	 * @see [Box](https://developer.atlassian.com/platform/forge/ui-kit/components/box/) in UI Kit documentation for more information
+	 */
+	uiKitComponents.Box = 'Box';
+	/**
+	 * A button triggers an event or action. They let users know what will happen next.
+	 *
+	 * @see [Button](https://developer.atlassian.com/platform/forge/ui-kit/components/button/) in UI Kit documentation for more information
+	 */
+	uiKitComponents.Button = 'Button';
+	/**
+	 * A button group gives users access to frequently performed, related actions.
+	 *
+	 * @see [ButtonGroup](https://developer.atlassian.com/platform/forge/ui-kit/components/button-group/) in UI Kit documentation for more information
+	 */
+	uiKitComponents.ButtonGroup = 'ButtonGroup';
+	/**
+	 * An interactive calendar for date selection experiences.
+	 *
+	 * @see [Calendar](https://developer.atlassian.com/platform/forge/ui-kit/components/calendar/) in UI Kit documentation for more information
+	 */
+	uiKitComponents.Calendar = 'Calendar';
+	/**
+	 * A checkbox is an input control that allows a user to select one or more options from a number of choices.
+	 *
+	 * @see [Checkbox](https://developer.atlassian.com/platform/forge/ui-kit/components/checkbox/) in UI Kit documentation for more information
+	 */
+	uiKitComponents.Checkbox = 'Checkbox';
+	/**
+	 * Code highlights short strings of code snippets inline with body text.
+	 *
+	 * @see [Code](https://developer.atlassian.com/platform/forge/ui-kit/components/code/) in UI Kit documentation for more information
+	 */
+	uiKitComponents.Code = 'Code';
+	/**
+	 * Code highlights short strings of code snippets inline with body text.
+	 *
+	 * @see [CodeBlock](https://developer.atlassian.com/platform/forge/ui-kit/components/code-block/) in UI Kit documentation for more information
+	 */
+	uiKitComponents.CodeBlock = 'CodeBlock';
+	/**
+	 * A date picker allows the user to select a particular date.
+	 *
+	 * @see [DatePicker](https://developer.atlassian.com/platform/forge/ui-kit/components/date-picker/) in UI Kit documentation for more information
+	 */
+	uiKitComponents.DatePicker = 'DatePicker';
+	/**
+	 * A visual representation of data proportions in a donut format.
+	 *
+	 * @see [DonutChart](https://developer.atlassian.com/platform/forge/ui-kit/components/donut-chart/) in UI Kit documentation for more information
+	 */
+	uiKitComponents.DonutChart = 'DonutChart';
+	/**
+	 * An empty state appears when there is no data to display and describes what the user can do next.
+	 *
+	 * @see [EmptyState](https://developer.atlassian.com/platform/forge/ui-kit/components/empty-state/) in UI Kit documentation for more information
+	 */
+	uiKitComponents.EmptyState = 'EmptyState';
+	/**
+	 * An error message is used to tell a user that the field input is invalid.
+	 * For example, an error message could be "Invalid username, needs to be more than 4 characters".
+	 *
+	 * @see [ErrorMessage](https://developer.atlassian.com/platform/forge/ui-kit/components/form/#error-message) in UI Kit documentation for more information
+	 */
+	uiKitComponents.ErrorMessage = 'ErrorMessage';
+	/**
+	 * A file card component that displays file information with actions
+	 *
+	 * @see [FileCard](https://developer.atlassian.com/platform/forge/ui-kit/components/file-card/) in UI Kit documentation for more information
+	 */
+	uiKitComponents.FileCard = 'FileCard';
+	/**
+	 * A file picker component that allows users to select and upload files
+	 *
+	 * @see [FilePicker](https://developer.atlassian.com/platform/forge/ui-kit/components/file-picker/) in UI Kit documentation for more information
+	 */
+	uiKitComponents.FilePicker = 'FilePicker';
+	/**
+	 * A form allows users to input information.
+	 *
+	 * @see [Form](https://developer.atlassian.com/platform/forge/ui-kit/components/form/) in UI Kit documentation for more information
+	 */
+	uiKitComponents.Form = 'Form';
+	/**
+	 * Use a form footer to set the content at the end of the form. This is used for a button that submits the form.
+	 *
+	 * This is positioned after the last field in the form.
+	 *
+	 * @see [FormFooter](https://developer.atlassian.com/platform/forge/ui-kit/components/form/#form-footer) in UI Kit documentation for more information
+	 */
+	uiKitComponents.FormFooter = 'FormFooter';
+	/**
+	 * Use a form header to describe the contents of the form. This is the title and description of the form.
+	 * If your form contains required fields, the form header is also where you should include a legend
+	 * for sighted users to know that * indicates a required field.
+	 *
+	 * @see [FormHeader](https://developer.atlassian.com/platform/forge/ui-kit/components/form/#form-header) in UI Kit documentation for more information
+	 */
+	uiKitComponents.FormHeader = 'FormHeader';
+	/**
+	 * Use a form section to group related information together, so that longer forms are easier to understand.
+	 * There can be multiple form sections in one form.
+	 *
+	 * @see [FormSection](https://developer.atlassian.com/platform/forge/ui-kit/components/form/#form-section) in UI Kit documentation for more information
+	 */
+	uiKitComponents.FormSection = 'FormSection';
+	/**
+	 * A heading is a typography component used to display text in different sizes and formats.
+	 *
+	 * @see [Heading](https://developer.atlassian.com/platform/forge/ui-kit/components/heading/) in UI Kit documentation for more information
+	 */
+	uiKitComponents.Heading = 'Heading';
+	/**
+	 * A helper message tells the user what kind of input the field takes.
+	 * For example, a helper message could be "Password should be more than 4 characters".
+	 *
+	 * @see [HelperMessage](https://developer.atlassian.com/platform/forge/ui-kit/components/form/#helper-message) in UI Kit documentation for more information
+	 */
+	uiKitComponents.HelperMessage = 'HelperMessage';
+	/**
+	 * A visual representation of data using horizontal rectangular bars of varying lengths to compare different categories or values.
+	 *
+	 * @see [HorizontalBarChart](https://developer.atlassian.com/platform/forge/ui-kit/components/horizontal-bar-chart/) in UI Kit documentation for more information
+	 */
+	uiKitComponents.HorizontalBarChart = 'HorizontalBarChart';
+	/**
+	 * A visual representation of data using horizontal rectangular bars of varying lengths to demonstrate comparisons between categories of data.
+	 *
+	 * @see [HorizontalStackBarChart](https://developer.atlassian.com/platform/forge/ui-kit/components/horizontal-stack-bar-chart/) in UI Kit documentation for more information
+	 */
+	uiKitComponents.HorizontalStackBarChart = 'HorizontalStackBarChart';
+	/**
+	 * An icon is a visual representation of a command, device, directory, or common action.
+	 *
+	 * @see [Icon](https://developer.atlassian.com/platform/forge/ui-kit/components/icon/) in UI Kit documentation for more information
+	 */
+	uiKitComponents.Icon = 'Icon';
+	/**
+	 * An image component to display images.
+	 *
+	 * @see [Image](https://developer.atlassian.com/platform/forge/ui-kit/components/image/) in UI Kit documentation
+	 */
+	uiKitComponents.Image = 'Image';
+	/**
+	 * An inline manages the horizontal layout of direct children using flexbox.
+	 *
+	 * @see [Inline](https://developer.atlassian.com/platform/forge/ui-kit/components/inline/) in UI Kit documentation for more information
+	 */
+	uiKitComponents.Inline = 'Inline';
+	/**
+	 * A label represents a caption for an item in a user interface.
+	 *
+	 * @see [Label](https://developer.atlassian.com/platform/forge/ui-kit/components/form/#label) in UI Kit documentation for more information
+	 */
+	uiKitComponents.Label = 'Label';
+	/**
+	 * A visual representation of data showing trends.
+	 *
+	 * @see [LineChart](https://developer.atlassian.com/platform/forge/ui-kit/components/line-chart/) in UI Kit documentation for more information
+	 */
+	uiKitComponents.LineChart = 'LineChart';
+	/**
+	 * Renders a link in the style of a button.
+	 *
+	 * @see [LinkButton](https://developer.atlassian.com/platform/forge/ui-kit/components/button/#linkbutton-props) in UI Kit documentation for more information
+	 */
+	uiKitComponents.LinkButton = 'LinkButton';
+	/**
+	 * An unordered (bulleted) or ordered (numbered) list.
+	 *
+	 * @see [List](https://developer.atlassian.com/platform/forge/ui-kit/components/list/) in UI Kit documentation for more information
+	 */
+	uiKitComponents.List = 'List';
+	uiKitComponents.ListItem = 'ListItem';
+	/**
+	 * A button that shows an spinner as an overlay on the button when you set an isLoading prop to true.
+	 *
+	 * @see [LoadingButton](https://developer.atlassian.com/platform/forge/ui-kit/components/button/#loadingbutton-props) in UI Kit documentation for more information
+	 */
+	uiKitComponents.LoadingButton = 'LoadingButton';
+	/**
+	 * A lozenge is a visual indicator used to highlight an item's status for quick recognition.
+	 *
+	 * @see [Lozenge](https://developer.atlassian.com/platform/forge/ui-kit/components/lozenge/) in UI Kit documentation for more information
+	 */
+	uiKitComponents.Lozenge = 'Lozenge';
+	/**
+	 * A modal dialog displays content that requires user interaction, in a layer above the page.
+	 *
+	 * @see [Modal](https://developer.atlassian.com/platform/forge/ui-kit/components/modal/) in UI Kit documentation for more information
+	 */
+	uiKitComponents.Modal = 'Modal';
+	/**
+	 * A modal body is used to display the main content of a modal.
+	 *
+	 * @see [ModalBody](https://developer.atlassian.com/platform/forge/ui-kit/components/modal/#body) in UI Kit documentation for more information
+	 */
+	uiKitComponents.ModalBody = 'ModalBody';
+	/**
+	 * A modal footer often contains a primary action and the ability to cancel and close the dialog,
+	 * though can contain any React element.
+	 *
+	 * @see [ModalFooter](https://developer.atlassian.com/platform/forge/ui-kit/components/modal/#footer) in UI Kit documentation for more information
+	 */
+	uiKitComponents.ModalFooter = 'ModalFooter';
+	/**
+	 * A modal header contains the title of the modal and can contain other React elements such as a close button.
+	 *
+	 * @see [ModalHeader](https://developer.atlassian.com/platform/forge/ui-kit/components/modal/#header) in UI Kit documentation for more information
+	 */
+	uiKitComponents.ModalHeader = 'ModalHeader';
+	/**
+	 * A modal title is used to display a title within a modal.
+	 *
+	 * @see [ModalTitle](https://developer.atlassian.com/platform/forge/ui-kit/components/modal/#title) in UI Kit documentation for more information
+	 */
+	uiKitComponents.ModalTitle = 'ModalTitle';
+	/**
+	 * A modal transition wraps a modal to provide a fluid transition upon opening and closing.
+	 *
+	 * @see [ModalTransition](https://developer.atlassian.com/platform/forge/ui-kit/components/modal/#modal-transition) in UI Kit documentation for more information
+	 */
+	uiKitComponents.ModalTransition = 'ModalTransition';
+	/**
+	 * A visual representation of data proportions in a circular format.
+	 *
+	 * @see [PieChart](https://developer.atlassian.com/platform/forge/ui-kit/components/pie-chart/) in UI Kit documentation for more information
+	 */
+	uiKitComponents.PieChart = 'PieChart';
+	/**
+	 * A progress bar communicates the status of a system process.
+	 *
+	 * @see [ProgressBar](https://developer.atlassian.com/platform/forge/ui-kit/components/progress-bar/) in UI Kit documentation for more information
+	 */
+	uiKitComponents.ProgressBar = 'ProgressBar';
+	/**
+	 * A progress tracker displays the steps and progress through a journey.
+	 *
+	 * @see [ProgressTracker](https://developer.atlassian.com/platform/forge/ui-kit/components/progress-tracker/) in UI Kit documentation for more information
+	 */
+	uiKitComponents.ProgressTracker = 'ProgressTracker';
+	/**
+	 * A radio input allows users to select only one option from a number of choices. Radio is generally displayed in a radio group.
+	 *
+	 * @see [Radio](https://developer.atlassian.com/platform/forge/ui-kit/components/radio/) in UI Kit documentation for more information
+	 */
+	uiKitComponents.Radio = 'Radio';
+	/**
+	 * A radio input allows users to select only one option from a number of choices. Radio is generally displayed in a radio group.
+	 *
+	 * @see [RadioGroup](https://developer.atlassian.com/platform/forge/ui-kit/components/radio-group/) in UI Kit documentation for more information
+	 */
+	uiKitComponents.RadioGroup = 'RadioGroup';
+	/**
+	 * A range lets users choose an approximate value on a slider.
+	 *
+	 * @see [Range](https://developer.atlassian.com/platform/forge/ui-kit/components/range/) in UI Kit documentation for more information
+	 */
+	uiKitComponents.Range = 'Range';
+	/**
+	 * Select allows users to make a single selection or multiple selections from a list of options.
+	 *
+	 * @see [Select](https://developer.atlassian.com/platform/forge/ui-kit/components/select/) in UI Kit documentation for more information
+	 */
+	uiKitComponents.Select = 'Select';
+	/**
+	 * A section message is used to alert users to a particular section of the screen.
+	 *
+	 * @see [SectionMessage](https://developer.atlassian.com/platform/forge/ui-kit/components/section-message/) in UI Kit documentation for more information
+	 */
+	uiKitComponents.SectionMessage = 'SectionMessage';
+	/**
+	 * A section message is used to alert users to a particular section of the screen.
+	 *
+	 * @see [SectionMessageAction](https://developer.atlassian.com/platform/forge/ui-kit/components/section-message/#section-message-action) in UI Kit documentation for more information
+	 */
+	uiKitComponents.SectionMessageAction = 'SectionMessageAction';
+	/**
+	 * A spinner is an animated spinning icon that lets users know content is being loaded.
+	 *
+	 * @see [Spinner](https://developer.atlassian.com/platform/forge/ui-kit/components/spinner/) in UI Kit documentation for more information
+	 */
+	uiKitComponents.Spinner = 'Spinner';
+	/**
+	 * A stack manages the vertical layout of direct children using flexbox.
+	 *
+	 * @see [Stack](https://developer.atlassian.com/platform/forge/ui-kit/components/stack/) in UI Kit documentation for more information
+	 */
+	uiKitComponents.Stack = 'Stack';
+	/**
+	 * A visual representation of data using rectangular bars of varying heights to demonstrate comparisons between categories of data.
+	 *
+	 * @see [StackBarChart](https://developer.atlassian.com/platform/forge/ui-kit/components/stack-bar-chart/) in UI Kit documentation for more information
+	 */
+	uiKitComponents.StackBarChart = 'StackBarChart';
+	/**
+	 * `Tab` represents an individual tab displayed in a TabList.
+	 *
+	 * @see [Tab](https://developer.atlassian.com/platform/forge/ui-kit/components/tabs/) in UI Kit documentation for more information
+	 */
+	uiKitComponents.Tab = 'Tab';
+	/**
+	 * A `TabList` groups `Tab` components together.
+	 *
+	 * @see [TabList](https://developer.atlassian.com/platform/forge/ui-kit/components/tab-list/) in UI Kit documentation for more information
+	 */
+	uiKitComponents.TabList = 'TabList';
+	/**
+	 * A `TabPanel` houses the contents of a `Tab`.
+	 *
+	 * @see [TabPanel](https://developer.atlassian.com/platform/forge/ui-kit/components/tabs/) in UI Kit documentation for more information
+	 */
+	uiKitComponents.TabPanel = 'TabPanel';
+	/**
+	 * Tabs are used to organize content by grouping similar information on the same page.
+	 *
+	 * @see [Tabs](https://developer.atlassian.com/platform/forge/ui-kit/components/tabs/) in UI Kit documentation for more information
+	 */
+	uiKitComponents.Tabs = 'Tabs';
+	uiKitComponents.Tag = 'Tag';
+	/**
+	 * A tag group controls the layout and alignment for a collection of tags.
+	 *
+	 * @see [TagGroup](https://developer.atlassian.com/platform/forge/ui-kit/components/tag-group/) in UI Kit documentation for more information
+	 */
+	uiKitComponents.TagGroup = 'TagGroup';
+	/**
+	 * A text area lets users enter long form text which spans over multiple lines.
+	 *
+	 * @see [TextArea](https://developer.atlassian.com/platform/forge/ui-kit/components/text-area/) in UI Kit documentation for more information
+	 */
+	uiKitComponents.TextArea = 'TextArea';
+	/**
+	 * A text field is an input that allows a user to write or edit text.
+	 *
+	 * @see [Textfield](https://developer.atlassian.com/platform/forge/ui-kit/components/textfield/) in UI Kit documentation for more information
+	 */
+	uiKitComponents.Textfield = 'Textfield';
+	/**
+	 * A time picker allows the user to select a specific time.
+	 *
+	 * @see [TimePicker](https://developer.atlassian.com/platform/forge/ui-kit/components/time-picker/) in UI Kit documentation for more information
+	 */
+	uiKitComponents.TimePicker = 'TimePicker';
+	/**
+	 * A toggle is used to view or switch between enabled or disabled states.
+	 *
+	 * @see [Toggle](https://developer.atlassian.com/platform/forge/ui-kit/components/toggle/) in UI Kit documentation for more information
+	 */
+	uiKitComponents.Toggle = 'Toggle';
+	/**
+	 * A `Tooltip` is a floating, non-actionable label used to explain a user interface element or feature.
+	 *
+	 * @see [Tooltip](https://developer.atlassian.com/platform/forge/ui-kit/components/tooltip/) in UI Kit documentation for more information
+	 */
+	uiKitComponents.Tooltip = 'Tooltip';
+	/**
+	 * A typography component used to display body text.
+	 * It can also include inline components such as
+	 * [Badge](https://developer.atlassian.com/platform/forge/ui-kit/components/badge/) and
+	 * [Lozenge](https://developer.atlassian.com/platform/forge/ui-kit/components/lozenge/).
+	 */
+	uiKitComponents.Text = 'Text';
+	/**
+	 * A valid message is used to tell a user that the field input is valid.
+	 * For example, a helper message could be "Nice one, this username is available".
+	 *
+	 * @see [ValidMessage](https://developer.atlassian.com/platform/forge/ui-kit/components/form/#validation-message) in UI Kit documentation for more information
+	 */
+	uiKitComponents.ValidMessage = 'ValidMessage';
+	// Additional components without props
+	uiKitComponents.RequiredAsterisk = 'RequiredAsterisk';
+	/**
+	 * A pressable is a primitive for building custom buttons.
+	 *
+	 * @see [Pressable](https://developer.atlassian.com/platform/forge/ui-kit/components/pressable/) in UI Kit documentation for more information
+	 */
+	uiKitComponents.Pressable = 'Pressable';
+	/**
+	 * The comment editor provides a contained editor UI with a simple toolbar.
+	 *
+	 * @see [CommentEditor](https://developer.atlassian.com/platform/forge/ui-kit/components/comment-editor/) in UI Kit documentation for more information
+	 */
+	uiKitComponents.CommentEditor = 'CommentEditor';
+	/**
+	 * The chromeless editor provides the Editor without any of the standard UI features. It's ideal for cases where the integrator wants complete control and responsibility over the editor UI.
+	 *
+	 * @see [ChromelessEditor](https://developer.atlassian.com/platform/forge/ui-kit/components/chromeless-editor/) in UI Kit documentation for more information
+	 */
+	uiKitComponents.ChromelessEditor = 'ChromelessEditor';
+	/**
+	 * A tile is a rounded square that takes an asset and represents a noun.
+	 *
+	 * @see [Tile](https://developer.atlassian.com/platform/forge/ui-kit/components/tile/) in UI Kit documentation for more information
+	 */
+	uiKitComponents.Tile = 'Tile';
+	/**
+	 * A component that represents a user, displaying details such as name and profile picture.
+	 *
+	 * @see [User](https://developer.atlassian.com/platform/forge/ui-kit/components/user/) in UI Kit documentation
+	 */
+	uiKitComponents.User = 'User';
+	/**
+	 * An AtlassianTile is an icon that represents an Atlassian-specific content type, displayed in a tile.
+	 * The glyph prop automatically sets the color for the object.
+	 *
+	 * @see [AtlassianTile](https://developer.atlassian.com/platform/forge/ui-kit/components/atlassian-tile/) in UI Kit documentation for more information
+	 */
+	uiKitComponents.AtlassianTile = 'AtlassianTile';
+	/**
+	 * An AtlassianIcon is an icon that represents an Atlassian-specific content type.
+	 * The glyph prop automatically sets the color for the object.
+	 *
+	 * @see [AtlassianIcon](https://developer.atlassian.com/platform/forge/ui-kit/components/atlassian-icon/) in UI Kit documentation for more information
+	 */
+	uiKitComponents.AtlassianIcon = 'AtlassianIcon';
+	/**
+	 * A component that displays a hyperlink. Use this component for inline links,
+	 * typically inside a `Text` component.
+	 *
+	 * @see [Link](https://developer.atlassian.com/platform/forge/ui-kit/components/link/) in UI Kit documentation
+	 */
+	uiKitComponents.Link = 'Link';
+	/**
+	 * A dropdown field that allows users to search and select users from a list.
+	 *
+	 * @see [UserPicker](https://developer.atlassian.com/platform/forge/ui-kit/components/user-picker/) in UI Kit documentation
+	 */
+	uiKitComponents.UserPicker = 'UserPicker';
+	/**
+	 * A container for rendering static frontend applications (HTML, CSS, JavaScript)
+	 * within a UI Kit app. Supports bidirectional communication with the host app
+	 * via the Events API.
+	 *
+	 * @see [Frame](https://developer.atlassian.com/platform/forge/ui-kit/components/frame/) in UI Kit documentation
+	 */
+	uiKitComponents.Frame = 'Frame';
+	/**
+	 * Displays a stack of multiple users (name and profile picture), subject to
+	 * their privacy settings. Can also be used inside a `Text` component, where
+	 * users appear as inline lozenges.
+	 *
+	 * @see [UserGroup](https://developer.atlassian.com/platform/forge/ui-kit/components/user-group/) in UI Kit documentation
+	 */
+	uiKitComponents.UserGroup = 'UserGroup';
+	/**
+	 * Bleed allows child elements to visually extend beyond the bounds of their parent container.
+	 *
+	 * @see [Bleed](https://developer.atlassian.com/platform/forge/ui-kit/components/bleed/) in UI Kit documentation for more information
+	 */
+	uiKitComponents.Bleed = 'Bleed';
+	/**
+	 * Breadcrumbs are a navigation system used to show a user's location in a site or app.
+	 *
+	 * @see [Breadcrumbs](https://developer.atlassian.com/platform/forge/ui-kit/components/breadcrumbs/) in UI Kit documentation for more information
+	 */
+	uiKitComponents.Breadcrumbs = 'Breadcrumbs';
+	/**
+	 * A breadcrumb item represents a single step in the navigation hierarchy.
+	 *
+	 * @see [BreadcrumbsItem](https://developer.atlassian.com/platform/forge/ui-kit/components/breadcrumbs-item/) in UI Kit documentation for more information
+	 */
+	uiKitComponents.BreadcrumbsItem = 'BreadcrumbsItem';
+	/**
+	 * Pagination allows you to divide large amounts of content into chunks across multiple pages.
+	 *
+	 * @see [Pagination](https://developer.atlassian.com/platform/forge/ui-kit/components/pagination/) in UI Kit documentation for more information
+	 */
+	uiKitComponents.Pagination = 'Pagination';
+	return uiKitComponents;
+}
+
+var hasRequiredComponents;
+
+function requireComponents () {
+	if (hasRequiredComponents) return components;
+	hasRequiredComponents = 1;
+	(function (exports) {
+		Object.defineProperty(exports, "__esModule", { value: true });
+		exports.CheckboxGroup = exports.Strong = exports.Strike = exports.Em = exports.AdfRenderer = exports.Comment = exports.Popup = exports.InlineEdit = exports.DynamicTable = void 0;
+		const tslib_1 = require$$0;
+		var dynamic_table_1 = requireDynamicTable();
+		Object.defineProperty(exports, "DynamicTable", { enumerable: true, get: function () { return dynamic_table_1.DynamicTable; } });
+		var inline_edit_1 = requireInlineEdit();
+		Object.defineProperty(exports, "InlineEdit", { enumerable: true, get: function () { return inline_edit_1.InlineEdit; } });
+		var popup_1 = requirePopup();
+		Object.defineProperty(exports, "Popup", { enumerable: true, get: function () { return popup_1.Popup; } });
+		var comment_1 = requireComment();
+		Object.defineProperty(exports, "Comment", { enumerable: true, get: function () { return comment_1.Comment; } });
+		var adf_renderer_1 = requireAdfRenderer();
+		Object.defineProperty(exports, "AdfRenderer", { enumerable: true, get: function () { return adf_renderer_1.AdfRenderer; } });
+		/**
+		 * @deprecated - UIKit 1 specific component
+		 */
+		exports.Em = 'Em';
+		/**
+		 * @deprecated - UIKit 1 specific component
+		 */
+		exports.Strike = 'Strike';
+		/**
+		 * @deprecated - UIKit 1 specific component
+		 */
+		exports.Strong = 'Strong';
+		/**
+		 * Export Code generated UI Kit 2 Components
+		 */
+		tslib_1.__exportStar(requireUiKitComponents(), exports);
+		/**
+		 * A Checkbox group is a list of options where one or more choices can be selected.
+		 *
+		 * @see [CheckboxGroup](https://developer.atlassian.com/platform/forge/ui-kit/components/checkbox-group/) in UI Kit documentation for more information
+		 */
+		exports.CheckboxGroup = 'CheckboxGroup'; 
+	} (components));
+	return components;
+}
+
+var useContentProperty = {};
+
+var confluenceEntity = {};
+
+var apiRequestUtils = {};
+
+var types = {};
+
+var entityProps = {};
+
+var hasRequiredEntityProps;
+
+function requireEntityProps () {
+	if (hasRequiredEntityProps) return entityProps;
+	hasRequiredEntityProps = 1;
+	Object.defineProperty(entityProps, "__esModule", { value: true });
+	entityProps.EntityPropertyRequestFailedError = void 0;
+	class EntityPropertyRequestFailedError extends Error {
+	    constructor({ entityType, propertyKey, operation, status }) {
+	        super(`The request to ${operation} the ${entityType.toLowerCase()} property (${propertyKey}) failed with status (${status}).`);
+	    }
+	}
+	entityProps.EntityPropertyRequestFailedError = EntityPropertyRequestFailedError;
+	return entityProps;
+}
+
+var confEntityProps = {};
+
+var hasRequiredConfEntityProps;
+
+function requireConfEntityProps () {
+	if (hasRequiredConfEntityProps) return confEntityProps;
+	hasRequiredConfEntityProps = 1;
+	Object.defineProperty(confEntityProps, "__esModule", { value: true });
+	return confEntityProps;
+}
+
+var jiraEntityProps = {};
+
+var hasRequiredJiraEntityProps;
+
+function requireJiraEntityProps () {
+	if (hasRequiredJiraEntityProps) return jiraEntityProps;
+	hasRequiredJiraEntityProps = 1;
+	Object.defineProperty(jiraEntityProps, "__esModule", { value: true });
+	return jiraEntityProps;
+}
+
+var hasRequiredTypes;
+
+function requireTypes () {
+	if (hasRequiredTypes) return types;
+	hasRequiredTypes = 1;
+	(function (exports) {
+		Object.defineProperty(exports, "__esModule", { value: true });
+		const tslib_1 = require$$0;
+		tslib_1.__exportStar(requireEntityProps(), exports);
+		tslib_1.__exportStar(requireConfEntityProps(), exports);
+		tslib_1.__exportStar(requireJiraEntityProps(), exports); 
+	} (types));
+	return types;
+}
+
+var hasRequiredApiRequestUtils;
+
+function requireApiRequestUtils () {
+	if (hasRequiredApiRequestUtils) return apiRequestUtils;
+	hasRequiredApiRequestUtils = 1;
+	(function (exports) {
+		Object.defineProperty(exports, "__esModule", { value: true });
+		exports.assertSuccessfulResponse = exports.getJSONData = exports.makeRequest = exports.withContext = exports.FETCH_HEADERS = void 0;
+		const bridge_1 = requireOut$1();
+		const types_1 = requireTypes();
+		exports.FETCH_HEADERS = {
+		    Accept: 'application/json',
+		    'Content-Type': 'application/json'
+		};
+		// loads productContext and passes data to support API calls for GET, UPDATE, DELETE operations
+		const withContext = ({ originalOperation, apiEndpoints, entityType, origPropertyKey }) => async (...args) => {
+		    const context = await bridge_1.view.getContext();
+		    const propertyKey = entityType === 'Content' ? `forge-${context.localId}-${origPropertyKey}` : `forge-${origPropertyKey}`;
+		    if (entityType === 'Space' || entityType === 'Content') {
+		        const endpointFactory = apiEndpoints({ entityType, context });
+		        return originalOperation({ endpointFactory, propertyKey }, ...args);
+		    }
+		    else if (entityType === 'Issue') {
+		        const endpointFactory = apiEndpoints(context);
+		        return originalOperation({ endpointFactory, propertyKey, context }, ...args);
+		    }
+		    else {
+		        throw new Error('Invalid entity type.');
+		    }
+		};
+		exports.withContext = withContext;
+		const makeRequest = async ({ url, apiMethod, body, method }) => {
+		    const fetchOptions = { headers: exports.FETCH_HEADERS, method, body };
+		    try {
+		        return await apiMethod(url, fetchOptions);
+		    }
+		    catch (error) {
+		        throw new Error('An unknown network error occurred.');
+		    }
+		};
+		exports.makeRequest = makeRequest;
+		const getJSONData = async (response) => {
+		    try {
+		        const data = await response.json();
+		        return data;
+		    }
+		    catch (err) {
+		        throw new Error('An invalid response is received from the server');
+		    }
+		};
+		exports.getJSONData = getJSONData;
+		// checks if a response from the API is successful and throw error if not
+		const assertSuccessfulResponse = ({ entityType, propertyKey, operation, response }) => {
+		    if (!response.ok) {
+		        throw new types_1.EntityPropertyRequestFailedError({ entityType, propertyKey, operation, status: response.status });
+		    }
+		};
+		exports.assertSuccessfulResponse = assertSuccessfulResponse; 
+	} (apiRequestUtils));
+	return apiRequestUtils;
+}
+
+var valueUtils = {};
+
+var hasRequiredValueUtils;
+
+function requireValueUtils () {
+	if (hasRequiredValueUtils) return valueUtils;
+	hasRequiredValueUtils = 1;
+	Object.defineProperty(valueUtils, "__esModule", { value: true });
+	valueUtils.resolveValue = void 0;
+	// copied over from @forge/ui
+	// helper function that resolves a value from a promise or returns the original value
+	const resolveValue = async (defaultValue) => {
+	    const value = defaultValue instanceof Function ? defaultValue() : defaultValue;
+	    return await value;
+	};
+	valueUtils.resolveValue = resolveValue;
+	return valueUtils;
+}
+
+var hasRequiredConfluenceEntity;
+
+function requireConfluenceEntity () {
+	if (hasRequiredConfluenceEntity) return confluenceEntity;
+	hasRequiredConfluenceEntity = 1;
+	(function (exports) {
+		Object.defineProperty(exports, "__esModule", { value: true });
+		exports.confluenceEntity = exports.confAPIEndpoints = void 0;
+		const bridge_1 = requireOut$1();
+		const apiRequestUtils_1 = requireApiRequestUtils();
+		const valueUtils_1 = requireValueUtils();
+		const types_1 = requireTypes();
+		/**
+		 * given an entityType and a product context, returns functions that uses property data to
+		 * output URLs to use for property management via Confluence v2 REST API
+		 */
+		const confAPIEndpoints = ({ entityType, context }) => {
+		    let entityId, urlEntity;
+		    switch (entityType) {
+		        case 'Space':
+		            entityId = context.extension.space?.id;
+		            urlEntity = 'spaces';
+		            break;
+		        case 'Content':
+		            entityId = context.extension.content?.id;
+		            urlEntity = 'pages';
+		            break;
+		        default:
+		            throw new Error('Invalid entity type.');
+		    }
+		    if (!entityId) {
+		        throw new Error(`${entityType} properties not available for this app.`);
+		    }
+		    return {
+		        create: () => `/wiki/api/v2/${urlEntity}/${entityId}/properties`,
+		        fetch: (propertyKey) => `/wiki/api/v2/${urlEntity}/${entityId}/properties?key=${propertyKey}`,
+		        update: (propertyId) => `/wiki/api/v2/${urlEntity}/${entityId}/properties/${propertyId}`,
+		        delete: (propertyId) => `/wiki/api/v2/${urlEntity}/${entityId}/properties/${propertyId}`
+		    };
+		};
+		exports.confAPIEndpoints = confAPIEndpoints;
+		const confluenceEntity = ({ entityType, origPropertyKey, initValue }) => {
+		    const apiMethod = bridge_1.requestConfluence;
+		    const withConfluenceContext = (originalOperation) => {
+		        return (0, apiRequestUtils_1.withContext)({
+		            originalOperation,
+		            apiEndpoints: exports.confAPIEndpoints,
+		            entityType,
+		            origPropertyKey
+		        });
+		    };
+		    // fetches existing prop value from server. to be reused for GET, UPDATE, DELETE operations
+		    const fetchOriginal = async ({ endpointFactory, propertyKey }) => {
+		        const url = endpointFactory.fetch(propertyKey);
+		        const response = await (0, apiRequestUtils_1.makeRequest)({ url, apiMethod, method: 'GET' });
+		        (0, apiRequestUtils_1.assertSuccessfulResponse)({ entityType, propertyKey, operation: 'fetch', response });
+		        const existingData = await (0, apiRequestUtils_1.getJSONData)(response);
+		        return existingData.results[0];
+		    };
+		    // named `deleteProp` since `delete` is reserved word
+		    const deleteProp = async ({ endpointFactory, propertyKey }) => {
+		        // fetch original prop first to get its id
+		        const originalProp = await fetchOriginal({ endpointFactory, propertyKey });
+		        if (!originalProp) {
+		            throw new types_1.EntityPropertyRequestFailedError({
+		                entityType,
+		                propertyKey,
+		                operation: 'delete',
+		                status: 404
+		            });
+		        }
+		        const propertyId = originalProp.id;
+		        const url = endpointFactory.delete(propertyId);
+		        const response = await (0, apiRequestUtils_1.makeRequest)({ url, apiMethod, method: 'DELETE' });
+		        (0, apiRequestUtils_1.assertSuccessfulResponse)({ entityType, propertyKey, operation: 'delete', response });
+		    };
+		    const getProp = async ({ endpointFactory, propertyKey }) => {
+		        const existingProp = await fetchOriginal({ endpointFactory, propertyKey });
+		        if (existingProp) {
+		            return existingProp;
+		        }
+		        // if property doesn't exist, create it
+		        const resolvedInitVal = await (0, valueUtils_1.resolveValue)(initValue);
+		        const url = endpointFactory.create();
+		        const body = JSON.stringify({ key: propertyKey, value: resolvedInitVal });
+		        const response = await (0, apiRequestUtils_1.makeRequest)({ url, apiMethod, method: 'POST', body });
+		        (0, apiRequestUtils_1.assertSuccessfulResponse)({ entityType, propertyKey, operation: 'create', response });
+		        return await (0, apiRequestUtils_1.getJSONData)(response);
+		    };
+		    const get = async ({ endpointFactory, propertyKey }) => {
+		        const propData = await getProp({ endpointFactory, propertyKey });
+		        return propData.value;
+		    };
+		    const update = async ({ endpointFactory, propertyKey }, valueUpdate) => {
+		        // fetch original prop first to update based on its value + version + id
+		        const originalProp = await getProp({ endpointFactory, propertyKey });
+		        const newValue = valueUpdate instanceof Function ? valueUpdate(originalProp.value) : valueUpdate;
+		        const propertyId = originalProp.id;
+		        const origVersion = originalProp?.version?.number;
+		        const url = endpointFactory.update(propertyId);
+		        const body = JSON.stringify({
+		            key: propertyKey,
+		            value: newValue,
+		            version: {
+		                number: origVersion + 1,
+		                message: `Update through UI Kit 2 use${entityType}Properties hook.`
+		            }
+		        });
+		        const response = await (0, apiRequestUtils_1.makeRequest)({ url, apiMethod, method: 'PUT', body });
+		        (0, apiRequestUtils_1.assertSuccessfulResponse)({ entityType, propertyKey, operation: 'update', response });
+		        return (await (0, apiRequestUtils_1.getJSONData)(response)).value;
+		    };
+		    return {
+		        get: withConfluenceContext(get),
+		        update: withConfluenceContext(update),
+		        delete: withConfluenceContext(deleteProp)
+		    };
+		};
+		exports.confluenceEntity = confluenceEntity; 
+	} (confluenceEntity));
+	return confluenceEntity;
+}
+
+var useEntityProperty = {};
+
+var hasRequiredUseEntityProperty;
+
+function requireUseEntityProperty () {
+	if (hasRequiredUseEntityProperty) return useEntityProperty;
+	hasRequiredUseEntityProperty = 1;
+	Object.defineProperty(useEntityProperty, "__esModule", { value: true });
+	useEntityProperty.useEntityProperty = void 0;
+	/**
+	 * React-based property management hook for Confluence API and entities
+	 */
+	const react_1 = requireReact();
+	// outputs a stateful variable and a function to update it
+	const useEntityProperty$1 = ({ entityManager, defaultRetryCount = 2 }) => {
+	    const [propValue, setPropValue] = (0, react_1.useState)();
+	    (0, react_1.useEffect)(() => {
+	        const getProp = async () => {
+	            const currentVal = await entityManager.get();
+	            setPropValue(currentVal);
+	        };
+	        getProp().catch(() => {
+	            // repeat fetch in case previous creation failed due to variable already concurrently created
+	            getProp().catch((secondErr) => {
+	                throw secondErr;
+	            });
+	        });
+	    }, []);
+	    const updateProp = (0, react_1.useCallback)(async (valueUpdate, retryCount = defaultRetryCount) => {
+	        let success = false;
+	        let tryCounts = 0;
+	        const attempt = async () => setPropValue(await entityManager.update(valueUpdate));
+	        // initial update attempt + up to <retryCount> retries if update unsuccessful
+	        while (!success && tryCounts <= retryCount) {
+	            try {
+	                tryCounts++;
+	                await attempt();
+	                success = true;
+	            }
+	            catch (err) {
+	                if (tryCounts > retryCount) {
+	                    console.error(err); // eslint-disable-line no-console
+	                }
+	            }
+	        }
+	        return success;
+	    }, [entityManager]);
+	    const deleteProp = (0, react_1.useCallback)(async () => {
+	        await entityManager.delete();
+	        setPropValue(undefined);
+	    }, [entityManager]);
+	    return [propValue, updateProp, deleteProp];
+	};
+	useEntityProperty.useEntityProperty = useEntityProperty$1;
+	return useEntityProperty;
+}
+
+var hasRequiredUseContentProperty;
+
+function requireUseContentProperty () {
+	if (hasRequiredUseContentProperty) return useContentProperty;
+	hasRequiredUseContentProperty = 1;
+	Object.defineProperty(useContentProperty, "__esModule", { value: true });
+	useContentProperty.useContentProperty = void 0;
+	const react_1 = requireReact();
+	const bridge_1 = requireOut$1();
+	const confluenceEntity_1 = requireConfluenceEntity();
+	const useEntityProperty_1 = requireUseEntityProperty();
+	/**
+	 * This function manages the content properties of a Confluence page where the app is installed.
+	 * @param propertyKey Name (key) of the property
+	 * @param initValue Default value if it did not exist previously
+	 * @returns An array with 3 items:
+	 *  1. Current value of the property.
+	 *  2. A function to update the property value (with another value or an updater function). If an initial update fails, it automatically tries to update for another <retryCount> times (default 2).
+	 *  3. A function to delete the property.
+	 */
+	const useContentProperty$1 = (propertyKey, initValue) => {
+	    const entityManager = (0, react_1.useMemo)(() => (0, confluenceEntity_1.confluenceEntity)({
+	        entityType: 'Content',
+	        origPropertyKey: propertyKey,
+	        initValue
+	    }), [propertyKey, initValue]);
+	    const [propValue, updateProp, deleteProp] = (0, useEntityProperty_1.useEntityProperty)({ entityManager });
+	    const updatePropWithEvent = (0, react_1.useCallback)(async (valueUpdate, retryCount) => {
+	        const success = await updateProp(valueUpdate, retryCount);
+	        if (success) {
+	            void bridge_1.events.emit('FORGE_CONTENT_PROPERTY_UPDATED', { propertyKey, valueUpdate });
+	        }
+	    }, [updateProp, propertyKey]);
+	    return [propValue, updatePropWithEvent, deleteProp];
+	};
+	useContentProperty.useContentProperty = useContentProperty$1;
+	return useContentProperty;
+}
+
+var useSpaceProperty = {};
+
+var hasRequiredUseSpaceProperty;
+
+function requireUseSpaceProperty () {
+	if (hasRequiredUseSpaceProperty) return useSpaceProperty;
+	hasRequiredUseSpaceProperty = 1;
+	Object.defineProperty(useSpaceProperty, "__esModule", { value: true });
+	useSpaceProperty.useSpaceProperty = void 0;
+	const react_1 = requireReact();
+	const confluenceEntity_1 = requireConfluenceEntity();
+	const useEntityProperty_1 = requireUseEntityProperty();
+	/**
+	 * This function manages the space properties of a Confluence space where the app is installed.
+	 * @param propertyKey Name (key) of the property
+	 * @param initValue Default value if it did not exist previously
+	 * @returns An array with 3 items:
+	 *  1. Current value of the property.
+	 *  2. A function to update the property value (with another value or an updater function). If an initial update fails, it automatically tries to update for another <retryCount> times (default 2).
+	 * 3. A function to delete the property.
+	 */
+	const useSpaceProperty$1 = (propertyKey, initValue) => {
+	    const entityManager = (0, react_1.useMemo)(() => (0, confluenceEntity_1.confluenceEntity)({
+	        entityType: 'Space',
+	        origPropertyKey: propertyKey,
+	        initValue
+	    }), []);
+	    return (0, useEntityProperty_1.useEntityProperty)({ entityManager });
+	};
+	useSpaceProperty.useSpaceProperty = useSpaceProperty$1;
+	return useSpaceProperty;
+}
+
+var useIssueProperty = {};
+
+var jiraEntity = {};
+
+var hasRequiredJiraEntity;
+
+function requireJiraEntity () {
+	if (hasRequiredJiraEntity) return jiraEntity;
+	hasRequiredJiraEntity = 1;
+	(function (exports) {
+		Object.defineProperty(exports, "__esModule", { value: true });
+		exports.jiraIssuePropsManager = exports.issueAPIEndpoints = void 0;
+		const bridge_1 = requireOut$1();
+		const apiRequestUtils_1 = requireApiRequestUtils();
+		const valueUtils_1 = requireValueUtils();
+		const types_1 = requireTypes();
+		/**
+		 * given a context, returns functions that uses property data to
+		 * output URLs to use for issue property management via Jira v2 REST API
+		 */
+		const issueAPIEndpoints = (context) => {
+		    const issueId = context.extension.issue?.id;
+		    if (!issueId)
+		        throw new Error('Issue properties not available for this app.');
+		    return {
+		        create: () => `/rest/api/2/issue/properties`,
+		        fetch: (propertyKey) => `/rest/api/2/issue/${issueId}/properties/${propertyKey}`,
+		        update: (propertyKey) => `/rest/api/2/issue/${issueId}/properties/${propertyKey}`,
+		        delete: (propertyKey) => `/rest/api/2/issue/${issueId}/properties/${propertyKey}`
+		    };
+		};
+		exports.issueAPIEndpoints = issueAPIEndpoints;
+		const jiraIssuePropsManager = ({ origPropertyKey, initValue }) => {
+		    const entityType = 'Issue';
+		    const apiMethod = bridge_1.requestJira;
+		    const withIssueContext = (originalOperation) => {
+		        return (0, apiRequestUtils_1.withContext)({
+		            originalOperation,
+		            apiEndpoints: exports.issueAPIEndpoints,
+		            entityType: 'Issue',
+		            origPropertyKey
+		        });
+		    };
+		    // fetches existing prop value from server. to be reused for GET, UPDATE, DELETE operations
+		    const fetchOriginal = async ({ endpointFactory, propertyKey }) => {
+		        const url = endpointFactory.fetch(propertyKey);
+		        const response = await (0, apiRequestUtils_1.makeRequest)({ url, apiMethod, method: 'GET' });
+		        try {
+		            (0, apiRequestUtils_1.assertSuccessfulResponse)({ entityType, propertyKey, operation: 'fetch', response });
+		        }
+		        catch (err) {
+		            if (response.status === 404) {
+		                return null;
+		            }
+		            else {
+		                throw err;
+		            }
+		        }
+		        const existingData = await (0, apiRequestUtils_1.getJSONData)(response);
+		        return existingData;
+		    };
+		    // named `deleteProp` since `delete` is reserved word
+		    const deleteProp = async ({ endpointFactory, propertyKey }) => {
+		        const url = endpointFactory.delete(propertyKey);
+		        const response = await (0, apiRequestUtils_1.makeRequest)({ url, apiMethod, method: 'DELETE' });
+		        (0, apiRequestUtils_1.assertSuccessfulResponse)({ entityType, propertyKey, operation: 'delete', response });
+		    };
+		    const get = async ({ endpointFactory, propertyKey, context }) => {
+		        const existingProp = await fetchOriginal({ endpointFactory, propertyKey});
+		        if (existingProp) {
+		            return existingProp.value;
+		        }
+		        // if property doesn't exist, create it
+		        const resolvedInitVal = await (0, valueUtils_1.resolveValue)(initValue);
+		        const url = endpointFactory.create();
+		        const entityId = context.extension.issue?.id;
+		        const bodyData = {
+		            entitiesIds: [entityId],
+		            properties: {
+		                [propertyKey]: resolvedInitVal
+		            }
+		        };
+		        const response = await (0, apiRequestUtils_1.makeRequest)({
+		            url,
+		            apiMethod,
+		            method: 'POST',
+		            body: JSON.stringify(bodyData)
+		        });
+		        (0, apiRequestUtils_1.assertSuccessfulResponse)({ entityType, propertyKey, operation: 'create', response });
+		        return resolvedInitVal;
+		    };
+		    const update = async ({ endpointFactory, propertyKey, context }, valueUpdate) => {
+		        const newValueOrRunUpdaterOnOriginal = async (valueUpdate) => {
+		            // concrete value update, does not require fetching original value
+		            if (!(valueUpdate instanceof Function)) {
+		                return valueUpdate;
+		            }
+		            // value update via function, fetch original prop first to update based on its value
+		            const originalProp = await fetchOriginal({ endpointFactory, propertyKey});
+		            if (!originalProp) {
+		                throw new types_1.EntityPropertyRequestFailedError({
+		                    entityType,
+		                    propertyKey,
+		                    operation: 'update',
+		                    status: 404
+		                });
+		            }
+		            return valueUpdate(originalProp.value);
+		        };
+		        const newValue = await newValueOrRunUpdaterOnOriginal(valueUpdate);
+		        const url = endpointFactory.update(propertyKey);
+		        const body = JSON.stringify(newValue);
+		        const response = await (0, apiRequestUtils_1.makeRequest)({ url, apiMethod, method: 'PUT', body });
+		        (0, apiRequestUtils_1.assertSuccessfulResponse)({ entityType, propertyKey, operation: 'update', response });
+		        return newValue;
+		    };
+		    return {
+		        get: withIssueContext(get),
+		        update: withIssueContext(update),
+		        delete: withIssueContext(deleteProp)
+		    };
+		};
+		exports.jiraIssuePropsManager = jiraIssuePropsManager; 
+	} (jiraEntity));
+	return jiraEntity;
+}
+
+var hasRequiredUseIssueProperty;
+
+function requireUseIssueProperty () {
+	if (hasRequiredUseIssueProperty) return useIssueProperty;
+	hasRequiredUseIssueProperty = 1;
+	Object.defineProperty(useIssueProperty, "__esModule", { value: true });
+	useIssueProperty.useIssueProperty = void 0;
+	const react_1 = requireReact();
+	const jiraEntity_1 = requireJiraEntity();
+	const useEntityProperty_1 = requireUseEntityProperty();
+	/**
+	 * This function manages the properties of a Jira issue where the app is installed
+	 * @param propertyKey Name (key) of the property
+	 * @param initValue Default value if it did not exist previously
+	 * @returns An array with 3 items:
+	 *  1. Current value of the property.
+	 *  2. A function to update the property value (with another value or an updater function). If a <retryCount> is given and an initial update fails, it automatically tries to update for another <retryCount> times (default 0).
+	 *  3. A function to delete the property.
+	 */
+	const useIssueProperty$1 = (propertyKey, initValue) => {
+	    const entityManager = (0, react_1.useMemo)(() => (0, jiraEntity_1.jiraIssuePropsManager)({
+	        entityType: 'Issue',
+	        origPropertyKey: propertyKey,
+	        initValue
+	    }), []);
+	    return (0, useEntityProperty_1.useEntityProperty)({ entityManager, defaultRetryCount: 0 }); // no update retries needed for issue properties
+	};
+	useIssueProperty.useIssueProperty = useIssueProperty$1;
+	return useIssueProperty;
+}
+
+var useTranslation = {};
+
+var hasRequiredUseTranslation;
+
+function requireUseTranslation () {
+	if (hasRequiredUseTranslation) return useTranslation;
+	hasRequiredUseTranslation = 1;
+	Object.defineProperty(useTranslation, "__esModule", { value: true });
+	useTranslation.I18nProvider = useTranslation.useTranslation = void 0;
+	const jsx_runtime_1 = requireJsxRuntime();
+	const react_1 = requireReact();
+	const bridge_1 = requireOut$1();
+	const EMPTY_I18N_CONTEXT_VALUE = {
+	    ready: false,
+	    t: (key, defaultValue) => defaultValue ?? key
+	};
+	const I18nContext = (0, react_1.createContext)(EMPTY_I18N_CONTEXT_VALUE);
+	/**
+	 * Custom hook to access the i18n translation context.
+	 *
+	 * This hook provides the current i18n context value, which includes the translation function (`t`)
+	 * and the readiness state of the i18n context. If the context is not ready, the translation function
+	 * will return the key itself.
+	 *
+	 * @returns The current i18n context value, including the translation function, current locale, and readiness state.
+	 */
+	const useTranslation$1 = () => {
+	    return (0, react_1.useContext)(I18nContext);
+	};
+	useTranslation.useTranslation = useTranslation$1;
+	/**
+	 * Provider component for the i18n context.
+	 *
+	 * This component initializes the i18n context with the appropriate locale and translation function.
+	 * It fetches the locale from the provided props or the current view context if no locale is provided.
+	 * The i18n context value is then made available to all child components.
+	 *
+	 * @param children The child components that will have access to the i18n context.
+	 * @param locale The optional locale to initialize the i18n context with,
+	 *    if not provided, the current locale from the view context is used.
+	 *
+	 * @returns The provider component that wraps the children with the i18n context.
+	 */
+	const I18nProvider = ({ children, locale }) => {
+	    const [i18nContextValue, setI18nContextValue] = (0, react_1.useState)(EMPTY_I18N_CONTEXT_VALUE);
+	    (0, react_1.useEffect)(() => {
+	        const loadI18nContext = async () => {
+	            let targetLocale = locale;
+	            if (!targetLocale) {
+	                const context = await bridge_1.view.getContext();
+	                targetLocale = context.locale;
+	            }
+	            const t = await bridge_1.i18n.createTranslationFunction(targetLocale);
+	            setI18nContextValue({
+	                ready: true,
+	                t,
+	                locale: targetLocale
+	            });
+	        };
+	        void loadI18nContext();
+	    }, [setI18nContextValue, locale]);
+	    return (0, jsx_runtime_1.jsx)(I18nContext.Provider, { value: i18nContextValue, children: children });
+	};
+	useTranslation.I18nProvider = I18nProvider;
+	return useTranslation;
+}
+
+var useForm = {};
+
+var index_cjs = {};
+
+var hasRequiredIndex_cjs;
+
+function requireIndex_cjs () {
+	if (hasRequiredIndex_cjs) return index_cjs;
+	hasRequiredIndex_cjs = 1;
+var e=requireReact(),t=e=>"checkbox"===e.type,r=e=>e instanceof Date,s=e=>null==e;const a=e=>"object"==typeof e;var i=e=>!s(e)&&!Array.isArray(e)&&a(e)&&!r(e),n=e=>i(e)&&e.target?t(e.target)?e.target.checked:e.target.value:e,o=(e,t)=>e.has((e=>e.substring(0,e.search(/\.\d+(\.|$)/))||e)(t)),l="undefined"!=typeof window&&void 0!==window.HTMLElement&&"undefined"!=typeof document;function u(e){let t;const r=Array.isArray(e),s="undefined"!=typeof FileList&&e instanceof FileList;if(e instanceof Date)t=new Date(e);else {if(l&&(e instanceof Blob||s)||!r&&!i(e))return e;if(t=r?[]:Object.create(Object.getPrototypeOf(e)),r||(e=>{const t=e.constructor&&e.constructor.prototype;return i(t)&&t.hasOwnProperty("isPrototypeOf")})(e))for(const r in e)e.hasOwnProperty(r)&&(t[r]=u(e[r]));else t=e;}return t}var d=e=>/^\w*$/.test(e),c=e=>void 0===e,f=e=>Array.isArray(e)?e.filter(Boolean):[],m=e=>f(e.replace(/["|']|\]/g,"").split(/\.|\[/)),y=(e,t,r)=>{if(!t||!i(e))return r;const a=(d(t)?[t]:m(t)).reduce((e,t)=>s(e)?e:e[t],e);return c(a)||a===e?c(e[t])?r:e[t]:a},g=e=>"boolean"==typeof e,p=(e,t,r)=>{let s=-1;const a=d(t)?[t]:m(t),n=a.length,o=n-1;for(;++s<n;){const t=a[s];let n=r;if(s!==o){const r=e[t];n=i(r)||Array.isArray(r)?r:isNaN(+a[s+1])?{}:[];}if("__proto__"===t||"constructor"===t||"prototype"===t)return;e[t]=n,e=e[t];}};const _="blur",b="focusout",h="change",v="onBlur",V="onChange",F="onSubmit",x="onTouched",A="all",S="max",w="min",k="maxLength",D="minLength",C="pattern",E="required",O="validate",M=e.createContext(null);M.displayName="HookFormContext";const j=()=>e.useContext(M);var U=(e,t,r,s=true)=>{const a={defaultValues:t._defaultValues};for(const i in e)Object.defineProperty(a,i,{get:()=>{const a=i;return t._proxyFormState[a]!==A&&(t._proxyFormState[a]=!s||A),r&&(r[a]=true),e[a]}});return a};const T="undefined"!=typeof window?e.useLayoutEffect:e.useEffect;function N(t){const r=j(),{control:s=r.control,disabled:a,name:i,exact:n}=t||{},[o,l]=e.useState(s._formState),u=e.useRef({isDirty:false,isLoading:false,dirtyFields:false,touchedFields:false,validatingFields:false,isValidating:false,isValid:false,errors:false});return T(()=>s._subscribe({name:i,formState:u.current,exact:n,callback:e=>{!a&&l({...s._formState,...e});}}),[i,a,n]),e.useEffect(()=>{u.current.isValid&&s._setValid(true);},[s]),e.useMemo(()=>U(o,s,u.current,false),[o,s])}var R=e=>"string"==typeof e,B=(e,t,r,s,a)=>R(e)?(s&&t.watch.add(e),y(r,e,a)):Array.isArray(e)?e.map(e=>(s&&t.watch.add(e),y(r,e))):(s&&(t.watchAll=true),r),L=e=>s(e)||!a(e);function P(e,t,s=new WeakSet){if(L(e)||L(t))return e===t;if(r(e)&&r(t))return e.getTime()===t.getTime();const a=Object.keys(e),n=Object.keys(t);if(a.length!==n.length)return  false;if(s.has(e)||s.has(t))return  true;s.add(e),s.add(t);for(const o of a){const a=e[o];if(!n.includes(o))return  false;if("ref"!==o){const e=t[o];if(r(a)&&r(e)||i(a)&&i(e)||Array.isArray(a)&&Array.isArray(e)?!P(a,e,s):a!==e)return  false}}return  true}function W(t){const r=j(),{control:s=r.control,name:a,defaultValue:i,disabled:n,exact:o,compute:l}=t||{},u=e.useRef(i),d=e.useRef(l),c=e.useRef(void 0);d.current=l;const f=e.useMemo(()=>s._getWatch(a,u.current),[s,a]),[m,y]=e.useState(d.current?d.current(f):f);return T(()=>s._subscribe({name:a,formState:{values:true},exact:o,callback:e=>{if(!n){const t=B(a,s._names,e.values||s._formValues,false,u.current);if(d.current){const e=d.current(t);P(e,c.current)||(y(e),c.current=e);}else y(t);}}}),[s,n,a,o]),e.useEffect(()=>s._removeUnmounted()),m}function I(t){const r=j(),{name:s,disabled:a,control:i=r.control,shouldUnregister:l,defaultValue:d}=t,f=o(i._names.array,s),m=e.useMemo(()=>y(i._formValues,s,y(i._defaultValues,s,d)),[i,s,d]),b=W({control:i,name:s,defaultValue:m,exact:true}),v=N({control:i,name:s,exact:true}),V=e.useRef(t),F=e.useRef(void 0),x=e.useRef(i.register(s,{...t.rules,value:b,...g(t.disabled)?{disabled:t.disabled}:{}}));V.current=t;const A=e.useMemo(()=>Object.defineProperties({},{invalid:{enumerable:true,get:()=>!!y(v.errors,s)},isDirty:{enumerable:true,get:()=>!!y(v.dirtyFields,s)},isTouched:{enumerable:true,get:()=>!!y(v.touchedFields,s)},isValidating:{enumerable:true,get:()=>!!y(v.validatingFields,s)},error:{enumerable:true,get:()=>y(v.errors,s)}}),[v,s]),S=e.useCallback(e=>x.current.onChange({target:{value:n(e),name:s},type:h}),[s]),w=e.useCallback(()=>x.current.onBlur({target:{value:y(i._formValues,s),name:s},type:_}),[s,i._formValues]),k=e.useCallback(e=>{const t=y(i._fields,s);t&&e&&(t._f.ref={focus:()=>e.focus&&e.focus(),select:()=>e.select&&e.select(),setCustomValidity:t=>e.setCustomValidity(t),reportValidity:()=>e.reportValidity()});},[i._fields,s]),D=e.useMemo(()=>({name:s,value:b,...g(a)||v.disabled?{disabled:v.disabled||a}:{},onChange:S,onBlur:w,ref:k}),[s,a,v.disabled,S,w,k,b]);return e.useEffect(()=>{const e=i._options.shouldUnregister||l,t=F.current;t&&t!==s&&!f&&i.unregister(t),i.register(s,{...V.current.rules,...g(V.current.disabled)?{disabled:V.current.disabled}:{}});const r=(e,t)=>{const r=y(i._fields,e);r&&r._f&&(r._f.mount=t);};if(r(s,true),e){const e=u(y(i._options.defaultValues,s,V.current.defaultValue));p(i._defaultValues,s,e),c(y(i._formValues,s))&&p(i._formValues,s,e);}return !f&&i.register(s),F.current=s,()=>{(f?e&&!i._state.action:e)?i.unregister(s):r(s,false);}},[s,i,f,l]),e.useEffect(()=>{i._setDisabledField({disabled:a,name:s});},[a,s,i]),e.useMemo(()=>({field:D,formState:v,fieldState:A}),[D,v,A])}const q=e=>{const t={};for(const r of Object.keys(e))if(a(e[r])&&null!==e[r]){const s=q(e[r]);for(const e of Object.keys(s))t[`${r}.${e}`]=s[e];}else t[r]=e[r];return t},$="post";var H=(e,t,r,s,a)=>t?{...r[e],types:{...r[e]&&r[e].types?r[e].types:{},[s]:a||true}}:{},J=e=>Array.isArray(e)?e:[e],z=()=>{let e=[];return {get observers(){return e},next:t=>{for(const r of e)r.next&&r.next(t);},subscribe:t=>(e.push(t),{unsubscribe:()=>{e=e.filter(e=>e!==t);}}),unsubscribe:()=>{e=[];}}};function G(e,t){const r={};for(const s in e)if(e.hasOwnProperty(s)){const a=e[s],n=t[s];if(a&&i(a)&&n){const e=G(a,n);i(e)&&(r[s]=e);}else e[s]&&(r[s]=n);}return r}var K=e=>i(e)&&!Object.keys(e).length,Q=e=>"file"===e.type,X=e=>"function"==typeof e,Y=e=>{if(!l)return  false;const t=e?e.ownerDocument:0;return e instanceof(t&&t.defaultView?t.defaultView.HTMLElement:HTMLElement)},Z=e=>"select-multiple"===e.type,ee=e=>"radio"===e.type,te=e=>Y(e)&&e.isConnected;function re(e,t){const r=Array.isArray(t)?t:d(t)?[t]:m(t),s=1===r.length?e:function(e,t){const r=t.slice(0,-1).length;let s=0;for(;s<r;)e=c(e)?s++:e[t[s++]];return e}(e,r),a=r.length-1,n=r[a];return s&&delete s[n],0!==a&&(i(s)&&K(s)||Array.isArray(s)&&function(e){for(const t in e)if(e.hasOwnProperty(t)&&!c(e[t]))return  false;return  true}(s))&&re(e,r.slice(0,-1)),e}function se(e){return Array.isArray(e)||i(e)&&!(e=>{for(const t in e)if(X(e[t]))return  true;return  false})(e)}function ae(e,t={}){for(const r in e)se(e[r])?(t[r]=Array.isArray(e[r])?[]:{},ae(e[r],t[r])):c(e[r])||(t[r]=true);return t}function ie(e,t,r){r||(r=ae(t));for(const a in e)se(e[a])?c(t)||L(r[a])?r[a]=ae(e[a],Array.isArray(e[a])?[]:{}):ie(e[a],s(t)?{}:t[a],r[a]):r[a]=!P(e[a],t[a]);return r}const ne={value:false,isValid:false},oe={value:true,isValid:true};var le=e=>{if(Array.isArray(e)){if(e.length>1){const t=e.filter(e=>e&&e.checked&&!e.disabled).map(e=>e.value);return {value:t,isValid:!!t.length}}return e[0].checked&&!e[0].disabled?e[0].attributes&&!c(e[0].attributes.value)?c(e[0].value)||""===e[0].value?oe:{value:e[0].value,isValid:true}:oe:ne}return ne},ue=(e,{valueAsNumber:t,valueAsDate:r,setValueAs:s})=>c(e)?e:t?""===e?NaN:e?+e:e:r&&R(e)?new Date(e):s?s(e):e;const de={isValid:false,value:null};var ce=e=>Array.isArray(e)?e.reduce((e,t)=>t&&t.checked&&!t.disabled?{isValid:true,value:t.value}:e,de):de;function fe(e){const r=e.ref;return Q(r)?r.files:ee(r)?ce(e.refs).value:Z(r)?[...r.selectedOptions].map(({value:e})=>e):t(r)?le(e.refs).value:ue(c(r.value)?e.ref.value:r.value,e)}var me=e=>e instanceof RegExp,ye=e=>c(e)?e:me(e)?e.source:i(e)?me(e.value)?e.value.source:e.value:e,ge=e=>({isOnSubmit:!e||e===F,isOnBlur:e===v,isOnChange:e===V,isOnAll:e===A,isOnTouch:e===x});const pe="AsyncFunction";var _e=e=>!!e&&!!e.validate&&!!(X(e.validate)&&e.validate.constructor.name===pe||i(e.validate)&&Object.values(e.validate).find(e=>e.constructor.name===pe)),be=(e,t,r)=>!r&&(t.watchAll||t.watch.has(e)||[...t.watch].some(t=>e.startsWith(t)&&/^\.\w+/.test(e.slice(t.length))));const he=(e,t,r,s)=>{for(const a of r||Object.keys(e)){const r=y(e,a);if(r){const{_f:e,...n}=r;if(e){if(e.refs&&e.refs[0]&&t(e.refs[0],a)&&!s)return  true;if(e.ref&&t(e.ref,e.name)&&!s)return  true;if(he(n,t))break}else if(i(n)&&he(n,t))break}}};function ve(e,t,r){const s=y(e,r);if(s||d(r))return {error:s,name:r};const a=r.split(".");for(;a.length;){const s=a.join("."),i=y(t,s),n=y(e,s);if(i&&!Array.isArray(i)&&r!==s)return {name:r};if(n&&n.type)return {name:s,error:n};if(n&&n.root&&n.root.type)return {name:`${s}.root`,error:n.root};a.pop();}return {name:r}}var Ve=(e,t,r)=>{const s=J(y(e,r));return p(s,"root",t[r]),p(e,r,s),e};function Fe(e,t,r="validate"){if(R(e)||Array.isArray(e)&&e.every(R)||g(e)&&!e)return {type:r,message:R(e)?e:"",ref:t}}var xe=e=>i(e)&&!me(e)?e:{value:e,message:""},Ae=async(e,r,a,n,o,l)=>{const{ref:u,refs:d,required:f,maxLength:m,minLength:p,min:_,max:b,pattern:h,validate:v,name:V,valueAsNumber:F,mount:x}=e._f,A=y(a,V);if(!x||r.has(V))return {};const M=d?d[0]:u,j=e=>{o&&M.reportValidity&&(M.setCustomValidity(g(e)?"":e||""),M.reportValidity());},U={},T=ee(u),N=t(u),B=T||N,L=(F||Q(u))&&c(u.value)&&c(A)||Y(u)&&""===u.value||""===A||Array.isArray(A)&&!A.length,P=H.bind(null,V,n,U),W=(e,t,r,s=k,a=D)=>{const i=e?t:r;U[V]={type:e?s:a,message:i,ref:u,...P(e?s:a,i)};};if(l?!Array.isArray(A)||!A.length:f&&(!B&&(L||s(A))||g(A)&&!A||N&&!le(d).isValid||T&&!ce(d).isValid)){const{value:e,message:t}=R(f)?{value:!!f,message:f}:xe(f);if(e&&(U[V]={type:E,message:t,ref:M,...P(E,t)},!n))return j(t),U}if(!(L||s(_)&&s(b))){let e,t;const r=xe(b),a=xe(_);if(s(A)||isNaN(A)){const s=u.valueAsDate||new Date(A),i=e=>new Date((new Date).toDateString()+" "+e),n="time"==u.type,o="week"==u.type;R(r.value)&&A&&(e=n?i(A)>i(r.value):o?A>r.value:s>new Date(r.value)),R(a.value)&&A&&(t=n?i(A)<i(a.value):o?A<a.value:s<new Date(a.value));}else {const i=u.valueAsNumber||(A?+A:A);s(r.value)||(e=i>r.value),s(a.value)||(t=i<a.value);}if((e||t)&&(W(!!e,r.message,a.message,S,w),!n))return j(U[V].message),U}if((m||p)&&!L&&(R(A)||l&&Array.isArray(A))){const e=xe(m),t=xe(p),r=!s(e.value)&&A.length>+e.value,a=!s(t.value)&&A.length<+t.value;if((r||a)&&(W(r,e.message,t.message),!n))return j(U[V].message),U}if(h&&!L&&R(A)){const{value:e,message:t}=xe(h);if(me(e)&&!A.match(e)&&(U[V]={type:C,message:t,ref:u,...P(C,t)},!n))return j(t),U}if(v)if(X(v)){const e=Fe(await v(A,a),M);if(e&&(U[V]={...e,...P(O,e.message)},!n))return j(e.message),U}else if(i(v)){let e={};for(const t in v){if(!K(e)&&!n)break;const r=Fe(await v[t](A,a),M,t);r&&(e={...r,...P(t,r.message)},j(r.message),n&&(U[V]=e));}if(!K(e)&&(U[V]={ref:M,...e},!n))return U}return j(true),U};const Se={mode:F,reValidateMode:V,shouldFocusError:true};function we(e={}){let a,d={...Se,...e},m={submitCount:0,isDirty:false,isReady:false,isLoading:X(d.defaultValues),isValidating:false,isSubmitted:false,isSubmitting:false,isSubmitSuccessful:false,isValid:false,touchedFields:{},dirtyFields:{},validatingFields:{},errors:d.errors||{},disabled:d.disabled||false},h={},v=(i(d.defaultValues)||i(d.values))&&u(d.defaultValues||d.values)||{},V=d.shouldUnregister?{}:u(v),F={action:false,mount:false,watch:false},x={mount:new Set,disabled:new Set,unMount:new Set,array:new Set,watch:new Set},S=0;const w={isDirty:false,dirtyFields:false,validatingFields:false,touchedFields:false,isValidating:false,isValid:false,errors:false};let k={...w};const D={array:z(),state:z()},C=d.criteriaMode===A,E=async e=>{if(!d.disabled&&(w.isValid||k.isValid||e)){const e=d.resolver?K((await T()).errors):await N(h,true);e!==m.isValid&&D.state.next({isValid:e});}},O=(e,t)=>{!d.disabled&&(w.isValidating||w.validatingFields||k.isValidating||k.validatingFields)&&((e||Array.from(x.mount)).forEach(e=>{e&&(t?p(m.validatingFields,e,t):re(m.validatingFields,e));}),D.state.next({validatingFields:m.validatingFields,isValidating:!K(m.validatingFields)}));},M=(e,t,r,s)=>{const a=y(h,e);if(a){const i=y(V,e,c(r)?y(v,e):r);c(i)||s&&s.defaultChecked||t?p(V,e,t?i:fe(a._f)):I(e,i),F.mount&&E();}},j=(e,t,r,s,a)=>{let i=false,n=false;const o={name:e};if(!d.disabled){if(!r||s){(w.isDirty||k.isDirty)&&(n=m.isDirty,m.isDirty=o.isDirty=L(),i=n!==o.isDirty);const r=P(y(v,e),t);n=!!y(m.dirtyFields,e),r?re(m.dirtyFields,e):p(m.dirtyFields,e,true),o.dirtyFields=m.dirtyFields,i=i||(w.dirtyFields||k.dirtyFields)&&n!==!r;}if(r){const t=y(m.touchedFields,e);t||(p(m.touchedFields,e,r),o.touchedFields=m.touchedFields,i=i||(w.touchedFields||k.touchedFields)&&t!==r);}i&&a&&D.state.next(o);}return i?o:{}},U=(e,t,r,s)=>{const i=y(m.errors,e),n=(w.isValid||k.isValid)&&g(t)&&m.isValid!==t;var o;if(d.delayError&&r?(o=()=>((e,t)=>{p(m.errors,e,t),D.state.next({errors:m.errors});})(e,r),a=e=>{clearTimeout(S),S=setTimeout(o,e);},a(d.delayError)):(clearTimeout(S),a=null,r?p(m.errors,e,r):re(m.errors,e)),(r?!P(i,r):i)||!K(s)||n){const r={...s,...n&&g(t)?{isValid:t}:{},errors:m.errors,name:e};m={...m,...r},D.state.next(r);}},T=async e=>{O(e,true);const t=await d.resolver(V,d.context,((e,t,r,s)=>{const a={};for(const r of e){const e=y(t,r);e&&p(a,r,e._f);}return {criteriaMode:r,names:[...e],fields:a,shouldUseNativeValidation:s}})(e||x.mount,h,d.criteriaMode,d.shouldUseNativeValidation));return O(e),t},N=async(e,t,r={valid:true})=>{for(const s in e){const a=e[s];if(a){const{_f:e,...s}=a;if(e){const s=x.array.has(e.name),i=a._f&&_e(a._f);i&&w.validatingFields&&O([e.name],true);const n=await Ae(a,x.disabled,V,C,d.shouldUseNativeValidation&&!t,s);if(i&&w.validatingFields&&O([e.name]),n[e.name]&&(r.valid=false,t))break;!t&&(y(n,e.name)?s?Ve(m.errors,n,e.name):p(m.errors,e.name,n[e.name]):re(m.errors,e.name));}!K(s)&&await N(s,t,r);}}return r.valid},L=(e,t)=>!d.disabled&&(e&&t&&p(V,e,t),!P(ne(),v)),W=(e,t,r)=>B(e,x,{...F.mount?V:c(t)?v:R(e)?{[e]:t}:t},r,t),I=(e,r,a={})=>{const i=y(h,e);let n=r;if(i){const a=i._f;a&&(!a.disabled&&p(V,e,ue(r,a)),n=Y(a.ref)&&s(r)?"":r,Z(a.ref)?[...a.ref.options].forEach(e=>e.selected=n.includes(e.value)):a.refs?t(a.ref)?a.refs.forEach(e=>{e.defaultChecked&&e.disabled||(Array.isArray(n)?e.checked=!!n.find(t=>t===e.value):e.checked=n===e.value||!!n);}):a.refs.forEach(e=>e.checked=e.value===n):Q(a.ref)?a.ref.value="":(a.ref.value=n,a.ref.type||D.state.next({name:e,values:u(V)})));}(a.shouldDirty||a.shouldTouch)&&j(e,n,a.shouldTouch,a.shouldDirty,true),a.shouldValidate&&ae(e);},q=(e,t,s)=>{for(const a in t){if(!t.hasOwnProperty(a))return;const n=t[a],o=e+"."+a,l=y(h,o);(x.array.has(e)||i(n)||l&&!l._f)&&!r(n)?q(o,n,s):I(o,n,s);}},$=(e,t,r={})=>{const a=y(h,e),i=x.array.has(e),n=u(t);p(V,e,n),i?(D.array.next({name:e,values:u(V)}),(w.isDirty||w.dirtyFields||k.isDirty||k.dirtyFields)&&r.shouldDirty&&D.state.next({name:e,dirtyFields:ie(v,V),isDirty:L(e,n)})):!a||a._f||s(n)?I(e,n,r):q(e,n,r),be(e,x)&&D.state.next({...m,name:e}),D.state.next({name:F.mount?e:void 0,values:u(V)});},H=async e=>{F.mount=true;const t=e.target;let s=t.name,i=true;const o=y(h,s),l=e=>{i=Number.isNaN(e)||r(e)&&isNaN(e.getTime())||P(e,y(V,s,e));},c=ge(d.mode),f=ge(d.reValidateMode);if(o){let r,v;const F=t.type?fe(o._f):n(e),A=e.type===_||e.type===b,S=!((g=o._f).mount&&(g.required||g.min||g.max||g.maxLength||g.minLength||g.pattern||g.validate)||d.resolver||y(m.errors,s)||o._f.deps)||((e,t,r,s,a)=>!a.isOnAll&&(!r&&a.isOnTouch?!(t||e):(r?s.isOnBlur:a.isOnBlur)?!e:!(r?s.isOnChange:a.isOnChange)||e))(A,y(m.touchedFields,s),m.isSubmitted,f,c),M=be(s,x,A);p(V,s,F),A?t&&t.readOnly||(o._f.onBlur&&o._f.onBlur(e),a&&a(0)):o._f.onChange&&o._f.onChange(e);const R=j(s,F,A),B=!K(R)||M;if(!A&&D.state.next({name:s,type:e.type,values:u(V)}),S)return (w.isValid||k.isValid)&&("onBlur"===d.mode?A&&E():A||E()),B&&D.state.next({name:s,...M?{}:R});if(!A&&M&&D.state.next({...m}),d.resolver){const{errors:e}=await T([s]);if(l(F),i){const t=ve(m.errors,h,s),a=ve(e,h,t.name||s);r=a.error,s=a.name,v=K(e);}}else O([s],true),r=(await Ae(o,x.disabled,V,C,d.shouldUseNativeValidation))[s],O([s]),l(F),i&&(r?v=false:(w.isValid||k.isValid)&&(v=await N(h,true)));i&&(o._f.deps&&(!Array.isArray(o._f.deps)||o._f.deps.length>0)&&ae(o._f.deps),U(s,v,r,R));}var g;},se=(e,t)=>{if(y(m.errors,t)&&e.focus)return e.focus(),1},ae=async(e,t={})=>{let r,s;const a=J(e);if(d.resolver){const t=await(async e=>{const{errors:t}=await T(e);if(e)for(const r of e){const e=y(t,r);e?p(m.errors,r,e):re(m.errors,r);}else m.errors=t;return t})(c(e)?e:a);r=K(t),s=e?!a.some(e=>y(t,e)):r;}else e?(s=(await Promise.all(a.map(async e=>{const t=y(h,e);return await N(t&&t._f?{[e]:t}:t)}))).every(Boolean),(s||m.isValid)&&E()):s=r=await N(h);return D.state.next({...!R(e)||(w.isValid||k.isValid)&&r!==m.isValid?{}:{name:e},...d.resolver||!e?{isValid:r}:{},errors:m.errors}),t.shouldFocus&&!s&&he(h,se,e?a:x.mount),s},ne=(e,t)=>{let r={...F.mount?V:v};return t&&(r=G(t.dirtyFields?m.dirtyFields:m.touchedFields,r)),c(e)?r:R(e)?y(r,e):e.map(e=>y(r,e))},oe=(e,t)=>({invalid:!!y((t||m).errors,e),isDirty:!!y((t||m).dirtyFields,e),error:y((t||m).errors,e),isValidating:!!y(m.validatingFields,e),isTouched:!!y((t||m).touchedFields,e)}),le=(e,t,r)=>{const s=(y(h,e,{_f:{}})._f||{}).ref,a=y(m.errors,e)||{},{ref:i,message:n,type:o,...l}=a;p(m.errors,e,{...l,...t,ref:s}),D.state.next({name:e,errors:m.errors,isValid:false}),r&&r.shouldFocus&&s&&s.focus&&s.focus();},de=e=>D.state.subscribe({next:t=>{var r,s,a;r=e.name,s=t.name,a=e.exact,r&&s&&r!==s&&!J(r).some(e=>e&&(a?e===s:e.startsWith(s)||s.startsWith(e)))||!((e,t,r,s)=>{r(e);const{name:a,...i}=e;return K(i)||Object.keys(i).length>=Object.keys(t).length||Object.keys(i).find(e=>t[e]===(!s||A))})(t,e.formState||w,De,e.reRenderRoot)||e.callback({values:{...V},...m,...t,defaultValues:v});}}).unsubscribe,ce=(e,t={})=>{for(const r of e?J(e):x.mount)x.mount.delete(r),x.array.delete(r),t.keepValue||(re(h,r),re(V,r)),!t.keepError&&re(m.errors,r),!t.keepDirty&&re(m.dirtyFields,r),!t.keepTouched&&re(m.touchedFields,r),!t.keepIsValidating&&re(m.validatingFields,r),!d.shouldUnregister&&!t.keepDefaultValue&&re(v,r);D.state.next({values:u(V)}),D.state.next({...m,...t.keepDirty?{isDirty:L()}:{}}),!t.keepIsValid&&E();},me=({disabled:e,name:t})=>{(g(e)&&F.mount||e||x.disabled.has(t))&&(e?x.disabled.add(t):x.disabled.delete(t));},pe=(e,r={})=>{let s=y(h,e);const a=g(r.disabled)||g(d.disabled);return p(h,e,{...s||{},_f:{...s&&s._f?s._f:{ref:{name:e}},name:e,mount:true,...r}}),x.mount.add(e),s?me({disabled:g(r.disabled)?r.disabled:d.disabled,name:e}):M(e,true,r.value),{...a?{disabled:r.disabled||d.disabled}:{},...d.progressive?{required:!!r.required,min:ye(r.min),max:ye(r.max),minLength:ye(r.minLength),maxLength:ye(r.maxLength),pattern:ye(r.pattern)}:{},name:e,onChange:H,onBlur:H,ref:a=>{if(a){pe(e,r),s=y(h,e);const i=c(a.value)&&a.querySelectorAll&&a.querySelectorAll("input,select,textarea")[0]||a,n=(e=>ee(e)||t(e))(i),o=s._f.refs||[];if(n?o.find(e=>e===i):i===s._f.ref)return;p(h,e,{_f:{...s._f,...n?{refs:[...o.filter(te),i,...Array.isArray(y(v,e))?[{}]:[]],ref:{type:i.type,name:e}}:{ref:i}}}),M(e,false,void 0,i);}else s=y(h,e,{}),s._f&&(s._f.mount=false),(d.shouldUnregister||r.shouldUnregister)&&(!o(x.array,e)||!F.action)&&x.unMount.add(e);}}},Fe=()=>d.shouldFocusError&&he(h,se,x.mount),xe=(e,t)=>async r=>{let s;r&&(r.preventDefault&&r.preventDefault(),r.persist&&r.persist());let a=u(V);if(D.state.next({isSubmitting:true}),d.resolver){const{errors:e,values:t}=await T();m.errors=e,a=u(t);}else await N(h);if(x.disabled.size)for(const e of x.disabled)re(a,e);if(re(m.errors,"root"),K(m.errors)){D.state.next({errors:{}});try{await e(a,r);}catch(e){s=e;}}else t&&await t({...m.errors},r),Fe(),setTimeout(Fe);if(D.state.next({isSubmitted:true,isSubmitting:false,isSubmitSuccessful:K(m.errors)&&!s,submitCount:m.submitCount+1,errors:m.errors}),s)throw s},we=(e,t={})=>{const r=e?u(e):v,s=u(r),a=K(e),i=a?v:s;if(t.keepDefaultValues||(v=r),!t.keepValues){if(t.keepDirtyValues){const e=new Set([...x.mount,...Object.keys(ie(v,V))]);for(const t of Array.from(e))y(m.dirtyFields,t)?p(i,t,y(V,t)):$(t,y(i,t));}else {if(l&&c(e))for(const e of x.mount){const t=y(h,e);if(t&&t._f){const e=Array.isArray(t._f.refs)?t._f.refs[0]:t._f.ref;if(Y(e)){const t=e.closest("form");if(t){t.reset();break}}}}if(t.keepFieldsRef)for(const e of x.mount)$(e,y(i,e));else h={};}V=d.shouldUnregister?t.keepDefaultValues?u(v):{}:u(i),D.array.next({values:{...i}}),D.state.next({values:{...i}});}x={mount:t.keepDirtyValues?x.mount:new Set,unMount:new Set,array:new Set,disabled:new Set,watch:new Set,watchAll:false,focus:""},F.mount=!w.isValid||!!t.keepIsValid||!!t.keepDirtyValues,F.watch=!!d.shouldUnregister,D.state.next({submitCount:t.keepSubmitCount?m.submitCount:0,isDirty:!a&&(t.keepDirty?m.isDirty:!(!t.keepDefaultValues||P(e,v))),isSubmitted:!!t.keepIsSubmitted&&m.isSubmitted,dirtyFields:a?{}:t.keepDirtyValues?t.keepDefaultValues&&V?ie(v,V):m.dirtyFields:t.keepDefaultValues&&e?ie(v,e):t.keepDirty?m.dirtyFields:{},touchedFields:t.keepTouched?m.touchedFields:{},errors:t.keepErrors?m.errors:{},isSubmitSuccessful:!!t.keepIsSubmitSuccessful&&m.isSubmitSuccessful,isSubmitting:false,defaultValues:v});},ke=(e,t)=>we(X(e)?e(V):e,t),De=e=>{m={...m,...e};},Ce={control:{register:pe,unregister:ce,getFieldState:oe,handleSubmit:xe,setError:le,_subscribe:de,_runSchema:T,_focusError:Fe,_getWatch:W,_getDirty:L,_setValid:E,_setFieldArray:(e,t=[],r,s,a=true,i=true)=>{if(s&&r&&!d.disabled){if(F.action=true,i&&Array.isArray(y(h,e))){const t=r(y(h,e),s.argA,s.argB);a&&p(h,e,t);}if(i&&Array.isArray(y(m.errors,e))){const t=r(y(m.errors,e),s.argA,s.argB);a&&p(m.errors,e,t),((e,t)=>{!f(y(e,t)).length&&re(e,t);})(m.errors,e);}if((w.touchedFields||k.touchedFields)&&i&&Array.isArray(y(m.touchedFields,e))){const t=r(y(m.touchedFields,e),s.argA,s.argB);a&&p(m.touchedFields,e,t);}(w.dirtyFields||k.dirtyFields)&&(m.dirtyFields=ie(v,V)),D.state.next({name:e,isDirty:L(e,t),dirtyFields:m.dirtyFields,errors:m.errors,isValid:m.isValid});}else p(V,e,t);},_setDisabledField:me,_setErrors:e=>{m.errors=e,D.state.next({errors:m.errors,isValid:false});},_getFieldArray:e=>f(y(F.mount?V:v,e,d.shouldUnregister?y(v,e,[]):[])),_reset:we,_resetDefaultValues:()=>X(d.defaultValues)&&d.defaultValues().then(e=>{ke(e,d.resetOptions),D.state.next({isLoading:false});}),_removeUnmounted:()=>{for(const e of x.unMount){const t=y(h,e);t&&(t._f.refs?t._f.refs.every(e=>!te(e)):!te(t._f.ref))&&ce(e);}x.unMount=new Set;},_disableForm:e=>{g(e)&&(D.state.next({disabled:e}),he(h,(t,r)=>{const s=y(h,r);s&&(t.disabled=s._f.disabled||e,Array.isArray(s._f.refs)&&s._f.refs.forEach(t=>{t.disabled=s._f.disabled||e;}));},0,false));},_subjects:D,_proxyFormState:w,get _fields(){return h},get _formValues(){return V},get _state(){return F},set _state(e){F=e;},get _defaultValues(){return v},get _names(){return x},set _names(e){x=e;},get _formState(){return m},get _options(){return d},set _options(e){d={...d,...e};}},subscribe:e=>(F.mount=true,k={...k,...e.formState},de({...e,formState:k})),trigger:ae,register:pe,handleSubmit:xe,watch:(e,t)=>X(e)?D.state.subscribe({next:r=>"values"in r&&e(W(void 0,t),r)}):W(e,t,true),setValue:$,getValues:ne,reset:ke,resetField:(e,t={})=>{y(h,e)&&(c(t.defaultValue)?$(e,u(y(v,e))):($(e,t.defaultValue),p(v,e,u(t.defaultValue))),t.keepTouched||re(m.touchedFields,e),t.keepDirty||(re(m.dirtyFields,e),m.isDirty=t.defaultValue?L(e,u(y(v,e))):L()),t.keepError||(re(m.errors,e),w.isValid&&E()),D.state.next({...m}));},clearErrors:e=>{e&&J(e).forEach(e=>re(m.errors,e)),D.state.next({errors:e?m.errors:{}});},unregister:ce,setError:le,setFocus:(e,t={})=>{const r=y(h,e),s=r&&r._f;if(s){const e=s.refs?s.refs[0]:s.ref;e.focus&&(e.focus(),t.shouldSelect&&X(e.select)&&e.select());}},getFieldState:oe};return {...Ce,formControl:Ce}}var ke=()=>{if("undefined"!=typeof crypto&&crypto.randomUUID)return crypto.randomUUID();const e="undefined"==typeof performance?Date.now():1e3*performance.now();return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g,t=>{const r=(16*Math.random()+e)%16|0;return ("x"==t?r:3&r|8).toString(16)})},De=(e,t,r={})=>r.shouldFocus||c(r.shouldFocus)?r.focusName||`${e}.${c(r.focusIndex)?t:r.focusIndex}.`:"",Ce=(e,t)=>[...e,...J(t)],Ee=e=>Array.isArray(e)?e.map(()=>{}):void 0;function Oe(e,t,r){return [...e.slice(0,t),...J(r),...e.slice(t)]}var Me=(e,t,r)=>Array.isArray(e)?(c(e[r])&&(e[r]=void 0),e.splice(r,0,e.splice(t,1)[0]),e):[],je=(e,t)=>[...J(t),...J(e)];var Ue=(e,t)=>c(t)?[]:function(e,t){let r=0;const s=[...e];for(const e of t)s.splice(e-r,1),r++;return f(s).length?s:[]}(e,J(t).sort((e,t)=>e-t)),Te=(e,t,r)=>{[e[t],e[r]]=[e[r],e[t]];},Ne=(e,t,r)=>(e[t]=r,e);index_cjs.Controller=e=>e.render(I(e)),index_cjs.Form=function(t){const r=j(),[s,a]=e.useState(false),{control:i=r.control,onSubmit:n,children:o,action:l,method:u=$,headers:d,encType:c,onError:f,render:m,onSuccess:y,validateStatus:g,...p}=t,_=async e=>{let r=false,s="";await i.handleSubmit(async t=>{const a=new FormData;let o="";try{o=JSON.stringify(t);}catch(e){}const m=q(i._formValues);for(const e in m)a.append(e,m[e]);if(n&&await n({data:t,event:e,method:u,formData:a,formDataJson:o}),l)try{const e=[d&&d["Content-Type"],c].some(e=>e&&e.includes("json")),t=await fetch(String(l),{method:u,headers:{...d,...c&&"multipart/form-data"!==c?{"Content-Type":c}:{}},body:e?o:a});t&&(g?!g(t.status):t.status<200||t.status>=300)?(r=!0,f&&f({response:t}),s=String(t.status)):y&&y({response:t});}catch(e){r=true,f&&f({error:e});}})(e),r&&t.control&&(t.control._subjects.state.next({isSubmitSuccessful:false}),t.control.setError("root.server",{type:s}));};return e.useEffect(()=>{a(true);},[]),m?e.createElement(e.Fragment,null,m({submit:_})):e.createElement("form",{noValidate:s,action:l,method:u,encType:c,onSubmit:_,...p},o)},index_cjs.FormProvider=t=>{const{children:r,...s}=t;return e.createElement(M.Provider,{value:s},r)},index_cjs.Watch=({control:e,names:t,render:r})=>r(W({control:e,name:t})),index_cjs.appendErrors=H,index_cjs.createFormControl=we,index_cjs.get=y,index_cjs.set=p,index_cjs.useController=I,index_cjs.useFieldArray=function(t){const r=j(),{control:s=r.control,name:a,keyName:i="id",shouldUnregister:n,rules:o}=t,[l,d]=e.useState(s._getFieldArray(a)),c=e.useRef(s._getFieldArray(a).map(ke)),f=e.useRef(false);s._names.array.add(a),e.useMemo(()=>o&&l.length>=0&&s.register(a,o),[s,a,l.length,o]),T(()=>s._subjects.array.subscribe({next:({values:e,name:t})=>{if(t===a||!t){const t=y(e,a);Array.isArray(t)&&(d(t),c.current=t.map(ke));}}}).unsubscribe,[s,a]);const m=e.useCallback(e=>{f.current=true,s._setFieldArray(a,e);},[s,a]);return e.useEffect(()=>{if(s._state.action=false,be(a,s._names)&&s._subjects.state.next({...s._formState}),f.current&&(!ge(s._options.mode).isOnSubmit||s._formState.isSubmitted)&&!ge(s._options.reValidateMode).isOnSubmit)if(s._options.resolver)s._runSchema([a]).then(e=>{const t=y(e.errors,a),r=y(s._formState.errors,a);(r?!t&&r.type||t&&(r.type!==t.type||r.message!==t.message):t&&t.type)&&(t?p(s._formState.errors,a,t):re(s._formState.errors,a),s._subjects.state.next({errors:s._formState.errors}));});else {const e=y(s._fields,a);!e||!e._f||ge(s._options.reValidateMode).isOnSubmit&&ge(s._options.mode).isOnSubmit||Ae(e,s._names.disabled,s._formValues,s._options.criteriaMode===A,s._options.shouldUseNativeValidation,true).then(e=>!K(e)&&s._subjects.state.next({errors:Ve(s._formState.errors,e,a)}));}s._subjects.state.next({name:a,values:u(s._formValues)}),s._names.focus&&he(s._fields,(e,t)=>{if(s._names.focus&&t.startsWith(s._names.focus)&&e.focus)return e.focus(),1}),s._names.focus="",s._setValid(),f.current=false;},[l,a,s]),e.useEffect(()=>(!y(s._formValues,a)&&s._setFieldArray(a),()=>{s._options.shouldUnregister||n?s.unregister(a):((e,t)=>{const r=y(s._fields,e);r&&r._f&&(r._f.mount=t);})(a,false);}),[a,s,i,n]),{swap:e.useCallback((e,t)=>{const r=s._getFieldArray(a);Te(r,e,t),Te(c.current,e,t),m(r),d(r),s._setFieldArray(a,r,Te,{argA:e,argB:t},false);},[m,a,s]),move:e.useCallback((e,t)=>{const r=s._getFieldArray(a);Me(r,e,t),Me(c.current,e,t),m(r),d(r),s._setFieldArray(a,r,Me,{argA:e,argB:t},false);},[m,a,s]),prepend:e.useCallback((e,t)=>{const r=J(u(e)),i=je(s._getFieldArray(a),r);s._names.focus=De(a,0,t),c.current=je(c.current,r.map(ke)),m(i),d(i),s._setFieldArray(a,i,je,{argA:Ee(e)});},[m,a,s]),append:e.useCallback((e,t)=>{const r=J(u(e)),i=Ce(s._getFieldArray(a),r);s._names.focus=De(a,i.length-1,t),c.current=Ce(c.current,r.map(ke)),m(i),d(i),s._setFieldArray(a,i,Ce,{argA:Ee(e)});},[m,a,s]),remove:e.useCallback(e=>{const t=Ue(s._getFieldArray(a),e);c.current=Ue(c.current,e),m(t),d(t),!Array.isArray(y(s._fields,a))&&p(s._fields,a,void 0),s._setFieldArray(a,t,Ue,{argA:e});},[m,a,s]),insert:e.useCallback((e,t,r)=>{const i=J(u(t)),n=Oe(s._getFieldArray(a),e,i);s._names.focus=De(a,e,r),c.current=Oe(c.current,e,i.map(ke)),m(n),d(n),s._setFieldArray(a,n,Oe,{argA:e,argB:Ee(t)});},[m,a,s]),update:e.useCallback((e,t)=>{const r=u(t),i=Ne(s._getFieldArray(a),e,r);c.current=[...i].map((t,r)=>t&&r!==e?c.current[r]:ke()),m(i),d([...i]),s._setFieldArray(a,i,Ne,{argA:e,argB:r},true,false);},[m,a,s]),replace:e.useCallback(e=>{const t=J(u(e));c.current=t.map(ke),m([...t]),d([...t]),s._setFieldArray(a,[...t],e=>e,{},true,false);},[m,a,s]),fields:e.useMemo(()=>l.map((e,t)=>({...e,[i]:c.current[t]||ke()})),[l,i])}},index_cjs.useForm=function(t={}){const r=e.useRef(void 0),s=e.useRef(void 0),[a,i]=e.useState({isDirty:false,isValidating:false,isLoading:X(t.defaultValues),isSubmitted:false,isSubmitting:false,isSubmitSuccessful:false,isValid:false,submitCount:0,dirtyFields:{},touchedFields:{},validatingFields:{},errors:t.errors||{},disabled:t.disabled||false,isReady:false,defaultValues:X(t.defaultValues)?void 0:t.defaultValues});if(!r.current)if(t.formControl)r.current={...t.formControl,formState:a},t.defaultValues&&!X(t.defaultValues)&&t.formControl.reset(t.defaultValues,t.resetOptions);else {const{formControl:e,...s}=we(t);r.current={...s,formState:a};}const n=r.current.control;return n._options=t,T(()=>{const e=n._subscribe({formState:n._proxyFormState,callback:()=>i({...n._formState}),reRenderRoot:true});return i(e=>({...e,isReady:true})),n._formState.isReady=true,e},[n]),e.useEffect(()=>n._disableForm(t.disabled),[n,t.disabled]),e.useEffect(()=>{t.mode&&(n._options.mode=t.mode),t.reValidateMode&&(n._options.reValidateMode=t.reValidateMode);},[n,t.mode,t.reValidateMode]),e.useEffect(()=>{t.errors&&(n._setErrors(t.errors),n._focusError());},[n,t.errors]),e.useEffect(()=>{t.shouldUnregister&&n._subjects.state.next({values:n._getWatch()});},[n,t.shouldUnregister]),e.useEffect(()=>{if(n._proxyFormState.isDirty){const e=n._getDirty();e!==a.isDirty&&n._subjects.state.next({isDirty:e});}},[n,a.isDirty]),e.useEffect(()=>{t.values&&!P(t.values,s.current)?(n._reset(t.values,{keepFieldsRef:true,...n._options.resetOptions}),s.current=t.values,i(e=>({...e}))):n._resetDefaultValues();},[n,t.values]),e.useEffect(()=>{n._state.mount||(n._setValid(),n._state.mount=true),n._state.watch&&(n._state.watch=false,n._subjects.state.next({...n._formState})),n._removeUnmounted();}),r.current.formState=U(a,n),r.current},index_cjs.useFormContext=j,index_cjs.useFormState=N,index_cjs.useWatch=W;
+	
+	return index_cjs;
+}
+
+var hasRequiredUseForm;
+
+function requireUseForm () {
+	if (hasRequiredUseForm) return useForm;
+	hasRequiredUseForm = 1;
+	Object.defineProperty(useForm, "__esModule", { value: true });
+	useForm.useForm = useForm$1;
+	const tslib_1 = require$$0;
+	const react_1 = requireReact();
+	const react_hook_form_1 = /*@__PURE__*/ requireIndex_cjs();
+	const get_1 = tslib_1.__importDefault(requireGet());
+	function useForm$1(props = {}) {
+	    // Generate an id to prevent clashes with other forms on the page
+	    const id = (0, react_1.useId)();
+	    const getFieldId = (fieldName) => {
+	        return `form-${id}-${fieldName}`;
+	    };
+	    const { register, formState, 
+	    // watch, disabling for the time being as can be expensive for performance
+	    handleSubmit, setValue, getValues, trigger, clearErrors
+	    // Only allow for defaultValues in props for the timebeing
+	     } = (0, react_hook_form_1.useForm)({
+	        defaultValues: props.defaultValues,
+	        mode: 'onBlur', // defaulting to validating onBlur to follow ADS behaviour
+	        reValidateMode: 'onChange'
+	    });
+	    const defaultValues = props?.defaultValues;
+	    const forgeFormRegister = (fieldName, options) => {
+	        /**
+	         * Removed:
+	         * - ref cannot be serialised and passed through the run time
+	         * - removed required to stop the default browser validation pop up
+	         * - UI Kit 2 components take `isDisabled` instead of `disabled`
+	         * - `onChange` is modified to handle our controlled components as refs cannot be used
+	         */
+	        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+	        const { onChange, ref, required, disabled, onBlur, ...rest } = register(fieldName, {
+	            // Only permitting the below as they've been tested and confirmed working
+	            required: options?.required,
+	            disabled: options?.disabled,
+	            maxLength: options?.maxLength,
+	            minLength: options?.minLength,
+	            max: options?.max,
+	            min: options?.min,
+	            pattern: options?.pattern,
+	            validate: options?.validate
+	        });
+	        const additionalProps = {};
+	        if (defaultValues) {
+	            // only checkbox and toggle have boolean vals.
+	            // Typically this is handled by the ref obj but we need to manage the default values ourselves here
+	            if (typeof (0, get_1.default)(defaultValues, fieldName) === 'boolean') {
+	                additionalProps.defaultChecked = (0, get_1.default)(defaultValues, fieldName);
+	            }
+	            else {
+	                additionalProps.defaultValue = (0, get_1.default)(defaultValues, fieldName);
+	            }
+	        }
+	        const isError = !!(0, get_1.default)(formState, `errors["${fieldName}"]`);
+	        const getOnChangeOptions = () => ({
+	            shouldDirty: true,
+	            shouldTouch: true,
+	            // revalidate on change if the field has been touched(blurred) or if the form has been submitted previously
+	            shouldValidate: formState.submitCount > 0 || !!(0, get_1.default)(formState, `touchedFields["${fieldName}"]`)
+	        });
+	        return {
+	            ...rest,
+	            onChange: (event) => {
+	                // onChange is modified here to handle our controlled components as refs cannot be used
+	                // handles Checkbox and Toggle
+	                if (event?.target?.type === 'checkbox') {
+	                    return Promise.resolve(setValue(fieldName, event.target.checked, getOnChangeOptions()));
+	                }
+	                if (['number', 'text', 'textarea', 'radio', 'password'].includes(event?.target?.type)) {
+	                    return Promise.resolve(setValue(fieldName, event.target.value, getOnChangeOptions()));
+	                }
+	                else {
+	                    // handles onChange arguments where the value is passed instead of an event object
+	                    return Promise.resolve(setValue(fieldName, event, getOnChangeOptions()));
+	                }
+	            },
+	            // The onBlur event from `register` is unintentionally setting the value to `undefined` when the field is blurred.
+	            // Replacing the onBlur event here to prevent this behaviour.
+	            onBlur: () => {
+	                return Promise.resolve(trigger(fieldName));
+	            },
+	            isInvalid: isError,
+	            'aria-invalid': isError,
+	            id: getFieldId(fieldName),
+	            isDisabled: disabled,
+	            ...additionalProps
+	        };
+	    };
+	    return {
+	        getFieldId,
+	        register: forgeFormRegister,
+	        formState: {
+	            errors: formState.errors,
+	            isSubmitted: formState.isSubmitted,
+	            isSubmitSuccessful: formState.isSubmitSuccessful,
+	            isSubmitting: formState.isSubmitting,
+	            submitCount: formState.submitCount,
+	            isValid: formState.isValid,
+	            dirtyFields: formState.dirtyFields,
+	            touchedFields: formState.touchedFields
+	        },
+	        handleSubmit,
+	        getValues,
+	        trigger,
+	        clearErrors
+	    };
+	}
+	return useForm;
+}
+
+var useObjectStore = {};
+
+var hasRequiredUseObjectStore;
+
+function requireUseObjectStore () {
+	if (hasRequiredUseObjectStore) return useObjectStore;
+	hasRequiredUseObjectStore = 1;
+	Object.defineProperty(useObjectStore, "__esModule", { value: true });
+	useObjectStore.useObjectStore = useObjectStore$1;
+	const react_1 = requireReact();
+	const bridge_1 = requireOut$1();
+	// Helper function to update an object by key
+	const updateObjectByKey = (objects, key, updates) => objects.map((obj) => (obj.key === key ? { ...obj, ...updates } : obj));
+	function objectStoreReducer(state, action) {
+	    switch (action.type) {
+	        case 'ADD_OBJECTS':
+	            return { objects: [...state.objects, ...action.payload] };
+	        case 'UPDATE_OBJECT':
+	            return { objects: updateObjectByKey(state.objects, action.payload.key, action.payload.updates) };
+	        case 'UPLOAD_OBJECT_START':
+	            // Add temp object with isUploading state
+	            return {
+	                objects: [...state.objects, { key: action.payload.tempKey, isUploading: true }]
+	            };
+	        case 'UPLOAD_OBJECT_SUCCESS':
+	            // Replace temp object with real object
+	            return {
+	                objects: state.objects.map((obj) => (obj.key === action.payload.tempKey ? action.payload.object : obj))
+	            };
+	        case 'UPLOAD_OBJECT_ERROR':
+	            // Replace temp object with error state
+	            return {
+	                objects: state.objects.map((obj) => obj.key === action.payload.tempKey
+	                    ? { ...obj, isUploading: false, error: action.payload.error, success: false }
+	                    : obj)
+	            };
+	        case 'DELETE_START':
+	            return {
+	                objects: state.objects.map((obj) => action.payload.includes(obj.key) ? { ...obj, isDeleting: true, error: undefined } : obj)
+	            };
+	        case 'DELETE_SUCCESS':
+	            return { objects: state.objects.filter((obj) => !action.payload.includes(obj.key)) };
+	        case 'DELETE_ERROR':
+	            return {
+	                objects: state.objects.map((obj) => action.payload.keys.includes(obj.key) ? { ...obj, isDeleting: false, error: action.payload.error } : obj)
+	            };
+	        case 'DOWNLOAD_START':
+	            return {
+	                objects: state.objects.map((obj) => action.payload.includes(obj.key) ? { ...obj, isDownloading: true, error: undefined } : obj)
+	            };
+	        case 'DOWNLOAD_COMPLETE':
+	            return {
+	                objects: state.objects.map((obj) => {
+	                    if (action.payload.successfulKeys.includes(obj.key)) {
+	                        return { ...obj, isDownloading: false };
+	                    }
+	                    if (action.payload.failedKeys.includes(obj.key)) {
+	                        return { ...obj, isDownloading: false, error: 'Download failed' };
+	                    }
+	                    return obj;
+	                })
+	            };
+	        default:
+	            return state;
+	    }
+	}
+	function useObjectStore$1(props = {}) {
+	    const [state, dispatch] = (0, react_1.useReducer)(objectStoreReducer, {
+	        objects: props.defaultValues || []
+	    });
+	    /**
+	     * Get a specific object from objectState by key
+	     */
+	    const getObjectMetadata = (key) => {
+	        const object = state.objects.find((obj) => obj.key === key);
+	        if (!object) {
+	            // eslint-disable-next-line no-console
+	            console.warn(`No metadata found for object with key: ${key}`);
+	            return null;
+	        }
+	        return object;
+	    };
+	    /**
+	     * Upload objects and update objectState with results
+	     */
+	    const uploadObjects = (0, react_1.useCallback)(async (params) => {
+	        const timestamp = Date.now();
+	        try {
+	            const uploadPromises = await (0, bridge_1.createUploadPromises)(params);
+	            const trackedUploadPromises = uploadPromises.map(async ({ promise, index, objectType, objectSize }) => {
+	                const tempKey = `temp-upload-${timestamp}-${index}`;
+	                dispatch({ type: 'UPLOAD_OBJECT_START', payload: { tempKey } });
+	                try {
+	                    const result = await promise;
+	                    const objectState = {
+	                        key: result.key,
+	                        success: result.success,
+	                        status: result.status,
+	                        error: result.error,
+	                        objectType,
+	                        objectSize
+	                    };
+	                    dispatch({ type: 'UPLOAD_OBJECT_SUCCESS', payload: { tempKey, object: objectState } });
+	                    return result;
+	                }
+	                catch (error) {
+	                    dispatch({
+	                        type: 'UPLOAD_OBJECT_ERROR',
+	                        payload: { tempKey, error: error instanceof Error ? error.message : 'Upload failed' }
+	                    });
+	                    throw error;
+	                }
+	            });
+	            await Promise.all(trackedUploadPromises);
+	        }
+	        catch (error) {
+	            throw error;
+	        }
+	    }, []);
+	    /**
+	     * Delete objects by keys from state and backend
+	     */
+	    const deleteObjects = (0, react_1.useCallback)(async (params) => {
+	        dispatch({ type: 'DELETE_START', payload: params.keys });
+	        try {
+	            await bridge_1.objectStore.delete(params);
+	            dispatch({ type: 'DELETE_SUCCESS', payload: params.keys });
+	        }
+	        catch (error) {
+	            dispatch({
+	                type: 'DELETE_ERROR',
+	                payload: { keys: params.keys, error: error instanceof Error ? error.message : 'Delete failed' }
+	            });
+	            throw error;
+	        }
+	    }, []);
+	    /**
+	     * Download objects by keys
+	     */
+	    const downloadObjects = (0, react_1.useCallback)(async (params) => {
+	        dispatch({ type: 'DOWNLOAD_START', payload: params.keys });
+	        try {
+	            const results = await bridge_1.objectStore.download(params);
+	            const successfulKeys = results.filter((r) => r.success).map((r) => r.key);
+	            const failedKeys = results.filter((r) => !r.success).map((r) => r.key);
+	            dispatch({
+	                type: 'DOWNLOAD_COMPLETE',
+	                payload: { successfulKeys, failedKeys }
+	            });
+	            return results;
+	        }
+	        catch (error) {
+	            dispatch({
+	                type: 'DOWNLOAD_COMPLETE',
+	                payload: { successfulKeys: [], failedKeys: params.keys }
+	            });
+	            throw error;
+	        }
+	    }, []);
+	    return {
+	        objectStates: state.objects,
+	        getObjectMetadata,
+	        uploadObjects,
+	        deleteObjects,
+	        downloadObjects
+	    };
+	}
+	return useObjectStore;
+}
+
+var hasRequiredOut;
+
+function requireOut () {
+	if (hasRequiredOut) return out$3;
+	hasRequiredOut = 1;
+	(function (exports) {
+		Object.defineProperty(exports, "__esModule", { value: true });
+		exports.useObjectStore = exports.useForm = exports.replaceUnsupportedDocumentNodes = exports.I18nProvider = exports.useTranslation = exports.useIssueProperty = exports.useSpaceProperty = exports.useContentProperty = exports.default = exports.usePermissions = exports.useTheme = exports.useConfig = exports.useProductContext = exports.xcss = void 0;
+		const tslib_1 = require$$0;
+		const xcss = (style) => style;
+		exports.xcss = xcss;
+		var useProductContext_1 = requireUseProductContext();
+		Object.defineProperty(exports, "useProductContext", { enumerable: true, get: function () { return useProductContext_1.useProductContext; } });
+		var useConfig_1 = requireUseConfig();
+		Object.defineProperty(exports, "useConfig", { enumerable: true, get: function () { return useConfig_1.useConfig; } });
+		var useTheme_1 = requireUseTheme();
+		Object.defineProperty(exports, "useTheme", { enumerable: true, get: function () { return useTheme_1.useTheme; } });
+		var usePermissions_1 = requireUsePermissions();
+		Object.defineProperty(exports, "usePermissions", { enumerable: true, get: function () { return usePermissions_1.usePermissions; } });
+		var reconciler_1 = requireReconciler();
+		Object.defineProperty(exports, "default", { enumerable: true, get: function () { return reconciler_1.ForgeReconciler; } });
+		// All UI Kit component definitions
+		tslib_1.__exportStar(requireComponents(), exports);
+		var useContentProperty_1 = requireUseContentProperty();
+		Object.defineProperty(exports, "useContentProperty", { enumerable: true, get: function () { return useContentProperty_1.useContentProperty; } });
+		var useSpaceProperty_1 = requireUseSpaceProperty();
+		Object.defineProperty(exports, "useSpaceProperty", { enumerable: true, get: function () { return useSpaceProperty_1.useSpaceProperty; } });
+		var useIssueProperty_1 = requireUseIssueProperty();
+		Object.defineProperty(exports, "useIssueProperty", { enumerable: true, get: function () { return useIssueProperty_1.useIssueProperty; } });
+		var useTranslation_1 = requireUseTranslation();
+		Object.defineProperty(exports, "useTranslation", { enumerable: true, get: function () { return useTranslation_1.useTranslation; } });
+		Object.defineProperty(exports, "I18nProvider", { enumerable: true, get: function () { return useTranslation_1.I18nProvider; } });
+		var replaceUnsupportedDocumentNodes_1 = requireReplaceUnsupportedDocumentNodes();
+		Object.defineProperty(exports, "replaceUnsupportedDocumentNodes", { enumerable: true, get: function () { return replaceUnsupportedDocumentNodes_1.replaceUnsupportedDocumentNodes; } });
+		var useForm_1 = requireUseForm();
+		Object.defineProperty(exports, "useForm", { enumerable: true, get: function () { return useForm_1.useForm; } });
+		var useObjectStore_1 = requireUseObjectStore();
+		Object.defineProperty(exports, "useObjectStore", { enumerable: true, get: function () { return useObjectStore_1.useObjectStore; } }); 
+	} (out$3));
+	return out$3;
+}
+
+var outExports$1 = requireOut();
+var ForgeReconciler = /*@__PURE__*/getDefaultExportFromCjs(outExports$1);
+
+var outExports = requireOut$1();
+
+const App = () => {
+  const [text, setText] = reactExports.useState('Loading...');
+  reactExports.useEffect(() => {
+    outExports.invoke('save', {
+      id: 'ui'
+    }).then(() => outExports.invoke('summary')).then(setText);
+  }, []);
+  return /*#__PURE__*/React.createElement(outExports$1.Text, null, text);
+};
+ForgeReconciler.render(/*#__PURE__*/React.createElement(App, null));
 
 var iframeResizer$1 = {exports: {}};
 
@@ -6193,10341 +13871,10 @@ function requireIframeResizer () {
 	return iframeResizer;
 }
 
-var hasRequiredAdfRenderer$2;
+var iframeResizerExports = requireIframeResizer();
+var index = /*@__PURE__*/getDefaultExportFromCjs(iframeResizerExports);
 
-function requireAdfRenderer$2 () {
-	if (hasRequiredAdfRenderer$2) return adfRenderer$2;
-	hasRequiredAdfRenderer$2 = 1;
-	(function (exports) {
-		var __createBinding = (adfRenderer$2 && adfRenderer$2.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-		    if (k2 === undefined) k2 = k;
-		    var desc = Object.getOwnPropertyDescriptor(m, k);
-		    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-		      desc = { enumerable: true, get: function() { return m[k]; } };
-		    }
-		    Object.defineProperty(o, k2, desc);
-		}) : (function(o, m, k, k2) {
-		    if (k2 === undefined) k2 = k;
-		    o[k2] = m[k];
-		}));
-		var __setModuleDefault = (adfRenderer$2 && adfRenderer$2.__setModuleDefault) || (Object.create ? (function(o, v) {
-		    Object.defineProperty(o, "default", { enumerable: true, value: v });
-		}) : function(o, v) {
-		    o["default"] = v;
-		});
-		var __importStar = (adfRenderer$2 && adfRenderer$2.__importStar) || (function () {
-		    var ownKeys = function(o) {
-		        ownKeys = Object.getOwnPropertyNames || function (o) {
-		            var ar = [];
-		            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
-		            return ar;
-		        };
-		        return ownKeys(o);
-		    };
-		    return function (mod) {
-		        if (mod && mod.__esModule) return mod;
-		        var result = {};
-		        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
-		        __setModuleDefault(result, mod);
-		        return result;
-		    };
-		})();
-		Object.defineProperty(exports, "__esModule", { value: true });
-		exports.createAdfRendererIframeProps = exports.sendMessageWhenReady = void 0;
-		/**
-		 * Sends the ADF document message to the adf-renderer iframe once it signals readiness.
-		 */
-		const READY_SIGNAL_FALLBACK_DELAY_MS = 10000;
-		const sendMessageWhenReady = (iframe, message, origin) => {
-		    const sendMessage = () => { var _a; return (_a = iframe === null || iframe === void 0 ? void 0 : iframe.contentWindow) === null || _a === void 0 ? void 0 : _a.postMessage(message, origin); };
-		    const timeoutId = setTimeout(() => {
-		        window.removeEventListener('message', handleReady);
-		        sendMessage();
-		    }, READY_SIGNAL_FALLBACK_DELAY_MS);
-		    const handleReady = (event) => {
-		        var _a;
-		        if (event.source === (iframe === null || iframe === void 0 ? void 0 : iframe.contentWindow) && ((_a = event.data) === null || _a === void 0 ? void 0 : _a.source) === 'forge-adf-renderer-ready') {
-		            clearTimeout(timeoutId);
-		            window.removeEventListener('message', handleReady);
-		            sendMessage();
-		        }
-		    };
-		    window.addEventListener('message', handleReady);
-		};
-		exports.sendMessageWhenReady = sendMessageWhenReady;
-		const createAdfRendererIframeProps = async (context, iframeId) => {
-		    const IframeResizer = await Promise.resolve().then(() => __importStar(requireIframeResizer()));
-		    const IframeResizerModule = IframeResizer.default || IframeResizer;
-		    const origin = new URL(document.referrer).origin;
-		    const src = `${origin}/forge-apps/adf-renderer`;
-		    const id = iframeId || `forge-adf-renderer-iframe-${crypto.randomUUID()}`;
-		    const onLoad = () => {
-		        var _a, _b, _c, _d, _e;
-		        const iframe = document.getElementById(id);
-		        const message = {
-		            type: 'adf-document',
-		            document: (_a = context.extension.macro) === null || _a === void 0 ? void 0 : _a.body,
-		            timestamp: Date.now(),
-		            source: 'forge-adf-renderer',
-		            localId: context.localId,
-		            isEditing: (_c = (_b = context.extension) === null || _b === void 0 ? void 0 : _b.isEditing) !== null && _c !== void 0 ? _c : false,
-		            contentId: (_e = (_d = context.extension) === null || _d === void 0 ? void 0 : _d.content) === null || _e === void 0 ? void 0 : _e.id
-		        };
-		        IframeResizerModule.iframeResizer({
-		            heightCalculationMethod: 'taggedElement',
-		            widthCalculationMethod: 'bodyScroll',
-		            initCallback: (iframe) => {
-		                var _a;
-		                (_a = iframe === null || iframe === void 0 ? void 0 : iframe.iFrameResizer) === null || _a === void 0 ? void 0 : _a.resize();
-		            }
-		        }, iframe || '');
-		        (0, exports.sendMessageWhenReady)(iframe, message, origin);
-		    };
-		    setTimeout(() => {
-		        document.documentElement.style.height = 'auto';
-		        document.body.style.height = 'auto';
-		    }, 200);
-		    return {
-		        id,
-		        src,
-		        onLoad
-		    };
-		};
-		exports.createAdfRendererIframeProps = createAdfRendererIframeProps; 
-	} (adfRenderer$2));
-	return adfRenderer$2;
-}
-
-var onClose$1 = {};
-
-var hasRequiredOnClose$1;
-
-function requireOnClose$1 () {
-	if (hasRequiredOnClose$1) return onClose$1;
-	hasRequiredOnClose$1 = 1;
-	Object.defineProperty(onClose$1, "__esModule", { value: true });
-	onClose$1.onClose = void 0;
-	const bridge_1 = requireBridge$1();
-	const errors_1 = requireErrors$1();
-	const callBridge = (0, bridge_1.getCallBridge)();
-	const onClose = async (payload) => {
-	    try {
-	        const success = await callBridge('onClose', payload);
-	        if (success === false) {
-	            throw new errors_1.BridgeAPIError('`onClose` call has failed.');
-	        }
-	    }
-	    catch (e) {
-	        throw new errors_1.BridgeAPIError("`onClose` failed because this resource's view is not closable.");
-	    }
-	};
-	onClose$1.onClose = onClose;
-	return onClose$1;
-}
-
-var getFrameDispatch$1 = {};
-
-var hasRequiredGetFrameDispatch$1;
-
-function requireGetFrameDispatch$1 () {
-	if (hasRequiredGetFrameDispatch$1) return getFrameDispatch$1;
-	hasRequiredGetFrameDispatch$1 = 1;
-	Object.defineProperty(getFrameDispatch$1, "__esModule", { value: true });
-	getFrameDispatch$1.getFrameDispatch = void 0;
-	const bridge_1 = requireBridge$1();
-	const callBridge = (0, bridge_1.getCallBridge)();
-	const getFrameDispatch = async () => {
-	    return await callBridge('getFrameDispatch');
-	};
-	getFrameDispatch$1.getFrameDispatch = getFrameDispatch;
-	return getFrameDispatch$1;
-}
-
-var hasRequiredView$3;
-
-function requireView$3 () {
-	if (hasRequiredView$3) return view$2;
-	hasRequiredView$3 = 1;
-	Object.defineProperty(view$2, "__esModule", { value: true });
-	view$2.view = void 0;
-	const submit_1 = requireSubmit$1();
-	const close_1 = requireClose$1();
-	const open_1 = requireOpen$3();
-	const refresh_1 = requireRefresh$1();
-	const createHistory_1 = requireCreateHistory$1();
-	const getContext_1 = requireGetContext$1();
-	const changeWindowTitle_1 = requireChangeWindowTitle$1();
-	const theme_1 = requireTheme$1();
-	const emitReadyEvent_1 = requireEmitReadyEvent$1();
-	const adf_renderer_1 = requireAdfRenderer$2();
-	const onClose_1 = requireOnClose$1();
-	const getFrameDispatch_1 = requireGetFrameDispatch$1();
-	view$2.view = {
-	    submit: submit_1.submit,
-	    close: close_1.close,
-	    onClose: onClose_1.onClose,
-	    open: open_1.open,
-	    refresh: refresh_1.refresh,
-	    createHistory: createHistory_1.createHistory,
-	    getContext: getContext_1.getContext,
-	    getFrameDispatch: getFrameDispatch_1.getFrameDispatch,
-	    theme: theme_1.theme,
-	    changeWindowTitle: changeWindowTitle_1.changeWindowTitle,
-	    emitReadyEvent: emitReadyEvent_1.emitReadyEvent,
-	    createAdfRendererIframeProps: adf_renderer_1.createAdfRendererIframeProps
-	};
-	return view$2;
-}
-
-var hasRequiredView$2;
-
-function requireView$2 () {
-	if (hasRequiredView$2) return view$3;
-	hasRequiredView$2 = 1;
-	(function (exports) {
-		Object.defineProperty(exports, "__esModule", { value: true });
-		const tslib_1 = require$$0;
-		tslib_1.__exportStar(requireView$3(), exports); 
-	} (view$3));
-	return view$3;
-}
-
-var router$3 = {};
-
-var router$2 = {};
-
-var hasRequiredRouter$3;
-
-function requireRouter$3 () {
-	if (hasRequiredRouter$3) return router$2;
-	hasRequiredRouter$3 = 1;
-	Object.defineProperty(router$2, "__esModule", { value: true });
-	router$2.router = void 0;
-	const bridge_1 = requireBridge$1();
-	const callBridge = (0, bridge_1.getCallBridge)();
-	/**
-	 * Returns a URL object for a given location.
-	 *
-	 * @param location - The location to get the URL for
-	 * @returns A URL object for the given location
-	 */
-	const getUrl = async (location) => {
-	    if (!(location === null || location === void 0 ? void 0 : location.target)) {
-	        throw new Error('target is required for getUrl');
-	    }
-	    const url = await callBridge('getUrl', location);
-	    if (!url) {
-	        throw new Error('Failed to get URL');
-	    }
-	    try {
-	        return new URL(url);
-	    }
-	    catch (error) {
-	        throw new Error(`Failed to parse URL: ${url} (${error})`);
-	    }
-	};
-	/**
-	 * Navigates to a location within the same tab.
-	 *
-	 * @param location URL or `NavigationLocation` object
-	 * @returns a promise that resolves when navigation is complete
-	 */
-	const navigate = (location) => {
-	    if (typeof location === 'string') {
-	        return callBridge('navigate', { url: location, type: 'same-tab' });
-	    }
-	    else {
-	        if (!(location === null || location === void 0 ? void 0 : location.target)) {
-	            throw new Error('target is required for navigation');
-	        }
-	        return callBridge('navigate', { ...location, type: 'same-tab' });
-	    }
-	};
-	/**
-	 * Opens a new tab in the browser and navigates to the specified location.
-	 *
-	 * @param location URL or `NavigationLocation` object
-	 * @returns a promise that resolves when navigation is complete
-	 */
-	const open = (location) => {
-	    if (typeof location === 'string') {
-	        return callBridge('navigate', { url: location, type: 'new-tab' });
-	    }
-	    else {
-	        if (!(location === null || location === void 0 ? void 0 : location.target)) {
-	            throw new Error('target is required for navigation');
-	        }
-	        return callBridge('navigate', { ...location, type: 'new-tab' });
-	    }
-	};
-	/**
-	 * Reloads the page.
-	 *
-	 * @returns a promise that resolves to void when the page is reloaded
-	 */
-	const reload = async () => callBridge('reload');
-	router$2.router = {
-	    getUrl,
-	    navigate,
-	    open,
-	    reload
-	};
-	return router$2;
-}
-
-var hasRequiredRouter$2;
-
-function requireRouter$2 () {
-	if (hasRequiredRouter$2) return router$3;
-	hasRequiredRouter$2 = 1;
-	(function (exports) {
-		Object.defineProperty(exports, "__esModule", { value: true });
-		const tslib_1 = require$$0;
-		tslib_1.__exportStar(requireRouter$3(), exports); 
-	} (router$3));
-	return router$3;
-}
-
-var modal$3 = {};
-
-var modal$2 = {};
-
-var hasRequiredModal$3;
-
-function requireModal$3 () {
-	if (hasRequiredModal$3) return modal$2;
-	hasRequiredModal$3 = 1;
-	Object.defineProperty(modal$2, "__esModule", { value: true });
-	modal$2.Modal = void 0;
-	const bridge_1 = requireBridge$1();
-	const errors_1 = requireErrors$1();
-	const callBridge = (0, bridge_1.getCallBridge)();
-	const NAMED_MODAL_SIZES = ['small', 'medium', 'large', 'xlarge', 'max', 'fullscreen', 'resizable'];
-	// eslint-disable-next-line @typescript-eslint/no-empty-function
-	const noop = () => { };
-	function isNamedModalSize(size) {
-	    return typeof size === 'string' && NAMED_MODAL_SIZES.includes(size);
-	}
-	function isCustomModalSize(size) {
-	    if (typeof size !== 'object' || size === null)
-	        return false;
-	    const s = size;
-	    return typeof s.width === 'string' && (s.height === undefined || typeof s.height === 'string');
-	}
-	function isValidModalSize(size) {
-	    return isNamedModalSize(size) || isCustomModalSize(size);
-	}
-	class Modal {
-	    constructor(opts) {
-	        var _a, _b;
-	        this.resource = (opts === null || opts === void 0 ? void 0 : opts.resource) || null;
-	        this.onClose = (opts === null || opts === void 0 ? void 0 : opts.onClose) || noop;
-	        this.size = (opts === null || opts === void 0 ? void 0 : opts.size) || 'medium';
-	        this.context = (opts === null || opts === void 0 ? void 0 : opts.context) || {};
-	        this.closeOnEscape = (_a = opts === null || opts === void 0 ? void 0 : opts.closeOnEscape) !== null && _a !== void 0 ? _a : true;
-	        this.closeOnOverlayClick = (_b = opts === null || opts === void 0 ? void 0 : opts.closeOnOverlayClick) !== null && _b !== void 0 ? _b : true;
-	        this.title = (opts === null || opts === void 0 ? void 0 : opts.title) || '';
-	        this.icon = (opts === null || opts === void 0 ? void 0 : opts.icon) || '';
-	    }
-	    async open() {
-	        if (!isValidModalSize(this.size)) {
-	            throw new errors_1.BridgeAPIError(`Invalid modal size: ${JSON.stringify(this.size)}. Must be one of the named sizes (${NAMED_MODAL_SIZES.join(', ')}) or a custom dimensions object with a "width" string property and an optional "height" string property.`);
-	        }
-	        try {
-	            const success = await callBridge('openModal', {
-	                resource: this.resource,
-	                onClose: this.onClose,
-	                size: this.size,
-	                context: this.context,
-	                closeOnEscape: this.closeOnEscape,
-	                closeOnOverlayClick: this.closeOnOverlayClick,
-	                title: this.title,
-	                icon: this.icon
-	            });
-	            if (success === false) {
-	                throw new errors_1.BridgeAPIError('Unable to open modal.');
-	            }
-	        }
-	        catch (err) {
-	            throw new errors_1.BridgeAPIError('Unable to open modal.');
-	        }
-	    }
-	}
-	modal$2.Modal = Modal;
-	return modal$2;
-}
-
-var hasRequiredModal$2;
-
-function requireModal$2 () {
-	if (hasRequiredModal$2) return modal$3;
-	hasRequiredModal$2 = 1;
-	(function (exports) {
-		Object.defineProperty(exports, "__esModule", { value: true });
-		const tslib_1 = require$$0;
-		tslib_1.__exportStar(requireModal$3(), exports); 
-	} (modal$3));
-	return modal$3;
-}
-
-var fetch$4 = {};
-
-var fetch$3 = {};
-
-var hasRequiredFetch$3;
-
-function requireFetch$3 () {
-	if (hasRequiredFetch$3) return fetch$3;
-	hasRequiredFetch$3 = 1;
-	Object.defineProperty(fetch$3, "__esModule", { value: true });
-	fetch$3.productFetchApi = fetch$3.remoteFetchApi = void 0;
-	const blobParser_1 = requireBlobParser$1();
-	const parseFormData = async (form, matchFilePrefix = false) => {
-	    const parsed = {};
-	    for (const [key, value] of form.entries()) {
-	        // Jira and Confluence REST APIs requires that the field containing
-	        // the file MUST be named exactly 'file'
-	        const isFileKey = matchFilePrefix ? key.startsWith('file') : key === 'file';
-	        if (isFileKey) {
-	            const fileName = value.name;
-	            const fileType = value.type;
-	            // we parse the file as a base64 string so it
-	            // can be properly transfered over the bridge.
-	            // we'll parse it back to Blob in the host product
-	            parsed[key] = await (0, blobParser_1.blobToBase64)(value);
-	            // we also need to pass the file name and type,
-	            // as those will be lost in the base64 conversion
-	            parsed[`__${key}Name`] = fileName;
-	            parsed[`__${key}Type`] = fileType;
-	        }
-	        else {
-	            parsed[key] = value;
-	        }
-	    }
-	    return JSON.stringify(parsed);
-	};
-	const validateFetchOptions = (init) => {
-	    if (!init) {
-	        return init;
-	    }
-	    if ('signal' in init) {
-	        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-	        const { signal: _signal, ...rest } = init;
-	        // eslint-disable-next-line no-console
-	        console.error('Signal is not supported in @forge/bridge and was removed from fetch options. Please use the fetch method from @forge/api for signal support.');
-	        return rest;
-	    }
-	    return init;
-	};
-	const parseRequest = async (fetchType, init) => {
-	    const isFormData = (init === null || init === void 0 ? void 0 : init.body) instanceof FormData ? true : false;
-	    const requestBody = isFormData ? await parseFormData(init === null || init === void 0 ? void 0 : init.body, fetchType === 'remote') : init === null || init === void 0 ? void 0 : init.body;
-	    const req = new Request('', { body: requestBody, method: init === null || init === void 0 ? void 0 : init.method, headers: init === null || init === void 0 ? void 0 : init.headers });
-	    // If `init.body` is a `FormData`, a `content-type` header required for the body to be parsed by the
-	    // API receiving this request will be generated in req.headers.
-	    const headers = Object.fromEntries(req.headers.entries());
-	    const body = req.method !== 'GET' ? await req.text() : null;
-	    return {
-	        body,
-	        headers: new Headers(headers),
-	        isMultipartFormData: isFormData
-	    };
-	};
-	const remoteFetchApi = (callBridge) => {
-	    const fetch = async (remoteKey, init) => {
-	        const validatedInit = validateFetchOptions(init);
-	        const { body: requestBody, headers: requestHeaders, isMultipartFormData } = await parseRequest('remote', validatedInit);
-	        const fetchPayload = {
-	            remoteKey,
-	            fetchRequestInit: { ...validatedInit, body: requestBody, headers: [...requestHeaders.entries()] },
-	            isMultipartFormData
-	        };
-	        const { body, headers, statusText, status, isAttachment } = await callBridge('fetchRemote', fetchPayload);
-	        const responseBody = isAttachment ? (0, blobParser_1.base64ToBlob)(body, headers['content-type']) : body;
-	        return new Response(responseBody || null, { headers, status, statusText });
-	    };
-	    return {
-	        requestRemote: (remoteKey, fetchOptions) => fetch(remoteKey, fetchOptions)
-	    };
-	};
-	fetch$3.remoteFetchApi = remoteFetchApi;
-	const productFetchApi = (callBridge) => {
-	    const fetch = async (product, restPath, init) => {
-	        const validatedInit = validateFetchOptions(init);
-	        const { body: requestBody, headers: requestHeaders, isMultipartFormData } = await parseRequest('product', validatedInit);
-	        // https://ecosystem.atlassian.net/browse/BUILD-1118 Skip xsrf check for oauth request
-	        if (!requestHeaders.has('X-Atlassian-Token')) {
-	            requestHeaders.set('X-Atlassian-Token', 'no-check');
-	        }
-	        const fetchPayload = {
-	            product,
-	            restPath,
-	            fetchRequestInit: {
-	                ...validatedInit,
-	                body: requestBody,
-	                headers: [...requestHeaders.entries()]
-	            },
-	            isMultipartFormData
-	        };
-	        const { body, headers, statusText, status, isAttachment } = await callBridge('fetchProduct', fetchPayload);
-	        const responseBody = isAttachment ? (0, blobParser_1.base64ToBlob)(body, headers['content-type']) : body;
-	        return new Response(responseBody || null, { headers, status, statusText });
-	    };
-	    return {
-	        requestConfluence: (restPath, fetchOptions) => fetch('confluence', restPath, fetchOptions),
-	        requestJira: (restPath, fetchOptions) => fetch('jira', restPath, fetchOptions),
-	        requestBitbucket: (restPath, fetchOptions) => fetch('bitbucket', restPath, fetchOptions)
-	    };
-	};
-	fetch$3.productFetchApi = productFetchApi;
-	return fetch$3;
-}
-
-var hasRequiredFetch$2;
-
-function requireFetch$2 () {
-	if (hasRequiredFetch$2) return fetch$4;
-	hasRequiredFetch$2 = 1;
-	var _a;
-	Object.defineProperty(fetch$4, "__esModule", { value: true });
-	fetch$4.requestRemote = fetch$4.requestBitbucket = fetch$4.requestJira = fetch$4.requestConfluence = void 0;
-	const bridge_1 = requireBridge$1();
-	const fetch_1 = requireFetch$3();
-	_a = (0, fetch_1.productFetchApi)((0, bridge_1.getCallBridge)()), fetch$4.requestConfluence = _a.requestConfluence, fetch$4.requestJira = _a.requestJira, fetch$4.requestBitbucket = _a.requestBitbucket;
-	fetch$4.requestRemote = (0, fetch_1.remoteFetchApi)((0, bridge_1.getCallBridge)()).requestRemote;
-	return fetch$4;
-}
-
-var requestTeamworkGraph$1 = {};
-
-var hasRequiredRequestTeamworkGraph$1;
-
-function requireRequestTeamworkGraph$1 () {
-	if (hasRequiredRequestTeamworkGraph$1) return requestTeamworkGraph$1;
-	hasRequiredRequestTeamworkGraph$1 = 1;
-	Object.defineProperty(requestTeamworkGraph$1, "__esModule", { value: true });
-	requestTeamworkGraph$1.requestTeamworkGraph = void 0;
-	const bridge_1 = requireBridge$1();
-	const callBridge = (0, bridge_1.getCallBridge)();
-	const requestTeamworkGraph = async (query, variables) => {
-	    const response = await callBridge('requestTeamworkGraph', { query, variables });
-	    return response;
-	};
-	requestTeamworkGraph$1.requestTeamworkGraph = requestTeamworkGraph;
-	return requestTeamworkGraph$1;
-}
-
-var flag$3 = {};
-
-var flag$2 = {};
-
-var hasRequiredFlag$3;
-
-function requireFlag$3 () {
-	if (hasRequiredFlag$3) return flag$2;
-	hasRequiredFlag$3 = 1;
-	Object.defineProperty(flag$2, "__esModule", { value: true });
-	flag$2.showFlag = void 0;
-	const bridge_1 = requireBridge$1();
-	const errors_1 = requireErrors$1();
-	const callBridge = (0, bridge_1.getCallBridge)();
-	const showFlag = (options) => {
-	    var _a;
-	    if (!options.id) {
-	        throw new errors_1.BridgeAPIError('"id" must be defined in flag options');
-	    }
-	    const result = callBridge('showFlag', {
-	        ...options,
-	        type: (_a = options.type) !== null && _a !== void 0 ? _a : 'info'
-	    });
-	    return {
-	        close: async () => {
-	            await result;
-	            return callBridge('closeFlag', { id: options.id });
-	        }
-	    };
-	};
-	flag$2.showFlag = showFlag;
-	return flag$2;
-}
-
-var hasRequiredFlag$2;
-
-function requireFlag$2 () {
-	if (hasRequiredFlag$2) return flag$3;
-	hasRequiredFlag$2 = 1;
-	(function (exports) {
-		Object.defineProperty(exports, "__esModule", { value: true });
-		exports.showFlag = void 0;
-		var flag_1 = requireFlag$3();
-		Object.defineProperty(exports, "showFlag", { enumerable: true, get: function () { return flag_1.showFlag; } }); 
-	} (flag$3));
-	return flag$3;
-}
-
-var events$2 = {};
-
-var hasRequiredEvents$2;
-
-function requireEvents$2 () {
-	if (hasRequiredEvents$2) return events$2;
-	hasRequiredEvents$2 = 1;
-	(function (exports) {
-		Object.defineProperty(exports, "__esModule", { value: true });
-		const tslib_1 = require$$0;
-		tslib_1.__exportStar(requireEvents$3(), exports); 
-	} (events$2));
-	return events$2;
-}
-
-var realtime$3 = {};
-
-var realtime$2 = {};
-
-var hasRequiredRealtime$3;
-
-function requireRealtime$3 () {
-	if (hasRequiredRealtime$3) return realtime$2;
-	hasRequiredRealtime$3 = 1;
-	Object.defineProperty(realtime$2, "__esModule", { value: true });
-	realtime$2.realtime = void 0;
-	const bridge_1 = requireBridge$1();
-	const callBridge = (0, bridge_1.getCallBridge)();
-	const publish = (channel, payload, options) => {
-	    return callBridge('publishRealtimeChannel', { channelName: channel, eventPayload: payload, options });
-	};
-	const subscribe = (channel, callback, options) => {
-	    return callBridge('subscribeRealtimeChannel', {
-	        channelName: channel,
-	        onEvent: callback,
-	        options
-	    });
-	};
-	const publishGlobal = (channel, payload, options) => {
-	    return callBridge('publishRealtimeChannel', { channelName: channel, eventPayload: payload, options, isGlobal: true });
-	};
-	const subscribeGlobal = (channel, callback, options) => {
-	    return callBridge('subscribeRealtimeChannel', {
-	        channelName: channel,
-	        onEvent: callback,
-	        options,
-	        isGlobal: true
-	    });
-	};
-	realtime$2.realtime = {
-	    publish,
-	    subscribe,
-	    publishGlobal,
-	    subscribeGlobal
-	};
-	return realtime$2;
-}
-
-var productContext$1 = {};
-
-var hasRequiredProductContext$1;
-
-function requireProductContext$1 () {
-	if (hasRequiredProductContext$1) return productContext$1;
-	hasRequiredProductContext$1 = 1;
-	// These enum values directly map to properties in the context.extension object in a product's FCT.
-	// It allows a subset of properties to be specified for Realtime channel authorization.
-	Object.defineProperty(productContext$1, "__esModule", { value: true });
-	productContext$1.Bitbucket = productContext$1.Confluence = productContext$1.Jira = void 0;
-	var Jira;
-	(function (Jira) {
-	    Jira["Board"] = "board";
-	    Jira["Issue"] = "issue";
-	    Jira["Project"] = "project";
-	})(Jira || (productContext$1.Jira = Jira = {}));
-	var Confluence;
-	(function (Confluence) {
-	    Confluence["Content"] = "content";
-	    Confluence["Space"] = "space";
-	})(Confluence || (productContext$1.Confluence = Confluence = {}));
-	var Bitbucket;
-	(function (Bitbucket) {
-	    Bitbucket["Repository"] = "repository";
-	    Bitbucket["PullRequest"] = "pullRequest";
-	})(Bitbucket || (productContext$1.Bitbucket = Bitbucket = {}));
-	return productContext$1;
-}
-
-var hasRequiredRealtime$2;
-
-function requireRealtime$2 () {
-	if (hasRequiredRealtime$2) return realtime$3;
-	hasRequiredRealtime$2 = 1;
-	(function (exports) {
-		Object.defineProperty(exports, "__esModule", { value: true });
-		exports.Bitbucket = exports.Confluence = exports.Jira = exports.realtime = void 0;
-		var realtime_1 = requireRealtime$3();
-		Object.defineProperty(exports, "realtime", { enumerable: true, get: function () { return realtime_1.realtime; } });
-		var productContext_1 = requireProductContext$1();
-		Object.defineProperty(exports, "Jira", { enumerable: true, get: function () { return productContext_1.Jira; } });
-		Object.defineProperty(exports, "Confluence", { enumerable: true, get: function () { return productContext_1.Confluence; } });
-		Object.defineProperty(exports, "Bitbucket", { enumerable: true, get: function () { return productContext_1.Bitbucket; } }); 
-	} (realtime$3));
-	return realtime$3;
-}
-
-var rovo$3 = {};
-
-var rovo$2 = {};
-
-var open$2 = {};
-
-var hasRequiredOpen$2;
-
-function requireOpen$2 () {
-	if (hasRequiredOpen$2) return open$2;
-	hasRequiredOpen$2 = 1;
-	(function (exports) {
-		Object.defineProperty(exports, "__esModule", { value: true });
-		exports.open = exports.OPEN_ROVO_BRIDGE_ERROR_MESSAGE = void 0;
-		const bridge_1 = requireBridge$1();
-		const errors_1 = requireErrors$1();
-		const MAX_AGENT_LENGTH = 30;
-		const callBridge = (0, bridge_1.getCallBridge)();
-		exports.OPEN_ROVO_BRIDGE_ERROR_MESSAGE = 'Unable to open Rovo Chat due to usage in an unsupported product. Only Confluence, Jira and some Jira Service Management modules are supported at this point. See https://developer.atlassian.com/platform/forge/apis-reference/ui-api-bridge/rovo/';
-		const transformRovoPayload = (openRovoPayload) => {
-		    switch (openRovoPayload.type) {
-		        case 'forge':
-		            return {
-		                agentName: openRovoPayload.agentName,
-		                agentKey: openRovoPayload.agentKey,
-		                prompt: openRovoPayload.prompt
-		            };
-		        case 'atlassian':
-		            return {
-		                agentName: openRovoPayload.agentName,
-		                prompt: openRovoPayload.prompt
-		            };
-		        default:
-		            return { prompt: openRovoPayload.prompt };
-		    }
-		};
-		/**
-		 * Opens Rovo chat from the given Rovo agent name.
-		 *
-		 * @param {OpenRovoPayload} [openRovoPayload] - Payload to open chat.
-		 *   Can be one of:
-		 *     - ForgeAgentPayload: { agentName: string, agentKey: string, prompt?: string }
-		 *     - AtlassianAgentPayload: { agentName: string, prompt?: string }
-		 *     - DefaultAgentPayload: { prompt?: string }
-		 */
-		const open = async (openRovoPayload) => {
-		    if (openRovoPayload.type === 'forge') {
-		        if (openRovoPayload.agentName.length > MAX_AGENT_LENGTH) {
-		            throw new Error('rovo agent name too long');
-		        }
-		        if (openRovoPayload.agentKey.length > MAX_AGENT_LENGTH) {
-		            throw new Error('rovo agent key too long');
-		        }
-		    }
-		    const rovoArgs = transformRovoPayload(openRovoPayload);
-		    const success = await callBridge('openRovo', rovoArgs);
-		    if (success === false) {
-		        throw new errors_1.BridgeAPIError(exports.OPEN_ROVO_BRIDGE_ERROR_MESSAGE);
-		    }
-		};
-		exports.open = open; 
-	} (open$2));
-	return open$2;
-}
-
-var isEnabled$1 = {};
-
-var hasRequiredIsEnabled$1;
-
-function requireIsEnabled$1 () {
-	if (hasRequiredIsEnabled$1) return isEnabled$1;
-	hasRequiredIsEnabled$1 = 1;
-	Object.defineProperty(isEnabled$1, "__esModule", { value: true });
-	isEnabled$1.isEnabled = void 0;
-	const bridge_1 = requireBridge$1();
-	const callBridge = (0, bridge_1.getCallBridge)();
-	/**
-	 * Checks if Rovo is enabled for the current tenant.
-	 *
-	 * @returns boolean
-	 */
-	const isEnabled = () => {
-	    return callBridge('isRovoEnabled');
-	};
-	isEnabled$1.isEnabled = isEnabled;
-	return isEnabled$1;
-}
-
-var hasRequiredRovo$3;
-
-function requireRovo$3 () {
-	if (hasRequiredRovo$3) return rovo$2;
-	hasRequiredRovo$3 = 1;
-	Object.defineProperty(rovo$2, "__esModule", { value: true });
-	rovo$2.rovo = void 0;
-	const open_1 = requireOpen$2();
-	const isEnabled_1 = requireIsEnabled$1();
-	rovo$2.rovo = {
-	    open: open_1.open,
-	    isEnabled: isEnabled_1.isEnabled
-	};
-	return rovo$2;
-}
-
-var hasRequiredRovo$2;
-
-function requireRovo$2 () {
-	if (hasRequiredRovo$2) return rovo$3;
-	hasRequiredRovo$2 = 1;
-	(function (exports) {
-		Object.defineProperty(exports, "__esModule", { value: true });
-		const tslib_1 = require$$0;
-		tslib_1.__exportStar(requireRovo$3(), exports); 
-	} (rovo$3));
-	return rovo$3;
-}
-
-var i18n$1 = {};
-
-var hasRequiredI18n$1;
-
-function requireI18n$1 () {
-	if (hasRequiredI18n$1) return i18n$1;
-	hasRequiredI18n$1 = 1;
-	Object.defineProperty(i18n$1, "__esModule", { value: true });
-	i18n$1.createTranslationFunction = i18n$1.getTranslations = i18n$1.resetTranslationsCache = void 0;
-	const i18n_1 = requireOut$4();
-	const view_1 = requireView$2();
-	const frontendResourcesAccessor = {
-	    getI18nInfoConfig: async () => {
-	        const resp = await fetch(`./${i18n_1.I18N_BUNDLE_FOLDER_NAME}/${i18n_1.I18N_INFO_FILE_NAME}`);
-	        if (!resp.ok) {
-	            throw new Error('Failed to get i18n info config: ' + resp.statusText);
-	        }
-	        const info = (await resp.json());
-	        return info.config;
-	    },
-	    getTranslationResource: async (locale) => {
-	        const resp = await fetch(`./${i18n_1.I18N_BUNDLE_FOLDER_NAME}/${locale}.json`);
-	        if (!resp.ok) {
-	            throw new Error(`Failed to get translation resource for locale: ${locale}`);
-	        }
-	        return resp.json();
-	    }
-	};
-	const translationsGetter = new i18n_1.TranslationsGetter(frontendResourcesAccessor);
-	const resetTranslationsCache = () => {
-	    translationsGetter.reset();
-	};
-	i18n$1.resetTranslationsCache = resetTranslationsCache;
-	const getTranslations = async (locale = null, options = {
-	    fallback: true
-	}) => {
-	    let targetLocale = locale;
-	    if (!targetLocale) {
-	        const context = await view_1.view.getContext();
-	        targetLocale = context.locale;
-	    }
-	    return await translationsGetter.getTranslations(targetLocale, options);
-	};
-	i18n$1.getTranslations = getTranslations;
-	/**
-	 * Creates a translation function (i.e. `t`) for the given locale.
-	 * If no locale is provided, the locale from the current view context is used.
-	 *
-	 * @param locale The locale to create the translation function for.
-	 * @returns The translation function.
-	 */
-	const createTranslationFunction = async (locale = null) => {
-	    let targetLocale = locale;
-	    if (!targetLocale) {
-	        const context = await view_1.view.getContext();
-	        targetLocale = context.locale;
-	    }
-	    const translator = new i18n_1.Translator(targetLocale, translationsGetter);
-	    await translator.init();
-	    return (i18nKey, defaultValue) => { var _a, _b; return (_b = (_a = translator.translate(i18nKey)) !== null && _a !== void 0 ? _a : defaultValue) !== null && _b !== void 0 ? _b : i18nKey; };
-	};
-	i18n$1.createTranslationFunction = createTranslationFunction;
-	return i18n$1;
-}
-
-var permissions$3 = {};
-
-var permissions$2 = {};
-
-var hasRequiredPermissions$3;
-
-function requirePermissions$3 () {
-	if (hasRequiredPermissions$3) return permissions$2;
-	hasRequiredPermissions$3 = 1;
-	Object.defineProperty(permissions$2, "__esModule", { value: true });
-	permissions$2.permissions = void 0;
-	const bridge_1 = requireBridge$1();
-	const callBridge = (0, bridge_1.getCallBridge)();
-	const egressGet = async (payload) => {
-	    return callBridge('__permission__egressGet', payload);
-	};
-	const egressSet = async (payload) => {
-	    return callBridge('__permission__egressSet', payload);
-	};
-	const egressDeleteDomain = async (payload) => {
-	    return callBridge('__permission__egressDeleteDomain', payload);
-	};
-	const egressDeleteGroup = async (payload) => {
-	    return callBridge('__permission__egressDeleteGroup', payload);
-	};
-	const remoteGet = async (payload) => {
-	    return callBridge('__permission__remoteGet', payload);
-	};
-	const remoteSet = async (payload) => {
-	    return callBridge('__permission__remoteSet', payload);
-	};
-	permissions$2.permissions = {
-	    egress: {
-	        get: egressGet,
-	        set: egressSet,
-	        deleteDomain: egressDeleteDomain,
-	        deleteGroup: egressDeleteGroup
-	    },
-	    remote: {
-	        get: remoteGet,
-	        set: remoteSet
-	    }
-	};
-	return permissions$2;
-}
-
-var permissionsUtil$1 = {};
-
-var out$1 = {};
-
-var egress = {};
-
-var egressFilteringService = {};
-
-var urlParser = {};
-
-var hasRequiredUrlParser;
-
-function requireUrlParser () {
-	if (hasRequiredUrlParser) return urlParser;
-	hasRequiredUrlParser = 1;
-	Object.defineProperty(urlParser, "__esModule", { value: true });
-	urlParser.parseUrl = parseUrl;
-	function parseUrl(url) {
-	    var _a, _b;
-	    const protocol = (_b = (_a = url.match(/^(.*?:)/)) === null || _a === void 0 ? void 0 : _a[0]) !== null && _b !== void 0 ? _b : 'https:';
-	    const hostAndPath = url.replace(protocol, '').replace(/^\/*/, '').replace(/^\\*/, '').split('?')[0].split('#')[0];
-	    const hostname = hostAndPath.split('/')[0];
-	    const pathname = hostAndPath.slice(hostname.length) || '/';
-	    return { protocol, hostname, pathname };
-	}
-	return urlParser;
-}
-
-var utils$1 = {};
-
-var hasRequiredUtils$1;
-
-function requireUtils$1 () {
-	if (hasRequiredUtils$1) return utils$1;
-	hasRequiredUtils$1 = 1;
-	Object.defineProperty(utils$1, "__esModule", { value: true });
-	utils$1.getEgressesBasedOnToggles = utils$1.sortAndGroupEgressPermissionsByDomain = utils$1.EgressCategory = utils$1.EgressType = void 0;
-	utils$1.globToRegex = globToRegex;
-	const url_parser_1 = requireUrlParser();
-	function globToRegex(pattern) {
-	    const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, '\\$&');
-	    const regexPattern = escaped.replace(/\*/g, '.*');
-	    return new RegExp(`^${regexPattern}$`);
-	}
-	const sortAndGroupEgressPermissionsByDomain = (egressAddresses) => {
-	    if ((egressAddresses === null || egressAddresses === void 0 ? void 0 : egressAddresses.length) === 0) {
-	        return [];
-	    }
-	    const protocolRegex = /^(.*?:\/\/)/;
-	    const domains = new Set();
-	    const wildcardDomains = [];
-	    egressAddresses.forEach((item) => {
-	        const itemWithProtocol = protocolRegex.test(item) ? item : `https://${item}`;
-	        const url = (0, url_parser_1.parseUrl)(itemWithProtocol);
-	        if (url.hostname.startsWith('*')) {
-	            domains.add(url.hostname.substring(2));
-	            wildcardDomains.push(globToRegex(url.hostname));
-	        }
-	        else {
-	            domains.add(url.hostname);
-	        }
-	    });
-	    return [...domains].sort().reduce((grouped, domain) => {
-	        if (!wildcardDomains.some((pattern) => pattern.test(domain))) {
-	            grouped.push(domain);
-	        }
-	        return grouped;
-	    }, []);
-	};
-	utils$1.sortAndGroupEgressPermissionsByDomain = sortAndGroupEgressPermissionsByDomain;
-	var EgressType;
-	(function (EgressType) {
-	    EgressType["FetchBackendSide"] = "FETCH_BACKEND_SIDE";
-	    EgressType["FetchClientSide"] = "FETCH_CLIENT_SIDE";
-	    EgressType["Fonts"] = "FONTS";
-	    EgressType["Frames"] = "FRAMES";
-	    EgressType["Images"] = "IMAGES";
-	    EgressType["Media"] = "MEDIA";
-	    EgressType["Scripts"] = "SCRIPTS";
-	    EgressType["Styles"] = "STYLES";
-	})(EgressType || (utils$1.EgressType = EgressType = {}));
-	var EgressCategory;
-	(function (EgressCategory) {
-	    EgressCategory["ANALYTICS"] = "ANALYTICS";
-	})(EgressCategory || (utils$1.EgressCategory = EgressCategory = {}));
-	const getEgressesBasedOnToggles = (input) => {
-	    const filteredEgresses = input.egress.filter((egress) => {
-	        var _a;
-	        if (((_a = egress.category) === null || _a === void 0 ? void 0 : _a.toUpperCase()) === EgressCategory.ANALYTICS) {
-	            if (input.installationConfig) {
-	                const analyticsConfig = input.installationConfig.find((config) => config.key.toUpperCase() === 'ALLOW_EGRESS_ANALYTICS');
-	                return (analyticsConfig === null || analyticsConfig === void 0 ? void 0 : analyticsConfig.value) !== false;
-	            }
-	            else {
-	                return input.overrides.ALLOW_EGRESS_ANALYTICS !== false;
-	            }
-	        }
-	        return true;
-	    });
-	    const egressByType = new Map();
-	    for (const egress of filteredEgresses) {
-	        if (!egressByType.has(egress.type)) {
-	            egressByType.set(egress.type, egress.addresses);
-	        }
-	        egressByType.set(egress.type, [...egressByType.get(egress.type), ...egress.addresses]);
-	    }
-	    return [...egressByType.entries()].map(([type, egresses]) => ({
-	        type,
-	        addresses: [...new Set(egresses)]
-	    }));
-	};
-	utils$1.getEgressesBasedOnToggles = getEgressesBasedOnToggles;
-	return utils$1;
-}
-
-var hasRequiredEgressFilteringService;
-
-function requireEgressFilteringService () {
-	if (hasRequiredEgressFilteringService) return egressFilteringService;
-	hasRequiredEgressFilteringService = 1;
-	Object.defineProperty(egressFilteringService, "__esModule", { value: true });
-	egressFilteringService.EgressFilteringService = void 0;
-	const url_parser_1 = requireUrlParser();
-	const utils_1 = requireUtils$1();
-	class EgressFilteringService {
-	    constructor(allowList) {
-	        this.URLs = allowList.filter((domainOrURL) => !domainOrURL.startsWith('*')).map((url) => this.parseUrl(url));
-	        this.wildcardDomains = allowList
-	            .filter((domainOrURL) => domainOrURL !== '*')
-	            .map((url) => this.parseUrl(url))
-	            .filter((url) => decodeURIComponent(url.hostname).startsWith('*'))
-	            .map((url) => ({
-	            ...url,
-	            regex: (0, utils_1.globToRegex)(decodeURIComponent(url.hostname))
-	        }));
-	        this.allowsEverything = allowList.includes('*');
-	    }
-	    parseUrl(url) {
-	        return (0, url_parser_1.parseUrl)(url);
-	    }
-	    containsWildCardEgress() {
-	        return this.allowsEverything;
-	    }
-	    isValidUrl(url) {
-	        if (this.allowsEverything) {
-	            return true;
-	        }
-	        const parsedUrl = this.parseUrl(url);
-	        return this.allowedDomainExact(parsedUrl, this.URLs) || this.allowedDomainPattern(parsedUrl, this.wildcardDomains);
-	    }
-	    isValidUrlCSP(url) {
-	        if (this.allowsEverything) {
-	            return true;
-	        }
-	        const parsedUrl = this.parseUrl(url);
-	        return (this.allowedDomainExactAndPath(parsedUrl, this.URLs) ||
-	            this.allowedDomainPatternAndPath(parsedUrl, this.wildcardDomains));
-	    }
-	    allowedDomainExact(domain, allowList) {
-	        return allowList
-	            .filter((allowed) => allowed.protocol === domain.protocol)
-	            .some((url) => url.hostname === domain.hostname);
-	    }
-	    allowedDomainExactAndPath(domain, allowList) {
-	        return allowList
-	            .filter((allowed) => this.protocolMatchesCSP(allowed.protocol, domain.protocol))
-	            .filter((allowed) => allowed.hostname === domain.hostname)
-	            .some((allowed) => this.pathMatches(allowed.pathname, domain.pathname));
-	    }
-	    allowedDomainPattern(domain, allowList) {
-	        return allowList
-	            .filter((allowed) => allowed.protocol === domain.protocol)
-	            .some((pattern) => pattern.regex.test(domain.hostname));
-	    }
-	    allowedDomainPatternAndPath(domain, allowList) {
-	        return allowList
-	            .filter((pattern) => this.protocolMatchesCSP(pattern.protocol, domain.protocol))
-	            .filter((pattern) => pattern.regex.test(domain.hostname))
-	            .some((allowed) => this.pathMatches(allowed.pathname, domain.pathname));
-	    }
-	    protocolMatchesCSP(allowedProtocol, requestProtocol) {
-	        if (allowedProtocol === requestProtocol) {
-	            return true;
-	        }
-	        if (allowedProtocol === 'http:' && requestProtocol === 'https:') {
-	            return true;
-	        }
-	        if (allowedProtocol === 'ws:' && requestProtocol === 'wss:') {
-	            return true;
-	        }
-	        return false;
-	    }
-	    pathMatches(allowedPath, requestPath) {
-	        if (allowedPath === '/') {
-	            return true;
-	        }
-	        if (allowedPath.endsWith('/')) {
-	            return requestPath.startsWith(allowedPath);
-	        }
-	        return requestPath === allowedPath;
-	    }
-	}
-	egressFilteringService.EgressFilteringService = EgressFilteringService;
-	return egressFilteringService;
-}
-
-var hasRequiredEgress;
-
-function requireEgress () {
-	if (hasRequiredEgress) return egress;
-	hasRequiredEgress = 1;
-	(function (exports) {
-		Object.defineProperty(exports, "__esModule", { value: true });
-		const tslib_1 = require$$0;
-		tslib_1.__exportStar(requireEgressFilteringService(), exports);
-		tslib_1.__exportStar(requireUrlParser(), exports);
-		tslib_1.__exportStar(requireUtils$1(), exports); 
-	} (egress));
-	return egress;
-}
-
-var hasRequiredOut$3;
-
-function requireOut$3 () {
-	if (hasRequiredOut$3) return out$1;
-	hasRequiredOut$3 = 1;
-	(function (exports) {
-		Object.defineProperty(exports, "__esModule", { value: true });
-		const tslib_1 = require$$0;
-		tslib_1.__exportStar(requireEgress(), exports); 
-	} (out$1));
-	return out$1;
-}
-
-var hasRequiredPermissionsUtil$1;
-
-function requirePermissionsUtil$1 () {
-	if (hasRequiredPermissionsUtil$1) return permissionsUtil$1;
-	hasRequiredPermissionsUtil$1 = 1;
-	Object.defineProperty(permissionsUtil$1, "__esModule", { value: true });
-	permissionsUtil$1.createPermissionUtils = createPermissionUtils;
-	permissionsUtil$1.checkPermissions = checkPermissions;
-	const egress_1 = requireOut$3();
-	const view_1 = requireView$2();
-	/**
-	 * Helper function to extract URL string from external URL permissions.
-	 * Matches the implementation in @forge/api for consistency.
-	 */
-	function extractUrlString(url) {
-	    if (typeof url === 'string') {
-	        return url;
-	    }
-	    if ('address' in url && url.address) {
-	        return url.address;
-	    }
-	    return url.remote || '';
-	}
-	/**
-	 * Resource types that can be loaded externally
-	 */
-	const RESOURCE_TYPES = ['fonts', 'styles', 'frames', 'images', 'media', 'scripts'];
-	/**
-	 * Fetch types for external requests
-	 */
-	const FETCH_TYPES = ['backend', 'client'];
-	/**
-	 * Create permission utilities from runtime permissions
-	 * @param runtimePermissions - The runtime permissions from context
-	 * @returns Permission utilities or null if permissions are not available
-	 */
-	function createPermissionUtils(runtimePermissions) {
-	    if (!runtimePermissions) {
-	        return null;
-	    }
-	    const { scopes, external = {} } = runtimePermissions;
-	    const scopeArray = Array.isArray(scopes) ? scopes : Object.keys(scopes || {});
-	    return {
-	        hasScope: (scope) => scopeArray.includes(scope),
-	        canFetchFrom: (type, url) => {
-	            var _a;
-	            const fetchUrls = (_a = external.fetch) === null || _a === void 0 ? void 0 : _a[type];
-	            if (!(fetchUrls === null || fetchUrls === void 0 ? void 0 : fetchUrls.length))
-	                return false;
-	            // Extract URLs and create egress filter
-	            const allowList = fetchUrls.map(extractUrlString).filter((u) => u.length > 0);
-	            if (allowList.length === 0)
-	                return false;
-	            const egressFilter = new egress_1.EgressFilteringService(allowList);
-	            // Backend: hostname-only matching, Client: CSP validation (includes paths)
-	            // Type assertion needed because node_modules may have outdated types
-	            const egressFilterWithCSP = egressFilter;
-	            return type === 'client' ? egressFilterWithCSP.isValidUrlCSP(url) : egressFilter.isValidUrl(url);
-	        },
-	        canLoadResource: (type, url) => {
-	            const resourceUrls = external[type];
-	            if (!(resourceUrls === null || resourceUrls === void 0 ? void 0 : resourceUrls.length))
-	                return false;
-	            // Extract URLs and create egress filter
-	            const allowList = resourceUrls.map(extractUrlString).filter((u) => u.length > 0);
-	            if (allowList.length === 0)
-	                return false;
-	            const egressFilter = new egress_1.EgressFilteringService(allowList);
-	            // All resources use CSP validation (checks protocol + hostname + paths)
-	            // Type assertion needed because node_modules may have outdated types
-	            const egressFilterWithCSP = egressFilter;
-	            return egressFilterWithCSP.isValidUrlCSP(url);
-	        },
-	        getScopes: () => scopeArray,
-	        getExternalPermissions: () => external,
-	        hasAnyPermissions: () => scopeArray.length > 0 || Object.keys(external).length > 0
-	    };
-	}
-	/**
-	 * Check if required scopes are granted
-	 */
-	function checkScopes(requiredScopes, permissionUtils) {
-	    if (!(requiredScopes === null || requiredScopes === void 0 ? void 0 : requiredScopes.length)) {
-	        return undefined;
-	    }
-	    const missingScopes = requiredScopes.filter((scope) => !permissionUtils.hasScope(scope));
-	    return missingScopes.length > 0 ? missingScopes : undefined;
-	}
-	/**
-	 * Check if required fetch permissions are granted
-	 */
-	function checkFetchPermissions(requiredFetch, permissionUtils) {
-	    if (!(requiredFetch === null || requiredFetch === void 0 ? void 0 : requiredFetch.fetch)) {
-	        return undefined;
-	    }
-	    const missingFetch = {};
-	    FETCH_TYPES.forEach((type) => {
-	        var _a;
-	        const requiredUrls = (_a = requiredFetch.fetch) === null || _a === void 0 ? void 0 : _a[type];
-	        if (requiredUrls === null || requiredUrls === void 0 ? void 0 : requiredUrls.length) {
-	            const missingUrls = requiredUrls.filter((url) => !permissionUtils.canFetchFrom(type, url));
-	            if (missingUrls.length > 0) {
-	                missingFetch[type] = missingUrls;
-	            }
-	        }
-	    });
-	    return Object.keys(missingFetch).length > 0 ? missingFetch : undefined;
-	}
-	/**
-	 * Check if required resource permissions are granted
-	 */
-	function checkResourcePermissions(requiredExternal, permissionUtils) {
-	    const missingResources = {};
-	    RESOURCE_TYPES.forEach((type) => {
-	        const requiredUrls = requiredExternal === null || requiredExternal === void 0 ? void 0 : requiredExternal[type];
-	        if (requiredUrls === null || requiredUrls === void 0 ? void 0 : requiredUrls.length) {
-	            const missingUrls = requiredUrls.filter((url) => !permissionUtils.canLoadResource(type, url));
-	            if (missingUrls.length > 0) {
-	                missingResources[type] = missingUrls;
-	            }
-	        }
-	    });
-	    return Object.keys(missingResources).length > 0 ? missingResources : undefined;
-	}
-	/**
-	 * Check if required external permissions are granted
-	 */
-	function checkExternalPermissions(requiredExternal, permissionUtils) {
-	    if (!requiredExternal) {
-	        return undefined;
-	    }
-	    const missingFetch = checkFetchPermissions(requiredExternal, permissionUtils);
-	    const missingResources = checkResourcePermissions(requiredExternal, permissionUtils);
-	    if (!missingFetch && !missingResources) {
-	        return undefined;
-	    }
-	    const missingExternal = {};
-	    if (missingFetch) {
-	        missingExternal.fetch = missingFetch;
-	    }
-	    if (missingResources) {
-	        Object.assign(missingExternal, missingResources);
-	    }
-	    return missingExternal;
-	}
-	// Throws if a field that should be a plain object but is something else.
-	// Only used for external and external.fetch, which are guarded above.
-	function validateObjectField(value, fieldPath) {
-	    if (value !== undefined) {
-	        if (typeof value !== 'object' || value === null || Array.isArray(value)) {
-	            throw new TypeError(`${fieldPath} should be an object, not ${Array.isArray(value) ? 'an array' : `a ${typeof value}`}`);
-	        }
-	    }
-	}
-	// Throws if a field that should be an array but is something else.
-	function validateArrayField(value, fieldPath) {
-	    if (value !== undefined && !Array.isArray(value)) {
-	        throw new TypeError(`${fieldPath} should be an array, not a ${typeof value}`);
-	    }
-	}
-	/**
-	 * Validates that fields in requiredPermissions have the correct types.
-	 */
-	function validatePermissionShape(requiredPermissions) {
-	    validateArrayField(requiredPermissions.scopes, 'scopes');
-	    const external = requiredPermissions.external;
-	    if (external === undefined)
-	        return;
-	    validateObjectField(external, 'external');
-	    if (external.fetch !== undefined) {
-	        validateObjectField(external.fetch, 'external.fetch');
-	        for (const type of FETCH_TYPES) {
-	            validateArrayField(external.fetch[type], `external.fetch.${type}`);
-	        }
-	    }
-	    for (const type of RESOURCE_TYPES) {
-	        validateArrayField(external[type], `external.${type}`);
-	    }
-	}
-	/**
-	 * Check if required permissions are granted
-	 * @param requiredPermissions - The permissions required to check
-	 * @param runtimePermissions - The runtime permissions from context (optional, will be fetched from view.getContext() if not provided)
-	 * @returns Promise resolving to permission check result with granted status and missing permissions
-	 */
-	async function checkPermissions(requiredPermissions, runtimePermissions) {
-	    var _a;
-	    // Early return for falsy required permissions
-	    if (!requiredPermissions) {
-	        return { granted: false, missing: null };
-	    }
-	    validatePermissionShape(requiredPermissions);
-	    // Early return for empty permissions (no requirements = all granted)
-	    if (!((_a = requiredPermissions.scopes) === null || _a === void 0 ? void 0 : _a.length) && !requiredPermissions.external) {
-	        return { granted: true, missing: null };
-	    }
-	    // If runtimePermissions is not provided, fetch it from context
-	    let permissionsToCheck = runtimePermissions;
-	    if (!permissionsToCheck) {
-	        const context = await view_1.view.getContext();
-	        permissionsToCheck = context.permissions;
-	    }
-	    const permissionUtils = createPermissionUtils(permissionsToCheck);
-	    if (!permissionUtils) {
-	        // If permissions are not available, return not granted
-	        return { granted: false, missing: null };
-	    }
-	    const missing = {};
-	    let hasAllRequiredPermissions = true;
-	    // Check scopes
-	    const missingScopes = checkScopes(requiredPermissions.scopes, permissionUtils);
-	    if (missingScopes) {
-	        missing.scopes = missingScopes;
-	        hasAllRequiredPermissions = false;
-	    }
-	    // Check external permissions
-	    const missingExternal = checkExternalPermissions(requiredPermissions.external, permissionUtils);
-	    if (missingExternal) {
-	        missing.external = missingExternal;
-	        hasAllRequiredPermissions = false;
-	    }
-	    // Note: Content permissions are not supported in the current RuntimePermissions type
-	    return {
-	        granted: hasAllRequiredPermissions,
-	        missing: hasAllRequiredPermissions ? null : missing
-	    };
-	}
-	return permissionsUtil$1;
-}
-
-var hasRequiredPermissions$2;
-
-function requirePermissions$2 () {
-	if (hasRequiredPermissions$2) return permissions$3;
-	hasRequiredPermissions$2 = 1;
-	(function (exports) {
-		Object.defineProperty(exports, "__esModule", { value: true });
-		const tslib_1 = require$$0;
-		tslib_1.__exportStar(requirePermissions$3(), exports);
-		tslib_1.__exportStar(requirePermissionsUtil$1(), exports); 
-	} (permissions$3));
-	return permissions$3;
-}
-
-var objectStore$3 = {};
-
-var objectStore$2 = {};
-
-var upload$1 = {};
-
-var hasRequiredUpload$1;
-
-function requireUpload$1 () {
-	if (hasRequiredUpload$1) return upload$1;
-	hasRequiredUpload$1 = 1;
-	(function (exports) {
-		Object.defineProperty(exports, "__esModule", { value: true });
-		exports.upload = exports.createUploadPromises = void 0;
-		const invoke_1 = requireInvoke$2();
-		const errors_1 = requireErrors$1();
-		const bridge_1 = requireBridge$1();
-		const callBridge = (0, bridge_1.getCallBridge)();
-		/**
-		 * Convert base64 string to Blob
-		 */
-		const base64ToBlob = (base64, mimeType) => {
-		    const byteCharacters = atob(base64);
-		    const byteNumbers = new Array(byteCharacters.length);
-		    for (let i = 0; i < byteCharacters.length; i++) {
-		        byteNumbers[i] = byteCharacters.charCodeAt(i);
-		    }
-		    const byteArray = new Uint8Array(byteNumbers);
-		    return new Blob([byteArray], { type: mimeType || 'application/octet-stream' });
-		};
-		/**
-		 * Get metadata for a blob object including size and checksum
-		 */
-		const getObjectMetadata = async (blob) => {
-		    const length = blob.size;
-		    // Calculate checksum using SubtleCrypto API
-		    const arrayBuffer = await blob.arrayBuffer();
-		    const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer);
-		    const hashArray = new Uint8Array(hashBuffer);
-		    // Convert to base64 format (required by OS API)
-		    const checksum = btoa(String.fromCharCode(...hashArray));
-		    const checksumType = 'SHA256';
-		    return {
-		        length,
-		        checksum,
-		        checksumType
-		    };
-		};
-		/**
-		 * Start individual upload operations and return array of promises
-		 * This allows tracking per-file upload progress
-		 *
-		 * @param functionKey - Configuration object containing the backend function key to filter and generate presigned URLs
-		 * @param objects - Array of Blob objects or Base64Object (with data and optional mimeType) to upload
-		 * @returns Array of individual upload promises with their associated index
-		 * @throws {BridgeAPIError} When filtering fails or upload encounters an error
-		 */
-		const createUploadPromises = async ({ functionKey, objects }) => {
-		    if (!functionKey || functionKey.length === 0) {
-		        throw new errors_1.BridgeAPIError('functionKey is required to filter and generate presigned URLs');
-		    }
-		    if (!Array.isArray(objects) || objects.length === 0) {
-		        throw new errors_1.BridgeAPIError('objects array is required and must not be empty');
-		    }
-		    // Validate and convert objects to Blobs in a single pass
-		    const blobs = objects.map((obj, index) => {
-		        if (obj instanceof Blob) {
-		            return obj;
-		        }
-		        const isBase64Object = obj && typeof obj === 'object' && 'data' in obj && typeof obj.data === 'string';
-		        if (!isBase64Object) {
-		            throw new errors_1.BridgeAPIError(`Invalid object type at index ${index}. Only Blob or Base64Object (with data string and optional mimeType) are accepted.`);
-		        }
-		        try {
-		            return base64ToBlob(obj.data, obj.mimeType);
-		        }
-		        catch (e) {
-		            throw new errors_1.BridgeAPIError(`Invalid base64 data at index ${index}. The data string must be valid base64 encoded.`);
-		        }
-		    });
-		    const allObjectMetadata = await Promise.all(blobs.map((blob) => getObjectMetadata(blob)));
-		    const presignedURLsToObjectMetadata = (await (0, invoke_1.invoke)(functionKey, {
-		        allObjectMetadata
-		    }));
-		    if (!presignedURLsToObjectMetadata || typeof presignedURLsToObjectMetadata !== 'object') {
-		        throw new errors_1.BridgeAPIError('Invalid response from functionKey');
-		    }
-		    const checksumToBlobMap = new Map();
-		    const checksumToIndexMap = new Map();
-		    blobs.forEach((blob, index) => {
-		        const metadata = allObjectMetadata[index];
-		        checksumToBlobMap.set(metadata.checksum, blob);
-		        checksumToIndexMap.set(metadata.checksum, index);
-		    });
-		    const uploadPromises = Object.entries(presignedURLsToObjectMetadata).map(([presignedUrl, metadata]) => {
-		        const { key, checksum } = metadata;
-		        const object = checksumToBlobMap.get(checksum);
-		        const index = checksumToIndexMap.get(checksum);
-		        if (index === undefined) {
-		            return {
-		                promise: Promise.resolve({
-		                    success: false,
-		                    key: key,
-		                    error: `Index not found for checksum ${checksum}`
-		                }),
-		                index: -1
-		            };
-		        }
-		        if (!object) {
-		            return {
-		                promise: Promise.resolve({
-		                    success: false,
-		                    key: key,
-		                    error: `Blob not found for checksum ${checksum}`
-		                }),
-		                index
-		            };
-		        }
-		        const uploadPromise = (async () => {
-		            try {
-		                const response = await fetch(presignedUrl, {
-		                    method: 'PUT',
-		                    body: object,
-		                    headers: {
-		                        'Content-Type': object.type || 'application/octet-stream',
-		                        'Content-Length': object.size.toString()
-		                    }
-		                });
-		                return {
-		                    success: response.ok,
-		                    key: key,
-		                    status: response.status,
-		                    error: response.ok ? undefined : `Upload failed with status ${response.status}`
-		                };
-		            }
-		            catch (error) {
-		                return {
-		                    success: false,
-		                    key: key,
-		                    status: 503,
-		                    error: error instanceof Error ? error.message : 'Upload failed'
-		                };
-		            }
-		        })();
-		        return { promise: uploadPromise, index, objectType: object.type, objectSize: object.size };
-		    });
-		    return uploadPromises;
-		};
-		exports.createUploadPromises = createUploadPromises;
-		/**
-		 * Upload multiple objects to pre-signed URLs
-		 *
-		 * @param functionKey - Configuration object containing the backend function key to filter and generate presigned URLs
-		 * @param objects - Array of Blob objects or Base64Object (with data and optional mimeType) to upload
-		 * @returns Promise resolving to UploadResult[]
-		 * @throws {BridgeAPIError} When filtering fails or upload encounters an error
-		 */
-		const upload = async ({ functionKey, objects }) => {
-		    void callBridge('trackObjectStoreAction', { action: 'upload' });
-		    const uploadPromises = await (0, exports.createUploadPromises)({ functionKey, objects });
-		    const results = await Promise.all(uploadPromises.map((item) => item.promise));
-		    return results;
-		};
-		exports.upload = upload; 
-	} (upload$1));
-	return upload$1;
-}
-
-var deleteObjects$1 = {};
-
-var hasRequiredDeleteObjects$1;
-
-function requireDeleteObjects$1 () {
-	if (hasRequiredDeleteObjects$1) return deleteObjects$1;
-	hasRequiredDeleteObjects$1 = 1;
-	Object.defineProperty(deleteObjects$1, "__esModule", { value: true });
-	deleteObjects$1.deleteObjects = void 0;
-	const invoke_1 = requireInvoke$2();
-	const errors_1 = requireErrors$1();
-	const bridge_1 = requireBridge$1();
-	const callBridge = (0, bridge_1.getCallBridge)();
-	/**
-	 * Delete multiple objects
-	 *
-	 * @param functionKey - Configuration object containing the backend function key to delete objects
-	 * @param keys - Array of object keys to delete
-	 * @returns Promise<void>
-	 * @throws {BridgeAPIError} When deleting fails
-	 */
-	const deleteObjects = async ({ functionKey, keys }) => {
-	    void callBridge('trackObjectStoreAction', { action: 'delete' });
-	    if (!functionKey || functionKey.length === 0) {
-	        throw new errors_1.BridgeAPIError('functionKey is required to delete objects');
-	    }
-	    if (!Array.isArray(keys) || keys.length === 0) {
-	        throw new errors_1.BridgeAPIError('keys array is required and must not be empty');
-	    }
-	    await Promise.all(keys.map(async (key) => {
-	        await (0, invoke_1.invoke)(functionKey, { key });
-	    }));
-	};
-	deleteObjects$1.deleteObjects = deleteObjects;
-	return deleteObjects$1;
-}
-
-var download$1 = {};
-
-var hasRequiredDownload$1;
-
-function requireDownload$1 () {
-	if (hasRequiredDownload$1) return download$1;
-	hasRequiredDownload$1 = 1;
-	Object.defineProperty(download$1, "__esModule", { value: true });
-	download$1.download = void 0;
-	const invoke_1 = requireInvoke$2();
-	const errors_1 = requireErrors$1();
-	const bridge_1 = requireBridge$1();
-	const callBridge = (0, bridge_1.getCallBridge)();
-	/**
-	 * Download multiple objects from pre-signed URLs
-	 *
-	 * @param functionKey - Configuration object containing the backend function key to filter and generate download URLs
-	 * @param keys - Array of object keys to download
-	 * @returns Promise resolving to DownloadResult[]
-	 * @throws {BridgeAPIError} When filtering fails or download encounters an error
-	 */
-	const download = async ({ functionKey, keys }) => {
-	    void callBridge('trackObjectStoreAction', { action: 'download' });
-	    if (!functionKey || functionKey.length === 0) {
-	        throw new errors_1.BridgeAPIError('functionKey is required to filter and generate download URLs');
-	    }
-	    if (!Array.isArray(keys) || keys.length === 0) {
-	        throw new errors_1.BridgeAPIError('keys array is required and must not be empty');
-	    }
-	    const downloadUrlsTokeys = (await (0, invoke_1.invoke)(functionKey, {
-	        keys
-	    }));
-	    if (!downloadUrlsTokeys || typeof downloadUrlsTokeys !== 'object') {
-	        throw new errors_1.BridgeAPIError('Invalid response from functionKey');
-	    }
-	    const downloadPromises = Object.entries(downloadUrlsTokeys).map(async ([downloadUrl, key]) => {
-	        try {
-	            const response = await fetch(downloadUrl, {
-	                method: 'GET'
-	            });
-	            if (!response.ok) {
-	                return {
-	                    success: false,
-	                    key: key,
-	                    status: response.status,
-	                    error: `Download failed with status ${response.status}`
-	                };
-	            }
-	            const blob = await response.blob();
-	            return {
-	                success: true,
-	                key: key,
-	                blob,
-	                status: response.status
-	            };
-	        }
-	        catch (error) {
-	            return {
-	                success: false,
-	                key: key,
-	                status: 503,
-	                error: error instanceof Error ? error.message : 'Download failed'
-	            };
-	        }
-	    });
-	    const results = await Promise.all(downloadPromises);
-	    return results;
-	};
-	download$1.download = download;
-	return download$1;
-}
-
-var getMetadata$1 = {};
-
-var hasRequiredGetMetadata$1;
-
-function requireGetMetadata$1 () {
-	if (hasRequiredGetMetadata$1) return getMetadata$1;
-	hasRequiredGetMetadata$1 = 1;
-	Object.defineProperty(getMetadata$1, "__esModule", { value: true });
-	getMetadata$1.getMetadata = void 0;
-	const index_1 = requireInvoke$2();
-	const errors_1 = requireErrors$1();
-	const bridge_1 = requireBridge$1();
-	const callBridge = (0, bridge_1.getCallBridge)();
-	/**
-	 * Get metadata for multiple objectIds
-	 *
-	 * @param functionKey - Configuration object containing the backend function key to filter and generate object metadata
-	 * @param keys - Array of object keys to get metadata for
-	 * @returns Promise resolving to GetMetadataResult[]
-	 * @throws {BridgeAPIError} When filtering fails or download encounters an error
-	 */
-	const getMetadata = async ({ functionKey, keys }) => {
-	    void callBridge('trackObjectStoreAction', { action: 'getMetadata' });
-	    if (!functionKey || functionKey.length === 0) {
-	        throw new errors_1.BridgeAPIError('functionKey is required to filter and generate object metadata');
-	    }
-	    if (!Array.isArray(keys) || keys.length === 0) {
-	        throw new errors_1.BridgeAPIError('keys array is required and must not be empty');
-	    }
-	    const results = await Promise.all(keys.map(async (key) => {
-	        const result = (await (0, index_1.invoke)(functionKey, { key }));
-	        if (!result || typeof result !== 'object') {
-	            return {
-	                key: key,
-	                error: 'Invalid response from functionKey'
-	            };
-	        }
-	        return result;
-	    }));
-	    return results;
-	};
-	getMetadata$1.getMetadata = getMetadata;
-	return getMetadata$1;
-}
-
-var hasRequiredObjectStore$3;
-
-function requireObjectStore$3 () {
-	if (hasRequiredObjectStore$3) return objectStore$2;
-	hasRequiredObjectStore$3 = 1;
-	(function (exports) {
-		Object.defineProperty(exports, "__esModule", { value: true });
-		exports.createUploadPromises = exports.objectStore = void 0;
-		const upload_1 = requireUpload$1();
-		Object.defineProperty(exports, "createUploadPromises", { enumerable: true, get: function () { return upload_1.createUploadPromises; } });
-		const deleteObjects_1 = requireDeleteObjects$1();
-		const download_1 = requireDownload$1();
-		const getMetadata_1 = requireGetMetadata$1();
-		exports.objectStore = {
-		    upload: upload_1.upload,
-		    download: download_1.download,
-		    getMetadata: getMetadata_1.getMetadata,
-		    delete: deleteObjects_1.deleteObjects
-		}; 
-	} (objectStore$2));
-	return objectStore$2;
-}
-
-var types$2 = {};
-
-var hasRequiredTypes$2;
-
-function requireTypes$2 () {
-	if (hasRequiredTypes$2) return types$2;
-	hasRequiredTypes$2 = 1;
-	Object.defineProperty(types$2, "__esModule", { value: true });
-	return types$2;
-}
-
-var hasRequiredObjectStore$2;
-
-function requireObjectStore$2 () {
-	if (hasRequiredObjectStore$2) return objectStore$3;
-	hasRequiredObjectStore$2 = 1;
-	(function (exports) {
-		Object.defineProperty(exports, "__esModule", { value: true });
-		const tslib_1 = require$$0;
-		tslib_1.__exportStar(requireObjectStore$3(), exports);
-		tslib_1.__exportStar(requireTypes$2(), exports); 
-	} (objectStore$3));
-	return objectStore$3;
-}
-
-var featureFlags$3 = {};
-
-var featureFlags$2 = {};
-
-var evaluator$1 = {};
-
-var hasRequiredEvaluator$1;
-
-function requireEvaluator$1 () {
-	if (hasRequiredEvaluator$1) return evaluator$1;
-	hasRequiredEvaluator$1 = 1;
-	Object.defineProperty(evaluator$1, "__esModule", { value: true });
-	evaluator$1.Evaluator = void 0;
-	class Evaluator {
-	    constructor(results) {
-	        this.results = results;
-	    }
-	    checkFlag(flagName, defaultValue) {
-	        if (!this.results || !this.results.feature_flags) {
-	            // fallback to default value
-	            return defaultValue;
-	        }
-	        const featureFlags = this.results.feature_flags;
-	        let hashedValue = '';
-	        try {
-	            hashedValue = this.getHashedValue(flagName);
-	        }
-	        catch (err) {
-	            // eslint-disable-next-line no-console
-	            console.error('Unexpected error occurred while evaluating flag ', err);
-	            // If hashing fails for any reason, do not throw; safely return default
-	            return defaultValue;
-	        }
-	        if (!hashedValue) {
-	            return defaultValue;
-	        }
-	        const evaluatedFlag = featureFlags[hashedValue];
-	        if (evaluatedFlag) {
-	            // if flag being checked is disabled
-	            if (evaluatedFlag.disabled) {
-	                return false;
-	            }
-	            return evaluatedFlag.value;
-	        }
-	        // fallback to default value
-	        return defaultValue;
-	    }
-	    shutDown() {
-	        this.results = undefined;
-	    }
-	    // To be Updated with proper hashing function
-	    getHashedValue(flagName) {
-	        // Defensive: ensure stable, non-throwing behavior for unexpected inputs
-	        if (typeof flagName !== 'string') {
-	            return '';
-	        }
-	        const input = flagName.trim();
-	        if (input.length === 0) {
-	            return '';
-	        }
-	        // djb2 hashing (unsigned 32-bit), matches server-side encoding
-	        let hash = 5381;
-	        for (let i = 0; i < input.length; i += 1) {
-	            const charCode = input.charCodeAt(i);
-	            hash = (hash << 5) + hash + charCode; // hash * 33 + c
-	            hash |= 0; // force 32-bit signed int
-	        }
-	        // Convert to unsigned 32-bit and return as a decimal string
-	        return (hash >>> 0).toString();
-	    }
-	}
-	evaluator$1.Evaluator = Evaluator;
-	return evaluator$1;
-}
-
-var initFeatureFlags$1 = {};
-
-var hasRequiredInitFeatureFlags$1;
-
-function requireInitFeatureFlags$1 () {
-	if (hasRequiredInitFeatureFlags$1) return initFeatureFlags$1;
-	hasRequiredInitFeatureFlags$1 = 1;
-	Object.defineProperty(initFeatureFlags$1, "__esModule", { value: true });
-	initFeatureFlags$1.initFeatureFlags = void 0;
-	const bridge_1 = requireBridge$1();
-	const errors_1 = requireErrors$1();
-	const utils_1 = requireUtils$2();
-	const maxOps = 500;
-	const intervalInMs = 1000 * 25;
-	const callBridge = (0, bridge_1.getCallBridge)();
-	const validatePayload = (payload) => {
-	    if (!payload || !payload.user || !payload.config) {
-	        throw new errors_1.BridgeAPIError('Missing required parameters. Parameter user is required in the payload.');
-	    }
-	    if (!payload.config.environment || !['development', 'staging', 'production'].includes(payload.config.environment)) {
-	        throw new errors_1.BridgeAPIError('Invalid environment. Valid environments are: development, staging, production');
-	    }
-	    if (Object.values(payload).some((val) => typeof val === 'function')) {
-	        throw new errors_1.BridgeAPIError('Passing functions as part of the payload is not supported!');
-	    }
-	};
-	const _initFeatureFlags = (payload) => {
-	    validatePayload(payload);
-	    return callBridge('initFeatureFlags', { user: payload.user, config: payload.config });
-	};
-	initFeatureFlags$1.initFeatureFlags = (0, utils_1.withRateLimiter)(_initFeatureFlags, maxOps, intervalInMs, `Feature flags initialisation calls are rate limited at ${maxOps}req/${intervalInMs / 1000}s`);
-	return initFeatureFlags$1;
-}
-
-var hasRequiredFeatureFlags$3;
-
-function requireFeatureFlags$3 () {
-	if (hasRequiredFeatureFlags$3) return featureFlags$2;
-	hasRequiredFeatureFlags$3 = 1;
-	Object.defineProperty(featureFlags$2, "__esModule", { value: true });
-	featureFlags$2.FeatureFlags = void 0;
-	const evaluator_1 = requireEvaluator$1();
-	const initFeatureFlags_1 = requireInitFeatureFlags$1();
-	class FeatureFlags {
-	    constructor() {
-	        this.initialized = false;
-	    }
-	    /**
-	     * Initialize the feature flags client
-	     */
-	    async initialize(user, config = { environment: 'development' }) {
-	        if (this.isInitialized()) {
-	            return;
-	        }
-	        if (!(config === null || config === void 0 ? void 0 : config.environment)) {
-	            config.environment = 'development';
-	        }
-	        const result = await (0, initFeatureFlags_1.initFeatureFlags)({ user, config });
-	        this.initialized = true;
-	        this.evaluator = new evaluator_1.Evaluator(result);
-	    }
-	    /**
-	     * Check if a feature flag is enabled for the user
-	     */
-	    checkFlag(flagName, defaultValue = false) {
-	        if (!this.isInitialized() || !this.evaluator) {
-	            throw new Error('FeatureFlags not initialized. Call initialize() first.');
-	        }
-	        return this.evaluator.checkFlag(flagName, defaultValue);
-	    }
-	    /**
-	     * Shutdown the feature flags client
-	     */
-	    shutdown() {
-	        if (!this.isInitialized()) {
-	            return;
-	        }
-	        this.initialized = false;
-	        this.evaluator.shutDown();
-	    }
-	    isInitialized() {
-	        return this.initialized;
-	    }
-	}
-	featureFlags$2.FeatureFlags = FeatureFlags;
-	return featureFlags$2;
-}
-
-var hasRequiredFeatureFlags$2;
-
-function requireFeatureFlags$2 () {
-	if (hasRequiredFeatureFlags$2) return featureFlags$3;
-	hasRequiredFeatureFlags$2 = 1;
-	(function (exports) {
-		Object.defineProperty(exports, "__esModule", { value: true });
-		exports.FeatureFlags = void 0;
-		var featureFlags_1 = requireFeatureFlags$3();
-		Object.defineProperty(exports, "FeatureFlags", { enumerable: true, get: function () { return featureFlags_1.FeatureFlags; } }); 
-	} (featureFlags$3));
-	return featureFlags$3;
-}
-
-var frontendCustomMetrics$3 = {};
-
-var frontendCustomMetrics$2 = {};
-
-var hasRequiredFrontendCustomMetrics$3;
-
-function requireFrontendCustomMetrics$3 () {
-	if (hasRequiredFrontendCustomMetrics$3) return frontendCustomMetrics$2;
-	hasRequiredFrontendCustomMetrics$3 = 1;
-	Object.defineProperty(frontendCustomMetrics$2, "__esModule", { value: true });
-	frontendCustomMetrics$2.frontendCustomMetrics = void 0;
-	const bridge_1 = requireBridge$1();
-	const errors_1 = requireErrors$1();
-	const callBridge = (0, bridge_1.getCallBridge)();
-	const emit = async (customMetricName, value) => {
-	    await callBridge('emitFrontendCustomMetric', {
-	        customMetricName,
-	        value
-	    });
-	};
-	const MAX_METRIC_NAME_LENGTH = 50;
-	// Must start and end with an alphanumeric character and may only contain
-	// letters, numbers, dots (.) and hyphens (-) in between.
-	const METRIC_NAME_REGEX = /^[a-zA-Z0-9]([a-zA-Z0-9.-]*[a-zA-Z0-9])?$/;
-	/**
-	 * Validates a custom metric name against the same rules enforced when
-	 * registering a metric in the developer console. Throws synchronously so
-	 * developer errors fail fast without a wasted bridge round-trip.
-	 *
-	 * Note: this is a best-effort, client-side convenience check. The metric name
-	 * must still match a custom metric registered in the developer console, which
-	 * remains the source of truth and is validated by the backend.
-	 */
-	const validateMetricName = (name) => {
-	    if (name.trim().length === 0) {
-	        throw new errors_1.BridgeAPIError('Custom metric name cannot be empty');
-	    }
-	    if (name.length > MAX_METRIC_NAME_LENGTH) {
-	        throw new errors_1.BridgeAPIError(`Custom metric name cannot exceed ${MAX_METRIC_NAME_LENGTH} characters`);
-	    }
-	    if (!METRIC_NAME_REGEX.test(name)) {
-	        throw new errors_1.BridgeAPIError('Custom metric name must start and end with alphanumeric characters and can only contain letters, numbers, dots (.), and hyphens (-)');
-	    }
-	    if (name.includes('..') || name.includes('--')) {
-	        throw new errors_1.BridgeAPIError('Custom metric name cannot contain consecutive dots or hyphens');
-	    }
-	};
-	const counter = (name) => {
-	    validateMetricName(name);
-	    return {
-	        incr: () => emit(name, 1),
-	        incrBy: (value) => {
-	            if (value <= 0) {
-	                throw new errors_1.BridgeAPIError('Counter value must be a positive number');
-	            }
-	            return emit(name, value);
-	        }
-	    };
-	};
-	/**
-	 * Public namespace for emitting Forge frontend custom metrics from a Forge UI app.
-	 *
-	 * @example
-	 * import { frontendCustomMetrics } from '@forge/bridge';
-	 * const c = frontendCustomMetrics.counter('button-click');
-	 * c.incr();        // increment by 1
-	 * c.incrBy(5);     // increment by 5 (rejects if value <= 0)
-	 */
-	frontendCustomMetrics$2.frontendCustomMetrics = { counter };
-	return frontendCustomMetrics$2;
-}
-
-var hasRequiredFrontendCustomMetrics$2;
-
-function requireFrontendCustomMetrics$2 () {
-	if (hasRequiredFrontendCustomMetrics$2) return frontendCustomMetrics$3;
-	hasRequiredFrontendCustomMetrics$2 = 1;
-	(function (exports) {
-		Object.defineProperty(exports, "__esModule", { value: true });
-		const tslib_1 = require$$0;
-		tslib_1.__exportStar(requireFrontendCustomMetrics$3(), exports); 
-	} (frontendCustomMetrics$3));
-	return frontendCustomMetrics$3;
-}
-
-var hasRequiredOut$2;
-
-function requireOut$2 () {
-	if (hasRequiredOut$2) return out$3;
-	hasRequiredOut$2 = 1;
-	(function (exports) {
-		Object.defineProperty(exports, "__esModule", { value: true });
-		exports.i18n = exports.NavigationTarget = void 0;
-		const tslib_1 = require$$0;
-		var targets_1 = requireTargets$1();
-		Object.defineProperty(exports, "NavigationTarget", { enumerable: true, get: function () { return targets_1.NavigationTarget; } });
-		tslib_1.__exportStar(requireInvoke$2(), exports);
-		tslib_1.__exportStar(requireInvokeEndpoint$2(), exports);
-		tslib_1.__exportStar(requireView$2(), exports);
-		tslib_1.__exportStar(requireRouter$2(), exports);
-		tslib_1.__exportStar(requireModal$2(), exports);
-		tslib_1.__exportStar(requireFetch$2(), exports);
-		tslib_1.__exportStar(requireRequestTeamworkGraph$1(), exports);
-		tslib_1.__exportStar(requireFlag$2(), exports);
-		tslib_1.__exportStar(requireEvents$2(), exports);
-		tslib_1.__exportStar(requireRealtime$2(), exports);
-		tslib_1.__exportStar(requireRovo$2(), exports);
-		exports.i18n = tslib_1.__importStar(requireI18n$1());
-		tslib_1.__exportStar(requirePermissions$2(), exports);
-		tslib_1.__exportStar(requireObjectStore$2(), exports);
-		tslib_1.__exportStar(requireFeatureFlags$2(), exports);
-		tslib_1.__exportStar(requireFrontendCustomMetrics$2(), exports); 
-	} (out$3));
-	return out$3;
-}
-
-var hasRequiredUseProductContext;
-
-function requireUseProductContext () {
-	if (hasRequiredUseProductContext) return useProductContext;
-	hasRequiredUseProductContext = 1;
-	Object.defineProperty(useProductContext, "__esModule", { value: true });
-	useProductContext.useProductContext = void 0;
-	const bridge_1 = requireOut$2();
-	const react_1 = requireReact();
-	const useProductContext$1 = () => {
-	    const [productContext, setProductContext] = (0, react_1.useState)();
-	    (0, react_1.useEffect)(() => {
-	        bridge_1.view
-	            .getContext()
-	            .then(setProductContext)
-	            .catch((err) => {
-	            throw err;
-	        });
-	    }, []);
-	    return productContext;
-	};
-	useProductContext.useProductContext = useProductContext$1;
-	return useProductContext;
-}
-
-var useConfig = {};
-
-var hasRequiredUseConfig;
-
-function requireUseConfig () {
-	if (hasRequiredUseConfig) return useConfig;
-	hasRequiredUseConfig = 1;
-	Object.defineProperty(useConfig, "__esModule", { value: true });
-	useConfig.useConfig = void 0;
-	const react_1 = requireReact();
-	const bridge_1 = requireOut$2();
-	const updateConfig = (setConfig) => {
-	    bridge_1.view
-	        .getContext()
-	        .then((context) => {
-	        setConfig(context?.extension.config);
-	    })
-	        .catch((err) => {
-	        throw err;
-	    });
-	};
-	const useConfig$1 = () => {
-	    const [config, setConfig] = (0, react_1.useState)(undefined);
-	    (0, react_1.useEffect)(() => {
-	        updateConfig(setConfig);
-	    }, []);
-	    (0, react_1.useEffect)(() => {
-	        const sub = bridge_1.events.on('FORGE_CORE_MACRO_CONFIG_CHANGED', () => {
-	            updateConfig(setConfig);
-	        });
-	        return () => {
-	            void sub.then((subscription) => subscription.unsubscribe());
-	        };
-	    }, []);
-	    return config;
-	};
-	useConfig.useConfig = useConfig$1;
-	return useConfig;
-}
-
-var useTheme = {};
-
-var _stackClear;
-var hasRequired_stackClear;
-
-function require_stackClear () {
-	if (hasRequired_stackClear) return _stackClear;
-	hasRequired_stackClear = 1;
-	var ListCache = require_ListCache();
-
-	/**
-	 * Removes all key-value entries from the stack.
-	 *
-	 * @private
-	 * @name clear
-	 * @memberOf Stack
-	 */
-	function stackClear() {
-	  this.__data__ = new ListCache;
-	  this.size = 0;
-	}
-
-	_stackClear = stackClear;
-	return _stackClear;
-}
-
-/**
- * Removes `key` and its value from the stack.
- *
- * @private
- * @name delete
- * @memberOf Stack
- * @param {string} key The key of the value to remove.
- * @returns {boolean} Returns `true` if the entry was removed, else `false`.
- */
-
-var _stackDelete;
-var hasRequired_stackDelete;
-
-function require_stackDelete () {
-	if (hasRequired_stackDelete) return _stackDelete;
-	hasRequired_stackDelete = 1;
-	function stackDelete(key) {
-	  var data = this.__data__,
-	      result = data['delete'](key);
-
-	  this.size = data.size;
-	  return result;
-	}
-
-	_stackDelete = stackDelete;
-	return _stackDelete;
-}
-
-/**
- * Gets the stack value for `key`.
- *
- * @private
- * @name get
- * @memberOf Stack
- * @param {string} key The key of the value to get.
- * @returns {*} Returns the entry value.
- */
-
-var _stackGet;
-var hasRequired_stackGet;
-
-function require_stackGet () {
-	if (hasRequired_stackGet) return _stackGet;
-	hasRequired_stackGet = 1;
-	function stackGet(key) {
-	  return this.__data__.get(key);
-	}
-
-	_stackGet = stackGet;
-	return _stackGet;
-}
-
-/**
- * Checks if a stack value for `key` exists.
- *
- * @private
- * @name has
- * @memberOf Stack
- * @param {string} key The key of the entry to check.
- * @returns {boolean} Returns `true` if an entry for `key` exists, else `false`.
- */
-
-var _stackHas;
-var hasRequired_stackHas;
-
-function require_stackHas () {
-	if (hasRequired_stackHas) return _stackHas;
-	hasRequired_stackHas = 1;
-	function stackHas(key) {
-	  return this.__data__.has(key);
-	}
-
-	_stackHas = stackHas;
-	return _stackHas;
-}
-
-var _stackSet;
-var hasRequired_stackSet;
-
-function require_stackSet () {
-	if (hasRequired_stackSet) return _stackSet;
-	hasRequired_stackSet = 1;
-	var ListCache = require_ListCache(),
-	    Map = require_Map(),
-	    MapCache = require_MapCache();
-
-	/** Used as the size to enable large array optimizations. */
-	var LARGE_ARRAY_SIZE = 200;
-
-	/**
-	 * Sets the stack `key` to `value`.
-	 *
-	 * @private
-	 * @name set
-	 * @memberOf Stack
-	 * @param {string} key The key of the value to set.
-	 * @param {*} value The value to set.
-	 * @returns {Object} Returns the stack cache instance.
-	 */
-	function stackSet(key, value) {
-	  var data = this.__data__;
-	  if (data instanceof ListCache) {
-	    var pairs = data.__data__;
-	    if (!Map || (pairs.length < LARGE_ARRAY_SIZE - 1)) {
-	      pairs.push([key, value]);
-	      this.size = ++data.size;
-	      return this;
-	    }
-	    data = this.__data__ = new MapCache(pairs);
-	  }
-	  data.set(key, value);
-	  this.size = data.size;
-	  return this;
-	}
-
-	_stackSet = stackSet;
-	return _stackSet;
-}
-
-var _Stack;
-var hasRequired_Stack;
-
-function require_Stack () {
-	if (hasRequired_Stack) return _Stack;
-	hasRequired_Stack = 1;
-	var ListCache = require_ListCache(),
-	    stackClear = require_stackClear(),
-	    stackDelete = require_stackDelete(),
-	    stackGet = require_stackGet(),
-	    stackHas = require_stackHas(),
-	    stackSet = require_stackSet();
-
-	/**
-	 * Creates a stack cache object to store key-value pairs.
-	 *
-	 * @private
-	 * @constructor
-	 * @param {Array} [entries] The key-value pairs to cache.
-	 */
-	function Stack(entries) {
-	  var data = this.__data__ = new ListCache(entries);
-	  this.size = data.size;
-	}
-
-	// Add methods to `Stack`.
-	Stack.prototype.clear = stackClear;
-	Stack.prototype['delete'] = stackDelete;
-	Stack.prototype.get = stackGet;
-	Stack.prototype.has = stackHas;
-	Stack.prototype.set = stackSet;
-
-	_Stack = Stack;
-	return _Stack;
-}
-
-/** Used to stand-in for `undefined` hash values. */
-
-var _setCacheAdd;
-var hasRequired_setCacheAdd;
-
-function require_setCacheAdd () {
-	if (hasRequired_setCacheAdd) return _setCacheAdd;
-	hasRequired_setCacheAdd = 1;
-	var HASH_UNDEFINED = '__lodash_hash_undefined__';
-
-	/**
-	 * Adds `value` to the array cache.
-	 *
-	 * @private
-	 * @name add
-	 * @memberOf SetCache
-	 * @alias push
-	 * @param {*} value The value to cache.
-	 * @returns {Object} Returns the cache instance.
-	 */
-	function setCacheAdd(value) {
-	  this.__data__.set(value, HASH_UNDEFINED);
-	  return this;
-	}
-
-	_setCacheAdd = setCacheAdd;
-	return _setCacheAdd;
-}
-
-/**
- * Checks if `value` is in the array cache.
- *
- * @private
- * @name has
- * @memberOf SetCache
- * @param {*} value The value to search for.
- * @returns {boolean} Returns `true` if `value` is found, else `false`.
- */
-
-var _setCacheHas;
-var hasRequired_setCacheHas;
-
-function require_setCacheHas () {
-	if (hasRequired_setCacheHas) return _setCacheHas;
-	hasRequired_setCacheHas = 1;
-	function setCacheHas(value) {
-	  return this.__data__.has(value);
-	}
-
-	_setCacheHas = setCacheHas;
-	return _setCacheHas;
-}
-
-var _SetCache;
-var hasRequired_SetCache;
-
-function require_SetCache () {
-	if (hasRequired_SetCache) return _SetCache;
-	hasRequired_SetCache = 1;
-	var MapCache = require_MapCache(),
-	    setCacheAdd = require_setCacheAdd(),
-	    setCacheHas = require_setCacheHas();
-
-	/**
-	 *
-	 * Creates an array cache object to store unique values.
-	 *
-	 * @private
-	 * @constructor
-	 * @param {Array} [values] The values to cache.
-	 */
-	function SetCache(values) {
-	  var index = -1,
-	      length = values == null ? 0 : values.length;
-
-	  this.__data__ = new MapCache;
-	  while (++index < length) {
-	    this.add(values[index]);
-	  }
-	}
-
-	// Add methods to `SetCache`.
-	SetCache.prototype.add = SetCache.prototype.push = setCacheAdd;
-	SetCache.prototype.has = setCacheHas;
-
-	_SetCache = SetCache;
-	return _SetCache;
-}
-
-/**
- * A specialized version of `_.some` for arrays without support for iteratee
- * shorthands.
- *
- * @private
- * @param {Array} [array] The array to iterate over.
- * @param {Function} predicate The function invoked per iteration.
- * @returns {boolean} Returns `true` if any element passes the predicate check,
- *  else `false`.
- */
-
-var _arraySome;
-var hasRequired_arraySome;
-
-function require_arraySome () {
-	if (hasRequired_arraySome) return _arraySome;
-	hasRequired_arraySome = 1;
-	function arraySome(array, predicate) {
-	  var index = -1,
-	      length = array == null ? 0 : array.length;
-
-	  while (++index < length) {
-	    if (predicate(array[index], index, array)) {
-	      return true;
-	    }
-	  }
-	  return false;
-	}
-
-	_arraySome = arraySome;
-	return _arraySome;
-}
-
-/**
- * Checks if a `cache` value for `key` exists.
- *
- * @private
- * @param {Object} cache The cache to query.
- * @param {string} key The key of the entry to check.
- * @returns {boolean} Returns `true` if an entry for `key` exists, else `false`.
- */
-
-var _cacheHas;
-var hasRequired_cacheHas;
-
-function require_cacheHas () {
-	if (hasRequired_cacheHas) return _cacheHas;
-	hasRequired_cacheHas = 1;
-	function cacheHas(cache, key) {
-	  return cache.has(key);
-	}
-
-	_cacheHas = cacheHas;
-	return _cacheHas;
-}
-
-var _equalArrays;
-var hasRequired_equalArrays;
-
-function require_equalArrays () {
-	if (hasRequired_equalArrays) return _equalArrays;
-	hasRequired_equalArrays = 1;
-	var SetCache = require_SetCache(),
-	    arraySome = require_arraySome(),
-	    cacheHas = require_cacheHas();
-
-	/** Used to compose bitmasks for value comparisons. */
-	var COMPARE_PARTIAL_FLAG = 1,
-	    COMPARE_UNORDERED_FLAG = 2;
-
-	/**
-	 * A specialized version of `baseIsEqualDeep` for arrays with support for
-	 * partial deep comparisons.
-	 *
-	 * @private
-	 * @param {Array} array The array to compare.
-	 * @param {Array} other The other array to compare.
-	 * @param {number} bitmask The bitmask flags. See `baseIsEqual` for more details.
-	 * @param {Function} customizer The function to customize comparisons.
-	 * @param {Function} equalFunc The function to determine equivalents of values.
-	 * @param {Object} stack Tracks traversed `array` and `other` objects.
-	 * @returns {boolean} Returns `true` if the arrays are equivalent, else `false`.
-	 */
-	function equalArrays(array, other, bitmask, customizer, equalFunc, stack) {
-	  var isPartial = bitmask & COMPARE_PARTIAL_FLAG,
-	      arrLength = array.length,
-	      othLength = other.length;
-
-	  if (arrLength != othLength && !(isPartial && othLength > arrLength)) {
-	    return false;
-	  }
-	  // Check that cyclic values are equal.
-	  var arrStacked = stack.get(array);
-	  var othStacked = stack.get(other);
-	  if (arrStacked && othStacked) {
-	    return arrStacked == other && othStacked == array;
-	  }
-	  var index = -1,
-	      result = true,
-	      seen = (bitmask & COMPARE_UNORDERED_FLAG) ? new SetCache : undefined;
-
-	  stack.set(array, other);
-	  stack.set(other, array);
-
-	  // Ignore non-index properties.
-	  while (++index < arrLength) {
-	    var arrValue = array[index],
-	        othValue = other[index];
-
-	    if (customizer) {
-	      var compared = isPartial
-	        ? customizer(othValue, arrValue, index, other, array, stack)
-	        : customizer(arrValue, othValue, index, array, other, stack);
-	    }
-	    if (compared !== undefined) {
-	      if (compared) {
-	        continue;
-	      }
-	      result = false;
-	      break;
-	    }
-	    // Recursively compare arrays (susceptible to call stack limits).
-	    if (seen) {
-	      if (!arraySome(other, function(othValue, othIndex) {
-	            if (!cacheHas(seen, othIndex) &&
-	                (arrValue === othValue || equalFunc(arrValue, othValue, bitmask, customizer, stack))) {
-	              return seen.push(othIndex);
-	            }
-	          })) {
-	        result = false;
-	        break;
-	      }
-	    } else if (!(
-	          arrValue === othValue ||
-	            equalFunc(arrValue, othValue, bitmask, customizer, stack)
-	        )) {
-	      result = false;
-	      break;
-	    }
-	  }
-	  stack['delete'](array);
-	  stack['delete'](other);
-	  return result;
-	}
-
-	_equalArrays = equalArrays;
-	return _equalArrays;
-}
-
-var _Uint8Array;
-var hasRequired_Uint8Array;
-
-function require_Uint8Array () {
-	if (hasRequired_Uint8Array) return _Uint8Array;
-	hasRequired_Uint8Array = 1;
-	var root = require_root();
-
-	/** Built-in value references. */
-	var Uint8Array = root.Uint8Array;
-
-	_Uint8Array = Uint8Array;
-	return _Uint8Array;
-}
-
-/**
- * Converts `map` to its key-value pairs.
- *
- * @private
- * @param {Object} map The map to convert.
- * @returns {Array} Returns the key-value pairs.
- */
-
-var _mapToArray;
-var hasRequired_mapToArray;
-
-function require_mapToArray () {
-	if (hasRequired_mapToArray) return _mapToArray;
-	hasRequired_mapToArray = 1;
-	function mapToArray(map) {
-	  var index = -1,
-	      result = Array(map.size);
-
-	  map.forEach(function(value, key) {
-	    result[++index] = [key, value];
-	  });
-	  return result;
-	}
-
-	_mapToArray = mapToArray;
-	return _mapToArray;
-}
-
-/**
- * Converts `set` to an array of its values.
- *
- * @private
- * @param {Object} set The set to convert.
- * @returns {Array} Returns the values.
- */
-
-var _setToArray;
-var hasRequired_setToArray;
-
-function require_setToArray () {
-	if (hasRequired_setToArray) return _setToArray;
-	hasRequired_setToArray = 1;
-	function setToArray(set) {
-	  var index = -1,
-	      result = Array(set.size);
-
-	  set.forEach(function(value) {
-	    result[++index] = value;
-	  });
-	  return result;
-	}
-
-	_setToArray = setToArray;
-	return _setToArray;
-}
-
-var _equalByTag;
-var hasRequired_equalByTag;
-
-function require_equalByTag () {
-	if (hasRequired_equalByTag) return _equalByTag;
-	hasRequired_equalByTag = 1;
-	var Symbol = require_Symbol(),
-	    Uint8Array = require_Uint8Array(),
-	    eq = requireEq(),
-	    equalArrays = require_equalArrays(),
-	    mapToArray = require_mapToArray(),
-	    setToArray = require_setToArray();
-
-	/** Used to compose bitmasks for value comparisons. */
-	var COMPARE_PARTIAL_FLAG = 1,
-	    COMPARE_UNORDERED_FLAG = 2;
-
-	/** `Object#toString` result references. */
-	var boolTag = '[object Boolean]',
-	    dateTag = '[object Date]',
-	    errorTag = '[object Error]',
-	    mapTag = '[object Map]',
-	    numberTag = '[object Number]',
-	    regexpTag = '[object RegExp]',
-	    setTag = '[object Set]',
-	    stringTag = '[object String]',
-	    symbolTag = '[object Symbol]';
-
-	var arrayBufferTag = '[object ArrayBuffer]',
-	    dataViewTag = '[object DataView]';
-
-	/** Used to convert symbols to primitives and strings. */
-	var symbolProto = Symbol ? Symbol.prototype : undefined,
-	    symbolValueOf = symbolProto ? symbolProto.valueOf : undefined;
-
-	/**
-	 * A specialized version of `baseIsEqualDeep` for comparing objects of
-	 * the same `toStringTag`.
-	 *
-	 * **Note:** This function only supports comparing values with tags of
-	 * `Boolean`, `Date`, `Error`, `Number`, `RegExp`, or `String`.
-	 *
-	 * @private
-	 * @param {Object} object The object to compare.
-	 * @param {Object} other The other object to compare.
-	 * @param {string} tag The `toStringTag` of the objects to compare.
-	 * @param {number} bitmask The bitmask flags. See `baseIsEqual` for more details.
-	 * @param {Function} customizer The function to customize comparisons.
-	 * @param {Function} equalFunc The function to determine equivalents of values.
-	 * @param {Object} stack Tracks traversed `object` and `other` objects.
-	 * @returns {boolean} Returns `true` if the objects are equivalent, else `false`.
-	 */
-	function equalByTag(object, other, tag, bitmask, customizer, equalFunc, stack) {
-	  switch (tag) {
-	    case dataViewTag:
-	      if ((object.byteLength != other.byteLength) ||
-	          (object.byteOffset != other.byteOffset)) {
-	        return false;
-	      }
-	      object = object.buffer;
-	      other = other.buffer;
-
-	    case arrayBufferTag:
-	      if ((object.byteLength != other.byteLength) ||
-	          !equalFunc(new Uint8Array(object), new Uint8Array(other))) {
-	        return false;
-	      }
-	      return true;
-
-	    case boolTag:
-	    case dateTag:
-	    case numberTag:
-	      // Coerce booleans to `1` or `0` and dates to milliseconds.
-	      // Invalid dates are coerced to `NaN`.
-	      return eq(+object, +other);
-
-	    case errorTag:
-	      return object.name == other.name && object.message == other.message;
-
-	    case regexpTag:
-	    case stringTag:
-	      // Coerce regexes to strings and treat strings, primitives and objects,
-	      // as equal. See http://www.ecma-international.org/ecma-262/7.0/#sec-regexp.prototype.tostring
-	      // for more details.
-	      return object == (other + '');
-
-	    case mapTag:
-	      var convert = mapToArray;
-
-	    case setTag:
-	      var isPartial = bitmask & COMPARE_PARTIAL_FLAG;
-	      convert || (convert = setToArray);
-
-	      if (object.size != other.size && !isPartial) {
-	        return false;
-	      }
-	      // Assume cyclic values are equal.
-	      var stacked = stack.get(object);
-	      if (stacked) {
-	        return stacked == other;
-	      }
-	      bitmask |= COMPARE_UNORDERED_FLAG;
-
-	      // Recursively compare objects (susceptible to call stack limits).
-	      stack.set(object, other);
-	      var result = equalArrays(convert(object), convert(other), bitmask, customizer, equalFunc, stack);
-	      stack['delete'](object);
-	      return result;
-
-	    case symbolTag:
-	      if (symbolValueOf) {
-	        return symbolValueOf.call(object) == symbolValueOf.call(other);
-	      }
-	  }
-	  return false;
-	}
-
-	_equalByTag = equalByTag;
-	return _equalByTag;
-}
-
-/**
- * Appends the elements of `values` to `array`.
- *
- * @private
- * @param {Array} array The array to modify.
- * @param {Array} values The values to append.
- * @returns {Array} Returns `array`.
- */
-
-var _arrayPush;
-var hasRequired_arrayPush;
-
-function require_arrayPush () {
-	if (hasRequired_arrayPush) return _arrayPush;
-	hasRequired_arrayPush = 1;
-	function arrayPush(array, values) {
-	  var index = -1,
-	      length = values.length,
-	      offset = array.length;
-
-	  while (++index < length) {
-	    array[offset + index] = values[index];
-	  }
-	  return array;
-	}
-
-	_arrayPush = arrayPush;
-	return _arrayPush;
-}
-
-var _baseGetAllKeys;
-var hasRequired_baseGetAllKeys;
-
-function require_baseGetAllKeys () {
-	if (hasRequired_baseGetAllKeys) return _baseGetAllKeys;
-	hasRequired_baseGetAllKeys = 1;
-	var arrayPush = require_arrayPush(),
-	    isArray = requireIsArray();
-
-	/**
-	 * The base implementation of `getAllKeys` and `getAllKeysIn` which uses
-	 * `keysFunc` and `symbolsFunc` to get the enumerable property names and
-	 * symbols of `object`.
-	 *
-	 * @private
-	 * @param {Object} object The object to query.
-	 * @param {Function} keysFunc The function to get the keys of `object`.
-	 * @param {Function} symbolsFunc The function to get the symbols of `object`.
-	 * @returns {Array} Returns the array of property names and symbols.
-	 */
-	function baseGetAllKeys(object, keysFunc, symbolsFunc) {
-	  var result = keysFunc(object);
-	  return isArray(object) ? result : arrayPush(result, symbolsFunc(object));
-	}
-
-	_baseGetAllKeys = baseGetAllKeys;
-	return _baseGetAllKeys;
-}
-
-/**
- * A specialized version of `_.filter` for arrays without support for
- * iteratee shorthands.
- *
- * @private
- * @param {Array} [array] The array to iterate over.
- * @param {Function} predicate The function invoked per iteration.
- * @returns {Array} Returns the new filtered array.
- */
-
-var _arrayFilter;
-var hasRequired_arrayFilter;
-
-function require_arrayFilter () {
-	if (hasRequired_arrayFilter) return _arrayFilter;
-	hasRequired_arrayFilter = 1;
-	function arrayFilter(array, predicate) {
-	  var index = -1,
-	      length = array == null ? 0 : array.length,
-	      resIndex = 0,
-	      result = [];
-
-	  while (++index < length) {
-	    var value = array[index];
-	    if (predicate(value, index, array)) {
-	      result[resIndex++] = value;
-	    }
-	  }
-	  return result;
-	}
-
-	_arrayFilter = arrayFilter;
-	return _arrayFilter;
-}
-
-/**
- * This method returns a new empty array.
- *
- * @static
- * @memberOf _
- * @since 4.13.0
- * @category Util
- * @returns {Array} Returns the new empty array.
- * @example
- *
- * var arrays = _.times(2, _.stubArray);
- *
- * console.log(arrays);
- * // => [[], []]
- *
- * console.log(arrays[0] === arrays[1]);
- * // => false
- */
-
-var stubArray_1;
-var hasRequiredStubArray;
-
-function requireStubArray () {
-	if (hasRequiredStubArray) return stubArray_1;
-	hasRequiredStubArray = 1;
-	function stubArray() {
-	  return [];
-	}
-
-	stubArray_1 = stubArray;
-	return stubArray_1;
-}
-
-var _getSymbols;
-var hasRequired_getSymbols;
-
-function require_getSymbols () {
-	if (hasRequired_getSymbols) return _getSymbols;
-	hasRequired_getSymbols = 1;
-	var arrayFilter = require_arrayFilter(),
-	    stubArray = requireStubArray();
-
-	/** Used for built-in method references. */
-	var objectProto = Object.prototype;
-
-	/** Built-in value references. */
-	var propertyIsEnumerable = objectProto.propertyIsEnumerable;
-
-	/* Built-in method references for those with the same name as other `lodash` methods. */
-	var nativeGetSymbols = Object.getOwnPropertySymbols;
-
-	/**
-	 * Creates an array of the own enumerable symbols of `object`.
-	 *
-	 * @private
-	 * @param {Object} object The object to query.
-	 * @returns {Array} Returns the array of symbols.
-	 */
-	var getSymbols = !nativeGetSymbols ? stubArray : function(object) {
-	  if (object == null) {
-	    return [];
-	  }
-	  object = Object(object);
-	  return arrayFilter(nativeGetSymbols(object), function(symbol) {
-	    return propertyIsEnumerable.call(object, symbol);
-	  });
-	};
-
-	_getSymbols = getSymbols;
-	return _getSymbols;
-}
-
-/**
- * The base implementation of `_.times` without support for iteratee shorthands
- * or max array length checks.
- *
- * @private
- * @param {number} n The number of times to invoke `iteratee`.
- * @param {Function} iteratee The function invoked per iteration.
- * @returns {Array} Returns the array of results.
- */
-
-var _baseTimes;
-var hasRequired_baseTimes;
-
-function require_baseTimes () {
-	if (hasRequired_baseTimes) return _baseTimes;
-	hasRequired_baseTimes = 1;
-	function baseTimes(n, iteratee) {
-	  var index = -1,
-	      result = Array(n);
-
-	  while (++index < n) {
-	    result[index] = iteratee(index);
-	  }
-	  return result;
-	}
-
-	_baseTimes = baseTimes;
-	return _baseTimes;
-}
-
-var _baseIsArguments;
-var hasRequired_baseIsArguments;
-
-function require_baseIsArguments () {
-	if (hasRequired_baseIsArguments) return _baseIsArguments;
-	hasRequired_baseIsArguments = 1;
-	var baseGetTag = require_baseGetTag(),
-	    isObjectLike = requireIsObjectLike();
-
-	/** `Object#toString` result references. */
-	var argsTag = '[object Arguments]';
-
-	/**
-	 * The base implementation of `_.isArguments`.
-	 *
-	 * @private
-	 * @param {*} value The value to check.
-	 * @returns {boolean} Returns `true` if `value` is an `arguments` object,
-	 */
-	function baseIsArguments(value) {
-	  return isObjectLike(value) && baseGetTag(value) == argsTag;
-	}
-
-	_baseIsArguments = baseIsArguments;
-	return _baseIsArguments;
-}
-
-var isArguments_1;
-var hasRequiredIsArguments;
-
-function requireIsArguments () {
-	if (hasRequiredIsArguments) return isArguments_1;
-	hasRequiredIsArguments = 1;
-	var baseIsArguments = require_baseIsArguments(),
-	    isObjectLike = requireIsObjectLike();
-
-	/** Used for built-in method references. */
-	var objectProto = Object.prototype;
-
-	/** Used to check objects for own properties. */
-	var hasOwnProperty = objectProto.hasOwnProperty;
-
-	/** Built-in value references. */
-	var propertyIsEnumerable = objectProto.propertyIsEnumerable;
-
-	/**
-	 * Checks if `value` is likely an `arguments` object.
-	 *
-	 * @static
-	 * @memberOf _
-	 * @since 0.1.0
-	 * @category Lang
-	 * @param {*} value The value to check.
-	 * @returns {boolean} Returns `true` if `value` is an `arguments` object,
-	 *  else `false`.
-	 * @example
-	 *
-	 * _.isArguments(function() { return arguments; }());
-	 * // => true
-	 *
-	 * _.isArguments([1, 2, 3]);
-	 * // => false
-	 */
-	var isArguments = baseIsArguments(function() { return arguments; }()) ? baseIsArguments : function(value) {
-	  return isObjectLike(value) && hasOwnProperty.call(value, 'callee') &&
-	    !propertyIsEnumerable.call(value, 'callee');
-	};
-
-	isArguments_1 = isArguments;
-	return isArguments_1;
-}
-
-var isBuffer = {exports: {}};
-
-/**
- * This method returns `false`.
- *
- * @static
- * @memberOf _
- * @since 4.13.0
- * @category Util
- * @returns {boolean} Returns `false`.
- * @example
- *
- * _.times(2, _.stubFalse);
- * // => [false, false]
- */
-
-var stubFalse_1;
-var hasRequiredStubFalse;
-
-function requireStubFalse () {
-	if (hasRequiredStubFalse) return stubFalse_1;
-	hasRequiredStubFalse = 1;
-	function stubFalse() {
-	  return false;
-	}
-
-	stubFalse_1 = stubFalse;
-	return stubFalse_1;
-}
-
-isBuffer.exports;
-
-var hasRequiredIsBuffer;
-
-function requireIsBuffer () {
-	if (hasRequiredIsBuffer) return isBuffer.exports;
-	hasRequiredIsBuffer = 1;
-	(function (module, exports) {
-		var root = require_root(),
-		    stubFalse = requireStubFalse();
-
-		/** Detect free variable `exports`. */
-		var freeExports = exports && !exports.nodeType && exports;
-
-		/** Detect free variable `module`. */
-		var freeModule = freeExports && 'object' == 'object' && module && !module.nodeType && module;
-
-		/** Detect the popular CommonJS extension `module.exports`. */
-		var moduleExports = freeModule && freeModule.exports === freeExports;
-
-		/** Built-in value references. */
-		var Buffer = moduleExports ? root.Buffer : undefined;
-
-		/* Built-in method references for those with the same name as other `lodash` methods. */
-		var nativeIsBuffer = Buffer ? Buffer.isBuffer : undefined;
-
-		/**
-		 * Checks if `value` is a buffer.
-		 *
-		 * @static
-		 * @memberOf _
-		 * @since 4.3.0
-		 * @category Lang
-		 * @param {*} value The value to check.
-		 * @returns {boolean} Returns `true` if `value` is a buffer, else `false`.
-		 * @example
-		 *
-		 * _.isBuffer(new Buffer(2));
-		 * // => true
-		 *
-		 * _.isBuffer(new Uint8Array(2));
-		 * // => false
-		 */
-		var isBuffer = nativeIsBuffer || stubFalse;
-
-		module.exports = isBuffer; 
-	} (isBuffer, isBuffer.exports));
-	return isBuffer.exports;
-}
-
-/** Used as references for various `Number` constants. */
-
-var _isIndex;
-var hasRequired_isIndex;
-
-function require_isIndex () {
-	if (hasRequired_isIndex) return _isIndex;
-	hasRequired_isIndex = 1;
-	var MAX_SAFE_INTEGER = 9007199254740991;
-
-	/** Used to detect unsigned integer values. */
-	var reIsUint = /^(?:0|[1-9]\d*)$/;
-
-	/**
-	 * Checks if `value` is a valid array-like index.
-	 *
-	 * @private
-	 * @param {*} value The value to check.
-	 * @param {number} [length=MAX_SAFE_INTEGER] The upper bounds of a valid index.
-	 * @returns {boolean} Returns `true` if `value` is a valid index, else `false`.
-	 */
-	function isIndex(value, length) {
-	  var type = typeof value;
-	  length = length == null ? MAX_SAFE_INTEGER : length;
-
-	  return !!length &&
-	    (type == 'number' ||
-	      (type != 'symbol' && reIsUint.test(value))) &&
-	        (value > -1 && value % 1 == 0 && value < length);
-	}
-
-	_isIndex = isIndex;
-	return _isIndex;
-}
-
-/** Used as references for various `Number` constants. */
-
-var isLength_1;
-var hasRequiredIsLength;
-
-function requireIsLength () {
-	if (hasRequiredIsLength) return isLength_1;
-	hasRequiredIsLength = 1;
-	var MAX_SAFE_INTEGER = 9007199254740991;
-
-	/**
-	 * Checks if `value` is a valid array-like length.
-	 *
-	 * **Note:** This method is loosely based on
-	 * [`ToLength`](http://ecma-international.org/ecma-262/7.0/#sec-tolength).
-	 *
-	 * @static
-	 * @memberOf _
-	 * @since 4.0.0
-	 * @category Lang
-	 * @param {*} value The value to check.
-	 * @returns {boolean} Returns `true` if `value` is a valid length, else `false`.
-	 * @example
-	 *
-	 * _.isLength(3);
-	 * // => true
-	 *
-	 * _.isLength(Number.MIN_VALUE);
-	 * // => false
-	 *
-	 * _.isLength(Infinity);
-	 * // => false
-	 *
-	 * _.isLength('3');
-	 * // => false
-	 */
-	function isLength(value) {
-	  return typeof value == 'number' &&
-	    value > -1 && value % 1 == 0 && value <= MAX_SAFE_INTEGER;
-	}
-
-	isLength_1 = isLength;
-	return isLength_1;
-}
-
-var _baseIsTypedArray;
-var hasRequired_baseIsTypedArray;
-
-function require_baseIsTypedArray () {
-	if (hasRequired_baseIsTypedArray) return _baseIsTypedArray;
-	hasRequired_baseIsTypedArray = 1;
-	var baseGetTag = require_baseGetTag(),
-	    isLength = requireIsLength(),
-	    isObjectLike = requireIsObjectLike();
-
-	/** `Object#toString` result references. */
-	var argsTag = '[object Arguments]',
-	    arrayTag = '[object Array]',
-	    boolTag = '[object Boolean]',
-	    dateTag = '[object Date]',
-	    errorTag = '[object Error]',
-	    funcTag = '[object Function]',
-	    mapTag = '[object Map]',
-	    numberTag = '[object Number]',
-	    objectTag = '[object Object]',
-	    regexpTag = '[object RegExp]',
-	    setTag = '[object Set]',
-	    stringTag = '[object String]',
-	    weakMapTag = '[object WeakMap]';
-
-	var arrayBufferTag = '[object ArrayBuffer]',
-	    dataViewTag = '[object DataView]',
-	    float32Tag = '[object Float32Array]',
-	    float64Tag = '[object Float64Array]',
-	    int8Tag = '[object Int8Array]',
-	    int16Tag = '[object Int16Array]',
-	    int32Tag = '[object Int32Array]',
-	    uint8Tag = '[object Uint8Array]',
-	    uint8ClampedTag = '[object Uint8ClampedArray]',
-	    uint16Tag = '[object Uint16Array]',
-	    uint32Tag = '[object Uint32Array]';
-
-	/** Used to identify `toStringTag` values of typed arrays. */
-	var typedArrayTags = {};
-	typedArrayTags[float32Tag] = typedArrayTags[float64Tag] =
-	typedArrayTags[int8Tag] = typedArrayTags[int16Tag] =
-	typedArrayTags[int32Tag] = typedArrayTags[uint8Tag] =
-	typedArrayTags[uint8ClampedTag] = typedArrayTags[uint16Tag] =
-	typedArrayTags[uint32Tag] = true;
-	typedArrayTags[argsTag] = typedArrayTags[arrayTag] =
-	typedArrayTags[arrayBufferTag] = typedArrayTags[boolTag] =
-	typedArrayTags[dataViewTag] = typedArrayTags[dateTag] =
-	typedArrayTags[errorTag] = typedArrayTags[funcTag] =
-	typedArrayTags[mapTag] = typedArrayTags[numberTag] =
-	typedArrayTags[objectTag] = typedArrayTags[regexpTag] =
-	typedArrayTags[setTag] = typedArrayTags[stringTag] =
-	typedArrayTags[weakMapTag] = false;
-
-	/**
-	 * The base implementation of `_.isTypedArray` without Node.js optimizations.
-	 *
-	 * @private
-	 * @param {*} value The value to check.
-	 * @returns {boolean} Returns `true` if `value` is a typed array, else `false`.
-	 */
-	function baseIsTypedArray(value) {
-	  return isObjectLike(value) &&
-	    isLength(value.length) && !!typedArrayTags[baseGetTag(value)];
-	}
-
-	_baseIsTypedArray = baseIsTypedArray;
-	return _baseIsTypedArray;
-}
-
-/**
- * The base implementation of `_.unary` without support for storing metadata.
- *
- * @private
- * @param {Function} func The function to cap arguments for.
- * @returns {Function} Returns the new capped function.
- */
-
-var _baseUnary;
-var hasRequired_baseUnary;
-
-function require_baseUnary () {
-	if (hasRequired_baseUnary) return _baseUnary;
-	hasRequired_baseUnary = 1;
-	function baseUnary(func) {
-	  return function(value) {
-	    return func(value);
-	  };
-	}
-
-	_baseUnary = baseUnary;
-	return _baseUnary;
-}
-
-var _nodeUtil = {exports: {}};
-
-_nodeUtil.exports;
-
-var hasRequired_nodeUtil;
-
-function require_nodeUtil () {
-	if (hasRequired_nodeUtil) return _nodeUtil.exports;
-	hasRequired_nodeUtil = 1;
-	(function (module, exports) {
-		var freeGlobal = require_freeGlobal();
-
-		/** Detect free variable `exports`. */
-		var freeExports = exports && !exports.nodeType && exports;
-
-		/** Detect free variable `module`. */
-		var freeModule = freeExports && 'object' == 'object' && module && !module.nodeType && module;
-
-		/** Detect the popular CommonJS extension `module.exports`. */
-		var moduleExports = freeModule && freeModule.exports === freeExports;
-
-		/** Detect free variable `process` from Node.js. */
-		var freeProcess = moduleExports && freeGlobal.process;
-
-		/** Used to access faster Node.js helpers. */
-		var nodeUtil = (function() {
-		  try {
-		    // Use `util.types` for Node.js 10+.
-		    var types = freeModule && freeModule.require && freeModule.require('util').types;
-
-		    if (types) {
-		      return types;
-		    }
-
-		    // Legacy `process.binding('util')` for Node.js < 10.
-		    return freeProcess && freeProcess.binding && freeProcess.binding('util');
-		  } catch (e) {}
-		}());
-
-		module.exports = nodeUtil; 
-	} (_nodeUtil, _nodeUtil.exports));
-	return _nodeUtil.exports;
-}
-
-var isTypedArray_1;
-var hasRequiredIsTypedArray;
-
-function requireIsTypedArray () {
-	if (hasRequiredIsTypedArray) return isTypedArray_1;
-	hasRequiredIsTypedArray = 1;
-	var baseIsTypedArray = require_baseIsTypedArray(),
-	    baseUnary = require_baseUnary(),
-	    nodeUtil = require_nodeUtil();
-
-	/* Node.js helper references. */
-	var nodeIsTypedArray = nodeUtil && nodeUtil.isTypedArray;
-
-	/**
-	 * Checks if `value` is classified as a typed array.
-	 *
-	 * @static
-	 * @memberOf _
-	 * @since 3.0.0
-	 * @category Lang
-	 * @param {*} value The value to check.
-	 * @returns {boolean} Returns `true` if `value` is a typed array, else `false`.
-	 * @example
-	 *
-	 * _.isTypedArray(new Uint8Array);
-	 * // => true
-	 *
-	 * _.isTypedArray([]);
-	 * // => false
-	 */
-	var isTypedArray = nodeIsTypedArray ? baseUnary(nodeIsTypedArray) : baseIsTypedArray;
-
-	isTypedArray_1 = isTypedArray;
-	return isTypedArray_1;
-}
-
-var _arrayLikeKeys;
-var hasRequired_arrayLikeKeys;
-
-function require_arrayLikeKeys () {
-	if (hasRequired_arrayLikeKeys) return _arrayLikeKeys;
-	hasRequired_arrayLikeKeys = 1;
-	var baseTimes = require_baseTimes(),
-	    isArguments = requireIsArguments(),
-	    isArray = requireIsArray(),
-	    isBuffer = requireIsBuffer(),
-	    isIndex = require_isIndex(),
-	    isTypedArray = requireIsTypedArray();
-
-	/** Used for built-in method references. */
-	var objectProto = Object.prototype;
-
-	/** Used to check objects for own properties. */
-	var hasOwnProperty = objectProto.hasOwnProperty;
-
-	/**
-	 * Creates an array of the enumerable property names of the array-like `value`.
-	 *
-	 * @private
-	 * @param {*} value The value to query.
-	 * @param {boolean} inherited Specify returning inherited property names.
-	 * @returns {Array} Returns the array of property names.
-	 */
-	function arrayLikeKeys(value, inherited) {
-	  var isArr = isArray(value),
-	      isArg = !isArr && isArguments(value),
-	      isBuff = !isArr && !isArg && isBuffer(value),
-	      isType = !isArr && !isArg && !isBuff && isTypedArray(value),
-	      skipIndexes = isArr || isArg || isBuff || isType,
-	      result = skipIndexes ? baseTimes(value.length, String) : [],
-	      length = result.length;
-
-	  for (var key in value) {
-	    if ((inherited || hasOwnProperty.call(value, key)) &&
-	        !(skipIndexes && (
-	           // Safari 9 has enumerable `arguments.length` in strict mode.
-	           key == 'length' ||
-	           // Node.js 0.10 has enumerable non-index properties on buffers.
-	           (isBuff && (key == 'offset' || key == 'parent')) ||
-	           // PhantomJS 2 has enumerable non-index properties on typed arrays.
-	           (isType && (key == 'buffer' || key == 'byteLength' || key == 'byteOffset')) ||
-	           // Skip index properties.
-	           isIndex(key, length)
-	        ))) {
-	      result.push(key);
-	    }
-	  }
-	  return result;
-	}
-
-	_arrayLikeKeys = arrayLikeKeys;
-	return _arrayLikeKeys;
-}
-
-/** Used for built-in method references. */
-
-var _isPrototype;
-var hasRequired_isPrototype;
-
-function require_isPrototype () {
-	if (hasRequired_isPrototype) return _isPrototype;
-	hasRequired_isPrototype = 1;
-	var objectProto = Object.prototype;
-
-	/**
-	 * Checks if `value` is likely a prototype object.
-	 *
-	 * @private
-	 * @param {*} value The value to check.
-	 * @returns {boolean} Returns `true` if `value` is a prototype, else `false`.
-	 */
-	function isPrototype(value) {
-	  var Ctor = value && value.constructor,
-	      proto = (typeof Ctor == 'function' && Ctor.prototype) || objectProto;
-
-	  return value === proto;
-	}
-
-	_isPrototype = isPrototype;
-	return _isPrototype;
-}
-
-/**
- * Creates a unary function that invokes `func` with its argument transformed.
- *
- * @private
- * @param {Function} func The function to wrap.
- * @param {Function} transform The argument transform.
- * @returns {Function} Returns the new function.
- */
-
-var _overArg;
-var hasRequired_overArg;
-
-function require_overArg () {
-	if (hasRequired_overArg) return _overArg;
-	hasRequired_overArg = 1;
-	function overArg(func, transform) {
-	  return function(arg) {
-	    return func(transform(arg));
-	  };
-	}
-
-	_overArg = overArg;
-	return _overArg;
-}
-
-var _nativeKeys;
-var hasRequired_nativeKeys;
-
-function require_nativeKeys () {
-	if (hasRequired_nativeKeys) return _nativeKeys;
-	hasRequired_nativeKeys = 1;
-	var overArg = require_overArg();
-
-	/* Built-in method references for those with the same name as other `lodash` methods. */
-	var nativeKeys = overArg(Object.keys, Object);
-
-	_nativeKeys = nativeKeys;
-	return _nativeKeys;
-}
-
-var _baseKeys;
-var hasRequired_baseKeys;
-
-function require_baseKeys () {
-	if (hasRequired_baseKeys) return _baseKeys;
-	hasRequired_baseKeys = 1;
-	var isPrototype = require_isPrototype(),
-	    nativeKeys = require_nativeKeys();
-
-	/** Used for built-in method references. */
-	var objectProto = Object.prototype;
-
-	/** Used to check objects for own properties. */
-	var hasOwnProperty = objectProto.hasOwnProperty;
-
-	/**
-	 * The base implementation of `_.keys` which doesn't treat sparse arrays as dense.
-	 *
-	 * @private
-	 * @param {Object} object The object to query.
-	 * @returns {Array} Returns the array of property names.
-	 */
-	function baseKeys(object) {
-	  if (!isPrototype(object)) {
-	    return nativeKeys(object);
-	  }
-	  var result = [];
-	  for (var key in Object(object)) {
-	    if (hasOwnProperty.call(object, key) && key != 'constructor') {
-	      result.push(key);
-	    }
-	  }
-	  return result;
-	}
-
-	_baseKeys = baseKeys;
-	return _baseKeys;
-}
-
-var isArrayLike_1;
-var hasRequiredIsArrayLike;
-
-function requireIsArrayLike () {
-	if (hasRequiredIsArrayLike) return isArrayLike_1;
-	hasRequiredIsArrayLike = 1;
-	var isFunction = requireIsFunction(),
-	    isLength = requireIsLength();
-
-	/**
-	 * Checks if `value` is array-like. A value is considered array-like if it's
-	 * not a function and has a `value.length` that's an integer greater than or
-	 * equal to `0` and less than or equal to `Number.MAX_SAFE_INTEGER`.
-	 *
-	 * @static
-	 * @memberOf _
-	 * @since 4.0.0
-	 * @category Lang
-	 * @param {*} value The value to check.
-	 * @returns {boolean} Returns `true` if `value` is array-like, else `false`.
-	 * @example
-	 *
-	 * _.isArrayLike([1, 2, 3]);
-	 * // => true
-	 *
-	 * _.isArrayLike(document.body.children);
-	 * // => true
-	 *
-	 * _.isArrayLike('abc');
-	 * // => true
-	 *
-	 * _.isArrayLike(_.noop);
-	 * // => false
-	 */
-	function isArrayLike(value) {
-	  return value != null && isLength(value.length) && !isFunction(value);
-	}
-
-	isArrayLike_1 = isArrayLike;
-	return isArrayLike_1;
-}
-
-var keys_1;
-var hasRequiredKeys;
-
-function requireKeys () {
-	if (hasRequiredKeys) return keys_1;
-	hasRequiredKeys = 1;
-	var arrayLikeKeys = require_arrayLikeKeys(),
-	    baseKeys = require_baseKeys(),
-	    isArrayLike = requireIsArrayLike();
-
-	/**
-	 * Creates an array of the own enumerable property names of `object`.
-	 *
-	 * **Note:** Non-object values are coerced to objects. See the
-	 * [ES spec](http://ecma-international.org/ecma-262/7.0/#sec-object.keys)
-	 * for more details.
-	 *
-	 * @static
-	 * @since 0.1.0
-	 * @memberOf _
-	 * @category Object
-	 * @param {Object} object The object to query.
-	 * @returns {Array} Returns the array of property names.
-	 * @example
-	 *
-	 * function Foo() {
-	 *   this.a = 1;
-	 *   this.b = 2;
-	 * }
-	 *
-	 * Foo.prototype.c = 3;
-	 *
-	 * _.keys(new Foo);
-	 * // => ['a', 'b'] (iteration order is not guaranteed)
-	 *
-	 * _.keys('hi');
-	 * // => ['0', '1']
-	 */
-	function keys(object) {
-	  return isArrayLike(object) ? arrayLikeKeys(object) : baseKeys(object);
-	}
-
-	keys_1 = keys;
-	return keys_1;
-}
-
-var _getAllKeys;
-var hasRequired_getAllKeys;
-
-function require_getAllKeys () {
-	if (hasRequired_getAllKeys) return _getAllKeys;
-	hasRequired_getAllKeys = 1;
-	var baseGetAllKeys = require_baseGetAllKeys(),
-	    getSymbols = require_getSymbols(),
-	    keys = requireKeys();
-
-	/**
-	 * Creates an array of own enumerable property names and symbols of `object`.
-	 *
-	 * @private
-	 * @param {Object} object The object to query.
-	 * @returns {Array} Returns the array of property names and symbols.
-	 */
-	function getAllKeys(object) {
-	  return baseGetAllKeys(object, keys, getSymbols);
-	}
-
-	_getAllKeys = getAllKeys;
-	return _getAllKeys;
-}
-
-var _equalObjects;
-var hasRequired_equalObjects;
-
-function require_equalObjects () {
-	if (hasRequired_equalObjects) return _equalObjects;
-	hasRequired_equalObjects = 1;
-	var getAllKeys = require_getAllKeys();
-
-	/** Used to compose bitmasks for value comparisons. */
-	var COMPARE_PARTIAL_FLAG = 1;
-
-	/** Used for built-in method references. */
-	var objectProto = Object.prototype;
-
-	/** Used to check objects for own properties. */
-	var hasOwnProperty = objectProto.hasOwnProperty;
-
-	/**
-	 * A specialized version of `baseIsEqualDeep` for objects with support for
-	 * partial deep comparisons.
-	 *
-	 * @private
-	 * @param {Object} object The object to compare.
-	 * @param {Object} other The other object to compare.
-	 * @param {number} bitmask The bitmask flags. See `baseIsEqual` for more details.
-	 * @param {Function} customizer The function to customize comparisons.
-	 * @param {Function} equalFunc The function to determine equivalents of values.
-	 * @param {Object} stack Tracks traversed `object` and `other` objects.
-	 * @returns {boolean} Returns `true` if the objects are equivalent, else `false`.
-	 */
-	function equalObjects(object, other, bitmask, customizer, equalFunc, stack) {
-	  var isPartial = bitmask & COMPARE_PARTIAL_FLAG,
-	      objProps = getAllKeys(object),
-	      objLength = objProps.length,
-	      othProps = getAllKeys(other),
-	      othLength = othProps.length;
-
-	  if (objLength != othLength && !isPartial) {
-	    return false;
-	  }
-	  var index = objLength;
-	  while (index--) {
-	    var key = objProps[index];
-	    if (!(isPartial ? key in other : hasOwnProperty.call(other, key))) {
-	      return false;
-	    }
-	  }
-	  // Check that cyclic values are equal.
-	  var objStacked = stack.get(object);
-	  var othStacked = stack.get(other);
-	  if (objStacked && othStacked) {
-	    return objStacked == other && othStacked == object;
-	  }
-	  var result = true;
-	  stack.set(object, other);
-	  stack.set(other, object);
-
-	  var skipCtor = isPartial;
-	  while (++index < objLength) {
-	    key = objProps[index];
-	    var objValue = object[key],
-	        othValue = other[key];
-
-	    if (customizer) {
-	      var compared = isPartial
-	        ? customizer(othValue, objValue, key, other, object, stack)
-	        : customizer(objValue, othValue, key, object, other, stack);
-	    }
-	    // Recursively compare objects (susceptible to call stack limits).
-	    if (!(compared === undefined
-	          ? (objValue === othValue || equalFunc(objValue, othValue, bitmask, customizer, stack))
-	          : compared
-	        )) {
-	      result = false;
-	      break;
-	    }
-	    skipCtor || (skipCtor = key == 'constructor');
-	  }
-	  if (result && !skipCtor) {
-	    var objCtor = object.constructor,
-	        othCtor = other.constructor;
-
-	    // Non `Object` object instances with different constructors are not equal.
-	    if (objCtor != othCtor &&
-	        ('constructor' in object && 'constructor' in other) &&
-	        !(typeof objCtor == 'function' && objCtor instanceof objCtor &&
-	          typeof othCtor == 'function' && othCtor instanceof othCtor)) {
-	      result = false;
-	    }
-	  }
-	  stack['delete'](object);
-	  stack['delete'](other);
-	  return result;
-	}
-
-	_equalObjects = equalObjects;
-	return _equalObjects;
-}
-
-var _DataView;
-var hasRequired_DataView;
-
-function require_DataView () {
-	if (hasRequired_DataView) return _DataView;
-	hasRequired_DataView = 1;
-	var getNative = require_getNative(),
-	    root = require_root();
-
-	/* Built-in method references that are verified to be native. */
-	var DataView = getNative(root, 'DataView');
-
-	_DataView = DataView;
-	return _DataView;
-}
-
-var _Promise;
-var hasRequired_Promise;
-
-function require_Promise () {
-	if (hasRequired_Promise) return _Promise;
-	hasRequired_Promise = 1;
-	var getNative = require_getNative(),
-	    root = require_root();
-
-	/* Built-in method references that are verified to be native. */
-	var Promise = getNative(root, 'Promise');
-
-	_Promise = Promise;
-	return _Promise;
-}
-
-var _Set;
-var hasRequired_Set;
-
-function require_Set () {
-	if (hasRequired_Set) return _Set;
-	hasRequired_Set = 1;
-	var getNative = require_getNative(),
-	    root = require_root();
-
-	/* Built-in method references that are verified to be native. */
-	var Set = getNative(root, 'Set');
-
-	_Set = Set;
-	return _Set;
-}
-
-var _WeakMap;
-var hasRequired_WeakMap;
-
-function require_WeakMap () {
-	if (hasRequired_WeakMap) return _WeakMap;
-	hasRequired_WeakMap = 1;
-	var getNative = require_getNative(),
-	    root = require_root();
-
-	/* Built-in method references that are verified to be native. */
-	var WeakMap = getNative(root, 'WeakMap');
-
-	_WeakMap = WeakMap;
-	return _WeakMap;
-}
-
-var _getTag;
-var hasRequired_getTag;
-
-function require_getTag () {
-	if (hasRequired_getTag) return _getTag;
-	hasRequired_getTag = 1;
-	var DataView = require_DataView(),
-	    Map = require_Map(),
-	    Promise = require_Promise(),
-	    Set = require_Set(),
-	    WeakMap = require_WeakMap(),
-	    baseGetTag = require_baseGetTag(),
-	    toSource = require_toSource();
-
-	/** `Object#toString` result references. */
-	var mapTag = '[object Map]',
-	    objectTag = '[object Object]',
-	    promiseTag = '[object Promise]',
-	    setTag = '[object Set]',
-	    weakMapTag = '[object WeakMap]';
-
-	var dataViewTag = '[object DataView]';
-
-	/** Used to detect maps, sets, and weakmaps. */
-	var dataViewCtorString = toSource(DataView),
-	    mapCtorString = toSource(Map),
-	    promiseCtorString = toSource(Promise),
-	    setCtorString = toSource(Set),
-	    weakMapCtorString = toSource(WeakMap);
-
-	/**
-	 * Gets the `toStringTag` of `value`.
-	 *
-	 * @private
-	 * @param {*} value The value to query.
-	 * @returns {string} Returns the `toStringTag`.
-	 */
-	var getTag = baseGetTag;
-
-	// Fallback for data views, maps, sets, and weak maps in IE 11 and promises in Node.js < 6.
-	if ((DataView && getTag(new DataView(new ArrayBuffer(1))) != dataViewTag) ||
-	    (Map && getTag(new Map) != mapTag) ||
-	    (Promise && getTag(Promise.resolve()) != promiseTag) ||
-	    (Set && getTag(new Set) != setTag) ||
-	    (WeakMap && getTag(new WeakMap) != weakMapTag)) {
-	  getTag = function(value) {
-	    var result = baseGetTag(value),
-	        Ctor = result == objectTag ? value.constructor : undefined,
-	        ctorString = Ctor ? toSource(Ctor) : '';
-
-	    if (ctorString) {
-	      switch (ctorString) {
-	        case dataViewCtorString: return dataViewTag;
-	        case mapCtorString: return mapTag;
-	        case promiseCtorString: return promiseTag;
-	        case setCtorString: return setTag;
-	        case weakMapCtorString: return weakMapTag;
-	      }
-	    }
-	    return result;
-	  };
-	}
-
-	_getTag = getTag;
-	return _getTag;
-}
-
-var _baseIsEqualDeep;
-var hasRequired_baseIsEqualDeep;
-
-function require_baseIsEqualDeep () {
-	if (hasRequired_baseIsEqualDeep) return _baseIsEqualDeep;
-	hasRequired_baseIsEqualDeep = 1;
-	var Stack = require_Stack(),
-	    equalArrays = require_equalArrays(),
-	    equalByTag = require_equalByTag(),
-	    equalObjects = require_equalObjects(),
-	    getTag = require_getTag(),
-	    isArray = requireIsArray(),
-	    isBuffer = requireIsBuffer(),
-	    isTypedArray = requireIsTypedArray();
-
-	/** Used to compose bitmasks for value comparisons. */
-	var COMPARE_PARTIAL_FLAG = 1;
-
-	/** `Object#toString` result references. */
-	var argsTag = '[object Arguments]',
-	    arrayTag = '[object Array]',
-	    objectTag = '[object Object]';
-
-	/** Used for built-in method references. */
-	var objectProto = Object.prototype;
-
-	/** Used to check objects for own properties. */
-	var hasOwnProperty = objectProto.hasOwnProperty;
-
-	/**
-	 * A specialized version of `baseIsEqual` for arrays and objects which performs
-	 * deep comparisons and tracks traversed objects enabling objects with circular
-	 * references to be compared.
-	 *
-	 * @private
-	 * @param {Object} object The object to compare.
-	 * @param {Object} other The other object to compare.
-	 * @param {number} bitmask The bitmask flags. See `baseIsEqual` for more details.
-	 * @param {Function} customizer The function to customize comparisons.
-	 * @param {Function} equalFunc The function to determine equivalents of values.
-	 * @param {Object} [stack] Tracks traversed `object` and `other` objects.
-	 * @returns {boolean} Returns `true` if the objects are equivalent, else `false`.
-	 */
-	function baseIsEqualDeep(object, other, bitmask, customizer, equalFunc, stack) {
-	  var objIsArr = isArray(object),
-	      othIsArr = isArray(other),
-	      objTag = objIsArr ? arrayTag : getTag(object),
-	      othTag = othIsArr ? arrayTag : getTag(other);
-
-	  objTag = objTag == argsTag ? objectTag : objTag;
-	  othTag = othTag == argsTag ? objectTag : othTag;
-
-	  var objIsObj = objTag == objectTag,
-	      othIsObj = othTag == objectTag,
-	      isSameTag = objTag == othTag;
-
-	  if (isSameTag && isBuffer(object)) {
-	    if (!isBuffer(other)) {
-	      return false;
-	    }
-	    objIsArr = true;
-	    objIsObj = false;
-	  }
-	  if (isSameTag && !objIsObj) {
-	    stack || (stack = new Stack);
-	    return (objIsArr || isTypedArray(object))
-	      ? equalArrays(object, other, bitmask, customizer, equalFunc, stack)
-	      : equalByTag(object, other, objTag, bitmask, customizer, equalFunc, stack);
-	  }
-	  if (!(bitmask & COMPARE_PARTIAL_FLAG)) {
-	    var objIsWrapped = objIsObj && hasOwnProperty.call(object, '__wrapped__'),
-	        othIsWrapped = othIsObj && hasOwnProperty.call(other, '__wrapped__');
-
-	    if (objIsWrapped || othIsWrapped) {
-	      var objUnwrapped = objIsWrapped ? object.value() : object,
-	          othUnwrapped = othIsWrapped ? other.value() : other;
-
-	      stack || (stack = new Stack);
-	      return equalFunc(objUnwrapped, othUnwrapped, bitmask, customizer, stack);
-	    }
-	  }
-	  if (!isSameTag) {
-	    return false;
-	  }
-	  stack || (stack = new Stack);
-	  return equalObjects(object, other, bitmask, customizer, equalFunc, stack);
-	}
-
-	_baseIsEqualDeep = baseIsEqualDeep;
-	return _baseIsEqualDeep;
-}
-
-var _baseIsEqual;
-var hasRequired_baseIsEqual;
-
-function require_baseIsEqual () {
-	if (hasRequired_baseIsEqual) return _baseIsEqual;
-	hasRequired_baseIsEqual = 1;
-	var baseIsEqualDeep = require_baseIsEqualDeep(),
-	    isObjectLike = requireIsObjectLike();
-
-	/**
-	 * The base implementation of `_.isEqual` which supports partial comparisons
-	 * and tracks traversed objects.
-	 *
-	 * @private
-	 * @param {*} value The value to compare.
-	 * @param {*} other The other value to compare.
-	 * @param {boolean} bitmask The bitmask flags.
-	 *  1 - Unordered comparison
-	 *  2 - Partial comparison
-	 * @param {Function} [customizer] The function to customize comparisons.
-	 * @param {Object} [stack] Tracks traversed `value` and `other` objects.
-	 * @returns {boolean} Returns `true` if the values are equivalent, else `false`.
-	 */
-	function baseIsEqual(value, other, bitmask, customizer, stack) {
-	  if (value === other) {
-	    return true;
-	  }
-	  if (value == null || other == null || (!isObjectLike(value) && !isObjectLike(other))) {
-	    return value !== value && other !== other;
-	  }
-	  return baseIsEqualDeep(value, other, bitmask, customizer, baseIsEqual, stack);
-	}
-
-	_baseIsEqual = baseIsEqual;
-	return _baseIsEqual;
-}
-
-var isEqual_1;
-var hasRequiredIsEqual;
-
-function requireIsEqual () {
-	if (hasRequiredIsEqual) return isEqual_1;
-	hasRequiredIsEqual = 1;
-	var baseIsEqual = require_baseIsEqual();
-
-	/**
-	 * Performs a deep comparison between two values to determine if they are
-	 * equivalent.
-	 *
-	 * **Note:** This method supports comparing arrays, array buffers, booleans,
-	 * date objects, error objects, maps, numbers, `Object` objects, regexes,
-	 * sets, strings, symbols, and typed arrays. `Object` objects are compared
-	 * by their own, not inherited, enumerable properties. Functions and DOM
-	 * nodes are compared by strict equality, i.e. `===`.
-	 *
-	 * @static
-	 * @memberOf _
-	 * @since 0.1.0
-	 * @category Lang
-	 * @param {*} value The value to compare.
-	 * @param {*} other The other value to compare.
-	 * @returns {boolean} Returns `true` if the values are equivalent, else `false`.
-	 * @example
-	 *
-	 * var object = { 'a': 1 };
-	 * var other = { 'a': 1 };
-	 *
-	 * _.isEqual(object, other);
-	 * // => true
-	 *
-	 * object === other;
-	 * // => false
-	 */
-	function isEqual(value, other) {
-	  return baseIsEqual(value, other);
-	}
-
-	isEqual_1 = isEqual;
-	return isEqual_1;
-}
-
-var hasRequiredUseTheme;
-
-function requireUseTheme () {
-	if (hasRequiredUseTheme) return useTheme;
-	hasRequiredUseTheme = 1;
-	Object.defineProperty(useTheme, "__esModule", { value: true });
-	useTheme.useTheme = void 0;
-	const tslib_1 = require$$0;
-	const react_1 = requireReact();
-	const bridge_1 = requireOut$2();
-	const isEqual_1 = tslib_1.__importDefault(requireIsEqual());
-	const useTheme$1 = () => {
-	    const [theme, setTheme] = (0, react_1.useState)(null);
-	    const themeRef = (0, react_1.useRef)(null);
-	    const themeLoadedRef = (0, react_1.useRef)(false);
-	    const loadingContextRef = (0, react_1.useRef)(false);
-	    const applyTheme = (0, react_1.useCallback)((nextTheme) => {
-	        if ((0, isEqual_1.default)(themeRef.current, nextTheme)) {
-	            return;
-	        }
-	        themeRef.current = nextTheme;
-	        setTheme((current) => ((0, isEqual_1.default)(current, nextTheme) ? current : nextTheme));
-	    }, []);
-	    (0, react_1.useEffect)(() => {
-	        let cancelled = false;
-	        void (async () => {
-	            if (themeLoadedRef.current || loadingContextRef.current) {
-	                return;
-	            }
-	            loadingContextRef.current = true;
-	            try {
-	                const context = await bridge_1.view.getContext();
-	                if (cancelled || !context?.theme || themeLoadedRef.current) {
-	                    return;
-	                }
-	                applyTheme(context.theme);
-	                themeLoadedRef.current = true;
-	            }
-	            finally {
-	                loadingContextRef.current = false;
-	            }
-	        })();
-	        return () => {
-	            cancelled = true;
-	        };
-	    }, [applyTheme]);
-	    (0, react_1.useEffect)(() => {
-	        let unsubscribeFn = null;
-	        let cancelled = false;
-	        const sub = bridge_1.events.on('FORGE_CORE_THEME_CHANGED', ({ theme: updatedTheme }) => {
-	            themeLoadedRef.current = true;
-	            applyTheme(updatedTheme);
-	        });
-	        void sub.then((subscription) => {
-	            if (cancelled) {
-	                subscription.unsubscribe();
-	            }
-	            else {
-	                unsubscribeFn = () => subscription.unsubscribe();
-	            }
-	        });
-	        return () => {
-	            cancelled = true;
-	            if (unsubscribeFn) {
-	                unsubscribeFn();
-	            }
-	        };
-	    }, [applyTheme]);
-	    return theme;
-	};
-	useTheme.useTheme = useTheme$1;
-	return useTheme;
-}
-
-var usePermissions = {};
-
-var hasRequiredUsePermissions;
-
-function requireUsePermissions () {
-	if (hasRequiredUsePermissions) return usePermissions;
-	hasRequiredUsePermissions = 1;
-	Object.defineProperty(usePermissions, "__esModule", { value: true });
-	usePermissions.usePermissions = void 0;
-	const react_1 = requireReact();
-	const bridge_1 = requireOut$2();
-	/**
-	 * Hook for checking permissions in Forge apps
-	 *
-	 * @param requiredPermissions - The permissions required for the component
-	 * @returns Object containing permission state, loading status, and error information
-	 * @returns hasPermission - Whether all required permissions are granted
-	 * @returns isLoading - Whether the permission check is still in progress
-	 * @returns missingPermissions - Details about which permissions are missing (null if all granted)
-	 * @returns error - Any error that occurred during permission checking (null if no error)
-	 *
-	 * @example
-	 * ```tsx
-	 * const MyComponent: React.FC = () => {
-	 *   const { hasPermission, isLoading, missingPermissions, error } = usePermissions({
-	 *     scopes: ['write:confluence-content'],
-	 *     external: {
-	 *       fetch: {
-	 *         backend: ['https://api.example.com']
-	 *       }
-	 *     }
-	 *   });
-	 *
-	 *   if (isLoading) return <LoadingSpinner />;
-	 *
-	 *   if (error) {
-	 *     return <ErrorMessage error={error} />;
-	 *   }
-	 *
-	 *   if (!hasPermission) {
-	 *     return <PermissionDenied missingPermissions={missingPermissions} />;
-	 *   }
-	 *
-	 *   return <ProtectedFeature />;
-	 * };
-	 * ```
-	 */
-	const usePermissions$1 = (requiredPermissions) => {
-	    const [context, setContext] = (0, react_1.useState)();
-	    const [isLoading, setIsLoading] = (0, react_1.useState)(true);
-	    const [error, setError] = (0, react_1.useState)(null);
-	    const [permissionResult, setPermissionResult] = (0, react_1.useState)({
-	        granted: false,
-	        missing: null
-	    });
-	    // Load context on mount
-	    (0, react_1.useEffect)(() => {
-	        const loadContext = async () => {
-	            try {
-	                setIsLoading(true);
-	                setError(null);
-	                const contextData = await bridge_1.view.getContext();
-	                setContext(contextData);
-	            }
-	            catch (err) {
-	                setError(err instanceof Error ? err : new Error('Failed to load context'));
-	            }
-	            finally {
-	                setIsLoading(false);
-	            }
-	        };
-	        void loadContext();
-	    }, []);
-	    // Check permissions using shared utility
-	    (0, react_1.useEffect)(() => {
-	        // Skip if still loading context
-	        if (isLoading) {
-	            return;
-	        }
-	        const checkPerms = async () => {
-	            if (!requiredPermissions) {
-	                setPermissionResult({ granted: false, missing: null });
-	                return;
-	            }
-	            if (!context?.permissions) {
-	                // If context loaded but has no permissions, set error
-	                if (context !== undefined) {
-	                    setError(new Error('This feature is not available yet'));
-	                    setPermissionResult({ granted: false, missing: null });
-	                }
-	                return;
-	            }
-	            try {
-	                setError(null); // Clear any previous errors
-	                const result = await (0, bridge_1.checkPermissions)(requiredPermissions, context.permissions);
-	                setPermissionResult(result);
-	            }
-	            catch (err) {
-	                setError(err instanceof Error ? err : new Error('Failed to check permissions'));
-	                setPermissionResult({ granted: false, missing: null });
-	            }
-	        };
-	        void checkPerms();
-	    }, [context, requiredPermissions, isLoading]);
-	    return {
-	        hasPermission: permissionResult.granted,
-	        isLoading,
-	        missingPermissions: permissionResult.missing,
-	        error
-	    };
-	};
-	usePermissions.usePermissions = usePermissions$1;
-	return usePermissions;
-}
-
-var reconciler = {};
-
-var reactReconciler = {exports: {}};
-
-var scheduler = {exports: {}};
-
-var scheduler_production_min = {};
-
-/**
- * @license React
- * scheduler.production.min.js
- *
- * Copyright (c) Facebook, Inc. and its affiliates.
- *
- * This source code is licensed under the MIT license found in the
- * LICENSE file in the root directory of this source tree.
- */
-
-var hasRequiredScheduler_production_min;
-
-function requireScheduler_production_min () {
-	if (hasRequiredScheduler_production_min) return scheduler_production_min;
-	hasRequiredScheduler_production_min = 1;
-	(function (exports) {
-function f(a,b){var c=a.length;a.push(b);a:for(;0<c;){var d=c-1>>>1,e=a[d];if(0<g(e,b))a[d]=b,a[c]=e,c=d;else break a}}function h(a){return 0===a.length?null:a[0]}function k(a){if(0===a.length)return null;var b=a[0],c=a.pop();if(c!==b){a[0]=c;a:for(var d=0,e=a.length,w=e>>>1;d<w;){var m=2*(d+1)-1,C=a[m],n=m+1,x=a[n];if(0>g(C,c))n<e&&0>g(x,C)?(a[d]=x,a[n]=c,d=n):(a[d]=C,a[m]=c,d=m);else if(n<e&&0>g(x,c))a[d]=x,a[n]=c,d=n;else break a}}return b}
-		function g(a,b){var c=a.sortIndex-b.sortIndex;return 0!==c?c:a.id-b.id}if("object"===typeof performance&&"function"===typeof performance.now){var l=performance;exports.unstable_now=function(){return l.now()};}else {var p=Date,q=p.now();exports.unstable_now=function(){return p.now()-q};}var r=[],t=[],u=1,v=null,y=3,z=false,A=false,B=false,D="function"===typeof setTimeout?setTimeout:null,E="function"===typeof clearTimeout?clearTimeout:null,F="undefined"!==typeof setImmediate?setImmediate:null;
-		"undefined"!==typeof navigator&&void 0!==navigator.scheduling&&void 0!==navigator.scheduling.isInputPending&&navigator.scheduling.isInputPending.bind(navigator.scheduling);function G(a){for(var b=h(t);null!==b;){if(null===b.callback)k(t);else if(b.startTime<=a)k(t),b.sortIndex=b.expirationTime,f(r,b);else break;b=h(t);}}function H(a){B=false;G(a);if(!A)if(null!==h(r))A=true,I(J);else {var b=h(t);null!==b&&K(H,b.startTime-a);}}
-		function J(a,b){A=false;B&&(B=false,E(L),L=-1);z=true;var c=y;try{G(b);for(v=h(r);null!==v&&(!(v.expirationTime>b)||a&&!M());){var d=v.callback;if("function"===typeof d){v.callback=null;y=v.priorityLevel;var e=d(v.expirationTime<=b);b=exports.unstable_now();"function"===typeof e?v.callback=e:v===h(r)&&k(r);G(b);}else k(r);v=h(r);}if(null!==v)var w=!0;else {var m=h(t);null!==m&&K(H,m.startTime-b);w=!1;}return w}finally{v=null,y=c,z=false;}}var N=false,O=null,L=-1,P=5,Q=-1;
-		function M(){return exports.unstable_now()-Q<P?false:true}function R(){if(null!==O){var a=exports.unstable_now();Q=a;var b=true;try{b=O(!0,a);}finally{b?S():(N=false,O=null);}}else N=false;}var S;if("function"===typeof F)S=function(){F(R);};else if("undefined"!==typeof MessageChannel){var T=new MessageChannel,U=T.port2;T.port1.onmessage=R;S=function(){U.postMessage(null);};}else S=function(){D(R,0);};function I(a){O=a;N||(N=true,S());}function K(a,b){L=D(function(){a(exports.unstable_now());},b);}
-		exports.unstable_IdlePriority=5;exports.unstable_ImmediatePriority=1;exports.unstable_LowPriority=4;exports.unstable_NormalPriority=3;exports.unstable_Profiling=null;exports.unstable_UserBlockingPriority=2;exports.unstable_cancelCallback=function(a){a.callback=null;};exports.unstable_continueExecution=function(){A||z||(A=true,I(J));};
-		exports.unstable_forceFrameRate=function(a){0>a||125<a?console.error("forceFrameRate takes a positive int between 0 and 125, forcing frame rates higher than 125 fps is not supported"):P=0<a?Math.floor(1E3/a):5;};exports.unstable_getCurrentPriorityLevel=function(){return y};exports.unstable_getFirstCallbackNode=function(){return h(r)};exports.unstable_next=function(a){switch(y){case 1:case 2:case 3:var b=3;break;default:b=y;}var c=y;y=b;try{return a()}finally{y=c;}};exports.unstable_pauseExecution=function(){};
-		exports.unstable_requestPaint=function(){};exports.unstable_runWithPriority=function(a,b){switch(a){case 1:case 2:case 3:case 4:case 5:break;default:a=3;}var c=y;y=a;try{return b()}finally{y=c;}};
-		exports.unstable_scheduleCallback=function(a,b,c){var d=exports.unstable_now();"object"===typeof c&&null!==c?(c=c.delay,c="number"===typeof c&&0<c?d+c:d):c=d;switch(a){case 1:var e=-1;break;case 2:e=250;break;case 5:e=1073741823;break;case 4:e=1E4;break;default:e=5E3;}e=c+e;a={id:u++,callback:b,priorityLevel:a,startTime:c,expirationTime:e,sortIndex:-1};c>d?(a.sortIndex=c,f(t,a),null===h(r)&&a===h(t)&&(B?(E(L),L=-1):B=true,K(H,c-d))):(a.sortIndex=e,f(r,a),A||z||(A=true,I(J)));return a};
-		exports.unstable_shouldYield=M;exports.unstable_wrapCallback=function(a){var b=y;return function(){var c=y;y=b;try{return a.apply(this,arguments)}finally{y=c;}}}; 
-	} (scheduler_production_min));
-	return scheduler_production_min;
-}
-
-var hasRequiredScheduler;
-
-function requireScheduler () {
-	if (hasRequiredScheduler) return scheduler.exports;
-	hasRequiredScheduler = 1;
-
-	{
-	  scheduler.exports = requireScheduler_production_min();
-	}
-	return scheduler.exports;
-}
-
-/**
- * @license React
- * react-reconciler.production.min.js
- *
- * Copyright (c) Facebook, Inc. and its affiliates.
- *
- * This source code is licensed under the MIT license found in the
- * LICENSE file in the root directory of this source tree.
- */
-
-var reactReconciler_production_min;
-var hasRequiredReactReconciler_production_min;
-
-function requireReactReconciler_production_min () {
-	if (hasRequiredReactReconciler_production_min) return reactReconciler_production_min;
-	hasRequiredReactReconciler_production_min = 1;
-	reactReconciler_production_min = function $$$reconciler($$$hostConfig) {
-	    var exports = {};
-var aa=requireReact(),ba=requireScheduler(),ca=Object.assign;function n(a){for(var b="https://reactjs.org/docs/error-decoder.html?invariant="+a,c=1;c<arguments.length;c++)b+="&args[]="+encodeURIComponent(arguments[c]);return "Minified React error #"+a+"; visit "+b+" for the full message or use the non-minified dev environment for full errors and additional helpful warnings."}
-	var da=aa.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED,ea=Symbol.for("react.element"),fa=Symbol.for("react.portal"),ha=Symbol.for("react.fragment"),ia=Symbol.for("react.strict_mode"),ja=Symbol.for("react.profiler"),ka=Symbol.for("react.provider"),la=Symbol.for("react.context"),ma=Symbol.for("react.forward_ref"),na=Symbol.for("react.suspense"),oa=Symbol.for("react.suspense_list"),pa=Symbol.for("react.memo"),qa=Symbol.for("react.lazy");	var ra=Symbol.for("react.offscreen");var sa=Symbol.iterator;function ta(a){if(null===a||"object"!==typeof a)return null;a=sa&&a[sa]||a["@@iterator"];return "function"===typeof a?a:null}
-	function ua(a){if(null==a)return null;if("function"===typeof a)return a.displayName||a.name||null;if("string"===typeof a)return a;switch(a){case ha:return "Fragment";case fa:return "Portal";case ja:return "Profiler";case ia:return "StrictMode";case na:return "Suspense";case oa:return "SuspenseList"}if("object"===typeof a)switch(a.$$typeof){case la:return (a.displayName||"Context")+".Consumer";case ka:return (a._context.displayName||"Context")+".Provider";case ma:var b=a.render;a=a.displayName;a||(a=b.displayName||
-	b.name||"",a=""!==a?"ForwardRef("+a+")":"ForwardRef");return a;case pa:return b=a.displayName||null,null!==b?b:ua(a.type)||"Memo";case qa:b=a._payload;a=a._init;try{return ua(a(b))}catch(c){}}return null}
-	function va(a){var b=a.type;switch(a.tag){case 24:return "Cache";case 9:return (b.displayName||"Context")+".Consumer";case 10:return (b._context.displayName||"Context")+".Provider";case 18:return "DehydratedFragment";case 11:return a=b.render,a=a.displayName||a.name||"",b.displayName||(""!==a?"ForwardRef("+a+")":"ForwardRef");case 7:return "Fragment";case 5:return b;case 4:return "Portal";case 3:return "Root";case 6:return "Text";case 16:return ua(b);case 8:return b===ia?"StrictMode":"Mode";case 22:return "Offscreen";
-	case 12:return "Profiler";case 21:return "Scope";case 13:return "Suspense";case 19:return "SuspenseList";case 25:return "TracingMarker";case 1:case 0:case 17:case 2:case 14:case 15:if("function"===typeof b)return b.displayName||b.name||null;if("string"===typeof b)return b}return null}function wa(a){var b=a,c=a;if(a.alternate)for(;b.return;)b=b.return;else {a=b;do b=a,0!==(b.flags&4098)&&(c=b.return),a=b.return;while(a)}return 3===b.tag?c:null}function xa(a){if(wa(a)!==a)throw Error(n(188));}
-	function za(a){var b=a.alternate;if(!b){b=wa(a);if(null===b)throw Error(n(188));return b!==a?null:a}for(var c=a,d=b;;){var e=c.return;if(null===e)break;var f=e.alternate;if(null===f){d=e.return;if(null!==d){c=d;continue}break}if(e.child===f.child){for(f=e.child;f;){if(f===c)return xa(e),a;if(f===d)return xa(e),b;f=f.sibling;}throw Error(n(188));}if(c.return!==d.return)c=e,d=f;else {for(var g=false,h=e.child;h;){if(h===c){g=true;c=e;d=f;break}if(h===d){g=true;d=e;c=f;break}h=h.sibling;}if(!g){for(h=f.child;h;){if(h===
-	c){g=true;c=f;d=e;break}if(h===d){g=true;d=f;c=e;break}h=h.sibling;}if(!g)throw Error(n(189));}}if(c.alternate!==d)throw Error(n(190));}if(3!==c.tag)throw Error(n(188));return c.stateNode.current===c?a:b}function Aa(a){a=za(a);return null!==a?Ba(a):null}function Ba(a){if(5===a.tag||6===a.tag)return a;for(a=a.child;null!==a;){var b=Ba(a);if(null!==b)return b;a=a.sibling;}return null}
-	function Ca(a){if(5===a.tag||6===a.tag)return a;for(a=a.child;null!==a;){if(4!==a.tag){var b=Ca(a);if(null!==b)return b}a=a.sibling;}return null}
-	var Da=Array.isArray,Ea=$$$hostConfig.getPublicInstance,Fa=$$$hostConfig.getRootHostContext,Ga=$$$hostConfig.getChildHostContext,Ha=$$$hostConfig.prepareForCommit,Ia=$$$hostConfig.resetAfterCommit,Ja=$$$hostConfig.createInstance,Ka=$$$hostConfig.appendInitialChild,La=$$$hostConfig.finalizeInitialChildren,Ma=$$$hostConfig.prepareUpdate,Na=$$$hostConfig.shouldSetTextContent,Oa=$$$hostConfig.createTextInstance,Pa=$$$hostConfig.scheduleTimeout,Qa=$$$hostConfig.cancelTimeout,Ra=$$$hostConfig.noTimeout,
-	Sa=$$$hostConfig.isPrimaryRenderer,Ta=$$$hostConfig.supportsMutation,Ua=$$$hostConfig.supportsPersistence,Va=$$$hostConfig.supportsHydration,Wa=$$$hostConfig.getInstanceFromNode,Xa=$$$hostConfig.preparePortalMount,Ya=$$$hostConfig.getCurrentEventPriority,Za=$$$hostConfig.detachDeletedInstance,$a=$$$hostConfig.supportsMicrotasks,ab=$$$hostConfig.scheduleMicrotask,bb=$$$hostConfig.supportsTestSelectors,cb=$$$hostConfig.findFiberRoot,db=$$$hostConfig.getBoundingRect,eb=$$$hostConfig.getTextContent,fb=
-	$$$hostConfig.isHiddenSubtree,gb=$$$hostConfig.matchAccessibilityRole,hb=$$$hostConfig.setFocusIfFocusable,ib=$$$hostConfig.setupIntersectionObserver,jb=$$$hostConfig.appendChild,kb=$$$hostConfig.appendChildToContainer,lb=$$$hostConfig.commitTextUpdate,mb=$$$hostConfig.commitMount,nb=$$$hostConfig.commitUpdate,ob=$$$hostConfig.insertBefore,pb=$$$hostConfig.insertInContainerBefore,qb=$$$hostConfig.removeChild,rb=$$$hostConfig.removeChildFromContainer,sb=$$$hostConfig.resetTextContent,tb=$$$hostConfig.hideInstance,
-	ub=$$$hostConfig.hideTextInstance,vb=$$$hostConfig.unhideInstance,wb=$$$hostConfig.unhideTextInstance,xb=$$$hostConfig.clearContainer,yb=$$$hostConfig.cloneInstance,zb=$$$hostConfig.createContainerChildSet,Ab=$$$hostConfig.appendChildToContainerChildSet,Bb=$$$hostConfig.finalizeContainerChildren,Cb=$$$hostConfig.replaceContainerChildren,Eb=$$$hostConfig.cloneHiddenInstance,Fb=$$$hostConfig.cloneHiddenTextInstance,Gb=$$$hostConfig.canHydrateInstance,Hb=$$$hostConfig.canHydrateTextInstance,Ib=$$$hostConfig.canHydrateSuspenseInstance,
-	Jb=$$$hostConfig.isSuspenseInstancePending,Kb=$$$hostConfig.isSuspenseInstanceFallback,Lb=$$$hostConfig.getSuspenseInstanceFallbackErrorDetails,Mb=$$$hostConfig.registerSuspenseInstanceRetry,Nb=$$$hostConfig.getNextHydratableSibling,Ob=$$$hostConfig.getFirstHydratableChild,Pb=$$$hostConfig.getFirstHydratableChildWithinContainer,Qb=$$$hostConfig.getFirstHydratableChildWithinSuspenseInstance,Rb=$$$hostConfig.hydrateInstance,Sb=$$$hostConfig.hydrateTextInstance,Tb=$$$hostConfig.hydrateSuspenseInstance,
-	Ub=$$$hostConfig.getNextHydratableInstanceAfterSuspenseInstance,Vb=$$$hostConfig.commitHydratedContainer,Wb=$$$hostConfig.commitHydratedSuspenseInstance,Xb=$$$hostConfig.clearSuspenseBoundary,Yb=$$$hostConfig.clearSuspenseBoundaryFromContainer,Zb=$$$hostConfig.shouldDeleteUnhydratedTailInstances,$b=$$$hostConfig.didNotMatchHydratedContainerTextInstance,ac=$$$hostConfig.didNotMatchHydratedTextInstance,bc;
-	function cc(a){if(void 0===bc)try{throw Error();}catch(c){var b=c.stack.trim().match(/\n( *(at )?)/);bc=b&&b[1]||"";}return "\n"+bc+a}var dc=false;
-	function ec(a,b){if(!a||dc)return "";dc=true;var c=Error.prepareStackTrace;Error.prepareStackTrace=void 0;try{if(b)if(b=function(){throw Error();},Object.defineProperty(b.prototype,"props",{set:function(){throw Error();}}),"object"===typeof Reflect&&Reflect.construct){try{Reflect.construct(b,[]);}catch(l){var d=l;}Reflect.construct(a,[],b);}else {try{b.call();}catch(l){d=l;}a.call(b.prototype);}else {try{throw Error();}catch(l){d=l;}a();}}catch(l){if(l&&d&&"string"===typeof l.stack){for(var e=l.stack.split("\n"),
-	f=d.stack.split("\n"),g=e.length-1,h=f.length-1;1<=g&&0<=h&&e[g]!==f[h];)h--;for(;1<=g&&0<=h;g--,h--)if(e[g]!==f[h]){if(1!==g||1!==h){do if(g--,h--,0>h||e[g]!==f[h]){var k="\n"+e[g].replace(" at new "," at ");a.displayName&&k.includes("<anonymous>")&&(k=k.replace("<anonymous>",a.displayName));return k}while(1<=g&&0<=h)}break}}}finally{dc=false,Error.prepareStackTrace=c;}return (a=a?a.displayName||a.name:"")?cc(a):""}var fc=Object.prototype.hasOwnProperty,gc=[],hc=-1;function ic(a){return {current:a}}
-	function q(a){0>hc||(a.current=gc[hc],gc[hc]=null,hc--);}function v(a,b){hc++;gc[hc]=a.current;a.current=b;}var jc={},x=ic(jc),z=ic(false),kc=jc;function mc(a,b){var c=a.type.contextTypes;if(!c)return jc;var d=a.stateNode;if(d&&d.__reactInternalMemoizedUnmaskedChildContext===b)return d.__reactInternalMemoizedMaskedChildContext;var e={},f;for(f in c)e[f]=b[f];d&&(a=a.stateNode,a.__reactInternalMemoizedUnmaskedChildContext=b,a.__reactInternalMemoizedMaskedChildContext=e);return e}
-	function A(a){a=a.childContextTypes;return null!==a&&void 0!==a}function nc(){q(z);q(x);}function oc(a,b,c){if(x.current!==jc)throw Error(n(168));v(x,b);v(z,c);}function pc(a,b,c){var d=a.stateNode;b=b.childContextTypes;if("function"!==typeof d.getChildContext)return c;d=d.getChildContext();for(var e in d)if(!(e in b))throw Error(n(108,va(a)||"Unknown",e));return ca({},c,d)}
-	function qc(a){a=(a=a.stateNode)&&a.__reactInternalMemoizedMergedChildContext||jc;kc=x.current;v(x,a);v(z,z.current);return  true}function rc(a,b,c){var d=a.stateNode;if(!d)throw Error(n(169));c?(a=pc(a,b,kc),d.__reactInternalMemoizedMergedChildContext=a,q(z),q(x),v(x,a)):q(z);v(z,c);}var tc=Math.clz32?Math.clz32:sc,uc=Math.log,vc=Math.LN2;function sc(a){a>>>=0;return 0===a?32:31-(uc(a)/vc|0)|0}var wc=64,xc=4194304;
-	function yc(a){switch(a&-a){case 1:return 1;case 2:return 2;case 4:return 4;case 8:return 8;case 16:return 16;case 32:return 32;case 64:case 128:case 256:case 512:case 1024:case 2048:case 4096:case 8192:case 16384:case 32768:case 65536:case 131072:case 262144:case 524288:case 1048576:case 2097152:return a&4194240;case 4194304:case 8388608:case 16777216:case 33554432:case 67108864:return a&130023424;case 134217728:return 134217728;case 268435456:return 268435456;case 536870912:return 536870912;case 1073741824:return 1073741824;
-	default:return a}}function zc(a,b){var c=a.pendingLanes;if(0===c)return 0;var d=0,e=a.suspendedLanes,f=a.pingedLanes,g=c&268435455;if(0!==g){var h=g&~e;0!==h?d=yc(h):(f&=g,0!==f&&(d=yc(f)));}else g=c&~e,0!==g?d=yc(g):0!==f&&(d=yc(f));if(0===d)return 0;if(0!==b&&b!==d&&0===(b&e)&&(e=d&-d,f=b&-b,e>=f||16===e&&0!==(f&4194240)))return b;0!==(d&4)&&(d|=c&16);b=a.entangledLanes;if(0!==b)for(a=a.entanglements,b&=d;0<b;)c=31-tc(b),e=1<<c,d|=a[c],b&=~e;return d}
-	function Ac(a,b){switch(a){case 1:case 2:case 4:return b+250;case 8:case 16:case 32:case 64:case 128:case 256:case 512:case 1024:case 2048:case 4096:case 8192:case 16384:case 32768:case 65536:case 131072:case 262144:case 524288:case 1048576:case 2097152:return b+5E3;case 4194304:case 8388608:case 16777216:case 33554432:case 67108864:return  -1;case 134217728:case 268435456:case 536870912:case 1073741824:return  -1;default:return  -1}}
-	function Bc(a,b){for(var c=a.suspendedLanes,d=a.pingedLanes,e=a.expirationTimes,f=a.pendingLanes;0<f;){var g=31-tc(f),h=1<<g,k=e[g];if(-1===k){if(0===(h&c)||0!==(h&d))e[g]=Ac(h,b);}else k<=b&&(a.expiredLanes|=h);f&=~h;}}function Cc(a){a=a.pendingLanes&-1073741825;return 0!==a?a:a&1073741824?1073741824:0}function Dc(){var a=wc;wc<<=1;0===(wc&4194240)&&(wc=64);return a}function Ec(a){for(var b=[],c=0;31>c;c++)b.push(a);return b}
-	function Fc(a,b,c){a.pendingLanes|=b;536870912!==b&&(a.suspendedLanes=0,a.pingedLanes=0);a=a.eventTimes;b=31-tc(b);a[b]=c;}function Gc(a,b){var c=a.pendingLanes&~b;a.pendingLanes=b;a.suspendedLanes=0;a.pingedLanes=0;a.expiredLanes&=b;a.mutableReadLanes&=b;a.entangledLanes&=b;b=a.entanglements;var d=a.eventTimes;for(a=a.expirationTimes;0<c;){var e=31-tc(c),f=1<<e;b[e]=0;d[e]=-1;a[e]=-1;c&=~f;}}
-	function Hc(a,b){var c=a.entangledLanes|=b;for(a=a.entanglements;c;){var d=31-tc(c),e=1<<d;e&b|a[d]&b&&(a[d]|=b);c&=~e;}}var C=0;function Ic(a){a&=-a;return 1<a?4<a?0!==(a&268435455)?16:536870912:4:1}var Jc=ba.unstable_scheduleCallback,Kc=ba.unstable_cancelCallback,Lc=ba.unstable_shouldYield,Mc=ba.unstable_requestPaint,D=ba.unstable_now,Nc=ba.unstable_ImmediatePriority,Oc=ba.unstable_UserBlockingPriority,Pc=ba.unstable_NormalPriority,Qc=ba.unstable_IdlePriority,Rc=null,Sc=null;
-	function Tc(a){if(Sc&&"function"===typeof Sc.onCommitFiberRoot)try{Sc.onCommitFiberRoot(Rc,a,void 0,128===(a.current.flags&128));}catch(b){}}function Uc(a,b){return a===b&&(0!==a||1/a===1/b)||a!==a&&b!==b}var Vc="function"===typeof Object.is?Object.is:Uc,Wc=null,Xc=false,Yc=false;function Zc(a){null===Wc?Wc=[a]:Wc.push(a);}function $c(a){Xc=true;Zc(a);}
-	function ad(){if(!Yc&&null!==Wc){Yc=true;var a=0,b=C;try{var c=Wc;for(C=1;a<c.length;a++){var d=c[a];do d=d(!0);while(null!==d)}Wc=null;Xc=!1;}catch(e){throw null!==Wc&&(Wc=Wc.slice(a+1)),Jc(Nc,ad),e;}finally{C=b,Yc=false;}}return null}var bd=[],cd=0,dd=null,ed=0,fd=[],gd=0,hd=null,id=1,jd="";function kd(a,b){bd[cd++]=ed;bd[cd++]=dd;dd=a;ed=b;}
-	function ld(a,b,c){fd[gd++]=id;fd[gd++]=jd;fd[gd++]=hd;hd=a;var d=id;a=jd;var e=32-tc(d)-1;d&=~(1<<e);c+=1;var f=32-tc(b)+e;if(30<f){var g=e-e%5;f=(d&(1<<g)-1).toString(32);d>>=g;e-=g;id=1<<32-tc(b)+e|c<<e|d;jd=f+a;}else id=1<<f|c<<e|d,jd=a;}function md(a){null!==a.return&&(kd(a,1),ld(a,1,0));}function nd(a){for(;a===dd;)dd=bd[--cd],bd[cd]=null,ed=bd[--cd],bd[cd]=null;for(;a===hd;)hd=fd[--gd],fd[gd]=null,jd=fd[--gd],fd[gd]=null,id=fd[--gd],fd[gd]=null;}var od=null,pd=null,F=false,qd=false,rd=null;
-	function sd(a,b){var c=td(5,null,null,0);c.elementType="DELETED";c.stateNode=b;c.return=a;b=a.deletions;null===b?(a.deletions=[c],a.flags|=16):b.push(c);}
-	function ud(a,b){switch(a.tag){case 5:return b=Gb(b,a.type,a.pendingProps),null!==b?(a.stateNode=b,od=a,pd=Ob(b),true):false;case 6:return b=Hb(b,a.pendingProps),null!==b?(a.stateNode=b,od=a,pd=null,true):false;case 13:b=Ib(b);if(null!==b){var c=null!==hd?{id:id,overflow:jd}:null;a.memoizedState={dehydrated:b,treeContext:c,retryLane:1073741824};c=td(18,null,null,0);c.stateNode=b;c.return=a;a.child=c;od=a;pd=null;return  true}return  false;default:return  false}}function vd(a){return 0!==(a.mode&1)&&0===(a.flags&128)}
-	function wd(a){if(F){var b=pd;if(b){var c=b;if(!ud(a,b)){if(vd(a))throw Error(n(418));b=Nb(c);var d=od;b&&ud(a,b)?sd(d,c):(a.flags=a.flags&-4097|2,F=false,od=a);}}else {if(vd(a))throw Error(n(418));a.flags=a.flags&-4097|2;F=false;od=a;}}}function xd(a){for(a=a.return;null!==a&&5!==a.tag&&3!==a.tag&&13!==a.tag;)a=a.return;od=a;}
-	function yd(a){if(!Va||a!==od)return  false;if(!F)return xd(a),F=true,false;if(3!==a.tag&&(5!==a.tag||Zb(a.type)&&!Na(a.type,a.memoizedProps))){var b=pd;if(b){if(vd(a))throw zd(),Error(n(418));for(;b;)sd(a,b),b=Nb(b);}}xd(a);if(13===a.tag){if(!Va)throw Error(n(316));a=a.memoizedState;a=null!==a?a.dehydrated:null;if(!a)throw Error(n(317));pd=Ub(a);}else pd=od?Nb(a.stateNode):null;return  true}function zd(){for(var a=pd;a;)a=Nb(a);}function Ad(){Va&&(pd=od=null,qd=F=false);}function Bd(a){null===rd?rd=[a]:rd.push(a);}
-	var Cd=da.ReactCurrentBatchConfig;function Dd(a,b){if(Vc(a,b))return  true;if("object"!==typeof a||null===a||"object"!==typeof b||null===b)return  false;var c=Object.keys(a),d=Object.keys(b);if(c.length!==d.length)return  false;for(d=0;d<c.length;d++){var e=c[d];if(!fc.call(b,e)||!Vc(a[e],b[e]))return  false}return  true}
-	function Ed(a){switch(a.tag){case 5:return cc(a.type);case 16:return cc("Lazy");case 13:return cc("Suspense");case 19:return cc("SuspenseList");case 0:case 2:case 15:return a=ec(a.type,false),a;case 11:return a=ec(a.type.render,false),a;case 1:return a=ec(a.type,true),a;default:return ""}}
-	function Fd(a,b,c){a=c.ref;if(null!==a&&"function"!==typeof a&&"object"!==typeof a){if(c._owner){c=c._owner;if(c){if(1!==c.tag)throw Error(n(309));var d=c.stateNode;}if(!d)throw Error(n(147,a));var e=d,f=""+a;if(null!==b&&null!==b.ref&&"function"===typeof b.ref&&b.ref._stringRef===f)return b.ref;b=function(a){var b=e.refs;null===a?delete b[f]:b[f]=a;};b._stringRef=f;return b}if("string"!==typeof a)throw Error(n(284));if(!c._owner)throw Error(n(290,a));}return a}
-	function Gd(a,b){a=Object.prototype.toString.call(b);throw Error(n(31,"[object Object]"===a?"object with keys {"+Object.keys(b).join(", ")+"}":a));}function Hd(a){var b=a._init;return b(a._payload)}
-	function Id(a){function b(b,c){if(a){var d=b.deletions;null===d?(b.deletions=[c],b.flags|=16):d.push(c);}}function c(c,d){if(!a)return null;for(;null!==d;)b(c,d),d=d.sibling;return null}function d(a,b){for(a=new Map;null!==b;)null!==b.key?a.set(b.key,b):a.set(b.index,b),b=b.sibling;return a}function e(a,b){a=Jd(a,b);a.index=0;a.sibling=null;return a}function f(b,c,d){b.index=d;if(!a)return b.flags|=1048576,c;d=b.alternate;if(null!==d)return d=d.index,d<c?(b.flags|=2,c):d;b.flags|=2;return c}function g(b){a&&
-	null===b.alternate&&(b.flags|=2);return b}function h(a,b,c,d){if(null===b||6!==b.tag)return b=Kd(c,a.mode,d),b.return=a,b;b=e(b,c);b.return=a;return b}function k(a,b,c,d){var f=c.type;if(f===ha)return m(a,b,c.props.children,d,c.key);if(null!==b&&(b.elementType===f||"object"===typeof f&&null!==f&&f.$$typeof===qa&&Hd(f)===b.type))return d=e(b,c.props),d.ref=Fd(a,b,c),d.return=a,d;d=Ld(c.type,c.key,c.props,null,a.mode,d);d.ref=Fd(a,b,c);d.return=a;return d}function l(a,b,c,d){if(null===b||4!==b.tag||
-	b.stateNode.containerInfo!==c.containerInfo||b.stateNode.implementation!==c.implementation)return b=Md(c,a.mode,d),b.return=a,b;b=e(b,c.children||[]);b.return=a;return b}function m(a,b,c,d,f){if(null===b||7!==b.tag)return b=Nd(c,a.mode,d,f),b.return=a,b;b=e(b,c);b.return=a;return b}function r(a,b,c){if("string"===typeof b&&""!==b||"number"===typeof b)return b=Kd(""+b,a.mode,c),b.return=a,b;if("object"===typeof b&&null!==b){switch(b.$$typeof){case ea:return c=Ld(b.type,b.key,b.props,null,a.mode,c),
-	c.ref=Fd(a,null,b),c.return=a,c;case fa:return b=Md(b,a.mode,c),b.return=a,b;case qa:var d=b._init;return r(a,d(b._payload),c)}if(Da(b)||ta(b))return b=Nd(b,a.mode,c,null),b.return=a,b;Gd(a,b);}return null}function p(a,b,c,d){var e=null!==b?b.key:null;if("string"===typeof c&&""!==c||"number"===typeof c)return null!==e?null:h(a,b,""+c,d);if("object"===typeof c&&null!==c){switch(c.$$typeof){case ea:return c.key===e?k(a,b,c,d):null;case fa:return c.key===e?l(a,b,c,d):null;case qa:return e=c._init,p(a,
-	b,e(c._payload),d)}if(Da(c)||ta(c))return null!==e?null:m(a,b,c,d,null);Gd(a,c);}return null}function B(a,b,c,d,e){if("string"===typeof d&&""!==d||"number"===typeof d)return a=a.get(c)||null,h(b,a,""+d,e);if("object"===typeof d&&null!==d){switch(d.$$typeof){case ea:return a=a.get(null===d.key?c:d.key)||null,k(b,a,d,e);case fa:return a=a.get(null===d.key?c:d.key)||null,l(b,a,d,e);case qa:var f=d._init;return B(a,b,c,f(d._payload),e)}if(Da(d)||ta(d))return a=a.get(c)||null,m(b,a,d,e,null);Gd(b,d);}return null}
-	function w(e,g,h,k){for(var l=null,m=null,u=g,t=g=0,E=null;null!==u&&t<h.length;t++){u.index>t?(E=u,u=null):E=u.sibling;var y=p(e,u,h[t],k);if(null===y){null===u&&(u=E);break}a&&u&&null===y.alternate&&b(e,u);g=f(y,g,t);null===m?l=y:m.sibling=y;m=y;u=E;}if(t===h.length)return c(e,u),F&&kd(e,t),l;if(null===u){for(;t<h.length;t++)u=r(e,h[t],k),null!==u&&(g=f(u,g,t),null===m?l=u:m.sibling=u,m=u);F&&kd(e,t);return l}for(u=d(e,u);t<h.length;t++)E=B(u,e,t,h[t],k),null!==E&&(a&&null!==E.alternate&&u.delete(null===
-	E.key?t:E.key),g=f(E,g,t),null===m?l=E:m.sibling=E,m=E);a&&u.forEach(function(a){return b(e,a)});F&&kd(e,t);return l}function Y(e,g,h,k){var l=ta(h);if("function"!==typeof l)throw Error(n(150));h=l.call(h);if(null==h)throw Error(n(151));for(var u=l=null,m=g,t=g=0,E=null,y=h.next();null!==m&&!y.done;t++,y=h.next()){m.index>t?(E=m,m=null):E=m.sibling;var w=p(e,m,y.value,k);if(null===w){null===m&&(m=E);break}a&&m&&null===w.alternate&&b(e,m);g=f(w,g,t);null===u?l=w:u.sibling=w;u=w;m=E;}if(y.done)return c(e,
-	m),F&&kd(e,t),l;if(null===m){for(;!y.done;t++,y=h.next())y=r(e,y.value,k),null!==y&&(g=f(y,g,t),null===u?l=y:u.sibling=y,u=y);F&&kd(e,t);return l}for(m=d(e,m);!y.done;t++,y=h.next())y=B(m,e,t,y.value,k),null!==y&&(a&&null!==y.alternate&&m.delete(null===y.key?t:y.key),g=f(y,g,t),null===u?l=y:u.sibling=y,u=y);a&&m.forEach(function(a){return b(e,a)});F&&kd(e,t);return l}function ya(a,d,f,h){"object"===typeof f&&null!==f&&f.type===ha&&null===f.key&&(f=f.props.children);if("object"===typeof f&&null!==
-	f){switch(f.$$typeof){case ea:a:{for(var k=f.key,l=d;null!==l;){if(l.key===k){k=f.type;if(k===ha){if(7===l.tag){c(a,l.sibling);d=e(l,f.props.children);d.return=a;a=d;break a}}else if(l.elementType===k||"object"===typeof k&&null!==k&&k.$$typeof===qa&&Hd(k)===l.type){c(a,l.sibling);d=e(l,f.props);d.ref=Fd(a,l,f);d.return=a;a=d;break a}c(a,l);break}else b(a,l);l=l.sibling;}f.type===ha?(d=Nd(f.props.children,a.mode,h,f.key),d.return=a,a=d):(h=Ld(f.type,f.key,f.props,null,a.mode,h),h.ref=Fd(a,d,f),h.return=
-	a,a=h);}return g(a);case fa:a:{for(l=f.key;null!==d;){if(d.key===l)if(4===d.tag&&d.stateNode.containerInfo===f.containerInfo&&d.stateNode.implementation===f.implementation){c(a,d.sibling);d=e(d,f.children||[]);d.return=a;a=d;break a}else {c(a,d);break}else b(a,d);d=d.sibling;}d=Md(f,a.mode,h);d.return=a;a=d;}return g(a);case qa:return l=f._init,ya(a,d,l(f._payload),h)}if(Da(f))return w(a,d,f,h);if(ta(f))return Y(a,d,f,h);Gd(a,f);}return "string"===typeof f&&""!==f||"number"===typeof f?(f=""+f,null!==d&&
-	6===d.tag?(c(a,d.sibling),d=e(d,f),d.return=a,a=d):(c(a,d),d=Kd(f,a.mode,h),d.return=a,a=d),g(a)):c(a,d)}return ya}var Od=Id(true),Pd=Id(false),Qd=ic(null),Rd=null,Sd=null,Td=null;function Ud(){Td=Sd=Rd=null;}function Vd(a,b,c){Sa?(v(Qd,b._currentValue),b._currentValue=c):(v(Qd,b._currentValue2),b._currentValue2=c);}function Wd(a){var b=Qd.current;q(Qd);Sa?a._currentValue=b:a._currentValue2=b;}
-	function Xd(a,b,c){for(;null!==a;){var d=a.alternate;(a.childLanes&b)!==b?(a.childLanes|=b,null!==d&&(d.childLanes|=b)):null!==d&&(d.childLanes&b)!==b&&(d.childLanes|=b);if(a===c)break;a=a.return;}}function Yd(a,b){Rd=a;Td=Sd=null;a=a.dependencies;null!==a&&null!==a.firstContext&&(0!==(a.lanes&b)&&(G=true),a.firstContext=null);}
-	function Zd(a){var b=Sa?a._currentValue:a._currentValue2;if(Td!==a)if(a={context:a,memoizedValue:b,next:null},null===Sd){if(null===Rd)throw Error(n(308));Sd=a;Rd.dependencies={lanes:0,firstContext:a};}else Sd=Sd.next=a;return b}var $d=null;function ae(a){null===$d?$d=[a]:$d.push(a);}function be(a,b,c,d){var e=b.interleaved;null===e?(c.next=c,ae(b)):(c.next=e.next,e.next=c);b.interleaved=c;return ce(a,d)}
-	function ce(a,b){a.lanes|=b;var c=a.alternate;null!==c&&(c.lanes|=b);c=a;for(a=a.return;null!==a;)a.childLanes|=b,c=a.alternate,null!==c&&(c.childLanes|=b),c=a,a=a.return;return 3===c.tag?c.stateNode:null}var de=false;function ee(a){a.updateQueue={baseState:a.memoizedState,firstBaseUpdate:null,lastBaseUpdate:null,shared:{pending:null,interleaved:null,lanes:0},effects:null};}
-	function fe(a,b){a=a.updateQueue;b.updateQueue===a&&(b.updateQueue={baseState:a.baseState,firstBaseUpdate:a.firstBaseUpdate,lastBaseUpdate:a.lastBaseUpdate,shared:a.shared,effects:a.effects});}function ge(a,b){return {eventTime:a,lane:b,tag:0,payload:null,callback:null,next:null}}
-	function he(a,b,c){var d=a.updateQueue;if(null===d)return null;d=d.shared;if(0!==(H&2)){var e=d.pending;null===e?b.next=b:(b.next=e.next,e.next=b);d.pending=b;return ce(a,c)}e=d.interleaved;null===e?(b.next=b,ae(d)):(b.next=e.next,e.next=b);d.interleaved=b;return ce(a,c)}function ie(a,b,c){b=b.updateQueue;if(null!==b&&(b=b.shared,0!==(c&4194240))){var d=b.lanes;d&=a.pendingLanes;c|=d;b.lanes=c;Hc(a,c);}}
-	function je(a,b){var c=a.updateQueue,d=a.alternate;if(null!==d&&(d=d.updateQueue,c===d)){var e=null,f=null;c=c.firstBaseUpdate;if(null!==c){do{var g={eventTime:c.eventTime,lane:c.lane,tag:c.tag,payload:c.payload,callback:c.callback,next:null};null===f?e=f=g:f=f.next=g;c=c.next;}while(null!==c);null===f?e=f=b:f=f.next=b;}else e=f=b;c={baseState:d.baseState,firstBaseUpdate:e,lastBaseUpdate:f,shared:d.shared,effects:d.effects};a.updateQueue=c;return}a=c.lastBaseUpdate;null===a?c.firstBaseUpdate=b:a.next=
-	b;c.lastBaseUpdate=b;}
-	function ke(a,b,c,d){var e=a.updateQueue;de=false;var f=e.firstBaseUpdate,g=e.lastBaseUpdate,h=e.shared.pending;if(null!==h){e.shared.pending=null;var k=h,l=k.next;k.next=null;null===g?f=l:g.next=l;g=k;var m=a.alternate;null!==m&&(m=m.updateQueue,h=m.lastBaseUpdate,h!==g&&(null===h?m.firstBaseUpdate=l:h.next=l,m.lastBaseUpdate=k));}if(null!==f){var r=e.baseState;g=0;m=l=k=null;h=f;do{var p=h.lane,B=h.eventTime;if((d&p)===p){null!==m&&(m=m.next={eventTime:B,lane:0,tag:h.tag,payload:h.payload,callback:h.callback,
-	next:null});a:{var w=a,Y=h;p=b;B=c;switch(Y.tag){case 1:w=Y.payload;if("function"===typeof w){r=w.call(B,r,p);break a}r=w;break a;case 3:w.flags=w.flags&-65537|128;case 0:w=Y.payload;p="function"===typeof w?w.call(B,r,p):w;if(null===p||void 0===p)break a;r=ca({},r,p);break a;case 2:de=true;}}null!==h.callback&&0!==h.lane&&(a.flags|=64,p=e.effects,null===p?e.effects=[h]:p.push(h));}else B={eventTime:B,lane:p,tag:h.tag,payload:h.payload,callback:h.callback,next:null},null===m?(l=m=B,k=r):m=m.next=B,g|=
-	p;h=h.next;if(null===h)if(h=e.shared.pending,null===h)break;else p=h,h=p.next,p.next=null,e.lastBaseUpdate=p,e.shared.pending=null;}while(1);null===m&&(k=r);e.baseState=k;e.firstBaseUpdate=l;e.lastBaseUpdate=m;b=e.shared.interleaved;if(null!==b){e=b;do g|=e.lane,e=e.next;while(e!==b)}else null===f&&(e.shared.lanes=0);le|=g;a.lanes=g;a.memoizedState=r;}}
-	function me(a,b,c){a=b.effects;b.effects=null;if(null!==a)for(b=0;b<a.length;b++){var d=a[b],e=d.callback;if(null!==e){d.callback=null;d=c;if("function"!==typeof e)throw Error(n(191,e));e.call(d);}}}var ne={},oe=ic(ne),pe=ic(ne),qe=ic(ne);function re(a){if(a===ne)throw Error(n(174));return a}function se(a,b){v(qe,b);v(pe,a);v(oe,ne);a=Fa(b);q(oe);v(oe,a);}function te(){q(oe);q(pe);q(qe);}function ue(a){var b=re(qe.current),c=re(oe.current);b=Ga(c,a.type,b);c!==b&&(v(pe,a),v(oe,b));}
-	function ve(a){pe.current===a&&(q(oe),q(pe));}var I=ic(0);function we(a){for(var b=a;null!==b;){if(13===b.tag){var c=b.memoizedState;if(null!==c&&(c=c.dehydrated,null===c||Jb(c)||Kb(c)))return b}else if(19===b.tag&&void 0!==b.memoizedProps.revealOrder){if(0!==(b.flags&128))return b}else if(null!==b.child){b.child.return=b;b=b.child;continue}if(b===a)break;for(;null===b.sibling;){if(null===b.return||b.return===a)return null;b=b.return;}b.sibling.return=b.return;b=b.sibling;}return null}var xe=[];
-	function ye(){for(var a=0;a<xe.length;a++){var b=xe[a];Sa?b._workInProgressVersionPrimary=null:b._workInProgressVersionSecondary=null;}xe.length=0;}var ze=da.ReactCurrentDispatcher,Ae=da.ReactCurrentBatchConfig,Be=0,J=null,K=null,L=null,Ce=false,De=false,Ee=0,Fe=0;function M(){throw Error(n(321));}function Ge(a,b){if(null===b)return  false;for(var c=0;c<b.length&&c<a.length;c++)if(!Vc(a[c],b[c]))return  false;return  true}
-	function He(a,b,c,d,e,f){Be=f;J=b;b.memoizedState=null;b.updateQueue=null;b.lanes=0;ze.current=null===a||null===a.memoizedState?Ie:Je;a=c(d,e);if(De){f=0;do{De=false;Ee=0;if(25<=f)throw Error(n(301));f+=1;L=K=null;b.updateQueue=null;ze.current=Ke;a=c(d,e);}while(De)}ze.current=Le;b=null!==K&&null!==K.next;Be=0;L=K=J=null;Ce=false;if(b)throw Error(n(300));return a}function Me(){var a=0!==Ee;Ee=0;return a}
-	function Ne(){var a={memoizedState:null,baseState:null,baseQueue:null,queue:null,next:null};null===L?J.memoizedState=L=a:L=L.next=a;return L}function Oe(){if(null===K){var a=J.alternate;a=null!==a?a.memoizedState:null;}else a=K.next;var b=null===L?J.memoizedState:L.next;if(null!==b)L=b,K=a;else {if(null===a)throw Error(n(310));K=a;a={memoizedState:K.memoizedState,baseState:K.baseState,baseQueue:K.baseQueue,queue:K.queue,next:null};null===L?J.memoizedState=L=a:L=L.next=a;}return L}
-	function Pe(a,b){return "function"===typeof b?b(a):b}
-	function Qe(a){var b=Oe(),c=b.queue;if(null===c)throw Error(n(311));c.lastRenderedReducer=a;var d=K,e=d.baseQueue,f=c.pending;if(null!==f){if(null!==e){var g=e.next;e.next=f.next;f.next=g;}d.baseQueue=e=f;c.pending=null;}if(null!==e){f=e.next;d=d.baseState;var h=g=null,k=null,l=f;do{var m=l.lane;if((Be&m)===m)null!==k&&(k=k.next={lane:0,action:l.action,hasEagerState:l.hasEagerState,eagerState:l.eagerState,next:null}),d=l.hasEagerState?l.eagerState:a(d,l.action);else {var r={lane:m,action:l.action,hasEagerState:l.hasEagerState,
-	eagerState:l.eagerState,next:null};null===k?(h=k=r,g=d):k=k.next=r;J.lanes|=m;le|=m;}l=l.next;}while(null!==l&&l!==f);null===k?g=d:k.next=h;Vc(d,b.memoizedState)||(G=true);b.memoizedState=d;b.baseState=g;b.baseQueue=k;c.lastRenderedState=d;}a=c.interleaved;if(null!==a){e=a;do f=e.lane,J.lanes|=f,le|=f,e=e.next;while(e!==a)}else null===e&&(c.lanes=0);return [b.memoizedState,c.dispatch]}
-	function Re(a){var b=Oe(),c=b.queue;if(null===c)throw Error(n(311));c.lastRenderedReducer=a;var d=c.dispatch,e=c.pending,f=b.memoizedState;if(null!==e){c.pending=null;var g=e=e.next;do f=a(f,g.action),g=g.next;while(g!==e);Vc(f,b.memoizedState)||(G=true);b.memoizedState=f;null===b.baseQueue&&(b.baseState=f);c.lastRenderedState=f;}return [f,d]}function Se(){}
-	function Te(a,b){var c=J,d=Oe(),e=b(),f=!Vc(d.memoizedState,e);f&&(d.memoizedState=e,G=true);d=d.queue;Ue(Ve.bind(null,c,d,a),[a]);if(d.getSnapshot!==b||f||null!==L&&L.memoizedState.tag&1){c.flags|=2048;We(9,Xe.bind(null,c,d,e,b),void 0,null);if(null===N)throw Error(n(349));0!==(Be&30)||Ye(c,b,e);}return e}function Ye(a,b,c){a.flags|=16384;a={getSnapshot:b,value:c};b=J.updateQueue;null===b?(b={lastEffect:null,stores:null},J.updateQueue=b,b.stores=[a]):(c=b.stores,null===c?b.stores=[a]:c.push(a));}
-	function Xe(a,b,c,d){b.value=c;b.getSnapshot=d;Ze(b)&&$e(a);}function Ve(a,b,c){return c(function(){Ze(b)&&$e(a);})}function Ze(a){var b=a.getSnapshot;a=a.value;try{var c=b();return !Vc(a,c)}catch(d){return  true}}function $e(a){var b=ce(a,1);null!==b&&af(b,a,1,-1);}
-	function bf(a){var b=Ne();"function"===typeof a&&(a=a());b.memoizedState=b.baseState=a;a={pending:null,interleaved:null,lanes:0,dispatch:null,lastRenderedReducer:Pe,lastRenderedState:a};b.queue=a;a=a.dispatch=cf.bind(null,J,a);return [b.memoizedState,a]}
-	function We(a,b,c,d){a={tag:a,create:b,destroy:c,deps:d,next:null};b=J.updateQueue;null===b?(b={lastEffect:null,stores:null},J.updateQueue=b,b.lastEffect=a.next=a):(c=b.lastEffect,null===c?b.lastEffect=a.next=a:(d=c.next,c.next=a,a.next=d,b.lastEffect=a));return a}function df(){return Oe().memoizedState}function ef(a,b,c,d){var e=Ne();J.flags|=a;e.memoizedState=We(1|b,c,void 0,void 0===d?null:d);}
-	function ff(a,b,c,d){var e=Oe();d=void 0===d?null:d;var f=void 0;if(null!==K){var g=K.memoizedState;f=g.destroy;if(null!==d&&Ge(d,g.deps)){e.memoizedState=We(b,c,f,d);return}}J.flags|=a;e.memoizedState=We(1|b,c,f,d);}function gf(a,b){return ef(8390656,8,a,b)}function Ue(a,b){return ff(2048,8,a,b)}function hf(a,b){return ff(4,2,a,b)}function jf(a,b){return ff(4,4,a,b)}
-	function kf(a,b){if("function"===typeof b)return a=a(),b(a),function(){b(null);};if(null!==b&&void 0!==b)return a=a(),b.current=a,function(){b.current=null;}}function lf(a,b,c){c=null!==c&&void 0!==c?c.concat([a]):null;return ff(4,4,kf.bind(null,b,a),c)}function mf(){}function nf(a,b){var c=Oe();b=void 0===b?null:b;var d=c.memoizedState;if(null!==d&&null!==b&&Ge(b,d[1]))return d[0];c.memoizedState=[a,b];return a}
-	function of(a,b){var c=Oe();b=void 0===b?null:b;var d=c.memoizedState;if(null!==d&&null!==b&&Ge(b,d[1]))return d[0];a=a();c.memoizedState=[a,b];return a}function pf(a,b,c){if(0===(Be&21))return a.baseState&&(a.baseState=false,G=true),a.memoizedState=c;Vc(c,b)||(c=Dc(),J.lanes|=c,le|=c,a.baseState=true);return b}function qf(a,b){var c=C;C=0!==c&&4>c?c:4;a(true);var d=Ae.transition;Ae.transition={};try{a(!1),b();}finally{C=c,Ae.transition=d;}}function rf(){return Oe().memoizedState}
-	function sf(a,b,c){var d=tf(a);c={lane:d,action:c,hasEagerState:false,eagerState:null,next:null};if(uf(a))vf(b,c);else if(c=be(a,b,c,d),null!==c){var e=O();af(c,a,d,e);wf(c,b,d);}}
-	function cf(a,b,c){var d=tf(a),e={lane:d,action:c,hasEagerState:false,eagerState:null,next:null};if(uf(a))vf(b,e);else {var f=a.alternate;if(0===a.lanes&&(null===f||0===f.lanes)&&(f=b.lastRenderedReducer,null!==f))try{var g=b.lastRenderedState,h=f(g,c);e.hasEagerState=!0;e.eagerState=h;if(Vc(h,g)){var k=b.interleaved;null===k?(e.next=e,ae(b)):(e.next=k.next,k.next=e);b.interleaved=e;return}}catch(l){}finally{}c=be(a,b,e,d);null!==c&&(e=O(),af(c,a,d,e),wf(c,b,d));}}
-	function uf(a){var b=a.alternate;return a===J||null!==b&&b===J}function vf(a,b){De=Ce=true;var c=a.pending;null===c?b.next=b:(b.next=c.next,c.next=b);a.pending=b;}function wf(a,b,c){if(0!==(c&4194240)){var d=b.lanes;d&=a.pendingLanes;c|=d;b.lanes=c;Hc(a,c);}}
-	var Le={readContext:Zd,useCallback:M,useContext:M,useEffect:M,useImperativeHandle:M,useInsertionEffect:M,useLayoutEffect:M,useMemo:M,useReducer:M,useRef:M,useState:M,useDebugValue:M,useDeferredValue:M,useTransition:M,useMutableSource:M,useSyncExternalStore:M,useId:M,unstable_isNewReconciler:false},Ie={readContext:Zd,useCallback:function(a,b){Ne().memoizedState=[a,void 0===b?null:b];return a},useContext:Zd,useEffect:gf,useImperativeHandle:function(a,b,c){c=null!==c&&void 0!==c?c.concat([a]):null;return ef(4194308,
-	4,kf.bind(null,b,a),c)},useLayoutEffect:function(a,b){return ef(4194308,4,a,b)},useInsertionEffect:function(a,b){return ef(4,2,a,b)},useMemo:function(a,b){var c=Ne();b=void 0===b?null:b;a=a();c.memoizedState=[a,b];return a},useReducer:function(a,b,c){var d=Ne();b=void 0!==c?c(b):b;d.memoizedState=d.baseState=b;a={pending:null,interleaved:null,lanes:0,dispatch:null,lastRenderedReducer:a,lastRenderedState:b};d.queue=a;a=a.dispatch=sf.bind(null,J,a);return [d.memoizedState,a]},useRef:function(a){var b=
-	Ne();a={current:a};return b.memoizedState=a},useState:bf,useDebugValue:mf,useDeferredValue:function(a){return Ne().memoizedState=a},useTransition:function(){var a=bf(false),b=a[0];a=qf.bind(null,a[1]);Ne().memoizedState=a;return [b,a]},useMutableSource:function(){},useSyncExternalStore:function(a,b,c){var d=J,e=Ne();if(F){if(void 0===c)throw Error(n(407));c=c();}else {c=b();if(null===N)throw Error(n(349));0!==(Be&30)||Ye(d,b,c);}e.memoizedState=c;var f={value:c,getSnapshot:b};e.queue=f;gf(Ve.bind(null,d,
-	f,a),[a]);d.flags|=2048;We(9,Xe.bind(null,d,f,c,b),void 0,null);return c},useId:function(){var a=Ne(),b=N.identifierPrefix;if(F){var c=jd;var d=id;c=(d&~(1<<32-tc(d)-1)).toString(32)+c;b=":"+b+"R"+c;c=Ee++;0<c&&(b+="H"+c.toString(32));b+=":";}else c=Fe++,b=":"+b+"r"+c.toString(32)+":";return a.memoizedState=b},unstable_isNewReconciler:false},Je={readContext:Zd,useCallback:nf,useContext:Zd,useEffect:Ue,useImperativeHandle:lf,useInsertionEffect:hf,useLayoutEffect:jf,useMemo:of,useReducer:Qe,useRef:df,useState:function(){return Qe(Pe)},
-	useDebugValue:mf,useDeferredValue:function(a){var b=Oe();return pf(b,K.memoizedState,a)},useTransition:function(){var a=Qe(Pe)[0],b=Oe().memoizedState;return [a,b]},useMutableSource:Se,useSyncExternalStore:Te,useId:rf,unstable_isNewReconciler:false},Ke={readContext:Zd,useCallback:nf,useContext:Zd,useEffect:Ue,useImperativeHandle:lf,useInsertionEffect:hf,useLayoutEffect:jf,useMemo:of,useReducer:Re,useRef:df,useState:function(){return Re(Pe)},useDebugValue:mf,useDeferredValue:function(a){var b=Oe();return null===
-	K?b.memoizedState=a:pf(b,K.memoizedState,a)},useTransition:function(){var a=Re(Pe)[0],b=Oe().memoizedState;return [a,b]},useMutableSource:Se,useSyncExternalStore:Te,useId:rf,unstable_isNewReconciler:false};function xf(a,b){if(a&&a.defaultProps){b=ca({},b);a=a.defaultProps;for(var c in a) void 0===b[c]&&(b[c]=a[c]);return b}return b}function yf(a,b,c,d){b=a.memoizedState;c=c(d,b);c=null===c||void 0===c?b:ca({},b,c);a.memoizedState=c;0===a.lanes&&(a.updateQueue.baseState=c);}
-	var zf={isMounted:function(a){return (a=a._reactInternals)?wa(a)===a:false},enqueueSetState:function(a,b,c){a=a._reactInternals;var d=O(),e=tf(a),f=ge(d,e);f.payload=b;void 0!==c&&null!==c&&(f.callback=c);b=he(a,f,e);null!==b&&(af(b,a,e,d),ie(b,a,e));},enqueueReplaceState:function(a,b,c){a=a._reactInternals;var d=O(),e=tf(a),f=ge(d,e);f.tag=1;f.payload=b;void 0!==c&&null!==c&&(f.callback=c);b=he(a,f,e);null!==b&&(af(b,a,e,d),ie(b,a,e));},enqueueForceUpdate:function(a,b){a=a._reactInternals;var c=O(),d=
-	tf(a),e=ge(c,d);e.tag=2;void 0!==b&&null!==b&&(e.callback=b);b=he(a,e,d);null!==b&&(af(b,a,d,c),ie(b,a,d));}};function Af(a,b,c,d,e,f,g){a=a.stateNode;return "function"===typeof a.shouldComponentUpdate?a.shouldComponentUpdate(d,f,g):b.prototype&&b.prototype.isPureReactComponent?!Dd(c,d)||!Dd(e,f):true}
-	function Bf(a,b,c){var d=false,e=jc;var f=b.contextType;"object"===typeof f&&null!==f?f=Zd(f):(e=A(b)?kc:x.current,d=b.contextTypes,f=(d=null!==d&&void 0!==d)?mc(a,e):jc);b=new b(c,f);a.memoizedState=null!==b.state&&void 0!==b.state?b.state:null;b.updater=zf;a.stateNode=b;b._reactInternals=a;d&&(a=a.stateNode,a.__reactInternalMemoizedUnmaskedChildContext=e,a.__reactInternalMemoizedMaskedChildContext=f);return b}
-	function Cf(a,b,c,d){a=b.state;"function"===typeof b.componentWillReceiveProps&&b.componentWillReceiveProps(c,d);"function"===typeof b.UNSAFE_componentWillReceiveProps&&b.UNSAFE_componentWillReceiveProps(c,d);b.state!==a&&zf.enqueueReplaceState(b,b.state,null);}
-	function Df(a,b,c,d){var e=a.stateNode;e.props=c;e.state=a.memoizedState;e.refs={};ee(a);var f=b.contextType;"object"===typeof f&&null!==f?e.context=Zd(f):(f=A(b)?kc:x.current,e.context=mc(a,f));e.state=a.memoizedState;f=b.getDerivedStateFromProps;"function"===typeof f&&(yf(a,b,f,c),e.state=a.memoizedState);"function"===typeof b.getDerivedStateFromProps||"function"===typeof e.getSnapshotBeforeUpdate||"function"!==typeof e.UNSAFE_componentWillMount&&"function"!==typeof e.componentWillMount||(b=e.state,
-	"function"===typeof e.componentWillMount&&e.componentWillMount(),"function"===typeof e.UNSAFE_componentWillMount&&e.UNSAFE_componentWillMount(),b!==e.state&&zf.enqueueReplaceState(e,e.state,null),ke(a,c,e,d),e.state=a.memoizedState);"function"===typeof e.componentDidMount&&(a.flags|=4194308);}function Ef(a,b){try{var c="",d=b;do c+=Ed(d),d=d.return;while(d);var e=c;}catch(f){e="\nError generating stack: "+f.message+"\n"+f.stack;}return {value:a,source:b,stack:e,digest:null}}
-	function Ff(a,b,c){return {value:a,source:null,stack:null!=c?c:null,digest:null!=b?b:null}}function Gf(a,b){try{console.error(b.value);}catch(c){setTimeout(function(){throw c;});}}var Hf="function"===typeof WeakMap?WeakMap:Map;function If(a,b,c){c=ge(-1,c);c.tag=3;c.payload={element:null};var d=b.value;c.callback=function(){Jf||(Jf=true,Kf=d);Gf(a,b);};return c}
-	function Lf(a,b,c){c=ge(-1,c);c.tag=3;var d=a.type.getDerivedStateFromError;if("function"===typeof d){var e=b.value;c.payload=function(){return d(e)};c.callback=function(){Gf(a,b);};}var f=a.stateNode;null!==f&&"function"===typeof f.componentDidCatch&&(c.callback=function(){Gf(a,b);"function"!==typeof d&&(null===Mf?Mf=new Set([this]):Mf.add(this));var c=b.stack;this.componentDidCatch(b.value,{componentStack:null!==c?c:""});});return c}
-	function Nf(a,b,c){var d=a.pingCache;if(null===d){d=a.pingCache=new Hf;var e=new Set;d.set(b,e);}else e=d.get(b),void 0===e&&(e=new Set,d.set(b,e));e.has(c)||(e.add(c),a=Of.bind(null,a,b,c),b.then(a,a));}function Pf(a){do{var b;if(b=13===a.tag)b=a.memoizedState,b=null!==b?null!==b.dehydrated?true:false:true;if(b)return a;a=a.return;}while(null!==a);return null}
-	function Qf(a,b,c,d,e){if(0===(a.mode&1))return a===b?a.flags|=65536:(a.flags|=128,c.flags|=131072,c.flags&=-52805,1===c.tag&&(null===c.alternate?c.tag=17:(b=ge(-1,1),b.tag=2,he(c,b,1))),c.lanes|=1),a;a.flags|=65536;a.lanes=e;return a}var Rf=da.ReactCurrentOwner,G=false;function P(a,b,c,d){b.child=null===a?Pd(b,null,c,d):Od(b,a.child,c,d);}
-	function Sf(a,b,c,d,e){c=c.render;var f=b.ref;Yd(b,e);d=He(a,b,c,d,f,e);c=Me();if(null!==a&&!G)return b.updateQueue=a.updateQueue,b.flags&=-2053,a.lanes&=~e,Tf(a,b,e);F&&c&&md(b);b.flags|=1;P(a,b,d,e);return b.child}
-	function Uf(a,b,c,d,e){if(null===a){var f=c.type;if("function"===typeof f&&!Vf(f)&&void 0===f.defaultProps&&null===c.compare&&void 0===c.defaultProps)return b.tag=15,b.type=f,Wf(a,b,f,d,e);a=Ld(c.type,null,d,b,b.mode,e);a.ref=b.ref;a.return=b;return b.child=a}f=a.child;if(0===(a.lanes&e)){var g=f.memoizedProps;c=c.compare;c=null!==c?c:Dd;if(c(g,d)&&a.ref===b.ref)return Tf(a,b,e)}b.flags|=1;a=Jd(f,d);a.ref=b.ref;a.return=b;return b.child=a}
-	function Wf(a,b,c,d,e){if(null!==a){var f=a.memoizedProps;if(Dd(f,d)&&a.ref===b.ref)if(G=false,b.pendingProps=d=f,0!==(a.lanes&e))0!==(a.flags&131072)&&(G=true);else return b.lanes=a.lanes,Tf(a,b,e)}return Xf(a,b,c,d,e)}
-	function Yf(a,b,c){var d=b.pendingProps,e=d.children,f=null!==a?a.memoizedState:null;if("hidden"===d.mode)if(0===(b.mode&1))b.memoizedState={baseLanes:0,cachePool:null,transitions:null},v(Zf,$f),$f|=c;else {if(0===(c&1073741824))return a=null!==f?f.baseLanes|c:c,b.lanes=b.childLanes=1073741824,b.memoizedState={baseLanes:a,cachePool:null,transitions:null},b.updateQueue=null,v(Zf,$f),$f|=a,null;b.memoizedState={baseLanes:0,cachePool:null,transitions:null};d=null!==f?f.baseLanes:c;v(Zf,$f);$f|=d;}else null!==
-	f?(d=f.baseLanes|c,b.memoizedState=null):d=c,v(Zf,$f),$f|=d;P(a,b,e,c);return b.child}function ag(a,b){var c=b.ref;if(null===a&&null!==c||null!==a&&a.ref!==c)b.flags|=512,b.flags|=2097152;}function Xf(a,b,c,d,e){var f=A(c)?kc:x.current;f=mc(b,f);Yd(b,e);c=He(a,b,c,d,f,e);d=Me();if(null!==a&&!G)return b.updateQueue=a.updateQueue,b.flags&=-2053,a.lanes&=~e,Tf(a,b,e);F&&d&&md(b);b.flags|=1;P(a,b,c,e);return b.child}
-	function bg(a,b,c,d,e){if(A(c)){var f=true;qc(b);}else f=false;Yd(b,e);if(null===b.stateNode)cg(a,b),Bf(b,c,d),Df(b,c,d,e),d=true;else if(null===a){var g=b.stateNode,h=b.memoizedProps;g.props=h;var k=g.context,l=c.contextType;"object"===typeof l&&null!==l?l=Zd(l):(l=A(c)?kc:x.current,l=mc(b,l));var m=c.getDerivedStateFromProps,r="function"===typeof m||"function"===typeof g.getSnapshotBeforeUpdate;r||"function"!==typeof g.UNSAFE_componentWillReceiveProps&&"function"!==typeof g.componentWillReceiveProps||(h!==
-	d||k!==l)&&Cf(b,g,d,l);de=false;var p=b.memoizedState;g.state=p;ke(b,d,g,e);k=b.memoizedState;h!==d||p!==k||z.current||de?("function"===typeof m&&(yf(b,c,m,d),k=b.memoizedState),(h=de||Af(b,c,h,d,p,k,l))?(r||"function"!==typeof g.UNSAFE_componentWillMount&&"function"!==typeof g.componentWillMount||("function"===typeof g.componentWillMount&&g.componentWillMount(),"function"===typeof g.UNSAFE_componentWillMount&&g.UNSAFE_componentWillMount()),"function"===typeof g.componentDidMount&&(b.flags|=4194308)):
-	("function"===typeof g.componentDidMount&&(b.flags|=4194308),b.memoizedProps=d,b.memoizedState=k),g.props=d,g.state=k,g.context=l,d=h):("function"===typeof g.componentDidMount&&(b.flags|=4194308),d=false);}else {g=b.stateNode;fe(a,b);h=b.memoizedProps;l=b.type===b.elementType?h:xf(b.type,h);g.props=l;r=b.pendingProps;p=g.context;k=c.contextType;"object"===typeof k&&null!==k?k=Zd(k):(k=A(c)?kc:x.current,k=mc(b,k));var B=c.getDerivedStateFromProps;(m="function"===typeof B||"function"===typeof g.getSnapshotBeforeUpdate)||
-	"function"!==typeof g.UNSAFE_componentWillReceiveProps&&"function"!==typeof g.componentWillReceiveProps||(h!==r||p!==k)&&Cf(b,g,d,k);de=false;p=b.memoizedState;g.state=p;ke(b,d,g,e);var w=b.memoizedState;h!==r||p!==w||z.current||de?("function"===typeof B&&(yf(b,c,B,d),w=b.memoizedState),(l=de||Af(b,c,l,d,p,w,k)||false)?(m||"function"!==typeof g.UNSAFE_componentWillUpdate&&"function"!==typeof g.componentWillUpdate||("function"===typeof g.componentWillUpdate&&g.componentWillUpdate(d,w,k),"function"===typeof g.UNSAFE_componentWillUpdate&&
-	g.UNSAFE_componentWillUpdate(d,w,k)),"function"===typeof g.componentDidUpdate&&(b.flags|=4),"function"===typeof g.getSnapshotBeforeUpdate&&(b.flags|=1024)):("function"!==typeof g.componentDidUpdate||h===a.memoizedProps&&p===a.memoizedState||(b.flags|=4),"function"!==typeof g.getSnapshotBeforeUpdate||h===a.memoizedProps&&p===a.memoizedState||(b.flags|=1024),b.memoizedProps=d,b.memoizedState=w),g.props=d,g.state=w,g.context=k,d=l):("function"!==typeof g.componentDidUpdate||h===a.memoizedProps&&p===
-	a.memoizedState||(b.flags|=4),"function"!==typeof g.getSnapshotBeforeUpdate||h===a.memoizedProps&&p===a.memoizedState||(b.flags|=1024),d=false);}return dg(a,b,c,d,f,e)}
-	function dg(a,b,c,d,e,f){ag(a,b);var g=0!==(b.flags&128);if(!d&&!g)return e&&rc(b,c,false),Tf(a,b,f);d=b.stateNode;Rf.current=b;var h=g&&"function"!==typeof c.getDerivedStateFromError?null:d.render();b.flags|=1;null!==a&&g?(b.child=Od(b,a.child,null,f),b.child=Od(b,null,h,f)):P(a,b,h,f);b.memoizedState=d.state;e&&rc(b,c,true);return b.child}function eg(a){var b=a.stateNode;b.pendingContext?oc(a,b.pendingContext,b.pendingContext!==b.context):b.context&&oc(a,b.context,false);se(a,b.containerInfo);}
-	function fg(a,b,c,d,e){Ad();Bd(e);b.flags|=256;P(a,b,c,d);return b.child}var gg={dehydrated:null,treeContext:null,retryLane:0};function hg(a){return {baseLanes:a,cachePool:null,transitions:null}}
-	function ig(a,b,c){var d=b.pendingProps,e=I.current,f=false,g=0!==(b.flags&128),h;(h=g)||(h=null!==a&&null===a.memoizedState?false:0!==(e&2));if(h)f=true,b.flags&=-129;else if(null===a||null!==a.memoizedState)e|=1;v(I,e&1);if(null===a){wd(b);a=b.memoizedState;if(null!==a&&(a=a.dehydrated,null!==a))return 0===(b.mode&1)?b.lanes=1:Kb(a)?b.lanes=8:b.lanes=1073741824,null;g=d.children;a=d.fallback;return f?(d=b.mode,f=b.child,g={mode:"hidden",children:g},0===(d&1)&&null!==f?(f.childLanes=0,f.pendingProps=g):
-	f=jg(g,d,0,null),a=Nd(a,d,c,null),f.return=b,a.return=b,f.sibling=a,b.child=f,b.child.memoizedState=hg(c),b.memoizedState=gg,a):kg(b,g)}e=a.memoizedState;if(null!==e&&(h=e.dehydrated,null!==h))return lg(a,b,g,d,h,e,c);if(f){f=d.fallback;g=b.mode;e=a.child;h=e.sibling;var k={mode:"hidden",children:d.children};0===(g&1)&&b.child!==e?(d=b.child,d.childLanes=0,d.pendingProps=k,b.deletions=null):(d=Jd(e,k),d.subtreeFlags=e.subtreeFlags&14680064);null!==h?f=Jd(h,f):(f=Nd(f,g,c,null),f.flags|=2);f.return=
-	b;d.return=b;d.sibling=f;b.child=d;d=f;f=b.child;g=a.child.memoizedState;g=null===g?hg(c):{baseLanes:g.baseLanes|c,cachePool:null,transitions:g.transitions};f.memoizedState=g;f.childLanes=a.childLanes&~c;b.memoizedState=gg;return d}f=a.child;a=f.sibling;d=Jd(f,{mode:"visible",children:d.children});0===(b.mode&1)&&(d.lanes=c);d.return=b;d.sibling=null;null!==a&&(c=b.deletions,null===c?(b.deletions=[a],b.flags|=16):c.push(a));b.child=d;b.memoizedState=null;return d}
-	function kg(a,b){b=jg({mode:"visible",children:b},a.mode,0,null);b.return=a;return a.child=b}function mg(a,b,c,d){null!==d&&Bd(d);Od(b,a.child,null,c);a=kg(b,b.pendingProps.children);a.flags|=2;b.memoizedState=null;return a}
-	function lg(a,b,c,d,e,f,g){if(c){if(b.flags&256)return b.flags&=-257,d=Ff(Error(n(422))),mg(a,b,g,d);if(null!==b.memoizedState)return b.child=a.child,b.flags|=128,null;f=d.fallback;e=b.mode;d=jg({mode:"visible",children:d.children},e,0,null);f=Nd(f,e,g,null);f.flags|=2;d.return=b;f.return=b;d.sibling=f;b.child=d;0!==(b.mode&1)&&Od(b,a.child,null,g);b.child.memoizedState=hg(g);b.memoizedState=gg;return f}if(0===(b.mode&1))return mg(a,b,g,null);if(Kb(e))return d=Lb(e).digest,f=Error(n(419)),d=Ff(f,
-	d,void 0),mg(a,b,g,d);c=0!==(g&a.childLanes);if(G||c){d=N;if(null!==d){switch(g&-g){case 4:e=2;break;case 16:e=8;break;case 64:case 128:case 256:case 512:case 1024:case 2048:case 4096:case 8192:case 16384:case 32768:case 65536:case 131072:case 262144:case 524288:case 1048576:case 2097152:case 4194304:case 8388608:case 16777216:case 33554432:case 67108864:e=32;break;case 536870912:e=268435456;break;default:e=0;}e=0!==(e&(d.suspendedLanes|g))?0:e;0!==e&&e!==f.retryLane&&(f.retryLane=e,ce(a,e),af(d,a,
-	e,-1));}ng();d=Ff(Error(n(421)));return mg(a,b,g,d)}if(Jb(e))return b.flags|=128,b.child=a.child,b=og.bind(null,a),Mb(e,b),null;a=f.treeContext;Va&&(pd=Qb(e),od=b,F=true,rd=null,qd=false,null!==a&&(fd[gd++]=id,fd[gd++]=jd,fd[gd++]=hd,id=a.id,jd=a.overflow,hd=b));b=kg(b,d.children);b.flags|=4096;return b}function pg(a,b,c){a.lanes|=b;var d=a.alternate;null!==d&&(d.lanes|=b);Xd(a.return,b,c);}
-	function qg(a,b,c,d,e){var f=a.memoizedState;null===f?a.memoizedState={isBackwards:b,rendering:null,renderingStartTime:0,last:d,tail:c,tailMode:e}:(f.isBackwards=b,f.rendering=null,f.renderingStartTime=0,f.last=d,f.tail=c,f.tailMode=e);}
-	function rg(a,b,c){var d=b.pendingProps,e=d.revealOrder,f=d.tail;P(a,b,d.children,c);d=I.current;if(0!==(d&2))d=d&1|2,b.flags|=128;else {if(null!==a&&0!==(a.flags&128))a:for(a=b.child;null!==a;){if(13===a.tag)null!==a.memoizedState&&pg(a,c,b);else if(19===a.tag)pg(a,c,b);else if(null!==a.child){a.child.return=a;a=a.child;continue}if(a===b)break a;for(;null===a.sibling;){if(null===a.return||a.return===b)break a;a=a.return;}a.sibling.return=a.return;a=a.sibling;}d&=1;}v(I,d);if(0===(b.mode&1))b.memoizedState=
-	null;else switch(e){case "forwards":c=b.child;for(e=null;null!==c;)a=c.alternate,null!==a&&null===we(a)&&(e=c),c=c.sibling;c=e;null===c?(e=b.child,b.child=null):(e=c.sibling,c.sibling=null);qg(b,false,e,c,f);break;case "backwards":c=null;e=b.child;for(b.child=null;null!==e;){a=e.alternate;if(null!==a&&null===we(a)){b.child=e;break}a=e.sibling;e.sibling=c;c=e;e=a;}qg(b,true,c,null,f);break;case "together":qg(b,false,null,null,void 0);break;default:b.memoizedState=null;}return b.child}
-	function cg(a,b){0===(b.mode&1)&&null!==a&&(a.alternate=null,b.alternate=null,b.flags|=2);}function Tf(a,b,c){null!==a&&(b.dependencies=a.dependencies);le|=b.lanes;if(0===(c&b.childLanes))return null;if(null!==a&&b.child!==a.child)throw Error(n(153));if(null!==b.child){a=b.child;c=Jd(a,a.pendingProps);b.child=c;for(c.return=b;null!==a.sibling;)a=a.sibling,c=c.sibling=Jd(a,a.pendingProps),c.return=b;c.sibling=null;}return b.child}
-	function sg(a,b,c){switch(b.tag){case 3:eg(b);Ad();break;case 5:ue(b);break;case 1:A(b.type)&&qc(b);break;case 4:se(b,b.stateNode.containerInfo);break;case 10:Vd(b,b.type._context,b.memoizedProps.value);break;case 13:var d=b.memoizedState;if(null!==d){if(null!==d.dehydrated)return v(I,I.current&1),b.flags|=128,null;if(0!==(c&b.child.childLanes))return ig(a,b,c);v(I,I.current&1);a=Tf(a,b,c);return null!==a?a.sibling:null}v(I,I.current&1);break;case 19:d=0!==(c&b.childLanes);if(0!==(a.flags&128)){if(d)return rg(a,
-	b,c);b.flags|=128;}var e=b.memoizedState;null!==e&&(e.rendering=null,e.tail=null,e.lastEffect=null);v(I,I.current);if(d)break;else return null;case 22:case 23:return b.lanes=0,Yf(a,b,c)}return Tf(a,b,c)}function tg(a){a.flags|=4;}function ug(a,b){if(null!==a&&a.child===b.child)return  true;if(0!==(b.flags&16))return  false;for(a=b.child;null!==a;){if(0!==(a.flags&12854)||0!==(a.subtreeFlags&12854))return  false;a=a.sibling;}return  true}var vg,wg,xg,yg;
-	if(Ta)vg=function(a,b){for(var c=b.child;null!==c;){if(5===c.tag||6===c.tag)Ka(a,c.stateNode);else if(4!==c.tag&&null!==c.child){c.child.return=c;c=c.child;continue}if(c===b)break;for(;null===c.sibling;){if(null===c.return||c.return===b)return;c=c.return;}c.sibling.return=c.return;c=c.sibling;}},wg=function(){},xg=function(a,b,c,d,e){a=a.memoizedProps;if(a!==d){var f=b.stateNode,g=re(oe.current);c=Ma(f,c,a,d,e,g);(b.updateQueue=c)&&tg(b);}},yg=function(a,b,c,d){c!==d&&tg(b);};else if(Ua){vg=function(a,
-	b,c,d){for(var e=b.child;null!==e;){if(5===e.tag){var f=e.stateNode;c&&d&&(f=Eb(f,e.type,e.memoizedProps,e));Ka(a,f);}else if(6===e.tag)f=e.stateNode,c&&d&&(f=Fb(f,e.memoizedProps,e)),Ka(a,f);else if(4!==e.tag)if(22===e.tag&&null!==e.memoizedState)f=e.child,null!==f&&(f.return=e),vg(a,e,true,true);else if(null!==e.child){e.child.return=e;e=e.child;continue}if(e===b)break;for(;null===e.sibling;){if(null===e.return||e.return===b)return;e=e.return;}e.sibling.return=e.return;e=e.sibling;}};var zg=function(a,
-	b,c,d){for(var e=b.child;null!==e;){if(5===e.tag){var f=e.stateNode;c&&d&&(f=Eb(f,e.type,e.memoizedProps,e));Ab(a,f);}else if(6===e.tag)f=e.stateNode,c&&d&&(f=Fb(f,e.memoizedProps,e)),Ab(a,f);else if(4!==e.tag)if(22===e.tag&&null!==e.memoizedState)f=e.child,null!==f&&(f.return=e),zg(a,e,true,true);else if(null!==e.child){e.child.return=e;e=e.child;continue}if(e===b)break;for(;null===e.sibling;){if(null===e.return||e.return===b)return;e=e.return;}e.sibling.return=e.return;e=e.sibling;}};wg=function(a,b){var c=
-	b.stateNode;if(!ug(a,b)){a=c.containerInfo;var d=zb(a);zg(d,b,false,false);c.pendingChildren=d;tg(b);Bb(a,d);}};xg=function(a,b,c,d,e){var f=a.stateNode,g=a.memoizedProps;if((a=ug(a,b))&&g===d)b.stateNode=f;else {var h=b.stateNode,k=re(oe.current),l=null;g!==d&&(l=Ma(h,c,g,d,e,k));a&&null===l?b.stateNode=f:(f=yb(f,l,c,g,d,b,a,h),La(f,c,d,e,k)&&tg(b),b.stateNode=f,a?tg(b):vg(f,b,false,false));}};yg=function(a,b,c,d){c!==d?(a=re(qe.current),c=re(oe.current),b.stateNode=Oa(d,a,c,b),tg(b)):b.stateNode=a.stateNode;};}else wg=
-	function(){},xg=function(){},yg=function(){};function Ag(a,b){if(!F)switch(a.tailMode){case "hidden":b=a.tail;for(var c=null;null!==b;)null!==b.alternate&&(c=b),b=b.sibling;null===c?a.tail=null:c.sibling=null;break;case "collapsed":c=a.tail;for(var d=null;null!==c;)null!==c.alternate&&(d=c),c=c.sibling;null===d?b||null===a.tail?a.tail=null:a.tail.sibling=null:d.sibling=null;}}
-	function Q(a){var b=null!==a.alternate&&a.alternate.child===a.child,c=0,d=0;if(b)for(var e=a.child;null!==e;)c|=e.lanes|e.childLanes,d|=e.subtreeFlags&14680064,d|=e.flags&14680064,e.return=a,e=e.sibling;else for(e=a.child;null!==e;)c|=e.lanes|e.childLanes,d|=e.subtreeFlags,d|=e.flags,e.return=a,e=e.sibling;a.subtreeFlags|=d;a.childLanes=c;return b}
-	function Bg(a,b,c){var d=b.pendingProps;nd(b);switch(b.tag){case 2:case 16:case 15:case 0:case 11:case 7:case 8:case 12:case 9:case 14:return Q(b),null;case 1:return A(b.type)&&nc(),Q(b),null;case 3:c=b.stateNode;te();q(z);q(x);ye();c.pendingContext&&(c.context=c.pendingContext,c.pendingContext=null);if(null===a||null===a.child)yd(b)?tg(b):null===a||a.memoizedState.isDehydrated&&0===(b.flags&256)||(b.flags|=1024,null!==rd&&(Cg(rd),rd=null));wg(a,b);Q(b);return null;case 5:ve(b);c=re(qe.current);var e=
-	b.type;if(null!==a&&null!=b.stateNode)xg(a,b,e,d,c),a.ref!==b.ref&&(b.flags|=512,b.flags|=2097152);else {if(!d){if(null===b.stateNode)throw Error(n(166));Q(b);return null}a=re(oe.current);if(yd(b)){if(!Va)throw Error(n(175));a=Rb(b.stateNode,b.type,b.memoizedProps,c,a,b,!qd);b.updateQueue=a;null!==a&&tg(b);}else {var f=Ja(e,d,c,a,b);vg(f,b,false,false);b.stateNode=f;La(f,e,d,c,a)&&tg(b);}null!==b.ref&&(b.flags|=512,b.flags|=2097152);}Q(b);return null;case 6:if(a&&null!=b.stateNode)yg(a,b,a.memoizedProps,d);
-	else {if("string"!==typeof d&&null===b.stateNode)throw Error(n(166));a=re(qe.current);c=re(oe.current);if(yd(b)){if(!Va)throw Error(n(176));a=b.stateNode;c=b.memoizedProps;if(d=Sb(a,c,b,!qd))if(e=od,null!==e)switch(e.tag){case 3:$b(e.stateNode.containerInfo,a,c,0!==(e.mode&1));break;case 5:ac(e.type,e.memoizedProps,e.stateNode,a,c,0!==(e.mode&1));}d&&tg(b);}else b.stateNode=Oa(d,a,c,b);}Q(b);return null;case 13:q(I);d=b.memoizedState;if(null===a||null!==a.memoizedState&&null!==a.memoizedState.dehydrated){if(F&&
-	null!==pd&&0!==(b.mode&1)&&0===(b.flags&128))zd(),Ad(),b.flags|=98560,e=false;else if(e=yd(b),null!==d&&null!==d.dehydrated){if(null===a){if(!e)throw Error(n(318));if(!Va)throw Error(n(344));e=b.memoizedState;e=null!==e?e.dehydrated:null;if(!e)throw Error(n(317));Tb(e,b);}else Ad(),0===(b.flags&128)&&(b.memoizedState=null),b.flags|=4;Q(b);e=false;}else null!==rd&&(Cg(rd),rd=null),e=true;if(!e)return b.flags&65536?b:null}if(0!==(b.flags&128))return b.lanes=c,b;c=null!==d;c!==(null!==a&&null!==a.memoizedState)&&
-	c&&(b.child.flags|=8192,0!==(b.mode&1)&&(null===a||0!==(I.current&1)?0===R&&(R=3):ng()));null!==b.updateQueue&&(b.flags|=4);Q(b);return null;case 4:return te(),wg(a,b),null===a&&Xa(b.stateNode.containerInfo),Q(b),null;case 10:return Wd(b.type._context),Q(b),null;case 17:return A(b.type)&&nc(),Q(b),null;case 19:q(I);e=b.memoizedState;if(null===e)return Q(b),null;d=0!==(b.flags&128);f=e.rendering;if(null===f)if(d)Ag(e,false);else {if(0!==R||null!==a&&0!==(a.flags&128))for(a=b.child;null!==a;){f=we(a);if(null!==
-	f){b.flags|=128;Ag(e,false);a=f.updateQueue;null!==a&&(b.updateQueue=a,b.flags|=4);b.subtreeFlags=0;a=c;for(c=b.child;null!==c;)d=c,e=a,d.flags&=14680066,f=d.alternate,null===f?(d.childLanes=0,d.lanes=e,d.child=null,d.subtreeFlags=0,d.memoizedProps=null,d.memoizedState=null,d.updateQueue=null,d.dependencies=null,d.stateNode=null):(d.childLanes=f.childLanes,d.lanes=f.lanes,d.child=f.child,d.subtreeFlags=0,d.deletions=null,d.memoizedProps=f.memoizedProps,d.memoizedState=f.memoizedState,d.updateQueue=f.updateQueue,
-	d.type=f.type,e=f.dependencies,d.dependencies=null===e?null:{lanes:e.lanes,firstContext:e.firstContext}),c=c.sibling;v(I,I.current&1|2);return b.child}a=a.sibling;}null!==e.tail&&D()>Dg&&(b.flags|=128,d=true,Ag(e,false),b.lanes=4194304);}else {if(!d)if(a=we(f),null!==a){if(b.flags|=128,d=true,a=a.updateQueue,null!==a&&(b.updateQueue=a,b.flags|=4),Ag(e,true),null===e.tail&&"hidden"===e.tailMode&&!f.alternate&&!F)return Q(b),null}else 2*D()-e.renderingStartTime>Dg&&1073741824!==c&&(b.flags|=128,d=true,Ag(e,false),b.lanes=
-	4194304);e.isBackwards?(f.sibling=b.child,b.child=f):(a=e.last,null!==a?a.sibling=f:b.child=f,e.last=f);}if(null!==e.tail)return b=e.tail,e.rendering=b,e.tail=b.sibling,e.renderingStartTime=D(),b.sibling=null,a=I.current,v(I,d?a&1|2:a&1),b;Q(b);return null;case 22:case 23:return Eg(),c=null!==b.memoizedState,null!==a&&null!==a.memoizedState!==c&&(b.flags|=8192),c&&0!==(b.mode&1)?0!==($f&1073741824)&&(Q(b),Ta&&b.subtreeFlags&6&&(b.flags|=8192)):Q(b),null;case 24:return null;case 25:return null}throw Error(n(156,
-	b.tag));}
-	function Fg(a,b){nd(b);switch(b.tag){case 1:return A(b.type)&&nc(),a=b.flags,a&65536?(b.flags=a&-65537|128,b):null;case 3:return te(),q(z),q(x),ye(),a=b.flags,0!==(a&65536)&&0===(a&128)?(b.flags=a&-65537|128,b):null;case 5:return ve(b),null;case 13:q(I);a=b.memoizedState;if(null!==a&&null!==a.dehydrated){if(null===b.alternate)throw Error(n(340));Ad();}a=b.flags;return a&65536?(b.flags=a&-65537|128,b):null;case 19:return q(I),null;case 4:return te(),null;case 10:return Wd(b.type._context),null;case 22:case 23:return Eg(),
-	null;case 24:return null;default:return null}}var Gg=false,S=false,Hg="function"===typeof WeakSet?WeakSet:Set,T=null;function Ig(a,b){var c=a.ref;if(null!==c)if("function"===typeof c)try{c(null);}catch(d){U(a,b,d);}else c.current=null;}function Jg(a,b,c){try{c();}catch(d){U(a,b,d);}}var Kg=false;
-	function Lg(a,b){Ha(a.containerInfo);for(T=b;null!==T;)if(a=T,b=a.child,0!==(a.subtreeFlags&1028)&&null!==b)b.return=a,T=b;else for(;null!==T;){a=T;try{var c=a.alternate;if(0!==(a.flags&1024))switch(a.tag){case 0:case 11:case 15:break;case 1:if(null!==c){var d=c.memoizedProps,e=c.memoizedState,f=a.stateNode,g=f.getSnapshotBeforeUpdate(a.elementType===a.type?d:xf(a.type,d),e);f.__reactInternalSnapshotBeforeUpdate=g;}break;case 3:Ta&&xb(a.stateNode.containerInfo);break;case 5:case 6:case 4:case 17:break;
-	default:throw Error(n(163));}}catch(h){U(a,a.return,h);}b=a.sibling;if(null!==b){b.return=a.return;T=b;break}T=a.return;}c=Kg;Kg=false;return c}function Mg(a,b,c){var d=b.updateQueue;d=null!==d?d.lastEffect:null;if(null!==d){var e=d=d.next;do{if((e.tag&a)===a){var f=e.destroy;e.destroy=void 0;void 0!==f&&Jg(b,c,f);}e=e.next;}while(e!==d)}}function Ng(a,b){b=b.updateQueue;b=null!==b?b.lastEffect:null;if(null!==b){var c=b=b.next;do{if((c.tag&a)===a){var d=c.create;c.destroy=d();}c=c.next;}while(c!==b)}}
-	function Og(a){var b=a.ref;if(null!==b){var c=a.stateNode;switch(a.tag){case 5:a=Ea(c);break;default:a=c;}"function"===typeof b?b(a):b.current=a;}}function Pg(a){var b=a.alternate;null!==b&&(a.alternate=null,Pg(b));a.child=null;a.deletions=null;a.sibling=null;5===a.tag&&(b=a.stateNode,null!==b&&Za(b));a.stateNode=null;a.return=null;a.dependencies=null;a.memoizedProps=null;a.memoizedState=null;a.pendingProps=null;a.stateNode=null;a.updateQueue=null;}
-	function Qg(a){return 5===a.tag||3===a.tag||4===a.tag}function Rg(a){a:for(;;){for(;null===a.sibling;){if(null===a.return||Qg(a.return))return null;a=a.return;}a.sibling.return=a.return;for(a=a.sibling;5!==a.tag&&6!==a.tag&&18!==a.tag;){if(a.flags&2)continue a;if(null===a.child||4===a.tag)continue a;else a.child.return=a,a=a.child;}if(!(a.flags&2))return a.stateNode}}
-	function Sg(a,b,c){var d=a.tag;if(5===d||6===d)a=a.stateNode,b?pb(c,a,b):kb(c,a);else if(4!==d&&(a=a.child,null!==a))for(Sg(a,b,c),a=a.sibling;null!==a;)Sg(a,b,c),a=a.sibling;}function Tg(a,b,c){var d=a.tag;if(5===d||6===d)a=a.stateNode,b?ob(c,a,b):jb(c,a);else if(4!==d&&(a=a.child,null!==a))for(Tg(a,b,c),a=a.sibling;null!==a;)Tg(a,b,c),a=a.sibling;}var V=null,Ug=false;function Vg(a,b,c){for(c=c.child;null!==c;)Wg(a,b,c),c=c.sibling;}
-	function Wg(a,b,c){if(Sc&&"function"===typeof Sc.onCommitFiberUnmount)try{Sc.onCommitFiberUnmount(Rc,c);}catch(h){}switch(c.tag){case 5:S||Ig(c,b);case 6:if(Ta){var d=V,e=Ug;V=null;Vg(a,b,c);V=d;Ug=e;null!==V&&(Ug?rb(V,c.stateNode):qb(V,c.stateNode));}else Vg(a,b,c);break;case 18:Ta&&null!==V&&(Ug?Yb(V,c.stateNode):Xb(V,c.stateNode));break;case 4:Ta?(d=V,e=Ug,V=c.stateNode.containerInfo,Ug=true,Vg(a,b,c),V=d,Ug=e):(Ua&&(d=c.stateNode.containerInfo,e=zb(d),Cb(d,e)),Vg(a,b,c));break;case 0:case 11:case 14:case 15:if(!S&&
-	(d=c.updateQueue,null!==d&&(d=d.lastEffect,null!==d))){e=d=d.next;do{var f=e,g=f.destroy;f=f.tag;void 0!==g&&(0!==(f&2)?Jg(c,b,g):0!==(f&4)&&Jg(c,b,g));e=e.next;}while(e!==d)}Vg(a,b,c);break;case 1:if(!S&&(Ig(c,b),d=c.stateNode,"function"===typeof d.componentWillUnmount))try{d.props=c.memoizedProps,d.state=c.memoizedState,d.componentWillUnmount();}catch(h){U(c,b,h);}Vg(a,b,c);break;case 21:Vg(a,b,c);break;case 22:c.mode&1?(S=(d=S)||null!==c.memoizedState,Vg(a,b,c),S=d):Vg(a,b,c);break;default:Vg(a,b,
-	c);}}function Xg(a){var b=a.updateQueue;if(null!==b){a.updateQueue=null;var c=a.stateNode;null===c&&(c=a.stateNode=new Hg);b.forEach(function(b){var d=Yg.bind(null,a,b);c.has(b)||(c.add(b),b.then(d,d));});}}
-	function Zg(a,b){var c=b.deletions;if(null!==c)for(var d=0;d<c.length;d++){var e=c[d];try{var f=a,g=b;if(Ta){var h=g;a:for(;null!==h;){switch(h.tag){case 5:V=h.stateNode;Ug=!1;break a;case 3:V=h.stateNode.containerInfo;Ug=!0;break a;case 4:V=h.stateNode.containerInfo;Ug=!0;break a}h=h.return;}if(null===V)throw Error(n(160));Wg(f,g,e);V=null;Ug=!1;}else Wg(f,g,e);var k=e.alternate;null!==k&&(k.return=null);e.return=null;}catch(l){U(e,b,l);}}if(b.subtreeFlags&12854)for(b=b.child;null!==b;)$g(b,a),b=b.sibling;}
-	function $g(a,b){var c=a.alternate,d=a.flags;switch(a.tag){case 0:case 11:case 14:case 15:Zg(b,a);ah(a);if(d&4){try{Mg(3,a,a.return),Ng(3,a);}catch(p){U(a,a.return,p);}try{Mg(5,a,a.return);}catch(p){U(a,a.return,p);}}break;case 1:Zg(b,a);ah(a);d&512&&null!==c&&Ig(c,c.return);break;case 5:Zg(b,a);ah(a);d&512&&null!==c&&Ig(c,c.return);if(Ta){if(a.flags&32){var e=a.stateNode;try{sb(e);}catch(p){U(a,a.return,p);}}if(d&4&&(e=a.stateNode,null!=e)){var f=a.memoizedProps;c=null!==c?c.memoizedProps:f;d=a.type;b=
-	a.updateQueue;a.updateQueue=null;if(null!==b)try{nb(e,b,d,c,f,a);}catch(p){U(a,a.return,p);}}}break;case 6:Zg(b,a);ah(a);if(d&4&&Ta){if(null===a.stateNode)throw Error(n(162));e=a.stateNode;f=a.memoizedProps;c=null!==c?c.memoizedProps:f;try{lb(e,c,f);}catch(p){U(a,a.return,p);}}break;case 3:Zg(b,a);ah(a);if(d&4){if(Ta&&Va&&null!==c&&c.memoizedState.isDehydrated)try{Vb(b.containerInfo);}catch(p){U(a,a.return,p);}if(Ua){e=b.containerInfo;f=b.pendingChildren;try{Cb(e,f);}catch(p){U(a,a.return,p);}}}break;case 4:Zg(b,
-	a);ah(a);if(d&4&&Ua){f=a.stateNode;e=f.containerInfo;f=f.pendingChildren;try{Cb(e,f);}catch(p){U(a,a.return,p);}}break;case 13:Zg(b,a);ah(a);e=a.child;e.flags&8192&&(f=null!==e.memoizedState,e.stateNode.isHidden=f,!f||null!==e.alternate&&null!==e.alternate.memoizedState||(bh=D()));d&4&&Xg(a);break;case 22:var g=null!==c&&null!==c.memoizedState;a.mode&1?(S=(c=S)||g,Zg(b,a),S=c):Zg(b,a);ah(a);if(d&8192){c=null!==a.memoizedState;if((a.stateNode.isHidden=c)&&!g&&0!==(a.mode&1))for(T=a,d=a.child;null!==
-	d;){for(b=T=d;null!==T;){g=T;var h=g.child;switch(g.tag){case 0:case 11:case 14:case 15:Mg(4,g,g.return);break;case 1:Ig(g,g.return);var k=g.stateNode;if("function"===typeof k.componentWillUnmount){var l=g,m=g.return;try{var r=l;k.props=r.memoizedProps;k.state=r.memoizedState;k.componentWillUnmount();}catch(p){U(l,m,p);}}break;case 5:Ig(g,g.return);break;case 22:if(null!==g.memoizedState){ch(b);continue}}null!==h?(h.return=g,T=h):ch(b);}d=d.sibling;}if(Ta)a:if(d=null,Ta)for(b=a;;){if(5===b.tag){if(null===
-	d){d=b;try{e=b.stateNode,c?tb(e):vb(b.stateNode,b.memoizedProps);}catch(p){U(a,a.return,p);}}}else if(6===b.tag){if(null===d)try{f=b.stateNode,c?ub(f):wb(f,b.memoizedProps);}catch(p){U(a,a.return,p);}}else if((22!==b.tag&&23!==b.tag||null===b.memoizedState||b===a)&&null!==b.child){b.child.return=b;b=b.child;continue}if(b===a)break a;for(;null===b.sibling;){if(null===b.return||b.return===a)break a;d===b&&(d=null);b=b.return;}d===b&&(d=null);b.sibling.return=b.return;b=b.sibling;}}break;case 19:Zg(b,a);ah(a);
-	d&4&&Xg(a);break;case 21:break;default:Zg(b,a),ah(a);}}function ah(a){var b=a.flags;if(b&2){try{if(Ta){b:{for(var c=a.return;null!==c;){if(Qg(c)){var d=c;break b}c=c.return;}throw Error(n(160));}switch(d.tag){case 5:var e=d.stateNode;d.flags&32&&(sb(e),d.flags&=-33);var f=Rg(a);Tg(a,f,e);break;case 3:case 4:var g=d.stateNode.containerInfo,h=Rg(a);Sg(a,h,g);break;default:throw Error(n(161));}}}catch(k){U(a,a.return,k);}a.flags&=-3;}b&4096&&(a.flags&=-4097);}function dh(a,b,c){T=a;eh(a);}
-	function eh(a,b,c){for(var d=0!==(a.mode&1);null!==T;){var e=T,f=e.child;if(22===e.tag&&d){var g=null!==e.memoizedState||Gg;if(!g){var h=e.alternate,k=null!==h&&null!==h.memoizedState||S;h=Gg;var l=S;Gg=g;if((S=k)&&!l)for(T=e;null!==T;)g=T,k=g.child,22===g.tag&&null!==g.memoizedState?fh(e):null!==k?(k.return=g,T=k):fh(e);for(;null!==f;)T=f,eh(f),f=f.sibling;T=e;Gg=h;S=l;}gh(a);}else 0!==(e.subtreeFlags&8772)&&null!==f?(f.return=e,T=f):gh(a);}}
-	function gh(a){for(;null!==T;){var b=T;if(0!==(b.flags&8772)){var c=b.alternate;try{if(0!==(b.flags&8772))switch(b.tag){case 0:case 11:case 15:S||Ng(5,b);break;case 1:var d=b.stateNode;if(b.flags&4&&!S)if(null===c)d.componentDidMount();else {var e=b.elementType===b.type?c.memoizedProps:xf(b.type,c.memoizedProps);d.componentDidUpdate(e,c.memoizedState,d.__reactInternalSnapshotBeforeUpdate);}var f=b.updateQueue;null!==f&&me(b,f,d);break;case 3:var g=b.updateQueue;if(null!==g){c=null;if(null!==b.child)switch(b.child.tag){case 5:c=
-	Ea(b.child.stateNode);break;case 1:c=b.child.stateNode;}me(b,g,c);}break;case 5:var h=b.stateNode;null===c&&b.flags&4&&mb(h,b.type,b.memoizedProps,b);break;case 6:break;case 4:break;case 12:break;case 13:if(Va&&null===b.memoizedState){var k=b.alternate;if(null!==k){var l=k.memoizedState;if(null!==l){var m=l.dehydrated;null!==m&&Wb(m);}}}break;case 19:case 17:case 21:case 22:case 23:case 25:break;default:throw Error(n(163));}S||b.flags&512&&Og(b);}catch(r){U(b,b.return,r);}}if(b===a){T=null;break}c=b.sibling;
-	if(null!==c){c.return=b.return;T=c;break}T=b.return;}}function ch(a){for(;null!==T;){var b=T;if(b===a){T=null;break}var c=b.sibling;if(null!==c){c.return=b.return;T=c;break}T=b.return;}}
-	function fh(a){for(;null!==T;){var b=T;try{switch(b.tag){case 0:case 11:case 15:var c=b.return;try{Ng(4,b);}catch(k){U(b,c,k);}break;case 1:var d=b.stateNode;if("function"===typeof d.componentDidMount){var e=b.return;try{d.componentDidMount();}catch(k){U(b,e,k);}}var f=b.return;try{Og(b);}catch(k){U(b,f,k);}break;case 5:var g=b.return;try{Og(b);}catch(k){U(b,g,k);}}}catch(k){U(b,b.return,k);}if(b===a){T=null;break}var h=b.sibling;if(null!==h){h.return=b.return;T=h;break}T=b.return;}}
-	var hh=0,ih=1,jh=2,kh=3,lh=4;if("function"===typeof Symbol&&Symbol.for){var mh=Symbol.for;hh=mh("selector.component");ih=mh("selector.has_pseudo_class");jh=mh("selector.role");kh=mh("selector.test_id");lh=mh("selector.text");}function nh(a){var b=Wa(a);if(null!=b){if("string"!==typeof b.memoizedProps["data-testname"])throw Error(n(364));return b}a=cb(a);if(null===a)throw Error(n(362));return a.stateNode.current}
-	function oh(a,b){switch(b.$$typeof){case hh:if(a.type===b.value)return  true;break;case ih:a:{b=b.value;a=[a,0];for(var c=0;c<a.length;){var d=a[c++],e=a[c++],f=b[e];if(5!==d.tag||!fb(d)){for(;null!=f&&oh(d,f);)e++,f=b[e];if(e===b.length){b=true;break a}else for(d=d.child;null!==d;)a.push(d,e),d=d.sibling;}}b=false;}return b;case jh:if(5===a.tag&&gb(a.stateNode,b.value))return  true;break;case lh:if(5===a.tag||6===a.tag)if(a=eb(a),null!==a&&0<=a.indexOf(b.value))return  true;break;case kh:if(5===a.tag&&(a=a.memoizedProps["data-testname"],
-	"string"===typeof a&&a.toLowerCase()===b.value.toLowerCase()))return  true;break;default:throw Error(n(365));}return  false}function ph(a){switch(a.$$typeof){case hh:return "<"+(ua(a.value)||"Unknown")+">";case ih:return ":has("+(ph(a)||"")+")";case jh:return '[role="'+a.value+'"]';case lh:return '"'+a.value+'"';case kh:return '[data-testname="'+a.value+'"]';default:throw Error(n(365));}}
-	function qh(a,b){var c=[];a=[a,0];for(var d=0;d<a.length;){var e=a[d++],f=a[d++],g=b[f];if(5!==e.tag||!fb(e)){for(;null!=g&&oh(e,g);)f++,g=b[f];if(f===b.length)c.push(e);else for(e=e.child;null!==e;)a.push(e,f),e=e.sibling;}}return c}function rh(a,b){if(!bb)throw Error(n(363));a=nh(a);a=qh(a,b);b=[];a=Array.from(a);for(var c=0;c<a.length;){var d=a[c++];if(5===d.tag)fb(d)||b.push(d.stateNode);else for(d=d.child;null!==d;)a.push(d),d=d.sibling;}return b}
-	var sh=Math.ceil,th=da.ReactCurrentDispatcher,uh=da.ReactCurrentOwner,W=da.ReactCurrentBatchConfig,H=0,N=null,X=null,Z=0,$f=0,Zf=ic(0),R=0,vh=null,le=0,wh=0,xh=0,yh=null,zh=null,bh=0,Dg=Infinity,Ah=null;function Bh(){Dg=D()+500;}var Jf=false,Kf=null,Mf=null,Ch=false,Dh=null,Eh=0,Fh=0,Gh=null,Hh=-1,Ih=0;function O(){return 0!==(H&6)?D():-1!==Hh?Hh:Hh=D()}function tf(a){if(0===(a.mode&1))return 1;if(0!==(H&2)&&0!==Z)return Z&-Z;if(null!==Cd.transition)return 0===Ih&&(Ih=Dc()),Ih;a=C;return 0!==a?a:Ya()}
-	function af(a,b,c,d){if(50<Fh)throw Fh=0,Gh=null,Error(n(185));Fc(a,c,d);if(0===(H&2)||a!==N)a===N&&(0===(H&2)&&(wh|=c),4===R&&Jh(a,Z)),Kh(a,d),1===c&&0===H&&0===(b.mode&1)&&(Bh(),Xc&&ad());}
-	function Kh(a,b){var c=a.callbackNode;Bc(a,b);var d=zc(a,a===N?Z:0);if(0===d)null!==c&&Kc(c),a.callbackNode=null,a.callbackPriority=0;else if(b=d&-d,a.callbackPriority!==b){null!=c&&Kc(c);if(1===b)0===a.tag?$c(Lh.bind(null,a)):Zc(Lh.bind(null,a)),$a?ab(function(){0===(H&6)&&ad();}):Jc(Nc,ad),c=null;else {switch(Ic(d)){case 1:c=Nc;break;case 4:c=Oc;break;case 16:c=Pc;break;case 536870912:c=Qc;break;default:c=Pc;}c=Mh(c,Nh.bind(null,a));}a.callbackPriority=b;a.callbackNode=c;}}
-	function Nh(a,b){Hh=-1;Ih=0;if(0!==(H&6))throw Error(n(327));var c=a.callbackNode;if(Oh()&&a.callbackNode!==c)return null;var d=zc(a,a===N?Z:0);if(0===d)return null;if(0!==(d&30)||0!==(d&a.expiredLanes)||b)b=Ph(a,d);else {b=d;var e=H;H|=2;var f=Qh();if(N!==a||Z!==b)Ah=null,Bh(),Rh(a,b);do try{Sh();break}catch(h){Th(a,h);}while(1);Ud();th.current=f;H=e;null!==X?b=0:(N=null,Z=0,b=R);}if(0!==b){2===b&&(e=Cc(a),0!==e&&(d=e,b=Uh(a,e)));if(1===b)throw c=vh,Rh(a,0),Jh(a,d),Kh(a,D()),c;if(6===b)Jh(a,d);else {e=
-	a.current.alternate;if(0===(d&30)&&!Vh(e)&&(b=Ph(a,d),2===b&&(f=Cc(a),0!==f&&(d=f,b=Uh(a,f))),1===b))throw c=vh,Rh(a,0),Jh(a,d),Kh(a,D()),c;a.finishedWork=e;a.finishedLanes=d;switch(b){case 0:case 1:throw Error(n(345));case 2:Wh(a,zh,Ah);break;case 3:Jh(a,d);if((d&130023424)===d&&(b=bh+500-D(),10<b)){if(0!==zc(a,0))break;e=a.suspendedLanes;if((e&d)!==d){O();a.pingedLanes|=a.suspendedLanes&e;break}a.timeoutHandle=Pa(Wh.bind(null,a,zh,Ah),b);break}Wh(a,zh,Ah);break;case 4:Jh(a,d);if((d&4194240)===d)break;
-	b=a.eventTimes;for(e=-1;0<d;){var g=31-tc(d);f=1<<g;g=b[g];g>e&&(e=g);d&=~f;}d=e;d=D()-d;d=(120>d?120:480>d?480:1080>d?1080:1920>d?1920:3E3>d?3E3:4320>d?4320:1960*sh(d/1960))-d;if(10<d){a.timeoutHandle=Pa(Wh.bind(null,a,zh,Ah),d);break}Wh(a,zh,Ah);break;case 5:Wh(a,zh,Ah);break;default:throw Error(n(329));}}}Kh(a,D());return a.callbackNode===c?Nh.bind(null,a):null}
-	function Uh(a,b){var c=yh;a.current.memoizedState.isDehydrated&&(Rh(a,b).flags|=256);a=Ph(a,b);2!==a&&(b=zh,zh=c,null!==b&&Cg(b));return a}function Cg(a){null===zh?zh=a:zh.push.apply(zh,a);}
-	function Vh(a){for(var b=a;;){if(b.flags&16384){var c=b.updateQueue;if(null!==c&&(c=c.stores,null!==c))for(var d=0;d<c.length;d++){var e=c[d],f=e.getSnapshot;e=e.value;try{if(!Vc(f(),e))return !1}catch(g){return  false}}}c=b.child;if(b.subtreeFlags&16384&&null!==c)c.return=b,b=c;else {if(b===a)break;for(;null===b.sibling;){if(null===b.return||b.return===a)return  true;b=b.return;}b.sibling.return=b.return;b=b.sibling;}}return  true}
-	function Jh(a,b){b&=~xh;b&=~wh;a.suspendedLanes|=b;a.pingedLanes&=~b;for(a=a.expirationTimes;0<b;){var c=31-tc(b),d=1<<c;a[c]=-1;b&=~d;}}function Lh(a){if(0!==(H&6))throw Error(n(327));Oh();var b=zc(a,0);if(0===(b&1))return Kh(a,D()),null;var c=Ph(a,b);if(0!==a.tag&&2===c){var d=Cc(a);0!==d&&(b=d,c=Uh(a,d));}if(1===c)throw c=vh,Rh(a,0),Jh(a,b),Kh(a,D()),c;if(6===c)throw Error(n(345));a.finishedWork=a.current.alternate;a.finishedLanes=b;Wh(a,zh,Ah);Kh(a,D());return null}
-	function Xh(a){null!==Dh&&0===Dh.tag&&0===(H&6)&&Oh();var b=H;H|=1;var c=W.transition,d=C;try{if(W.transition=null,C=1,a)return a()}finally{C=d,W.transition=c,H=b,0===(H&6)&&ad();}}function Eg(){$f=Zf.current;q(Zf);}
-	function Rh(a,b){a.finishedWork=null;a.finishedLanes=0;var c=a.timeoutHandle;c!==Ra&&(a.timeoutHandle=Ra,Qa(c));if(null!==X)for(c=X.return;null!==c;){var d=c;nd(d);switch(d.tag){case 1:d=d.type.childContextTypes;null!==d&&void 0!==d&&nc();break;case 3:te();q(z);q(x);ye();break;case 5:ve(d);break;case 4:te();break;case 13:q(I);break;case 19:q(I);break;case 10:Wd(d.type._context);break;case 22:case 23:Eg();}c=c.return;}N=a;X=a=Jd(a.current,null);Z=$f=b;R=0;vh=null;xh=wh=le=0;zh=yh=null;if(null!==$d){for(b=
-	0;b<$d.length;b++)if(c=$d[b],d=c.interleaved,null!==d){c.interleaved=null;var e=d.next,f=c.pending;if(null!==f){var g=f.next;f.next=e;d.next=g;}c.pending=d;}$d=null;}return a}
-	function Th(a,b){do{var c=X;try{Ud();ze.current=Le;if(Ce){for(var d=J.memoizedState;null!==d;){var e=d.queue;null!==e&&(e.pending=null);d=d.next;}Ce=!1;}Be=0;L=K=J=null;De=!1;Ee=0;uh.current=null;if(null===c||null===c.return){R=1;vh=b;X=null;break}a:{var f=a,g=c.return,h=c,k=b;b=Z;h.flags|=32768;if(null!==k&&"object"===typeof k&&"function"===typeof k.then){var l=k,m=h,r=m.tag;if(0===(m.mode&1)&&(0===r||11===r||15===r)){var p=m.alternate;p?(m.updateQueue=p.updateQueue,m.memoizedState=p.memoizedState,
-	m.lanes=p.lanes):(m.updateQueue=null,m.memoizedState=null);}var B=Pf(g);if(null!==B){B.flags&=-257;Qf(B,g,h,f,b);B.mode&1&&Nf(f,l,b);b=B;k=l;var w=b.updateQueue;if(null===w){var Y=new Set;Y.add(k);b.updateQueue=Y;}else w.add(k);break a}else {if(0===(b&1)){Nf(f,l,b);ng();break a}k=Error(n(426));}}else if(F&&h.mode&1){var ya=Pf(g);if(null!==ya){0===(ya.flags&65536)&&(ya.flags|=256);Qf(ya,g,h,f,b);Bd(Ef(k,h));break a}}f=k=Ef(k,h);4!==R&&(R=2);null===yh?yh=[f]:yh.push(f);f=g;do{switch(f.tag){case 3:f.flags|=
-	65536;b&=-b;f.lanes|=b;var E=If(f,k,b);je(f,E);break a;case 1:h=k;var u=f.type,t=f.stateNode;if(0===(f.flags&128)&&("function"===typeof u.getDerivedStateFromError||null!==t&&"function"===typeof t.componentDidCatch&&(null===Mf||!Mf.has(t)))){f.flags|=65536;b&=-b;f.lanes|=b;var Db=Lf(f,h,b);je(f,Db);break a}}f=f.return;}while(null!==f)}Yh(c);}catch(lc){b=lc;X===c&&null!==c&&(X=c=c.return);continue}break}while(1)}function Qh(){var a=th.current;th.current=Le;return null===a?Le:a}
-	function ng(){if(0===R||3===R||2===R)R=4;null===N||0===(le&268435455)&&0===(wh&268435455)||Jh(N,Z);}function Ph(a,b){var c=H;H|=2;var d=Qh();if(N!==a||Z!==b)Ah=null,Rh(a,b);do try{Zh();break}catch(e){Th(a,e);}while(1);Ud();H=c;th.current=d;if(null!==X)throw Error(n(261));N=null;Z=0;return R}function Zh(){for(;null!==X;)$h(X);}function Sh(){for(;null!==X&&!Lc();)$h(X);}function $h(a){var b=ai(a.alternate,a,$f);a.memoizedProps=a.pendingProps;null===b?Yh(a):X=b;uh.current=null;}
-	function Yh(a){var b=a;do{var c=b.alternate;a=b.return;if(0===(b.flags&32768)){if(c=Bg(c,b,$f),null!==c){X=c;return}}else {c=Fg(c,b);if(null!==c){c.flags&=32767;X=c;return}if(null!==a)a.flags|=32768,a.subtreeFlags=0,a.deletions=null;else {R=6;X=null;return}}b=b.sibling;if(null!==b){X=b;return}X=b=a;}while(null!==b);0===R&&(R=5);}function Wh(a,b,c){var d=C,e=W.transition;try{W.transition=null,C=1,bi(a,b,c,d);}finally{W.transition=e,C=d;}return null}
-	function bi(a,b,c,d){do Oh();while(null!==Dh);if(0!==(H&6))throw Error(n(327));c=a.finishedWork;var e=a.finishedLanes;if(null===c)return null;a.finishedWork=null;a.finishedLanes=0;if(c===a.current)throw Error(n(177));a.callbackNode=null;a.callbackPriority=0;var f=c.lanes|c.childLanes;Gc(a,f);a===N&&(X=N=null,Z=0);0===(c.subtreeFlags&2064)&&0===(c.flags&2064)||Ch||(Ch=true,Mh(Pc,function(){Oh();return null}));f=0!==(c.flags&15990);if(0!==(c.subtreeFlags&15990)||f){f=W.transition;W.transition=null;var g=
-	C;C=1;var h=H;H|=4;uh.current=null;Lg(a,c);$g(c,a);Ia(a.containerInfo);a.current=c;dh(c);Mc();H=h;C=g;W.transition=f;}else a.current=c;Ch&&(Ch=false,Dh=a,Eh=e);f=a.pendingLanes;0===f&&(Mf=null);Tc(c.stateNode);Kh(a,D());if(null!==b)for(d=a.onRecoverableError,c=0;c<b.length;c++)e=b[c],d(e.value,{componentStack:e.stack,digest:e.digest});if(Jf)throw Jf=false,a=Kf,Kf=null,a;0!==(Eh&1)&&0!==a.tag&&Oh();f=a.pendingLanes;0!==(f&1)?a===Gh?Fh++:(Fh=0,Gh=a):Fh=0;ad();return null}
-	function Oh(){if(null!==Dh){var a=Ic(Eh),b=W.transition,c=C;try{W.transition=null;C=16>a?16:a;if(null===Dh)var d=!1;else {a=Dh;Dh=null;Eh=0;if(0!==(H&6))throw Error(n(331));var e=H;H|=4;for(T=a.current;null!==T;){var f=T,g=f.child;if(0!==(T.flags&16)){var h=f.deletions;if(null!==h){for(var k=0;k<h.length;k++){var l=h[k];for(T=l;null!==T;){var m=T;switch(m.tag){case 0:case 11:case 15:Mg(8,m,f);}var r=m.child;if(null!==r)r.return=m,T=r;else for(;null!==T;){m=T;var p=m.sibling,B=m.return;Pg(m);if(m===
-	l){T=null;break}if(null!==p){p.return=B;T=p;break}T=B;}}}var w=f.alternate;if(null!==w){var Y=w.child;if(null!==Y){w.child=null;do{var ya=Y.sibling;Y.sibling=null;Y=ya;}while(null!==Y)}}T=f;}}if(0!==(f.subtreeFlags&2064)&&null!==g)g.return=f,T=g;else b:for(;null!==T;){f=T;if(0!==(f.flags&2048))switch(f.tag){case 0:case 11:case 15:Mg(9,f,f.return);}var E=f.sibling;if(null!==E){E.return=f.return;T=E;break b}T=f.return;}}var u=a.current;for(T=u;null!==T;){g=T;var t=g.child;if(0!==(g.subtreeFlags&2064)&&null!==
-	t)t.return=g,T=t;else b:for(g=u;null!==T;){h=T;if(0!==(h.flags&2048))try{switch(h.tag){case 0:case 11:case 15:Ng(9,h);}}catch(lc){U(h,h.return,lc);}if(h===g){T=null;break b}var Db=h.sibling;if(null!==Db){Db.return=h.return;T=Db;break b}T=h.return;}}H=e;ad();if(Sc&&"function"===typeof Sc.onPostCommitFiberRoot)try{Sc.onPostCommitFiberRoot(Rc,a);}catch(lc){}d=!0;}return d}finally{C=c,W.transition=b;}}return  false}function ci(a,b,c){b=Ef(c,b);b=If(a,b,1);a=he(a,b,1);b=O();null!==a&&(Fc(a,1,b),Kh(a,b));}
-	function U(a,b,c){if(3===a.tag)ci(a,a,c);else for(;null!==b;){if(3===b.tag){ci(b,a,c);break}else if(1===b.tag){var d=b.stateNode;if("function"===typeof b.type.getDerivedStateFromError||"function"===typeof d.componentDidCatch&&(null===Mf||!Mf.has(d))){a=Ef(c,a);a=Lf(b,a,1);b=he(b,a,1);a=O();null!==b&&(Fc(b,1,a),Kh(b,a));break}}b=b.return;}}
-	function Of(a,b,c){var d=a.pingCache;null!==d&&d.delete(b);b=O();a.pingedLanes|=a.suspendedLanes&c;N===a&&(Z&c)===c&&(4===R||3===R&&(Z&130023424)===Z&&500>D()-bh?Rh(a,0):xh|=c);Kh(a,b);}function di(a,b){0===b&&(0===(a.mode&1)?b=1:(b=xc,xc<<=1,0===(xc&130023424)&&(xc=4194304)));var c=O();a=ce(a,b);null!==a&&(Fc(a,b,c),Kh(a,c));}function og(a){var b=a.memoizedState,c=0;null!==b&&(c=b.retryLane);di(a,c);}
-	function Yg(a,b){var c=0;switch(a.tag){case 13:var d=a.stateNode;var e=a.memoizedState;null!==e&&(c=e.retryLane);break;case 19:d=a.stateNode;break;default:throw Error(n(314));}null!==d&&d.delete(b);di(a,c);}var ai;
-	ai=function(a,b,c){if(null!==a)if(a.memoizedProps!==b.pendingProps||z.current)G=true;else {if(0===(a.lanes&c)&&0===(b.flags&128))return G=false,sg(a,b,c);G=0!==(a.flags&131072)?true:false;}else G=false,F&&0!==(b.flags&1048576)&&ld(b,ed,b.index);b.lanes=0;switch(b.tag){case 2:var d=b.type;cg(a,b);a=b.pendingProps;var e=mc(b,x.current);Yd(b,c);e=He(null,b,d,a,e,c);var f=Me();b.flags|=1;"object"===typeof e&&null!==e&&"function"===typeof e.render&&void 0===e.$$typeof?(b.tag=1,b.memoizedState=null,b.updateQueue=null,
-	A(d)?(f=true,qc(b)):f=false,b.memoizedState=null!==e.state&&void 0!==e.state?e.state:null,ee(b),e.updater=zf,b.stateNode=e,e._reactInternals=b,Df(b,d,a,c),b=dg(null,b,d,true,f,c)):(b.tag=0,F&&f&&md(b),P(null,b,e,c),b=b.child);return b;case 16:d=b.elementType;a:{cg(a,b);a=b.pendingProps;e=d._init;d=e(d._payload);b.type=d;e=b.tag=ei(d);a=xf(d,a);switch(e){case 0:b=Xf(null,b,d,a,c);break a;case 1:b=bg(null,b,d,a,c);break a;case 11:b=Sf(null,b,d,a,c);break a;case 14:b=Uf(null,b,d,xf(d.type,a),c);break a}throw Error(n(306,
-	d,""));}return b;case 0:return d=b.type,e=b.pendingProps,e=b.elementType===d?e:xf(d,e),Xf(a,b,d,e,c);case 1:return d=b.type,e=b.pendingProps,e=b.elementType===d?e:xf(d,e),bg(a,b,d,e,c);case 3:a:{eg(b);if(null===a)throw Error(n(387));d=b.pendingProps;f=b.memoizedState;e=f.element;fe(a,b);ke(b,d,null,c);var g=b.memoizedState;d=g.element;if(Va&&f.isDehydrated)if(f={element:d,isDehydrated:false,cache:g.cache,pendingSuspenseBoundaries:g.pendingSuspenseBoundaries,transitions:g.transitions},b.updateQueue.baseState=
-	f,b.memoizedState=f,b.flags&256){e=Ef(Error(n(423)),b);b=fg(a,b,d,c,e);break a}else if(d!==e){e=Ef(Error(n(424)),b);b=fg(a,b,d,c,e);break a}else for(Va&&(pd=Pb(b.stateNode.containerInfo),od=b,F=true,rd=null,qd=false),c=Pd(b,null,d,c),b.child=c;c;)c.flags=c.flags&-3|4096,c=c.sibling;else {Ad();if(d===e){b=Tf(a,b,c);break a}P(a,b,d,c);}b=b.child;}return b;case 5:return ue(b),null===a&&wd(b),d=b.type,e=b.pendingProps,f=null!==a?a.memoizedProps:null,g=e.children,Na(d,e)?g=null:null!==f&&Na(d,f)&&(b.flags|=32),
-	ag(a,b),P(a,b,g,c),b.child;case 6:return null===a&&wd(b),null;case 13:return ig(a,b,c);case 4:return se(b,b.stateNode.containerInfo),d=b.pendingProps,null===a?b.child=Od(b,null,d,c):P(a,b,d,c),b.child;case 11:return d=b.type,e=b.pendingProps,e=b.elementType===d?e:xf(d,e),Sf(a,b,d,e,c);case 7:return P(a,b,b.pendingProps,c),b.child;case 8:return P(a,b,b.pendingProps.children,c),b.child;case 12:return P(a,b,b.pendingProps.children,c),b.child;case 10:a:{d=b.type._context;e=b.pendingProps;f=b.memoizedProps;
-	g=e.value;Vd(b,d,g);if(null!==f)if(Vc(f.value,g)){if(f.children===e.children&&!z.current){b=Tf(a,b,c);break a}}else for(f=b.child,null!==f&&(f.return=b);null!==f;){var h=f.dependencies;if(null!==h){g=f.child;for(var k=h.firstContext;null!==k;){if(k.context===d){if(1===f.tag){k=ge(-1,c&-c);k.tag=2;var l=f.updateQueue;if(null!==l){l=l.shared;var m=l.pending;null===m?k.next=k:(k.next=m.next,m.next=k);l.pending=k;}}f.lanes|=c;k=f.alternate;null!==k&&(k.lanes|=c);Xd(f.return,c,b);h.lanes|=c;break}k=k.next;}}else if(10===
-	f.tag)g=f.type===b.type?null:f.child;else if(18===f.tag){g=f.return;if(null===g)throw Error(n(341));g.lanes|=c;h=g.alternate;null!==h&&(h.lanes|=c);Xd(g,c,b);g=f.sibling;}else g=f.child;if(null!==g)g.return=f;else for(g=f;null!==g;){if(g===b){g=null;break}f=g.sibling;if(null!==f){f.return=g.return;g=f;break}g=g.return;}f=g;}P(a,b,e.children,c);b=b.child;}return b;case 9:return e=b.type,d=b.pendingProps.children,Yd(b,c),e=Zd(e),d=d(e),b.flags|=1,P(a,b,d,c),b.child;case 14:return d=b.type,e=xf(d,b.pendingProps),
-	e=xf(d.type,e),Uf(a,b,d,e,c);case 15:return Wf(a,b,b.type,b.pendingProps,c);case 17:return d=b.type,e=b.pendingProps,e=b.elementType===d?e:xf(d,e),cg(a,b),b.tag=1,A(d)?(a=true,qc(b)):a=false,Yd(b,c),Bf(b,d,e),Df(b,d,e,c),dg(null,b,d,true,a,c);case 19:return rg(a,b,c);case 22:return Yf(a,b,c)}throw Error(n(156,b.tag));};function Mh(a,b){return Jc(a,b)}
-	function fi(a,b,c,d){this.tag=a;this.key=c;this.sibling=this.child=this.return=this.stateNode=this.type=this.elementType=null;this.index=0;this.ref=null;this.pendingProps=b;this.dependencies=this.memoizedState=this.updateQueue=this.memoizedProps=null;this.mode=d;this.subtreeFlags=this.flags=0;this.deletions=null;this.childLanes=this.lanes=0;this.alternate=null;}function td(a,b,c,d){return new fi(a,b,c,d)}function Vf(a){a=a.prototype;return !(!a||!a.isReactComponent)}
-	function ei(a){if("function"===typeof a)return Vf(a)?1:0;if(void 0!==a&&null!==a){a=a.$$typeof;if(a===ma)return 11;if(a===pa)return 14}return 2}
-	function Jd(a,b){var c=a.alternate;null===c?(c=td(a.tag,b,a.key,a.mode),c.elementType=a.elementType,c.type=a.type,c.stateNode=a.stateNode,c.alternate=a,a.alternate=c):(c.pendingProps=b,c.type=a.type,c.flags=0,c.subtreeFlags=0,c.deletions=null);c.flags=a.flags&14680064;c.childLanes=a.childLanes;c.lanes=a.lanes;c.child=a.child;c.memoizedProps=a.memoizedProps;c.memoizedState=a.memoizedState;c.updateQueue=a.updateQueue;b=a.dependencies;c.dependencies=null===b?null:{lanes:b.lanes,firstContext:b.firstContext};
-	c.sibling=a.sibling;c.index=a.index;c.ref=a.ref;return c}
-	function Ld(a,b,c,d,e,f){var g=2;d=a;if("function"===typeof a)Vf(a)&&(g=1);else if("string"===typeof a)g=5;else a:switch(a){case ha:return Nd(c.children,e,f,b);case ia:g=8;e|=8;break;case ja:return a=td(12,c,b,e|2),a.elementType=ja,a.lanes=f,a;case na:return a=td(13,c,b,e),a.elementType=na,a.lanes=f,a;case oa:return a=td(19,c,b,e),a.elementType=oa,a.lanes=f,a;case ra:return jg(c,e,f,b);default:if("object"===typeof a&&null!==a)switch(a.$$typeof){case ka:g=10;break a;case la:g=9;break a;case ma:g=11;
-	break a;case pa:g=14;break a;case qa:g=16;d=null;break a}throw Error(n(130,null==a?a:typeof a,""));}b=td(g,c,b,e);b.elementType=a;b.type=d;b.lanes=f;return b}function Nd(a,b,c,d){a=td(7,a,d,b);a.lanes=c;return a}function jg(a,b,c,d){a=td(22,a,d,b);a.elementType=ra;a.lanes=c;a.stateNode={isHidden:false};return a}function Kd(a,b,c){a=td(6,a,null,b);a.lanes=c;return a}
-	function Md(a,b,c){b=td(4,null!==a.children?a.children:[],a.key,b);b.lanes=c;b.stateNode={containerInfo:a.containerInfo,pendingChildren:null,implementation:a.implementation};return b}
-	function gi(a,b,c,d,e){this.tag=b;this.containerInfo=a;this.finishedWork=this.pingCache=this.current=this.pendingChildren=null;this.timeoutHandle=Ra;this.callbackNode=this.pendingContext=this.context=null;this.callbackPriority=0;this.eventTimes=Ec(0);this.expirationTimes=Ec(-1);this.entangledLanes=this.finishedLanes=this.mutableReadLanes=this.expiredLanes=this.pingedLanes=this.suspendedLanes=this.pendingLanes=0;this.entanglements=Ec(0);this.identifierPrefix=d;this.onRecoverableError=e;Va&&(this.mutableSourceEagerHydrationData=
-	null);}function hi(a,b,c,d,e,f,g,h,k){a=new gi(a,b,c,h,k);1===b?(b=1,true===f&&(b|=8)):b=0;f=td(3,null,null,b);a.current=f;f.stateNode=a;f.memoizedState={element:d,isDehydrated:c,cache:null,transitions:null,pendingSuspenseBoundaries:null};ee(f);return a}
-	function ii(a){if(!a)return jc;a=a._reactInternals;a:{if(wa(a)!==a||1!==a.tag)throw Error(n(170));var b=a;do{switch(b.tag){case 3:b=b.stateNode.context;break a;case 1:if(A(b.type)){b=b.stateNode.__reactInternalMemoizedMergedChildContext;break a}}b=b.return;}while(null!==b);throw Error(n(171));}if(1===a.tag){var c=a.type;if(A(c))return pc(a,c,b)}return b}
-	function ji(a){var b=a._reactInternals;if(void 0===b){if("function"===typeof a.render)throw Error(n(188));a=Object.keys(a).join(",");throw Error(n(268,a));}a=Aa(b);return null===a?null:a.stateNode}function ki(a,b){a=a.memoizedState;if(null!==a&&null!==a.dehydrated){var c=a.retryLane;a.retryLane=0!==c&&c<b?c:b;}}function li(a,b){ki(a,b);(a=a.alternate)&&ki(a,b);}function mi(a){a=Aa(a);return null===a?null:a.stateNode}function ni(){return null}
-	exports.attemptContinuousHydration=function(a){if(13===a.tag){var b=ce(a,134217728);if(null!==b){var c=O();af(b,a,134217728,c);}li(a,134217728);}};exports.attemptDiscreteHydration=function(a){if(13===a.tag){var b=ce(a,1);if(null!==b){var c=O();af(b,a,1,c);}li(a,1);}};exports.attemptHydrationAtCurrentPriority=function(a){if(13===a.tag){var b=tf(a),c=ce(a,b);if(null!==c){var d=O();af(c,a,b,d);}li(a,b);}};
-	exports.attemptSynchronousHydration=function(a){switch(a.tag){case 3:var b=a.stateNode;if(b.current.memoizedState.isDehydrated){var c=yc(b.pendingLanes);0!==c&&(Hc(b,c|1),Kh(b,D()),0===(H&6)&&(Bh(),ad()));}break;case 13:Xh(function(){var b=ce(a,1);if(null!==b){var c=O();af(b,a,1,c);}}),li(a,1);}};exports.batchedUpdates=function(a,b){var c=H;H|=1;try{return a(b)}finally{H=c,0===H&&(Bh(),Xc&&ad());}};exports.createComponentSelector=function(a){return {$$typeof:hh,value:a}};
-	exports.createContainer=function(a,b,c,d,e,f,g){return hi(a,b,false,null,c,d,e,f,g)};exports.createHasPseudoClassSelector=function(a){return {$$typeof:ih,value:a}};exports.createHydrationContainer=function(a,b,c,d,e,f,g,h,k){a=hi(c,d,true,a,e,f,g,h,k);a.context=ii(null);c=a.current;d=O();e=tf(c);f=ge(d,e);f.callback=void 0!==b&&null!==b?b:null;he(c,f,e);a.current.lanes=e;Fc(a,e,d);Kh(a,d);return a};
-	exports.createPortal=function(a,b,c){var d=3<arguments.length&&void 0!==arguments[3]?arguments[3]:null;return {$$typeof:fa,key:null==d?null:""+d,children:a,containerInfo:b,implementation:c}};exports.createRoleSelector=function(a){return {$$typeof:jh,value:a}};exports.createTestNameSelector=function(a){return {$$typeof:kh,value:a}};exports.createTextSelector=function(a){return {$$typeof:lh,value:a}};
-	exports.deferredUpdates=function(a){var b=C,c=W.transition;try{return W.transition=null,C=16,a()}finally{C=b,W.transition=c;}};exports.discreteUpdates=function(a,b,c,d,e){var f=C,g=W.transition;try{return W.transition=null,C=1,a(b,c,d,e)}finally{C=f,W.transition=g,0===H&&Bh();}};exports.findAllNodes=rh;
-	exports.findBoundingRects=function(a,b){if(!bb)throw Error(n(363));b=rh(a,b);a=[];for(var c=0;c<b.length;c++)a.push(db(b[c]));for(b=a.length-1;0<b;b--){c=a[b];for(var d=c.x,e=d+c.width,f=c.y,g=f+c.height,h=b-1;0<=h;h--)if(b!==h){var k=a[h],l=k.x,m=l+k.width,r=k.y,p=r+k.height;if(d>=l&&f>=r&&e<=m&&g<=p){a.splice(b,1);break}else if(!(d!==l||c.width!==k.width||p<f||r>g)){r>f&&(k.height+=r-f,k.y=f);p<g&&(k.height=g-r);a.splice(b,1);break}else if(!(f!==r||c.height!==k.height||m<d||l>e)){l>d&&(k.width+=
-	l-d,k.x=d);m<e&&(k.width=e-l);a.splice(b,1);break}}}return a};exports.findHostInstance=ji;exports.findHostInstanceWithNoPortals=function(a){a=za(a);a=null!==a?Ca(a):null;return null===a?null:a.stateNode};exports.findHostInstanceWithWarning=function(a){return ji(a)};exports.flushControlled=function(a){var b=H;H|=1;var c=W.transition,d=C;try{W.transition=null,C=1,a();}finally{C=d,W.transition=c,H=b,0===H&&(Bh(),ad());}};exports.flushPassiveEffects=Oh;exports.flushSync=Xh;
-	exports.focusWithin=function(a,b){if(!bb)throw Error(n(363));a=nh(a);b=qh(a,b);b=Array.from(b);for(a=0;a<b.length;){var c=b[a++];if(!fb(c)){if(5===c.tag&&hb(c.stateNode))return  true;for(c=c.child;null!==c;)b.push(c),c=c.sibling;}}return  false};exports.getCurrentUpdatePriority=function(){return C};
-	exports.getFindAllNodesFailureDescription=function(a,b){if(!bb)throw Error(n(363));var c=0,d=[];a=[nh(a),0];for(var e=0;e<a.length;){var f=a[e++],g=a[e++],h=b[g];if(5!==f.tag||!fb(f))if(oh(f,h)&&(d.push(ph(h)),g++,g>c&&(c=g)),g<b.length)for(f=f.child;null!==f;)a.push(f,g),f=f.sibling;}if(c<b.length){for(a=[];c<b.length;c++)a.push(ph(b[c]));return "findAllNodes was able to match part of the selector:\n  "+(d.join(" > ")+"\n\nNo matching component was found for:\n  ")+a.join(" > ")}return null};
-	exports.getPublicRootInstance=function(a){a=a.current;if(!a.child)return null;switch(a.child.tag){case 5:return Ea(a.child.stateNode);default:return a.child.stateNode}};
-	exports.injectIntoDevTools=function(a){a={bundleType:a.bundleType,version:a.version,rendererPackageName:a.rendererPackageName,rendererConfig:a.rendererConfig,overrideHookState:null,overrideHookStateDeletePath:null,overrideHookStateRenamePath:null,overrideProps:null,overridePropsDeletePath:null,overridePropsRenamePath:null,setErrorHandler:null,setSuspenseHandler:null,scheduleUpdate:null,currentDispatcherRef:da.ReactCurrentDispatcher,findHostInstanceByFiber:mi,findFiberByHostInstance:a.findFiberByHostInstance||
-	ni,findHostInstancesForRefresh:null,scheduleRefresh:null,scheduleRoot:null,setRefreshHandler:null,getCurrentFiber:null,reconcilerVersion:"18.3.1"};if("undefined"===typeof __REACT_DEVTOOLS_GLOBAL_HOOK__)a=false;else {var b=__REACT_DEVTOOLS_GLOBAL_HOOK__;if(b.isDisabled||!b.supportsFiber)a=true;else {try{Rc=b.inject(a),Sc=b;}catch(c){}a=b.checkDCE?true:false;}}return a};exports.isAlreadyRendering=function(){return  false};
-	exports.observeVisibleRects=function(a,b,c,d){if(!bb)throw Error(n(363));a=rh(a,b);var e=ib(a,c,d).disconnect;return {disconnect:function(){e();}}};exports.registerMutableSourceForHydration=function(a,b){var c=b._getVersion;c=c(b._source);null==a.mutableSourceEagerHydrationData?a.mutableSourceEagerHydrationData=[b,c]:a.mutableSourceEagerHydrationData.push(b,c);};exports.runWithPriority=function(a,b){var c=C;try{return C=a,b()}finally{C=c;}};exports.shouldError=function(){return null};
-	exports.shouldSuspend=function(){return  false};exports.updateContainer=function(a,b,c,d){var e=b.current,f=O(),g=tf(e);c=ii(c);null===b.context?b.context=c:b.pendingContext=c;b=ge(f,g);b.payload={element:a};d=void 0===d?null:d;null!==d&&(b.callback=d);a=he(e,b,g);null!==a&&(af(a,e,g,f),ie(a,e,g));return g};
-
-	    return exports;
-	};
-	return reactReconciler_production_min;
-}
-
-var hasRequiredReactReconciler;
-
-function requireReactReconciler () {
-	if (hasRequiredReactReconciler) return reactReconciler.exports;
-	hasRequiredReactReconciler = 1;
-
-	{
-	  reactReconciler.exports = requireReactReconciler_production_min();
-	}
-	return reactReconciler.exports;
-}
-
-var constants = {exports: {}};
-
-var reactReconcilerConstants_production_min = {};
-
-/**
- * @license React
- * react-reconciler-constants.production.min.js
- *
- * Copyright (c) Facebook, Inc. and its affiliates.
- *
- * This source code is licensed under the MIT license found in the
- * LICENSE file in the root directory of this source tree.
- */
-
-var hasRequiredReactReconcilerConstants_production_min;
-
-function requireReactReconcilerConstants_production_min () {
-	if (hasRequiredReactReconcilerConstants_production_min) return reactReconcilerConstants_production_min;
-	hasRequiredReactReconcilerConstants_production_min = 1;
-reactReconcilerConstants_production_min.ConcurrentRoot=1;reactReconcilerConstants_production_min.ContinuousEventPriority=4;reactReconcilerConstants_production_min.DefaultEventPriority=16;reactReconcilerConstants_production_min.DiscreteEventPriority=1;reactReconcilerConstants_production_min.IdleEventPriority=536870912;reactReconcilerConstants_production_min.LegacyRoot=0;
-	return reactReconcilerConstants_production_min;
-}
-
-var hasRequiredConstants;
-
-function requireConstants () {
-	if (hasRequiredConstants) return constants.exports;
-	hasRequiredConstants = 1;
-
-	{
-	  constants.exports = requireReactReconcilerConstants_production_min();
-	}
-	return constants.exports;
-}
-
-var commonjsBrowser = {};
-
-var v1 = {};
-
-var rng = {};
-
-var hasRequiredRng;
-
-function requireRng () {
-	if (hasRequiredRng) return rng;
-	hasRequiredRng = 1;
-
-	Object.defineProperty(rng, "__esModule", {
-	  value: true
-	});
-	rng.default = rng$1;
-	// Unique ID creation requires a high quality random # generator. In the browser we therefore
-	// require the crypto API and do not support built-in fallback to lower quality random number
-	// generators (like Math.random()).
-	let getRandomValues;
-	const rnds8 = new Uint8Array(16);
-
-	function rng$1() {
-	  // lazy load so that environments that need to polyfill have a chance to do so
-	  if (!getRandomValues) {
-	    // getRandomValues needs to be invoked in a context where "this" is a Crypto implementation.
-	    getRandomValues = typeof crypto !== 'undefined' && crypto.getRandomValues && crypto.getRandomValues.bind(crypto);
-
-	    if (!getRandomValues) {
-	      throw new Error('crypto.getRandomValues() not supported. See https://github.com/uuidjs/uuid#getrandomvalues-not-supported');
-	    }
-	  }
-
-	  return getRandomValues(rnds8);
-	}
-	return rng;
-}
-
-var stringify = {};
-
-var validate = {};
-
-var regex = {};
-
-var hasRequiredRegex;
-
-function requireRegex () {
-	if (hasRequiredRegex) return regex;
-	hasRequiredRegex = 1;
-
-	Object.defineProperty(regex, "__esModule", {
-	  value: true
-	});
-	regex.default = void 0;
-	var _default = /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}|00000000-0000-0000-0000-000000000000)$/i;
-	regex.default = _default;
-	return regex;
-}
-
-var hasRequiredValidate;
-
-function requireValidate () {
-	if (hasRequiredValidate) return validate;
-	hasRequiredValidate = 1;
-
-	Object.defineProperty(validate, "__esModule", {
-	  value: true
-	});
-	validate.default = void 0;
-
-	var _regex = _interopRequireDefault(/*@__PURE__*/ requireRegex());
-
-	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-	function validate$1(uuid) {
-	  return typeof uuid === 'string' && _regex.default.test(uuid);
-	}
-
-	var _default = validate$1;
-	validate.default = _default;
-	return validate;
-}
-
-var hasRequiredStringify;
-
-function requireStringify () {
-	if (hasRequiredStringify) return stringify;
-	hasRequiredStringify = 1;
-
-	Object.defineProperty(stringify, "__esModule", {
-	  value: true
-	});
-	stringify.default = void 0;
-	stringify.unsafeStringify = unsafeStringify;
-
-	var _validate = _interopRequireDefault(/*@__PURE__*/ requireValidate());
-
-	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-	/**
-	 * Convert array of 16 byte values to UUID string format of the form:
-	 * XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX
-	 */
-	const byteToHex = [];
-
-	for (let i = 0; i < 256; ++i) {
-	  byteToHex.push((i + 0x100).toString(16).slice(1));
-	}
-
-	function unsafeStringify(arr, offset = 0) {
-	  // Note: Be careful editing this code!  It's been tuned for performance
-	  // and works in ways you may not expect. See https://github.com/uuidjs/uuid/pull/434
-	  return byteToHex[arr[offset + 0]] + byteToHex[arr[offset + 1]] + byteToHex[arr[offset + 2]] + byteToHex[arr[offset + 3]] + '-' + byteToHex[arr[offset + 4]] + byteToHex[arr[offset + 5]] + '-' + byteToHex[arr[offset + 6]] + byteToHex[arr[offset + 7]] + '-' + byteToHex[arr[offset + 8]] + byteToHex[arr[offset + 9]] + '-' + byteToHex[arr[offset + 10]] + byteToHex[arr[offset + 11]] + byteToHex[arr[offset + 12]] + byteToHex[arr[offset + 13]] + byteToHex[arr[offset + 14]] + byteToHex[arr[offset + 15]];
-	}
-
-	function stringify$1(arr, offset = 0) {
-	  const uuid = unsafeStringify(arr, offset); // Consistency check for valid UUID.  If this throws, it's likely due to one
-	  // of the following:
-	  // - One or more input array values don't map to a hex octet (leading to
-	  // "undefined" in the uuid)
-	  // - Invalid input values for the RFC `version` or `variant` fields
-
-	  if (!(0, _validate.default)(uuid)) {
-	    throw TypeError('Stringified UUID is invalid');
-	  }
-
-	  return uuid;
-	}
-
-	var _default = stringify$1;
-	stringify.default = _default;
-	return stringify;
-}
-
-var hasRequiredV1;
-
-function requireV1 () {
-	if (hasRequiredV1) return v1;
-	hasRequiredV1 = 1;
-
-	Object.defineProperty(v1, "__esModule", {
-	  value: true
-	});
-	v1.default = void 0;
-
-	var _rng = _interopRequireDefault(/*@__PURE__*/ requireRng());
-
-	var _stringify = /*@__PURE__*/ requireStringify();
-
-	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-	// **`v1()` - Generate time-based UUID**
-	//
-	// Inspired by https://github.com/LiosK/UUID.js
-	// and http://docs.python.org/library/uuid.html
-	let _nodeId;
-
-	let _clockseq; // Previous uuid creation time
-
-
-	let _lastMSecs = 0;
-	let _lastNSecs = 0; // See https://github.com/uuidjs/uuid for API details
-
-	function v1$1(options, buf, offset) {
-	  let i = buf && offset || 0;
-	  const b = buf || new Array(16);
-	  options = options || {};
-	  let node = options.node || _nodeId;
-	  let clockseq = options.clockseq !== undefined ? options.clockseq : _clockseq; // node and clockseq need to be initialized to random values if they're not
-	  // specified.  We do this lazily to minimize issues related to insufficient
-	  // system entropy.  See #189
-
-	  if (node == null || clockseq == null) {
-	    const seedBytes = options.random || (options.rng || _rng.default)();
-
-	    if (node == null) {
-	      // Per 4.5, create and 48-bit node id, (47 random bits + multicast bit = 1)
-	      node = _nodeId = [seedBytes[0] | 0x01, seedBytes[1], seedBytes[2], seedBytes[3], seedBytes[4], seedBytes[5]];
-	    }
-
-	    if (clockseq == null) {
-	      // Per 4.2.2, randomize (14 bit) clockseq
-	      clockseq = _clockseq = (seedBytes[6] << 8 | seedBytes[7]) & 0x3fff;
-	    }
-	  } // UUID timestamps are 100 nano-second units since the Gregorian epoch,
-	  // (1582-10-15 00:00).  JSNumbers aren't precise enough for this, so
-	  // time is handled internally as 'msecs' (integer milliseconds) and 'nsecs'
-	  // (100-nanoseconds offset from msecs) since unix epoch, 1970-01-01 00:00.
-
-
-	  let msecs = options.msecs !== undefined ? options.msecs : Date.now(); // Per 4.2.1.2, use count of uuid's generated during the current clock
-	  // cycle to simulate higher resolution clock
-
-	  let nsecs = options.nsecs !== undefined ? options.nsecs : _lastNSecs + 1; // Time since last uuid creation (in msecs)
-
-	  const dt = msecs - _lastMSecs + (nsecs - _lastNSecs) / 10000; // Per 4.2.1.2, Bump clockseq on clock regression
-
-	  if (dt < 0 && options.clockseq === undefined) {
-	    clockseq = clockseq + 1 & 0x3fff;
-	  } // Reset nsecs if clock regresses (new clockseq) or we've moved onto a new
-	  // time interval
-
-
-	  if ((dt < 0 || msecs > _lastMSecs) && options.nsecs === undefined) {
-	    nsecs = 0;
-	  } // Per 4.2.1.2 Throw error if too many uuids are requested
-
-
-	  if (nsecs >= 10000) {
-	    throw new Error("uuid.v1(): Can't create more than 10M uuids/sec");
-	  }
-
-	  _lastMSecs = msecs;
-	  _lastNSecs = nsecs;
-	  _clockseq = clockseq; // Per 4.1.4 - Convert from unix epoch to Gregorian epoch
-
-	  msecs += 12219292800000; // `time_low`
-
-	  const tl = ((msecs & 0xfffffff) * 10000 + nsecs) % 0x100000000;
-	  b[i++] = tl >>> 24 & 0xff;
-	  b[i++] = tl >>> 16 & 0xff;
-	  b[i++] = tl >>> 8 & 0xff;
-	  b[i++] = tl & 0xff; // `time_mid`
-
-	  const tmh = msecs / 0x100000000 * 10000 & 0xfffffff;
-	  b[i++] = tmh >>> 8 & 0xff;
-	  b[i++] = tmh & 0xff; // `time_high_and_version`
-
-	  b[i++] = tmh >>> 24 & 0xf | 0x10; // include version
-
-	  b[i++] = tmh >>> 16 & 0xff; // `clock_seq_hi_and_reserved` (Per 4.2.2 - include variant)
-
-	  b[i++] = clockseq >>> 8 | 0x80; // `clock_seq_low`
-
-	  b[i++] = clockseq & 0xff; // `node`
-
-	  for (let n = 0; n < 6; ++n) {
-	    b[i + n] = node[n];
-	  }
-
-	  return buf || (0, _stringify.unsafeStringify)(b);
-	}
-
-	var _default = v1$1;
-	v1.default = _default;
-	return v1;
-}
-
-var v3 = {};
-
-var v35 = {};
-
-var parse = {};
-
-var hasRequiredParse;
-
-function requireParse () {
-	if (hasRequiredParse) return parse;
-	hasRequiredParse = 1;
-
-	Object.defineProperty(parse, "__esModule", {
-	  value: true
-	});
-	parse.default = void 0;
-
-	var _validate = _interopRequireDefault(/*@__PURE__*/ requireValidate());
-
-	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-	function parse$1(uuid) {
-	  if (!(0, _validate.default)(uuid)) {
-	    throw TypeError('Invalid UUID');
-	  }
-
-	  let v;
-	  const arr = new Uint8Array(16); // Parse ########-....-....-....-............
-
-	  arr[0] = (v = parseInt(uuid.slice(0, 8), 16)) >>> 24;
-	  arr[1] = v >>> 16 & 0xff;
-	  arr[2] = v >>> 8 & 0xff;
-	  arr[3] = v & 0xff; // Parse ........-####-....-....-............
-
-	  arr[4] = (v = parseInt(uuid.slice(9, 13), 16)) >>> 8;
-	  arr[5] = v & 0xff; // Parse ........-....-####-....-............
-
-	  arr[6] = (v = parseInt(uuid.slice(14, 18), 16)) >>> 8;
-	  arr[7] = v & 0xff; // Parse ........-....-....-####-............
-
-	  arr[8] = (v = parseInt(uuid.slice(19, 23), 16)) >>> 8;
-	  arr[9] = v & 0xff; // Parse ........-....-....-....-############
-	  // (Use "/" to avoid 32-bit truncation when bit-shifting high-order bytes)
-
-	  arr[10] = (v = parseInt(uuid.slice(24, 36), 16)) / 0x10000000000 & 0xff;
-	  arr[11] = v / 0x100000000 & 0xff;
-	  arr[12] = v >>> 24 & 0xff;
-	  arr[13] = v >>> 16 & 0xff;
-	  arr[14] = v >>> 8 & 0xff;
-	  arr[15] = v & 0xff;
-	  return arr;
-	}
-
-	var _default = parse$1;
-	parse.default = _default;
-	return parse;
-}
-
-var hasRequiredV35;
-
-function requireV35 () {
-	if (hasRequiredV35) return v35;
-	hasRequiredV35 = 1;
-
-	Object.defineProperty(v35, "__esModule", {
-	  value: true
-	});
-	v35.URL = v35.DNS = void 0;
-	v35.default = v35$1;
-
-	var _stringify = /*@__PURE__*/ requireStringify();
-
-	var _parse = _interopRequireDefault(/*@__PURE__*/ requireParse());
-
-	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-	function stringToBytes(str) {
-	  str = unescape(encodeURIComponent(str)); // UTF8 escape
-
-	  const bytes = [];
-
-	  for (let i = 0; i < str.length; ++i) {
-	    bytes.push(str.charCodeAt(i));
-	  }
-
-	  return bytes;
-	}
-
-	const DNS = '6ba7b810-9dad-11d1-80b4-00c04fd430c8';
-	v35.DNS = DNS;
-	const URL = '6ba7b811-9dad-11d1-80b4-00c04fd430c8';
-	v35.URL = URL;
-
-	function v35$1(name, version, hashfunc) {
-	  function generateUUID(value, namespace, buf, offset) {
-	    var _namespace;
-
-	    if (typeof value === 'string') {
-	      value = stringToBytes(value);
-	    }
-
-	    if (typeof namespace === 'string') {
-	      namespace = (0, _parse.default)(namespace);
-	    }
-
-	    if (((_namespace = namespace) === null || _namespace === void 0 ? void 0 : _namespace.length) !== 16) {
-	      throw TypeError('Namespace must be array-like (16 iterable integer values, 0-255)');
-	    } // Compute hash of namespace and value, Per 4.3
-	    // Future: Use spread syntax when supported on all platforms, e.g. `bytes =
-	    // hashfunc([...namespace, ... value])`
-
-
-	    let bytes = new Uint8Array(16 + value.length);
-	    bytes.set(namespace);
-	    bytes.set(value, namespace.length);
-	    bytes = hashfunc(bytes);
-	    bytes[6] = bytes[6] & 0x0f | version;
-	    bytes[8] = bytes[8] & 0x3f | 0x80;
-
-	    if (buf) {
-	      offset = offset || 0;
-
-	      for (let i = 0; i < 16; ++i) {
-	        buf[offset + i] = bytes[i];
-	      }
-
-	      return buf;
-	    }
-
-	    return (0, _stringify.unsafeStringify)(bytes);
-	  } // Function#name is not settable on some platforms (#270)
-
-
-	  try {
-	    generateUUID.name = name; // eslint-disable-next-line no-empty
-	  } catch (err) {} // For CommonJS default export support
-
-
-	  generateUUID.DNS = DNS;
-	  generateUUID.URL = URL;
-	  return generateUUID;
-	}
-	return v35;
-}
-
-var md5 = {};
-
-var hasRequiredMd5;
-
-function requireMd5 () {
-	if (hasRequiredMd5) return md5;
-	hasRequiredMd5 = 1;
-
-	Object.defineProperty(md5, "__esModule", {
-	  value: true
-	});
-	md5.default = void 0;
-
-	/*
-	 * Browser-compatible JavaScript MD5
-	 *
-	 * Modification of JavaScript MD5
-	 * https://github.com/blueimp/JavaScript-MD5
-	 *
-	 * Copyright 2011, Sebastian Tschan
-	 * https://blueimp.net
-	 *
-	 * Licensed under the MIT license:
-	 * https://opensource.org/licenses/MIT
-	 *
-	 * Based on
-	 * A JavaScript implementation of the RSA Data Security, Inc. MD5 Message
-	 * Digest Algorithm, as defined in RFC 1321.
-	 * Version 2.2 Copyright (C) Paul Johnston 1999 - 2009
-	 * Other contributors: Greg Holt, Andrew Kepert, Ydnar, Lostinet
-	 * Distributed under the BSD License
-	 * See http://pajhome.org.uk/crypt/md5 for more info.
-	 */
-	function md5$1(bytes) {
-	  if (typeof bytes === 'string') {
-	    const msg = unescape(encodeURIComponent(bytes)); // UTF8 escape
-
-	    bytes = new Uint8Array(msg.length);
-
-	    for (let i = 0; i < msg.length; ++i) {
-	      bytes[i] = msg.charCodeAt(i);
-	    }
-	  }
-
-	  return md5ToHexEncodedArray(wordsToMd5(bytesToWords(bytes), bytes.length * 8));
-	}
-	/*
-	 * Convert an array of little-endian words to an array of bytes
-	 */
-
-
-	function md5ToHexEncodedArray(input) {
-	  const output = [];
-	  const length32 = input.length * 32;
-	  const hexTab = '0123456789abcdef';
-
-	  for (let i = 0; i < length32; i += 8) {
-	    const x = input[i >> 5] >>> i % 32 & 0xff;
-	    const hex = parseInt(hexTab.charAt(x >>> 4 & 0x0f) + hexTab.charAt(x & 0x0f), 16);
-	    output.push(hex);
-	  }
-
-	  return output;
-	}
-	/**
-	 * Calculate output length with padding and bit length
-	 */
-
-
-	function getOutputLength(inputLength8) {
-	  return (inputLength8 + 64 >>> 9 << 4) + 14 + 1;
-	}
-	/*
-	 * Calculate the MD5 of an array of little-endian words, and a bit length.
-	 */
-
-
-	function wordsToMd5(x, len) {
-	  /* append padding */
-	  x[len >> 5] |= 0x80 << len % 32;
-	  x[getOutputLength(len) - 1] = len;
-	  let a = 1732584193;
-	  let b = -271733879;
-	  let c = -1732584194;
-	  let d = 271733878;
-
-	  for (let i = 0; i < x.length; i += 16) {
-	    const olda = a;
-	    const oldb = b;
-	    const oldc = c;
-	    const oldd = d;
-	    a = md5ff(a, b, c, d, x[i], 7, -680876936);
-	    d = md5ff(d, a, b, c, x[i + 1], 12, -389564586);
-	    c = md5ff(c, d, a, b, x[i + 2], 17, 606105819);
-	    b = md5ff(b, c, d, a, x[i + 3], 22, -1044525330);
-	    a = md5ff(a, b, c, d, x[i + 4], 7, -176418897);
-	    d = md5ff(d, a, b, c, x[i + 5], 12, 1200080426);
-	    c = md5ff(c, d, a, b, x[i + 6], 17, -1473231341);
-	    b = md5ff(b, c, d, a, x[i + 7], 22, -45705983);
-	    a = md5ff(a, b, c, d, x[i + 8], 7, 1770035416);
-	    d = md5ff(d, a, b, c, x[i + 9], 12, -1958414417);
-	    c = md5ff(c, d, a, b, x[i + 10], 17, -42063);
-	    b = md5ff(b, c, d, a, x[i + 11], 22, -1990404162);
-	    a = md5ff(a, b, c, d, x[i + 12], 7, 1804603682);
-	    d = md5ff(d, a, b, c, x[i + 13], 12, -40341101);
-	    c = md5ff(c, d, a, b, x[i + 14], 17, -1502002290);
-	    b = md5ff(b, c, d, a, x[i + 15], 22, 1236535329);
-	    a = md5gg(a, b, c, d, x[i + 1], 5, -165796510);
-	    d = md5gg(d, a, b, c, x[i + 6], 9, -1069501632);
-	    c = md5gg(c, d, a, b, x[i + 11], 14, 643717713);
-	    b = md5gg(b, c, d, a, x[i], 20, -373897302);
-	    a = md5gg(a, b, c, d, x[i + 5], 5, -701558691);
-	    d = md5gg(d, a, b, c, x[i + 10], 9, 38016083);
-	    c = md5gg(c, d, a, b, x[i + 15], 14, -660478335);
-	    b = md5gg(b, c, d, a, x[i + 4], 20, -405537848);
-	    a = md5gg(a, b, c, d, x[i + 9], 5, 568446438);
-	    d = md5gg(d, a, b, c, x[i + 14], 9, -1019803690);
-	    c = md5gg(c, d, a, b, x[i + 3], 14, -187363961);
-	    b = md5gg(b, c, d, a, x[i + 8], 20, 1163531501);
-	    a = md5gg(a, b, c, d, x[i + 13], 5, -1444681467);
-	    d = md5gg(d, a, b, c, x[i + 2], 9, -51403784);
-	    c = md5gg(c, d, a, b, x[i + 7], 14, 1735328473);
-	    b = md5gg(b, c, d, a, x[i + 12], 20, -1926607734);
-	    a = md5hh(a, b, c, d, x[i + 5], 4, -378558);
-	    d = md5hh(d, a, b, c, x[i + 8], 11, -2022574463);
-	    c = md5hh(c, d, a, b, x[i + 11], 16, 1839030562);
-	    b = md5hh(b, c, d, a, x[i + 14], 23, -35309556);
-	    a = md5hh(a, b, c, d, x[i + 1], 4, -1530992060);
-	    d = md5hh(d, a, b, c, x[i + 4], 11, 1272893353);
-	    c = md5hh(c, d, a, b, x[i + 7], 16, -155497632);
-	    b = md5hh(b, c, d, a, x[i + 10], 23, -1094730640);
-	    a = md5hh(a, b, c, d, x[i + 13], 4, 681279174);
-	    d = md5hh(d, a, b, c, x[i], 11, -358537222);
-	    c = md5hh(c, d, a, b, x[i + 3], 16, -722521979);
-	    b = md5hh(b, c, d, a, x[i + 6], 23, 76029189);
-	    a = md5hh(a, b, c, d, x[i + 9], 4, -640364487);
-	    d = md5hh(d, a, b, c, x[i + 12], 11, -421815835);
-	    c = md5hh(c, d, a, b, x[i + 15], 16, 530742520);
-	    b = md5hh(b, c, d, a, x[i + 2], 23, -995338651);
-	    a = md5ii(a, b, c, d, x[i], 6, -198630844);
-	    d = md5ii(d, a, b, c, x[i + 7], 10, 1126891415);
-	    c = md5ii(c, d, a, b, x[i + 14], 15, -1416354905);
-	    b = md5ii(b, c, d, a, x[i + 5], 21, -57434055);
-	    a = md5ii(a, b, c, d, x[i + 12], 6, 1700485571);
-	    d = md5ii(d, a, b, c, x[i + 3], 10, -1894986606);
-	    c = md5ii(c, d, a, b, x[i + 10], 15, -1051523);
-	    b = md5ii(b, c, d, a, x[i + 1], 21, -2054922799);
-	    a = md5ii(a, b, c, d, x[i + 8], 6, 1873313359);
-	    d = md5ii(d, a, b, c, x[i + 15], 10, -30611744);
-	    c = md5ii(c, d, a, b, x[i + 6], 15, -1560198380);
-	    b = md5ii(b, c, d, a, x[i + 13], 21, 1309151649);
-	    a = md5ii(a, b, c, d, x[i + 4], 6, -145523070);
-	    d = md5ii(d, a, b, c, x[i + 11], 10, -1120210379);
-	    c = md5ii(c, d, a, b, x[i + 2], 15, 718787259);
-	    b = md5ii(b, c, d, a, x[i + 9], 21, -343485551);
-	    a = safeAdd(a, olda);
-	    b = safeAdd(b, oldb);
-	    c = safeAdd(c, oldc);
-	    d = safeAdd(d, oldd);
-	  }
-
-	  return [a, b, c, d];
-	}
-	/*
-	 * Convert an array bytes to an array of little-endian words
-	 * Characters >255 have their high-byte silently ignored.
-	 */
-
-
-	function bytesToWords(input) {
-	  if (input.length === 0) {
-	    return [];
-	  }
-
-	  const length8 = input.length * 8;
-	  const output = new Uint32Array(getOutputLength(length8));
-
-	  for (let i = 0; i < length8; i += 8) {
-	    output[i >> 5] |= (input[i / 8] & 0xff) << i % 32;
-	  }
-
-	  return output;
-	}
-	/*
-	 * Add integers, wrapping at 2^32. This uses 16-bit operations internally
-	 * to work around bugs in some JS interpreters.
-	 */
-
-
-	function safeAdd(x, y) {
-	  const lsw = (x & 0xffff) + (y & 0xffff);
-	  const msw = (x >> 16) + (y >> 16) + (lsw >> 16);
-	  return msw << 16 | lsw & 0xffff;
-	}
-	/*
-	 * Bitwise rotate a 32-bit number to the left.
-	 */
-
-
-	function bitRotateLeft(num, cnt) {
-	  return num << cnt | num >>> 32 - cnt;
-	}
-	/*
-	 * These functions implement the four basic operations the algorithm uses.
-	 */
-
-
-	function md5cmn(q, a, b, x, s, t) {
-	  return safeAdd(bitRotateLeft(safeAdd(safeAdd(a, q), safeAdd(x, t)), s), b);
-	}
-
-	function md5ff(a, b, c, d, x, s, t) {
-	  return md5cmn(b & c | ~b & d, a, b, x, s, t);
-	}
-
-	function md5gg(a, b, c, d, x, s, t) {
-	  return md5cmn(b & d | c & ~d, a, b, x, s, t);
-	}
-
-	function md5hh(a, b, c, d, x, s, t) {
-	  return md5cmn(b ^ c ^ d, a, b, x, s, t);
-	}
-
-	function md5ii(a, b, c, d, x, s, t) {
-	  return md5cmn(c ^ (b | ~d), a, b, x, s, t);
-	}
-
-	var _default = md5$1;
-	md5.default = _default;
-	return md5;
-}
-
-var hasRequiredV3;
-
-function requireV3 () {
-	if (hasRequiredV3) return v3;
-	hasRequiredV3 = 1;
-
-	Object.defineProperty(v3, "__esModule", {
-	  value: true
-	});
-	v3.default = void 0;
-
-	var _v = _interopRequireDefault(/*@__PURE__*/ requireV35());
-
-	var _md = _interopRequireDefault(/*@__PURE__*/ requireMd5());
-
-	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-	const v3$1 = (0, _v.default)('v3', 0x30, _md.default);
-	var _default = v3$1;
-	v3.default = _default;
-	return v3;
-}
-
-var v4 = {};
-
-var native = {};
-
-var hasRequiredNative;
-
-function requireNative () {
-	if (hasRequiredNative) return native;
-	hasRequiredNative = 1;
-
-	Object.defineProperty(native, "__esModule", {
-	  value: true
-	});
-	native.default = void 0;
-	const randomUUID = typeof crypto !== 'undefined' && crypto.randomUUID && crypto.randomUUID.bind(crypto);
-	var _default = {
-	  randomUUID
-	};
-	native.default = _default;
-	return native;
-}
-
-var hasRequiredV4;
-
-function requireV4 () {
-	if (hasRequiredV4) return v4;
-	hasRequiredV4 = 1;
-
-	Object.defineProperty(v4, "__esModule", {
-	  value: true
-	});
-	v4.default = void 0;
-
-	var _native = _interopRequireDefault(/*@__PURE__*/ requireNative());
-
-	var _rng = _interopRequireDefault(/*@__PURE__*/ requireRng());
-
-	var _stringify = /*@__PURE__*/ requireStringify();
-
-	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-	function v4$1(options, buf, offset) {
-	  if (_native.default.randomUUID && !buf && !options) {
-	    return _native.default.randomUUID();
-	  }
-
-	  options = options || {};
-
-	  const rnds = options.random || (options.rng || _rng.default)(); // Per 4.4, set bits for version and `clock_seq_hi_and_reserved`
-
-
-	  rnds[6] = rnds[6] & 0x0f | 0x40;
-	  rnds[8] = rnds[8] & 0x3f | 0x80; // Copy bytes to buffer, if provided
-
-	  if (buf) {
-	    offset = offset || 0;
-
-	    for (let i = 0; i < 16; ++i) {
-	      buf[offset + i] = rnds[i];
-	    }
-
-	    return buf;
-	  }
-
-	  return (0, _stringify.unsafeStringify)(rnds);
-	}
-
-	var _default = v4$1;
-	v4.default = _default;
-	return v4;
-}
-
-var v5 = {};
-
-var sha1 = {};
-
-var hasRequiredSha1;
-
-function requireSha1 () {
-	if (hasRequiredSha1) return sha1;
-	hasRequiredSha1 = 1;
-
-	Object.defineProperty(sha1, "__esModule", {
-	  value: true
-	});
-	sha1.default = void 0;
-
-	// Adapted from Chris Veness' SHA1 code at
-	// http://www.movable-type.co.uk/scripts/sha1.html
-	function f(s, x, y, z) {
-	  switch (s) {
-	    case 0:
-	      return x & y ^ ~x & z;
-
-	    case 1:
-	      return x ^ y ^ z;
-
-	    case 2:
-	      return x & y ^ x & z ^ y & z;
-
-	    case 3:
-	      return x ^ y ^ z;
-	  }
-	}
-
-	function ROTL(x, n) {
-	  return x << n | x >>> 32 - n;
-	}
-
-	function sha1$1(bytes) {
-	  const K = [0x5a827999, 0x6ed9eba1, 0x8f1bbcdc, 0xca62c1d6];
-	  const H = [0x67452301, 0xefcdab89, 0x98badcfe, 0x10325476, 0xc3d2e1f0];
-
-	  if (typeof bytes === 'string') {
-	    const msg = unescape(encodeURIComponent(bytes)); // UTF8 escape
-
-	    bytes = [];
-
-	    for (let i = 0; i < msg.length; ++i) {
-	      bytes.push(msg.charCodeAt(i));
-	    }
-	  } else if (!Array.isArray(bytes)) {
-	    // Convert Array-like to Array
-	    bytes = Array.prototype.slice.call(bytes);
-	  }
-
-	  bytes.push(0x80);
-	  const l = bytes.length / 4 + 2;
-	  const N = Math.ceil(l / 16);
-	  const M = new Array(N);
-
-	  for (let i = 0; i < N; ++i) {
-	    const arr = new Uint32Array(16);
-
-	    for (let j = 0; j < 16; ++j) {
-	      arr[j] = bytes[i * 64 + j * 4] << 24 | bytes[i * 64 + j * 4 + 1] << 16 | bytes[i * 64 + j * 4 + 2] << 8 | bytes[i * 64 + j * 4 + 3];
-	    }
-
-	    M[i] = arr;
-	  }
-
-	  M[N - 1][14] = (bytes.length - 1) * 8 / Math.pow(2, 32);
-	  M[N - 1][14] = Math.floor(M[N - 1][14]);
-	  M[N - 1][15] = (bytes.length - 1) * 8 & 0xffffffff;
-
-	  for (let i = 0; i < N; ++i) {
-	    const W = new Uint32Array(80);
-
-	    for (let t = 0; t < 16; ++t) {
-	      W[t] = M[i][t];
-	    }
-
-	    for (let t = 16; t < 80; ++t) {
-	      W[t] = ROTL(W[t - 3] ^ W[t - 8] ^ W[t - 14] ^ W[t - 16], 1);
-	    }
-
-	    let a = H[0];
-	    let b = H[1];
-	    let c = H[2];
-	    let d = H[3];
-	    let e = H[4];
-
-	    for (let t = 0; t < 80; ++t) {
-	      const s = Math.floor(t / 20);
-	      const T = ROTL(a, 5) + f(s, b, c, d) + e + K[s] + W[t] >>> 0;
-	      e = d;
-	      d = c;
-	      c = ROTL(b, 30) >>> 0;
-	      b = a;
-	      a = T;
-	    }
-
-	    H[0] = H[0] + a >>> 0;
-	    H[1] = H[1] + b >>> 0;
-	    H[2] = H[2] + c >>> 0;
-	    H[3] = H[3] + d >>> 0;
-	    H[4] = H[4] + e >>> 0;
-	  }
-
-	  return [H[0] >> 24 & 0xff, H[0] >> 16 & 0xff, H[0] >> 8 & 0xff, H[0] & 0xff, H[1] >> 24 & 0xff, H[1] >> 16 & 0xff, H[1] >> 8 & 0xff, H[1] & 0xff, H[2] >> 24 & 0xff, H[2] >> 16 & 0xff, H[2] >> 8 & 0xff, H[2] & 0xff, H[3] >> 24 & 0xff, H[3] >> 16 & 0xff, H[3] >> 8 & 0xff, H[3] & 0xff, H[4] >> 24 & 0xff, H[4] >> 16 & 0xff, H[4] >> 8 & 0xff, H[4] & 0xff];
-	}
-
-	var _default = sha1$1;
-	sha1.default = _default;
-	return sha1;
-}
-
-var hasRequiredV5;
-
-function requireV5 () {
-	if (hasRequiredV5) return v5;
-	hasRequiredV5 = 1;
-
-	Object.defineProperty(v5, "__esModule", {
-	  value: true
-	});
-	v5.default = void 0;
-
-	var _v = _interopRequireDefault(/*@__PURE__*/ requireV35());
-
-	var _sha = _interopRequireDefault(/*@__PURE__*/ requireSha1());
-
-	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-	const v5$1 = (0, _v.default)('v5', 0x50, _sha.default);
-	var _default = v5$1;
-	v5.default = _default;
-	return v5;
-}
-
-var nil = {};
-
-var hasRequiredNil;
-
-function requireNil () {
-	if (hasRequiredNil) return nil;
-	hasRequiredNil = 1;
-
-	Object.defineProperty(nil, "__esModule", {
-	  value: true
-	});
-	nil.default = void 0;
-	var _default = '00000000-0000-0000-0000-000000000000';
-	nil.default = _default;
-	return nil;
-}
-
-var version = {};
-
-var hasRequiredVersion;
-
-function requireVersion () {
-	if (hasRequiredVersion) return version;
-	hasRequiredVersion = 1;
-
-	Object.defineProperty(version, "__esModule", {
-	  value: true
-	});
-	version.default = void 0;
-
-	var _validate = _interopRequireDefault(/*@__PURE__*/ requireValidate());
-
-	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-	function version$1(uuid) {
-	  if (!(0, _validate.default)(uuid)) {
-	    throw TypeError('Invalid UUID');
-	  }
-
-	  return parseInt(uuid.slice(14, 15), 16);
-	}
-
-	var _default = version$1;
-	version.default = _default;
-	return version;
-}
-
-var hasRequiredCommonjsBrowser;
-
-function requireCommonjsBrowser () {
-	if (hasRequiredCommonjsBrowser) return commonjsBrowser;
-	hasRequiredCommonjsBrowser = 1;
-	(function (exports) {
-
-		Object.defineProperty(exports, "__esModule", {
-		  value: true
-		});
-		Object.defineProperty(exports, "NIL", {
-		  enumerable: true,
-		  get: function get() {
-		    return _nil.default;
-		  }
-		});
-		Object.defineProperty(exports, "parse", {
-		  enumerable: true,
-		  get: function get() {
-		    return _parse.default;
-		  }
-		});
-		Object.defineProperty(exports, "stringify", {
-		  enumerable: true,
-		  get: function get() {
-		    return _stringify.default;
-		  }
-		});
-		Object.defineProperty(exports, "v1", {
-		  enumerable: true,
-		  get: function get() {
-		    return _v.default;
-		  }
-		});
-		Object.defineProperty(exports, "v3", {
-		  enumerable: true,
-		  get: function get() {
-		    return _v2.default;
-		  }
-		});
-		Object.defineProperty(exports, "v4", {
-		  enumerable: true,
-		  get: function get() {
-		    return _v3.default;
-		  }
-		});
-		Object.defineProperty(exports, "v5", {
-		  enumerable: true,
-		  get: function get() {
-		    return _v4.default;
-		  }
-		});
-		Object.defineProperty(exports, "validate", {
-		  enumerable: true,
-		  get: function get() {
-		    return _validate.default;
-		  }
-		});
-		Object.defineProperty(exports, "version", {
-		  enumerable: true,
-		  get: function get() {
-		    return _version.default;
-		  }
-		});
-
-		var _v = _interopRequireDefault(/*@__PURE__*/ requireV1());
-
-		var _v2 = _interopRequireDefault(/*@__PURE__*/ requireV3());
-
-		var _v3 = _interopRequireDefault(/*@__PURE__*/ requireV4());
-
-		var _v4 = _interopRequireDefault(/*@__PURE__*/ requireV5());
-
-		var _nil = _interopRequireDefault(/*@__PURE__*/ requireNil());
-
-		var _version = _interopRequireDefault(/*@__PURE__*/ requireVersion());
-
-		var _validate = _interopRequireDefault(/*@__PURE__*/ requireValidate());
-
-		var _stringify = _interopRequireDefault(/*@__PURE__*/ requireStringify());
-
-		var _parse = _interopRequireDefault(/*@__PURE__*/ requireParse());
-
-		function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; } 
-	} (commonjsBrowser));
-	return commonjsBrowser;
-}
-
-var hasRequiredReconciler;
-
-function requireReconciler () {
-	if (hasRequiredReconciler) return reconciler;
-	hasRequiredReconciler = 1;
-	(function (exports) {
-		Object.defineProperty(exports, "__esModule", { value: true });
-		exports.ForgeReconciler = exports.hostConfig = exports.nonChildPropsAreEqual = exports.insertBefore = exports.appendChild = exports.createElement = exports.callBridge = void 0;
-		const tslib_1 = require$$0;
-		const react_reconciler_1 = tslib_1.__importDefault(requireReactReconciler());
-		const constants_1 = requireConstants();
-		const uuid_1 = /*@__PURE__*/ requireCommonjsBrowser();
-		// Only taking the first 5 characters of the uuid to keep the id shorter in the DOM to readability.
-		// The chances of clashing with 5 characters is still 1 in 1 million.
-		const idPropsPrefixAppUUID = (0, uuid_1.v4)().slice(0, 5);
-		const idPropsPrefix = `forge-app-${idPropsPrefixAppUUID}`;
-		// Checks the props of the component to see if it has an id prop. If so prefixes the value with the idPropsPrefix\
-		// This is done to avoid id conflicts with components in host product and other forge apps in the same page
-		const newPropsWithIdPrefix = (props) => {
-		    const idProps = ['id', 'labelFor', 'inputId'];
-		    const newProps = idProps.reduce((acc, idProp) => {
-		        if (props[idProp]) {
-		            return {
-		                ...acc,
-		                [idProp]: `${idPropsPrefix}-${props[idProp]}`
-		            };
-		        }
-		        return acc;
-		    }, props);
-		    return newProps;
-		};
-		const attachFunctionPropId = (props) => {
-		    for (const key in props) {
-		        const propValue = props[key];
-		        if (typeof propValue === 'function' && !propValue.__id__) {
-		            propValue.__id__ = (0, uuid_1.v4)();
-		        }
-		    }
-		    return props;
-		};
-		const handleReconcilerError = async (error) => {
-		    try {
-		        await self?.__bridge?.callBridge('onError', { error });
-		    }
-		    catch (e) {
-		        // eslint-disable-next-line no-console
-		        console.log('error calling bridge onError', e);
-		    }
-		};
-		const callBridge = function (cmd, data) {
-		    // @ts-ignore
-		    // eslint-disable-next-line @typescript-eslint/no-floating-promises
-		    self?.__bridge?.callBridge(cmd, data);
-		};
-		exports.callBridge = callBridge;
-		const createElement = ({ type, props = {}, forgeReactMajorVersion }) => {
-		    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-		    const { children, ...restProps } = props;
-		    const newProps = newPropsWithIdPrefix(attachFunctionPropId(restProps));
-		    const element = {
-		        type,
-		        children: [],
-		        props: newProps,
-		        key: (0, uuid_1.v4)()
-		    };
-		    if (forgeReactMajorVersion) {
-		        element.forgeReactMajorVersion = forgeReactMajorVersion;
-		    }
-		    return element;
-		};
-		exports.createElement = createElement;
-		const appendChild = (parent, child) => {
-		    if (parent.children.includes(child)) {
-		        const removeIndex = parent.children.indexOf(child);
-		        parent.children.splice(removeIndex, 1);
-		    }
-		    parent.children.push(child);
-		};
-		exports.appendChild = appendChild;
-		const insertBefore = (parent, child, beforeChild) => {
-		    const insertIndex = parent.children.indexOf(beforeChild);
-		    if (parent.children.includes(child)) {
-		        const removeIndex = parent.children.indexOf(child);
-		        parent.children.splice(removeIndex, 1);
-		    }
-		    parent.children.splice(insertIndex, 0, child);
-		};
-		exports.insertBefore = insertBefore;
-		/**
-		 * Performs a shallow comparison of the old and new props for a component, but doesn't
-		 * compare the "children" prop. This works because the custom reconciler extracts the
-		 * "children" prop from the ForgeDoc and includes it separately.
-		 *
-		 * This function is used in prepareUpdate to determine whether or not to increment the
-		 * reconciliationCount for the component - the reconciliationCount should only be incremented
-		 * if the props have changed.
-		 *
-		 * @param newProps The new props being passed to the component
-		 * @param oldProps The old props the component previously had
-		 * @returns True if the props are equal and false otherwise
-		 */
-		const nonChildPropsAreEqual = (oldProps, newProps) => {
-		    const newPropsKey = Object.keys(newProps).filter((key) => key !== 'children');
-		    const oldPropsKey = Object.keys(oldProps).filter((key) => key !== 'children');
-		    if (newPropsKey.length !== oldPropsKey.length) {
-		        return false;
-		    }
-		    for (const key of newPropsKey) {
-		        if (newProps[key] !== oldProps[key]) {
-		            return false;
-		        }
-		    }
-		    return true;
-		};
-		exports.nonChildPropsAreEqual = nonChildPropsAreEqual;
-		exports.hostConfig = {
-		    supportsMutation: true,
-		    supportsPersistence: false,
-		    noTimeout: -1,
-		    isPrimaryRenderer: false,
-		    supportsHydration: false,
-		    resetAfterCommit(containerInfo) {
-		        (0, exports.callBridge)('reconcile', { forgeDoc: containerInfo });
-		    },
-		    createInstance(type, instanceProps) {
-		        const element = (0, exports.createElement)({ type, props: instanceProps });
-		        return element;
-		    },
-		    createTextInstance(text) {
-		        const element = (0, exports.createElement)({ type: 'String', props: { text } });
-		        return element;
-		    },
-		    appendInitialChild(parentInstance, child) {
-		        (0, exports.appendChild)(parentInstance, child);
-		    },
-		    appendChild(parent, child) {
-		        (0, exports.appendChild)(parent, child);
-		    },
-		    appendChildToContainer(container, child) {
-		        (0, exports.appendChild)(container, child);
-		    },
-		    finalizeInitialChildren() {
-		        return false;
-		    },
-		    prepareUpdate(instance, type, oldProps, newProps) {
-		        instance.props = newProps;
-		        return newProps;
-		    },
-		    shouldSetTextContent() {
-		        return false;
-		    },
-		    getRootHostContext() {
-		        return {};
-		    },
-		    getChildHostContext() {
-		        return null;
-		    },
-		    getPublicInstance(instance) {
-		        return instance;
-		    },
-		    prepareForCommit() {
-		        return null;
-		    },
-		    // eslint-disable-next-line @typescript-eslint/no-empty-function
-		    preparePortalMount() { },
-		    scheduleTimeout(fn, delay) {
-		        return setTimeout(fn, delay);
-		    },
-		    cancelTimeout(id) {
-		        clearTimeout(id);
-		    },
-		    insertBefore(parentInstance, child, beforeChild) {
-		        (0, exports.insertBefore)(parentInstance, child, beforeChild);
-		    },
-		    insertInContainerBefore(container, child, beforeChild) {
-		        (0, exports.insertBefore)(container, child, beforeChild);
-		    },
-		    removeChild(parent, child) {
-		        const removeIndex = parent.children.indexOf(child);
-		        parent.children.splice(removeIndex, 1);
-		    },
-		    removeChildFromContainer(container, child) {
-		        const removeIndex = container.children.indexOf(child);
-		        container.children.splice(removeIndex, 1);
-		    },
-		    // eslint-disable-next-line @typescript-eslint/no-empty-function
-		    resetTextContent() { },
-		    commitTextUpdate(textInstance, oldText, newText) {
-		        textInstance.props.text = newText;
-		    },
-		    // eslint-disable-next-line @typescript-eslint/no-empty-function
-		    commitMount() { },
-		    // eslint-disable-next-line @typescript-eslint/no-empty-function
-		    commitUpdate() { },
-		    // eslint-disable-next-line @typescript-eslint/no-empty-function
-		    hideInstance() { },
-		    // eslint-disable-next-line @typescript-eslint/no-empty-function
-		    hideTextInstance() { },
-		    // eslint-disable-next-line @typescript-eslint/no-empty-function
-		    unhideInstance() { },
-		    // eslint-disable-next-line @typescript-eslint/no-empty-function
-		    unhideTextInstance() { },
-		    // eslint-disable-next-line @typescript-eslint/no-empty-function
-		    clearContainer() { },
-		    // eslint-disable-next-line @typescript-eslint/no-empty-function
-		    detachDeletedInstance() { },
-		    getCurrentEventPriority() {
-		        return constants_1.DefaultEventPriority;
-		    },
-		    getInstanceFromNode() {
-		        return null;
-		    },
-		    // eslint-disable-next-line @typescript-eslint/no-empty-function
-		    beforeActiveInstanceBlur() { },
-		    // eslint-disable-next-line @typescript-eslint/no-empty-function
-		    afterActiveInstanceBlur() { },
-		    // eslint-disable-next-line @typescript-eslint/no-empty-function
-		    prepareScopeUpdate() { },
-		    getInstanceFromScope() {
-		        return null;
-		    }
-		};
-		const reconciler = (0, react_reconciler_1.default)(exports.hostConfig);
-		exports.ForgeReconciler = {
-		    render: (element) => {
-		        const rootElement = (0, exports.createElement)({ type: 'Root', props: {}, forgeReactMajorVersion: 11 });
-		        const container = reconciler.createContainer(rootElement, 0, null, false, null, 'root', (err) => {
-		            // eslint-disable-next-line no-console
-		            console.log(err);
-		        }, null);
-		        try {
-		            reconciler.updateContainer(element, container, null, null);
-		        }
-		        catch (e) {
-		            // only report errors that are not recoverable
-		            void handleReconcilerError(e);
-		            throw e;
-		        }
-		    },
-		    addConfig: (element) => {
-		        const macroConfigElement = (0, exports.createElement)({ type: 'MacroConfig', props: {}, forgeReactMajorVersion: 11 });
-		        const container = reconciler.createContainer(macroConfigElement, 0, null, false, null, 'macroConfig', (err) => {
-		            // eslint-disable-next-line no-console
-		            console.log(err);
-		        }, null);
-		        reconciler.updateContainer(element, container, null, null);
-		    }
-		};
-		exports.default = exports.ForgeReconciler; 
-	} (reconciler));
-	return reconciler;
-}
-
-var components = {};
-
-var dynamicTable = {};
-
-var jsxRuntime = {exports: {}};
-
-var reactJsxRuntime_production_min = {};
-
-/**
- * @license React
- * react-jsx-runtime.production.min.js
- *
- * Copyright (c) Facebook, Inc. and its affiliates.
- *
- * This source code is licensed under the MIT license found in the
- * LICENSE file in the root directory of this source tree.
- */
-
-var hasRequiredReactJsxRuntime_production_min;
-
-function requireReactJsxRuntime_production_min () {
-	if (hasRequiredReactJsxRuntime_production_min) return reactJsxRuntime_production_min;
-	hasRequiredReactJsxRuntime_production_min = 1;
-var f=requireReact(),k=Symbol.for("react.element"),l=Symbol.for("react.fragment"),m=Object.prototype.hasOwnProperty,n=f.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED.ReactCurrentOwner,p={key:true,ref:true,__self:true,__source:true};
-	function q(c,a,g){var b,d={},e=null,h=null;void 0!==g&&(e=""+g);void 0!==a.key&&(e=""+a.key);void 0!==a.ref&&(h=a.ref);for(b in a)m.call(a,b)&&!p.hasOwnProperty(b)&&(d[b]=a[b]);if(c&&c.defaultProps)for(b in a=c.defaultProps,a) void 0===d[b]&&(d[b]=a[b]);return {$$typeof:k,type:c,key:e,ref:h,props:d,_owner:n.current}}reactJsxRuntime_production_min.Fragment=l;reactJsxRuntime_production_min.jsx=q;reactJsxRuntime_production_min.jsxs=q;
-	return reactJsxRuntime_production_min;
-}
-
-var hasRequiredJsxRuntime;
-
-function requireJsxRuntime () {
-	if (hasRequiredJsxRuntime) return jsxRuntime.exports;
-	hasRequiredJsxRuntime = 1;
-
-	{
-	  jsxRuntime.exports = requireReactJsxRuntime_production_min();
-	}
-	return jsxRuntime.exports;
-}
-
-var contentWrapper = {};
-
-var hasRequiredContentWrapper;
-
-function requireContentWrapper () {
-	if (hasRequiredContentWrapper) return contentWrapper;
-	hasRequiredContentWrapper = 1;
-	Object.defineProperty(contentWrapper, "__esModule", { value: true });
-	contentWrapper.ContentWrapper = void 0;
-	// ContentWrapper is an internal component that allows us to workaround the limitation of the Forge architecture
-	// Functions in Forge apps are invoked from within the runtime and it's definition cannot be passed across the bridge.
-	// For ADS components that accept a call back function that returns a ReactNode as a prop, these must be evaluated within the runtime to return a ForgeDoc before being passed to the Renderer. Otherwise the Renderer would not be able to render the component at all.
-	// The ContentWrapper component should be used to wrap around any callback function that returns a ReactNode so that it will evaluate the callback within the runtime and pass back the evaluated ForgeDoc
-	contentWrapper.ContentWrapper = 'ContentWrapper';
-	return contentWrapper;
-}
-
-var hasRequiredDynamicTable;
-
-function requireDynamicTable () {
-	if (hasRequiredDynamicTable) return dynamicTable;
-	hasRequiredDynamicTable = 1;
-	Object.defineProperty(dynamicTable, "__esModule", { value: true });
-	dynamicTable.DynamicTable = void 0;
-	const jsx_runtime_1 = requireJsxRuntime();
-	const react_1 = requireReact();
-	const content_wrapper_1 = requireContentWrapper();
-	/**
-	 * These are internal components that the table head and rows are converted into.
-	 * This is to ensure that they are correctly reconciled into ForgeDoc before being sent over
-	 * the bridge. On the product frontend, the ForgeDoc is transformed back into the props the
-	 * ADS DynamicTable expects.
-	 * */
-	const DynamicTablePrimitive = 'DynamicTable';
-	const Cell = 'Cell';
-	const Row = 'Row';
-	/**
-	 * A dynamic table displays rows of data with built-in pagination, sorting, and re-ordering functionality.
-	 *
-	 * @see [DynamicTable](https://developer.atlassian.com/platform/forge/ui-kit/components/dynamic-table/) in UI Kit documentation for more information
-	 */
-	const DynamicTable = ({ head, rows, ...tableProps }) => {
-	    const transformedHead = head?.cells.map((cell) => {
-	        const { content, key: cellKey, ...cellProps } = cell;
-	        const reconciledContent = 
-	        // @ts-ignore Not all constituents of type JSXElementConstructor are callable.
-	        (0, react_1.isValidElement)(content) && typeof content.type === 'function' ? content.type(content.props) : content;
-	        return (
-	        // The 'key' prop needs to be renamed as it is a reserved keyword in React, and won't
-	        // get included in the props object otherwise.
-	        (0, jsx_runtime_1.jsx)(Cell, { cellKey: cellKey, ...cellProps, children: reconciledContent }, cellKey));
-	    });
-	    const transformedRows = rows?.map((row) => {
-	        const { cells, key: rowKey, ...rowProps } = row;
-	        const transformedCells = cells.map((cell) => {
-	            const { content, key: cellKey, ...cellProps } = cell;
-	            const reconciledContent = 
-	            // @ts-ignore Not all constituents of type JSXElementConstructor are callable.
-	            (0, react_1.isValidElement)(content) && typeof content.type === 'function' ? content.type(content.props) : content;
-	            return ((0, jsx_runtime_1.jsx)(Cell, { cellKey: cellKey, ...cellProps, children: reconciledContent }, cellKey));
-	        });
-	        return ((0, jsx_runtime_1.jsx)(Row, { rowKey: rowKey, ...rowProps, children: transformedCells }, rowKey));
-	    });
-	    return ((0, jsx_runtime_1.jsxs)(DynamicTablePrimitive, { ...tableProps, children: [(0, jsx_runtime_1.jsx)(content_wrapper_1.ContentWrapper, { name: "head", children: transformedHead }), (0, jsx_runtime_1.jsx)(content_wrapper_1.ContentWrapper, { name: "rows", children: transformedRows })] }));
-	};
-	dynamicTable.DynamicTable = DynamicTable;
-	return dynamicTable;
-}
-
-var inlineEdit = {};
-
-var hasRequiredInlineEdit;
-
-function requireInlineEdit () {
-	if (hasRequiredInlineEdit) return inlineEdit;
-	hasRequiredInlineEdit = 1;
-	Object.defineProperty(inlineEdit, "__esModule", { value: true });
-	inlineEdit.InlineEdit = void 0;
-	const jsx_runtime_1 = requireJsxRuntime();
-	const react_1 = requireReact();
-	const content_wrapper_1 = requireContentWrapper();
-	/**
-	 * The following workaround is required because functions cannot be passed outside of the runtime.
-	 * The Renderer will invoke the function from within the runtime
-	 * Instead of passing the function, we are reimplementing validation and confirmation here to provide the same behaviour as the ADS version.
-	 *
-	 * The reimplemented functions include:
-	 * - validate
-	 * - onConfirm
-	 * - onCancel
-	 * - onEdit
-	 *
-	 * readView and editView also need to be evaluated here so that into a primitive type(JS object) to be rendered by the Renderer. Otherwise the Renderer will not be able to evaluate them on the product side.
-	 *
-	 */
-	const InlineEditPrimitive = 'InlineEdit';
-	/**
-	 * An inline edit displays a custom input component that switches between reading and editing on the same page.
-	 *
-	 * @see [InlineEdit](https://developer.atlassian.com/platform/forge/ui-kit/components/inline-edit/) in UI Kit documentation for more information
-	 */
-	const InlineEdit = ({ label, readView, editView, validate, startWithEditViewOpen, keepEditViewOpenOnBlur, hideActionButtons, isRequired, readViewFitContainerWidth, editButtonLabel, confirmButtonLabel, cancelButtonLabel, defaultValue, isEditing, onConfirm, onCancel, onEdit }) => {
-	    const [prevValue, setPrevValue] = (0, react_1.useState)();
-	    const [value, setValue] = (0, react_1.useState)(defaultValue);
-	    const [_isEditing, _setIsEditing] = (0, react_1.useState)(startWithEditViewOpen ? startWithEditViewOpen : false);
-	    const [errorMessage, setErrorMessage] = (0, react_1.useState)(undefined);
-	    const internalValidate = (newValue, setEdit, onConfirm) => {
-	        if (validate !== undefined) {
-	            const errorMessageFromValidation = validate(newValue, {}, {});
-	            const handleValidationResult = (error) => {
-	                setErrorMessage(error || undefined);
-	                // If no error and onConfirm is being called
-	                if (error === undefined && onConfirm) {
-	                    onConfirm(newValue);
-	                }
-	                if (setEdit) {
-	                    setEdit(error !== undefined);
-	                }
-	            };
-	            if (errorMessageFromValidation instanceof Promise) {
-	                void errorMessageFromValidation.then(handleValidationResult);
-	            }
-	            else {
-	                handleValidationResult(errorMessageFromValidation);
-	            }
-	        }
-	        else {
-	            if (setEdit) {
-	                setEdit(false);
-	            }
-	            if (onConfirm) {
-	                onConfirm(newValue);
-	            }
-	        }
-	    };
-	    const internalOnConfirm = () => {
-	        if (value === prevValue) {
-	            _setIsEditing(false);
-	            return;
-	        }
-	        internalValidate(value, _setIsEditing, onConfirm);
-	    };
-	    const internalOnChange = (e) => {
-	        const newValue = e.target ? e.target.value : e;
-	        setValue(newValue);
-	        internalValidate(newValue);
-	    };
-	    const internalOnEdit = () => {
-	        // Reset error state on first open
-	        setErrorMessage(undefined);
-	        _setIsEditing(true);
-	        setPrevValue(value);
-	        onEdit?.();
-	    };
-	    const internalOnCancel = () => {
-	        _setIsEditing(false);
-	        setValue(prevValue);
-	        onCancel?.();
-	    };
-	    return ((0, jsx_runtime_1.jsx)(jsx_runtime_1.Fragment, { children: (0, jsx_runtime_1.jsxs)(InlineEditPrimitive, { label: label, onConfirm: () => internalOnConfirm(), onEdit: () => internalOnEdit(), onCancel: () => internalOnCancel(), isEditing: isEditing !== undefined ? isEditing : _isEditing, startWithEditViewOpen: startWithEditViewOpen, keepEditViewOpenOnBlur: keepEditViewOpenOnBlur, hideActionButtons: hideActionButtons, isRequired: isRequired, readViewFitContainerWidth: readViewFitContainerWidth, editButtonLabel: editButtonLabel, confirmButtonLabel: confirmButtonLabel, cancelButtonLabel: cancelButtonLabel, children: [(0, jsx_runtime_1.jsx)(content_wrapper_1.ContentWrapper, { name: "editView", children: editView({
-	                        onChange: internalOnChange,
-	                        value,
-	                        errorMessage,
-	                        isInvalid: errorMessage !== undefined,
-	                        'aria-invalid': errorMessage !== undefined ? 'true' : 'false',
-	                        isRequired: isRequired || false
-	                    }) }), (0, jsx_runtime_1.jsx)(content_wrapper_1.ContentWrapper, { name: "readView", children: readView() })] }) }));
-	};
-	inlineEdit.InlineEdit = InlineEdit;
-	return inlineEdit;
-}
-
-var popup = {};
-
-var hasRequiredPopup;
-
-function requirePopup () {
-	if (hasRequiredPopup) return popup;
-	hasRequiredPopup = 1;
-	Object.defineProperty(popup, "__esModule", { value: true });
-	popup.Popup = void 0;
-	const jsx_runtime_1 = requireJsxRuntime();
-	const content_wrapper_1 = requireContentWrapper();
-	const PopupPrimitive = 'Popup';
-	/**
-	 * A popup displays brief content in an overlay.
-	 *
-	 * @see [Popup](https://developer.atlassian.com/platform/forge/ui-kit/components/popup/) in UI Kit documentation for more information
-	 */
-	const Popup = ({ content, trigger, isOpen, id, testId, onClose, boundary, rootBoundary, shouldFlip, placement, fallbackPlacements, autoFocus, shouldUseCaptureOnOutsideClick, shouldFitContainer, shouldDisableFocusLock, strategy, role, label, titleId, shouldRenderToParent }) => {
-	    return ((0, jsx_runtime_1.jsxs)(PopupPrimitive, { isOpen: isOpen, id: id, testId: testId, onClose: onClose, boundary: boundary, rootBoundary: rootBoundary, shouldFlip: shouldFlip, placement: placement, fallbackPlacements: fallbackPlacements, autoFocus: autoFocus, shouldUseCaptureOnOutsideClick: shouldUseCaptureOnOutsideClick, shouldFitContainer: shouldFitContainer, shouldDisableFocusLock: shouldDisableFocusLock, shouldRenderToParent: shouldRenderToParent, strategy: strategy, role: role, label: label, titleId: titleId, children: [(0, jsx_runtime_1.jsx)(content_wrapper_1.ContentWrapper, { name: "content", children: content() }), (0, jsx_runtime_1.jsx)(content_wrapper_1.ContentWrapper, { name: "trigger", children: trigger() })] }));
-	};
-	popup.Popup = Popup;
-	return popup;
-}
-
-var comment = {};
-
-var hasRequiredComment;
-
-function requireComment () {
-	if (hasRequiredComment) return comment;
-	hasRequiredComment = 1;
-	Object.defineProperty(comment, "__esModule", { value: true });
-	comment.Comment = void 0;
-	const jsx_runtime_1 = requireJsxRuntime();
-	const content_wrapper_1 = requireContentWrapper();
-	const CommentPrimitive = 'Comment';
-	/**
-	 * A comment displays discussions and user feedback.
-	 *
-	 * @see [Comment](https://developer.atlassian.com/platform/forge/ui-kit/components/comment/) in UI Kit documentation for more information
-	 */
-	const Comment = ({ avatar, content, ...rest }) => {
-	    return ((0, jsx_runtime_1.jsxs)(CommentPrimitive, { ...rest, children: [(0, jsx_runtime_1.jsx)(content_wrapper_1.ContentWrapper, { name: "avatar", children: avatar }), (0, jsx_runtime_1.jsx)(content_wrapper_1.ContentWrapper, { name: "content", children: content })] }));
-	};
-	comment.Comment = Comment;
-	return comment;
-}
-
-var adfRenderer$1 = {};
-
-var replaceUnsupportedDocumentNodes = {};
-
-function _typeof(o) {
-  "@babel/helpers - typeof";
-
-  return _typeof = "function" == typeof Symbol && "symbol" == typeof Symbol.iterator ? function (o) {
-    return typeof o;
-  } : function (o) {
-    return o && "function" == typeof Symbol && o.constructor === Symbol && o !== Symbol.prototype ? "symbol" : typeof o;
-  }, _typeof(o);
-}
-
-function toPrimitive(t, e) {
-  if ("object" != _typeof(t) || !t) return t;
-  var r;
-  if ("undefined" != typeof Symbol && void 0 !== (r = t[Symbol.toPrimitive])) {
-    var i = r.call(t, e);
-    if ("object" != _typeof(i)) return i;
-    throw new TypeError("@@toPrimitive must return a primitive value.");
-  }
-  return ("string" === e ? String : Number)(t);
-}
-
-function toPropertyKey(t) {
-  var i = toPrimitive(t, "string");
-  return "symbol" == _typeof(i) ? i : i + "";
-}
-
-function _defineProperty(e, r, t) {
-  return (r = toPropertyKey(r)) in e ? Object.defineProperty(e, r, {
-    value: t,
-    enumerable: true,
-    configurable: true,
-    writable: true
-  }) : e[r] = t, e;
-}
-
-function ownKeys(e, r) { var t = Object.keys(e); if (Object.getOwnPropertySymbols) { var o = Object.getOwnPropertySymbols(e); r && (o = o.filter(function (r) { return Object.getOwnPropertyDescriptor(e, r).enumerable; })), t.push.apply(t, o); } return t; }
-function _objectSpread(e) { for (var r = 1; r < arguments.length; r++) { var t = null != arguments[r] ? arguments[r] : {}; r % 2 ? ownKeys(Object(t), true).forEach(function (r) { _defineProperty(e, r, t[r]); }) : Object.getOwnPropertyDescriptors ? Object.defineProperties(e, Object.getOwnPropertyDescriptors(t)) : ownKeys(Object(t)).forEach(function (r) { Object.defineProperty(e, r, Object.getOwnPropertyDescriptor(t, r)); }); } return e; }
-
-/**
- * Provides recursive, depth-first search document traversal. Use visitors collection to define nodes of interest.
- * If no visitor for given node is defined, no-op happens.
- * If visitor returns new node, the old node is replaced.
- * If visitor returns false, node is dropped from the document.
- * If visitor returns null/undefined/void, original node is used.
- * @param adf Document to traverse.
- * @param visitors Collection of visitors.
- */
-function traverse$1(adf, visitors) {
-  return traverseNode(adf, {
-    node: undefined
-  }, visitors, 0, 0);
-}
-function traverseNode(adfNode, parent, visitors, index, depth) {
-  var visitor = visitors[adfNode.type] || visitors['any'];
-  var newNode = _objectSpread({}, adfNode);
-  if (visitor) {
-    var processedNode = visitor(_objectSpread({}, newNode), parent, index, depth);
-    if (processedNode === false) {
-      return false;
-    }
-    newNode = processedNode || adfNode;
-  }
-  if (newNode.content) {
-    newNode.content = newNode.content.reduce(function (acc, node, idx) {
-      if (!node) {
-        return acc;
-      }
-      var processedNode = traverseNode(node, {
-        node: newNode,
-        parent: parent
-      }, visitors, idx, depth + 1);
-      if (processedNode !== false) {
-        acc.push(processedNode);
-      }
-      return acc;
-    }, []);
-  }
-  return newNode;
-}
-
-// Ignored via go/ees005
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function map(adf, callback) {
-  var result = [];
-  traverse$1(adf, {
-    any: function any(node) {
-      result.push(callback(node));
-    }
-  });
-  return result;
-}
-
-// Ignored via go/ees005
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function reduce(adf, callback, initial) {
-  var result = initial;
-  traverse$1(adf, {
-    any: function any(node) {
-      result = callback(result, node);
-    }
-  });
-  return result;
-}
-
-function filter(adf, callback) {
-  var result = [];
-  traverse$1(adf, {
-    any: function any(node) {
-      if (callback(node)) {
-        result.push(node);
-      }
-    }
-  });
-  return result;
-}
-
-// Disable no-re-export rule for entry point files
-/* eslint-disable @atlaskit/editor/no-re-export */
-
-var traverse = /*#__PURE__*/Object.freeze({
+var index$1 = /*#__PURE__*/_mergeNamespaces({
 	__proto__: null,
-	filter: filter,
-	map: map,
-	reduce: reduce,
-	traverse: traverse$1
-});
-
-var require$$1 = /*@__PURE__*/getAugmentedNamespace(traverse);
-
-var hasRequiredReplaceUnsupportedDocumentNodes;
-
-function requireReplaceUnsupportedDocumentNodes () {
-	if (hasRequiredReplaceUnsupportedDocumentNodes) return replaceUnsupportedDocumentNodes;
-	hasRequiredReplaceUnsupportedDocumentNodes = 1;
-	Object.defineProperty(replaceUnsupportedDocumentNodes, "__esModule", { value: true });
-	replaceUnsupportedDocumentNodes.replaceUnsupportedMediaNodes = replaceUnsupportedDocumentNodes.replaceUnsupportedDocumentNodes = void 0;
-	const uuid_1 = /*@__PURE__*/ requireCommonjsBrowser();
-	const traverse_1 = require$$1;
-	const replaceUnsupportedDocumentNodes$1 = (document, replaceUnsupportedNode) => {
-	    const visitors = {
-	        // Partially supported nodes
-	        emoji: (node, parent, index, depth) => {
-	            if (node?.attrs?.id) {
-	                // Custom Atlassian generated emoji
-	                if (node.attrs.id.includes('atlassian')) {
-	                    return replaceUnsupportedNode(node, parent, index, depth);
-	                }
-	                // Custom user generated emoji
-	                const isIdGuid = (0, uuid_1.validate)(node.attrs.id);
-	                if (isIdGuid) {
-	                    return replaceUnsupportedNode(node, parent, index, depth);
-	                }
-	            }
-	        },
-	        // Fully unsupported nodes
-	        extension: replaceUnsupportedNode,
-	        bodiedExtension: replaceUnsupportedNode,
-	        inlineExtension: replaceUnsupportedNode,
-	        // Nodes shown when a bad node is passed
-	        confluenceUnsupportedBlock: replaceUnsupportedNode,
-	        confluenceUnsupportedInline: replaceUnsupportedNode,
-	        confluenceJiraIssue: replaceUnsupportedNode,
-	        unsupportedBlock: replaceUnsupportedNode,
-	        unsupportedInline: replaceUnsupportedNode,
-	        unknownBlock: replaceUnsupportedNode
-	    };
-	    return replaceDocumentWithVisitor(document, visitors);
-	};
-	replaceUnsupportedDocumentNodes.replaceUnsupportedDocumentNodes = replaceUnsupportedDocumentNodes$1;
-	const replaceUnsupportedMediaNodes = (document, replaceUnsupportedNode) => {
-	    const mediaVisitor = (node, parent, index, depth) => {
-	        if (!node?.attrs?.url) {
-	            return replaceUnsupportedNode(node, parent, index, depth);
-	        }
-	    };
-	    const visitors = {
-	        media: mediaVisitor,
-	        mediaInline: mediaVisitor
-	    };
-	    return replaceDocumentWithVisitor(document, visitors);
-	};
-	replaceUnsupportedDocumentNodes.replaceUnsupportedMediaNodes = replaceUnsupportedMediaNodes;
-	const replaceDocumentWithVisitor = (document, visitors) => {
-	    const updatedDoc = (0, traverse_1.traverse)(document, visitors);
-	    return updatedDoc ? { ...updatedDoc, version: document.version } : document;
-	};
-	return replaceUnsupportedDocumentNodes;
-}
-
-var hasRequiredAdfRenderer$1;
-
-function requireAdfRenderer$1 () {
-	if (hasRequiredAdfRenderer$1) return adfRenderer$1;
-	hasRequiredAdfRenderer$1 = 1;
-	Object.defineProperty(adfRenderer$1, "__esModule", { value: true });
-	adfRenderer$1.AdfRenderer = void 0;
-	const jsx_runtime_1 = requireJsxRuntime();
-	const replaceUnsupportedDocumentNodes_1 = requireReplaceUnsupportedDocumentNodes();
-	const PlatformAdfRenderer = 'AdfRenderer';
-	/**
-	 * The AdfRenderer component provides a way to render a valid ADF document, using the same renderer that Atlassian uses internally to render ADF content in Confluence pages, Jira work items, and so on.
-	 * It allows you to replace node types that are unsupported in the context of a Forge app with replacement content, or remove them entirely.
-	 * See [Atlassian Document Format](https://developer.atlassian.com/cloud/jira/platform/apis/document/structure/) for information on valid nodes.
-	 *
-	 * This component uses [@atlaskit/renderer](https://www.npmjs.com/package/@atlaskit/renderer) under the hood.
-	 *
-	 * Visit [Renderer editor](https://atlaskit.atlassian.com/examples/editor/renderer/basic) for a comprehensive list of different ADF document examples
-	 *
-	 * @see [AdfRenderer](https://developer.atlassian.com/platform/forge/ui-kit/components/adfRenderer/) in UI Kit documentation for more information
-	 */
-	const AdfRenderer = (props) => {
-	    const { replaceUnsupportedNode, document, ...adfRendererProps } = props;
-	    const documentWithMedia = replaceUnsupportedNode
-	        ? (0, replaceUnsupportedDocumentNodes_1.replaceUnsupportedDocumentNodes)(document, replaceUnsupportedNode)
-	        : document;
-	    const documentWithoutMedia = replaceUnsupportedNode
-	        ? (0, replaceUnsupportedDocumentNodes_1.replaceUnsupportedMediaNodes)(documentWithMedia, replaceUnsupportedNode)
-	        : documentWithMedia;
-	    return ((0, jsx_runtime_1.jsx)(PlatformAdfRenderer, { ...adfRendererProps, document: documentWithMedia, documentWithoutMedia: documentWithoutMedia }));
-	};
-	adfRenderer$1.AdfRenderer = AdfRenderer;
-	return adfRenderer$1;
-}
-
-var uiKitComponents = {};
-
-var hasRequiredUiKitComponents;
-
-function requireUiKitComponents () {
-	if (hasRequiredUiKitComponents) return uiKitComponents;
-	hasRequiredUiKitComponents = 1;
-	// This file is partially generated by the `yarn run add-component-jsdoc` command (also the prebuild script in the package.json).
-	// The manual step involved is to:
-	//   1. import the new component type from the forge-react-types package, e.g. `TBadge`
-	//   2. add the export statement for the new component, e.g. `export const Badge = 'Badge' as unknown as TBadge<ForgeElement>;`
-	//   3. either run the `yarn run add-component-jsdoc` command or manually add the JSDoc comment for the new component
-	//      or the build process will automatically add the JSDoc comment during `bolt build`
-	// For more information, please see: https://hello.atlassian.net/wiki/x/SI2n0w?atlOrigin=eyJpIjoiYjJhOTliZmZmYWE1NDE5ZjgzOWU1Y2ViZWI3Yjk3NTMiLCJwIjoiYyJ9
-	Object.defineProperty(uiKitComponents, "__esModule", { value: true });
-	uiKitComponents.Stack = uiKitComponents.Spinner = uiKitComponents.SectionMessageAction = uiKitComponents.SectionMessage = uiKitComponents.Select = uiKitComponents.Range = uiKitComponents.RadioGroup = uiKitComponents.Radio = uiKitComponents.ProgressTracker = uiKitComponents.ProgressBar = uiKitComponents.PieChart = uiKitComponents.ModalTransition = uiKitComponents.ModalTitle = uiKitComponents.ModalHeader = uiKitComponents.ModalFooter = uiKitComponents.ModalBody = uiKitComponents.Modal = uiKitComponents.Lozenge = uiKitComponents.LoadingButton = uiKitComponents.ListItem = uiKitComponents.List = uiKitComponents.LinkButton = uiKitComponents.LineChart = uiKitComponents.Label = uiKitComponents.Inline = uiKitComponents.Image = uiKitComponents.Icon = uiKitComponents.HorizontalStackBarChart = uiKitComponents.HorizontalBarChart = uiKitComponents.HelperMessage = uiKitComponents.Heading = uiKitComponents.FormSection = uiKitComponents.FormHeader = uiKitComponents.FormFooter = uiKitComponents.Form = uiKitComponents.FilePicker = uiKitComponents.FileCard = uiKitComponents.ErrorMessage = uiKitComponents.EmptyState = uiKitComponents.DonutChart = uiKitComponents.DatePicker = uiKitComponents.CodeBlock = uiKitComponents.Code = uiKitComponents.Checkbox = uiKitComponents.Calendar = uiKitComponents.ButtonGroup = uiKitComponents.Button = uiKitComponents.Box = uiKitComponents.BarChart = uiKitComponents.Badge = void 0;
-	uiKitComponents.Pagination = uiKitComponents.BreadcrumbsItem = uiKitComponents.Breadcrumbs = uiKitComponents.Bleed = uiKitComponents.UserGroup = uiKitComponents.Frame = uiKitComponents.UserPicker = uiKitComponents.Link = uiKitComponents.AtlassianIcon = uiKitComponents.AtlassianTile = uiKitComponents.User = uiKitComponents.Tile = uiKitComponents.ChromelessEditor = uiKitComponents.CommentEditor = uiKitComponents.Pressable = uiKitComponents.RequiredAsterisk = uiKitComponents.ValidMessage = uiKitComponents.Text = uiKitComponents.Tooltip = uiKitComponents.Toggle = uiKitComponents.TimePicker = uiKitComponents.Textfield = uiKitComponents.TextArea = uiKitComponents.TagGroup = uiKitComponents.Tag = uiKitComponents.Tabs = uiKitComponents.TabPanel = uiKitComponents.TabList = uiKitComponents.Tab = uiKitComponents.StackBarChart = void 0;
-	/**
-	 * A badge is a visual indicator for numeric values such as tallies and scores.
-	 *
-	 * @see [Badge](https://developer.atlassian.com/platform/forge/ui-kit/components/badge/) in UI Kit documentation for more information
-	 */
-	uiKitComponents.Badge = 'Badge';
-	/**
-	 * A visual representation of data using rectangular bars of varying heights to compare different categories or values.
-	 *
-	 * @see [BarChart](https://developer.atlassian.com/platform/forge/ui-kit/components/bar-chart/) in UI Kit documentation for more information
-	 */
-	uiKitComponents.BarChart = 'BarChart';
-	/**
-	 * A box is a generic container that provides managed access to design tokens.
-	 *
-	 * @see [Box](https://developer.atlassian.com/platform/forge/ui-kit/components/box/) in UI Kit documentation for more information
-	 */
-	uiKitComponents.Box = 'Box';
-	/**
-	 * A button triggers an event or action. They let users know what will happen next.
-	 *
-	 * @see [Button](https://developer.atlassian.com/platform/forge/ui-kit/components/button/) in UI Kit documentation for more information
-	 */
-	uiKitComponents.Button = 'Button';
-	/**
-	 * A button group gives users access to frequently performed, related actions.
-	 *
-	 * @see [ButtonGroup](https://developer.atlassian.com/platform/forge/ui-kit/components/button-group/) in UI Kit documentation for more information
-	 */
-	uiKitComponents.ButtonGroup = 'ButtonGroup';
-	/**
-	 * An interactive calendar for date selection experiences.
-	 *
-	 * @see [Calendar](https://developer.atlassian.com/platform/forge/ui-kit/components/calendar/) in UI Kit documentation for more information
-	 */
-	uiKitComponents.Calendar = 'Calendar';
-	/**
-	 * A checkbox is an input control that allows a user to select one or more options from a number of choices.
-	 *
-	 * @see [Checkbox](https://developer.atlassian.com/platform/forge/ui-kit/components/checkbox/) in UI Kit documentation for more information
-	 */
-	uiKitComponents.Checkbox = 'Checkbox';
-	/**
-	 * Code highlights short strings of code snippets inline with body text.
-	 *
-	 * @see [Code](https://developer.atlassian.com/platform/forge/ui-kit/components/code/) in UI Kit documentation for more information
-	 */
-	uiKitComponents.Code = 'Code';
-	/**
-	 * Code highlights short strings of code snippets inline with body text.
-	 *
-	 * @see [CodeBlock](https://developer.atlassian.com/platform/forge/ui-kit/components/code-block/) in UI Kit documentation for more information
-	 */
-	uiKitComponents.CodeBlock = 'CodeBlock';
-	/**
-	 * A date picker allows the user to select a particular date.
-	 *
-	 * @see [DatePicker](https://developer.atlassian.com/platform/forge/ui-kit/components/date-picker/) in UI Kit documentation for more information
-	 */
-	uiKitComponents.DatePicker = 'DatePicker';
-	/**
-	 * A visual representation of data proportions in a donut format.
-	 *
-	 * @see [DonutChart](https://developer.atlassian.com/platform/forge/ui-kit/components/donut-chart/) in UI Kit documentation for more information
-	 */
-	uiKitComponents.DonutChart = 'DonutChart';
-	/**
-	 * An empty state appears when there is no data to display and describes what the user can do next.
-	 *
-	 * @see [EmptyState](https://developer.atlassian.com/platform/forge/ui-kit/components/empty-state/) in UI Kit documentation for more information
-	 */
-	uiKitComponents.EmptyState = 'EmptyState';
-	/**
-	 * An error message is used to tell a user that the field input is invalid.
-	 * For example, an error message could be "Invalid username, needs to be more than 4 characters".
-	 *
-	 * @see [ErrorMessage](https://developer.atlassian.com/platform/forge/ui-kit/components/form/#error-message) in UI Kit documentation for more information
-	 */
-	uiKitComponents.ErrorMessage = 'ErrorMessage';
-	/**
-	 * A file card component that displays file information with actions
-	 *
-	 * @see [FileCard](https://developer.atlassian.com/platform/forge/ui-kit/components/file-card/) in UI Kit documentation for more information
-	 */
-	uiKitComponents.FileCard = 'FileCard';
-	/**
-	 * A file picker component that allows users to select and upload files
-	 *
-	 * @see [FilePicker](https://developer.atlassian.com/platform/forge/ui-kit/components/file-picker/) in UI Kit documentation for more information
-	 */
-	uiKitComponents.FilePicker = 'FilePicker';
-	/**
-	 * A form allows users to input information.
-	 *
-	 * @see [Form](https://developer.atlassian.com/platform/forge/ui-kit/components/form/) in UI Kit documentation for more information
-	 */
-	uiKitComponents.Form = 'Form';
-	/**
-	 * Use a form footer to set the content at the end of the form. This is used for a button that submits the form.
-	 *
-	 * This is positioned after the last field in the form.
-	 *
-	 * @see [FormFooter](https://developer.atlassian.com/platform/forge/ui-kit/components/form/#form-footer) in UI Kit documentation for more information
-	 */
-	uiKitComponents.FormFooter = 'FormFooter';
-	/**
-	 * Use a form header to describe the contents of the form. This is the title and description of the form.
-	 * If your form contains required fields, the form header is also where you should include a legend
-	 * for sighted users to know that * indicates a required field.
-	 *
-	 * @see [FormHeader](https://developer.atlassian.com/platform/forge/ui-kit/components/form/#form-header) in UI Kit documentation for more information
-	 */
-	uiKitComponents.FormHeader = 'FormHeader';
-	/**
-	 * Use a form section to group related information together, so that longer forms are easier to understand.
-	 * There can be multiple form sections in one form.
-	 *
-	 * @see [FormSection](https://developer.atlassian.com/platform/forge/ui-kit/components/form/#form-section) in UI Kit documentation for more information
-	 */
-	uiKitComponents.FormSection = 'FormSection';
-	/**
-	 * A heading is a typography component used to display text in different sizes and formats.
-	 *
-	 * @see [Heading](https://developer.atlassian.com/platform/forge/ui-kit/components/heading/) in UI Kit documentation for more information
-	 */
-	uiKitComponents.Heading = 'Heading';
-	/**
-	 * A helper message tells the user what kind of input the field takes.
-	 * For example, a helper message could be "Password should be more than 4 characters".
-	 *
-	 * @see [HelperMessage](https://developer.atlassian.com/platform/forge/ui-kit/components/form/#helper-message) in UI Kit documentation for more information
-	 */
-	uiKitComponents.HelperMessage = 'HelperMessage';
-	/**
-	 * A visual representation of data using horizontal rectangular bars of varying lengths to compare different categories or values.
-	 *
-	 * @see [HorizontalBarChart](https://developer.atlassian.com/platform/forge/ui-kit/components/horizontal-bar-chart/) in UI Kit documentation for more information
-	 */
-	uiKitComponents.HorizontalBarChart = 'HorizontalBarChart';
-	/**
-	 * A visual representation of data using horizontal rectangular bars of varying lengths to demonstrate comparisons between categories of data.
-	 *
-	 * @see [HorizontalStackBarChart](https://developer.atlassian.com/platform/forge/ui-kit/components/horizontal-stack-bar-chart/) in UI Kit documentation for more information
-	 */
-	uiKitComponents.HorizontalStackBarChart = 'HorizontalStackBarChart';
-	/**
-	 * An icon is a visual representation of a command, device, directory, or common action.
-	 *
-	 * @see [Icon](https://developer.atlassian.com/platform/forge/ui-kit/components/icon/) in UI Kit documentation for more information
-	 */
-	uiKitComponents.Icon = 'Icon';
-	/**
-	 * An image component to display images.
-	 *
-	 * @see [Image](https://developer.atlassian.com/platform/forge/ui-kit/components/image/) in UI Kit documentation
-	 */
-	uiKitComponents.Image = 'Image';
-	/**
-	 * An inline manages the horizontal layout of direct children using flexbox.
-	 *
-	 * @see [Inline](https://developer.atlassian.com/platform/forge/ui-kit/components/inline/) in UI Kit documentation for more information
-	 */
-	uiKitComponents.Inline = 'Inline';
-	/**
-	 * A label represents a caption for an item in a user interface.
-	 *
-	 * @see [Label](https://developer.atlassian.com/platform/forge/ui-kit/components/form/#label) in UI Kit documentation for more information
-	 */
-	uiKitComponents.Label = 'Label';
-	/**
-	 * A visual representation of data showing trends.
-	 *
-	 * @see [LineChart](https://developer.atlassian.com/platform/forge/ui-kit/components/line-chart/) in UI Kit documentation for more information
-	 */
-	uiKitComponents.LineChart = 'LineChart';
-	/**
-	 * Renders a link in the style of a button.
-	 *
-	 * @see [LinkButton](https://developer.atlassian.com/platform/forge/ui-kit/components/button/#linkbutton-props) in UI Kit documentation for more information
-	 */
-	uiKitComponents.LinkButton = 'LinkButton';
-	/**
-	 * An unordered (bulleted) or ordered (numbered) list.
-	 *
-	 * @see [List](https://developer.atlassian.com/platform/forge/ui-kit/components/list/) in UI Kit documentation for more information
-	 */
-	uiKitComponents.List = 'List';
-	uiKitComponents.ListItem = 'ListItem';
-	/**
-	 * A button that shows an spinner as an overlay on the button when you set an isLoading prop to true.
-	 *
-	 * @see [LoadingButton](https://developer.atlassian.com/platform/forge/ui-kit/components/button/#loadingbutton-props) in UI Kit documentation for more information
-	 */
-	uiKitComponents.LoadingButton = 'LoadingButton';
-	/**
-	 * A lozenge is a visual indicator used to highlight an item's status for quick recognition.
-	 *
-	 * @see [Lozenge](https://developer.atlassian.com/platform/forge/ui-kit/components/lozenge/) in UI Kit documentation for more information
-	 */
-	uiKitComponents.Lozenge = 'Lozenge';
-	/**
-	 * A modal dialog displays content that requires user interaction, in a layer above the page.
-	 *
-	 * @see [Modal](https://developer.atlassian.com/platform/forge/ui-kit/components/modal/) in UI Kit documentation for more information
-	 */
-	uiKitComponents.Modal = 'Modal';
-	/**
-	 * A modal body is used to display the main content of a modal.
-	 *
-	 * @see [ModalBody](https://developer.atlassian.com/platform/forge/ui-kit/components/modal/#body) in UI Kit documentation for more information
-	 */
-	uiKitComponents.ModalBody = 'ModalBody';
-	/**
-	 * A modal footer often contains a primary action and the ability to cancel and close the dialog,
-	 * though can contain any React element.
-	 *
-	 * @see [ModalFooter](https://developer.atlassian.com/platform/forge/ui-kit/components/modal/#footer) in UI Kit documentation for more information
-	 */
-	uiKitComponents.ModalFooter = 'ModalFooter';
-	/**
-	 * A modal header contains the title of the modal and can contain other React elements such as a close button.
-	 *
-	 * @see [ModalHeader](https://developer.atlassian.com/platform/forge/ui-kit/components/modal/#header) in UI Kit documentation for more information
-	 */
-	uiKitComponents.ModalHeader = 'ModalHeader';
-	/**
-	 * A modal title is used to display a title within a modal.
-	 *
-	 * @see [ModalTitle](https://developer.atlassian.com/platform/forge/ui-kit/components/modal/#title) in UI Kit documentation for more information
-	 */
-	uiKitComponents.ModalTitle = 'ModalTitle';
-	/**
-	 * A modal transition wraps a modal to provide a fluid transition upon opening and closing.
-	 *
-	 * @see [ModalTransition](https://developer.atlassian.com/platform/forge/ui-kit/components/modal/#modal-transition) in UI Kit documentation for more information
-	 */
-	uiKitComponents.ModalTransition = 'ModalTransition';
-	/**
-	 * A visual representation of data proportions in a circular format.
-	 *
-	 * @see [PieChart](https://developer.atlassian.com/platform/forge/ui-kit/components/pie-chart/) in UI Kit documentation for more information
-	 */
-	uiKitComponents.PieChart = 'PieChart';
-	/**
-	 * A progress bar communicates the status of a system process.
-	 *
-	 * @see [ProgressBar](https://developer.atlassian.com/platform/forge/ui-kit/components/progress-bar/) in UI Kit documentation for more information
-	 */
-	uiKitComponents.ProgressBar = 'ProgressBar';
-	/**
-	 * A progress tracker displays the steps and progress through a journey.
-	 *
-	 * @see [ProgressTracker](https://developer.atlassian.com/platform/forge/ui-kit/components/progress-tracker/) in UI Kit documentation for more information
-	 */
-	uiKitComponents.ProgressTracker = 'ProgressTracker';
-	/**
-	 * A radio input allows users to select only one option from a number of choices. Radio is generally displayed in a radio group.
-	 *
-	 * @see [Radio](https://developer.atlassian.com/platform/forge/ui-kit/components/radio/) in UI Kit documentation for more information
-	 */
-	uiKitComponents.Radio = 'Radio';
-	/**
-	 * A radio input allows users to select only one option from a number of choices. Radio is generally displayed in a radio group.
-	 *
-	 * @see [RadioGroup](https://developer.atlassian.com/platform/forge/ui-kit/components/radio-group/) in UI Kit documentation for more information
-	 */
-	uiKitComponents.RadioGroup = 'RadioGroup';
-	/**
-	 * A range lets users choose an approximate value on a slider.
-	 *
-	 * @see [Range](https://developer.atlassian.com/platform/forge/ui-kit/components/range/) in UI Kit documentation for more information
-	 */
-	uiKitComponents.Range = 'Range';
-	/**
-	 * Select allows users to make a single selection or multiple selections from a list of options.
-	 *
-	 * @see [Select](https://developer.atlassian.com/platform/forge/ui-kit/components/select/) in UI Kit documentation for more information
-	 */
-	uiKitComponents.Select = 'Select';
-	/**
-	 * A section message is used to alert users to a particular section of the screen.
-	 *
-	 * @see [SectionMessage](https://developer.atlassian.com/platform/forge/ui-kit/components/section-message/) in UI Kit documentation for more information
-	 */
-	uiKitComponents.SectionMessage = 'SectionMessage';
-	/**
-	 * A section message is used to alert users to a particular section of the screen.
-	 *
-	 * @see [SectionMessageAction](https://developer.atlassian.com/platform/forge/ui-kit/components/section-message/#section-message-action) in UI Kit documentation for more information
-	 */
-	uiKitComponents.SectionMessageAction = 'SectionMessageAction';
-	/**
-	 * A spinner is an animated spinning icon that lets users know content is being loaded.
-	 *
-	 * @see [Spinner](https://developer.atlassian.com/platform/forge/ui-kit/components/spinner/) in UI Kit documentation for more information
-	 */
-	uiKitComponents.Spinner = 'Spinner';
-	/**
-	 * A stack manages the vertical layout of direct children using flexbox.
-	 *
-	 * @see [Stack](https://developer.atlassian.com/platform/forge/ui-kit/components/stack/) in UI Kit documentation for more information
-	 */
-	uiKitComponents.Stack = 'Stack';
-	/**
-	 * A visual representation of data using rectangular bars of varying heights to demonstrate comparisons between categories of data.
-	 *
-	 * @see [StackBarChart](https://developer.atlassian.com/platform/forge/ui-kit/components/stack-bar-chart/) in UI Kit documentation for more information
-	 */
-	uiKitComponents.StackBarChart = 'StackBarChart';
-	/**
-	 * `Tab` represents an individual tab displayed in a TabList.
-	 *
-	 * @see [Tab](https://developer.atlassian.com/platform/forge/ui-kit/components/tabs/) in UI Kit documentation for more information
-	 */
-	uiKitComponents.Tab = 'Tab';
-	/**
-	 * A `TabList` groups `Tab` components together.
-	 *
-	 * @see [TabList](https://developer.atlassian.com/platform/forge/ui-kit/components/tab-list/) in UI Kit documentation for more information
-	 */
-	uiKitComponents.TabList = 'TabList';
-	/**
-	 * A `TabPanel` houses the contents of a `Tab`.
-	 *
-	 * @see [TabPanel](https://developer.atlassian.com/platform/forge/ui-kit/components/tabs/) in UI Kit documentation for more information
-	 */
-	uiKitComponents.TabPanel = 'TabPanel';
-	/**
-	 * Tabs are used to organize content by grouping similar information on the same page.
-	 *
-	 * @see [Tabs](https://developer.atlassian.com/platform/forge/ui-kit/components/tabs/) in UI Kit documentation for more information
-	 */
-	uiKitComponents.Tabs = 'Tabs';
-	uiKitComponents.Tag = 'Tag';
-	/**
-	 * A tag group controls the layout and alignment for a collection of tags.
-	 *
-	 * @see [TagGroup](https://developer.atlassian.com/platform/forge/ui-kit/components/tag-group/) in UI Kit documentation for more information
-	 */
-	uiKitComponents.TagGroup = 'TagGroup';
-	/**
-	 * A text area lets users enter long form text which spans over multiple lines.
-	 *
-	 * @see [TextArea](https://developer.atlassian.com/platform/forge/ui-kit/components/text-area/) in UI Kit documentation for more information
-	 */
-	uiKitComponents.TextArea = 'TextArea';
-	/**
-	 * A text field is an input that allows a user to write or edit text.
-	 *
-	 * @see [Textfield](https://developer.atlassian.com/platform/forge/ui-kit/components/textfield/) in UI Kit documentation for more information
-	 */
-	uiKitComponents.Textfield = 'Textfield';
-	/**
-	 * A time picker allows the user to select a specific time.
-	 *
-	 * @see [TimePicker](https://developer.atlassian.com/platform/forge/ui-kit/components/time-picker/) in UI Kit documentation for more information
-	 */
-	uiKitComponents.TimePicker = 'TimePicker';
-	/**
-	 * A toggle is used to view or switch between enabled or disabled states.
-	 *
-	 * @see [Toggle](https://developer.atlassian.com/platform/forge/ui-kit/components/toggle/) in UI Kit documentation for more information
-	 */
-	uiKitComponents.Toggle = 'Toggle';
-	/**
-	 * A `Tooltip` is a floating, non-actionable label used to explain a user interface element or feature.
-	 *
-	 * @see [Tooltip](https://developer.atlassian.com/platform/forge/ui-kit/components/tooltip/) in UI Kit documentation for more information
-	 */
-	uiKitComponents.Tooltip = 'Tooltip';
-	/**
-	 * A typography component used to display body text.
-	 * It can also include inline components such as
-	 * [Badge](https://developer.atlassian.com/platform/forge/ui-kit/components/badge/) and
-	 * [Lozenge](https://developer.atlassian.com/platform/forge/ui-kit/components/lozenge/).
-	 */
-	uiKitComponents.Text = 'Text';
-	/**
-	 * A valid message is used to tell a user that the field input is valid.
-	 * For example, a helper message could be "Nice one, this username is available".
-	 *
-	 * @see [ValidMessage](https://developer.atlassian.com/platform/forge/ui-kit/components/form/#validation-message) in UI Kit documentation for more information
-	 */
-	uiKitComponents.ValidMessage = 'ValidMessage';
-	// Additional components without props
-	uiKitComponents.RequiredAsterisk = 'RequiredAsterisk';
-	/**
-	 * A pressable is a primitive for building custom buttons.
-	 *
-	 * @see [Pressable](https://developer.atlassian.com/platform/forge/ui-kit/components/pressable/) in UI Kit documentation for more information
-	 */
-	uiKitComponents.Pressable = 'Pressable';
-	/**
-	 * The comment editor provides a contained editor UI with a simple toolbar.
-	 *
-	 * @see [CommentEditor](https://developer.atlassian.com/platform/forge/ui-kit/components/comment-editor/) in UI Kit documentation for more information
-	 */
-	uiKitComponents.CommentEditor = 'CommentEditor';
-	/**
-	 * The chromeless editor provides the Editor without any of the standard UI features. It's ideal for cases where the integrator wants complete control and responsibility over the editor UI.
-	 *
-	 * @see [ChromelessEditor](https://developer.atlassian.com/platform/forge/ui-kit/components/chromeless-editor/) in UI Kit documentation for more information
-	 */
-	uiKitComponents.ChromelessEditor = 'ChromelessEditor';
-	/**
-	 * A tile is a rounded square that takes an asset and represents a noun.
-	 *
-	 * @see [Tile](https://developer.atlassian.com/platform/forge/ui-kit/components/tile/) in UI Kit documentation for more information
-	 */
-	uiKitComponents.Tile = 'Tile';
-	/**
-	 * A component that represents a user, displaying details such as name and profile picture.
-	 *
-	 * @see [User](https://developer.atlassian.com/platform/forge/ui-kit/components/user/) in UI Kit documentation
-	 */
-	uiKitComponents.User = 'User';
-	/**
-	 * An AtlassianTile is an icon that represents an Atlassian-specific content type, displayed in a tile.
-	 * The glyph prop automatically sets the color for the object.
-	 *
-	 * @see [AtlassianTile](https://developer.atlassian.com/platform/forge/ui-kit/components/atlassian-tile/) in UI Kit documentation for more information
-	 */
-	uiKitComponents.AtlassianTile = 'AtlassianTile';
-	/**
-	 * An AtlassianIcon is an icon that represents an Atlassian-specific content type.
-	 * The glyph prop automatically sets the color for the object.
-	 *
-	 * @see [AtlassianIcon](https://developer.atlassian.com/platform/forge/ui-kit/components/atlassian-icon/) in UI Kit documentation for more information
-	 */
-	uiKitComponents.AtlassianIcon = 'AtlassianIcon';
-	/**
-	 * A component that displays a hyperlink. Use this component for inline links,
-	 * typically inside a `Text` component.
-	 *
-	 * @see [Link](https://developer.atlassian.com/platform/forge/ui-kit/components/link/) in UI Kit documentation
-	 */
-	uiKitComponents.Link = 'Link';
-	/**
-	 * A dropdown field that allows users to search and select users from a list.
-	 *
-	 * @see [UserPicker](https://developer.atlassian.com/platform/forge/ui-kit/components/user-picker/) in UI Kit documentation
-	 */
-	uiKitComponents.UserPicker = 'UserPicker';
-	/**
-	 * A container for rendering static frontend applications (HTML, CSS, JavaScript)
-	 * within a UI Kit app. Supports bidirectional communication with the host app
-	 * via the Events API.
-	 *
-	 * @see [Frame](https://developer.atlassian.com/platform/forge/ui-kit/components/frame/) in UI Kit documentation
-	 */
-	uiKitComponents.Frame = 'Frame';
-	/**
-	 * Displays a stack of multiple users (name and profile picture), subject to
-	 * their privacy settings. Can also be used inside a `Text` component, where
-	 * users appear as inline lozenges.
-	 *
-	 * @see [UserGroup](https://developer.atlassian.com/platform/forge/ui-kit/components/user-group/) in UI Kit documentation
-	 */
-	uiKitComponents.UserGroup = 'UserGroup';
-	/**
-	 * Bleed allows child elements to visually extend beyond the bounds of their parent container.
-	 *
-	 * @see [Bleed](https://developer.atlassian.com/platform/forge/ui-kit/components/bleed/) in UI Kit documentation for more information
-	 */
-	uiKitComponents.Bleed = 'Bleed';
-	/**
-	 * Breadcrumbs are a navigation system used to show a user's location in a site or app.
-	 *
-	 * @see [Breadcrumbs](https://developer.atlassian.com/platform/forge/ui-kit/components/breadcrumbs/) in UI Kit documentation for more information
-	 */
-	uiKitComponents.Breadcrumbs = 'Breadcrumbs';
-	/**
-	 * A breadcrumb item represents a single step in the navigation hierarchy.
-	 *
-	 * @see [BreadcrumbsItem](https://developer.atlassian.com/platform/forge/ui-kit/components/breadcrumbs-item/) in UI Kit documentation for more information
-	 */
-	uiKitComponents.BreadcrumbsItem = 'BreadcrumbsItem';
-	/**
-	 * Pagination allows you to divide large amounts of content into chunks across multiple pages.
-	 *
-	 * @see [Pagination](https://developer.atlassian.com/platform/forge/ui-kit/components/pagination/) in UI Kit documentation for more information
-	 */
-	uiKitComponents.Pagination = 'Pagination';
-	return uiKitComponents;
-}
-
-var hasRequiredComponents;
-
-function requireComponents () {
-	if (hasRequiredComponents) return components;
-	hasRequiredComponents = 1;
-	(function (exports) {
-		Object.defineProperty(exports, "__esModule", { value: true });
-		exports.CheckboxGroup = exports.Strong = exports.Strike = exports.Em = exports.AdfRenderer = exports.Comment = exports.Popup = exports.InlineEdit = exports.DynamicTable = void 0;
-		const tslib_1 = require$$0;
-		var dynamic_table_1 = requireDynamicTable();
-		Object.defineProperty(exports, "DynamicTable", { enumerable: true, get: function () { return dynamic_table_1.DynamicTable; } });
-		var inline_edit_1 = requireInlineEdit();
-		Object.defineProperty(exports, "InlineEdit", { enumerable: true, get: function () { return inline_edit_1.InlineEdit; } });
-		var popup_1 = requirePopup();
-		Object.defineProperty(exports, "Popup", { enumerable: true, get: function () { return popup_1.Popup; } });
-		var comment_1 = requireComment();
-		Object.defineProperty(exports, "Comment", { enumerable: true, get: function () { return comment_1.Comment; } });
-		var adf_renderer_1 = requireAdfRenderer$1();
-		Object.defineProperty(exports, "AdfRenderer", { enumerable: true, get: function () { return adf_renderer_1.AdfRenderer; } });
-		/**
-		 * @deprecated - UIKit 1 specific component
-		 */
-		exports.Em = 'Em';
-		/**
-		 * @deprecated - UIKit 1 specific component
-		 */
-		exports.Strike = 'Strike';
-		/**
-		 * @deprecated - UIKit 1 specific component
-		 */
-		exports.Strong = 'Strong';
-		/**
-		 * Export Code generated UI Kit 2 Components
-		 */
-		tslib_1.__exportStar(requireUiKitComponents(), exports);
-		/**
-		 * A Checkbox group is a list of options where one or more choices can be selected.
-		 *
-		 * @see [CheckboxGroup](https://developer.atlassian.com/platform/forge/ui-kit/components/checkbox-group/) in UI Kit documentation for more information
-		 */
-		exports.CheckboxGroup = 'CheckboxGroup'; 
-	} (components));
-	return components;
-}
-
-var useContentProperty = {};
-
-var confluenceEntity = {};
-
-var apiRequestUtils = {};
-
-var types$1 = {};
-
-var entityProps = {};
-
-var hasRequiredEntityProps;
-
-function requireEntityProps () {
-	if (hasRequiredEntityProps) return entityProps;
-	hasRequiredEntityProps = 1;
-	Object.defineProperty(entityProps, "__esModule", { value: true });
-	entityProps.EntityPropertyRequestFailedError = void 0;
-	class EntityPropertyRequestFailedError extends Error {
-	    constructor({ entityType, propertyKey, operation, status }) {
-	        super(`The request to ${operation} the ${entityType.toLowerCase()} property (${propertyKey}) failed with status (${status}).`);
-	    }
-	}
-	entityProps.EntityPropertyRequestFailedError = EntityPropertyRequestFailedError;
-	return entityProps;
-}
-
-var confEntityProps = {};
-
-var hasRequiredConfEntityProps;
-
-function requireConfEntityProps () {
-	if (hasRequiredConfEntityProps) return confEntityProps;
-	hasRequiredConfEntityProps = 1;
-	Object.defineProperty(confEntityProps, "__esModule", { value: true });
-	return confEntityProps;
-}
-
-var jiraEntityProps = {};
-
-var hasRequiredJiraEntityProps;
-
-function requireJiraEntityProps () {
-	if (hasRequiredJiraEntityProps) return jiraEntityProps;
-	hasRequiredJiraEntityProps = 1;
-	Object.defineProperty(jiraEntityProps, "__esModule", { value: true });
-	return jiraEntityProps;
-}
-
-var hasRequiredTypes$1;
-
-function requireTypes$1 () {
-	if (hasRequiredTypes$1) return types$1;
-	hasRequiredTypes$1 = 1;
-	(function (exports) {
-		Object.defineProperty(exports, "__esModule", { value: true });
-		const tslib_1 = require$$0;
-		tslib_1.__exportStar(requireEntityProps(), exports);
-		tslib_1.__exportStar(requireConfEntityProps(), exports);
-		tslib_1.__exportStar(requireJiraEntityProps(), exports); 
-	} (types$1));
-	return types$1;
-}
-
-var hasRequiredApiRequestUtils;
-
-function requireApiRequestUtils () {
-	if (hasRequiredApiRequestUtils) return apiRequestUtils;
-	hasRequiredApiRequestUtils = 1;
-	(function (exports) {
-		Object.defineProperty(exports, "__esModule", { value: true });
-		exports.assertSuccessfulResponse = exports.getJSONData = exports.makeRequest = exports.withContext = exports.FETCH_HEADERS = void 0;
-		const bridge_1 = requireOut$2();
-		const types_1 = requireTypes$1();
-		exports.FETCH_HEADERS = {
-		    Accept: 'application/json',
-		    'Content-Type': 'application/json'
-		};
-		// loads productContext and passes data to support API calls for GET, UPDATE, DELETE operations
-		const withContext = ({ originalOperation, apiEndpoints, entityType, origPropertyKey }) => async (...args) => {
-		    const context = await bridge_1.view.getContext();
-		    const propertyKey = entityType === 'Content' ? `forge-${context.localId}-${origPropertyKey}` : `forge-${origPropertyKey}`;
-		    if (entityType === 'Space' || entityType === 'Content') {
-		        const endpointFactory = apiEndpoints({ entityType, context });
-		        return originalOperation({ endpointFactory, propertyKey }, ...args);
-		    }
-		    else if (entityType === 'Issue') {
-		        const endpointFactory = apiEndpoints(context);
-		        return originalOperation({ endpointFactory, propertyKey, context }, ...args);
-		    }
-		    else {
-		        throw new Error('Invalid entity type.');
-		    }
-		};
-		exports.withContext = withContext;
-		const makeRequest = async ({ url, apiMethod, body, method }) => {
-		    const fetchOptions = { headers: exports.FETCH_HEADERS, method, body };
-		    try {
-		        return await apiMethod(url, fetchOptions);
-		    }
-		    catch (error) {
-		        throw new Error('An unknown network error occurred.');
-		    }
-		};
-		exports.makeRequest = makeRequest;
-		const getJSONData = async (response) => {
-		    try {
-		        const data = await response.json();
-		        return data;
-		    }
-		    catch (err) {
-		        throw new Error('An invalid response is received from the server');
-		    }
-		};
-		exports.getJSONData = getJSONData;
-		// checks if a response from the API is successful and throw error if not
-		const assertSuccessfulResponse = ({ entityType, propertyKey, operation, response }) => {
-		    if (!response.ok) {
-		        throw new types_1.EntityPropertyRequestFailedError({ entityType, propertyKey, operation, status: response.status });
-		    }
-		};
-		exports.assertSuccessfulResponse = assertSuccessfulResponse; 
-	} (apiRequestUtils));
-	return apiRequestUtils;
-}
-
-var valueUtils = {};
-
-var hasRequiredValueUtils;
-
-function requireValueUtils () {
-	if (hasRequiredValueUtils) return valueUtils;
-	hasRequiredValueUtils = 1;
-	Object.defineProperty(valueUtils, "__esModule", { value: true });
-	valueUtils.resolveValue = void 0;
-	// copied over from @forge/ui
-	// helper function that resolves a value from a promise or returns the original value
-	const resolveValue = async (defaultValue) => {
-	    const value = defaultValue instanceof Function ? defaultValue() : defaultValue;
-	    return await value;
-	};
-	valueUtils.resolveValue = resolveValue;
-	return valueUtils;
-}
-
-var hasRequiredConfluenceEntity;
-
-function requireConfluenceEntity () {
-	if (hasRequiredConfluenceEntity) return confluenceEntity;
-	hasRequiredConfluenceEntity = 1;
-	(function (exports) {
-		Object.defineProperty(exports, "__esModule", { value: true });
-		exports.confluenceEntity = exports.confAPIEndpoints = void 0;
-		const bridge_1 = requireOut$2();
-		const apiRequestUtils_1 = requireApiRequestUtils();
-		const valueUtils_1 = requireValueUtils();
-		const types_1 = requireTypes$1();
-		/**
-		 * given an entityType and a product context, returns functions that uses property data to
-		 * output URLs to use for property management via Confluence v2 REST API
-		 */
-		const confAPIEndpoints = ({ entityType, context }) => {
-		    let entityId, urlEntity;
-		    switch (entityType) {
-		        case 'Space':
-		            entityId = context.extension.space?.id;
-		            urlEntity = 'spaces';
-		            break;
-		        case 'Content':
-		            entityId = context.extension.content?.id;
-		            urlEntity = 'pages';
-		            break;
-		        default:
-		            throw new Error('Invalid entity type.');
-		    }
-		    if (!entityId) {
-		        throw new Error(`${entityType} properties not available for this app.`);
-		    }
-		    return {
-		        create: () => `/wiki/api/v2/${urlEntity}/${entityId}/properties`,
-		        fetch: (propertyKey) => `/wiki/api/v2/${urlEntity}/${entityId}/properties?key=${propertyKey}`,
-		        update: (propertyId) => `/wiki/api/v2/${urlEntity}/${entityId}/properties/${propertyId}`,
-		        delete: (propertyId) => `/wiki/api/v2/${urlEntity}/${entityId}/properties/${propertyId}`
-		    };
-		};
-		exports.confAPIEndpoints = confAPIEndpoints;
-		const confluenceEntity = ({ entityType, origPropertyKey, initValue }) => {
-		    const apiMethod = bridge_1.requestConfluence;
-		    const withConfluenceContext = (originalOperation) => {
-		        return (0, apiRequestUtils_1.withContext)({
-		            originalOperation,
-		            apiEndpoints: exports.confAPIEndpoints,
-		            entityType,
-		            origPropertyKey
-		        });
-		    };
-		    // fetches existing prop value from server. to be reused for GET, UPDATE, DELETE operations
-		    const fetchOriginal = async ({ endpointFactory, propertyKey }) => {
-		        const url = endpointFactory.fetch(propertyKey);
-		        const response = await (0, apiRequestUtils_1.makeRequest)({ url, apiMethod, method: 'GET' });
-		        (0, apiRequestUtils_1.assertSuccessfulResponse)({ entityType, propertyKey, operation: 'fetch', response });
-		        const existingData = await (0, apiRequestUtils_1.getJSONData)(response);
-		        return existingData.results[0];
-		    };
-		    // named `deleteProp` since `delete` is reserved word
-		    const deleteProp = async ({ endpointFactory, propertyKey }) => {
-		        // fetch original prop first to get its id
-		        const originalProp = await fetchOriginal({ endpointFactory, propertyKey });
-		        if (!originalProp) {
-		            throw new types_1.EntityPropertyRequestFailedError({
-		                entityType,
-		                propertyKey,
-		                operation: 'delete',
-		                status: 404
-		            });
-		        }
-		        const propertyId = originalProp.id;
-		        const url = endpointFactory.delete(propertyId);
-		        const response = await (0, apiRequestUtils_1.makeRequest)({ url, apiMethod, method: 'DELETE' });
-		        (0, apiRequestUtils_1.assertSuccessfulResponse)({ entityType, propertyKey, operation: 'delete', response });
-		    };
-		    const getProp = async ({ endpointFactory, propertyKey }) => {
-		        const existingProp = await fetchOriginal({ endpointFactory, propertyKey });
-		        if (existingProp) {
-		            return existingProp;
-		        }
-		        // if property doesn't exist, create it
-		        const resolvedInitVal = await (0, valueUtils_1.resolveValue)(initValue);
-		        const url = endpointFactory.create();
-		        const body = JSON.stringify({ key: propertyKey, value: resolvedInitVal });
-		        const response = await (0, apiRequestUtils_1.makeRequest)({ url, apiMethod, method: 'POST', body });
-		        (0, apiRequestUtils_1.assertSuccessfulResponse)({ entityType, propertyKey, operation: 'create', response });
-		        return await (0, apiRequestUtils_1.getJSONData)(response);
-		    };
-		    const get = async ({ endpointFactory, propertyKey }) => {
-		        const propData = await getProp({ endpointFactory, propertyKey });
-		        return propData.value;
-		    };
-		    const update = async ({ endpointFactory, propertyKey }, valueUpdate) => {
-		        // fetch original prop first to update based on its value + version + id
-		        const originalProp = await getProp({ endpointFactory, propertyKey });
-		        const newValue = valueUpdate instanceof Function ? valueUpdate(originalProp.value) : valueUpdate;
-		        const propertyId = originalProp.id;
-		        const origVersion = originalProp?.version?.number;
-		        const url = endpointFactory.update(propertyId);
-		        const body = JSON.stringify({
-		            key: propertyKey,
-		            value: newValue,
-		            version: {
-		                number: origVersion + 1,
-		                message: `Update through UI Kit 2 use${entityType}Properties hook.`
-		            }
-		        });
-		        const response = await (0, apiRequestUtils_1.makeRequest)({ url, apiMethod, method: 'PUT', body });
-		        (0, apiRequestUtils_1.assertSuccessfulResponse)({ entityType, propertyKey, operation: 'update', response });
-		        return (await (0, apiRequestUtils_1.getJSONData)(response)).value;
-		    };
-		    return {
-		        get: withConfluenceContext(get),
-		        update: withConfluenceContext(update),
-		        delete: withConfluenceContext(deleteProp)
-		    };
-		};
-		exports.confluenceEntity = confluenceEntity; 
-	} (confluenceEntity));
-	return confluenceEntity;
-}
-
-var useEntityProperty = {};
-
-var hasRequiredUseEntityProperty;
-
-function requireUseEntityProperty () {
-	if (hasRequiredUseEntityProperty) return useEntityProperty;
-	hasRequiredUseEntityProperty = 1;
-	Object.defineProperty(useEntityProperty, "__esModule", { value: true });
-	useEntityProperty.useEntityProperty = void 0;
-	/**
-	 * React-based property management hook for Confluence API and entities
-	 */
-	const react_1 = requireReact();
-	// outputs a stateful variable and a function to update it
-	const useEntityProperty$1 = ({ entityManager, defaultRetryCount = 2 }) => {
-	    const [propValue, setPropValue] = (0, react_1.useState)();
-	    (0, react_1.useEffect)(() => {
-	        const getProp = async () => {
-	            const currentVal = await entityManager.get();
-	            setPropValue(currentVal);
-	        };
-	        getProp().catch(() => {
-	            // repeat fetch in case previous creation failed due to variable already concurrently created
-	            getProp().catch((secondErr) => {
-	                throw secondErr;
-	            });
-	        });
-	    }, []);
-	    const updateProp = (0, react_1.useCallback)(async (valueUpdate, retryCount = defaultRetryCount) => {
-	        let success = false;
-	        let tryCounts = 0;
-	        const attempt = async () => setPropValue(await entityManager.update(valueUpdate));
-	        // initial update attempt + up to <retryCount> retries if update unsuccessful
-	        while (!success && tryCounts <= retryCount) {
-	            try {
-	                tryCounts++;
-	                await attempt();
-	                success = true;
-	            }
-	            catch (err) {
-	                if (tryCounts > retryCount) {
-	                    console.error(err); // eslint-disable-line no-console
-	                }
-	            }
-	        }
-	        return success;
-	    }, [entityManager]);
-	    const deleteProp = (0, react_1.useCallback)(async () => {
-	        await entityManager.delete();
-	        setPropValue(undefined);
-	    }, [entityManager]);
-	    return [propValue, updateProp, deleteProp];
-	};
-	useEntityProperty.useEntityProperty = useEntityProperty$1;
-	return useEntityProperty;
-}
-
-var hasRequiredUseContentProperty;
-
-function requireUseContentProperty () {
-	if (hasRequiredUseContentProperty) return useContentProperty;
-	hasRequiredUseContentProperty = 1;
-	Object.defineProperty(useContentProperty, "__esModule", { value: true });
-	useContentProperty.useContentProperty = void 0;
-	const react_1 = requireReact();
-	const bridge_1 = requireOut$2();
-	const confluenceEntity_1 = requireConfluenceEntity();
-	const useEntityProperty_1 = requireUseEntityProperty();
-	/**
-	 * This function manages the content properties of a Confluence page where the app is installed.
-	 * @param propertyKey Name (key) of the property
-	 * @param initValue Default value if it did not exist previously
-	 * @returns An array with 3 items:
-	 *  1. Current value of the property.
-	 *  2. A function to update the property value (with another value or an updater function). If an initial update fails, it automatically tries to update for another <retryCount> times (default 2).
-	 *  3. A function to delete the property.
-	 */
-	const useContentProperty$1 = (propertyKey, initValue) => {
-	    const entityManager = (0, react_1.useMemo)(() => (0, confluenceEntity_1.confluenceEntity)({
-	        entityType: 'Content',
-	        origPropertyKey: propertyKey,
-	        initValue
-	    }), [propertyKey, initValue]);
-	    const [propValue, updateProp, deleteProp] = (0, useEntityProperty_1.useEntityProperty)({ entityManager });
-	    const updatePropWithEvent = (0, react_1.useCallback)(async (valueUpdate, retryCount) => {
-	        const success = await updateProp(valueUpdate, retryCount);
-	        if (success) {
-	            void bridge_1.events.emit('FORGE_CONTENT_PROPERTY_UPDATED', { propertyKey, valueUpdate });
-	        }
-	    }, [updateProp, propertyKey]);
-	    return [propValue, updatePropWithEvent, deleteProp];
-	};
-	useContentProperty.useContentProperty = useContentProperty$1;
-	return useContentProperty;
-}
-
-var useSpaceProperty = {};
-
-var hasRequiredUseSpaceProperty;
-
-function requireUseSpaceProperty () {
-	if (hasRequiredUseSpaceProperty) return useSpaceProperty;
-	hasRequiredUseSpaceProperty = 1;
-	Object.defineProperty(useSpaceProperty, "__esModule", { value: true });
-	useSpaceProperty.useSpaceProperty = void 0;
-	const react_1 = requireReact();
-	const confluenceEntity_1 = requireConfluenceEntity();
-	const useEntityProperty_1 = requireUseEntityProperty();
-	/**
-	 * This function manages the space properties of a Confluence space where the app is installed.
-	 * @param propertyKey Name (key) of the property
-	 * @param initValue Default value if it did not exist previously
-	 * @returns An array with 3 items:
-	 *  1. Current value of the property.
-	 *  2. A function to update the property value (with another value or an updater function). If an initial update fails, it automatically tries to update for another <retryCount> times (default 2).
-	 * 3. A function to delete the property.
-	 */
-	const useSpaceProperty$1 = (propertyKey, initValue) => {
-	    const entityManager = (0, react_1.useMemo)(() => (0, confluenceEntity_1.confluenceEntity)({
-	        entityType: 'Space',
-	        origPropertyKey: propertyKey,
-	        initValue
-	    }), []);
-	    return (0, useEntityProperty_1.useEntityProperty)({ entityManager });
-	};
-	useSpaceProperty.useSpaceProperty = useSpaceProperty$1;
-	return useSpaceProperty;
-}
-
-var useIssueProperty = {};
-
-var jiraEntity = {};
-
-var hasRequiredJiraEntity;
-
-function requireJiraEntity () {
-	if (hasRequiredJiraEntity) return jiraEntity;
-	hasRequiredJiraEntity = 1;
-	(function (exports) {
-		Object.defineProperty(exports, "__esModule", { value: true });
-		exports.jiraIssuePropsManager = exports.issueAPIEndpoints = void 0;
-		const bridge_1 = requireOut$2();
-		const apiRequestUtils_1 = requireApiRequestUtils();
-		const valueUtils_1 = requireValueUtils();
-		const types_1 = requireTypes$1();
-		/**
-		 * given a context, returns functions that uses property data to
-		 * output URLs to use for issue property management via Jira v2 REST API
-		 */
-		const issueAPIEndpoints = (context) => {
-		    const issueId = context.extension.issue?.id;
-		    if (!issueId)
-		        throw new Error('Issue properties not available for this app.');
-		    return {
-		        create: () => `/rest/api/2/issue/properties`,
-		        fetch: (propertyKey) => `/rest/api/2/issue/${issueId}/properties/${propertyKey}`,
-		        update: (propertyKey) => `/rest/api/2/issue/${issueId}/properties/${propertyKey}`,
-		        delete: (propertyKey) => `/rest/api/2/issue/${issueId}/properties/${propertyKey}`
-		    };
-		};
-		exports.issueAPIEndpoints = issueAPIEndpoints;
-		const jiraIssuePropsManager = ({ origPropertyKey, initValue }) => {
-		    const entityType = 'Issue';
-		    const apiMethod = bridge_1.requestJira;
-		    const withIssueContext = (originalOperation) => {
-		        return (0, apiRequestUtils_1.withContext)({
-		            originalOperation,
-		            apiEndpoints: exports.issueAPIEndpoints,
-		            entityType: 'Issue',
-		            origPropertyKey
-		        });
-		    };
-		    // fetches existing prop value from server. to be reused for GET, UPDATE, DELETE operations
-		    const fetchOriginal = async ({ endpointFactory, propertyKey }) => {
-		        const url = endpointFactory.fetch(propertyKey);
-		        const response = await (0, apiRequestUtils_1.makeRequest)({ url, apiMethod, method: 'GET' });
-		        try {
-		            (0, apiRequestUtils_1.assertSuccessfulResponse)({ entityType, propertyKey, operation: 'fetch', response });
-		        }
-		        catch (err) {
-		            if (response.status === 404) {
-		                return null;
-		            }
-		            else {
-		                throw err;
-		            }
-		        }
-		        const existingData = await (0, apiRequestUtils_1.getJSONData)(response);
-		        return existingData;
-		    };
-		    // named `deleteProp` since `delete` is reserved word
-		    const deleteProp = async ({ endpointFactory, propertyKey }) => {
-		        const url = endpointFactory.delete(propertyKey);
-		        const response = await (0, apiRequestUtils_1.makeRequest)({ url, apiMethod, method: 'DELETE' });
-		        (0, apiRequestUtils_1.assertSuccessfulResponse)({ entityType, propertyKey, operation: 'delete', response });
-		    };
-		    const get = async ({ endpointFactory, propertyKey, context }) => {
-		        const existingProp = await fetchOriginal({ endpointFactory, propertyKey});
-		        if (existingProp) {
-		            return existingProp.value;
-		        }
-		        // if property doesn't exist, create it
-		        const resolvedInitVal = await (0, valueUtils_1.resolveValue)(initValue);
-		        const url = endpointFactory.create();
-		        const entityId = context.extension.issue?.id;
-		        const bodyData = {
-		            entitiesIds: [entityId],
-		            properties: {
-		                [propertyKey]: resolvedInitVal
-		            }
-		        };
-		        const response = await (0, apiRequestUtils_1.makeRequest)({
-		            url,
-		            apiMethod,
-		            method: 'POST',
-		            body: JSON.stringify(bodyData)
-		        });
-		        (0, apiRequestUtils_1.assertSuccessfulResponse)({ entityType, propertyKey, operation: 'create', response });
-		        return resolvedInitVal;
-		    };
-		    const update = async ({ endpointFactory, propertyKey, context }, valueUpdate) => {
-		        const newValueOrRunUpdaterOnOriginal = async (valueUpdate) => {
-		            // concrete value update, does not require fetching original value
-		            if (!(valueUpdate instanceof Function)) {
-		                return valueUpdate;
-		            }
-		            // value update via function, fetch original prop first to update based on its value
-		            const originalProp = await fetchOriginal({ endpointFactory, propertyKey});
-		            if (!originalProp) {
-		                throw new types_1.EntityPropertyRequestFailedError({
-		                    entityType,
-		                    propertyKey,
-		                    operation: 'update',
-		                    status: 404
-		                });
-		            }
-		            return valueUpdate(originalProp.value);
-		        };
-		        const newValue = await newValueOrRunUpdaterOnOriginal(valueUpdate);
-		        const url = endpointFactory.update(propertyKey);
-		        const body = JSON.stringify(newValue);
-		        const response = await (0, apiRequestUtils_1.makeRequest)({ url, apiMethod, method: 'PUT', body });
-		        (0, apiRequestUtils_1.assertSuccessfulResponse)({ entityType, propertyKey, operation: 'update', response });
-		        return newValue;
-		    };
-		    return {
-		        get: withIssueContext(get),
-		        update: withIssueContext(update),
-		        delete: withIssueContext(deleteProp)
-		    };
-		};
-		exports.jiraIssuePropsManager = jiraIssuePropsManager; 
-	} (jiraEntity));
-	return jiraEntity;
-}
-
-var hasRequiredUseIssueProperty;
-
-function requireUseIssueProperty () {
-	if (hasRequiredUseIssueProperty) return useIssueProperty;
-	hasRequiredUseIssueProperty = 1;
-	Object.defineProperty(useIssueProperty, "__esModule", { value: true });
-	useIssueProperty.useIssueProperty = void 0;
-	const react_1 = requireReact();
-	const jiraEntity_1 = requireJiraEntity();
-	const useEntityProperty_1 = requireUseEntityProperty();
-	/**
-	 * This function manages the properties of a Jira issue where the app is installed
-	 * @param propertyKey Name (key) of the property
-	 * @param initValue Default value if it did not exist previously
-	 * @returns An array with 3 items:
-	 *  1. Current value of the property.
-	 *  2. A function to update the property value (with another value or an updater function). If a <retryCount> is given and an initial update fails, it automatically tries to update for another <retryCount> times (default 0).
-	 *  3. A function to delete the property.
-	 */
-	const useIssueProperty$1 = (propertyKey, initValue) => {
-	    const entityManager = (0, react_1.useMemo)(() => (0, jiraEntity_1.jiraIssuePropsManager)({
-	        entityType: 'Issue',
-	        origPropertyKey: propertyKey,
-	        initValue
-	    }), []);
-	    return (0, useEntityProperty_1.useEntityProperty)({ entityManager, defaultRetryCount: 0 }); // no update retries needed for issue properties
-	};
-	useIssueProperty.useIssueProperty = useIssueProperty$1;
-	return useIssueProperty;
-}
-
-var useTranslation = {};
-
-var hasRequiredUseTranslation;
-
-function requireUseTranslation () {
-	if (hasRequiredUseTranslation) return useTranslation;
-	hasRequiredUseTranslation = 1;
-	Object.defineProperty(useTranslation, "__esModule", { value: true });
-	useTranslation.I18nProvider = useTranslation.useTranslation = void 0;
-	const jsx_runtime_1 = requireJsxRuntime();
-	const react_1 = requireReact();
-	const bridge_1 = requireOut$2();
-	const EMPTY_I18N_CONTEXT_VALUE = {
-	    ready: false,
-	    t: (key, defaultValue) => defaultValue ?? key
-	};
-	const I18nContext = (0, react_1.createContext)(EMPTY_I18N_CONTEXT_VALUE);
-	/**
-	 * Custom hook to access the i18n translation context.
-	 *
-	 * This hook provides the current i18n context value, which includes the translation function (`t`)
-	 * and the readiness state of the i18n context. If the context is not ready, the translation function
-	 * will return the key itself.
-	 *
-	 * @returns The current i18n context value, including the translation function, current locale, and readiness state.
-	 */
-	const useTranslation$1 = () => {
-	    return (0, react_1.useContext)(I18nContext);
-	};
-	useTranslation.useTranslation = useTranslation$1;
-	/**
-	 * Provider component for the i18n context.
-	 *
-	 * This component initializes the i18n context with the appropriate locale and translation function.
-	 * It fetches the locale from the provided props or the current view context if no locale is provided.
-	 * The i18n context value is then made available to all child components.
-	 *
-	 * @param children The child components that will have access to the i18n context.
-	 * @param locale The optional locale to initialize the i18n context with,
-	 *    if not provided, the current locale from the view context is used.
-	 *
-	 * @returns The provider component that wraps the children with the i18n context.
-	 */
-	const I18nProvider = ({ children, locale }) => {
-	    const [i18nContextValue, setI18nContextValue] = (0, react_1.useState)(EMPTY_I18N_CONTEXT_VALUE);
-	    (0, react_1.useEffect)(() => {
-	        const loadI18nContext = async () => {
-	            let targetLocale = locale;
-	            if (!targetLocale) {
-	                const context = await bridge_1.view.getContext();
-	                targetLocale = context.locale;
-	            }
-	            const t = await bridge_1.i18n.createTranslationFunction(targetLocale);
-	            setI18nContextValue({
-	                ready: true,
-	                t,
-	                locale: targetLocale
-	            });
-	        };
-	        void loadI18nContext();
-	    }, [setI18nContextValue, locale]);
-	    return (0, jsx_runtime_1.jsx)(I18nContext.Provider, { value: i18nContextValue, children: children });
-	};
-	useTranslation.I18nProvider = I18nProvider;
-	return useTranslation;
-}
-
-var useForm = {};
-
-var index_cjs = {};
-
-var hasRequiredIndex_cjs;
-
-function requireIndex_cjs () {
-	if (hasRequiredIndex_cjs) return index_cjs;
-	hasRequiredIndex_cjs = 1;
-var e=requireReact(),t=e=>"checkbox"===e.type,r=e=>e instanceof Date,s=e=>null==e;const a=e=>"object"==typeof e;var i=e=>!s(e)&&!Array.isArray(e)&&a(e)&&!r(e),n=e=>i(e)&&e.target?t(e.target)?e.target.checked:e.target.value:e,o=(e,t)=>e.has((e=>e.substring(0,e.search(/\.\d+(\.|$)/))||e)(t)),l="undefined"!=typeof window&&void 0!==window.HTMLElement&&"undefined"!=typeof document;function u(e){let t;const r=Array.isArray(e),s="undefined"!=typeof FileList&&e instanceof FileList;if(e instanceof Date)t=new Date(e);else {if(l&&(e instanceof Blob||s)||!r&&!i(e))return e;if(t=r?[]:Object.create(Object.getPrototypeOf(e)),r||(e=>{const t=e.constructor&&e.constructor.prototype;return i(t)&&t.hasOwnProperty("isPrototypeOf")})(e))for(const r in e)e.hasOwnProperty(r)&&(t[r]=u(e[r]));else t=e;}return t}var d=e=>/^\w*$/.test(e),c=e=>void 0===e,f=e=>Array.isArray(e)?e.filter(Boolean):[],m=e=>f(e.replace(/["|']|\]/g,"").split(/\.|\[/)),y=(e,t,r)=>{if(!t||!i(e))return r;const a=(d(t)?[t]:m(t)).reduce((e,t)=>s(e)?e:e[t],e);return c(a)||a===e?c(e[t])?r:e[t]:a},g=e=>"boolean"==typeof e,p=(e,t,r)=>{let s=-1;const a=d(t)?[t]:m(t),n=a.length,o=n-1;for(;++s<n;){const t=a[s];let n=r;if(s!==o){const r=e[t];n=i(r)||Array.isArray(r)?r:isNaN(+a[s+1])?{}:[];}if("__proto__"===t||"constructor"===t||"prototype"===t)return;e[t]=n,e=e[t];}};const _="blur",b="focusout",h="change",v="onBlur",V="onChange",F="onSubmit",x="onTouched",A="all",S="max",w="min",k="maxLength",D="minLength",C="pattern",E="required",O="validate",M=e.createContext(null);M.displayName="HookFormContext";const j=()=>e.useContext(M);var U=(e,t,r,s=true)=>{const a={defaultValues:t._defaultValues};for(const i in e)Object.defineProperty(a,i,{get:()=>{const a=i;return t._proxyFormState[a]!==A&&(t._proxyFormState[a]=!s||A),r&&(r[a]=true),e[a]}});return a};const T="undefined"!=typeof window?e.useLayoutEffect:e.useEffect;function N(t){const r=j(),{control:s=r.control,disabled:a,name:i,exact:n}=t||{},[o,l]=e.useState(s._formState),u=e.useRef({isDirty:false,isLoading:false,dirtyFields:false,touchedFields:false,validatingFields:false,isValidating:false,isValid:false,errors:false});return T(()=>s._subscribe({name:i,formState:u.current,exact:n,callback:e=>{!a&&l({...s._formState,...e});}}),[i,a,n]),e.useEffect(()=>{u.current.isValid&&s._setValid(true);},[s]),e.useMemo(()=>U(o,s,u.current,false),[o,s])}var R=e=>"string"==typeof e,B=(e,t,r,s,a)=>R(e)?(s&&t.watch.add(e),y(r,e,a)):Array.isArray(e)?e.map(e=>(s&&t.watch.add(e),y(r,e))):(s&&(t.watchAll=true),r),L=e=>s(e)||!a(e);function P(e,t,s=new WeakSet){if(L(e)||L(t))return e===t;if(r(e)&&r(t))return e.getTime()===t.getTime();const a=Object.keys(e),n=Object.keys(t);if(a.length!==n.length)return  false;if(s.has(e)||s.has(t))return  true;s.add(e),s.add(t);for(const o of a){const a=e[o];if(!n.includes(o))return  false;if("ref"!==o){const e=t[o];if(r(a)&&r(e)||i(a)&&i(e)||Array.isArray(a)&&Array.isArray(e)?!P(a,e,s):a!==e)return  false}}return  true}function W(t){const r=j(),{control:s=r.control,name:a,defaultValue:i,disabled:n,exact:o,compute:l}=t||{},u=e.useRef(i),d=e.useRef(l),c=e.useRef(void 0);d.current=l;const f=e.useMemo(()=>s._getWatch(a,u.current),[s,a]),[m,y]=e.useState(d.current?d.current(f):f);return T(()=>s._subscribe({name:a,formState:{values:true},exact:o,callback:e=>{if(!n){const t=B(a,s._names,e.values||s._formValues,false,u.current);if(d.current){const e=d.current(t);P(e,c.current)||(y(e),c.current=e);}else y(t);}}}),[s,n,a,o]),e.useEffect(()=>s._removeUnmounted()),m}function I(t){const r=j(),{name:s,disabled:a,control:i=r.control,shouldUnregister:l,defaultValue:d}=t,f=o(i._names.array,s),m=e.useMemo(()=>y(i._formValues,s,y(i._defaultValues,s,d)),[i,s,d]),b=W({control:i,name:s,defaultValue:m,exact:true}),v=N({control:i,name:s,exact:true}),V=e.useRef(t),F=e.useRef(void 0),x=e.useRef(i.register(s,{...t.rules,value:b,...g(t.disabled)?{disabled:t.disabled}:{}}));V.current=t;const A=e.useMemo(()=>Object.defineProperties({},{invalid:{enumerable:true,get:()=>!!y(v.errors,s)},isDirty:{enumerable:true,get:()=>!!y(v.dirtyFields,s)},isTouched:{enumerable:true,get:()=>!!y(v.touchedFields,s)},isValidating:{enumerable:true,get:()=>!!y(v.validatingFields,s)},error:{enumerable:true,get:()=>y(v.errors,s)}}),[v,s]),S=e.useCallback(e=>x.current.onChange({target:{value:n(e),name:s},type:h}),[s]),w=e.useCallback(()=>x.current.onBlur({target:{value:y(i._formValues,s),name:s},type:_}),[s,i._formValues]),k=e.useCallback(e=>{const t=y(i._fields,s);t&&e&&(t._f.ref={focus:()=>e.focus&&e.focus(),select:()=>e.select&&e.select(),setCustomValidity:t=>e.setCustomValidity(t),reportValidity:()=>e.reportValidity()});},[i._fields,s]),D=e.useMemo(()=>({name:s,value:b,...g(a)||v.disabled?{disabled:v.disabled||a}:{},onChange:S,onBlur:w,ref:k}),[s,a,v.disabled,S,w,k,b]);return e.useEffect(()=>{const e=i._options.shouldUnregister||l,t=F.current;t&&t!==s&&!f&&i.unregister(t),i.register(s,{...V.current.rules,...g(V.current.disabled)?{disabled:V.current.disabled}:{}});const r=(e,t)=>{const r=y(i._fields,e);r&&r._f&&(r._f.mount=t);};if(r(s,true),e){const e=u(y(i._options.defaultValues,s,V.current.defaultValue));p(i._defaultValues,s,e),c(y(i._formValues,s))&&p(i._formValues,s,e);}return !f&&i.register(s),F.current=s,()=>{(f?e&&!i._state.action:e)?i.unregister(s):r(s,false);}},[s,i,f,l]),e.useEffect(()=>{i._setDisabledField({disabled:a,name:s});},[a,s,i]),e.useMemo(()=>({field:D,formState:v,fieldState:A}),[D,v,A])}const q=e=>{const t={};for(const r of Object.keys(e))if(a(e[r])&&null!==e[r]){const s=q(e[r]);for(const e of Object.keys(s))t[`${r}.${e}`]=s[e];}else t[r]=e[r];return t},$="post";var H=(e,t,r,s,a)=>t?{...r[e],types:{...r[e]&&r[e].types?r[e].types:{},[s]:a||true}}:{},J=e=>Array.isArray(e)?e:[e],z=()=>{let e=[];return {get observers(){return e},next:t=>{for(const r of e)r.next&&r.next(t);},subscribe:t=>(e.push(t),{unsubscribe:()=>{e=e.filter(e=>e!==t);}}),unsubscribe:()=>{e=[];}}};function G(e,t){const r={};for(const s in e)if(e.hasOwnProperty(s)){const a=e[s],n=t[s];if(a&&i(a)&&n){const e=G(a,n);i(e)&&(r[s]=e);}else e[s]&&(r[s]=n);}return r}var K=e=>i(e)&&!Object.keys(e).length,Q=e=>"file"===e.type,X=e=>"function"==typeof e,Y=e=>{if(!l)return  false;const t=e?e.ownerDocument:0;return e instanceof(t&&t.defaultView?t.defaultView.HTMLElement:HTMLElement)},Z=e=>"select-multiple"===e.type,ee=e=>"radio"===e.type,te=e=>Y(e)&&e.isConnected;function re(e,t){const r=Array.isArray(t)?t:d(t)?[t]:m(t),s=1===r.length?e:function(e,t){const r=t.slice(0,-1).length;let s=0;for(;s<r;)e=c(e)?s++:e[t[s++]];return e}(e,r),a=r.length-1,n=r[a];return s&&delete s[n],0!==a&&(i(s)&&K(s)||Array.isArray(s)&&function(e){for(const t in e)if(e.hasOwnProperty(t)&&!c(e[t]))return  false;return  true}(s))&&re(e,r.slice(0,-1)),e}function se(e){return Array.isArray(e)||i(e)&&!(e=>{for(const t in e)if(X(e[t]))return  true;return  false})(e)}function ae(e,t={}){for(const r in e)se(e[r])?(t[r]=Array.isArray(e[r])?[]:{},ae(e[r],t[r])):c(e[r])||(t[r]=true);return t}function ie(e,t,r){r||(r=ae(t));for(const a in e)se(e[a])?c(t)||L(r[a])?r[a]=ae(e[a],Array.isArray(e[a])?[]:{}):ie(e[a],s(t)?{}:t[a],r[a]):r[a]=!P(e[a],t[a]);return r}const ne={value:false,isValid:false},oe={value:true,isValid:true};var le=e=>{if(Array.isArray(e)){if(e.length>1){const t=e.filter(e=>e&&e.checked&&!e.disabled).map(e=>e.value);return {value:t,isValid:!!t.length}}return e[0].checked&&!e[0].disabled?e[0].attributes&&!c(e[0].attributes.value)?c(e[0].value)||""===e[0].value?oe:{value:e[0].value,isValid:true}:oe:ne}return ne},ue=(e,{valueAsNumber:t,valueAsDate:r,setValueAs:s})=>c(e)?e:t?""===e?NaN:e?+e:e:r&&R(e)?new Date(e):s?s(e):e;const de={isValid:false,value:null};var ce=e=>Array.isArray(e)?e.reduce((e,t)=>t&&t.checked&&!t.disabled?{isValid:true,value:t.value}:e,de):de;function fe(e){const r=e.ref;return Q(r)?r.files:ee(r)?ce(e.refs).value:Z(r)?[...r.selectedOptions].map(({value:e})=>e):t(r)?le(e.refs).value:ue(c(r.value)?e.ref.value:r.value,e)}var me=e=>e instanceof RegExp,ye=e=>c(e)?e:me(e)?e.source:i(e)?me(e.value)?e.value.source:e.value:e,ge=e=>({isOnSubmit:!e||e===F,isOnBlur:e===v,isOnChange:e===V,isOnAll:e===A,isOnTouch:e===x});const pe="AsyncFunction";var _e=e=>!!e&&!!e.validate&&!!(X(e.validate)&&e.validate.constructor.name===pe||i(e.validate)&&Object.values(e.validate).find(e=>e.constructor.name===pe)),be=(e,t,r)=>!r&&(t.watchAll||t.watch.has(e)||[...t.watch].some(t=>e.startsWith(t)&&/^\.\w+/.test(e.slice(t.length))));const he=(e,t,r,s)=>{for(const a of r||Object.keys(e)){const r=y(e,a);if(r){const{_f:e,...n}=r;if(e){if(e.refs&&e.refs[0]&&t(e.refs[0],a)&&!s)return  true;if(e.ref&&t(e.ref,e.name)&&!s)return  true;if(he(n,t))break}else if(i(n)&&he(n,t))break}}};function ve(e,t,r){const s=y(e,r);if(s||d(r))return {error:s,name:r};const a=r.split(".");for(;a.length;){const s=a.join("."),i=y(t,s),n=y(e,s);if(i&&!Array.isArray(i)&&r!==s)return {name:r};if(n&&n.type)return {name:s,error:n};if(n&&n.root&&n.root.type)return {name:`${s}.root`,error:n.root};a.pop();}return {name:r}}var Ve=(e,t,r)=>{const s=J(y(e,r));return p(s,"root",t[r]),p(e,r,s),e};function Fe(e,t,r="validate"){if(R(e)||Array.isArray(e)&&e.every(R)||g(e)&&!e)return {type:r,message:R(e)?e:"",ref:t}}var xe=e=>i(e)&&!me(e)?e:{value:e,message:""},Ae=async(e,r,a,n,o,l)=>{const{ref:u,refs:d,required:f,maxLength:m,minLength:p,min:_,max:b,pattern:h,validate:v,name:V,valueAsNumber:F,mount:x}=e._f,A=y(a,V);if(!x||r.has(V))return {};const M=d?d[0]:u,j=e=>{o&&M.reportValidity&&(M.setCustomValidity(g(e)?"":e||""),M.reportValidity());},U={},T=ee(u),N=t(u),B=T||N,L=(F||Q(u))&&c(u.value)&&c(A)||Y(u)&&""===u.value||""===A||Array.isArray(A)&&!A.length,P=H.bind(null,V,n,U),W=(e,t,r,s=k,a=D)=>{const i=e?t:r;U[V]={type:e?s:a,message:i,ref:u,...P(e?s:a,i)};};if(l?!Array.isArray(A)||!A.length:f&&(!B&&(L||s(A))||g(A)&&!A||N&&!le(d).isValid||T&&!ce(d).isValid)){const{value:e,message:t}=R(f)?{value:!!f,message:f}:xe(f);if(e&&(U[V]={type:E,message:t,ref:M,...P(E,t)},!n))return j(t),U}if(!(L||s(_)&&s(b))){let e,t;const r=xe(b),a=xe(_);if(s(A)||isNaN(A)){const s=u.valueAsDate||new Date(A),i=e=>new Date((new Date).toDateString()+" "+e),n="time"==u.type,o="week"==u.type;R(r.value)&&A&&(e=n?i(A)>i(r.value):o?A>r.value:s>new Date(r.value)),R(a.value)&&A&&(t=n?i(A)<i(a.value):o?A<a.value:s<new Date(a.value));}else {const i=u.valueAsNumber||(A?+A:A);s(r.value)||(e=i>r.value),s(a.value)||(t=i<a.value);}if((e||t)&&(W(!!e,r.message,a.message,S,w),!n))return j(U[V].message),U}if((m||p)&&!L&&(R(A)||l&&Array.isArray(A))){const e=xe(m),t=xe(p),r=!s(e.value)&&A.length>+e.value,a=!s(t.value)&&A.length<+t.value;if((r||a)&&(W(r,e.message,t.message),!n))return j(U[V].message),U}if(h&&!L&&R(A)){const{value:e,message:t}=xe(h);if(me(e)&&!A.match(e)&&(U[V]={type:C,message:t,ref:u,...P(C,t)},!n))return j(t),U}if(v)if(X(v)){const e=Fe(await v(A,a),M);if(e&&(U[V]={...e,...P(O,e.message)},!n))return j(e.message),U}else if(i(v)){let e={};for(const t in v){if(!K(e)&&!n)break;const r=Fe(await v[t](A,a),M,t);r&&(e={...r,...P(t,r.message)},j(r.message),n&&(U[V]=e));}if(!K(e)&&(U[V]={ref:M,...e},!n))return U}return j(true),U};const Se={mode:F,reValidateMode:V,shouldFocusError:true};function we(e={}){let a,d={...Se,...e},m={submitCount:0,isDirty:false,isReady:false,isLoading:X(d.defaultValues),isValidating:false,isSubmitted:false,isSubmitting:false,isSubmitSuccessful:false,isValid:false,touchedFields:{},dirtyFields:{},validatingFields:{},errors:d.errors||{},disabled:d.disabled||false},h={},v=(i(d.defaultValues)||i(d.values))&&u(d.defaultValues||d.values)||{},V=d.shouldUnregister?{}:u(v),F={action:false,mount:false,watch:false},x={mount:new Set,disabled:new Set,unMount:new Set,array:new Set,watch:new Set},S=0;const w={isDirty:false,dirtyFields:false,validatingFields:false,touchedFields:false,isValidating:false,isValid:false,errors:false};let k={...w};const D={array:z(),state:z()},C=d.criteriaMode===A,E=async e=>{if(!d.disabled&&(w.isValid||k.isValid||e)){const e=d.resolver?K((await T()).errors):await N(h,true);e!==m.isValid&&D.state.next({isValid:e});}},O=(e,t)=>{!d.disabled&&(w.isValidating||w.validatingFields||k.isValidating||k.validatingFields)&&((e||Array.from(x.mount)).forEach(e=>{e&&(t?p(m.validatingFields,e,t):re(m.validatingFields,e));}),D.state.next({validatingFields:m.validatingFields,isValidating:!K(m.validatingFields)}));},M=(e,t,r,s)=>{const a=y(h,e);if(a){const i=y(V,e,c(r)?y(v,e):r);c(i)||s&&s.defaultChecked||t?p(V,e,t?i:fe(a._f)):I(e,i),F.mount&&E();}},j=(e,t,r,s,a)=>{let i=false,n=false;const o={name:e};if(!d.disabled){if(!r||s){(w.isDirty||k.isDirty)&&(n=m.isDirty,m.isDirty=o.isDirty=L(),i=n!==o.isDirty);const r=P(y(v,e),t);n=!!y(m.dirtyFields,e),r?re(m.dirtyFields,e):p(m.dirtyFields,e,true),o.dirtyFields=m.dirtyFields,i=i||(w.dirtyFields||k.dirtyFields)&&n!==!r;}if(r){const t=y(m.touchedFields,e);t||(p(m.touchedFields,e,r),o.touchedFields=m.touchedFields,i=i||(w.touchedFields||k.touchedFields)&&t!==r);}i&&a&&D.state.next(o);}return i?o:{}},U=(e,t,r,s)=>{const i=y(m.errors,e),n=(w.isValid||k.isValid)&&g(t)&&m.isValid!==t;var o;if(d.delayError&&r?(o=()=>((e,t)=>{p(m.errors,e,t),D.state.next({errors:m.errors});})(e,r),a=e=>{clearTimeout(S),S=setTimeout(o,e);},a(d.delayError)):(clearTimeout(S),a=null,r?p(m.errors,e,r):re(m.errors,e)),(r?!P(i,r):i)||!K(s)||n){const r={...s,...n&&g(t)?{isValid:t}:{},errors:m.errors,name:e};m={...m,...r},D.state.next(r);}},T=async e=>{O(e,true);const t=await d.resolver(V,d.context,((e,t,r,s)=>{const a={};for(const r of e){const e=y(t,r);e&&p(a,r,e._f);}return {criteriaMode:r,names:[...e],fields:a,shouldUseNativeValidation:s}})(e||x.mount,h,d.criteriaMode,d.shouldUseNativeValidation));return O(e),t},N=async(e,t,r={valid:true})=>{for(const s in e){const a=e[s];if(a){const{_f:e,...s}=a;if(e){const s=x.array.has(e.name),i=a._f&&_e(a._f);i&&w.validatingFields&&O([e.name],true);const n=await Ae(a,x.disabled,V,C,d.shouldUseNativeValidation&&!t,s);if(i&&w.validatingFields&&O([e.name]),n[e.name]&&(r.valid=false,t))break;!t&&(y(n,e.name)?s?Ve(m.errors,n,e.name):p(m.errors,e.name,n[e.name]):re(m.errors,e.name));}!K(s)&&await N(s,t,r);}}return r.valid},L=(e,t)=>!d.disabled&&(e&&t&&p(V,e,t),!P(ne(),v)),W=(e,t,r)=>B(e,x,{...F.mount?V:c(t)?v:R(e)?{[e]:t}:t},r,t),I=(e,r,a={})=>{const i=y(h,e);let n=r;if(i){const a=i._f;a&&(!a.disabled&&p(V,e,ue(r,a)),n=Y(a.ref)&&s(r)?"":r,Z(a.ref)?[...a.ref.options].forEach(e=>e.selected=n.includes(e.value)):a.refs?t(a.ref)?a.refs.forEach(e=>{e.defaultChecked&&e.disabled||(Array.isArray(n)?e.checked=!!n.find(t=>t===e.value):e.checked=n===e.value||!!n);}):a.refs.forEach(e=>e.checked=e.value===n):Q(a.ref)?a.ref.value="":(a.ref.value=n,a.ref.type||D.state.next({name:e,values:u(V)})));}(a.shouldDirty||a.shouldTouch)&&j(e,n,a.shouldTouch,a.shouldDirty,true),a.shouldValidate&&ae(e);},q=(e,t,s)=>{for(const a in t){if(!t.hasOwnProperty(a))return;const n=t[a],o=e+"."+a,l=y(h,o);(x.array.has(e)||i(n)||l&&!l._f)&&!r(n)?q(o,n,s):I(o,n,s);}},$=(e,t,r={})=>{const a=y(h,e),i=x.array.has(e),n=u(t);p(V,e,n),i?(D.array.next({name:e,values:u(V)}),(w.isDirty||w.dirtyFields||k.isDirty||k.dirtyFields)&&r.shouldDirty&&D.state.next({name:e,dirtyFields:ie(v,V),isDirty:L(e,n)})):!a||a._f||s(n)?I(e,n,r):q(e,n,r),be(e,x)&&D.state.next({...m,name:e}),D.state.next({name:F.mount?e:void 0,values:u(V)});},H=async e=>{F.mount=true;const t=e.target;let s=t.name,i=true;const o=y(h,s),l=e=>{i=Number.isNaN(e)||r(e)&&isNaN(e.getTime())||P(e,y(V,s,e));},c=ge(d.mode),f=ge(d.reValidateMode);if(o){let r,v;const F=t.type?fe(o._f):n(e),A=e.type===_||e.type===b,S=!((g=o._f).mount&&(g.required||g.min||g.max||g.maxLength||g.minLength||g.pattern||g.validate)||d.resolver||y(m.errors,s)||o._f.deps)||((e,t,r,s,a)=>!a.isOnAll&&(!r&&a.isOnTouch?!(t||e):(r?s.isOnBlur:a.isOnBlur)?!e:!(r?s.isOnChange:a.isOnChange)||e))(A,y(m.touchedFields,s),m.isSubmitted,f,c),M=be(s,x,A);p(V,s,F),A?t&&t.readOnly||(o._f.onBlur&&o._f.onBlur(e),a&&a(0)):o._f.onChange&&o._f.onChange(e);const R=j(s,F,A),B=!K(R)||M;if(!A&&D.state.next({name:s,type:e.type,values:u(V)}),S)return (w.isValid||k.isValid)&&("onBlur"===d.mode?A&&E():A||E()),B&&D.state.next({name:s,...M?{}:R});if(!A&&M&&D.state.next({...m}),d.resolver){const{errors:e}=await T([s]);if(l(F),i){const t=ve(m.errors,h,s),a=ve(e,h,t.name||s);r=a.error,s=a.name,v=K(e);}}else O([s],true),r=(await Ae(o,x.disabled,V,C,d.shouldUseNativeValidation))[s],O([s]),l(F),i&&(r?v=false:(w.isValid||k.isValid)&&(v=await N(h,true)));i&&(o._f.deps&&(!Array.isArray(o._f.deps)||o._f.deps.length>0)&&ae(o._f.deps),U(s,v,r,R));}var g;},se=(e,t)=>{if(y(m.errors,t)&&e.focus)return e.focus(),1},ae=async(e,t={})=>{let r,s;const a=J(e);if(d.resolver){const t=await(async e=>{const{errors:t}=await T(e);if(e)for(const r of e){const e=y(t,r);e?p(m.errors,r,e):re(m.errors,r);}else m.errors=t;return t})(c(e)?e:a);r=K(t),s=e?!a.some(e=>y(t,e)):r;}else e?(s=(await Promise.all(a.map(async e=>{const t=y(h,e);return await N(t&&t._f?{[e]:t}:t)}))).every(Boolean),(s||m.isValid)&&E()):s=r=await N(h);return D.state.next({...!R(e)||(w.isValid||k.isValid)&&r!==m.isValid?{}:{name:e},...d.resolver||!e?{isValid:r}:{},errors:m.errors}),t.shouldFocus&&!s&&he(h,se,e?a:x.mount),s},ne=(e,t)=>{let r={...F.mount?V:v};return t&&(r=G(t.dirtyFields?m.dirtyFields:m.touchedFields,r)),c(e)?r:R(e)?y(r,e):e.map(e=>y(r,e))},oe=(e,t)=>({invalid:!!y((t||m).errors,e),isDirty:!!y((t||m).dirtyFields,e),error:y((t||m).errors,e),isValidating:!!y(m.validatingFields,e),isTouched:!!y((t||m).touchedFields,e)}),le=(e,t,r)=>{const s=(y(h,e,{_f:{}})._f||{}).ref,a=y(m.errors,e)||{},{ref:i,message:n,type:o,...l}=a;p(m.errors,e,{...l,...t,ref:s}),D.state.next({name:e,errors:m.errors,isValid:false}),r&&r.shouldFocus&&s&&s.focus&&s.focus();},de=e=>D.state.subscribe({next:t=>{var r,s,a;r=e.name,s=t.name,a=e.exact,r&&s&&r!==s&&!J(r).some(e=>e&&(a?e===s:e.startsWith(s)||s.startsWith(e)))||!((e,t,r,s)=>{r(e);const{name:a,...i}=e;return K(i)||Object.keys(i).length>=Object.keys(t).length||Object.keys(i).find(e=>t[e]===(!s||A))})(t,e.formState||w,De,e.reRenderRoot)||e.callback({values:{...V},...m,...t,defaultValues:v});}}).unsubscribe,ce=(e,t={})=>{for(const r of e?J(e):x.mount)x.mount.delete(r),x.array.delete(r),t.keepValue||(re(h,r),re(V,r)),!t.keepError&&re(m.errors,r),!t.keepDirty&&re(m.dirtyFields,r),!t.keepTouched&&re(m.touchedFields,r),!t.keepIsValidating&&re(m.validatingFields,r),!d.shouldUnregister&&!t.keepDefaultValue&&re(v,r);D.state.next({values:u(V)}),D.state.next({...m,...t.keepDirty?{isDirty:L()}:{}}),!t.keepIsValid&&E();},me=({disabled:e,name:t})=>{(g(e)&&F.mount||e||x.disabled.has(t))&&(e?x.disabled.add(t):x.disabled.delete(t));},pe=(e,r={})=>{let s=y(h,e);const a=g(r.disabled)||g(d.disabled);return p(h,e,{...s||{},_f:{...s&&s._f?s._f:{ref:{name:e}},name:e,mount:true,...r}}),x.mount.add(e),s?me({disabled:g(r.disabled)?r.disabled:d.disabled,name:e}):M(e,true,r.value),{...a?{disabled:r.disabled||d.disabled}:{},...d.progressive?{required:!!r.required,min:ye(r.min),max:ye(r.max),minLength:ye(r.minLength),maxLength:ye(r.maxLength),pattern:ye(r.pattern)}:{},name:e,onChange:H,onBlur:H,ref:a=>{if(a){pe(e,r),s=y(h,e);const i=c(a.value)&&a.querySelectorAll&&a.querySelectorAll("input,select,textarea")[0]||a,n=(e=>ee(e)||t(e))(i),o=s._f.refs||[];if(n?o.find(e=>e===i):i===s._f.ref)return;p(h,e,{_f:{...s._f,...n?{refs:[...o.filter(te),i,...Array.isArray(y(v,e))?[{}]:[]],ref:{type:i.type,name:e}}:{ref:i}}}),M(e,false,void 0,i);}else s=y(h,e,{}),s._f&&(s._f.mount=false),(d.shouldUnregister||r.shouldUnregister)&&(!o(x.array,e)||!F.action)&&x.unMount.add(e);}}},Fe=()=>d.shouldFocusError&&he(h,se,x.mount),xe=(e,t)=>async r=>{let s;r&&(r.preventDefault&&r.preventDefault(),r.persist&&r.persist());let a=u(V);if(D.state.next({isSubmitting:true}),d.resolver){const{errors:e,values:t}=await T();m.errors=e,a=u(t);}else await N(h);if(x.disabled.size)for(const e of x.disabled)re(a,e);if(re(m.errors,"root"),K(m.errors)){D.state.next({errors:{}});try{await e(a,r);}catch(e){s=e;}}else t&&await t({...m.errors},r),Fe(),setTimeout(Fe);if(D.state.next({isSubmitted:true,isSubmitting:false,isSubmitSuccessful:K(m.errors)&&!s,submitCount:m.submitCount+1,errors:m.errors}),s)throw s},we=(e,t={})=>{const r=e?u(e):v,s=u(r),a=K(e),i=a?v:s;if(t.keepDefaultValues||(v=r),!t.keepValues){if(t.keepDirtyValues){const e=new Set([...x.mount,...Object.keys(ie(v,V))]);for(const t of Array.from(e))y(m.dirtyFields,t)?p(i,t,y(V,t)):$(t,y(i,t));}else {if(l&&c(e))for(const e of x.mount){const t=y(h,e);if(t&&t._f){const e=Array.isArray(t._f.refs)?t._f.refs[0]:t._f.ref;if(Y(e)){const t=e.closest("form");if(t){t.reset();break}}}}if(t.keepFieldsRef)for(const e of x.mount)$(e,y(i,e));else h={};}V=d.shouldUnregister?t.keepDefaultValues?u(v):{}:u(i),D.array.next({values:{...i}}),D.state.next({values:{...i}});}x={mount:t.keepDirtyValues?x.mount:new Set,unMount:new Set,array:new Set,disabled:new Set,watch:new Set,watchAll:false,focus:""},F.mount=!w.isValid||!!t.keepIsValid||!!t.keepDirtyValues,F.watch=!!d.shouldUnregister,D.state.next({submitCount:t.keepSubmitCount?m.submitCount:0,isDirty:!a&&(t.keepDirty?m.isDirty:!(!t.keepDefaultValues||P(e,v))),isSubmitted:!!t.keepIsSubmitted&&m.isSubmitted,dirtyFields:a?{}:t.keepDirtyValues?t.keepDefaultValues&&V?ie(v,V):m.dirtyFields:t.keepDefaultValues&&e?ie(v,e):t.keepDirty?m.dirtyFields:{},touchedFields:t.keepTouched?m.touchedFields:{},errors:t.keepErrors?m.errors:{},isSubmitSuccessful:!!t.keepIsSubmitSuccessful&&m.isSubmitSuccessful,isSubmitting:false,defaultValues:v});},ke=(e,t)=>we(X(e)?e(V):e,t),De=e=>{m={...m,...e};},Ce={control:{register:pe,unregister:ce,getFieldState:oe,handleSubmit:xe,setError:le,_subscribe:de,_runSchema:T,_focusError:Fe,_getWatch:W,_getDirty:L,_setValid:E,_setFieldArray:(e,t=[],r,s,a=true,i=true)=>{if(s&&r&&!d.disabled){if(F.action=true,i&&Array.isArray(y(h,e))){const t=r(y(h,e),s.argA,s.argB);a&&p(h,e,t);}if(i&&Array.isArray(y(m.errors,e))){const t=r(y(m.errors,e),s.argA,s.argB);a&&p(m.errors,e,t),((e,t)=>{!f(y(e,t)).length&&re(e,t);})(m.errors,e);}if((w.touchedFields||k.touchedFields)&&i&&Array.isArray(y(m.touchedFields,e))){const t=r(y(m.touchedFields,e),s.argA,s.argB);a&&p(m.touchedFields,e,t);}(w.dirtyFields||k.dirtyFields)&&(m.dirtyFields=ie(v,V)),D.state.next({name:e,isDirty:L(e,t),dirtyFields:m.dirtyFields,errors:m.errors,isValid:m.isValid});}else p(V,e,t);},_setDisabledField:me,_setErrors:e=>{m.errors=e,D.state.next({errors:m.errors,isValid:false});},_getFieldArray:e=>f(y(F.mount?V:v,e,d.shouldUnregister?y(v,e,[]):[])),_reset:we,_resetDefaultValues:()=>X(d.defaultValues)&&d.defaultValues().then(e=>{ke(e,d.resetOptions),D.state.next({isLoading:false});}),_removeUnmounted:()=>{for(const e of x.unMount){const t=y(h,e);t&&(t._f.refs?t._f.refs.every(e=>!te(e)):!te(t._f.ref))&&ce(e);}x.unMount=new Set;},_disableForm:e=>{g(e)&&(D.state.next({disabled:e}),he(h,(t,r)=>{const s=y(h,r);s&&(t.disabled=s._f.disabled||e,Array.isArray(s._f.refs)&&s._f.refs.forEach(t=>{t.disabled=s._f.disabled||e;}));},0,false));},_subjects:D,_proxyFormState:w,get _fields(){return h},get _formValues(){return V},get _state(){return F},set _state(e){F=e;},get _defaultValues(){return v},get _names(){return x},set _names(e){x=e;},get _formState(){return m},get _options(){return d},set _options(e){d={...d,...e};}},subscribe:e=>(F.mount=true,k={...k,...e.formState},de({...e,formState:k})),trigger:ae,register:pe,handleSubmit:xe,watch:(e,t)=>X(e)?D.state.subscribe({next:r=>"values"in r&&e(W(void 0,t),r)}):W(e,t,true),setValue:$,getValues:ne,reset:ke,resetField:(e,t={})=>{y(h,e)&&(c(t.defaultValue)?$(e,u(y(v,e))):($(e,t.defaultValue),p(v,e,u(t.defaultValue))),t.keepTouched||re(m.touchedFields,e),t.keepDirty||(re(m.dirtyFields,e),m.isDirty=t.defaultValue?L(e,u(y(v,e))):L()),t.keepError||(re(m.errors,e),w.isValid&&E()),D.state.next({...m}));},clearErrors:e=>{e&&J(e).forEach(e=>re(m.errors,e)),D.state.next({errors:e?m.errors:{}});},unregister:ce,setError:le,setFocus:(e,t={})=>{const r=y(h,e),s=r&&r._f;if(s){const e=s.refs?s.refs[0]:s.ref;e.focus&&(e.focus(),t.shouldSelect&&X(e.select)&&e.select());}},getFieldState:oe};return {...Ce,formControl:Ce}}var ke=()=>{if("undefined"!=typeof crypto&&crypto.randomUUID)return crypto.randomUUID();const e="undefined"==typeof performance?Date.now():1e3*performance.now();return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g,t=>{const r=(16*Math.random()+e)%16|0;return ("x"==t?r:3&r|8).toString(16)})},De=(e,t,r={})=>r.shouldFocus||c(r.shouldFocus)?r.focusName||`${e}.${c(r.focusIndex)?t:r.focusIndex}.`:"",Ce=(e,t)=>[...e,...J(t)],Ee=e=>Array.isArray(e)?e.map(()=>{}):void 0;function Oe(e,t,r){return [...e.slice(0,t),...J(r),...e.slice(t)]}var Me=(e,t,r)=>Array.isArray(e)?(c(e[r])&&(e[r]=void 0),e.splice(r,0,e.splice(t,1)[0]),e):[],je=(e,t)=>[...J(t),...J(e)];var Ue=(e,t)=>c(t)?[]:function(e,t){let r=0;const s=[...e];for(const e of t)s.splice(e-r,1),r++;return f(s).length?s:[]}(e,J(t).sort((e,t)=>e-t)),Te=(e,t,r)=>{[e[t],e[r]]=[e[r],e[t]];},Ne=(e,t,r)=>(e[t]=r,e);index_cjs.Controller=e=>e.render(I(e)),index_cjs.Form=function(t){const r=j(),[s,a]=e.useState(false),{control:i=r.control,onSubmit:n,children:o,action:l,method:u=$,headers:d,encType:c,onError:f,render:m,onSuccess:y,validateStatus:g,...p}=t,_=async e=>{let r=false,s="";await i.handleSubmit(async t=>{const a=new FormData;let o="";try{o=JSON.stringify(t);}catch(e){}const m=q(i._formValues);for(const e in m)a.append(e,m[e]);if(n&&await n({data:t,event:e,method:u,formData:a,formDataJson:o}),l)try{const e=[d&&d["Content-Type"],c].some(e=>e&&e.includes("json")),t=await fetch(String(l),{method:u,headers:{...d,...c&&"multipart/form-data"!==c?{"Content-Type":c}:{}},body:e?o:a});t&&(g?!g(t.status):t.status<200||t.status>=300)?(r=!0,f&&f({response:t}),s=String(t.status)):y&&y({response:t});}catch(e){r=true,f&&f({error:e});}})(e),r&&t.control&&(t.control._subjects.state.next({isSubmitSuccessful:false}),t.control.setError("root.server",{type:s}));};return e.useEffect(()=>{a(true);},[]),m?e.createElement(e.Fragment,null,m({submit:_})):e.createElement("form",{noValidate:s,action:l,method:u,encType:c,onSubmit:_,...p},o)},index_cjs.FormProvider=t=>{const{children:r,...s}=t;return e.createElement(M.Provider,{value:s},r)},index_cjs.Watch=({control:e,names:t,render:r})=>r(W({control:e,name:t})),index_cjs.appendErrors=H,index_cjs.createFormControl=we,index_cjs.get=y,index_cjs.set=p,index_cjs.useController=I,index_cjs.useFieldArray=function(t){const r=j(),{control:s=r.control,name:a,keyName:i="id",shouldUnregister:n,rules:o}=t,[l,d]=e.useState(s._getFieldArray(a)),c=e.useRef(s._getFieldArray(a).map(ke)),f=e.useRef(false);s._names.array.add(a),e.useMemo(()=>o&&l.length>=0&&s.register(a,o),[s,a,l.length,o]),T(()=>s._subjects.array.subscribe({next:({values:e,name:t})=>{if(t===a||!t){const t=y(e,a);Array.isArray(t)&&(d(t),c.current=t.map(ke));}}}).unsubscribe,[s,a]);const m=e.useCallback(e=>{f.current=true,s._setFieldArray(a,e);},[s,a]);return e.useEffect(()=>{if(s._state.action=false,be(a,s._names)&&s._subjects.state.next({...s._formState}),f.current&&(!ge(s._options.mode).isOnSubmit||s._formState.isSubmitted)&&!ge(s._options.reValidateMode).isOnSubmit)if(s._options.resolver)s._runSchema([a]).then(e=>{const t=y(e.errors,a),r=y(s._formState.errors,a);(r?!t&&r.type||t&&(r.type!==t.type||r.message!==t.message):t&&t.type)&&(t?p(s._formState.errors,a,t):re(s._formState.errors,a),s._subjects.state.next({errors:s._formState.errors}));});else {const e=y(s._fields,a);!e||!e._f||ge(s._options.reValidateMode).isOnSubmit&&ge(s._options.mode).isOnSubmit||Ae(e,s._names.disabled,s._formValues,s._options.criteriaMode===A,s._options.shouldUseNativeValidation,true).then(e=>!K(e)&&s._subjects.state.next({errors:Ve(s._formState.errors,e,a)}));}s._subjects.state.next({name:a,values:u(s._formValues)}),s._names.focus&&he(s._fields,(e,t)=>{if(s._names.focus&&t.startsWith(s._names.focus)&&e.focus)return e.focus(),1}),s._names.focus="",s._setValid(),f.current=false;},[l,a,s]),e.useEffect(()=>(!y(s._formValues,a)&&s._setFieldArray(a),()=>{s._options.shouldUnregister||n?s.unregister(a):((e,t)=>{const r=y(s._fields,e);r&&r._f&&(r._f.mount=t);})(a,false);}),[a,s,i,n]),{swap:e.useCallback((e,t)=>{const r=s._getFieldArray(a);Te(r,e,t),Te(c.current,e,t),m(r),d(r),s._setFieldArray(a,r,Te,{argA:e,argB:t},false);},[m,a,s]),move:e.useCallback((e,t)=>{const r=s._getFieldArray(a);Me(r,e,t),Me(c.current,e,t),m(r),d(r),s._setFieldArray(a,r,Me,{argA:e,argB:t},false);},[m,a,s]),prepend:e.useCallback((e,t)=>{const r=J(u(e)),i=je(s._getFieldArray(a),r);s._names.focus=De(a,0,t),c.current=je(c.current,r.map(ke)),m(i),d(i),s._setFieldArray(a,i,je,{argA:Ee(e)});},[m,a,s]),append:e.useCallback((e,t)=>{const r=J(u(e)),i=Ce(s._getFieldArray(a),r);s._names.focus=De(a,i.length-1,t),c.current=Ce(c.current,r.map(ke)),m(i),d(i),s._setFieldArray(a,i,Ce,{argA:Ee(e)});},[m,a,s]),remove:e.useCallback(e=>{const t=Ue(s._getFieldArray(a),e);c.current=Ue(c.current,e),m(t),d(t),!Array.isArray(y(s._fields,a))&&p(s._fields,a,void 0),s._setFieldArray(a,t,Ue,{argA:e});},[m,a,s]),insert:e.useCallback((e,t,r)=>{const i=J(u(t)),n=Oe(s._getFieldArray(a),e,i);s._names.focus=De(a,e,r),c.current=Oe(c.current,e,i.map(ke)),m(n),d(n),s._setFieldArray(a,n,Oe,{argA:e,argB:Ee(t)});},[m,a,s]),update:e.useCallback((e,t)=>{const r=u(t),i=Ne(s._getFieldArray(a),e,r);c.current=[...i].map((t,r)=>t&&r!==e?c.current[r]:ke()),m(i),d([...i]),s._setFieldArray(a,i,Ne,{argA:e,argB:r},true,false);},[m,a,s]),replace:e.useCallback(e=>{const t=J(u(e));c.current=t.map(ke),m([...t]),d([...t]),s._setFieldArray(a,[...t],e=>e,{},true,false);},[m,a,s]),fields:e.useMemo(()=>l.map((e,t)=>({...e,[i]:c.current[t]||ke()})),[l,i])}},index_cjs.useForm=function(t={}){const r=e.useRef(void 0),s=e.useRef(void 0),[a,i]=e.useState({isDirty:false,isValidating:false,isLoading:X(t.defaultValues),isSubmitted:false,isSubmitting:false,isSubmitSuccessful:false,isValid:false,submitCount:0,dirtyFields:{},touchedFields:{},validatingFields:{},errors:t.errors||{},disabled:t.disabled||false,isReady:false,defaultValues:X(t.defaultValues)?void 0:t.defaultValues});if(!r.current)if(t.formControl)r.current={...t.formControl,formState:a},t.defaultValues&&!X(t.defaultValues)&&t.formControl.reset(t.defaultValues,t.resetOptions);else {const{formControl:e,...s}=we(t);r.current={...s,formState:a};}const n=r.current.control;return n._options=t,T(()=>{const e=n._subscribe({formState:n._proxyFormState,callback:()=>i({...n._formState}),reRenderRoot:true});return i(e=>({...e,isReady:true})),n._formState.isReady=true,e},[n]),e.useEffect(()=>n._disableForm(t.disabled),[n,t.disabled]),e.useEffect(()=>{t.mode&&(n._options.mode=t.mode),t.reValidateMode&&(n._options.reValidateMode=t.reValidateMode);},[n,t.mode,t.reValidateMode]),e.useEffect(()=>{t.errors&&(n._setErrors(t.errors),n._focusError());},[n,t.errors]),e.useEffect(()=>{t.shouldUnregister&&n._subjects.state.next({values:n._getWatch()});},[n,t.shouldUnregister]),e.useEffect(()=>{if(n._proxyFormState.isDirty){const e=n._getDirty();e!==a.isDirty&&n._subjects.state.next({isDirty:e});}},[n,a.isDirty]),e.useEffect(()=>{t.values&&!P(t.values,s.current)?(n._reset(t.values,{keepFieldsRef:true,...n._options.resetOptions}),s.current=t.values,i(e=>({...e}))):n._resetDefaultValues();},[n,t.values]),e.useEffect(()=>{n._state.mount||(n._setValid(),n._state.mount=true),n._state.watch&&(n._state.watch=false,n._subjects.state.next({...n._formState})),n._removeUnmounted();}),r.current.formState=U(a,n),r.current},index_cjs.useFormContext=j,index_cjs.useFormState=N,index_cjs.useWatch=W;
-	
-	return index_cjs;
-}
-
-var hasRequiredUseForm;
-
-function requireUseForm () {
-	if (hasRequiredUseForm) return useForm;
-	hasRequiredUseForm = 1;
-	Object.defineProperty(useForm, "__esModule", { value: true });
-	useForm.useForm = useForm$1;
-	const tslib_1 = require$$0;
-	const react_1 = requireReact();
-	const react_hook_form_1 = /*@__PURE__*/ requireIndex_cjs();
-	const get_1 = tslib_1.__importDefault(requireGet());
-	function useForm$1(props = {}) {
-	    // Generate an id to prevent clashes with other forms on the page
-	    const id = (0, react_1.useId)();
-	    const getFieldId = (fieldName) => {
-	        return `form-${id}-${fieldName}`;
-	    };
-	    const { register, formState, 
-	    // watch, disabling for the time being as can be expensive for performance
-	    handleSubmit, setValue, getValues, trigger, clearErrors
-	    // Only allow for defaultValues in props for the timebeing
-	     } = (0, react_hook_form_1.useForm)({
-	        defaultValues: props.defaultValues,
-	        mode: 'onBlur', // defaulting to validating onBlur to follow ADS behaviour
-	        reValidateMode: 'onChange'
-	    });
-	    const defaultValues = props?.defaultValues;
-	    const forgeFormRegister = (fieldName, options) => {
-	        /**
-	         * Removed:
-	         * - ref cannot be serialised and passed through the run time
-	         * - removed required to stop the default browser validation pop up
-	         * - UI Kit 2 components take `isDisabled` instead of `disabled`
-	         * - `onChange` is modified to handle our controlled components as refs cannot be used
-	         */
-	        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-	        const { onChange, ref, required, disabled, onBlur, ...rest } = register(fieldName, {
-	            // Only permitting the below as they've been tested and confirmed working
-	            required: options?.required,
-	            disabled: options?.disabled,
-	            maxLength: options?.maxLength,
-	            minLength: options?.minLength,
-	            max: options?.max,
-	            min: options?.min,
-	            pattern: options?.pattern,
-	            validate: options?.validate
-	        });
-	        const additionalProps = {};
-	        if (defaultValues) {
-	            // only checkbox and toggle have boolean vals.
-	            // Typically this is handled by the ref obj but we need to manage the default values ourselves here
-	            if (typeof (0, get_1.default)(defaultValues, fieldName) === 'boolean') {
-	                additionalProps.defaultChecked = (0, get_1.default)(defaultValues, fieldName);
-	            }
-	            else {
-	                additionalProps.defaultValue = (0, get_1.default)(defaultValues, fieldName);
-	            }
-	        }
-	        const isError = !!(0, get_1.default)(formState, `errors["${fieldName}"]`);
-	        const getOnChangeOptions = () => ({
-	            shouldDirty: true,
-	            shouldTouch: true,
-	            // revalidate on change if the field has been touched(blurred) or if the form has been submitted previously
-	            shouldValidate: formState.submitCount > 0 || !!(0, get_1.default)(formState, `touchedFields["${fieldName}"]`)
-	        });
-	        return {
-	            ...rest,
-	            onChange: (event) => {
-	                // onChange is modified here to handle our controlled components as refs cannot be used
-	                // handles Checkbox and Toggle
-	                if (event?.target?.type === 'checkbox') {
-	                    return Promise.resolve(setValue(fieldName, event.target.checked, getOnChangeOptions()));
-	                }
-	                if (['number', 'text', 'textarea', 'radio', 'password'].includes(event?.target?.type)) {
-	                    return Promise.resolve(setValue(fieldName, event.target.value, getOnChangeOptions()));
-	                }
-	                else {
-	                    // handles onChange arguments where the value is passed instead of an event object
-	                    return Promise.resolve(setValue(fieldName, event, getOnChangeOptions()));
-	                }
-	            },
-	            // The onBlur event from `register` is unintentionally setting the value to `undefined` when the field is blurred.
-	            // Replacing the onBlur event here to prevent this behaviour.
-	            onBlur: () => {
-	                return Promise.resolve(trigger(fieldName));
-	            },
-	            isInvalid: isError,
-	            'aria-invalid': isError,
-	            id: getFieldId(fieldName),
-	            isDisabled: disabled,
-	            ...additionalProps
-	        };
-	    };
-	    return {
-	        getFieldId,
-	        register: forgeFormRegister,
-	        formState: {
-	            errors: formState.errors,
-	            isSubmitted: formState.isSubmitted,
-	            isSubmitSuccessful: formState.isSubmitSuccessful,
-	            isSubmitting: formState.isSubmitting,
-	            submitCount: formState.submitCount,
-	            isValid: formState.isValid,
-	            dirtyFields: formState.dirtyFields,
-	            touchedFields: formState.touchedFields
-	        },
-	        handleSubmit,
-	        getValues,
-	        trigger,
-	        clearErrors
-	    };
-	}
-	return useForm;
-}
-
-var useObjectStore = {};
-
-var hasRequiredUseObjectStore;
-
-function requireUseObjectStore () {
-	if (hasRequiredUseObjectStore) return useObjectStore;
-	hasRequiredUseObjectStore = 1;
-	Object.defineProperty(useObjectStore, "__esModule", { value: true });
-	useObjectStore.useObjectStore = useObjectStore$1;
-	const react_1 = requireReact();
-	const bridge_1 = requireOut$2();
-	// Helper function to update an object by key
-	const updateObjectByKey = (objects, key, updates) => objects.map((obj) => (obj.key === key ? { ...obj, ...updates } : obj));
-	function objectStoreReducer(state, action) {
-	    switch (action.type) {
-	        case 'ADD_OBJECTS':
-	            return { objects: [...state.objects, ...action.payload] };
-	        case 'UPDATE_OBJECT':
-	            return { objects: updateObjectByKey(state.objects, action.payload.key, action.payload.updates) };
-	        case 'UPLOAD_OBJECT_START':
-	            // Add temp object with isUploading state
-	            return {
-	                objects: [...state.objects, { key: action.payload.tempKey, isUploading: true }]
-	            };
-	        case 'UPLOAD_OBJECT_SUCCESS':
-	            // Replace temp object with real object
-	            return {
-	                objects: state.objects.map((obj) => (obj.key === action.payload.tempKey ? action.payload.object : obj))
-	            };
-	        case 'UPLOAD_OBJECT_ERROR':
-	            // Replace temp object with error state
-	            return {
-	                objects: state.objects.map((obj) => obj.key === action.payload.tempKey
-	                    ? { ...obj, isUploading: false, error: action.payload.error, success: false }
-	                    : obj)
-	            };
-	        case 'DELETE_START':
-	            return {
-	                objects: state.objects.map((obj) => action.payload.includes(obj.key) ? { ...obj, isDeleting: true, error: undefined } : obj)
-	            };
-	        case 'DELETE_SUCCESS':
-	            return { objects: state.objects.filter((obj) => !action.payload.includes(obj.key)) };
-	        case 'DELETE_ERROR':
-	            return {
-	                objects: state.objects.map((obj) => action.payload.keys.includes(obj.key) ? { ...obj, isDeleting: false, error: action.payload.error } : obj)
-	            };
-	        case 'DOWNLOAD_START':
-	            return {
-	                objects: state.objects.map((obj) => action.payload.includes(obj.key) ? { ...obj, isDownloading: true, error: undefined } : obj)
-	            };
-	        case 'DOWNLOAD_COMPLETE':
-	            return {
-	                objects: state.objects.map((obj) => {
-	                    if (action.payload.successfulKeys.includes(obj.key)) {
-	                        return { ...obj, isDownloading: false };
-	                    }
-	                    if (action.payload.failedKeys.includes(obj.key)) {
-	                        return { ...obj, isDownloading: false, error: 'Download failed' };
-	                    }
-	                    return obj;
-	                })
-	            };
-	        default:
-	            return state;
-	    }
-	}
-	function useObjectStore$1(props = {}) {
-	    const [state, dispatch] = (0, react_1.useReducer)(objectStoreReducer, {
-	        objects: props.defaultValues || []
-	    });
-	    /**
-	     * Get a specific object from objectState by key
-	     */
-	    const getObjectMetadata = (key) => {
-	        const object = state.objects.find((obj) => obj.key === key);
-	        if (!object) {
-	            // eslint-disable-next-line no-console
-	            console.warn(`No metadata found for object with key: ${key}`);
-	            return null;
-	        }
-	        return object;
-	    };
-	    /**
-	     * Upload objects and update objectState with results
-	     */
-	    const uploadObjects = (0, react_1.useCallback)(async (params) => {
-	        const timestamp = Date.now();
-	        try {
-	            const uploadPromises = await (0, bridge_1.createUploadPromises)(params);
-	            const trackedUploadPromises = uploadPromises.map(async ({ promise, index, objectType, objectSize }) => {
-	                const tempKey = `temp-upload-${timestamp}-${index}`;
-	                dispatch({ type: 'UPLOAD_OBJECT_START', payload: { tempKey } });
-	                try {
-	                    const result = await promise;
-	                    const objectState = {
-	                        key: result.key,
-	                        success: result.success,
-	                        status: result.status,
-	                        error: result.error,
-	                        objectType,
-	                        objectSize
-	                    };
-	                    dispatch({ type: 'UPLOAD_OBJECT_SUCCESS', payload: { tempKey, object: objectState } });
-	                    return result;
-	                }
-	                catch (error) {
-	                    dispatch({
-	                        type: 'UPLOAD_OBJECT_ERROR',
-	                        payload: { tempKey, error: error instanceof Error ? error.message : 'Upload failed' }
-	                    });
-	                    throw error;
-	                }
-	            });
-	            await Promise.all(trackedUploadPromises);
-	        }
-	        catch (error) {
-	            throw error;
-	        }
-	    }, []);
-	    /**
-	     * Delete objects by keys from state and backend
-	     */
-	    const deleteObjects = (0, react_1.useCallback)(async (params) => {
-	        dispatch({ type: 'DELETE_START', payload: params.keys });
-	        try {
-	            await bridge_1.objectStore.delete(params);
-	            dispatch({ type: 'DELETE_SUCCESS', payload: params.keys });
-	        }
-	        catch (error) {
-	            dispatch({
-	                type: 'DELETE_ERROR',
-	                payload: { keys: params.keys, error: error instanceof Error ? error.message : 'Delete failed' }
-	            });
-	            throw error;
-	        }
-	    }, []);
-	    /**
-	     * Download objects by keys
-	     */
-	    const downloadObjects = (0, react_1.useCallback)(async (params) => {
-	        dispatch({ type: 'DOWNLOAD_START', payload: params.keys });
-	        try {
-	            const results = await bridge_1.objectStore.download(params);
-	            const successfulKeys = results.filter((r) => r.success).map((r) => r.key);
-	            const failedKeys = results.filter((r) => !r.success).map((r) => r.key);
-	            dispatch({
-	                type: 'DOWNLOAD_COMPLETE',
-	                payload: { successfulKeys, failedKeys }
-	            });
-	            return results;
-	        }
-	        catch (error) {
-	            dispatch({
-	                type: 'DOWNLOAD_COMPLETE',
-	                payload: { successfulKeys: [], failedKeys: params.keys }
-	            });
-	            throw error;
-	        }
-	    }, []);
-	    return {
-	        objectStates: state.objects,
-	        getObjectMetadata,
-	        uploadObjects,
-	        deleteObjects,
-	        downloadObjects
-	    };
-	}
-	return useObjectStore;
-}
-
-var hasRequiredOut$1;
-
-function requireOut$1 () {
-	if (hasRequiredOut$1) return out$4;
-	hasRequiredOut$1 = 1;
-	(function (exports) {
-		Object.defineProperty(exports, "__esModule", { value: true });
-		exports.useObjectStore = exports.useForm = exports.replaceUnsupportedDocumentNodes = exports.I18nProvider = exports.useTranslation = exports.useIssueProperty = exports.useSpaceProperty = exports.useContentProperty = exports.default = exports.usePermissions = exports.useTheme = exports.useConfig = exports.useProductContext = exports.xcss = void 0;
-		const tslib_1 = require$$0;
-		const xcss = (style) => style;
-		exports.xcss = xcss;
-		var useProductContext_1 = requireUseProductContext();
-		Object.defineProperty(exports, "useProductContext", { enumerable: true, get: function () { return useProductContext_1.useProductContext; } });
-		var useConfig_1 = requireUseConfig();
-		Object.defineProperty(exports, "useConfig", { enumerable: true, get: function () { return useConfig_1.useConfig; } });
-		var useTheme_1 = requireUseTheme();
-		Object.defineProperty(exports, "useTheme", { enumerable: true, get: function () { return useTheme_1.useTheme; } });
-		var usePermissions_1 = requireUsePermissions();
-		Object.defineProperty(exports, "usePermissions", { enumerable: true, get: function () { return usePermissions_1.usePermissions; } });
-		var reconciler_1 = requireReconciler();
-		Object.defineProperty(exports, "default", { enumerable: true, get: function () { return reconciler_1.ForgeReconciler; } });
-		// All UI Kit component definitions
-		tslib_1.__exportStar(requireComponents(), exports);
-		var useContentProperty_1 = requireUseContentProperty();
-		Object.defineProperty(exports, "useContentProperty", { enumerable: true, get: function () { return useContentProperty_1.useContentProperty; } });
-		var useSpaceProperty_1 = requireUseSpaceProperty();
-		Object.defineProperty(exports, "useSpaceProperty", { enumerable: true, get: function () { return useSpaceProperty_1.useSpaceProperty; } });
-		var useIssueProperty_1 = requireUseIssueProperty();
-		Object.defineProperty(exports, "useIssueProperty", { enumerable: true, get: function () { return useIssueProperty_1.useIssueProperty; } });
-		var useTranslation_1 = requireUseTranslation();
-		Object.defineProperty(exports, "useTranslation", { enumerable: true, get: function () { return useTranslation_1.useTranslation; } });
-		Object.defineProperty(exports, "I18nProvider", { enumerable: true, get: function () { return useTranslation_1.I18nProvider; } });
-		var replaceUnsupportedDocumentNodes_1 = requireReplaceUnsupportedDocumentNodes();
-		Object.defineProperty(exports, "replaceUnsupportedDocumentNodes", { enumerable: true, get: function () { return replaceUnsupportedDocumentNodes_1.replaceUnsupportedDocumentNodes; } });
-		var useForm_1 = requireUseForm();
-		Object.defineProperty(exports, "useForm", { enumerable: true, get: function () { return useForm_1.useForm; } });
-		var useObjectStore_1 = requireUseObjectStore();
-		Object.defineProperty(exports, "useObjectStore", { enumerable: true, get: function () { return useObjectStore_1.useObjectStore; } }); 
-	} (out$4));
-	return out$4;
-}
-
-var outExports$1 = requireOut$1();
-var ForgeReconciler = /*@__PURE__*/getDefaultExportFromCjs(outExports$1);
-
-var out = {};
-
-var targets = {};
-
-var hasRequiredTargets;
-
-function requireTargets () {
-	if (hasRequiredTargets) return targets;
-	hasRequiredTargets = 1;
-	Object.defineProperty(targets, "__esModule", { value: true });
-	targets.NavigationTarget = void 0;
-	// Constants for developer convenience. The JS Docs below will also be displayed in the IDE when the developer is using this object.
-	targets.NavigationTarget = {
-	    /**
-	     * The view page for pages, blogs and custom content. Takes a contentId to identify the content.
-	     */
-	    ContentView: 'contentView',
-	    /**
-	     * The edit page for pages, blogs and custom content. Takes a contentId to identify the content.
-	     */
-	    ContentEdit: 'contentEdit',
-	    /**
-	     * The list/collector page for pages, blogs and custom content contained in a space. Takes a spaceKey and a contentType to identify the content type for pages and blogs. Takes a moduleKey for custom content.
-	     */
-	    ContentList: 'contentList',
-	    /**
-	     * The space view page. Takes a spaceKey to identify the space.
-	     */
-	    SpaceView: 'spaceView',
-	    /**
-	     * The page within a specific module. Takes a moduleKey to identify the correct module.
-	     */
-	    Module: 'module',
-	    /**
-	     * The profile page for a specific user. Takes an accountId to identify the user.
-	     */
-	    UserProfile: 'userProfile',
-	    /**
-	     * A dashboard in Jira. Takes a dashboardId to identify the dashboard.
-	     */
-	    Dashboard: 'dashboard',
-	    /**
-	     * An issue in Jira. Takes an issueKey to identify the issue.
-	     */
-	    Issue: 'issue',
-	    /**
-	     * The project settings details of a Jira project. Takes a projectKey to identify the project. Only accessible to administrators.
-	     */
-	    ProjectSettingsDetails: 'projectSettingsDetails'
-	};
-	return targets;
-}
-
-var invoke$1 = {};
-
-var invoke = {};
-
-var bridge = {};
-
-var errors = {};
-
-var hasRequiredErrors;
-
-function requireErrors () {
-	if (hasRequiredErrors) return errors;
-	hasRequiredErrors = 1;
-	Object.defineProperty(errors, "__esModule", { value: true });
-	errors.BridgeAPIError = void 0;
-	class BridgeAPIError extends Error {
-	}
-	errors.BridgeAPIError = BridgeAPIError;
-	return errors;
-}
-
-var hasRequiredBridge;
-
-function requireBridge () {
-	if (hasRequiredBridge) return bridge;
-	hasRequiredBridge = 1;
-	Object.defineProperty(bridge, "__esModule", { value: true });
-	bridge.getCallBridge = void 0;
-	const errors_1 = requireErrors();
-	function isBridgeAvailable(bridge) {
-	    return !!(bridge === null || bridge === void 0 ? void 0 : bridge.callBridge);
-	}
-	const getCallBridge = () => {
-	    if (!isBridgeAvailable(globalThis.__bridge)) {
-	        throw new errors_1.BridgeAPIError(`
-      Unable to establish a connection with the Custom UI bridge.
-      If you are trying to run your app locally, Forge apps only work in the context of Atlassian products. Refer to https://go.atlassian.com/forge-tunneling-with-custom-ui for how to tunnel when using a local development server.
-    `);
-	    }
-	    return globalThis.__bridge.callBridge;
-	};
-	bridge.getCallBridge = getCallBridge;
-	return bridge;
-}
-
-var utils = {};
-
-var hasRequiredUtils;
-
-function requireUtils () {
-	if (hasRequiredUtils) return utils;
-	hasRequiredUtils = 1;
-	Object.defineProperty(utils, "__esModule", { value: true });
-	utils.withRateLimiter = void 0;
-	const errors_1 = requireErrors();
-	const withRateLimiter = (wrappedFn, maxOps, intervalInMs, exceededErrorMessage) => {
-	    let start = Date.now();
-	    let numOps = 0;
-	    return async (...args) => {
-	        const now = Date.now();
-	        const elapsed = now - start;
-	        if (elapsed > intervalInMs) {
-	            start = now;
-	            numOps = 0;
-	        }
-	        if (numOps >= maxOps) {
-	            throw new errors_1.BridgeAPIError(exceededErrorMessage || 'Too many invocations.');
-	        }
-	        numOps = numOps + 1;
-	        return wrappedFn(...args);
-	    };
-	};
-	utils.withRateLimiter = withRateLimiter;
-	return utils;
-}
-
-var hasRequiredInvoke$1;
-
-function requireInvoke$1 () {
-	if (hasRequiredInvoke$1) return invoke;
-	hasRequiredInvoke$1 = 1;
-	Object.defineProperty(invoke, "__esModule", { value: true });
-	invoke.invoke = invoke$1;
-	invoke.makeInvoke = makeInvoke;
-	const bridge_1 = requireBridge();
-	const errors_1 = requireErrors();
-	const utils_1 = requireUtils();
-	const callBridge = (0, bridge_1.getCallBridge)();
-	const validatePayload = (payload) => {
-	    if (!payload)
-	        return;
-	    if (Object.values(payload).some((val) => typeof val === 'function')) {
-	        throw new errors_1.BridgeAPIError('Passing functions as part of the payload is not supported!');
-	    }
-	};
-	const _invoke = async (functionKey, payload, metadata) => {
-	    if (typeof functionKey !== 'string') {
-	        throw new errors_1.BridgeAPIError('functionKey must be a string!');
-	    }
-	    validatePayload(payload);
-	    // When metadata is defined, the bridge returns the response wrapped in metadata as { body, metadata }
-	    // Otherwise, the bridge returns the response directly
-	    return await callBridge('invoke', { functionKey, payload, metadata });
-	};
-	const limitedInvoke = (0, utils_1.withRateLimiter)(_invoke, 500, 1000 * 25, 'Resolver calls are rate limited at 500req/25s');
-	/**
-	 * Calls a backend resolver function by key.
-	 */
-	function invoke$1(functionKey, payload, metadata) {
-	    return limitedInvoke(functionKey, payload, metadata);
-	}
-	/**
-	 * Specialises the invoke function to a given Definitions type.
-	 *
-	 * @returns An invoke function that can be used to call backend functions.
-	 */
-	function makeInvoke() {
-	    return invoke$1;
-	}
-	return invoke;
-}
-
-var hasRequiredInvoke;
-
-function requireInvoke () {
-	if (hasRequiredInvoke) return invoke$1;
-	hasRequiredInvoke = 1;
-	(function (exports) {
-		Object.defineProperty(exports, "__esModule", { value: true });
-		const tslib_1 = require$$0;
-		tslib_1.__exportStar(requireInvoke$1(), exports); 
-	} (invoke$1));
-	return invoke$1;
-}
-
-var invokeEndpoint$1 = {};
-
-var invokeRemote = {};
-
-var invokeEndpoint = {};
-
-var hasRequiredInvokeEndpoint$1;
-
-function requireInvokeEndpoint$1 () {
-	if (hasRequiredInvokeEndpoint$1) return invokeEndpoint;
-	hasRequiredInvokeEndpoint$1 = 1;
-	Object.defineProperty(invokeEndpoint, "__esModule", { value: true });
-	invokeEndpoint.InvokeType = void 0;
-	invokeEndpoint._invokeEndpointFn = _invokeEndpointFn;
-	const bridge_1 = requireBridge();
-	const errors_1 = requireErrors();
-	const utils_1 = requireUtils();
-	const MAX_NUM_OPERATIONS = 500;
-	const OPERATION_INTERVAL_SEC = 25;
-	const OPERATION_INTERVAL_MS = 1000 * OPERATION_INTERVAL_SEC;
-	var InvokeType;
-	(function (InvokeType) {
-	    InvokeType["REMOTE"] = "Remote";
-	    InvokeType["SERVICE"] = "Container";
-	})(InvokeType || (invokeEndpoint.InvokeType = InvokeType = {}));
-	const callBridge = (0, bridge_1.getCallBridge)();
-	const validatePayload = (payload) => {
-	    if (!payload)
-	        return;
-	    if (Object.values(payload).some((val) => typeof val === 'function')) {
-	        throw new errors_1.BridgeAPIError('Passing functions as part of the payload is not supported!');
-	    }
-	};
-	const _setupInvokeEndpointFn = (invokeType) => async (input) => {
-	    validatePayload(input);
-	    const callBridgePayload = {
-	        ...input,
-	        invokeType: `ui-${invokeType.toLowerCase()}-fetch`
-	    };
-	    const bridgeResponse = await callBridge('invoke', callBridgePayload);
-	    const { success, payload, error } = bridgeResponse !== null && bridgeResponse !== void 0 ? bridgeResponse : {};
-	    const response = { ...(success ? payload : error) };
-	    if (response && response.headers) {
-	        for (const header in response.headers) {
-	            if (Array.isArray(response.headers[header])) {
-	                response.headers[header] = response.headers[header].join(',');
-	            }
-	        }
-	    }
-	    return response;
-	};
-	function _invokeEndpointFn(invokeType) {
-	    const invokeEndpointFn = _setupInvokeEndpointFn(invokeType);
-	    return (0, utils_1.withRateLimiter)(invokeEndpointFn, MAX_NUM_OPERATIONS, OPERATION_INTERVAL_MS, `${invokeType} invocation calls are rate limited at ${MAX_NUM_OPERATIONS}/${OPERATION_INTERVAL_SEC}s`);
-	}
-	return invokeEndpoint;
-}
-
-var hasRequiredInvokeRemote;
-
-function requireInvokeRemote () {
-	if (hasRequiredInvokeRemote) return invokeRemote;
-	hasRequiredInvokeRemote = 1;
-	Object.defineProperty(invokeRemote, "__esModule", { value: true });
-	invokeRemote.invokeRemote = void 0;
-	const invoke_endpoint_1 = requireInvokeEndpoint$1();
-	const invokeRemote$1 = (input) => {
-	    const invokeEndpoint = (0, invoke_endpoint_1._invokeEndpointFn)(invoke_endpoint_1.InvokeType.REMOTE);
-	    return invokeEndpoint(input);
-	};
-	invokeRemote.invokeRemote = invokeRemote$1;
-	return invokeRemote;
-}
-
-var invokeService = {};
-
-var hasRequiredInvokeService;
-
-function requireInvokeService () {
-	if (hasRequiredInvokeService) return invokeService;
-	hasRequiredInvokeService = 1;
-	Object.defineProperty(invokeService, "__esModule", { value: true });
-	invokeService.invokeService = void 0;
-	const invoke_endpoint_1 = requireInvokeEndpoint$1();
-	const invokeService$1 = (input) => {
-	    const invokeEndpoint = (0, invoke_endpoint_1._invokeEndpointFn)(invoke_endpoint_1.InvokeType.SERVICE);
-	    return invokeEndpoint(input);
-	};
-	invokeService.invokeService = invokeService$1;
-	return invokeService;
-}
-
-var hasRequiredInvokeEndpoint;
-
-function requireInvokeEndpoint () {
-	if (hasRequiredInvokeEndpoint) return invokeEndpoint$1;
-	hasRequiredInvokeEndpoint = 1;
-	(function (exports) {
-		Object.defineProperty(exports, "__esModule", { value: true });
-		const tslib_1 = require$$0;
-		tslib_1.__exportStar(requireInvokeRemote(), exports);
-		tslib_1.__exportStar(requireInvokeService(), exports); 
-	} (invokeEndpoint$1));
-	return invokeEndpoint$1;
-}
-
-var view$1 = {};
-
-var view = {};
-
-var submit = {};
-
-var hasRequiredSubmit;
-
-function requireSubmit () {
-	if (hasRequiredSubmit) return submit;
-	hasRequiredSubmit = 1;
-	Object.defineProperty(submit, "__esModule", { value: true });
-	submit.submit = void 0;
-	const bridge_1 = requireBridge();
-	const errors_1 = requireErrors();
-	const callBridge = (0, bridge_1.getCallBridge)();
-	const submit$1 = async (payload) => {
-	    const success = await callBridge('submit', payload);
-	    if (success === false) {
-	        throw new errors_1.BridgeAPIError("this resource's view is not submittable.");
-	    }
-	};
-	submit.submit = submit$1;
-	return submit;
-}
-
-var close = {};
-
-var hasRequiredClose;
-
-function requireClose () {
-	if (hasRequiredClose) return close;
-	hasRequiredClose = 1;
-	Object.defineProperty(close, "__esModule", { value: true });
-	close.close = void 0;
-	const bridge_1 = requireBridge();
-	const errors_1 = requireErrors();
-	const callBridge = (0, bridge_1.getCallBridge)();
-	const close$1 = async (payload) => {
-	    try {
-	        const success = await callBridge('close', payload);
-	        // TODO: Modify @atlassian/forge-ui to throw if close fails instead of returning boolean DEVO-680
-	        if (success === false) {
-	            throw new errors_1.BridgeAPIError("this resource's view is not closable.");
-	        }
-	    }
-	    catch (e) {
-	        throw new errors_1.BridgeAPIError("this resource's view is not closable.");
-	    }
-	};
-	close.close = close$1;
-	return close;
-}
-
-var open$1 = {};
-
-var hasRequiredOpen$1;
-
-function requireOpen$1 () {
-	if (hasRequiredOpen$1) return open$1;
-	hasRequiredOpen$1 = 1;
-	Object.defineProperty(open$1, "__esModule", { value: true });
-	open$1.open = void 0;
-	const bridge_1 = requireBridge();
-	const errors_1 = requireErrors();
-	const callBridge = (0, bridge_1.getCallBridge)();
-	const open = async () => {
-	    try {
-	        const success = await callBridge('open');
-	        // TODO: Modify @atlassian/forge-ui to throw if close fails instead of returning boolean DEVO-680
-	        if (success === false) {
-	            throw new errors_1.BridgeAPIError("this resource's view is not openable.");
-	        }
-	    }
-	    catch (e) {
-	        throw new errors_1.BridgeAPIError("this resource's view is not openable.");
-	    }
-	};
-	open$1.open = open;
-	return open$1;
-}
-
-var refresh = {};
-
-var hasRequiredRefresh;
-
-function requireRefresh () {
-	if (hasRequiredRefresh) return refresh;
-	hasRequiredRefresh = 1;
-	Object.defineProperty(refresh, "__esModule", { value: true });
-	refresh.refresh = void 0;
-	const bridge_1 = requireBridge();
-	const errors_1 = requireErrors();
-	const callBridge = (0, bridge_1.getCallBridge)();
-	const refresh$1 = async (payload) => {
-	    const success = await callBridge('refresh', payload);
-	    if (success === false) {
-	        throw new errors_1.BridgeAPIError("this resource's view is not refreshable.");
-	    }
-	};
-	refresh.refresh = refresh$1;
-	return refresh;
-}
-
-var createHistory = {};
-
-var hasRequiredCreateHistory;
-
-function requireCreateHistory () {
-	if (hasRequiredCreateHistory) return createHistory;
-	hasRequiredCreateHistory = 1;
-	Object.defineProperty(createHistory, "__esModule", { value: true });
-	createHistory.createHistory = void 0;
-	const bridge_1 = requireBridge();
-	const callBridge = (0, bridge_1.getCallBridge)();
-	const createHistory$1 = async () => {
-	    const history = await callBridge('createHistory');
-	    history.listen((location) => {
-	        history.location = location;
-	    });
-	    return history;
-	};
-	createHistory.createHistory = createHistory$1;
-	return createHistory;
-}
-
-var getContext = {};
-
-var hasRequiredGetContext;
-
-function requireGetContext () {
-	if (hasRequiredGetContext) return getContext;
-	hasRequiredGetContext = 1;
-	Object.defineProperty(getContext, "__esModule", { value: true });
-	getContext.getContext = void 0;
-	const bridge_1 = requireBridge();
-	const i18n_1 = requireOut$4();
-	const callBridge = (0, bridge_1.getCallBridge)();
-	const getContext$1 = async () => {
-	    var _a;
-	    const context = await callBridge('getContext');
-	    const locale = context === null || context === void 0 ? void 0 : context.locale;
-	    if (locale) {
-	        // still fallback to the locale if it is not supported,
-	        // this is to avoid breaking changes
-	        context.locale = (_a = (0, i18n_1.ensureLocale)(locale)) !== null && _a !== void 0 ? _a : locale;
-	    }
-	    return context;
-	};
-	getContext.getContext = getContext$1;
-	return getContext;
-}
-
-var changeWindowTitle = {};
-
-var hasRequiredChangeWindowTitle;
-
-function requireChangeWindowTitle () {
-	if (hasRequiredChangeWindowTitle) return changeWindowTitle;
-	hasRequiredChangeWindowTitle = 1;
-	Object.defineProperty(changeWindowTitle, "__esModule", { value: true });
-	changeWindowTitle.changeWindowTitle = void 0;
-	const bridge_1 = requireBridge();
-	const errors_1 = requireErrors();
-	const callBridge = (0, bridge_1.getCallBridge)();
-	const changeWindowTitle$1 = async (title) => {
-	    try {
-	        await callBridge('changeWindowTitle', title);
-	    }
-	    catch (e) {
-	        throw new errors_1.BridgeAPIError("the window title wasn't changed due to error.");
-	    }
-	};
-	changeWindowTitle.changeWindowTitle = changeWindowTitle$1;
-	return changeWindowTitle;
-}
-
-var theme = {};
-
-var hasRequiredTheme;
-
-function requireTheme () {
-	if (hasRequiredTheme) return theme;
-	hasRequiredTheme = 1;
-	Object.defineProperty(theme, "__esModule", { value: true });
-	theme.theme = void 0;
-	const bridge_1 = requireBridge();
-	const callBridge = (0, bridge_1.getCallBridge)();
-	theme.theme = {
-	    enable: () => callBridge('enableTheming')
-	};
-	return theme;
-}
-
-var emitReadyEvent = {};
-
-var events$1 = {};
-
-var serialiseBlob = {};
-
-var blobParser = {};
-
-var hasRequiredBlobParser;
-
-function requireBlobParser () {
-	if (hasRequiredBlobParser) return blobParser;
-	hasRequiredBlobParser = 1;
-	Object.defineProperty(blobParser, "__esModule", { value: true });
-	blobParser.blobToBase64 = blobParser.base64ToBlob = void 0;
-	const base64ToBlob = (b64string, mimeType) => {
-	    if (!b64string) {
-	        return null;
-	    }
-	    const base64Data = b64string.includes(';base64') ? b64string.split(',')[1] : b64string;
-	    const byteCharacters = atob(base64Data);
-	    const byteNumbers = new Array(byteCharacters.length);
-	    for (let i = 0; i < byteCharacters.length; i++) {
-	        byteNumbers[i] = byteCharacters.charCodeAt(i);
-	    }
-	    const byteArray = new Uint8Array(byteNumbers);
-	    return new Blob([byteArray], { type: mimeType });
-	};
-	blobParser.base64ToBlob = base64ToBlob;
-	const blobToBase64 = (blob) => {
-	    return new Promise((resolve, reject) => {
-	        const reader = new FileReader();
-	        reader.onloadend = () => {
-	            resolve(reader.result);
-	        };
-	        reader.onerror = reject;
-	        reader.readAsDataURL(blob);
-	    });
-	};
-	blobParser.blobToBase64 = blobToBase64;
-	return blobParser;
-}
-
-var hasRequiredSerialiseBlob;
-
-function requireSerialiseBlob () {
-	if (hasRequiredSerialiseBlob) return serialiseBlob;
-	hasRequiredSerialiseBlob = 1;
-	(function (exports) {
-		Object.defineProperty(exports, "__esModule", { value: true });
-		exports.containsSerialisedBlobs = exports.containsBlobs = exports.deserialiseBlobsInPayload = exports.serialiseBlobsInPayload = void 0;
-		const blobParser_1 = requireBlobParser();
-		// Copied from https://github.com/you-dont-need/You-Dont-Need-Lodash-Underscore?tab=readme-ov-file#_isplainobject
-		const isPlainObject = (value) => {
-		    if (typeof value !== 'object' || value === null)
-		        return false;
-		    if (Object.prototype.toString.call(value) !== '[object Object]')
-		        return false;
-		    const proto = Object.getPrototypeOf(value);
-		    if (proto === null)
-		        return true;
-		    const Ctor = Object.prototype.hasOwnProperty.call(proto, 'constructor') && proto.constructor;
-		    return (typeof Ctor === 'function' &&
-		        Ctor instanceof Ctor &&
-		        Function.prototype.call(Ctor) === Function.prototype.call(value));
-		};
-		const blobToBase64WithMetadata = async (blob) => {
-		    const base64Data = await (0, blobParser_1.blobToBase64)(blob);
-		    return {
-		        data: base64Data,
-		        type: blob.type
-		    };
-		};
-		const base64WithMetadataToBlob = (metadata) => {
-		    // typecasting as Blob since base64ToBlob returns Blob | null but this is only null if data is undefined which it won't be here
-		    return (0, blobParser_1.base64ToBlob)(metadata.data, metadata.type);
-		};
-		// Recursively converts all Blobs in an object or array to base64 with metadata
-		const serialiseBlobsInPayload = async (payload) => {
-		    if (payload instanceof Blob) {
-		        // Convert blob to base64 with metadata and mark it as a serialized blob
-		        const blobData = await blobToBase64WithMetadata(payload);
-		        return {
-		            ...blobData,
-		            // Custom property used to identify serialized blob data for deserialization
-		            __isBlobData: true
-		        };
-		    }
-		    if (Array.isArray(payload)) {
-		        // Recursively process array elements
-		        return Promise.all(payload.map((item) => (0, exports.serialiseBlobsInPayload)(item)));
-		    }
-		    if (payload && isPlainObject(payload)) {
-		        // Recursively process object properties
-		        const entries = await Promise.all(Object.entries(payload).map(async ([key, value]) => [key, await (0, exports.serialiseBlobsInPayload)(value)]));
-		        return Object.fromEntries(entries);
-		    }
-		    return payload;
-		};
-		exports.serialiseBlobsInPayload = serialiseBlobsInPayload;
-		// Recursively converts all serialized blob data back to Blobs in an object or array
-		const deserialiseBlobsInPayload = (payload) => {
-		    if (payload && isPlainObject(payload) && '__isBlobData' in payload) {
-		        const typedData = payload;
-		        // Convert serialized blob data back to Blob
-		        return base64WithMetadataToBlob({
-		            data: typedData.data,
-		            type: typedData.type
-		        });
-		    }
-		    if (Array.isArray(payload)) {
-		        // Recursively process array elements
-		        return payload.map((item) => (0, exports.deserialiseBlobsInPayload)(item));
-		    }
-		    if (payload && isPlainObject(payload)) {
-		        // Recursively process object properties
-		        const result = {};
-		        for (const [key, value] of Object.entries(payload)) {
-		            result[key] = (0, exports.deserialiseBlobsInPayload)(value);
-		        }
-		        return result;
-		    }
-		    return payload;
-		};
-		exports.deserialiseBlobsInPayload = deserialiseBlobsInPayload;
-		const containsBlobs = (payload) => {
-		    if (payload instanceof Blob) {
-		        return true;
-		    }
-		    if (Array.isArray(payload)) {
-		        return payload.some((item) => (0, exports.containsBlobs)(item));
-		    }
-		    if (payload && isPlainObject(payload)) {
-		        return Object.values(payload).some((value) => (0, exports.containsBlobs)(value));
-		    }
-		    return false;
-		};
-		exports.containsBlobs = containsBlobs;
-		const containsSerialisedBlobs = (payload) => {
-		    if (payload && isPlainObject(payload) && '__isBlobData' in payload) {
-		        return true;
-		    }
-		    if (Array.isArray(payload)) {
-		        return payload.some((item) => (0, exports.containsSerialisedBlobs)(item));
-		    }
-		    if (payload && isPlainObject(payload)) {
-		        return Object.values(payload).some((value) => (0, exports.containsSerialisedBlobs)(value));
-		    }
-		    return false;
-		};
-		exports.containsSerialisedBlobs = containsSerialisedBlobs; 
-	} (serialiseBlob));
-	return serialiseBlob;
-}
-
-var hasRequiredEvents$1;
-
-function requireEvents$1 () {
-	if (hasRequiredEvents$1) return events$1;
-	hasRequiredEvents$1 = 1;
-	Object.defineProperty(events$1, "__esModule", { value: true });
-	events$1.events = void 0;
-	const bridge_1 = requireBridge();
-	const serialiseBlob_1 = requireSerialiseBlob();
-	const callBridge = (0, bridge_1.getCallBridge)();
-	const wrapCallback = (callback) => {
-	    return (payload) => {
-	        let newPayload = payload;
-	        if ((0, serialiseBlob_1.containsSerialisedBlobs)(payload)) {
-	            newPayload = (0, serialiseBlob_1.deserialiseBlobsInPayload)(payload);
-	        }
-	        return callback(newPayload);
-	    };
-	};
-	const emit = async (event, payload) => {
-	    let newPayload = payload;
-	    if ((0, serialiseBlob_1.containsBlobs)(payload)) {
-	        newPayload = await (0, serialiseBlob_1.serialiseBlobsInPayload)(payload);
-	    }
-	    return callBridge('emit', { event, payload: newPayload });
-	};
-	const on = (event, callback) => {
-	    return callBridge('on', { event, callback: wrapCallback(callback) });
-	};
-	const emitPublic = async (event, payload) => {
-	    let newPayload = payload;
-	    if ((0, serialiseBlob_1.containsBlobs)(payload)) {
-	        newPayload = await (0, serialiseBlob_1.serialiseBlobsInPayload)(payload);
-	    }
-	    return callBridge('emitPublic', { event, payload: newPayload });
-	};
-	const onPublic = (event, callback) => {
-	    return callBridge('onPublic', { event, callback: wrapCallback(callback) });
-	};
-	events$1.events = {
-	    emit,
-	    on,
-	    emitPublic,
-	    onPublic
-	};
-	return events$1;
-}
-
-var hasRequiredEmitReadyEvent;
-
-function requireEmitReadyEvent () {
-	if (hasRequiredEmitReadyEvent) return emitReadyEvent;
-	hasRequiredEmitReadyEvent = 1;
-	Object.defineProperty(emitReadyEvent, "__esModule", { value: true });
-	emitReadyEvent.emitReadyEvent = void 0;
-	const events_1 = requireEvents$1();
-	const view_1 = requireView$1();
-	const bridge_1 = requireBridge();
-	const callBridge = (0, bridge_1.getCallBridge)();
-	const EXTENSION_READY = 'EXTENSION_READY';
-	const emitReadyEvent$1 = async () => {
-	    // Confluence export relies on events instead of `callBridge`
-	    const context = await view_1.view.getContext();
-	    // dispatches event 'forge.bridge.EXTENSION_READY' on product window
-	    await events_1.events.emit(EXTENSION_READY, {
-	        localId: context.localId
-	    });
-	    // TODO: Consider using the above event for static macros as well for to avoid two calls
-	    // `callBridge` is used for static macros in XEP to signal that the forgeDoc is ready to be snapshotted
-	    try {
-	        await callBridge('emitReadyEvent');
-	    }
-	    catch {
-	        // Silently ignore the error as this app may be calling this method in Confluence view mode where the method is not supported.
-	    }
-	};
-	emitReadyEvent.emitReadyEvent = emitReadyEvent$1;
-	return emitReadyEvent;
-}
-
-var adfRenderer = {};
-
-var hasRequiredAdfRenderer;
-
-function requireAdfRenderer () {
-	if (hasRequiredAdfRenderer) return adfRenderer;
-	hasRequiredAdfRenderer = 1;
-	(function (exports) {
-		var __createBinding = (adfRenderer && adfRenderer.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-		    if (k2 === undefined) k2 = k;
-		    var desc = Object.getOwnPropertyDescriptor(m, k);
-		    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-		      desc = { enumerable: true, get: function() { return m[k]; } };
-		    }
-		    Object.defineProperty(o, k2, desc);
-		}) : (function(o, m, k, k2) {
-		    if (k2 === undefined) k2 = k;
-		    o[k2] = m[k];
-		}));
-		var __setModuleDefault = (adfRenderer && adfRenderer.__setModuleDefault) || (Object.create ? (function(o, v) {
-		    Object.defineProperty(o, "default", { enumerable: true, value: v });
-		}) : function(o, v) {
-		    o["default"] = v;
-		});
-		var __importStar = (adfRenderer && adfRenderer.__importStar) || (function () {
-		    var ownKeys = function(o) {
-		        ownKeys = Object.getOwnPropertyNames || function (o) {
-		            var ar = [];
-		            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
-		            return ar;
-		        };
-		        return ownKeys(o);
-		    };
-		    return function (mod) {
-		        if (mod && mod.__esModule) return mod;
-		        var result = {};
-		        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
-		        __setModuleDefault(result, mod);
-		        return result;
-		    };
-		})();
-		Object.defineProperty(exports, "__esModule", { value: true });
-		exports.createAdfRendererIframeProps = exports.sendMessageWhenReady = void 0;
-		/**
-		 * Sends the ADF document message to the adf-renderer iframe once it signals readiness.
-		 */
-		const READY_SIGNAL_FALLBACK_DELAY_MS = 10000;
-		const sendMessageWhenReady = (iframe, message, origin) => {
-		    const sendMessage = () => { var _a; return (_a = iframe === null || iframe === void 0 ? void 0 : iframe.contentWindow) === null || _a === void 0 ? void 0 : _a.postMessage(message, origin); };
-		    const timeoutId = setTimeout(() => {
-		        window.removeEventListener('message', handleReady);
-		        sendMessage();
-		    }, READY_SIGNAL_FALLBACK_DELAY_MS);
-		    const handleReady = (event) => {
-		        var _a;
-		        if (event.source === (iframe === null || iframe === void 0 ? void 0 : iframe.contentWindow) && ((_a = event.data) === null || _a === void 0 ? void 0 : _a.source) === 'forge-adf-renderer-ready') {
-		            clearTimeout(timeoutId);
-		            window.removeEventListener('message', handleReady);
-		            sendMessage();
-		        }
-		    };
-		    window.addEventListener('message', handleReady);
-		};
-		exports.sendMessageWhenReady = sendMessageWhenReady;
-		const createAdfRendererIframeProps = async (context, iframeId) => {
-		    const IframeResizer = await Promise.resolve().then(() => __importStar(requireIframeResizer()));
-		    const IframeResizerModule = IframeResizer.default || IframeResizer;
-		    const origin = new URL(document.referrer).origin;
-		    const src = `${origin}/forge-apps/adf-renderer`;
-		    const id = iframeId || `forge-adf-renderer-iframe-${crypto.randomUUID()}`;
-		    const onLoad = () => {
-		        var _a, _b, _c, _d, _e;
-		        const iframe = document.getElementById(id);
-		        const message = {
-		            type: 'adf-document',
-		            document: (_a = context.extension.macro) === null || _a === void 0 ? void 0 : _a.body,
-		            timestamp: Date.now(),
-		            source: 'forge-adf-renderer',
-		            localId: context.localId,
-		            isEditing: (_c = (_b = context.extension) === null || _b === void 0 ? void 0 : _b.isEditing) !== null && _c !== void 0 ? _c : false,
-		            contentId: (_e = (_d = context.extension) === null || _d === void 0 ? void 0 : _d.content) === null || _e === void 0 ? void 0 : _e.id
-		        };
-		        IframeResizerModule.iframeResizer({
-		            heightCalculationMethod: 'taggedElement',
-		            widthCalculationMethod: 'bodyScroll',
-		            initCallback: (iframe) => {
-		                var _a;
-		                (_a = iframe === null || iframe === void 0 ? void 0 : iframe.iFrameResizer) === null || _a === void 0 ? void 0 : _a.resize();
-		            }
-		        }, iframe || '');
-		        (0, exports.sendMessageWhenReady)(iframe, message, origin);
-		    };
-		    setTimeout(() => {
-		        document.documentElement.style.height = 'auto';
-		        document.body.style.height = 'auto';
-		    }, 200);
-		    return {
-		        id,
-		        src,
-		        onLoad
-		    };
-		};
-		exports.createAdfRendererIframeProps = createAdfRendererIframeProps; 
-	} (adfRenderer));
-	return adfRenderer;
-}
-
-var onClose = {};
-
-var hasRequiredOnClose;
-
-function requireOnClose () {
-	if (hasRequiredOnClose) return onClose;
-	hasRequiredOnClose = 1;
-	Object.defineProperty(onClose, "__esModule", { value: true });
-	onClose.onClose = void 0;
-	const bridge_1 = requireBridge();
-	const errors_1 = requireErrors();
-	const callBridge = (0, bridge_1.getCallBridge)();
-	const onClose$1 = async (payload) => {
-	    try {
-	        const success = await callBridge('onClose', payload);
-	        if (success === false) {
-	            throw new errors_1.BridgeAPIError('`onClose` call has failed.');
-	        }
-	    }
-	    catch (e) {
-	        throw new errors_1.BridgeAPIError("`onClose` failed because this resource's view is not closable.");
-	    }
-	};
-	onClose.onClose = onClose$1;
-	return onClose;
-}
-
-var getFrameDispatch = {};
-
-var hasRequiredGetFrameDispatch;
-
-function requireGetFrameDispatch () {
-	if (hasRequiredGetFrameDispatch) return getFrameDispatch;
-	hasRequiredGetFrameDispatch = 1;
-	Object.defineProperty(getFrameDispatch, "__esModule", { value: true });
-	getFrameDispatch.getFrameDispatch = void 0;
-	const bridge_1 = requireBridge();
-	const callBridge = (0, bridge_1.getCallBridge)();
-	const getFrameDispatch$1 = async () => {
-	    return await callBridge('getFrameDispatch');
-	};
-	getFrameDispatch.getFrameDispatch = getFrameDispatch$1;
-	return getFrameDispatch;
-}
-
-var hasRequiredView$1;
-
-function requireView$1 () {
-	if (hasRequiredView$1) return view;
-	hasRequiredView$1 = 1;
-	Object.defineProperty(view, "__esModule", { value: true });
-	view.view = void 0;
-	const submit_1 = requireSubmit();
-	const close_1 = requireClose();
-	const open_1 = requireOpen$1();
-	const refresh_1 = requireRefresh();
-	const createHistory_1 = requireCreateHistory();
-	const getContext_1 = requireGetContext();
-	const changeWindowTitle_1 = requireChangeWindowTitle();
-	const theme_1 = requireTheme();
-	const emitReadyEvent_1 = requireEmitReadyEvent();
-	const adf_renderer_1 = requireAdfRenderer();
-	const onClose_1 = requireOnClose();
-	const getFrameDispatch_1 = requireGetFrameDispatch();
-	view.view = {
-	    submit: submit_1.submit,
-	    close: close_1.close,
-	    onClose: onClose_1.onClose,
-	    open: open_1.open,
-	    refresh: refresh_1.refresh,
-	    createHistory: createHistory_1.createHistory,
-	    getContext: getContext_1.getContext,
-	    getFrameDispatch: getFrameDispatch_1.getFrameDispatch,
-	    theme: theme_1.theme,
-	    changeWindowTitle: changeWindowTitle_1.changeWindowTitle,
-	    emitReadyEvent: emitReadyEvent_1.emitReadyEvent,
-	    createAdfRendererIframeProps: adf_renderer_1.createAdfRendererIframeProps
-	};
-	return view;
-}
-
-var hasRequiredView;
-
-function requireView () {
-	if (hasRequiredView) return view$1;
-	hasRequiredView = 1;
-	(function (exports) {
-		Object.defineProperty(exports, "__esModule", { value: true });
-		const tslib_1 = require$$0;
-		tslib_1.__exportStar(requireView$1(), exports); 
-	} (view$1));
-	return view$1;
-}
-
-var router$1 = {};
-
-var router = {};
-
-var hasRequiredRouter$1;
-
-function requireRouter$1 () {
-	if (hasRequiredRouter$1) return router;
-	hasRequiredRouter$1 = 1;
-	Object.defineProperty(router, "__esModule", { value: true });
-	router.router = void 0;
-	const bridge_1 = requireBridge();
-	const callBridge = (0, bridge_1.getCallBridge)();
-	/**
-	 * Returns a URL object for a given location.
-	 *
-	 * @param location - The location to get the URL for
-	 * @returns A URL object for the given location
-	 */
-	const getUrl = async (location) => {
-	    if (!(location === null || location === void 0 ? void 0 : location.target)) {
-	        throw new Error('target is required for getUrl');
-	    }
-	    const url = await callBridge('getUrl', location);
-	    if (!url) {
-	        throw new Error('Failed to get URL');
-	    }
-	    try {
-	        return new URL(url);
-	    }
-	    catch (error) {
-	        throw new Error(`Failed to parse URL: ${url} (${error})`);
-	    }
-	};
-	/**
-	 * Navigates to a location within the same tab.
-	 *
-	 * @param location URL or `NavigationLocation` object
-	 * @returns a promise that resolves when navigation is complete
-	 */
-	const navigate = (location) => {
-	    if (typeof location === 'string') {
-	        return callBridge('navigate', { url: location, type: 'same-tab' });
-	    }
-	    else {
-	        if (!(location === null || location === void 0 ? void 0 : location.target)) {
-	            throw new Error('target is required for navigation');
-	        }
-	        return callBridge('navigate', { ...location, type: 'same-tab' });
-	    }
-	};
-	/**
-	 * Opens a new tab in the browser and navigates to the specified location.
-	 *
-	 * @param location URL or `NavigationLocation` object
-	 * @returns a promise that resolves when navigation is complete
-	 */
-	const open = (location) => {
-	    if (typeof location === 'string') {
-	        return callBridge('navigate', { url: location, type: 'new-tab' });
-	    }
-	    else {
-	        if (!(location === null || location === void 0 ? void 0 : location.target)) {
-	            throw new Error('target is required for navigation');
-	        }
-	        return callBridge('navigate', { ...location, type: 'new-tab' });
-	    }
-	};
-	/**
-	 * Reloads the page.
-	 *
-	 * @returns a promise that resolves to void when the page is reloaded
-	 */
-	const reload = async () => callBridge('reload');
-	router.router = {
-	    getUrl,
-	    navigate,
-	    open,
-	    reload
-	};
-	return router;
-}
-
-var hasRequiredRouter;
-
-function requireRouter () {
-	if (hasRequiredRouter) return router$1;
-	hasRequiredRouter = 1;
-	(function (exports) {
-		Object.defineProperty(exports, "__esModule", { value: true });
-		const tslib_1 = require$$0;
-		tslib_1.__exportStar(requireRouter$1(), exports); 
-	} (router$1));
-	return router$1;
-}
-
-var modal$1 = {};
-
-var modal = {};
-
-var hasRequiredModal$1;
-
-function requireModal$1 () {
-	if (hasRequiredModal$1) return modal;
-	hasRequiredModal$1 = 1;
-	Object.defineProperty(modal, "__esModule", { value: true });
-	modal.Modal = void 0;
-	const bridge_1 = requireBridge();
-	const errors_1 = requireErrors();
-	const callBridge = (0, bridge_1.getCallBridge)();
-	const NAMED_MODAL_SIZES = ['small', 'medium', 'large', 'xlarge', 'max', 'fullscreen', 'resizable'];
-	// eslint-disable-next-line @typescript-eslint/no-empty-function
-	const noop = () => { };
-	function isNamedModalSize(size) {
-	    return typeof size === 'string' && NAMED_MODAL_SIZES.includes(size);
-	}
-	function isCustomModalSize(size) {
-	    if (typeof size !== 'object' || size === null)
-	        return false;
-	    const s = size;
-	    return typeof s.width === 'string' && (s.height === undefined || typeof s.height === 'string');
-	}
-	function isValidModalSize(size) {
-	    return isNamedModalSize(size) || isCustomModalSize(size);
-	}
-	class Modal {
-	    constructor(opts) {
-	        var _a, _b;
-	        this.resource = (opts === null || opts === void 0 ? void 0 : opts.resource) || null;
-	        this.onClose = (opts === null || opts === void 0 ? void 0 : opts.onClose) || noop;
-	        this.size = (opts === null || opts === void 0 ? void 0 : opts.size) || 'medium';
-	        this.context = (opts === null || opts === void 0 ? void 0 : opts.context) || {};
-	        this.closeOnEscape = (_a = opts === null || opts === void 0 ? void 0 : opts.closeOnEscape) !== null && _a !== void 0 ? _a : true;
-	        this.closeOnOverlayClick = (_b = opts === null || opts === void 0 ? void 0 : opts.closeOnOverlayClick) !== null && _b !== void 0 ? _b : true;
-	        this.title = (opts === null || opts === void 0 ? void 0 : opts.title) || '';
-	        this.icon = (opts === null || opts === void 0 ? void 0 : opts.icon) || '';
-	    }
-	    async open() {
-	        if (!isValidModalSize(this.size)) {
-	            throw new errors_1.BridgeAPIError(`Invalid modal size: ${JSON.stringify(this.size)}. Must be one of the named sizes (${NAMED_MODAL_SIZES.join(', ')}) or a custom dimensions object with a "width" string property and an optional "height" string property.`);
-	        }
-	        try {
-	            const success = await callBridge('openModal', {
-	                resource: this.resource,
-	                onClose: this.onClose,
-	                size: this.size,
-	                context: this.context,
-	                closeOnEscape: this.closeOnEscape,
-	                closeOnOverlayClick: this.closeOnOverlayClick,
-	                title: this.title,
-	                icon: this.icon
-	            });
-	            if (success === false) {
-	                throw new errors_1.BridgeAPIError('Unable to open modal.');
-	            }
-	        }
-	        catch (err) {
-	            throw new errors_1.BridgeAPIError('Unable to open modal.');
-	        }
-	    }
-	}
-	modal.Modal = Modal;
-	return modal;
-}
-
-var hasRequiredModal;
-
-function requireModal () {
-	if (hasRequiredModal) return modal$1;
-	hasRequiredModal = 1;
-	(function (exports) {
-		Object.defineProperty(exports, "__esModule", { value: true });
-		const tslib_1 = require$$0;
-		tslib_1.__exportStar(requireModal$1(), exports); 
-	} (modal$1));
-	return modal$1;
-}
-
-var fetch$2 = {};
-
-var fetch$1 = {};
-
-var hasRequiredFetch$1;
-
-function requireFetch$1 () {
-	if (hasRequiredFetch$1) return fetch$1;
-	hasRequiredFetch$1 = 1;
-	Object.defineProperty(fetch$1, "__esModule", { value: true });
-	fetch$1.productFetchApi = fetch$1.remoteFetchApi = void 0;
-	const blobParser_1 = requireBlobParser();
-	const parseFormData = async (form, matchFilePrefix = false) => {
-	    const parsed = {};
-	    for (const [key, value] of form.entries()) {
-	        // Jira and Confluence REST APIs requires that the field containing
-	        // the file MUST be named exactly 'file'
-	        const isFileKey = matchFilePrefix ? key.startsWith('file') : key === 'file';
-	        if (isFileKey) {
-	            const fileName = value.name;
-	            const fileType = value.type;
-	            // we parse the file as a base64 string so it
-	            // can be properly transfered over the bridge.
-	            // we'll parse it back to Blob in the host product
-	            parsed[key] = await (0, blobParser_1.blobToBase64)(value);
-	            // we also need to pass the file name and type,
-	            // as those will be lost in the base64 conversion
-	            parsed[`__${key}Name`] = fileName;
-	            parsed[`__${key}Type`] = fileType;
-	        }
-	        else {
-	            parsed[key] = value;
-	        }
-	    }
-	    return JSON.stringify(parsed);
-	};
-	const validateFetchOptions = (init) => {
-	    if (!init) {
-	        return init;
-	    }
-	    if ('signal' in init) {
-	        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-	        const { signal: _signal, ...rest } = init;
-	        // eslint-disable-next-line no-console
-	        console.error('Signal is not supported in @forge/bridge and was removed from fetch options. Please use the fetch method from @forge/api for signal support.');
-	        return rest;
-	    }
-	    return init;
-	};
-	const parseRequest = async (fetchType, init) => {
-	    const isFormData = (init === null || init === void 0 ? void 0 : init.body) instanceof FormData ? true : false;
-	    const requestBody = isFormData ? await parseFormData(init === null || init === void 0 ? void 0 : init.body, fetchType === 'remote') : init === null || init === void 0 ? void 0 : init.body;
-	    const req = new Request('', { body: requestBody, method: init === null || init === void 0 ? void 0 : init.method, headers: init === null || init === void 0 ? void 0 : init.headers });
-	    // If `init.body` is a `FormData`, a `content-type` header required for the body to be parsed by the
-	    // API receiving this request will be generated in req.headers.
-	    const headers = Object.fromEntries(req.headers.entries());
-	    const body = req.method !== 'GET' ? await req.text() : null;
-	    return {
-	        body,
-	        headers: new Headers(headers),
-	        isMultipartFormData: isFormData
-	    };
-	};
-	const remoteFetchApi = (callBridge) => {
-	    const fetch = async (remoteKey, init) => {
-	        const validatedInit = validateFetchOptions(init);
-	        const { body: requestBody, headers: requestHeaders, isMultipartFormData } = await parseRequest('remote', validatedInit);
-	        const fetchPayload = {
-	            remoteKey,
-	            fetchRequestInit: { ...validatedInit, body: requestBody, headers: [...requestHeaders.entries()] },
-	            isMultipartFormData
-	        };
-	        const { body, headers, statusText, status, isAttachment } = await callBridge('fetchRemote', fetchPayload);
-	        const responseBody = isAttachment ? (0, blobParser_1.base64ToBlob)(body, headers['content-type']) : body;
-	        return new Response(responseBody || null, { headers, status, statusText });
-	    };
-	    return {
-	        requestRemote: (remoteKey, fetchOptions) => fetch(remoteKey, fetchOptions)
-	    };
-	};
-	fetch$1.remoteFetchApi = remoteFetchApi;
-	const productFetchApi = (callBridge) => {
-	    const fetch = async (product, restPath, init) => {
-	        const validatedInit = validateFetchOptions(init);
-	        const { body: requestBody, headers: requestHeaders, isMultipartFormData } = await parseRequest('product', validatedInit);
-	        // https://ecosystem.atlassian.net/browse/BUILD-1118 Skip xsrf check for oauth request
-	        if (!requestHeaders.has('X-Atlassian-Token')) {
-	            requestHeaders.set('X-Atlassian-Token', 'no-check');
-	        }
-	        const fetchPayload = {
-	            product,
-	            restPath,
-	            fetchRequestInit: {
-	                ...validatedInit,
-	                body: requestBody,
-	                headers: [...requestHeaders.entries()]
-	            },
-	            isMultipartFormData
-	        };
-	        const { body, headers, statusText, status, isAttachment } = await callBridge('fetchProduct', fetchPayload);
-	        const responseBody = isAttachment ? (0, blobParser_1.base64ToBlob)(body, headers['content-type']) : body;
-	        return new Response(responseBody || null, { headers, status, statusText });
-	    };
-	    return {
-	        requestConfluence: (restPath, fetchOptions) => fetch('confluence', restPath, fetchOptions),
-	        requestJira: (restPath, fetchOptions) => fetch('jira', restPath, fetchOptions),
-	        requestBitbucket: (restPath, fetchOptions) => fetch('bitbucket', restPath, fetchOptions)
-	    };
-	};
-	fetch$1.productFetchApi = productFetchApi;
-	return fetch$1;
-}
-
-var hasRequiredFetch;
-
-function requireFetch () {
-	if (hasRequiredFetch) return fetch$2;
-	hasRequiredFetch = 1;
-	var _a;
-	Object.defineProperty(fetch$2, "__esModule", { value: true });
-	fetch$2.fetchUserRecommendations = fetch$2.requestRemote = fetch$2.requestBitbucket = fetch$2.requestJira = fetch$2.requestConfluence = void 0;
-	const bridge_1 = requireBridge();
-	const fetch_1 = requireFetch$1();
-	_a = (0, fetch_1.productFetchApi)((0, bridge_1.getCallBridge)()), fetch$2.requestConfluence = _a.requestConfluence, fetch$2.requestJira = _a.requestJira, fetch$2.requestBitbucket = _a.requestBitbucket;
-	fetch$2.requestRemote = (0, fetch_1.remoteFetchApi)((0, bridge_1.getCallBridge)()).requestRemote;
-	const fetchUserRecommendations = async (input) => {
-	    const callBridge = (0, bridge_1.getCallBridge)();
-	    return await callBridge('fetchUserRecommendations', input);
-	};
-	fetch$2.fetchUserRecommendations = fetchUserRecommendations;
-	return fetch$2;
-}
-
-var requestTeamworkGraph = {};
-
-var hasRequiredRequestTeamworkGraph;
-
-function requireRequestTeamworkGraph () {
-	if (hasRequiredRequestTeamworkGraph) return requestTeamworkGraph;
-	hasRequiredRequestTeamworkGraph = 1;
-	Object.defineProperty(requestTeamworkGraph, "__esModule", { value: true });
-	requestTeamworkGraph.requestTeamworkGraph = void 0;
-	const bridge_1 = requireBridge();
-	const callBridge = (0, bridge_1.getCallBridge)();
-	const requestTeamworkGraph$1 = async (query, variables) => {
-	    const response = await callBridge('requestTeamworkGraph', { query, variables });
-	    return response;
-	};
-	requestTeamworkGraph.requestTeamworkGraph = requestTeamworkGraph$1;
-	return requestTeamworkGraph;
-}
-
-var flag$1 = {};
-
-var flag = {};
-
-var hasRequiredFlag$1;
-
-function requireFlag$1 () {
-	if (hasRequiredFlag$1) return flag;
-	hasRequiredFlag$1 = 1;
-	Object.defineProperty(flag, "__esModule", { value: true });
-	flag.showFlag = void 0;
-	const bridge_1 = requireBridge();
-	const errors_1 = requireErrors();
-	const callBridge = (0, bridge_1.getCallBridge)();
-	const showFlag = (options) => {
-	    var _a;
-	    if (!options.id) {
-	        throw new errors_1.BridgeAPIError('"id" must be defined in flag options');
-	    }
-	    const result = callBridge('showFlag', {
-	        ...options,
-	        type: (_a = options.type) !== null && _a !== void 0 ? _a : 'info'
-	    });
-	    return {
-	        close: async () => {
-	            await result;
-	            return callBridge('closeFlag', { id: options.id });
-	        }
-	    };
-	};
-	flag.showFlag = showFlag;
-	return flag;
-}
-
-var hasRequiredFlag;
-
-function requireFlag () {
-	if (hasRequiredFlag) return flag$1;
-	hasRequiredFlag = 1;
-	(function (exports) {
-		Object.defineProperty(exports, "__esModule", { value: true });
-		exports.showFlag = void 0;
-		var flag_1 = requireFlag$1();
-		Object.defineProperty(exports, "showFlag", { enumerable: true, get: function () { return flag_1.showFlag; } }); 
-	} (flag$1));
-	return flag$1;
-}
-
-var events = {};
-
-var hasRequiredEvents;
-
-function requireEvents () {
-	if (hasRequiredEvents) return events;
-	hasRequiredEvents = 1;
-	(function (exports) {
-		Object.defineProperty(exports, "__esModule", { value: true });
-		const tslib_1 = require$$0;
-		tslib_1.__exportStar(requireEvents$1(), exports); 
-	} (events));
-	return events;
-}
-
-var realtime$1 = {};
-
-var realtime = {};
-
-var hasRequiredRealtime$1;
-
-function requireRealtime$1 () {
-	if (hasRequiredRealtime$1) return realtime;
-	hasRequiredRealtime$1 = 1;
-	Object.defineProperty(realtime, "__esModule", { value: true });
-	realtime.realtime = void 0;
-	const bridge_1 = requireBridge();
-	const callBridge = (0, bridge_1.getCallBridge)();
-	const publish = (channel, payload, options) => {
-	    return callBridge('publishRealtimeChannel', { channelName: channel, eventPayload: payload, options });
-	};
-	const subscribe = (channel, callback, options) => {
-	    return callBridge('subscribeRealtimeChannel', {
-	        channelName: channel,
-	        onEvent: callback,
-	        options
-	    });
-	};
-	const publishGlobal = (channel, payload, options) => {
-	    return callBridge('publishRealtimeChannel', { channelName: channel, eventPayload: payload, options, isGlobal: true });
-	};
-	const subscribeGlobal = (channel, callback, options) => {
-	    return callBridge('subscribeRealtimeChannel', {
-	        channelName: channel,
-	        onEvent: callback,
-	        options,
-	        isGlobal: true
-	    });
-	};
-	realtime.realtime = {
-	    publish,
-	    subscribe,
-	    publishGlobal,
-	    subscribeGlobal
-	};
-	return realtime;
-}
-
-var productContext = {};
-
-var hasRequiredProductContext;
-
-function requireProductContext () {
-	if (hasRequiredProductContext) return productContext;
-	hasRequiredProductContext = 1;
-	// These enum values directly map to properties in the context.extension object in a product's FCT.
-	// It allows a subset of properties to be specified for Realtime channel authorization.
-	Object.defineProperty(productContext, "__esModule", { value: true });
-	productContext.Bitbucket = productContext.Confluence = productContext.Jira = void 0;
-	var Jira;
-	(function (Jira) {
-	    Jira["Board"] = "board";
-	    Jira["Issue"] = "issue";
-	    Jira["Project"] = "project";
-	})(Jira || (productContext.Jira = Jira = {}));
-	var Confluence;
-	(function (Confluence) {
-	    Confluence["Content"] = "content";
-	    Confluence["Space"] = "space";
-	})(Confluence || (productContext.Confluence = Confluence = {}));
-	var Bitbucket;
-	(function (Bitbucket) {
-	    Bitbucket["Repository"] = "repository";
-	    Bitbucket["PullRequest"] = "pullRequest";
-	})(Bitbucket || (productContext.Bitbucket = Bitbucket = {}));
-	return productContext;
-}
-
-var hasRequiredRealtime;
-
-function requireRealtime () {
-	if (hasRequiredRealtime) return realtime$1;
-	hasRequiredRealtime = 1;
-	(function (exports) {
-		Object.defineProperty(exports, "__esModule", { value: true });
-		exports.Bitbucket = exports.Confluence = exports.Jira = exports.realtime = void 0;
-		var realtime_1 = requireRealtime$1();
-		Object.defineProperty(exports, "realtime", { enumerable: true, get: function () { return realtime_1.realtime; } });
-		var productContext_1 = requireProductContext();
-		Object.defineProperty(exports, "Jira", { enumerable: true, get: function () { return productContext_1.Jira; } });
-		Object.defineProperty(exports, "Confluence", { enumerable: true, get: function () { return productContext_1.Confluence; } });
-		Object.defineProperty(exports, "Bitbucket", { enumerable: true, get: function () { return productContext_1.Bitbucket; } }); 
-	} (realtime$1));
-	return realtime$1;
-}
-
-var rovo$1 = {};
-
-var rovo = {};
-
-var open = {};
-
-var hasRequiredOpen;
-
-function requireOpen () {
-	if (hasRequiredOpen) return open;
-	hasRequiredOpen = 1;
-	(function (exports) {
-		Object.defineProperty(exports, "__esModule", { value: true });
-		exports.open = exports.OPEN_ROVO_BRIDGE_ERROR_MESSAGE = void 0;
-		const bridge_1 = requireBridge();
-		const errors_1 = requireErrors();
-		const MAX_AGENT_LENGTH = 30;
-		const callBridge = (0, bridge_1.getCallBridge)();
-		exports.OPEN_ROVO_BRIDGE_ERROR_MESSAGE = 'Unable to open Rovo Chat due to usage in an unsupported product. Only Confluence, Jira and some Jira Service Management modules are supported at this point. See https://developer.atlassian.com/platform/forge/apis-reference/ui-api-bridge/rovo/';
-		const transformRovoPayload = (openRovoPayload) => {
-		    switch (openRovoPayload.type) {
-		        case 'forge':
-		            return {
-		                agentName: openRovoPayload.agentName,
-		                agentKey: openRovoPayload.agentKey,
-		                prompt: openRovoPayload.prompt
-		            };
-		        case 'atlassian':
-		            return {
-		                agentName: openRovoPayload.agentName,
-		                prompt: openRovoPayload.prompt
-		            };
-		        default:
-		            return { prompt: openRovoPayload.prompt };
-		    }
-		};
-		/**
-		 * Opens Rovo chat from the given Rovo agent name.
-		 *
-		 * @param {OpenRovoPayload} [openRovoPayload] - Payload to open chat.
-		 *   Can be one of:
-		 *     - ForgeAgentPayload: { agentName: string, agentKey: string, prompt?: string }
-		 *     - AtlassianAgentPayload: { agentName: string, prompt?: string }
-		 *     - DefaultAgentPayload: { prompt?: string }
-		 */
-		const open = async (openRovoPayload) => {
-		    if (openRovoPayload.type === 'forge') {
-		        if (openRovoPayload.agentName.length > MAX_AGENT_LENGTH) {
-		            throw new Error('rovo agent name too long');
-		        }
-		        if (openRovoPayload.agentKey.length > MAX_AGENT_LENGTH) {
-		            throw new Error('rovo agent key too long');
-		        }
-		    }
-		    const rovoArgs = transformRovoPayload(openRovoPayload);
-		    const success = await callBridge('openRovo', rovoArgs);
-		    if (success === false) {
-		        throw new errors_1.BridgeAPIError(exports.OPEN_ROVO_BRIDGE_ERROR_MESSAGE);
-		    }
-		};
-		exports.open = open; 
-	} (open));
-	return open;
-}
-
-var isEnabled = {};
-
-var hasRequiredIsEnabled;
-
-function requireIsEnabled () {
-	if (hasRequiredIsEnabled) return isEnabled;
-	hasRequiredIsEnabled = 1;
-	Object.defineProperty(isEnabled, "__esModule", { value: true });
-	isEnabled.isEnabled = void 0;
-	const bridge_1 = requireBridge();
-	const callBridge = (0, bridge_1.getCallBridge)();
-	/**
-	 * Checks if Rovo is enabled for the current tenant.
-	 *
-	 * @returns boolean
-	 */
-	const isEnabled$1 = () => {
-	    return callBridge('isRovoEnabled');
-	};
-	isEnabled.isEnabled = isEnabled$1;
-	return isEnabled;
-}
-
-var hasRequiredRovo$1;
-
-function requireRovo$1 () {
-	if (hasRequiredRovo$1) return rovo;
-	hasRequiredRovo$1 = 1;
-	Object.defineProperty(rovo, "__esModule", { value: true });
-	rovo.rovo = void 0;
-	const open_1 = requireOpen();
-	const isEnabled_1 = requireIsEnabled();
-	rovo.rovo = {
-	    open: open_1.open,
-	    isEnabled: isEnabled_1.isEnabled
-	};
-	return rovo;
-}
-
-var hasRequiredRovo;
-
-function requireRovo () {
-	if (hasRequiredRovo) return rovo$1;
-	hasRequiredRovo = 1;
-	(function (exports) {
-		Object.defineProperty(exports, "__esModule", { value: true });
-		const tslib_1 = require$$0;
-		tslib_1.__exportStar(requireRovo$1(), exports); 
-	} (rovo$1));
-	return rovo$1;
-}
-
-var i18n = {};
-
-var hasRequiredI18n;
-
-function requireI18n () {
-	if (hasRequiredI18n) return i18n;
-	hasRequiredI18n = 1;
-	Object.defineProperty(i18n, "__esModule", { value: true });
-	i18n.createTranslationFunction = i18n.getTranslations = i18n.resetTranslationsCache = void 0;
-	const i18n_1 = requireOut$4();
-	const view_1 = requireView();
-	const frontendResourcesAccessor = {
-	    getI18nInfoConfig: async () => {
-	        const resp = await fetch(`./${i18n_1.I18N_BUNDLE_FOLDER_NAME}/${i18n_1.I18N_INFO_FILE_NAME}`);
-	        if (!resp.ok) {
-	            throw new Error('Failed to get i18n info config: ' + resp.statusText);
-	        }
-	        const info = (await resp.json());
-	        return info.config;
-	    },
-	    getTranslationResource: async (locale) => {
-	        const resp = await fetch(`./${i18n_1.I18N_BUNDLE_FOLDER_NAME}/${locale}.json`);
-	        if (!resp.ok) {
-	            throw new Error(`Failed to get translation resource for locale: ${locale}`);
-	        }
-	        return resp.json();
-	    }
-	};
-	const translationsGetter = new i18n_1.TranslationsGetter(frontendResourcesAccessor);
-	const resetTranslationsCache = () => {
-	    translationsGetter.reset();
-	};
-	i18n.resetTranslationsCache = resetTranslationsCache;
-	const getTranslations = async (locale = null, options = {
-	    fallback: true
-	}) => {
-	    let targetLocale = locale;
-	    if (!targetLocale) {
-	        const context = await view_1.view.getContext();
-	        targetLocale = context.locale;
-	    }
-	    return await translationsGetter.getTranslations(targetLocale, options);
-	};
-	i18n.getTranslations = getTranslations;
-	/**
-	 * Creates a translation function (i.e. `t`) for the given locale.
-	 * If no locale is provided, the locale from the current view context is used.
-	 *
-	 * @param locale The locale to create the translation function for.
-	 * @returns The translation function.
-	 */
-	const createTranslationFunction = async (locale = null) => {
-	    let targetLocale = locale;
-	    if (!targetLocale) {
-	        const context = await view_1.view.getContext();
-	        targetLocale = context.locale;
-	    }
-	    const translator = new i18n_1.Translator(targetLocale, translationsGetter);
-	    await translator.init();
-	    return (i18nKey, defaultValue) => { var _a, _b; return (_b = (_a = translator.translate(i18nKey)) !== null && _a !== void 0 ? _a : defaultValue) !== null && _b !== void 0 ? _b : i18nKey; };
-	};
-	i18n.createTranslationFunction = createTranslationFunction;
-	return i18n;
-}
-
-var permissions$1 = {};
-
-var permissions = {};
-
-var hasRequiredPermissions$1;
-
-function requirePermissions$1 () {
-	if (hasRequiredPermissions$1) return permissions;
-	hasRequiredPermissions$1 = 1;
-	Object.defineProperty(permissions, "__esModule", { value: true });
-	permissions.permissions = void 0;
-	const bridge_1 = requireBridge();
-	const callBridge = (0, bridge_1.getCallBridge)();
-	const egressGet = async (payload) => {
-	    return callBridge('__permission__egressGet', payload);
-	};
-	const egressSet = async (payload) => {
-	    return callBridge('__permission__egressSet', payload);
-	};
-	const egressDeleteDomain = async (payload) => {
-	    return callBridge('__permission__egressDeleteDomain', payload);
-	};
-	const egressDeleteGroup = async (payload) => {
-	    return callBridge('__permission__egressDeleteGroup', payload);
-	};
-	const remoteGet = async (payload) => {
-	    return callBridge('__permission__remoteGet', payload);
-	};
-	const remoteSet = async (payload) => {
-	    return callBridge('__permission__remoteSet', payload);
-	};
-	permissions.permissions = {
-	    egress: {
-	        get: egressGet,
-	        set: egressSet,
-	        deleteDomain: egressDeleteDomain,
-	        deleteGroup: egressDeleteGroup
-	    },
-	    remote: {
-	        get: remoteGet,
-	        set: remoteSet
-	    }
-	};
-	return permissions;
-}
-
-var permissionsUtil = {};
-
-var hasRequiredPermissionsUtil;
-
-function requirePermissionsUtil () {
-	if (hasRequiredPermissionsUtil) return permissionsUtil;
-	hasRequiredPermissionsUtil = 1;
-	Object.defineProperty(permissionsUtil, "__esModule", { value: true });
-	permissionsUtil.createPermissionUtils = createPermissionUtils;
-	permissionsUtil.checkPermissions = checkPermissions;
-	const egress_1 = requireOut$3();
-	const view_1 = requireView();
-	/**
-	 * Helper function to extract URL string from external URL permissions.
-	 * Matches the implementation in @forge/api for consistency.
-	 */
-	function extractUrlString(url) {
-	    if (typeof url === 'string') {
-	        return url;
-	    }
-	    if ('address' in url && url.address) {
-	        return url.address;
-	    }
-	    return url.remote || '';
-	}
-	/**
-	 * Resource types that can be loaded externally
-	 */
-	const RESOURCE_TYPES = ['fonts', 'styles', 'frames', 'images', 'media', 'scripts'];
-	/**
-	 * Fetch types for external requests
-	 */
-	const FETCH_TYPES = ['backend', 'client'];
-	/**
-	 * Create permission utilities from runtime permissions
-	 * @param runtimePermissions - The runtime permissions from context
-	 * @returns Permission utilities or null if permissions are not available
-	 */
-	function createPermissionUtils(runtimePermissions) {
-	    if (!runtimePermissions) {
-	        return null;
-	    }
-	    const { scopes, external = {} } = runtimePermissions;
-	    const scopeArray = Array.isArray(scopes) ? scopes : Object.keys(scopes || {});
-	    return {
-	        hasScope: (scope) => scopeArray.includes(scope),
-	        canFetchFrom: (type, url) => {
-	            var _a;
-	            const fetchUrls = (_a = external.fetch) === null || _a === void 0 ? void 0 : _a[type];
-	            if (!(fetchUrls === null || fetchUrls === void 0 ? void 0 : fetchUrls.length))
-	                return false;
-	            // Extract URLs and create egress filter
-	            const allowList = fetchUrls.map(extractUrlString).filter((u) => u.length > 0);
-	            if (allowList.length === 0)
-	                return false;
-	            const egressFilter = new egress_1.EgressFilteringService(allowList);
-	            // Backend: hostname-only matching, Client: CSP validation (includes paths)
-	            // Type assertion needed because node_modules may have outdated types
-	            const egressFilterWithCSP = egressFilter;
-	            return type === 'client' ? egressFilterWithCSP.isValidUrlCSP(url) : egressFilter.isValidUrl(url);
-	        },
-	        canLoadResource: (type, url) => {
-	            const resourceUrls = external[type];
-	            if (!(resourceUrls === null || resourceUrls === void 0 ? void 0 : resourceUrls.length))
-	                return false;
-	            // Extract URLs and create egress filter
-	            const allowList = resourceUrls.map(extractUrlString).filter((u) => u.length > 0);
-	            if (allowList.length === 0)
-	                return false;
-	            const egressFilter = new egress_1.EgressFilteringService(allowList);
-	            // All resources use CSP validation (checks protocol + hostname + paths)
-	            // Type assertion needed because node_modules may have outdated types
-	            const egressFilterWithCSP = egressFilter;
-	            return egressFilterWithCSP.isValidUrlCSP(url);
-	        },
-	        getScopes: () => scopeArray,
-	        getExternalPermissions: () => external,
-	        hasAnyPermissions: () => scopeArray.length > 0 || Object.keys(external).length > 0
-	    };
-	}
-	/**
-	 * Check if required scopes are granted
-	 */
-	function checkScopes(requiredScopes, permissionUtils) {
-	    if (!(requiredScopes === null || requiredScopes === void 0 ? void 0 : requiredScopes.length)) {
-	        return undefined;
-	    }
-	    const missingScopes = requiredScopes.filter((scope) => !permissionUtils.hasScope(scope));
-	    return missingScopes.length > 0 ? missingScopes : undefined;
-	}
-	/**
-	 * Check if required fetch permissions are granted
-	 */
-	function checkFetchPermissions(requiredFetch, permissionUtils) {
-	    if (!(requiredFetch === null || requiredFetch === void 0 ? void 0 : requiredFetch.fetch)) {
-	        return undefined;
-	    }
-	    const missingFetch = {};
-	    FETCH_TYPES.forEach((type) => {
-	        var _a;
-	        const requiredUrls = (_a = requiredFetch.fetch) === null || _a === void 0 ? void 0 : _a[type];
-	        if (requiredUrls === null || requiredUrls === void 0 ? void 0 : requiredUrls.length) {
-	            const missingUrls = requiredUrls.filter((url) => !permissionUtils.canFetchFrom(type, url));
-	            if (missingUrls.length > 0) {
-	                missingFetch[type] = missingUrls;
-	            }
-	        }
-	    });
-	    return Object.keys(missingFetch).length > 0 ? missingFetch : undefined;
-	}
-	/**
-	 * Check if required resource permissions are granted
-	 */
-	function checkResourcePermissions(requiredExternal, permissionUtils) {
-	    const missingResources = {};
-	    RESOURCE_TYPES.forEach((type) => {
-	        const requiredUrls = requiredExternal === null || requiredExternal === void 0 ? void 0 : requiredExternal[type];
-	        if (requiredUrls === null || requiredUrls === void 0 ? void 0 : requiredUrls.length) {
-	            const missingUrls = requiredUrls.filter((url) => !permissionUtils.canLoadResource(type, url));
-	            if (missingUrls.length > 0) {
-	                missingResources[type] = missingUrls;
-	            }
-	        }
-	    });
-	    return Object.keys(missingResources).length > 0 ? missingResources : undefined;
-	}
-	/**
-	 * Check if required external permissions are granted
-	 */
-	function checkExternalPermissions(requiredExternal, permissionUtils) {
-	    if (!requiredExternal) {
-	        return undefined;
-	    }
-	    const missingFetch = checkFetchPermissions(requiredExternal, permissionUtils);
-	    const missingResources = checkResourcePermissions(requiredExternal, permissionUtils);
-	    if (!missingFetch && !missingResources) {
-	        return undefined;
-	    }
-	    const missingExternal = {};
-	    if (missingFetch) {
-	        missingExternal.fetch = missingFetch;
-	    }
-	    if (missingResources) {
-	        Object.assign(missingExternal, missingResources);
-	    }
-	    return missingExternal;
-	}
-	// Throws if a field that should be a plain object but is something else.
-	// Only used for external and external.fetch, which are guarded above.
-	function validateObjectField(value, fieldPath) {
-	    if (value !== undefined) {
-	        if (typeof value !== 'object' || value === null || Array.isArray(value)) {
-	            throw new TypeError(`${fieldPath} should be an object, not ${Array.isArray(value) ? 'an array' : `a ${typeof value}`}`);
-	        }
-	    }
-	}
-	// Throws if a field that should be an array but is something else.
-	function validateArrayField(value, fieldPath) {
-	    if (value !== undefined && !Array.isArray(value)) {
-	        throw new TypeError(`${fieldPath} should be an array, not a ${typeof value}`);
-	    }
-	}
-	/**
-	 * Validates that fields in requiredPermissions have the correct types.
-	 */
-	function validatePermissionShape(requiredPermissions) {
-	    validateArrayField(requiredPermissions.scopes, 'scopes');
-	    const external = requiredPermissions.external;
-	    if (external === undefined)
-	        return;
-	    validateObjectField(external, 'external');
-	    if (external.fetch !== undefined) {
-	        validateObjectField(external.fetch, 'external.fetch');
-	        for (const type of FETCH_TYPES) {
-	            validateArrayField(external.fetch[type], `external.fetch.${type}`);
-	        }
-	    }
-	    for (const type of RESOURCE_TYPES) {
-	        validateArrayField(external[type], `external.${type}`);
-	    }
-	}
-	/**
-	 * Check if required permissions are granted
-	 * @param requiredPermissions - The permissions required to check
-	 * @param runtimePermissions - The runtime permissions from context (optional, will be fetched from view.getContext() if not provided)
-	 * @returns Promise resolving to permission check result with granted status and missing permissions
-	 */
-	async function checkPermissions(requiredPermissions, runtimePermissions) {
-	    var _a;
-	    // Early return for falsy required permissions
-	    if (!requiredPermissions) {
-	        return { granted: false, missing: null };
-	    }
-	    validatePermissionShape(requiredPermissions);
-	    // Early return for empty permissions (no requirements = all granted)
-	    if (!((_a = requiredPermissions.scopes) === null || _a === void 0 ? void 0 : _a.length) && !requiredPermissions.external) {
-	        return { granted: true, missing: null };
-	    }
-	    // If runtimePermissions is not provided, fetch it from context
-	    let permissionsToCheck = runtimePermissions;
-	    if (!permissionsToCheck) {
-	        const context = await view_1.view.getContext();
-	        permissionsToCheck = context.permissions;
-	    }
-	    const permissionUtils = createPermissionUtils(permissionsToCheck);
-	    if (!permissionUtils) {
-	        // If permissions are not available, return not granted
-	        return { granted: false, missing: null };
-	    }
-	    const missing = {};
-	    let hasAllRequiredPermissions = true;
-	    // Check scopes
-	    const missingScopes = checkScopes(requiredPermissions.scopes, permissionUtils);
-	    if (missingScopes) {
-	        missing.scopes = missingScopes;
-	        hasAllRequiredPermissions = false;
-	    }
-	    // Check external permissions
-	    const missingExternal = checkExternalPermissions(requiredPermissions.external, permissionUtils);
-	    if (missingExternal) {
-	        missing.external = missingExternal;
-	        hasAllRequiredPermissions = false;
-	    }
-	    // Note: Content permissions are not supported in the current RuntimePermissions type
-	    return {
-	        granted: hasAllRequiredPermissions,
-	        missing: hasAllRequiredPermissions ? null : missing
-	    };
-	}
-	return permissionsUtil;
-}
-
-var hasRequiredPermissions;
-
-function requirePermissions () {
-	if (hasRequiredPermissions) return permissions$1;
-	hasRequiredPermissions = 1;
-	(function (exports) {
-		Object.defineProperty(exports, "__esModule", { value: true });
-		const tslib_1 = require$$0;
-		tslib_1.__exportStar(requirePermissions$1(), exports);
-		tslib_1.__exportStar(requirePermissionsUtil(), exports); 
-	} (permissions$1));
-	return permissions$1;
-}
-
-var objectStore$1 = {};
-
-var objectStore = {};
-
-var upload = {};
-
-var hasRequiredUpload;
-
-function requireUpload () {
-	if (hasRequiredUpload) return upload;
-	hasRequiredUpload = 1;
-	(function (exports) {
-		Object.defineProperty(exports, "__esModule", { value: true });
-		exports.upload = exports.createUploadPromises = void 0;
-		const invoke_1 = requireInvoke();
-		const errors_1 = requireErrors();
-		const bridge_1 = requireBridge();
-		const callBridge = (0, bridge_1.getCallBridge)();
-		/**
-		 * Convert base64 string to Blob
-		 */
-		const base64ToBlob = (base64, mimeType) => {
-		    const byteCharacters = atob(base64);
-		    const byteNumbers = new Array(byteCharacters.length);
-		    for (let i = 0; i < byteCharacters.length; i++) {
-		        byteNumbers[i] = byteCharacters.charCodeAt(i);
-		    }
-		    const byteArray = new Uint8Array(byteNumbers);
-		    return new Blob([byteArray], { type: mimeType || 'application/octet-stream' });
-		};
-		/**
-		 * Get metadata for a blob object including size and checksum
-		 */
-		const getObjectMetadata = async (blob) => {
-		    const length = blob.size;
-		    // Calculate checksum using SubtleCrypto API
-		    const arrayBuffer = await blob.arrayBuffer();
-		    const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer);
-		    const hashArray = new Uint8Array(hashBuffer);
-		    // Convert to base64 format (required by OS API)
-		    const checksum = btoa(String.fromCharCode(...hashArray));
-		    const checksumType = 'SHA256';
-		    return {
-		        length,
-		        checksum,
-		        checksumType
-		    };
-		};
-		/**
-		 * Start individual upload operations and return array of promises
-		 * This allows tracking per-file upload progress
-		 *
-		 * @param functionKey - Configuration object containing the backend function key to filter and generate presigned URLs
-		 * @param objects - Array of Blob objects or Base64Object (with data and optional mimeType) to upload
-		 * @returns Array of individual upload promises with their associated index
-		 * @throws {BridgeAPIError} When filtering fails or upload encounters an error
-		 */
-		const createUploadPromises = async ({ functionKey, objects }) => {
-		    if (!functionKey || functionKey.length === 0) {
-		        throw new errors_1.BridgeAPIError('functionKey is required to filter and generate presigned URLs');
-		    }
-		    if (!Array.isArray(objects) || objects.length === 0) {
-		        throw new errors_1.BridgeAPIError('objects array is required and must not be empty');
-		    }
-		    // Validate and convert objects to Blobs in a single pass
-		    const blobs = objects.map((obj, index) => {
-		        if (obj instanceof Blob) {
-		            return obj;
-		        }
-		        const isBase64Object = obj && typeof obj === 'object' && 'data' in obj && typeof obj.data === 'string';
-		        if (!isBase64Object) {
-		            throw new errors_1.BridgeAPIError(`Invalid object type at index ${index}. Only Blob or Base64Object (with data string and optional mimeType) are accepted.`);
-		        }
-		        try {
-		            return base64ToBlob(obj.data, obj.mimeType);
-		        }
-		        catch (e) {
-		            throw new errors_1.BridgeAPIError(`Invalid base64 data at index ${index}. The data string must be valid base64 encoded.`);
-		        }
-		    });
-		    const allObjectMetadata = await Promise.all(blobs.map((blob) => getObjectMetadata(blob)));
-		    const presignedURLsToObjectMetadata = (await (0, invoke_1.invoke)(functionKey, {
-		        allObjectMetadata
-		    }));
-		    if (!presignedURLsToObjectMetadata || typeof presignedURLsToObjectMetadata !== 'object') {
-		        throw new errors_1.BridgeAPIError('Invalid response from functionKey');
-		    }
-		    const checksumToBlobMap = new Map();
-		    const checksumToIndexMap = new Map();
-		    blobs.forEach((blob, index) => {
-		        const metadata = allObjectMetadata[index];
-		        checksumToBlobMap.set(metadata.checksum, blob);
-		        checksumToIndexMap.set(metadata.checksum, index);
-		    });
-		    const uploadPromises = Object.entries(presignedURLsToObjectMetadata).map(([presignedUrl, metadata]) => {
-		        const { key, checksum } = metadata;
-		        const object = checksumToBlobMap.get(checksum);
-		        const index = checksumToIndexMap.get(checksum);
-		        if (index === undefined) {
-		            return {
-		                promise: Promise.resolve({
-		                    success: false,
-		                    key: key,
-		                    error: `Index not found for checksum ${checksum}`
-		                }),
-		                index: -1
-		            };
-		        }
-		        if (!object) {
-		            return {
-		                promise: Promise.resolve({
-		                    success: false,
-		                    key: key,
-		                    error: `Blob not found for checksum ${checksum}`
-		                }),
-		                index
-		            };
-		        }
-		        const uploadPromise = (async () => {
-		            try {
-		                const response = await fetch(presignedUrl, {
-		                    method: 'PUT',
-		                    body: object,
-		                    headers: {
-		                        'Content-Type': object.type || 'application/octet-stream',
-		                        'Content-Length': object.size.toString()
-		                    }
-		                });
-		                return {
-		                    success: response.ok,
-		                    key: key,
-		                    status: response.status,
-		                    error: response.ok ? undefined : `Upload failed with status ${response.status}`
-		                };
-		            }
-		            catch (error) {
-		                return {
-		                    success: false,
-		                    key: key,
-		                    status: 503,
-		                    error: error instanceof Error ? error.message : 'Upload failed'
-		                };
-		            }
-		        })();
-		        return { promise: uploadPromise, index, objectType: object.type, objectSize: object.size };
-		    });
-		    return uploadPromises;
-		};
-		exports.createUploadPromises = createUploadPromises;
-		/**
-		 * Upload multiple objects to pre-signed URLs
-		 *
-		 * @param functionKey - Configuration object containing the backend function key to filter and generate presigned URLs
-		 * @param objects - Array of Blob objects or Base64Object (with data and optional mimeType) to upload
-		 * @returns Promise resolving to UploadResult[]
-		 * @throws {BridgeAPIError} When filtering fails or upload encounters an error
-		 */
-		const upload = async ({ functionKey, objects }) => {
-		    void callBridge('trackObjectStoreAction', { action: 'upload' });
-		    const uploadPromises = await (0, exports.createUploadPromises)({ functionKey, objects });
-		    const results = await Promise.all(uploadPromises.map((item) => item.promise));
-		    return results;
-		};
-		exports.upload = upload; 
-	} (upload));
-	return upload;
-}
-
-var deleteObjects = {};
-
-var hasRequiredDeleteObjects;
-
-function requireDeleteObjects () {
-	if (hasRequiredDeleteObjects) return deleteObjects;
-	hasRequiredDeleteObjects = 1;
-	Object.defineProperty(deleteObjects, "__esModule", { value: true });
-	deleteObjects.deleteObjects = void 0;
-	const invoke_1 = requireInvoke();
-	const errors_1 = requireErrors();
-	const bridge_1 = requireBridge();
-	const callBridge = (0, bridge_1.getCallBridge)();
-	/**
-	 * Delete multiple objects
-	 *
-	 * @param functionKey - Configuration object containing the backend function key to delete objects
-	 * @param keys - Array of object keys to delete
-	 * @returns Promise<void>
-	 * @throws {BridgeAPIError} When deleting fails
-	 */
-	const deleteObjects$1 = async ({ functionKey, keys }) => {
-	    void callBridge('trackObjectStoreAction', { action: 'delete' });
-	    if (!functionKey || functionKey.length === 0) {
-	        throw new errors_1.BridgeAPIError('functionKey is required to delete objects');
-	    }
-	    if (!Array.isArray(keys) || keys.length === 0) {
-	        throw new errors_1.BridgeAPIError('keys array is required and must not be empty');
-	    }
-	    await Promise.all(keys.map(async (key) => {
-	        await (0, invoke_1.invoke)(functionKey, { key });
-	    }));
-	};
-	deleteObjects.deleteObjects = deleteObjects$1;
-	return deleteObjects;
-}
-
-var download = {};
-
-var hasRequiredDownload;
-
-function requireDownload () {
-	if (hasRequiredDownload) return download;
-	hasRequiredDownload = 1;
-	Object.defineProperty(download, "__esModule", { value: true });
-	download.download = void 0;
-	const invoke_1 = requireInvoke();
-	const errors_1 = requireErrors();
-	const bridge_1 = requireBridge();
-	const callBridge = (0, bridge_1.getCallBridge)();
-	/**
-	 * Download multiple objects from pre-signed URLs
-	 *
-	 * @param functionKey - Configuration object containing the backend function key to filter and generate download URLs
-	 * @param keys - Array of object keys to download
-	 * @returns Promise resolving to DownloadResult[]
-	 * @throws {BridgeAPIError} When filtering fails or download encounters an error
-	 */
-	const download$1 = async ({ functionKey, keys }) => {
-	    void callBridge('trackObjectStoreAction', { action: 'download' });
-	    if (!functionKey || functionKey.length === 0) {
-	        throw new errors_1.BridgeAPIError('functionKey is required to filter and generate download URLs');
-	    }
-	    if (!Array.isArray(keys) || keys.length === 0) {
-	        throw new errors_1.BridgeAPIError('keys array is required and must not be empty');
-	    }
-	    const downloadUrlsTokeys = (await (0, invoke_1.invoke)(functionKey, {
-	        keys
-	    }));
-	    if (!downloadUrlsTokeys || typeof downloadUrlsTokeys !== 'object') {
-	        throw new errors_1.BridgeAPIError('Invalid response from functionKey');
-	    }
-	    const downloadPromises = Object.entries(downloadUrlsTokeys).map(async ([downloadUrl, key]) => {
-	        try {
-	            const response = await fetch(downloadUrl, {
-	                method: 'GET'
-	            });
-	            if (!response.ok) {
-	                return {
-	                    success: false,
-	                    key: key,
-	                    status: response.status,
-	                    error: `Download failed with status ${response.status}`
-	                };
-	            }
-	            const blob = await response.blob();
-	            return {
-	                success: true,
-	                key: key,
-	                blob,
-	                status: response.status
-	            };
-	        }
-	        catch (error) {
-	            return {
-	                success: false,
-	                key: key,
-	                status: 503,
-	                error: error instanceof Error ? error.message : 'Download failed'
-	            };
-	        }
-	    });
-	    const results = await Promise.all(downloadPromises);
-	    return results;
-	};
-	download.download = download$1;
-	return download;
-}
-
-var getMetadata = {};
-
-var hasRequiredGetMetadata;
-
-function requireGetMetadata () {
-	if (hasRequiredGetMetadata) return getMetadata;
-	hasRequiredGetMetadata = 1;
-	Object.defineProperty(getMetadata, "__esModule", { value: true });
-	getMetadata.getMetadata = void 0;
-	const index_1 = requireInvoke();
-	const errors_1 = requireErrors();
-	const bridge_1 = requireBridge();
-	const callBridge = (0, bridge_1.getCallBridge)();
-	/**
-	 * Get metadata for multiple objectIds
-	 *
-	 * @param functionKey - Configuration object containing the backend function key to filter and generate object metadata
-	 * @param keys - Array of object keys to get metadata for
-	 * @returns Promise resolving to GetMetadataResult[]
-	 * @throws {BridgeAPIError} When filtering fails or download encounters an error
-	 */
-	const getMetadata$1 = async ({ functionKey, keys }) => {
-	    void callBridge('trackObjectStoreAction', { action: 'getMetadata' });
-	    if (!functionKey || functionKey.length === 0) {
-	        throw new errors_1.BridgeAPIError('functionKey is required to filter and generate object metadata');
-	    }
-	    if (!Array.isArray(keys) || keys.length === 0) {
-	        throw new errors_1.BridgeAPIError('keys array is required and must not be empty');
-	    }
-	    const results = await Promise.all(keys.map(async (key) => {
-	        const result = (await (0, index_1.invoke)(functionKey, { key }));
-	        if (!result || typeof result !== 'object') {
-	            return {
-	                key: key,
-	                error: 'Invalid response from functionKey'
-	            };
-	        }
-	        return result;
-	    }));
-	    return results;
-	};
-	getMetadata.getMetadata = getMetadata$1;
-	return getMetadata;
-}
-
-var hasRequiredObjectStore$1;
-
-function requireObjectStore$1 () {
-	if (hasRequiredObjectStore$1) return objectStore;
-	hasRequiredObjectStore$1 = 1;
-	(function (exports) {
-		Object.defineProperty(exports, "__esModule", { value: true });
-		exports.createUploadPromises = exports.objectStore = void 0;
-		const upload_1 = requireUpload();
-		Object.defineProperty(exports, "createUploadPromises", { enumerable: true, get: function () { return upload_1.createUploadPromises; } });
-		const deleteObjects_1 = requireDeleteObjects();
-		const download_1 = requireDownload();
-		const getMetadata_1 = requireGetMetadata();
-		exports.objectStore = {
-		    upload: upload_1.upload,
-		    download: download_1.download,
-		    getMetadata: getMetadata_1.getMetadata,
-		    delete: deleteObjects_1.deleteObjects
-		}; 
-	} (objectStore));
-	return objectStore;
-}
-
-var types = {};
-
-var hasRequiredTypes;
-
-function requireTypes () {
-	if (hasRequiredTypes) return types;
-	hasRequiredTypes = 1;
-	Object.defineProperty(types, "__esModule", { value: true });
-	return types;
-}
-
-var hasRequiredObjectStore;
-
-function requireObjectStore () {
-	if (hasRequiredObjectStore) return objectStore$1;
-	hasRequiredObjectStore = 1;
-	(function (exports) {
-		Object.defineProperty(exports, "__esModule", { value: true });
-		const tslib_1 = require$$0;
-		tslib_1.__exportStar(requireObjectStore$1(), exports);
-		tslib_1.__exportStar(requireTypes(), exports); 
-	} (objectStore$1));
-	return objectStore$1;
-}
-
-var featureFlags$1 = {};
-
-var featureFlags = {};
-
-var evaluator = {};
-
-var hasRequiredEvaluator;
-
-function requireEvaluator () {
-	if (hasRequiredEvaluator) return evaluator;
-	hasRequiredEvaluator = 1;
-	Object.defineProperty(evaluator, "__esModule", { value: true });
-	evaluator.Evaluator = void 0;
-	class Evaluator {
-	    constructor(results) {
-	        this.results = results;
-	    }
-	    checkFlag(flagName, defaultValue) {
-	        if (!this.results || !this.results.feature_flags) {
-	            // fallback to default value
-	            return defaultValue;
-	        }
-	        const featureFlags = this.results.feature_flags;
-	        let hashedValue = '';
-	        try {
-	            hashedValue = this.getHashedValue(flagName);
-	        }
-	        catch (err) {
-	            // eslint-disable-next-line no-console
-	            console.error('Unexpected error occurred while evaluating flag ', err);
-	            // If hashing fails for any reason, do not throw; safely return default
-	            return defaultValue;
-	        }
-	        if (!hashedValue) {
-	            return defaultValue;
-	        }
-	        const evaluatedFlag = featureFlags[hashedValue];
-	        if (evaluatedFlag) {
-	            // if flag being checked is disabled
-	            if (evaluatedFlag.disabled) {
-	                return false;
-	            }
-	            return evaluatedFlag.value;
-	        }
-	        // fallback to default value
-	        return defaultValue;
-	    }
-	    shutDown() {
-	        this.results = undefined;
-	    }
-	    // To be Updated with proper hashing function
-	    getHashedValue(flagName) {
-	        // Defensive: ensure stable, non-throwing behavior for unexpected inputs
-	        if (typeof flagName !== 'string') {
-	            return '';
-	        }
-	        const input = flagName.trim();
-	        if (input.length === 0) {
-	            return '';
-	        }
-	        // djb2 hashing (unsigned 32-bit), matches server-side encoding
-	        let hash = 5381;
-	        for (let i = 0; i < input.length; i += 1) {
-	            const charCode = input.charCodeAt(i);
-	            hash = (hash << 5) + hash + charCode; // hash * 33 + c
-	            hash |= 0; // force 32-bit signed int
-	        }
-	        // Convert to unsigned 32-bit and return as a decimal string
-	        return (hash >>> 0).toString();
-	    }
-	}
-	evaluator.Evaluator = Evaluator;
-	return evaluator;
-}
-
-var initFeatureFlags = {};
-
-var hasRequiredInitFeatureFlags;
-
-function requireInitFeatureFlags () {
-	if (hasRequiredInitFeatureFlags) return initFeatureFlags;
-	hasRequiredInitFeatureFlags = 1;
-	Object.defineProperty(initFeatureFlags, "__esModule", { value: true });
-	initFeatureFlags.initFeatureFlags = void 0;
-	const bridge_1 = requireBridge();
-	const errors_1 = requireErrors();
-	const utils_1 = requireUtils();
-	const maxOps = 500;
-	const intervalInMs = 1000 * 25;
-	const callBridge = (0, bridge_1.getCallBridge)();
-	const validatePayload = (payload) => {
-	    if (!payload || !payload.user || !payload.config) {
-	        throw new errors_1.BridgeAPIError('Missing required parameters. Parameter user is required in the payload.');
-	    }
-	    if (!payload.config.environment || !['development', 'staging', 'production'].includes(payload.config.environment)) {
-	        throw new errors_1.BridgeAPIError('Invalid environment. Valid environments are: development, staging, production');
-	    }
-	    if (Object.values(payload).some((val) => typeof val === 'function')) {
-	        throw new errors_1.BridgeAPIError('Passing functions as part of the payload is not supported!');
-	    }
-	};
-	const _initFeatureFlags = (payload) => {
-	    validatePayload(payload);
-	    return callBridge('initFeatureFlags', { user: payload.user, config: payload.config });
-	};
-	initFeatureFlags.initFeatureFlags = (0, utils_1.withRateLimiter)(_initFeatureFlags, maxOps, intervalInMs, `Feature flags initialisation calls are rate limited at ${maxOps}req/${intervalInMs / 1000}s`);
-	return initFeatureFlags;
-}
-
-var hasRequiredFeatureFlags$1;
-
-function requireFeatureFlags$1 () {
-	if (hasRequiredFeatureFlags$1) return featureFlags;
-	hasRequiredFeatureFlags$1 = 1;
-	Object.defineProperty(featureFlags, "__esModule", { value: true });
-	featureFlags.FeatureFlags = void 0;
-	const evaluator_1 = requireEvaluator();
-	const initFeatureFlags_1 = requireInitFeatureFlags();
-	class FeatureFlags {
-	    constructor() {
-	        this.initialized = false;
-	    }
-	    /**
-	     * Initialize the feature flags client
-	     */
-	    async initialize(user, config = { environment: 'development' }) {
-	        if (this.isInitialized()) {
-	            return;
-	        }
-	        if (!(config === null || config === void 0 ? void 0 : config.environment)) {
-	            config.environment = 'development';
-	        }
-	        const result = await (0, initFeatureFlags_1.initFeatureFlags)({ user, config });
-	        this.initialized = true;
-	        this.evaluator = new evaluator_1.Evaluator(result);
-	    }
-	    /**
-	     * Check if a feature flag is enabled for the user
-	     */
-	    checkFlag(flagName, defaultValue = false) {
-	        if (!this.isInitialized() || !this.evaluator) {
-	            throw new Error('FeatureFlags not initialized. Call initialize() first.');
-	        }
-	        return this.evaluator.checkFlag(flagName, defaultValue);
-	    }
-	    /**
-	     * Shutdown the feature flags client
-	     */
-	    shutdown() {
-	        if (!this.isInitialized()) {
-	            return;
-	        }
-	        this.initialized = false;
-	        this.evaluator.shutDown();
-	    }
-	    isInitialized() {
-	        return this.initialized;
-	    }
-	}
-	featureFlags.FeatureFlags = FeatureFlags;
-	return featureFlags;
-}
-
-var hasRequiredFeatureFlags;
-
-function requireFeatureFlags () {
-	if (hasRequiredFeatureFlags) return featureFlags$1;
-	hasRequiredFeatureFlags = 1;
-	(function (exports) {
-		Object.defineProperty(exports, "__esModule", { value: true });
-		exports.FeatureFlags = void 0;
-		var featureFlags_1 = requireFeatureFlags$1();
-		Object.defineProperty(exports, "FeatureFlags", { enumerable: true, get: function () { return featureFlags_1.FeatureFlags; } }); 
-	} (featureFlags$1));
-	return featureFlags$1;
-}
-
-var frontendCustomMetrics$1 = {};
-
-var frontendCustomMetrics = {};
-
-var hasRequiredFrontendCustomMetrics$1;
-
-function requireFrontendCustomMetrics$1 () {
-	if (hasRequiredFrontendCustomMetrics$1) return frontendCustomMetrics;
-	hasRequiredFrontendCustomMetrics$1 = 1;
-	Object.defineProperty(frontendCustomMetrics, "__esModule", { value: true });
-	frontendCustomMetrics.frontendCustomMetrics = void 0;
-	const bridge_1 = requireBridge();
-	const errors_1 = requireErrors();
-	const callBridge = (0, bridge_1.getCallBridge)();
-	const emit = async (customMetricName, value) => {
-	    await callBridge('emitFrontendCustomMetric', {
-	        customMetricName,
-	        value
-	    });
-	};
-	const MAX_METRIC_NAME_LENGTH = 50;
-	// Must start and end with an alphanumeric character and may only contain
-	// letters, numbers, dots (.) and hyphens (-) in between.
-	const METRIC_NAME_REGEX = /^[a-zA-Z0-9]([a-zA-Z0-9.-]*[a-zA-Z0-9])?$/;
-	/**
-	 * Validates a custom metric name against the same rules enforced when
-	 * registering a metric in the developer console. Throws synchronously so
-	 * developer errors fail fast without a wasted bridge round-trip.
-	 *
-	 * Note: this is a best-effort, client-side convenience check. The metric name
-	 * must still match a custom metric registered in the developer console, which
-	 * remains the source of truth and is validated by the backend.
-	 */
-	const validateMetricName = (name) => {
-	    if (name.trim().length === 0) {
-	        throw new errors_1.BridgeAPIError('Custom metric name cannot be empty');
-	    }
-	    if (name.length > MAX_METRIC_NAME_LENGTH) {
-	        throw new errors_1.BridgeAPIError(`Custom metric name cannot exceed ${MAX_METRIC_NAME_LENGTH} characters`);
-	    }
-	    if (!METRIC_NAME_REGEX.test(name)) {
-	        throw new errors_1.BridgeAPIError('Custom metric name must start and end with alphanumeric characters and can only contain letters, numbers, dots (.), and hyphens (-)');
-	    }
-	    if (name.includes('..') || name.includes('--')) {
-	        throw new errors_1.BridgeAPIError('Custom metric name cannot contain consecutive dots or hyphens');
-	    }
-	};
-	const counter = (name) => {
-	    validateMetricName(name);
-	    return {
-	        incr: () => emit(name, 1),
-	        incrBy: (value) => {
-	            if (value <= 0) {
-	                throw new errors_1.BridgeAPIError('Counter value must be a positive number');
-	            }
-	            return emit(name, value);
-	        }
-	    };
-	};
-	/**
-	 * Public namespace for emitting Forge frontend custom metrics from a Forge UI app.
-	 *
-	 * @example
-	 * import { frontendCustomMetrics } from '@forge/bridge';
-	 * const c = frontendCustomMetrics.counter('button-click');
-	 * c.incr();        // increment by 1
-	 * c.incrBy(5);     // increment by 5 (rejects if value <= 0)
-	 */
-	frontendCustomMetrics.frontendCustomMetrics = { counter };
-	return frontendCustomMetrics;
-}
-
-var hasRequiredFrontendCustomMetrics;
-
-function requireFrontendCustomMetrics () {
-	if (hasRequiredFrontendCustomMetrics) return frontendCustomMetrics$1;
-	hasRequiredFrontendCustomMetrics = 1;
-	(function (exports) {
-		Object.defineProperty(exports, "__esModule", { value: true });
-		const tslib_1 = require$$0;
-		tslib_1.__exportStar(requireFrontendCustomMetrics$1(), exports); 
-	} (frontendCustomMetrics$1));
-	return frontendCustomMetrics$1;
-}
-
-var hasRequiredOut;
-
-function requireOut () {
-	if (hasRequiredOut) return out;
-	hasRequiredOut = 1;
-	(function (exports) {
-		Object.defineProperty(exports, "__esModule", { value: true });
-		exports.i18n = exports.NavigationTarget = void 0;
-		const tslib_1 = require$$0;
-		var targets_1 = requireTargets();
-		Object.defineProperty(exports, "NavigationTarget", { enumerable: true, get: function () { return targets_1.NavigationTarget; } });
-		tslib_1.__exportStar(requireInvoke(), exports);
-		tslib_1.__exportStar(requireInvokeEndpoint(), exports);
-		tslib_1.__exportStar(requireView(), exports);
-		tslib_1.__exportStar(requireRouter(), exports);
-		tslib_1.__exportStar(requireModal(), exports);
-		tslib_1.__exportStar(requireFetch(), exports);
-		tslib_1.__exportStar(requireRequestTeamworkGraph(), exports);
-		tslib_1.__exportStar(requireFlag(), exports);
-		tslib_1.__exportStar(requireEvents(), exports);
-		tslib_1.__exportStar(requireRealtime(), exports);
-		tslib_1.__exportStar(requireRovo(), exports);
-		exports.i18n = tslib_1.__importStar(requireI18n());
-		tslib_1.__exportStar(requirePermissions(), exports);
-		tslib_1.__exportStar(requireObjectStore(), exports);
-		tslib_1.__exportStar(requireFeatureFlags(), exports);
-		tslib_1.__exportStar(requireFrontendCustomMetrics(), exports); 
-	} (out));
-	return out;
-}
-
-var outExports = requireOut();
-
-const App = () => {
-  const [text, setText] = reactExports.useState('Loading...');
-  reactExports.useEffect(() => {
-    outExports.invoke('save', {
-      id: 'ui'
-    }).then(() => outExports.invoke('summary')).then(setText);
-  }, []);
-  return /*#__PURE__*/React.createElement(outExports$1.Text, null, text);
-};
-ForgeReconciler.render(/*#__PURE__*/React.createElement(App, null));
+	default: index
+}, [iframeResizerExports]);

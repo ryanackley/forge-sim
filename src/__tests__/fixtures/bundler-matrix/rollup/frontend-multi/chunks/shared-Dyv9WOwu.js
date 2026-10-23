@@ -12,7 +12,7 @@ function getAugmentedNamespace(n) {
 			var isInstance = false;
       try {
         isInstance = this instanceof a;
-      } catch (e) {}
+      } catch {}
 			if (isInstance) {
         return Reflect.construct(f, arguments, this.constructor);
 			}
@@ -87,7 +87,7 @@ function requireReact () {
 var reactExports = requireReact();
 var React = /*@__PURE__*/getDefaultExportFromCjs(reactExports);
 
-var out$4 = {};
+var out$3 = {};
 
 /******************************************************************************
 Copyright (c) Microsoft Corporation.
@@ -527,19 +527,19 @@ var require$$0 = /*@__PURE__*/getAugmentedNamespace(tslib_es6$1);
 
 var useProductContext = {};
 
-var out$3 = {};
+var out$2 = {};
 
-var targets$1 = {};
+var targets = {};
 
-var hasRequiredTargets$1;
+var hasRequiredTargets;
 
-function requireTargets$1 () {
-	if (hasRequiredTargets$1) return targets$1;
-	hasRequiredTargets$1 = 1;
-	Object.defineProperty(targets$1, "__esModule", { value: true });
-	targets$1.NavigationTarget = void 0;
+function requireTargets () {
+	if (hasRequiredTargets) return targets;
+	hasRequiredTargets = 1;
+	Object.defineProperty(targets, "__esModule", { value: true });
+	targets.NavigationTarget = void 0;
 	// Constants for developer convenience. The JS Docs below will also be displayed in the IDE when the developer is using this object.
-	targets$1.NavigationTarget = {
+	targets.NavigationTarget = {
 	    /**
 	     * The view page for pages, blogs and custom content. Takes a contentId to identify the content.
 	     */
@@ -577,38 +577,38 @@ function requireTargets$1 () {
 	     */
 	    ProjectSettingsDetails: 'projectSettingsDetails'
 	};
-	return targets$1;
+	return targets;
 }
 
-var invoke$3 = {};
+var invoke$1 = {};
 
-var invoke$2 = {};
+var invoke = {};
 
-var bridge$1 = {};
+var bridge = {};
 
-var errors$1 = {};
+var errors = {};
 
-var hasRequiredErrors$1;
+var hasRequiredErrors;
 
-function requireErrors$1 () {
-	if (hasRequiredErrors$1) return errors$1;
-	hasRequiredErrors$1 = 1;
-	Object.defineProperty(errors$1, "__esModule", { value: true });
-	errors$1.BridgeAPIError = void 0;
+function requireErrors () {
+	if (hasRequiredErrors) return errors;
+	hasRequiredErrors = 1;
+	Object.defineProperty(errors, "__esModule", { value: true });
+	errors.BridgeAPIError = void 0;
 	class BridgeAPIError extends Error {
 	}
-	errors$1.BridgeAPIError = BridgeAPIError;
-	return errors$1;
+	errors.BridgeAPIError = BridgeAPIError;
+	return errors;
 }
 
-var hasRequiredBridge$1;
+var hasRequiredBridge;
 
-function requireBridge$1 () {
-	if (hasRequiredBridge$1) return bridge$1;
-	hasRequiredBridge$1 = 1;
-	Object.defineProperty(bridge$1, "__esModule", { value: true });
-	bridge$1.getCallBridge = void 0;
-	const errors_1 = requireErrors$1();
+function requireBridge () {
+	if (hasRequiredBridge) return bridge;
+	hasRequiredBridge = 1;
+	Object.defineProperty(bridge, "__esModule", { value: true });
+	bridge.getCallBridge = void 0;
+	const errors_1 = requireErrors();
 	function isBridgeAvailable(bridge) {
 	    return !!(bridge === null || bridge === void 0 ? void 0 : bridge.callBridge);
 	}
@@ -621,20 +621,20 @@ function requireBridge$1 () {
 	    }
 	    return globalThis.__bridge.callBridge;
 	};
-	bridge$1.getCallBridge = getCallBridge;
-	return bridge$1;
+	bridge.getCallBridge = getCallBridge;
+	return bridge;
 }
 
-var utils$2 = {};
+var utils$1 = {};
 
-var hasRequiredUtils$2;
+var hasRequiredUtils$1;
 
-function requireUtils$2 () {
-	if (hasRequiredUtils$2) return utils$2;
-	hasRequiredUtils$2 = 1;
-	Object.defineProperty(utils$2, "__esModule", { value: true });
-	utils$2.withRateLimiter = void 0;
-	const errors_1 = requireErrors$1();
+function requireUtils$1 () {
+	if (hasRequiredUtils$1) return utils$1;
+	hasRequiredUtils$1 = 1;
+	Object.defineProperty(utils$1, "__esModule", { value: true });
+	utils$1.withRateLimiter = void 0;
+	const errors_1 = requireErrors();
 	const withRateLimiter = (wrappedFn, maxOps, intervalInMs, exceededErrorMessage) => {
 	    let start = Date.now();
 	    let numOps = 0;
@@ -652,21 +652,21 @@ function requireUtils$2 () {
 	        return wrappedFn(...args);
 	    };
 	};
-	utils$2.withRateLimiter = withRateLimiter;
-	return utils$2;
+	utils$1.withRateLimiter = withRateLimiter;
+	return utils$1;
 }
 
-var hasRequiredInvoke$3;
+var hasRequiredInvoke$1;
 
-function requireInvoke$3 () {
-	if (hasRequiredInvoke$3) return invoke$2;
-	hasRequiredInvoke$3 = 1;
-	Object.defineProperty(invoke$2, "__esModule", { value: true });
-	invoke$2.invoke = invoke;
-	invoke$2.makeInvoke = makeInvoke;
-	const bridge_1 = requireBridge$1();
-	const errors_1 = requireErrors$1();
-	const utils_1 = requireUtils$2();
+function requireInvoke$1 () {
+	if (hasRequiredInvoke$1) return invoke;
+	hasRequiredInvoke$1 = 1;
+	Object.defineProperty(invoke, "__esModule", { value: true });
+	invoke.invoke = invoke$1;
+	invoke.makeInvoke = makeInvoke;
+	const bridge_1 = requireBridge();
+	const errors_1 = requireErrors();
+	const utils_1 = requireUtils$1();
 	const callBridge = (0, bridge_1.getCallBridge)();
 	const validatePayload = (payload) => {
 	    if (!payload)
@@ -688,7 +688,7 @@ function requireInvoke$3 () {
 	/**
 	 * Calls a backend resolver function by key.
 	 */
-	function invoke(functionKey, payload, metadata) {
+	function invoke$1(functionKey, payload, metadata) {
 	    return limitedInvoke(functionKey, payload, metadata);
 	}
 	/**
@@ -697,41 +697,41 @@ function requireInvoke$3 () {
 	 * @returns An invoke function that can be used to call backend functions.
 	 */
 	function makeInvoke() {
-	    return invoke;
+	    return invoke$1;
 	}
-	return invoke$2;
+	return invoke;
 }
 
-var hasRequiredInvoke$2;
+var hasRequiredInvoke;
 
-function requireInvoke$2 () {
-	if (hasRequiredInvoke$2) return invoke$3;
-	hasRequiredInvoke$2 = 1;
+function requireInvoke () {
+	if (hasRequiredInvoke) return invoke$1;
+	hasRequiredInvoke = 1;
 	(function (exports) {
 		Object.defineProperty(exports, "__esModule", { value: true });
 		const tslib_1 = require$$0;
-		tslib_1.__exportStar(requireInvoke$3(), exports); 
-	} (invoke$3));
-	return invoke$3;
+		tslib_1.__exportStar(requireInvoke$1(), exports); 
+	} (invoke$1));
+	return invoke$1;
 }
 
-var invokeEndpoint$3 = {};
+var invokeEndpoint$1 = {};
 
-var invokeRemote$1 = {};
+var invokeRemote = {};
 
-var invokeEndpoint$2 = {};
+var invokeEndpoint = {};
 
-var hasRequiredInvokeEndpoint$3;
+var hasRequiredInvokeEndpoint$1;
 
-function requireInvokeEndpoint$3 () {
-	if (hasRequiredInvokeEndpoint$3) return invokeEndpoint$2;
-	hasRequiredInvokeEndpoint$3 = 1;
-	Object.defineProperty(invokeEndpoint$2, "__esModule", { value: true });
-	invokeEndpoint$2.InvokeType = void 0;
-	invokeEndpoint$2._invokeEndpointFn = _invokeEndpointFn;
-	const bridge_1 = requireBridge$1();
-	const errors_1 = requireErrors$1();
-	const utils_1 = requireUtils$2();
+function requireInvokeEndpoint$1 () {
+	if (hasRequiredInvokeEndpoint$1) return invokeEndpoint;
+	hasRequiredInvokeEndpoint$1 = 1;
+	Object.defineProperty(invokeEndpoint, "__esModule", { value: true });
+	invokeEndpoint.InvokeType = void 0;
+	invokeEndpoint._invokeEndpointFn = _invokeEndpointFn;
+	const bridge_1 = requireBridge();
+	const errors_1 = requireErrors();
+	const utils_1 = requireUtils$1();
 	const MAX_NUM_OPERATIONS = 500;
 	const OPERATION_INTERVAL_SEC = 25;
 	const OPERATION_INTERVAL_MS = 1000 * OPERATION_INTERVAL_SEC;
@@ -739,7 +739,7 @@ function requireInvokeEndpoint$3 () {
 	(function (InvokeType) {
 	    InvokeType["REMOTE"] = "Remote";
 	    InvokeType["SERVICE"] = "Container";
-	})(InvokeType || (invokeEndpoint$2.InvokeType = InvokeType = {}));
+	})(InvokeType || (invokeEndpoint.InvokeType = InvokeType = {}));
 	const callBridge = (0, bridge_1.getCallBridge)();
 	const validatePayload = (payload) => {
 	    if (!payload)
@@ -770,96 +770,96 @@ function requireInvokeEndpoint$3 () {
 	    const invokeEndpointFn = _setupInvokeEndpointFn(invokeType);
 	    return (0, utils_1.withRateLimiter)(invokeEndpointFn, MAX_NUM_OPERATIONS, OPERATION_INTERVAL_MS, `${invokeType} invocation calls are rate limited at ${MAX_NUM_OPERATIONS}/${OPERATION_INTERVAL_SEC}s`);
 	}
-	return invokeEndpoint$2;
+	return invokeEndpoint;
 }
 
-var hasRequiredInvokeRemote$1;
+var hasRequiredInvokeRemote;
 
-function requireInvokeRemote$1 () {
-	if (hasRequiredInvokeRemote$1) return invokeRemote$1;
-	hasRequiredInvokeRemote$1 = 1;
-	Object.defineProperty(invokeRemote$1, "__esModule", { value: true });
-	invokeRemote$1.invokeRemote = void 0;
-	const invoke_endpoint_1 = requireInvokeEndpoint$3();
-	const invokeRemote = (input) => {
+function requireInvokeRemote () {
+	if (hasRequiredInvokeRemote) return invokeRemote;
+	hasRequiredInvokeRemote = 1;
+	Object.defineProperty(invokeRemote, "__esModule", { value: true });
+	invokeRemote.invokeRemote = void 0;
+	const invoke_endpoint_1 = requireInvokeEndpoint$1();
+	const invokeRemote$1 = (input) => {
 	    const invokeEndpoint = (0, invoke_endpoint_1._invokeEndpointFn)(invoke_endpoint_1.InvokeType.REMOTE);
 	    return invokeEndpoint(input);
 	};
-	invokeRemote$1.invokeRemote = invokeRemote;
-	return invokeRemote$1;
+	invokeRemote.invokeRemote = invokeRemote$1;
+	return invokeRemote;
 }
 
-var invokeService$1 = {};
+var invokeService = {};
 
-var hasRequiredInvokeService$1;
+var hasRequiredInvokeService;
 
-function requireInvokeService$1 () {
-	if (hasRequiredInvokeService$1) return invokeService$1;
-	hasRequiredInvokeService$1 = 1;
-	Object.defineProperty(invokeService$1, "__esModule", { value: true });
-	invokeService$1.invokeService = void 0;
-	const invoke_endpoint_1 = requireInvokeEndpoint$3();
-	const invokeService = (input) => {
+function requireInvokeService () {
+	if (hasRequiredInvokeService) return invokeService;
+	hasRequiredInvokeService = 1;
+	Object.defineProperty(invokeService, "__esModule", { value: true });
+	invokeService.invokeService = void 0;
+	const invoke_endpoint_1 = requireInvokeEndpoint$1();
+	const invokeService$1 = (input) => {
 	    const invokeEndpoint = (0, invoke_endpoint_1._invokeEndpointFn)(invoke_endpoint_1.InvokeType.SERVICE);
 	    return invokeEndpoint(input);
 	};
-	invokeService$1.invokeService = invokeService;
-	return invokeService$1;
+	invokeService.invokeService = invokeService$1;
+	return invokeService;
 }
 
-var hasRequiredInvokeEndpoint$2;
+var hasRequiredInvokeEndpoint;
 
-function requireInvokeEndpoint$2 () {
-	if (hasRequiredInvokeEndpoint$2) return invokeEndpoint$3;
-	hasRequiredInvokeEndpoint$2 = 1;
+function requireInvokeEndpoint () {
+	if (hasRequiredInvokeEndpoint) return invokeEndpoint$1;
+	hasRequiredInvokeEndpoint = 1;
 	(function (exports) {
 		Object.defineProperty(exports, "__esModule", { value: true });
 		const tslib_1 = require$$0;
-		tslib_1.__exportStar(requireInvokeRemote$1(), exports);
-		tslib_1.__exportStar(requireInvokeService$1(), exports); 
-	} (invokeEndpoint$3));
-	return invokeEndpoint$3;
+		tslib_1.__exportStar(requireInvokeRemote(), exports);
+		tslib_1.__exportStar(requireInvokeService(), exports); 
+	} (invokeEndpoint$1));
+	return invokeEndpoint$1;
 }
 
-var view$3 = {};
+var view$1 = {};
 
-var view$2 = {};
+var view = {};
 
-var submit$1 = {};
+var submit = {};
 
-var hasRequiredSubmit$1;
+var hasRequiredSubmit;
 
-function requireSubmit$1 () {
-	if (hasRequiredSubmit$1) return submit$1;
-	hasRequiredSubmit$1 = 1;
-	Object.defineProperty(submit$1, "__esModule", { value: true });
-	submit$1.submit = void 0;
-	const bridge_1 = requireBridge$1();
-	const errors_1 = requireErrors$1();
+function requireSubmit () {
+	if (hasRequiredSubmit) return submit;
+	hasRequiredSubmit = 1;
+	Object.defineProperty(submit, "__esModule", { value: true });
+	submit.submit = void 0;
+	const bridge_1 = requireBridge();
+	const errors_1 = requireErrors();
 	const callBridge = (0, bridge_1.getCallBridge)();
-	const submit = async (payload) => {
+	const submit$1 = async (payload) => {
 	    const success = await callBridge('submit', payload);
 	    if (success === false) {
 	        throw new errors_1.BridgeAPIError("this resource's view is not submittable.");
 	    }
 	};
-	submit$1.submit = submit;
-	return submit$1;
+	submit.submit = submit$1;
+	return submit;
 }
 
-var close$1 = {};
+var close = {};
 
-var hasRequiredClose$1;
+var hasRequiredClose;
 
-function requireClose$1 () {
-	if (hasRequiredClose$1) return close$1;
-	hasRequiredClose$1 = 1;
-	Object.defineProperty(close$1, "__esModule", { value: true });
-	close$1.close = void 0;
-	const bridge_1 = requireBridge$1();
-	const errors_1 = requireErrors$1();
+function requireClose () {
+	if (hasRequiredClose) return close;
+	hasRequiredClose = 1;
+	Object.defineProperty(close, "__esModule", { value: true });
+	close.close = void 0;
+	const bridge_1 = requireBridge();
+	const errors_1 = requireErrors();
 	const callBridge = (0, bridge_1.getCallBridge)();
-	const close = async (payload) => {
+	const close$1 = async (payload) => {
 	    try {
 	        const success = await callBridge('close', payload);
 	        // TODO: Modify @atlassian/forge-ui to throw if close fails instead of returning boolean DEVO-680
@@ -871,21 +871,21 @@ function requireClose$1 () {
 	        throw new errors_1.BridgeAPIError("this resource's view is not closable.");
 	    }
 	};
-	close$1.close = close;
-	return close$1;
+	close.close = close$1;
+	return close;
 }
 
-var open$3 = {};
+var open$1 = {};
 
-var hasRequiredOpen$3;
+var hasRequiredOpen$1;
 
-function requireOpen$3 () {
-	if (hasRequiredOpen$3) return open$3;
-	hasRequiredOpen$3 = 1;
-	Object.defineProperty(open$3, "__esModule", { value: true });
-	open$3.open = void 0;
-	const bridge_1 = requireBridge$1();
-	const errors_1 = requireErrors$1();
+function requireOpen$1 () {
+	if (hasRequiredOpen$1) return open$1;
+	hasRequiredOpen$1 = 1;
+	Object.defineProperty(open$1, "__esModule", { value: true });
+	open$1.open = void 0;
+	const bridge_1 = requireBridge();
+	const errors_1 = requireErrors();
 	const callBridge = (0, bridge_1.getCallBridge)();
 	const open = async () => {
 	    try {
@@ -899,57 +899,57 @@ function requireOpen$3 () {
 	        throw new errors_1.BridgeAPIError("this resource's view is not openable.");
 	    }
 	};
-	open$3.open = open;
-	return open$3;
+	open$1.open = open;
+	return open$1;
 }
 
-var refresh$1 = {};
+var refresh = {};
 
-var hasRequiredRefresh$1;
+var hasRequiredRefresh;
 
-function requireRefresh$1 () {
-	if (hasRequiredRefresh$1) return refresh$1;
-	hasRequiredRefresh$1 = 1;
-	Object.defineProperty(refresh$1, "__esModule", { value: true });
-	refresh$1.refresh = void 0;
-	const bridge_1 = requireBridge$1();
-	const errors_1 = requireErrors$1();
+function requireRefresh () {
+	if (hasRequiredRefresh) return refresh;
+	hasRequiredRefresh = 1;
+	Object.defineProperty(refresh, "__esModule", { value: true });
+	refresh.refresh = void 0;
+	const bridge_1 = requireBridge();
+	const errors_1 = requireErrors();
 	const callBridge = (0, bridge_1.getCallBridge)();
-	const refresh = async (payload) => {
+	const refresh$1 = async (payload) => {
 	    const success = await callBridge('refresh', payload);
 	    if (success === false) {
 	        throw new errors_1.BridgeAPIError("this resource's view is not refreshable.");
 	    }
 	};
-	refresh$1.refresh = refresh;
-	return refresh$1;
+	refresh.refresh = refresh$1;
+	return refresh;
 }
 
-var createHistory$1 = {};
+var createHistory = {};
 
-var hasRequiredCreateHistory$1;
+var hasRequiredCreateHistory;
 
-function requireCreateHistory$1 () {
-	if (hasRequiredCreateHistory$1) return createHistory$1;
-	hasRequiredCreateHistory$1 = 1;
-	Object.defineProperty(createHistory$1, "__esModule", { value: true });
-	createHistory$1.createHistory = void 0;
-	const bridge_1 = requireBridge$1();
+function requireCreateHistory () {
+	if (hasRequiredCreateHistory) return createHistory;
+	hasRequiredCreateHistory = 1;
+	Object.defineProperty(createHistory, "__esModule", { value: true });
+	createHistory.createHistory = void 0;
+	const bridge_1 = requireBridge();
 	const callBridge = (0, bridge_1.getCallBridge)();
-	const createHistory = async () => {
+	const createHistory$1 = async () => {
 	    const history = await callBridge('createHistory');
 	    history.listen((location) => {
 	        history.location = location;
 	    });
 	    return history;
 	};
-	createHistory$1.createHistory = createHistory;
-	return createHistory$1;
+	createHistory.createHistory = createHistory$1;
+	return createHistory;
 }
 
-var getContext$1 = {};
+var getContext = {};
 
-var out$2 = {};
+var out$1 = {};
 
 var constants$1 = {};
 
@@ -3021,22 +3021,22 @@ function requireModuleI18nHelper () {
 	return moduleI18nHelper;
 }
 
-var types$3 = {};
+var types$2 = {};
 
-var hasRequiredTypes$3;
+var hasRequiredTypes$2;
 
-function requireTypes$3 () {
-	if (hasRequiredTypes$3) return types$3;
-	hasRequiredTypes$3 = 1;
-	Object.defineProperty(types$3, "__esModule", { value: true });
-	return types$3;
+function requireTypes$2 () {
+	if (hasRequiredTypes$2) return types$2;
+	hasRequiredTypes$2 = 1;
+	Object.defineProperty(types$2, "__esModule", { value: true });
+	return types$2;
 }
 
-var hasRequiredOut$4;
+var hasRequiredOut$3;
 
-function requireOut$4 () {
-	if (hasRequiredOut$4) return out$2;
-	hasRequiredOut$4 = 1;
+function requireOut$3 () {
+	if (hasRequiredOut$3) return out$1;
+	hasRequiredOut$3 = 1;
 	(function (exports) {
 		Object.defineProperty(exports, "__esModule", { value: true });
 		exports.getI18nSupportedModuleEntries = exports.extractI18nPropertiesFromModules = exports.extractI18nKeysFromModules = exports.getTranslationValue = void 0;
@@ -3051,22 +3051,22 @@ function requireOut$4 () {
 		Object.defineProperty(exports, "extractI18nKeysFromModules", { enumerable: true, get: function () { return moduleI18nHelper_1.extractI18nKeysFromModules; } });
 		Object.defineProperty(exports, "extractI18nPropertiesFromModules", { enumerable: true, get: function () { return moduleI18nHelper_1.extractI18nPropertiesFromModules; } });
 		Object.defineProperty(exports, "getI18nSupportedModuleEntries", { enumerable: true, get: function () { return moduleI18nHelper_1.getI18nSupportedModuleEntries; } });
-		tslib_1.__exportStar(requireTypes$3(), exports); 
-	} (out$2));
-	return out$2;
+		tslib_1.__exportStar(requireTypes$2(), exports); 
+	} (out$1));
+	return out$1;
 }
 
-var hasRequiredGetContext$1;
+var hasRequiredGetContext;
 
-function requireGetContext$1 () {
-	if (hasRequiredGetContext$1) return getContext$1;
-	hasRequiredGetContext$1 = 1;
-	Object.defineProperty(getContext$1, "__esModule", { value: true });
-	getContext$1.getContext = void 0;
-	const bridge_1 = requireBridge$1();
-	const i18n_1 = requireOut$4();
+function requireGetContext () {
+	if (hasRequiredGetContext) return getContext;
+	hasRequiredGetContext = 1;
+	Object.defineProperty(getContext, "__esModule", { value: true });
+	getContext.getContext = void 0;
+	const bridge_1 = requireBridge();
+	const i18n_1 = requireOut$3();
 	const callBridge = (0, bridge_1.getCallBridge)();
-	const getContext = async () => {
+	const getContext$1 = async () => {
 	    var _a;
 	    const context = await callBridge('getContext');
 	    const locale = context === null || context === void 0 ? void 0 : context.locale;
@@ -3077,23 +3077,23 @@ function requireGetContext$1 () {
 	    }
 	    return context;
 	};
-	getContext$1.getContext = getContext;
-	return getContext$1;
+	getContext.getContext = getContext$1;
+	return getContext;
 }
 
-var changeWindowTitle$1 = {};
+var changeWindowTitle = {};
 
-var hasRequiredChangeWindowTitle$1;
+var hasRequiredChangeWindowTitle;
 
-function requireChangeWindowTitle$1 () {
-	if (hasRequiredChangeWindowTitle$1) return changeWindowTitle$1;
-	hasRequiredChangeWindowTitle$1 = 1;
-	Object.defineProperty(changeWindowTitle$1, "__esModule", { value: true });
-	changeWindowTitle$1.changeWindowTitle = void 0;
-	const bridge_1 = requireBridge$1();
-	const errors_1 = requireErrors$1();
+function requireChangeWindowTitle () {
+	if (hasRequiredChangeWindowTitle) return changeWindowTitle;
+	hasRequiredChangeWindowTitle = 1;
+	Object.defineProperty(changeWindowTitle, "__esModule", { value: true });
+	changeWindowTitle.changeWindowTitle = void 0;
+	const bridge_1 = requireBridge();
+	const errors_1 = requireErrors();
 	const callBridge = (0, bridge_1.getCallBridge)();
-	const changeWindowTitle = async (title) => {
+	const changeWindowTitle$1 = async (title) => {
 	    try {
 	        await callBridge('changeWindowTitle', title);
 	    }
@@ -3101,42 +3101,42 @@ function requireChangeWindowTitle$1 () {
 	        throw new errors_1.BridgeAPIError("the window title wasn't changed due to error.");
 	    }
 	};
-	changeWindowTitle$1.changeWindowTitle = changeWindowTitle;
-	return changeWindowTitle$1;
+	changeWindowTitle.changeWindowTitle = changeWindowTitle$1;
+	return changeWindowTitle;
 }
 
-var theme$1 = {};
+var theme = {};
 
-var hasRequiredTheme$1;
+var hasRequiredTheme;
 
-function requireTheme$1 () {
-	if (hasRequiredTheme$1) return theme$1;
-	hasRequiredTheme$1 = 1;
-	Object.defineProperty(theme$1, "__esModule", { value: true });
-	theme$1.theme = void 0;
-	const bridge_1 = requireBridge$1();
+function requireTheme () {
+	if (hasRequiredTheme) return theme;
+	hasRequiredTheme = 1;
+	Object.defineProperty(theme, "__esModule", { value: true });
+	theme.theme = void 0;
+	const bridge_1 = requireBridge();
 	const callBridge = (0, bridge_1.getCallBridge)();
-	theme$1.theme = {
+	theme.theme = {
 	    enable: () => callBridge('enableTheming')
 	};
-	return theme$1;
+	return theme;
 }
 
-var emitReadyEvent$1 = {};
+var emitReadyEvent = {};
 
-var events$3 = {};
+var events$1 = {};
 
-var serialiseBlob$1 = {};
+var serialiseBlob = {};
 
-var blobParser$1 = {};
+var blobParser = {};
 
-var hasRequiredBlobParser$1;
+var hasRequiredBlobParser;
 
-function requireBlobParser$1 () {
-	if (hasRequiredBlobParser$1) return blobParser$1;
-	hasRequiredBlobParser$1 = 1;
-	Object.defineProperty(blobParser$1, "__esModule", { value: true });
-	blobParser$1.blobToBase64 = blobParser$1.base64ToBlob = void 0;
+function requireBlobParser () {
+	if (hasRequiredBlobParser) return blobParser;
+	hasRequiredBlobParser = 1;
+	Object.defineProperty(blobParser, "__esModule", { value: true });
+	blobParser.blobToBase64 = blobParser.base64ToBlob = void 0;
 	const base64ToBlob = (b64string, mimeType) => {
 	    if (!b64string) {
 	        return null;
@@ -3150,7 +3150,7 @@ function requireBlobParser$1 () {
 	    const byteArray = new Uint8Array(byteNumbers);
 	    return new Blob([byteArray], { type: mimeType });
 	};
-	blobParser$1.base64ToBlob = base64ToBlob;
+	blobParser.base64ToBlob = base64ToBlob;
 	const blobToBase64 = (blob) => {
 	    return new Promise((resolve, reject) => {
 	        const reader = new FileReader();
@@ -3161,19 +3161,19 @@ function requireBlobParser$1 () {
 	        reader.readAsDataURL(blob);
 	    });
 	};
-	blobParser$1.blobToBase64 = blobToBase64;
-	return blobParser$1;
+	blobParser.blobToBase64 = blobToBase64;
+	return blobParser;
 }
 
-var hasRequiredSerialiseBlob$1;
+var hasRequiredSerialiseBlob;
 
-function requireSerialiseBlob$1 () {
-	if (hasRequiredSerialiseBlob$1) return serialiseBlob$1;
-	hasRequiredSerialiseBlob$1 = 1;
+function requireSerialiseBlob () {
+	if (hasRequiredSerialiseBlob) return serialiseBlob;
+	hasRequiredSerialiseBlob = 1;
 	(function (exports) {
 		Object.defineProperty(exports, "__esModule", { value: true });
 		exports.containsSerialisedBlobs = exports.containsBlobs = exports.deserialiseBlobsInPayload = exports.serialiseBlobsInPayload = void 0;
-		const blobParser_1 = requireBlobParser$1();
+		const blobParser_1 = requireBlobParser();
 		// Copied from https://github.com/you-dont-need/You-Dont-Need-Lodash-Underscore?tab=readme-ov-file#_isplainobject
 		const isPlainObject = (value) => {
 		    if (typeof value !== 'object' || value === null)
@@ -3273,19 +3273,19 @@ function requireSerialiseBlob$1 () {
 		    return false;
 		};
 		exports.containsSerialisedBlobs = containsSerialisedBlobs; 
-	} (serialiseBlob$1));
-	return serialiseBlob$1;
+	} (serialiseBlob));
+	return serialiseBlob;
 }
 
-var hasRequiredEvents$3;
+var hasRequiredEvents$1;
 
-function requireEvents$3 () {
-	if (hasRequiredEvents$3) return events$3;
-	hasRequiredEvents$3 = 1;
-	Object.defineProperty(events$3, "__esModule", { value: true });
-	events$3.events = void 0;
-	const bridge_1 = requireBridge$1();
-	const serialiseBlob_1 = requireSerialiseBlob$1();
+function requireEvents$1 () {
+	if (hasRequiredEvents$1) return events$1;
+	hasRequiredEvents$1 = 1;
+	Object.defineProperty(events$1, "__esModule", { value: true });
+	events$1.events = void 0;
+	const bridge_1 = requireBridge();
+	const serialiseBlob_1 = requireSerialiseBlob();
 	const callBridge = (0, bridge_1.getCallBridge)();
 	const wrapCallback = (callback) => {
 	    return (payload) => {
@@ -3316,28 +3316,28 @@ function requireEvents$3 () {
 	const onPublic = (event, callback) => {
 	    return callBridge('onPublic', { event, callback: wrapCallback(callback) });
 	};
-	events$3.events = {
+	events$1.events = {
 	    emit,
 	    on,
 	    emitPublic,
 	    onPublic
 	};
-	return events$3;
+	return events$1;
 }
 
-var hasRequiredEmitReadyEvent$1;
+var hasRequiredEmitReadyEvent;
 
-function requireEmitReadyEvent$1 () {
-	if (hasRequiredEmitReadyEvent$1) return emitReadyEvent$1;
-	hasRequiredEmitReadyEvent$1 = 1;
-	Object.defineProperty(emitReadyEvent$1, "__esModule", { value: true });
-	emitReadyEvent$1.emitReadyEvent = void 0;
-	const events_1 = requireEvents$3();
-	const view_1 = requireView$3();
-	const bridge_1 = requireBridge$1();
+function requireEmitReadyEvent () {
+	if (hasRequiredEmitReadyEvent) return emitReadyEvent;
+	hasRequiredEmitReadyEvent = 1;
+	Object.defineProperty(emitReadyEvent, "__esModule", { value: true });
+	emitReadyEvent.emitReadyEvent = void 0;
+	const events_1 = requireEvents$1();
+	const view_1 = requireView$1();
+	const bridge_1 = requireBridge();
 	const callBridge = (0, bridge_1.getCallBridge)();
 	const EXTENSION_READY = 'EXTENSION_READY';
-	const emitReadyEvent = async () => {
+	const emitReadyEvent$1 = async () => {
 	    // Confluence export relies on events instead of `callBridge`
 	    const context = await view_1.view.getContext();
 	    // dispatches event 'forge.bridge.EXTENSION_READY' on product window
@@ -3353,2885 +3353,18 @@ function requireEmitReadyEvent$1 () {
 	        // Silently ignore the error as this app may be calling this method in Confluence view mode where the method is not supported.
 	    }
 	};
-	emitReadyEvent$1.emitReadyEvent = emitReadyEvent;
-	return emitReadyEvent$1;
+	emitReadyEvent.emitReadyEvent = emitReadyEvent$1;
+	return emitReadyEvent;
 }
 
-var adfRenderer$2 = {};
+var adfRenderer$1 = {};
 
-var iframeResizer$1 = {exports: {}};
+var hasRequiredAdfRenderer$1;
 
-/*
- * File: iframeResizer.js
- * Desc: Force iframes to size to content.
- * Requires: iframeResizer.contentWindow.js to be loaded into the target frame.
- * Doc: https://iframe-resizer.com
- * Author: David J. Bradshaw - info@iframe-resizer.com
- */
-
-var hasRequiredIframeResizer$1;
-
-function requireIframeResizer$1 () {
-	if (hasRequiredIframeResizer$1) return iframeResizer$1.exports;
-	hasRequiredIframeResizer$1 = 1;
-	(function (module) {
-		console.info(`
-IFRAME-RESIZER
-
-Iframe-Resizer 5 is now available via the following two packages:
-
- * @iframe-resizer/parent
- * @iframe-resizer/child
-
-Additionally their are also new versions of iframe-resizer for React, Vue, and jQuery.
-
-Version 5 of iframe-resizer has been extensively rewritten to use modern browser APIs, which has enabled significantly better performance and greater accuracy in the detection of content resizing events.
-
-Please see https://iframe-resizer.com/upgrade for more details.
-`)
-
-		// eslint-disable-next-line sonarjs/cognitive-complexity, no-shadow-restricted-names
-		;(function (undefined$1) {
-		  if (typeof window === 'undefined') return // don't run for server side render
-
-		  // var VERSION = '4.3.11'
-
-		  var count = 0,
-		    destroyObserver,
-		    logEnabled = false,
-		    hiddenCheckEnabled = false,
-		    msgHeader = 'message',
-		    msgHeaderLen = msgHeader.length,
-		    msgId = '[iFrameSizer]', // Must match iframe msg ID
-		    msgIdLen = msgId.length,
-		    pagePosition = null,
-		    requestAnimationFrame = window.requestAnimationFrame,
-		    resetRequiredMethods = Object.freeze({
-		      max: 1,
-		      scroll: 1,
-		      bodyScroll: 1,
-		      documentElementScroll: 1
-		    }),
-		    settings = {},
-		    timer = null,
-		    defaults = Object.freeze({
-		      autoResize: true,
-		      bodyBackground: null,
-		      bodyMargin: null,
-		      bodyMarginV1: 8,
-		      bodyPadding: null,
-		      checkOrigin: true,
-		      inPageLinks: false,
-		      enablePublicMethods: true,
-		      heightCalculationMethod: 'bodyOffset',
-		      id: 'iFrameResizer',
-		      interval: 32,
-		      license: '1jqr0si6pnt',
-		      log: false,
-		      maxHeight: Infinity,
-		      maxWidth: Infinity,
-		      minHeight: 0,
-		      minWidth: 0,
-		      mouseEvents: true,
-		      resizeFrom: 'parent',
-		      scrolling: false,
-		      sizeHeight: true,
-		      sizeWidth: false,
-		      warningTimeout: 5000,
-		      tolerance: 0,
-		      widthCalculationMethod: 'scroll',
-		      onClose: function () {
-		        return true
-		      },
-		      onClosed: function () {},
-		      onInit: function () {},
-		      onMessage: function () {
-		        warn('onMessage function not defined');
-		      },
-		      onMouseEnter: function () {},
-		      onMouseLeave: function () {},
-		      onResized: function () {},
-		      onScroll: function () {
-		        return true
-		      }
-		    });
-
-		  function getMutationObserver() {
-		    return (
-		      window.MutationObserver ||
-		      window.WebKitMutationObserver ||
-		      window.MozMutationObserver
-		    )
-		  }
-
-		  function addEventListener(el, evt, func) {
-		    el.addEventListener(evt, func, false);
-		  }
-
-		  function removeEventListener(el, evt, func) {
-		    el.removeEventListener(evt, func, false);
-		  }
-
-		  function setupRequestAnimationFrame() {
-		    var vendors = ['moz', 'webkit', 'o', 'ms'];
-		    var x;
-
-		    // Remove vendor prefixing if prefixed and break early if not
-		    for (x = 0; x < vendors.length && !requestAnimationFrame; x += 1) {
-		      requestAnimationFrame = window[vendors[x] + 'RequestAnimationFrame'];
-		    }
-
-		    if (requestAnimationFrame) {
-		      // Firefox extension content-scripts have a globalThis object that is not the same as window.
-		      // Binding `requestAnimationFrame` to window allows the function to work and prevents errors
-		      // being thrown when run in that context, and should be a no-op in every other context.
-		      requestAnimationFrame = requestAnimationFrame.bind(window);
-		    } else {
-		      log('setup', 'RequestAnimationFrame not supported');
-		    }
-		  }
-
-		  function getMyID(iframeId) {
-		    var retStr = 'Host page: ' + iframeId;
-
-		    if (window.top !== window.self) {
-		      retStr =
-		        window.parentIFrame && window.parentIFrame.getId
-		          ? window.parentIFrame.getId() + ': ' + iframeId
-		          : 'Nested host page: ' + iframeId;
-		    }
-
-		    return retStr
-		  }
-
-		  function formatLogHeader(iframeId) {
-		    return msgId + '[' + getMyID(iframeId) + ']'
-		  }
-
-		  function isLogEnabled(iframeId) {
-		    return settings[iframeId] ? settings[iframeId].log : logEnabled
-		  }
-
-		  function log(iframeId, msg) {
-		    output('log', iframeId, msg, isLogEnabled(iframeId));
-		  }
-
-		  function info(iframeId, msg) {
-		    output('info', iframeId, msg, isLogEnabled(iframeId));
-		  }
-
-		  function warn(iframeId, msg) {
-		    output('warn', iframeId, msg, true);
-		  }
-
-		  function output(type, iframeId, msg, enabled) {
-		    if (true === enabled && 'object' === typeof window.console) {
-		      // eslint-disable-next-line no-console
-		      console[type](formatLogHeader(iframeId), msg);
-		    }
-		  }
-
-		  function iFrameListener(event) {
-		    function resizeIFrame() {
-		      function resize() {
-		        setSize(messageData);
-		        setPagePosition(iframeId);
-		        on('onResized', messageData);
-		      }
-
-		      ensureInRange('Height');
-		      ensureInRange('Width');
-
-		      syncResize(resize, messageData, 'init');
-		    }
-
-		    function processMsg() {
-		      var data = msg.slice(msgIdLen).split(':');
-		      var height = data[1] ? parseInt(data[1], 10) : 0;
-		      var iframe = settings[data[0]] && settings[data[0]].iframe;
-		      var compStyle = getComputedStyle(iframe);
-
-		      return {
-		        iframe: iframe,
-		        id: data[0],
-		        height: height + getPaddingEnds(compStyle) + getBorderEnds(compStyle),
-		        width: data[2],
-		        type: data[3]
-		      }
-		    }
-
-		    function getPaddingEnds(compStyle) {
-		      if (compStyle.boxSizing !== 'border-box') {
-		        return 0
-		      }
-		      var top = compStyle.paddingTop ? parseInt(compStyle.paddingTop, 10) : 0;
-		      var bot = compStyle.paddingBottom
-		        ? parseInt(compStyle.paddingBottom, 10)
-		        : 0;
-		      return top + bot
-		    }
-
-		    function getBorderEnds(compStyle) {
-		      if (compStyle.boxSizing !== 'border-box') {
-		        return 0
-		      }
-		      var top = compStyle.borderTopWidth
-		        ? parseInt(compStyle.borderTopWidth, 10)
-		        : 0;
-		      var bot = compStyle.borderBottomWidth
-		        ? parseInt(compStyle.borderBottomWidth, 10)
-		        : 0;
-		      return top + bot
-		    }
-
-		    function ensureInRange(Dimension) {
-		      var max = Number(settings[iframeId]['max' + Dimension]),
-		        min = Number(settings[iframeId]['min' + Dimension]),
-		        dimension = Dimension.toLowerCase(),
-		        size = Number(messageData[dimension]);
-
-		      log(iframeId, 'Checking ' + dimension + ' is in range ' + min + '-' + max);
-
-		      if (size < min) {
-		        size = min;
-		        log(iframeId, 'Set ' + dimension + ' to min value');
-		      }
-
-		      if (size > max) {
-		        size = max;
-		        log(iframeId, 'Set ' + dimension + ' to max value');
-		      }
-
-		      messageData[dimension] = '' + size;
-		    }
-
-		    function isMessageFromIFrame() {
-		      function checkAllowedOrigin() {
-		        function checkList() {
-		          var i = 0,
-		            retCode = false;
-
-		          log(
-		            iframeId,
-		            'Checking connection is from allowed list of origins: ' +
-		              checkOrigin
-		          );
-
-		          for (; i < checkOrigin.length; i++) {
-		            if (checkOrigin[i] === origin) {
-		              retCode = true;
-		              break
-		            }
-		          }
-		          return retCode
-		        }
-
-		        function checkSingle() {
-		          var remoteHost = settings[iframeId] && settings[iframeId].remoteHost;
-		          log(iframeId, 'Checking connection is from: ' + remoteHost);
-		          return origin === remoteHost
-		        }
-
-		        return checkOrigin.constructor === Array ? checkList() : checkSingle()
-		      }
-
-		      var origin = event.origin,
-		        checkOrigin = settings[iframeId] && settings[iframeId].checkOrigin;
-
-		      if (checkOrigin && '' + origin !== 'null' && !checkAllowedOrigin()) {
-		        throw new Error(
-		          'Unexpected message received from: ' +
-		            origin +
-		            ' for ' +
-		            messageData.iframe.id +
-		            '. Message was: ' +
-		            event.data +
-		            '. This error can be disabled by setting the checkOrigin: false option or by providing of array of trusted domains.'
-		        )
-		      }
-
-		      return true
-		    }
-
-		    function isMessageForUs() {
-		      return (
-		        msgId === ('' + msg).slice(0, msgIdLen) &&
-		        msg.slice(msgIdLen).split(':')[0] in settings
-		      ) // ''+Protects against non-string msg
-		    }
-
-		    function isMessageFromMetaParent() {
-		      // Test if this message is from a parent above us. This is an ugly test, however, updating
-		      // the message format would break backwards compatibility.
-		      var retCode = messageData.type in { true: 1, false: 1, undefined: 1 };
-
-		      if (retCode) {
-		        log(iframeId, 'Ignoring init message from meta parent page');
-		      }
-
-		      return retCode
-		    }
-
-		    function getMsgBody(offset) {
-		      return msg.slice(msg.indexOf(':') + msgHeaderLen + offset)
-		    }
-
-		    function forwardMsgFromIFrame(msgBody) {
-		      log(
-		        iframeId,
-		        'onMessage passed: {iframe: ' +
-		          messageData.iframe.id +
-		          ', message: ' +
-		          msgBody +
-		          '}'
-		      );
-
-		      on('onMessage', {
-		        iframe: messageData.iframe,
-		        message: JSON.parse(msgBody)
-		      });
-
-		      log(iframeId, '--');
-		    }
-
-		    function getPageInfo() {
-		      var bodyPosition = document.body.getBoundingClientRect(),
-		        iFramePosition = messageData.iframe.getBoundingClientRect();
-
-		      return JSON.stringify({
-		        iframeHeight: iFramePosition.height,
-		        iframeWidth: iFramePosition.width,
-		        clientHeight: Math.max(
-		          document.documentElement.clientHeight,
-		          window.innerHeight || 0
-		        ),
-		        clientWidth: Math.max(
-		          document.documentElement.clientWidth,
-		          window.innerWidth || 0
-		        ),
-		        offsetTop: parseInt(iFramePosition.top - bodyPosition.top, 10),
-		        offsetLeft: parseInt(iFramePosition.left - bodyPosition.left, 10),
-		        scrollTop: window.pageYOffset,
-		        scrollLeft: window.pageXOffset,
-		        documentHeight: document.documentElement.clientHeight,
-		        documentWidth: document.documentElement.clientWidth,
-		        windowHeight: window.innerHeight,
-		        windowWidth: window.innerWidth
-		      })
-		    }
-
-		    function sendPageInfoToIframe(iframe, iframeId) {
-		      function debouncedTrigger() {
-		        trigger('Send Page Info', 'pageInfo:' + getPageInfo(), iframe, iframeId);
-		      }
-		      debounceFrameEvents(debouncedTrigger, 32, iframeId);
-		    }
-
-		    function startPageInfoMonitor() {
-		      function setListener(type, func) {
-		        function sendPageInfo() {
-		          if (settings[id]) {
-		            sendPageInfoToIframe(settings[id].iframe, id);
-		          } else {
-		            stop();
-		          }
-		        }
-['scroll', 'resize'].forEach(function (evt) {
-		          log(id, type + evt + ' listener for sendPageInfo');
-		          func(window, evt, sendPageInfo);
-		        });
-		      }
-
-		      function stop() {
-		        setListener('Remove ', removeEventListener);
-		      }
-
-		      function start() {
-		        setListener('Add ', addEventListener);
-		      }
-
-		      var id = iframeId; // Create locally scoped copy of iFrame ID
-
-		      start();
-
-		      if (settings[id]) {
-		        settings[id].stopPageInfo = stop;
-		      }
-		    }
-
-		    function stopPageInfoMonitor() {
-		      if (settings[iframeId] && settings[iframeId].stopPageInfo) {
-		        settings[iframeId].stopPageInfo();
-		        delete settings[iframeId].stopPageInfo;
-		      }
-		    }
-
-		    function checkIFrameExists() {
-		      var retBool = true;
-
-		      if (null === messageData.iframe) {
-		        warn(iframeId, 'IFrame (' + messageData.id + ') not found');
-		        retBool = false;
-		      }
-		      return retBool
-		    }
-
-		    function getElementPosition(target) {
-		      var iFramePosition = target.getBoundingClientRect();
-
-		      getPagePosition(iframeId);
-
-		      return {
-		        x: Math.floor(Number(iFramePosition.left) + Number(pagePosition.x)),
-		        y: Math.floor(Number(iFramePosition.top) + Number(pagePosition.y))
-		      }
-		    }
-
-		    function scrollRequestFromChild(addOffset) {
-		      /* istanbul ignore next */ // Not testable in Karma
-		      function reposition() {
-		        pagePosition = newPosition;
-		        scrollTo();
-		        log(iframeId, '--');
-		      }
-
-		      function calcOffset() {
-		        return {
-		          x: Number(messageData.width) + offset.x,
-		          y: Number(messageData.height) + offset.y
-		        }
-		      }
-
-		      function scrollParent() {
-		        if (window.parentIFrame) {
-		          window.parentIFrame['scrollTo' + (addOffset ? 'Offset' : '')](
-		            newPosition.x,
-		            newPosition.y
-		          );
-		        } else {
-		          warn(
-		            iframeId,
-		            'Unable to scroll to requested position, window.parentIFrame not found'
-		          );
-		        }
-		      }
-
-		      var offset = addOffset
-		          ? getElementPosition(messageData.iframe)
-		          : { x: 0, y: 0 },
-		        newPosition = calcOffset();
-
-		      log(
-		        iframeId,
-		        'Reposition requested from iFrame (offset x:' +
-		          offset.x +
-		          ' y:' +
-		          offset.y +
-		          ')'
-		      );
-
-		      if (window.top === window.self) {
-		        reposition();
-		      } else {
-		        scrollParent();
-		      }
-		    }
-
-		    function scrollTo() {
-		      if (false === on('onScroll', pagePosition)) {
-		        unsetPagePosition();
-		      } else {
-		        setPagePosition(iframeId);
-		      }
-		    }
-
-		    function findTarget(location) {
-		      function jumpToTarget() {
-		        var jumpPosition = getElementPosition(target);
-
-		        log(
-		          iframeId,
-		          'Moving to in page link (#' +
-		            hash +
-		            ') at x: ' +
-		            jumpPosition.x +
-		            ' y: ' +
-		            jumpPosition.y
-		        );
-		        pagePosition = {
-		          x: jumpPosition.x,
-		          y: jumpPosition.y
-		        };
-
-		        scrollTo();
-		        log(iframeId, '--');
-		      }
-
-		      function jumpToParent() {
-		        if (window.parentIFrame) {
-		          window.parentIFrame.moveToAnchor(hash);
-		        } else {
-		          log(
-		            iframeId,
-		            'In page link #' +
-		              hash +
-		              ' not found and window.parentIFrame not found'
-		          );
-		        }
-		      }
-
-		      var hash = location.split('#')[1] || '',
-		        hashData = decodeURIComponent(hash),
-		        target =
-		          document.getElementById(hashData) ||
-		          document.getElementsByName(hashData)[0];
-
-		      if (target) {
-		        jumpToTarget();
-		      } else if (window.top === window.self) {
-		        log(iframeId, 'In page link #' + hash + ' not found');
-		      } else {
-		        jumpToParent();
-		      }
-		    }
-
-		    function onMouse(event) {
-		      var mousePos = {};
-
-		      if (Number(messageData.width) === 0 && Number(messageData.height) === 0) {
-		        var data = getMsgBody(9).split(':');
-		        mousePos = {
-		          x: data[1],
-		          y: data[0]
-		        };
-		      } else {
-		        mousePos = {
-		          x: messageData.width,
-		          y: messageData.height
-		        };
-		      }
-
-		      on(event, {
-		        iframe: messageData.iframe,
-		        screenX: Number(mousePos.x),
-		        screenY: Number(mousePos.y),
-		        type: messageData.type
-		      });
-		    }
-
-		    function on(funcName, val) {
-		      return chkEvent(iframeId, funcName, val)
-		    }
-
-		    function actionMsg() {
-		      if (settings[iframeId] && settings[iframeId].firstRun) firstRun();
-
-		      switch (messageData.type) {
-		        case 'close': {
-		          closeIFrame(messageData.iframe);
-		          break
-		        }
-
-		        case 'message': {
-		          forwardMsgFromIFrame(getMsgBody(6));
-		          break
-		        }
-
-		        case 'mouseenter': {
-		          onMouse('onMouseEnter');
-		          break
-		        }
-
-		        case 'mouseleave': {
-		          onMouse('onMouseLeave');
-		          break
-		        }
-
-		        case 'autoResize': {
-		          settings[iframeId].autoResize = JSON.parse(getMsgBody(9));
-		          break
-		        }
-
-		        case 'scrollTo': {
-		          scrollRequestFromChild(false);
-		          break
-		        }
-
-		        case 'scrollToOffset': {
-		          scrollRequestFromChild(true);
-		          break
-		        }
-
-		        case 'pageInfo': {
-		          sendPageInfoToIframe(
-		            settings[iframeId] && settings[iframeId].iframe,
-		            iframeId
-		          );
-		          startPageInfoMonitor();
-		          break
-		        }
-
-		        case 'pageInfoStop': {
-		          stopPageInfoMonitor();
-		          break
-		        }
-
-		        case 'inPageLink': {
-		          findTarget(getMsgBody(9));
-		          break
-		        }
-
-		        case 'reset': {
-		          resetIFrame(messageData);
-		          break
-		        }
-
-		        case 'init': {
-		          resizeIFrame();
-		          on('onInit', messageData.iframe);
-		          break
-		        }
-
-		        default: {
-		          if (
-		            Number(messageData.width) === 0 &&
-		            Number(messageData.height) === 0
-		          ) {
-		            warn(
-		              'Unsupported message received (' +
-		                messageData.type +
-		                '), this is likely due to the iframe containing a later ' +
-		                'version of iframe-resizer than the parent page'
-		            );
-		          } else {
-		            resizeIFrame();
-		          }
-		        }
-		      }
-		    }
-
-		    function hasSettings(iframeId) {
-		      var retBool = true;
-
-		      if (!settings[iframeId]) {
-		        retBool = false;
-		        warn(
-		          messageData.type +
-		            ' No settings for ' +
-		            iframeId +
-		            '. Message was: ' +
-		            msg
-		        );
-		      }
-
-		      return retBool
-		    }
-
-		    function iFrameReadyMsgReceived() {
-		      // eslint-disable-next-line no-restricted-syntax, guard-for-in
-		      for (var iframeId in settings) {
-		        trigger(
-		          'iFrame requested init',
-		          createOutgoingMsg(iframeId),
-		          settings[iframeId].iframe,
-		          iframeId
-		        );
-		      }
-		    }
-
-		    function firstRun() {
-		      if (settings[iframeId]) {
-		        settings[iframeId].firstRun = false;
-		      }
-		    }
-
-		    var msg = event.data,
-		      messageData = {},
-		      iframeId = null;
-
-		    if ('[iFrameResizerChild]Ready' === msg) {
-		      iFrameReadyMsgReceived();
-		    } else if (isMessageForUs()) {
-		      messageData = processMsg();
-		      iframeId = messageData.id;
-		      if (settings[iframeId]) {
-		        settings[iframeId].loaded = true;
-		      }
-
-		      if (!isMessageFromMetaParent() && hasSettings(iframeId)) {
-		        log(iframeId, 'Received: ' + msg);
-
-		        if (checkIFrameExists() && isMessageFromIFrame()) {
-		          actionMsg();
-		        }
-		      }
-		    } else {
-		      info(iframeId, 'Ignored: ' + msg);
-		    }
-		  }
-
-		  function chkEvent(iframeId, funcName, val) {
-		    var func = null,
-		      retVal = null;
-
-		    if (settings[iframeId]) {
-		      func = settings[iframeId][funcName];
-
-		      if ('function' === typeof func) {
-		        retVal = func(val);
-		      } else {
-		        throw new TypeError(
-		          funcName + ' on iFrame[' + iframeId + '] is not a function'
-		        )
-		      }
-		    }
-
-		    return retVal
-		  }
-
-		  function removeIframeListeners(iframe) {
-		    var iframeId = iframe.id;
-		    delete settings[iframeId];
-		  }
-
-		  function closeIFrame(iframe) {
-		    var iframeId = iframe.id;
-		    if (chkEvent(iframeId, 'onClose', iframeId) === false) {
-		      log(iframeId, 'Close iframe cancelled by onClose event');
-		      return
-		    }
-		    log(iframeId, 'Removing iFrame: ' + iframeId);
-
-		    try {
-		      // Catch race condition error with React
-		      if (iframe.parentNode) {
-		        iframe.parentNode.removeChild(iframe);
-		      }
-		    } catch (error) {
-		      warn(error);
-		    }
-
-		    chkEvent(iframeId, 'onClosed', iframeId);
-		    log(iframeId, '--');
-		    removeIframeListeners(iframe);
-		    if (destroyObserver) {
-		      destroyObserver.disconnect();
-		      destroyObserver = null;
-		    }
-		  }
-
-		  function getPagePosition(iframeId) {
-		    if (null === pagePosition) {
-		      pagePosition = {
-		        x:
-		          window.pageXOffset === undefined$1
-		            ? document.documentElement.scrollLeft
-		            : window.pageXOffset,
-		        y:
-		          window.pageYOffset === undefined$1
-		            ? document.documentElement.scrollTop
-		            : window.pageYOffset
-		      };
-		      log(
-		        iframeId,
-		        'Get page position: ' + pagePosition.x + ',' + pagePosition.y
-		      );
-		    }
-		  }
-
-		  function setPagePosition(iframeId) {
-		    if (null !== pagePosition) {
-		      window.scrollTo(pagePosition.x, pagePosition.y);
-		      log(
-		        iframeId,
-		        'Set page position: ' + pagePosition.x + ',' + pagePosition.y
-		      );
-		      unsetPagePosition();
-		    }
-		  }
-
-		  function unsetPagePosition() {
-		    pagePosition = null;
-		  }
-
-		  function resetIFrame(messageData) {
-		    function reset() {
-		      setSize(messageData);
-		      trigger('reset', 'reset', messageData.iframe, messageData.id);
-		    }
-
-		    log(
-		      messageData.id,
-		      'Size reset requested by ' +
-		        ('init' === messageData.type ? 'host page' : 'iFrame')
-		    );
-		    getPagePosition(messageData.id);
-		    syncResize(reset, messageData, 'reset');
-		  }
-
-		  function setSize(messageData) {
-		    function setDimension(dimension) {
-		      if (!messageData.id) {
-		        log('undefined', 'messageData id not set');
-		        return
-		      }
-		      messageData.iframe.style[dimension] = messageData[dimension] + 'px';
-		      log(
-		        messageData.id,
-		        'IFrame (' +
-		          iframeId +
-		          ') ' +
-		          dimension +
-		          ' set to ' +
-		          messageData[dimension] +
-		          'px'
-		      );
-		    }
-
-		    function chkZero(dimension) {
-		      // FireFox sets dimension of hidden iFrames to zero.
-		      // So if we detect that set up an event to check for
-		      // when iFrame becomes visible.
-
-		      /* istanbul ignore next */ // Not testable in PhantomJS
-		      if (!hiddenCheckEnabled && '0' === messageData[dimension]) {
-		        hiddenCheckEnabled = true;
-		        log(iframeId, 'Hidden iFrame detected, creating visibility listener');
-		        fixHiddenIFrames();
-		      }
-		    }
-
-		    function processDimension(dimension) {
-		      setDimension(dimension);
-		      chkZero(dimension);
-		    }
-
-		    var iframeId = messageData.iframe.id;
-
-		    if (settings[iframeId]) {
-		      if (settings[iframeId].sizeHeight) {
-		        processDimension('height');
-		      }
-		      if (settings[iframeId].sizeWidth) {
-		        processDimension('width');
-		      }
-		    }
-		  }
-
-		  function syncResize(func, messageData, doNotSync) {
-		    /* istanbul ignore if */ // Not testable in PhantomJS
-		    if (
-		      doNotSync !== messageData.type &&
-		      requestAnimationFrame &&
-		      // including check for jasmine because had trouble getting spy to work in unit test using requestAnimationFrame
-		      !window.jasmine
-		    ) {
-		      log(messageData.id, 'Requesting animation frame');
-		      requestAnimationFrame(func);
-		    } else {
-		      func();
-		    }
-		  }
-
-		  function trigger(calleeMsg, msg, iframe, id, noResponseWarning) {
-		    function postMessageToIFrame() {
-		      var target = settings[id] && settings[id].targetOrigin;
-		      log(
-		        id,
-		        '[' +
-		          calleeMsg +
-		          '] Sending msg to iframe[' +
-		          id +
-		          '] (' +
-		          msg +
-		          ') targetOrigin: ' +
-		          target
-		      );
-		      iframe.contentWindow.postMessage(msgId + msg, target);
-		    }
-
-		    function iFrameNotFound() {
-		      warn(id, '[' + calleeMsg + '] IFrame(' + id + ') not found');
-		    }
-
-		    function chkAndSend() {
-		      if (
-		        iframe &&
-		        'contentWindow' in iframe &&
-		        null !== iframe.contentWindow
-		      ) {
-		        // Null test for PhantomJS
-		        postMessageToIFrame();
-		      } else {
-		        iFrameNotFound();
-		      }
-		    }
-
-		    function warnOnNoResponse() {
-		      function warning() {
-		        if (settings[id] && !settings[id].loaded && !errorShown) {
-		          errorShown = true;
-		          warn(
-		            id,
-		            'IFrame has not responded within ' +
-		              settings[id].warningTimeout / 1000 +
-		              ' seconds. Check iFrameResizer.contentWindow.js has been loaded in iFrame. This message can be ignored if everything is working, or you can set the warningTimeout option to a higher value or zero to suppress this warning.'
-		          );
-		        }
-		      }
-
-		      if (
-		        !!noResponseWarning &&
-		        settings[id] &&
-		        !!settings[id].warningTimeout
-		      ) {
-		        settings[id].msgTimeout = setTimeout(
-		          warning,
-		          settings[id].warningTimeout
-		        );
-		      }
-		    }
-
-		    var errorShown = false;
-
-		    id = id || iframe.id;
-
-		    if (settings[id]) {
-		      chkAndSend();
-		      warnOnNoResponse();
-		    }
-		  }
-
-		  function createOutgoingMsg(iframeId) {
-		    return (
-		      iframeId +
-		      ':' +
-		      settings[iframeId].bodyMarginV1 +
-		      ':' +
-		      settings[iframeId].sizeWidth +
-		      ':' +
-		      settings[iframeId].log +
-		      ':' +
-		      settings[iframeId].interval +
-		      ':' +
-		      settings[iframeId].enablePublicMethods +
-		      ':' +
-		      settings[iframeId].autoResize +
-		      ':' +
-		      settings[iframeId].bodyMargin +
-		      ':' +
-		      settings[iframeId].heightCalculationMethod +
-		      ':' +
-		      settings[iframeId].bodyBackground +
-		      ':' +
-		      settings[iframeId].bodyPadding +
-		      ':' +
-		      settings[iframeId].tolerance +
-		      ':' +
-		      settings[iframeId].inPageLinks +
-		      ':' +
-		      settings[iframeId].resizeFrom +
-		      ':' +
-		      settings[iframeId].widthCalculationMethod +
-		      ':' +
-		      settings[iframeId].mouseEvents
-		    )
-		  }
-
-		  function isNumber(value) {
-		    return typeof value === 'number'
-		  }
-
-		  function setupIFrame(iframe, options) {
-		    function setLimits() {
-		      function addStyle(style) {
-		        var styleValue = settings[iframeId][style];
-		        if (Infinity !== styleValue && 0 !== styleValue) {
-		          iframe.style[style] = isNumber(styleValue)
-		            ? styleValue + 'px'
-		            : styleValue;
-		          log(iframeId, 'Set ' + style + ' = ' + iframe.style[style]);
-		        }
-		      }
-
-		      function chkMinMax(dimension) {
-		        if (
-		          settings[iframeId]['min' + dimension] >
-		          settings[iframeId]['max' + dimension]
-		        ) {
-		          throw new Error(
-		            'Value for min' +
-		              dimension +
-		              ' can not be greater than max' +
-		              dimension
-		          )
-		        }
-		      }
-
-		      chkMinMax('Height');
-		      chkMinMax('Width');
-
-		      addStyle('maxHeight');
-		      addStyle('minHeight');
-		      addStyle('maxWidth');
-		      addStyle('minWidth');
-		    }
-
-		    function newId() {
-		      var id = (options && options.id) || defaults.id + count++;
-		      if (null !== document.getElementById(id)) {
-		        id += count++;
-		      }
-		      return id
-		    }
-
-		    function ensureHasId(iframeId) {
-		      if (typeof iframeId !== 'string') {
-		        throw new TypeError('Invaild id for iFrame. Expected String')
-		      }
-
-		      if ('' === iframeId) {
-		        // eslint-disable-next-line no-multi-assign
-		        iframe.id = iframeId = newId();
-		        logEnabled = (options || {}).log;
-		        log(
-		          iframeId,
-		          'Added missing iframe ID: ' + iframeId + ' (' + iframe.src + ')'
-		        );
-		      }
-
-		      return iframeId
-		    }
-
-		    function setScrolling() {
-		      log(
-		        iframeId,
-		        'IFrame scrolling ' +
-		          (settings[iframeId] && settings[iframeId].scrolling
-		            ? 'enabled'
-		            : 'disabled') +
-		          ' for ' +
-		          iframeId
-		      );
-		      iframe.style.overflow =
-		        false === (settings[iframeId] && settings[iframeId].scrolling)
-		          ? 'hidden'
-		          : 'auto';
-		      switch (settings[iframeId] && settings[iframeId].scrolling) {
-		        case 'omit': {
-		          break
-		        }
-
-		        case true: {
-		          iframe.scrolling = 'yes';
-		          break
-		        }
-
-		        case false: {
-		          iframe.scrolling = 'no';
-		          break
-		        }
-
-		        default: {
-		          iframe.scrolling = settings[iframeId]
-		            ? settings[iframeId].scrolling
-		            : 'no';
-		        }
-		      }
-		    }
-
-		    // The V1 iFrame script expects an int, where as in V2 expects a CSS
-		    // string value such as '1px 3em', so if we have an int for V2, set V1=V2
-		    // and then convert V2 to a string PX value.
-		    function setupBodyMarginValues() {
-		      if (
-		        'number' ===
-		          typeof (settings[iframeId] && settings[iframeId].bodyMargin) ||
-		        '0' === (settings[iframeId] && settings[iframeId].bodyMargin)
-		      ) {
-		        settings[iframeId].bodyMarginV1 = settings[iframeId].bodyMargin;
-		        settings[iframeId].bodyMargin =
-		          '' + settings[iframeId].bodyMargin + 'px';
-		      }
-		    }
-
-		    function checkReset() {
-		      // Reduce scope of firstRun to function, because IE8's JS execution
-		      // context stack is borked and this value gets externally
-		      // changed midway through running this function!!!
-		      var firstRun = settings[iframeId] && settings[iframeId].firstRun,
-		        resetRequertMethod =
-		          settings[iframeId] &&
-		          settings[iframeId].heightCalculationMethod in resetRequiredMethods;
-
-		      if (!firstRun && resetRequertMethod) {
-		        resetIFrame({ iframe: iframe, height: 0, width: 0, type: 'init' });
-		      }
-		    }
-
-		    function setupIFrameObject() {
-		      if (settings[iframeId]) {
-		        settings[iframeId].iframe.iFrameResizer = {
-		          close: closeIFrame.bind(null, settings[iframeId].iframe),
-
-		          removeListeners: removeIframeListeners.bind(
-		            null,
-		            settings[iframeId].iframe
-		          ),
-
-		          resize: trigger.bind(
-		            null,
-		            'Window resize',
-		            'resize',
-		            settings[iframeId].iframe
-		          ),
-
-		          moveToAnchor: function (anchor) {
-		            trigger(
-		              'Move to anchor',
-		              'moveToAnchor:' + anchor,
-		              settings[iframeId].iframe,
-		              iframeId
-		            );
-		          },
-
-		          sendMessage: function (message) {
-		            message = JSON.stringify(message);
-		            trigger(
-		              'Send Message',
-		              'message:' + message,
-		              settings[iframeId].iframe,
-		              iframeId
-		            );
-		          }
-		        };
-		      }
-		    }
-
-		    // We have to call trigger twice, as we can not be sure if all
-		    // iframes have completed loading when this code runs. The
-		    // event listener also catches the page changing in the iFrame.
-		    function init(msg) {
-		      function iFrameLoaded() {
-		        trigger('iFrame.onload', msg, iframe, undefined$1, true);
-		        checkReset();
-		      }
-
-		      function createDestroyObserver(MutationObserver) {
-		        if (!iframe.parentNode) {
-		          return null
-		        }
-
-		        var destroyObserver = new MutationObserver(function (mutations) {
-		          mutations.forEach(function (mutation) {
-		            var removedNodes = Array.prototype.slice.call(mutation.removedNodes); // Transform NodeList into an Array
-		            removedNodes.forEach(function (removedNode) {
-		              if (removedNode === iframe) {
-		                closeIFrame(iframe);
-		              }
-		            });
-		          });
-		        });
-		        destroyObserver.observe(iframe.parentNode, {
-		          childList: true
-		        });
-		        return destroyObserver
-		      }
-
-		      var MutationObserver = getMutationObserver();
-		      if (MutationObserver) {
-		        destroyObserver = createDestroyObserver(MutationObserver);
-		      }
-
-		      addEventListener(iframe, 'load', iFrameLoaded);
-		      trigger('init', msg, iframe, undefined$1, true);
-		    }
-
-		    function checkOptions(options) {
-		      if ('object' !== typeof options) {
-		        throw new TypeError('Options is not an object')
-		      }
-		    }
-
-		    function copyOptions(options) {
-		      // eslint-disable-next-line no-restricted-syntax
-		      for (var option in defaults) {
-		        if (Object.prototype.hasOwnProperty.call(defaults, option)) {
-		          settings[iframeId][option] = Object.prototype.hasOwnProperty.call(
-		            options,
-		            option
-		          )
-		            ? options[option]
-		            : defaults[option];
-		        }
-		      }
-		    }
-
-		    function getTargetOrigin(remoteHost) {
-		      return '' === remoteHost ||
-		        null !== remoteHost.match(/^(about:blank|javascript:|file:\/\/)/)
-		        ? '*'
-		        : remoteHost
-		    }
-
-		    function depricate(key) {
-		      var splitName = key.split('Callback');
-
-		      if (splitName.length === 2) {
-		        var name =
-		          'on' + splitName[0].charAt(0).toUpperCase() + splitName[0].slice(1);
-		        this[name] = this[key];
-		        delete this[key];
-		        warn(
-		          iframeId,
-		          "Deprecated: '" +
-		            key +
-		            "' has been renamed '" +
-		            name +
-		            "'. The old method will be removed in the next major version."
-		        );
-		      }
-		    }
-
-		    function processOptions(options) {
-		      options = options || {};
-
-		      settings[iframeId] = Object.create(null); // Protect against prototype attacks
-		      settings[iframeId].iframe = iframe;
-		      settings[iframeId].firstRun = true;
-		      settings[iframeId].remoteHost =
-		        iframe.src && iframe.src.split('/').slice(0, 3).join('/');
-
-		      checkOptions(options);
-		      Object.keys(options).forEach(depricate, options);
-		      copyOptions(options);
-
-		      if (settings[iframeId]) {
-		        settings[iframeId].targetOrigin =
-		          true === settings[iframeId].checkOrigin
-		            ? getTargetOrigin(settings[iframeId].remoteHost)
-		            : '*';
-		      }
-		    }
-
-		    function beenHere() {
-		      return iframeId in settings && 'iFrameResizer' in iframe
-		    }
-
-		    var iframeId = ensureHasId(iframe.id);
-
-		    if (beenHere()) {
-		      warn(iframeId, 'Ignored iFrame, already setup.');
-		    } else {
-		      processOptions(options);
-		      setScrolling();
-		      setLimits();
-		      setupBodyMarginValues();
-		      init(createOutgoingMsg(iframeId));
-		      setupIFrameObject();
-		    }
-		  }
-
-		  function debouce(fn, time) {
-		    if (null === timer) {
-		      timer = setTimeout(function () {
-		        timer = null;
-		        fn();
-		      }, time);
-		    }
-		  }
-
-		  var frameTimer = {};
-		  function debounceFrameEvents(fn, time, frameId) {
-		    if (!frameTimer[frameId]) {
-		      frameTimer[frameId] = setTimeout(function () {
-		        frameTimer[frameId] = null;
-		        fn();
-		      }, time);
-		    }
-		  }
-
-		  // Not testable in PhantomJS
-		  /* istanbul ignore next */
-
-		  function fixHiddenIFrames() {
-		    function checkIFrames() {
-		      function checkIFrame(settingId) {
-		        function chkDimension(dimension) {
-		          return (
-		            '0px' ===
-		            (settings[settingId] && settings[settingId].iframe.style[dimension])
-		          )
-		        }
-
-		        function isVisible(el) {
-		          return null !== el.offsetParent
-		        }
-
-		        if (
-		          settings[settingId] &&
-		          isVisible(settings[settingId].iframe) &&
-		          (chkDimension('height') || chkDimension('width'))
-		        ) {
-		          trigger(
-		            'Visibility change',
-		            'resize',
-		            settings[settingId].iframe,
-		            settingId
-		          );
-		        }
-		      }
-
-		      Object.keys(settings).forEach(function (key) {
-		        checkIFrame(key);
-		      });
-		    }
-
-		    function mutationObserved(mutations) {
-		      log(
-		        'window',
-		        'Mutation observed: ' + mutations[0].target + ' ' + mutations[0].type
-		      );
-		      debouce(checkIFrames, 16);
-		    }
-
-		    function createMutationObserver() {
-		      var target = document.querySelector('body'),
-		        config = {
-		          attributes: true,
-		          attributeOldValue: false,
-		          characterData: true,
-		          characterDataOldValue: false,
-		          childList: true,
-		          subtree: true
-		        },
-		        observer = new MutationObserver(mutationObserved);
-
-		      observer.observe(target, config);
-		    }
-
-		    var MutationObserver = getMutationObserver();
-		    if (MutationObserver) {
-		      createMutationObserver();
-		    }
-		  }
-
-		  function resizeIFrames(event) {
-		    function resize() {
-		      sendTriggerMsg('Window ' + event, 'resize');
-		    }
-
-		    log('window', 'Trigger event: ' + event);
-		    debouce(resize, 16);
-		  }
-
-		  // Not testable in PhantomJS
-		  /* istanbul ignore next */
-		  function tabVisible() {
-		    function resize() {
-		      sendTriggerMsg('Tab Visible', 'resize');
-		    }
-
-		    if ('hidden' !== document.visibilityState) {
-		      log('document', 'Trigger event: Visibility change');
-		      debouce(resize, 16);
-		    }
-		  }
-
-		  function sendTriggerMsg(eventName, event) {
-		    function isIFrameResizeEnabled(iframeId) {
-		      return (
-		        settings[iframeId] &&
-		        'parent' === settings[iframeId].resizeFrom &&
-		        settings[iframeId].autoResize &&
-		        !settings[iframeId].firstRun
-		      )
-		    }
-
-		    Object.keys(settings).forEach(function (iframeId) {
-		      if (isIFrameResizeEnabled(iframeId)) {
-		        trigger(eventName, event, settings[iframeId].iframe, iframeId);
-		      }
-		    });
-		  }
-
-		  function setupEventListeners() {
-		    addEventListener(window, 'message', iFrameListener);
-
-		    addEventListener(window, 'resize', function () {
-		      resizeIFrames('resize');
-		    });
-
-		    addEventListener(document, 'visibilitychange', tabVisible);
-
-		    addEventListener(document, '-webkit-visibilitychange', tabVisible);
-		  }
-
-		  function factory() {
-		    function init(options, element) {
-		      function chkType() {
-		        if (!element.tagName) {
-		          throw new TypeError('Object is not a valid DOM element')
-		        } else if ('IFRAME' !== element.tagName.toUpperCase()) {
-		          throw new TypeError(
-		            'Expected <IFRAME> tag, found <' + element.tagName + '>'
-		          )
-		        }
-		      }
-
-		      if (element) {
-		        chkType();
-		        setupIFrame(element, options);
-		        iFrames.push(element);
-		      }
-		    }
-
-		    function warnDeprecatedOptions(options) {
-		      if (options && options.enablePublicMethods) {
-		        warn(
-		          'enablePublicMethods option has been removed, public methods are now always available in the iFrame'
-		        );
-		      }
-		    }
-
-		    var iFrames;
-
-		    setupRequestAnimationFrame();
-		    setupEventListeners();
-
-		    return function iFrameResizeF(options, target) {
-		      iFrames = []; // Only return iFrames past in on this call
-
-		      warnDeprecatedOptions(options);
-
-		      switch (typeof target) {
-		        case 'undefined':
-		        case 'string': {
-		          Array.prototype.forEach.call(
-		            document.querySelectorAll(target || 'iframe'),
-		            init.bind(undefined$1, options)
-		          );
-		          break
-		        }
-
-		        case 'object': {
-		          init(options, target);
-		          break
-		        }
-
-		        default: {
-		          throw new TypeError('Unexpected data type (' + typeof target + ')')
-		        }
-		      }
-
-		      return iFrames
-		    }
-		  }
-
-		  function createJQueryPublicMethod($) {
-		    if (!$.fn) {
-		      info('', 'Unable to bind to jQuery, it is not fully loaded.');
-		    } else if (!$.fn.iFrameResize) {
-		      $.fn.iFrameResize = function $iFrameResizeF(options) {
-		        function init(index, element) {
-		          setupIFrame(element, options);
-		        }
-
-		        return this.filter('iframe').each(init).end()
-		      };
-		    }
-		  }
-
-		  if (window.jQuery !== undefined$1) {
-		    createJQueryPublicMethod(window.jQuery);
-		  }
-
-		  {
-		    // Node for browserfy
-		    module.exports = factory();
-		  }
-		  window.iFrameResize = window.iFrameResize || factory();
-		})(); 
-	} (iframeResizer$1));
-	return iframeResizer$1.exports;
-}
-
-var iframeResizer_contentWindow = {exports: {}};
-
-/*
- * File: iframeResizer.contentWindow.js
- * Desc: Include this file in any page being loaded into an iframe
- *       to force the iframe to resize to the content size.
- * Requires: iframeResizer.js on host page.
- * Doc: https://iframe-resizer.com
- * Author: David J. Bradshaw - info@iframe-resizer.com
- *
- */
-
-var hasRequiredIframeResizer_contentWindow;
-
-function requireIframeResizer_contentWindow () {
-	if (hasRequiredIframeResizer_contentWindow) return iframeResizer_contentWindow.exports;
-	hasRequiredIframeResizer_contentWindow = 1;
-	(function (module) {
-(function (undefined$1) {
-		  if (typeof window === 'undefined') return // don't run for server side render
-
-		  var autoResize = true,
-		    base = 10,
-		    bodyBackground = '',
-		    bodyMargin = 0,
-		    bodyMarginStr = '',
-		    bodyObserver = null,
-		    bodyPadding = '',
-		    calculateWidth = false,
-		    doubleEventList = { resize: 1, click: 1 },
-		    eventCancelTimer = 128,
-		    firstRun = true,
-		    height = 1,
-		    heightCalcModeDefault = 'bodyOffset',
-		    heightCalcMode = heightCalcModeDefault,
-		    initLock = true,
-		    initMsg = '',
-		    inPageLinks = {},
-		    interval = 32,
-		    intervalTimer = null,
-		    logging = false,
-		    mouseEvents = false,
-		    msgID = '[iFrameSizer]', // Must match host page msg ID
-		    msgIdLen = msgID.length,
-		    myID = '',
-		    resetRequiredMethods = {
-		      max: 1,
-		      min: 1,
-		      bodyScroll: 1,
-		      documentElementScroll: 1
-		    },
-		    resizeFrom = 'child',
-		    target = window.parent,
-		    targetOriginDefault = '*',
-		    tolerance = 0,
-		    triggerLocked = false,
-		    triggerLockedTimer = null,
-		    throttledTimer = 16,
-		    width = 1,
-		    widthCalcModeDefault = 'scroll',
-		    widthCalcMode = widthCalcModeDefault,
-		    win = window,
-		    onMessage = function () {
-		      warn('onMessage function not defined');
-		    },
-		    onReady = function () {},
-		    onPageInfo = function () {},
-		    customCalcMethods = {
-		      height: function () {
-		        warn('Custom height calculation function not defined');
-		        return document.documentElement.offsetHeight
-		      },
-		      width: function () {
-		        warn('Custom width calculation function not defined');
-		        return document.body.scrollWidth
-		      }
-		    },
-		    eventHandlersByName = {},
-		    passiveSupported = false;
-
-		  function noop() {}
-
-		  try {
-		    var options = Object.create(
-		      {},
-		      {
-		        passive: {
-		          // eslint-disable-next-line getter-return
-		          get: function () {
-		            passiveSupported = true;
-		          }
-		        }
-		      }
-		    );
-		    window.addEventListener('test', noop, options);
-		    window.removeEventListener('test', noop, options);
-		  } catch (error) {
-		    /* */
-		  }
-
-		  function addEventListener(el, evt, func, options) {
-		    el.addEventListener(evt, func, passiveSupported ? options || {} : false);
-		  }
-
-		  function removeEventListener(el, evt, func) {
-		    el.removeEventListener(evt, func, false);
-		  }
-
-		  function capitalizeFirstLetter(string) {
-		    return string.charAt(0).toUpperCase() + string.slice(1)
-		  }
-
-		  // Based on underscore.js
-		  function throttle(func) {
-		    var context,
-		      args,
-		      result,
-		      timeout = null,
-		      previous = 0,
-		      later = function () {
-		        previous = Date.now();
-		        timeout = null;
-		        result = func.apply(context, args);
-		        if (!timeout) {
-		          // eslint-disable-next-line no-multi-assign
-		          context = args = null;
-		        }
-		      };
-
-		    return function () {
-		      var now = Date.now();
-
-		      if (!previous) {
-		        previous = now;
-		      }
-
-		      var remaining = throttledTimer - (now - previous);
-
-		      context = this;
-		      args = arguments;
-
-		      if (remaining <= 0 || remaining > throttledTimer) {
-		        if (timeout) {
-		          clearTimeout(timeout);
-		          timeout = null;
-		        }
-
-		        previous = now;
-		        result = func.apply(context, args);
-
-		        if (!timeout) {
-		          // eslint-disable-next-line no-multi-assign
-		          context = args = null;
-		        }
-		      } else if (!timeout) {
-		        timeout = setTimeout(later, remaining);
-		      }
-
-		      return result
-		    }
-		  }
-
-		  function formatLogMsg(msg) {
-		    return msgID + '[' + myID + '] ' + msg
-		  }
-
-		  function log(msg) {
-		    if (logging && 'object' === typeof window.console) {
-		      // eslint-disable-next-line no-console
-		      console.log(formatLogMsg(msg));
-		    }
-		  }
-
-		  function warn(msg) {
-		    if ('object' === typeof window.console) {
-		      // eslint-disable-next-line no-console
-		      console.warn(formatLogMsg(msg));
-		    }
-		  }
-
-		  function init() {
-		    readDataFromParent();
-		    log('Initialising iFrame (' + window.location.href + ')');
-		    readDataFromPage();
-		    setMargin();
-		    setBodyStyle('background', bodyBackground);
-		    setBodyStyle('padding', bodyPadding);
-		    injectClearFixIntoBodyElement();
-		    checkHeightMode();
-		    checkWidthMode();
-		    stopInfiniteResizingOfIFrame();
-		    setupPublicMethods();
-		    setupMouseEvents();
-		    startEventListeners();
-		    inPageLinks = setupInPageLinks();
-		    sendSize('init', 'Init message from host page');
-		    onReady();
-		  }
-
-		  function readDataFromParent() {
-		    function strBool(str) {
-		      return 'true' === str
-		    }
-
-		    var data = initMsg.slice(msgIdLen).split(':');
-
-		    myID = data[0];
-		    bodyMargin = undefined$1 === data[1] ? bodyMargin : Number(data[1]); // For V1 compatibility
-		    calculateWidth = undefined$1 === data[2] ? calculateWidth : strBool(data[2]);
-		    logging = undefined$1 === data[3] ? logging : strBool(data[3]);
-		    interval = undefined$1 === data[4] ? interval : Number(data[4]);
-		    autoResize = undefined$1 === data[6] ? autoResize : strBool(data[6]);
-		    bodyMarginStr = data[7];
-		    heightCalcMode = undefined$1 === data[8] ? heightCalcMode : data[8];
-		    bodyBackground = data[9];
-		    bodyPadding = data[10];
-		    tolerance = undefined$1 === data[11] ? tolerance : Number(data[11]);
-		    inPageLinks.enable = undefined$1 === data[12] ? false : strBool(data[12]);
-		    resizeFrom = undefined$1 === data[13] ? resizeFrom : data[13];
-		    widthCalcMode = undefined$1 === data[14] ? widthCalcMode : data[14];
-		    mouseEvents = undefined$1 === data[15] ? mouseEvents : strBool(data[15]);
-		  }
-
-		  function depricate(key) {
-		    var splitName = key.split('Callback');
-
-		    if (splitName.length === 2) {
-		      var name =
-		        'on' + splitName[0].charAt(0).toUpperCase() + splitName[0].slice(1);
-		      this[name] = this[key];
-		      delete this[key];
-		      warn(
-		        "Deprecated: '" +
-		          key +
-		          "' has been renamed '" +
-		          name +
-		          "'. The old method will be removed in the next major version."
-		      );
-		    }
-		  }
-
-		  function readDataFromPage() {
-		    function readData() {
-		      var data = window.iFrameResizer;
-
-		      log('Reading data from page: ' + JSON.stringify(data));
-		      Object.keys(data).forEach(depricate, data);
-
-		      onMessage = 'onMessage' in data ? data.onMessage : onMessage;
-		      onReady = 'onReady' in data ? data.onReady : onReady;
-		      targetOriginDefault =
-		        'targetOrigin' in data ? data.targetOrigin : targetOriginDefault;
-		      heightCalcMode =
-		        'heightCalculationMethod' in data
-		          ? data.heightCalculationMethod
-		          : heightCalcMode;
-		      widthCalcMode =
-		        'widthCalculationMethod' in data
-		          ? data.widthCalculationMethod
-		          : widthCalcMode;
-		    }
-
-		    function setupCustomCalcMethods(calcMode, calcFunc) {
-		      if ('function' === typeof calcMode) {
-		        log('Setup custom ' + calcFunc + 'CalcMethod');
-		        customCalcMethods[calcFunc] = calcMode;
-		        calcMode = 'custom';
-		      }
-
-		      return calcMode
-		    }
-
-		    if (
-		      'iFrameResizer' in window &&
-		      Object === window.iFrameResizer.constructor
-		    ) {
-		      readData();
-		      heightCalcMode = setupCustomCalcMethods(heightCalcMode, 'height');
-		      widthCalcMode = setupCustomCalcMethods(widthCalcMode, 'width');
-		    }
-
-		    log('TargetOrigin for parent set to: ' + targetOriginDefault);
-		  }
-
-		  function chkCSS(attr, value) {
-		    if (-1 !== value.indexOf('-')) {
-		      warn('Negative CSS value ignored for ' + attr);
-		      value = '';
-		    }
-		    return value
-		  }
-
-		  function setBodyStyle(attr, value) {
-		    if (undefined$1 !== value && '' !== value && 'null' !== value) {
-		      document.body.style[attr] = value;
-		      log('Body ' + attr + ' set to "' + value + '"');
-		    }
-		  }
-
-		  function setMargin() {
-		    // If called via V1 script, convert bodyMargin from int to str
-		    if (undefined$1 === bodyMarginStr) {
-		      bodyMarginStr = bodyMargin + 'px';
-		    }
-
-		    setBodyStyle('margin', chkCSS('margin', bodyMarginStr));
-		  }
-
-		  function stopInfiniteResizingOfIFrame() {
-		    document.documentElement.style.height = '';
-		    document.body.style.height = '';
-		    log('HTML & body height set to "auto"');
-		  }
-
-		  function manageTriggerEvent(options) {
-		    var listener = {
-		      add: function (eventName) {
-		        function handleEvent() {
-		          sendSize(options.eventName, options.eventType);
-		        }
-
-		        eventHandlersByName[eventName] = handleEvent;
-
-		        addEventListener(window, eventName, handleEvent, { passive: true });
-		      },
-		      remove: function (eventName) {
-		        var handleEvent = eventHandlersByName[eventName];
-		        delete eventHandlersByName[eventName];
-
-		        removeEventListener(window, eventName, handleEvent);
-		      }
-		    };
-
-		    if (options.eventNames && Array.prototype.map) {
-		      options.eventName = options.eventNames[0];
-		      options.eventNames.map(listener[options.method]);
-		    } else {
-		      listener[options.method](options.eventName);
-		    }
-
-		    log(
-		      capitalizeFirstLetter(options.method) +
-		        ' event listener: ' +
-		        options.eventType
-		    );
-		  }
-
-		  function manageEventListeners(method) {
-		    manageTriggerEvent({
-		      method: method,
-		      eventType: 'Animation Start',
-		      eventNames: ['animationstart', 'webkitAnimationStart']
-		    });
-		    manageTriggerEvent({
-		      method: method,
-		      eventType: 'Animation Iteration',
-		      eventNames: ['animationiteration', 'webkitAnimationIteration']
-		    });
-		    manageTriggerEvent({
-		      method: method,
-		      eventType: 'Animation End',
-		      eventNames: ['animationend', 'webkitAnimationEnd']
-		    });
-		    manageTriggerEvent({
-		      method: method,
-		      eventType: 'Input',
-		      eventName: 'input'
-		    });
-		    manageTriggerEvent({
-		      method: method,
-		      eventType: 'Mouse Up',
-		      eventName: 'mouseup'
-		    });
-		    manageTriggerEvent({
-		      method: method,
-		      eventType: 'Mouse Down',
-		      eventName: 'mousedown'
-		    });
-		    manageTriggerEvent({
-		      method: method,
-		      eventType: 'Orientation Change',
-		      eventName: 'orientationchange'
-		    });
-		    manageTriggerEvent({
-		      method: method,
-		      eventType: 'Print',
-		      eventNames: ['afterprint', 'beforeprint']
-		    });
-		    manageTriggerEvent({
-		      method: method,
-		      eventType: 'Ready State Change',
-		      eventName: 'readystatechange'
-		    });
-		    manageTriggerEvent({
-		      method: method,
-		      eventType: 'Touch Start',
-		      eventName: 'touchstart'
-		    });
-		    manageTriggerEvent({
-		      method: method,
-		      eventType: 'Touch End',
-		      eventName: 'touchend'
-		    });
-		    manageTriggerEvent({
-		      method: method,
-		      eventType: 'Touch Cancel',
-		      eventName: 'touchcancel'
-		    });
-		    manageTriggerEvent({
-		      method: method,
-		      eventType: 'Transition Start',
-		      eventNames: [
-		        'transitionstart',
-		        'webkitTransitionStart',
-		        'MSTransitionStart',
-		        'oTransitionStart',
-		        'otransitionstart'
-		      ]
-		    });
-		    manageTriggerEvent({
-		      method: method,
-		      eventType: 'Transition Iteration',
-		      eventNames: [
-		        'transitioniteration',
-		        'webkitTransitionIteration',
-		        'MSTransitionIteration',
-		        'oTransitionIteration',
-		        'otransitioniteration'
-		      ]
-		    });
-		    manageTriggerEvent({
-		      method: method,
-		      eventType: 'Transition End',
-		      eventNames: [
-		        'transitionend',
-		        'webkitTransitionEnd',
-		        'MSTransitionEnd',
-		        'oTransitionEnd',
-		        'otransitionend'
-		      ]
-		    });
-		    if ('child' === resizeFrom) {
-		      manageTriggerEvent({
-		        method: method,
-		        eventType: 'IFrame Resized',
-		        eventName: 'resize'
-		      });
-		    }
-		  }
-
-		  function checkCalcMode(calcMode, calcModeDefault, modes, type) {
-		    if (calcModeDefault !== calcMode) {
-		      if (!(calcMode in modes)) {
-		        warn(
-		          calcMode + ' is not a valid option for ' + type + 'CalculationMethod.'
-		        );
-		        calcMode = calcModeDefault;
-		      }
-		      log(type + ' calculation method set to "' + calcMode + '"');
-		    }
-
-		    return calcMode
-		  }
-
-		  function checkHeightMode() {
-		    heightCalcMode = checkCalcMode(
-		      heightCalcMode,
-		      heightCalcModeDefault,
-		      getHeight,
-		      'height'
-		    );
-		  }
-
-		  function checkWidthMode() {
-		    widthCalcMode = checkCalcMode(
-		      widthCalcMode,
-		      widthCalcModeDefault,
-		      getWidth,
-		      'width'
-		    );
-		  }
-
-		  function startEventListeners() {
-		    if (true === autoResize) {
-		      manageEventListeners('add');
-		      setupMutationObserver();
-		    } else {
-		      log('Auto Resize disabled');
-		    }
-		  }
-
-		  //   function stopMsgsToParent() {
-		  //     log('Disable outgoing messages')
-		  //     sendPermit = false
-		  //   }
-
-		  //   function removeMsgListener() {
-		  //     log('Remove event listener: Message')
-		  //     removeEventListener(window, 'message', receiver)
-		  //   }
-
-		  function disconnectMutationObserver() {
-		    if (null !== bodyObserver) {
-		      /* istanbul ignore next */ // Not testable in PhantonJS
-		      bodyObserver.disconnect();
-		    }
-		  }
-
-		  function stopEventListeners() {
-		    manageEventListeners('remove');
-		    disconnectMutationObserver();
-		    clearInterval(intervalTimer);
-		  }
-
-		  //   function teardown() {
-		  //     stopMsgsToParent()
-		  //     removeMsgListener()
-		  //     if (true === autoResize) stopEventListeners()
-		  //   }
-
-		  function injectClearFixIntoBodyElement() {
-		    var clearFix = document.createElement('div');
-		    clearFix.style.clear = 'both';
-		    // Guard against the following having been globally redefined in CSS.
-		    clearFix.style.display = 'block';
-		    clearFix.style.height = '0';
-		    document.body.appendChild(clearFix);
-		  }
-
-		  function setupInPageLinks() {
-		    function getPagePosition() {
-		      return {
-		        x:
-		          window.pageXOffset === undefined$1
-		            ? document.documentElement.scrollLeft
-		            : window.pageXOffset,
-		        y:
-		          window.pageYOffset === undefined$1
-		            ? document.documentElement.scrollTop
-		            : window.pageYOffset
-		      }
-		    }
-
-		    function getElementPosition(el) {
-		      var elPosition = el.getBoundingClientRect(),
-		        pagePosition = getPagePosition();
-
-		      return {
-		        x: parseInt(elPosition.left, 10) + parseInt(pagePosition.x, 10),
-		        y: parseInt(elPosition.top, 10) + parseInt(pagePosition.y, 10)
-		      }
-		    }
-
-		    function findTarget(location) {
-		      function jumpToTarget(target) {
-		        var jumpPosition = getElementPosition(target);
-
-		        log(
-		          'Moving to in page link (#' +
-		            hash +
-		            ') at x: ' +
-		            jumpPosition.x +
-		            ' y: ' +
-		            jumpPosition.y
-		        );
-		        sendMsg(jumpPosition.y, jumpPosition.x, 'scrollToOffset'); // X&Y reversed at sendMsg uses height/width
-		      }
-
-		      var hash = location.split('#')[1] || location, // Remove # if present
-		        hashData = decodeURIComponent(hash),
-		        target =
-		          document.getElementById(hashData) ||
-		          document.getElementsByName(hashData)[0];
-
-		      if (undefined$1 === target) {
-		        log(
-		          'In page link (#' +
-		            hash +
-		            ') not found in iFrame, so sending to parent'
-		        );
-		        sendMsg(0, 0, 'inPageLink', '#' + hash);
-		      } else {
-		        jumpToTarget(target);
-		      }
-		    }
-
-		    function checkLocationHash() {
-		      var hash = window.location.hash;
-		      var href = window.location.href;
-
-		      if ('' !== hash && '#' !== hash) {
-		        findTarget(href);
-		      }
-		    }
-
-		    function bindAnchors() {
-		      function setupLink(el) {
-		        function linkClicked(e) {
-		          e.preventDefault();
-
-		          /* jshint validthis:true */
-		          findTarget(this.getAttribute('href'));
-		        }
-
-		        if ('#' !== el.getAttribute('href')) {
-		          addEventListener(el, 'click', linkClicked);
-		        }
-		      }
-
-		      Array.prototype.forEach.call(
-		        document.querySelectorAll('a[href^="#"]'),
-		        setupLink
-		      );
-		    }
-
-		    function bindLocationHash() {
-		      addEventListener(window, 'hashchange', checkLocationHash);
-		    }
-
-		    function initCheck() {
-		      // Check if page loaded with location hash after init resize
-		      setTimeout(checkLocationHash, eventCancelTimer);
-		    }
-
-		    function enableInPageLinks() {
-		      /* istanbul ignore else */ // Not testable in phantonJS
-		      if (Array.prototype.forEach && document.querySelectorAll) {
-		        log('Setting up location.hash handlers');
-		        bindAnchors();
-		        bindLocationHash();
-		        initCheck();
-		      } else {
-		        warn(
-		          'In page linking not fully supported in this browser! (See README.md for IE8 workaround)'
-		        );
-		      }
-		    }
-
-		    if (inPageLinks.enable) {
-		      enableInPageLinks();
-		    } else {
-		      log('In page linking not enabled');
-		    }
-
-		    return {
-		      findTarget: findTarget
-		    }
-		  }
-
-		  function setupMouseEvents() {
-		    if (mouseEvents !== true) return
-
-		    function sendMouse(e) {
-		      sendMsg(0, 0, e.type, e.screenY + ':' + e.screenX);
-		    }
-
-		    function addMouseListener(evt, name) {
-		      log('Add event listener: ' + name);
-		      addEventListener(window.document, evt, sendMouse);
-		    }
-
-		    addMouseListener('mouseenter', 'Mouse Enter');
-		    addMouseListener('mouseleave', 'Mouse Leave');
-		  }
-
-		  function setupPublicMethods() {
-		    log('Enable public methods');
-
-		    win.parentIFrame = {
-		      autoResize: function autoResizeF(resize) {
-		        if (true === resize && false === autoResize) {
-		          autoResize = true;
-		          startEventListeners();
-		        } else if (false === resize && true === autoResize) {
-		          autoResize = false;
-		          stopEventListeners();
-		        }
-		        sendMsg(0, 0, 'autoResize', JSON.stringify(autoResize));
-		        return autoResize
-		      },
-
-		      close: function closeF() {
-		        sendMsg(0, 0, 'close');
-		        // teardown()
-		      },
-
-		      getId: function getIdF() {
-		        return myID
-		      },
-
-		      getPageInfo: function getPageInfoF(callback) {
-		        if ('function' === typeof callback) {
-		          onPageInfo = callback;
-		          sendMsg(0, 0, 'pageInfo');
-		        } else {
-		          onPageInfo = function () {};
-		          sendMsg(0, 0, 'pageInfoStop');
-		        }
-		      },
-
-		      moveToAnchor: function moveToAnchorF(hash) {
-		        inPageLinks.findTarget(hash);
-		      },
-
-		      reset: function resetF() {
-		        resetIFrame('parentIFrame.reset');
-		      },
-
-		      scrollTo: function scrollToF(x, y) {
-		        sendMsg(y, x, 'scrollTo'); // X&Y reversed at sendMsg uses height/width
-		      },
-
-		      scrollToOffset: function scrollToF(x, y) {
-		        sendMsg(y, x, 'scrollToOffset'); // X&Y reversed at sendMsg uses height/width
-		      },
-
-		      sendMessage: function sendMessageF(msg, targetOrigin) {
-		        sendMsg(0, 0, 'message', JSON.stringify(msg), targetOrigin);
-		      },
-
-		      setHeightCalculationMethod: function setHeightCalculationMethodF(
-		        heightCalculationMethod
-		      ) {
-		        heightCalcMode = heightCalculationMethod;
-		        checkHeightMode();
-		      },
-
-		      setWidthCalculationMethod: function setWidthCalculationMethodF(
-		        widthCalculationMethod
-		      ) {
-		        widthCalcMode = widthCalculationMethod;
-		        checkWidthMode();
-		      },
-
-		      setTargetOrigin: function setTargetOriginF(targetOrigin) {
-		        log('Set targetOrigin: ' + targetOrigin);
-		        targetOriginDefault = targetOrigin;
-		      },
-
-		      size: function sizeF(customHeight, customWidth) {
-		        var valString =
-		          '' + (customHeight || '') + (customWidth ? ',' + customWidth : '');
-		        sendSize(
-		          'size',
-		          'parentIFrame.size(' + valString + ')',
-		          customHeight,
-		          customWidth
-		        );
-		      }
-		    };
-		  }
-
-		  function initInterval() {
-		    if (0 !== interval) {
-		      log('setInterval: ' + interval + 'ms');
-		      intervalTimer = setInterval(function () {
-		        sendSize('interval', 'setInterval: ' + interval);
-		      }, Math.abs(interval));
-		    }
-		  }
-
-		  // Not testable in PhantomJS
-		  /* istanbul ignore next */
-		  function setupBodyMutationObserver() {
-		    function addImageLoadListners(mutation) {
-		      function addImageLoadListener(element) {
-		        if (false === element.complete) {
-		          log('Attach listeners to ' + element.src);
-		          element.addEventListener('load', imageLoaded, false);
-		          element.addEventListener('error', imageError, false);
-		          elements.push(element);
-		        }
-		      }
-
-		      if (mutation.type === 'attributes' && mutation.attributeName === 'src') {
-		        addImageLoadListener(mutation.target);
-		      } else if (mutation.type === 'childList') {
-		        Array.prototype.forEach.call(
-		          mutation.target.querySelectorAll('img'),
-		          addImageLoadListener
-		        );
-		      }
-		    }
-
-		    function removeFromArray(element) {
-		      elements.splice(elements.indexOf(element), 1);
-		    }
-
-		    function removeImageLoadListener(element) {
-		      log('Remove listeners from ' + element.src);
-		      element.removeEventListener('load', imageLoaded, false);
-		      element.removeEventListener('error', imageError, false);
-		      removeFromArray(element);
-		    }
-
-		    function imageEventTriggered(event, type, typeDesc) {
-		      removeImageLoadListener(event.target);
-		      sendSize(type, typeDesc + ': ' + event.target.src);
-		    }
-
-		    function imageLoaded(event) {
-		      imageEventTriggered(event, 'imageLoad', 'Image loaded');
-		    }
-
-		    function imageError(event) {
-		      imageEventTriggered(event, 'imageLoadFailed', 'Image load failed');
-		    }
-
-		    function mutationObserved(mutations) {
-		      sendSize(
-		        'mutationObserver',
-		        'mutationObserver: ' + mutations[0].target + ' ' + mutations[0].type
-		      );
-
-		      // Deal with WebKit / Blink asyncing image loading when tags are injected into the page
-		      mutations.forEach(addImageLoadListners);
-		    }
-
-		    function createMutationObserver() {
-		      var target = document.querySelector('body'),
-		        config = {
-		          attributes: true,
-		          attributeOldValue: false,
-		          characterData: true,
-		          characterDataOldValue: false,
-		          childList: true,
-		          subtree: true
-		        };
-
-		      observer = new MutationObserver(mutationObserved);
-
-		      log('Create body MutationObserver');
-		      observer.observe(target, config);
-
-		      return observer
-		    }
-
-		    var elements = [],
-		      MutationObserver =
-		        window.MutationObserver || window.WebKitMutationObserver,
-		      observer = createMutationObserver();
-
-		    return {
-		      disconnect: function () {
-		        if ('disconnect' in observer) {
-		          log('Disconnect body MutationObserver');
-		          observer.disconnect();
-		          elements.forEach(removeImageLoadListener);
-		        }
-		      }
-		    }
-		  }
-
-		  function setupMutationObserver() {
-		    var forceIntervalTimer = 0 > interval;
-
-		    // Not testable in PhantomJS
-		    /* istanbul ignore if */ if (
-		      window.MutationObserver ||
-		      window.WebKitMutationObserver
-		    ) {
-		      if (forceIntervalTimer) {
-		        initInterval();
-		      } else {
-		        bodyObserver = setupBodyMutationObserver();
-		      }
-		    } else {
-		      log('MutationObserver not supported in this browser!');
-		      initInterval();
-		    }
-		  }
-
-		  // document.documentElement.offsetHeight is not reliable, so
-		  // we have to jump through hoops to get a better value.
-		  function getComputedStyle(prop, el) {
-		    var retVal = 0;
-		    el = el || document.body; // Not testable in phantonJS
-
-		    retVal = document.defaultView.getComputedStyle(el, null);
-		    retVal = null === retVal ? 0 : retVal[prop];
-
-		    return parseInt(retVal, base)
-		  }
-
-		  function chkEventThottle(timer) {
-		    if (timer > throttledTimer / 2) {
-		      throttledTimer = 2 * timer;
-		      log('Event throttle increased to ' + throttledTimer + 'ms');
-		    }
-		  }
-
-		  // Idea from https://github.com/guardian/iframe-messenger
-		  function getMaxElement(side, elements) {
-		    var elementsLength = elements.length,
-		      elVal = 0,
-		      maxVal = 0,
-		      Side = capitalizeFirstLetter(side),
-		      timer = Date.now();
-
-		    for (var i = 0; i < elementsLength; i++) {
-		      elVal =
-		        elements[i].getBoundingClientRect()[side] +
-		        getComputedStyle('margin' + Side, elements[i]);
-		      if (elVal > maxVal) {
-		        maxVal = elVal;
-		      }
-		    }
-
-		    timer = Date.now() - timer;
-
-		    log('Parsed ' + elementsLength + ' HTML elements');
-		    log('Element position calculated in ' + timer + 'ms');
-
-		    chkEventThottle(timer);
-
-		    return maxVal
-		  }
-
-		  function getAllMeasurements(dimensions) {
-		    return [
-		      dimensions.bodyOffset(),
-		      dimensions.bodyScroll(),
-		      dimensions.documentElementOffset(),
-		      dimensions.documentElementScroll()
-		    ]
-		  }
-
-		  function getTaggedElements(side, tag) {
-		    function noTaggedElementsFound() {
-		      warn('No tagged elements (' + tag + ') found on page');
-		      return document.querySelectorAll('body *')
-		    }
-
-		    var elements = document.querySelectorAll('[' + tag + ']');
-
-		    if (elements.length === 0) noTaggedElementsFound();
-
-		    return getMaxElement(side, elements)
-		  }
-
-		  function getAllElements() {
-		    return document.querySelectorAll('body *')
-		  }
-
-		  var getHeight = {
-		      bodyOffset: function getBodyOffsetHeight() {
-		        return (
-		          document.body.offsetHeight +
-		          getComputedStyle('marginTop') +
-		          getComputedStyle('marginBottom')
-		        )
-		      },
-
-		      offset: function () {
-		        return getHeight.bodyOffset() // Backwards compatibility
-		      },
-
-		      bodyScroll: function getBodyScrollHeight() {
-		        return document.body.scrollHeight
-		      },
-
-		      custom: function getCustomWidth() {
-		        return customCalcMethods.height()
-		      },
-
-		      documentElementOffset: function getDEOffsetHeight() {
-		        return document.documentElement.offsetHeight
-		      },
-
-		      documentElementScroll: function getDEScrollHeight() {
-		        return document.documentElement.scrollHeight
-		      },
-
-		      max: function getMaxHeight() {
-		        return Math.max.apply(null, getAllMeasurements(getHeight))
-		      },
-
-		      min: function getMinHeight() {
-		        return Math.min.apply(null, getAllMeasurements(getHeight))
-		      },
-
-		      grow: function growHeight() {
-		        return getHeight.max() // Run max without the forced downsizing
-		      },
-
-		      lowestElement: function getBestHeight() {
-		        return Math.max(
-		          getHeight.bodyOffset() || getHeight.documentElementOffset(),
-		          getMaxElement('bottom', getAllElements())
-		        )
-		      },
-
-		      taggedElement: function getTaggedElementsHeight() {
-		        return getTaggedElements('bottom', 'data-iframe-height')
-		      }
-		    },
-		    getWidth = {
-		      bodyScroll: function getBodyScrollWidth() {
-		        return document.body.scrollWidth
-		      },
-
-		      bodyOffset: function getBodyOffsetWidth() {
-		        return document.body.offsetWidth
-		      },
-
-		      custom: function getCustomWidth() {
-		        return customCalcMethods.width()
-		      },
-
-		      documentElementScroll: function getDEScrollWidth() {
-		        return document.documentElement.scrollWidth
-		      },
-
-		      documentElementOffset: function getDEOffsetWidth() {
-		        return document.documentElement.offsetWidth
-		      },
-
-		      scroll: function getMaxWidth() {
-		        return Math.max(getWidth.bodyScroll(), getWidth.documentElementScroll())
-		      },
-
-		      max: function getMaxWidth() {
-		        return Math.max.apply(null, getAllMeasurements(getWidth))
-		      },
-
-		      min: function getMinWidth() {
-		        return Math.min.apply(null, getAllMeasurements(getWidth))
-		      },
-
-		      rightMostElement: function rightMostElement() {
-		        return getMaxElement('right', getAllElements())
-		      },
-
-		      taggedElement: function getTaggedElementsWidth() {
-		        return getTaggedElements('right', 'data-iframe-width')
-		      }
-		    };
-
-		  function sizeIFrame(
-		    triggerEvent,
-		    triggerEventDesc,
-		    customHeight,
-		    customWidth
-		  ) {
-		    function resizeIFrame() {
-		      height = currentHeight;
-		      width = currentWidth;
-
-		      sendMsg(height, width, triggerEvent);
-		    }
-
-		    function isSizeChangeDetected() {
-		      function checkTolarance(a, b) {
-		        var retVal = Math.abs(a - b) <= tolerance;
-		        return !retVal
-		      }
-
-		      currentHeight =
-		        undefined$1 === customHeight ? getHeight[heightCalcMode]() : customHeight;
-		      currentWidth =
-		        undefined$1 === customWidth ? getWidth[widthCalcMode]() : customWidth;
-
-		      return (
-		        checkTolarance(height, currentHeight) ||
-		        (calculateWidth && checkTolarance(width, currentWidth))
-		      )
-		    }
-
-		    function isForceResizableEvent() {
-		      return !(triggerEvent in { init: 1, interval: 1, size: 1 })
-		    }
-
-		    function isForceResizableCalcMode() {
-		      return (
-		        heightCalcMode in resetRequiredMethods ||
-		        (calculateWidth && widthCalcMode in resetRequiredMethods)
-		      )
-		    }
-
-		    function logIgnored() {
-		      log('No change in size detected');
-		    }
-
-		    function checkDownSizing() {
-		      if (isForceResizableEvent() && isForceResizableCalcMode()) {
-		        resetIFrame(triggerEventDesc);
-		      } else if (!(triggerEvent in { interval: 1 })) {
-		        logIgnored();
-		      }
-		    }
-
-		    var currentHeight, currentWidth;
-
-		    if (isSizeChangeDetected() || 'init' === triggerEvent) {
-		      lockTrigger();
-		      resizeIFrame();
-		    } else {
-		      checkDownSizing();
-		    }
-		  }
-
-		  var sizeIFrameThrottled = throttle(sizeIFrame);
-
-		  function sendSize(triggerEvent, triggerEventDesc, customHeight, customWidth) {
-		    function recordTrigger() {
-		      if (!(triggerEvent in { reset: 1, resetPage: 1, init: 1 })) {
-		        log('Trigger event: ' + triggerEventDesc);
-		      }
-		    }
-
-		    function isDoubleFiredEvent() {
-		      return triggerLocked && triggerEvent in doubleEventList
-		    }
-
-		    if (isDoubleFiredEvent()) {
-		      log('Trigger event cancelled: ' + triggerEvent);
-		    } else {
-		      recordTrigger();
-		      if (triggerEvent === 'init') {
-		        sizeIFrame(triggerEvent, triggerEventDesc, customHeight, customWidth);
-		      } else {
-		        sizeIFrameThrottled(
-		          triggerEvent,
-		          triggerEventDesc,
-		          customHeight,
-		          customWidth
-		        );
-		      }
-		    }
-		  }
-
-		  function lockTrigger() {
-		    if (!triggerLocked) {
-		      triggerLocked = true;
-		      log('Trigger event lock on');
-		    }
-		    clearTimeout(triggerLockedTimer);
-		    triggerLockedTimer = setTimeout(function () {
-		      triggerLocked = false;
-		      log('Trigger event lock off');
-		      log('--');
-		    }, eventCancelTimer);
-		  }
-
-		  function triggerReset(triggerEvent) {
-		    height = getHeight[heightCalcMode]();
-		    width = getWidth[widthCalcMode]();
-
-		    sendMsg(height, width, triggerEvent);
-		  }
-
-		  function resetIFrame(triggerEventDesc) {
-		    var hcm = heightCalcMode;
-		    heightCalcMode = heightCalcModeDefault;
-
-		    log('Reset trigger event: ' + triggerEventDesc);
-		    lockTrigger();
-		    triggerReset('reset');
-
-		    heightCalcMode = hcm;
-		  }
-
-		  function sendMsg(height, width, triggerEvent, msg, targetOrigin) {
-		    function setTargetOrigin() {
-		      if (undefined$1 === targetOrigin) {
-		        targetOrigin = targetOriginDefault;
-		      } else {
-		        log('Message targetOrigin: ' + targetOrigin);
-		      }
-		    }
-
-		    function sendToParent() {
-		      var size = height + ':' + width,
-		        message =
-		          myID +
-		          ':' +
-		          size +
-		          ':' +
-		          triggerEvent +
-		          (undefined$1 === msg ? '' : ':' + msg);
-
-		      log('Sending message to host page (' + message + ')');
-		      target.postMessage(msgID + message, targetOrigin);
-		    }
-
-		    {
-		      setTargetOrigin();
-		      sendToParent();
-		    }
-		  }
-
-		  function receiver(event) {
-		    var processRequestFromParent = {
-		      init: function initFromParent() {
-		        initMsg = event.data;
-		        target = event.source;
-
-		        init();
-		        firstRun = false;
-		        setTimeout(function () {
-		          initLock = false;
-		        }, eventCancelTimer);
-		      },
-
-		      reset: function resetFromParent() {
-		        if (initLock) {
-		          log('Page reset ignored by init');
-		        } else {
-		          log('Page size reset by host page');
-		          triggerReset('resetPage');
-		        }
-		      },
-
-		      resize: function resizeFromParent() {
-		        sendSize('resizeParent', 'Parent window requested size check');
-		      },
-
-		      moveToAnchor: function moveToAnchorF() {
-		        inPageLinks.findTarget(getData());
-		      },
-		      inPageLink: function inPageLinkF() {
-		        this.moveToAnchor();
-		      }, // Backward compatibility
-
-		      pageInfo: function pageInfoFromParent() {
-		        var msgBody = getData();
-		        log('PageInfoFromParent called from parent: ' + msgBody);
-		        onPageInfo(JSON.parse(msgBody));
-		        log(' --');
-		      },
-
-		      message: function messageFromParent() {
-		        var msgBody = getData();
-
-		        log('onMessage called from parent: ' + msgBody);
-		        // eslint-disable-next-line sonarjs/no-extra-arguments
-		        onMessage(JSON.parse(msgBody));
-		        log(' --');
-		      }
-		    };
-
-		    function isMessageForUs() {
-		      return msgID === ('' + event.data).slice(0, msgIdLen) // ''+ Protects against non-string messages
-		    }
-
-		    function getMessageType() {
-		      return event.data.split(']')[1].split(':')[0]
-		    }
-
-		    function getData() {
-		      return event.data.slice(event.data.indexOf(':') + 1)
-		    }
-
-		    function isMiddleTier() {
-		      return (
-		        (!(module.exports) &&
-		          'iFrameResize' in window) ||
-		        (window.jQuery !== undefined$1 &&
-		          'iFrameResize' in window.jQuery.prototype)
-		      )
-		    }
-
-		    function isInitMsg() {
-		      // Test if this message is from a child below us. This is an ugly test, however, updating
-		      // the message format would break backwards compatibility.
-		      return event.data.split(':')[2] in { true: 1, false: 1 }
-		    }
-
-		    function callFromParent() {
-		      var messageType = getMessageType();
-
-		      if (messageType in processRequestFromParent) {
-		        processRequestFromParent[messageType]();
-		      } else if (!isMiddleTier() && !isInitMsg()) {
-		        warn('Unexpected message (' + event.data + ')');
-		      }
-		    }
-
-		    function processMessage() {
-		      if (false === firstRun) {
-		        callFromParent();
-		      } else if (isInitMsg()) {
-		        processRequestFromParent.init();
-		      } else {
-		        log(
-		          'Ignored message of type "' +
-		            getMessageType() +
-		            '". Received before initialization.'
-		        );
-		      }
-		    }
-
-		    if (isMessageForUs()) {
-		      processMessage();
-		    }
-		  }
-
-		  // Normally the parent kicks things off when it detects the iFrame has loaded.
-		  // If this script is async-loaded, then tell parent page to retry init.
-		  function chkLateLoaded() {
-		    if ('loading' !== document.readyState) {
-		      window.parent.postMessage('[iFrameResizerChild]Ready', '*');
-		    }
-		  }
-
-		  // Setup if not already running
-		  if (!('iframeResizer' in window)) {
-		    window.iframeChildListener = function (data) {
-		      receiver({ data});
-		    };
-		    addEventListener(window, 'message', receiver);
-		    addEventListener(window, 'readystatechange', chkLateLoaded);
-		    chkLateLoaded();
-		  }
-
-		  
-		})(); 
-	} (iframeResizer_contentWindow));
-	return iframeResizer_contentWindow.exports;
-}
-
-var iframeResizer;
-var hasRequiredIframeResizer;
-
-function requireIframeResizer () {
-	if (hasRequiredIframeResizer) return iframeResizer;
-	hasRequiredIframeResizer = 1;
-	const iframeResize = requireIframeResizer$1();
-
-	iframeResizer = {
-	  iframeResize: iframeResize,
-	  iframeResizer: iframeResize, // Backwards compatibility
-	  contentWindow: requireIframeResizer_contentWindow()
-	};
-	return iframeResizer;
-}
-
-var hasRequiredAdfRenderer$2;
-
-function requireAdfRenderer$2 () {
-	if (hasRequiredAdfRenderer$2) return adfRenderer$2;
-	hasRequiredAdfRenderer$2 = 1;
+function requireAdfRenderer$1 () {
+	if (hasRequiredAdfRenderer$1) return adfRenderer$1;
+	hasRequiredAdfRenderer$1 = 1;
 	(function (exports) {
-		var __createBinding = (adfRenderer$2 && adfRenderer$2.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-		    if (k2 === undefined) k2 = k;
-		    var desc = Object.getOwnPropertyDescriptor(m, k);
-		    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-		      desc = { enumerable: true, get: function() { return m[k]; } };
-		    }
-		    Object.defineProperty(o, k2, desc);
-		}) : (function(o, m, k, k2) {
-		    if (k2 === undefined) k2 = k;
-		    o[k2] = m[k];
-		}));
-		var __setModuleDefault = (adfRenderer$2 && adfRenderer$2.__setModuleDefault) || (Object.create ? (function(o, v) {
-		    Object.defineProperty(o, "default", { enumerable: true, value: v });
-		}) : function(o, v) {
-		    o["default"] = v;
-		});
-		var __importStar = (adfRenderer$2 && adfRenderer$2.__importStar) || (function () {
-		    var ownKeys = function(o) {
-		        ownKeys = Object.getOwnPropertyNames || function (o) {
-		            var ar = [];
-		            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
-		            return ar;
-		        };
-		        return ownKeys(o);
-		    };
-		    return function (mod) {
-		        if (mod && mod.__esModule) return mod;
-		        var result = {};
-		        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
-		        __setModuleDefault(result, mod);
-		        return result;
-		    };
-		})();
 		Object.defineProperty(exports, "__esModule", { value: true });
 		exports.createAdfRendererIframeProps = exports.sendMessageWhenReady = void 0;
 		/**
@@ -6256,7 +3389,7 @@ function requireAdfRenderer$2 () {
 		};
 		exports.sendMessageWhenReady = sendMessageWhenReady;
 		const createAdfRendererIframeProps = async (context, iframeId) => {
-		    const IframeResizer = await Promise.resolve().then(() => __importStar(requireIframeResizer()));
+		    const IframeResizer = await import('./index-DEkAgz8-.js').then(function (n) { return n.i; });
 		    const IframeResizerModule = IframeResizer.default || IframeResizer;
 		    const origin = new URL(document.referrer).origin;
 		    const src = `${origin}/forge-apps/adf-renderer`;
@@ -6294,23 +3427,23 @@ function requireAdfRenderer$2 () {
 		    };
 		};
 		exports.createAdfRendererIframeProps = createAdfRendererIframeProps; 
-	} (adfRenderer$2));
-	return adfRenderer$2;
+	} (adfRenderer$1));
+	return adfRenderer$1;
 }
 
-var onClose$1 = {};
+var onClose = {};
 
-var hasRequiredOnClose$1;
+var hasRequiredOnClose;
 
-function requireOnClose$1 () {
-	if (hasRequiredOnClose$1) return onClose$1;
-	hasRequiredOnClose$1 = 1;
-	Object.defineProperty(onClose$1, "__esModule", { value: true });
-	onClose$1.onClose = void 0;
-	const bridge_1 = requireBridge$1();
-	const errors_1 = requireErrors$1();
+function requireOnClose () {
+	if (hasRequiredOnClose) return onClose;
+	hasRequiredOnClose = 1;
+	Object.defineProperty(onClose, "__esModule", { value: true });
+	onClose.onClose = void 0;
+	const bridge_1 = requireBridge();
+	const errors_1 = requireErrors();
 	const callBridge = (0, bridge_1.getCallBridge)();
-	const onClose = async (payload) => {
+	const onClose$1 = async (payload) => {
 	    try {
 	        const success = await callBridge('onClose', payload);
 	        if (success === false) {
@@ -6321,48 +3454,48 @@ function requireOnClose$1 () {
 	        throw new errors_1.BridgeAPIError("`onClose` failed because this resource's view is not closable.");
 	    }
 	};
-	onClose$1.onClose = onClose;
-	return onClose$1;
+	onClose.onClose = onClose$1;
+	return onClose;
 }
 
-var getFrameDispatch$1 = {};
+var getFrameDispatch = {};
 
-var hasRequiredGetFrameDispatch$1;
+var hasRequiredGetFrameDispatch;
 
-function requireGetFrameDispatch$1 () {
-	if (hasRequiredGetFrameDispatch$1) return getFrameDispatch$1;
-	hasRequiredGetFrameDispatch$1 = 1;
-	Object.defineProperty(getFrameDispatch$1, "__esModule", { value: true });
-	getFrameDispatch$1.getFrameDispatch = void 0;
-	const bridge_1 = requireBridge$1();
+function requireGetFrameDispatch () {
+	if (hasRequiredGetFrameDispatch) return getFrameDispatch;
+	hasRequiredGetFrameDispatch = 1;
+	Object.defineProperty(getFrameDispatch, "__esModule", { value: true });
+	getFrameDispatch.getFrameDispatch = void 0;
+	const bridge_1 = requireBridge();
 	const callBridge = (0, bridge_1.getCallBridge)();
-	const getFrameDispatch = async () => {
+	const getFrameDispatch$1 = async () => {
 	    return await callBridge('getFrameDispatch');
 	};
-	getFrameDispatch$1.getFrameDispatch = getFrameDispatch;
-	return getFrameDispatch$1;
+	getFrameDispatch.getFrameDispatch = getFrameDispatch$1;
+	return getFrameDispatch;
 }
 
-var hasRequiredView$3;
+var hasRequiredView$1;
 
-function requireView$3 () {
-	if (hasRequiredView$3) return view$2;
-	hasRequiredView$3 = 1;
-	Object.defineProperty(view$2, "__esModule", { value: true });
-	view$2.view = void 0;
-	const submit_1 = requireSubmit$1();
-	const close_1 = requireClose$1();
-	const open_1 = requireOpen$3();
-	const refresh_1 = requireRefresh$1();
-	const createHistory_1 = requireCreateHistory$1();
-	const getContext_1 = requireGetContext$1();
-	const changeWindowTitle_1 = requireChangeWindowTitle$1();
-	const theme_1 = requireTheme$1();
-	const emitReadyEvent_1 = requireEmitReadyEvent$1();
-	const adf_renderer_1 = requireAdfRenderer$2();
-	const onClose_1 = requireOnClose$1();
-	const getFrameDispatch_1 = requireGetFrameDispatch$1();
-	view$2.view = {
+function requireView$1 () {
+	if (hasRequiredView$1) return view;
+	hasRequiredView$1 = 1;
+	Object.defineProperty(view, "__esModule", { value: true });
+	view.view = void 0;
+	const submit_1 = requireSubmit();
+	const close_1 = requireClose();
+	const open_1 = requireOpen$1();
+	const refresh_1 = requireRefresh();
+	const createHistory_1 = requireCreateHistory();
+	const getContext_1 = requireGetContext();
+	const changeWindowTitle_1 = requireChangeWindowTitle();
+	const theme_1 = requireTheme();
+	const emitReadyEvent_1 = requireEmitReadyEvent();
+	const adf_renderer_1 = requireAdfRenderer$1();
+	const onClose_1 = requireOnClose();
+	const getFrameDispatch_1 = requireGetFrameDispatch();
+	view.view = {
 	    submit: submit_1.submit,
 	    close: close_1.close,
 	    onClose: onClose_1.onClose,
@@ -6376,34 +3509,34 @@ function requireView$3 () {
 	    emitReadyEvent: emitReadyEvent_1.emitReadyEvent,
 	    createAdfRendererIframeProps: adf_renderer_1.createAdfRendererIframeProps
 	};
-	return view$2;
+	return view;
 }
 
-var hasRequiredView$2;
+var hasRequiredView;
 
-function requireView$2 () {
-	if (hasRequiredView$2) return view$3;
-	hasRequiredView$2 = 1;
+function requireView () {
+	if (hasRequiredView) return view$1;
+	hasRequiredView = 1;
 	(function (exports) {
 		Object.defineProperty(exports, "__esModule", { value: true });
 		const tslib_1 = require$$0;
-		tslib_1.__exportStar(requireView$3(), exports); 
-	} (view$3));
-	return view$3;
+		tslib_1.__exportStar(requireView$1(), exports); 
+	} (view$1));
+	return view$1;
 }
 
-var router$3 = {};
+var router$1 = {};
 
-var router$2 = {};
+var router = {};
 
-var hasRequiredRouter$3;
+var hasRequiredRouter$1;
 
-function requireRouter$3 () {
-	if (hasRequiredRouter$3) return router$2;
-	hasRequiredRouter$3 = 1;
-	Object.defineProperty(router$2, "__esModule", { value: true });
-	router$2.router = void 0;
-	const bridge_1 = requireBridge$1();
+function requireRouter$1 () {
+	if (hasRequiredRouter$1) return router;
+	hasRequiredRouter$1 = 1;
+	Object.defineProperty(router, "__esModule", { value: true });
+	router.router = void 0;
+	const bridge_1 = requireBridge();
 	const callBridge = (0, bridge_1.getCallBridge)();
 	/**
 	 * Returns a URL object for a given location.
@@ -6466,41 +3599,41 @@ function requireRouter$3 () {
 	 * @returns a promise that resolves to void when the page is reloaded
 	 */
 	const reload = async () => callBridge('reload');
-	router$2.router = {
+	router.router = {
 	    getUrl,
 	    navigate,
 	    open,
 	    reload
 	};
-	return router$2;
+	return router;
 }
 
-var hasRequiredRouter$2;
+var hasRequiredRouter;
 
-function requireRouter$2 () {
-	if (hasRequiredRouter$2) return router$3;
-	hasRequiredRouter$2 = 1;
+function requireRouter () {
+	if (hasRequiredRouter) return router$1;
+	hasRequiredRouter = 1;
 	(function (exports) {
 		Object.defineProperty(exports, "__esModule", { value: true });
 		const tslib_1 = require$$0;
-		tslib_1.__exportStar(requireRouter$3(), exports); 
-	} (router$3));
-	return router$3;
+		tslib_1.__exportStar(requireRouter$1(), exports); 
+	} (router$1));
+	return router$1;
 }
 
-var modal$3 = {};
+var modal$1 = {};
 
-var modal$2 = {};
+var modal = {};
 
-var hasRequiredModal$3;
+var hasRequiredModal$1;
 
-function requireModal$3 () {
-	if (hasRequiredModal$3) return modal$2;
-	hasRequiredModal$3 = 1;
-	Object.defineProperty(modal$2, "__esModule", { value: true });
-	modal$2.Modal = void 0;
-	const bridge_1 = requireBridge$1();
-	const errors_1 = requireErrors$1();
+function requireModal$1 () {
+	if (hasRequiredModal$1) return modal;
+	hasRequiredModal$1 = 1;
+	Object.defineProperty(modal, "__esModule", { value: true });
+	modal.Modal = void 0;
+	const bridge_1 = requireBridge();
+	const errors_1 = requireErrors();
 	const callBridge = (0, bridge_1.getCallBridge)();
 	const NAMED_MODAL_SIZES = ['small', 'medium', 'large', 'xlarge', 'max', 'fullscreen', 'resizable'];
 	// eslint-disable-next-line @typescript-eslint/no-empty-function
@@ -6553,35 +3686,35 @@ function requireModal$3 () {
 	        }
 	    }
 	}
-	modal$2.Modal = Modal;
-	return modal$2;
+	modal.Modal = Modal;
+	return modal;
 }
 
-var hasRequiredModal$2;
+var hasRequiredModal;
 
-function requireModal$2 () {
-	if (hasRequiredModal$2) return modal$3;
-	hasRequiredModal$2 = 1;
+function requireModal () {
+	if (hasRequiredModal) return modal$1;
+	hasRequiredModal = 1;
 	(function (exports) {
 		Object.defineProperty(exports, "__esModule", { value: true });
 		const tslib_1 = require$$0;
-		tslib_1.__exportStar(requireModal$3(), exports); 
-	} (modal$3));
-	return modal$3;
+		tslib_1.__exportStar(requireModal$1(), exports); 
+	} (modal$1));
+	return modal$1;
 }
 
-var fetch$4 = {};
+var fetch$2 = {};
 
-var fetch$3 = {};
+var fetch$1 = {};
 
-var hasRequiredFetch$3;
+var hasRequiredFetch$1;
 
-function requireFetch$3 () {
-	if (hasRequiredFetch$3) return fetch$3;
-	hasRequiredFetch$3 = 1;
-	Object.defineProperty(fetch$3, "__esModule", { value: true });
-	fetch$3.productFetchApi = fetch$3.remoteFetchApi = void 0;
-	const blobParser_1 = requireBlobParser$1();
+function requireFetch$1 () {
+	if (hasRequiredFetch$1) return fetch$1;
+	hasRequiredFetch$1 = 1;
+	Object.defineProperty(fetch$1, "__esModule", { value: true });
+	fetch$1.productFetchApi = fetch$1.remoteFetchApi = void 0;
+	const blobParser_1 = requireBlobParser();
 	const parseFormData = async (form, matchFilePrefix = false) => {
 	    const parsed = {};
 	    for (const [key, value] of form.entries()) {
@@ -6650,7 +3783,7 @@ function requireFetch$3 () {
 	        requestRemote: (remoteKey, fetchOptions) => fetch(remoteKey, fetchOptions)
 	    };
 	};
-	fetch$3.remoteFetchApi = remoteFetchApi;
+	fetch$1.remoteFetchApi = remoteFetchApi;
 	const productFetchApi = (callBridge) => {
 	    const fetch = async (product, restPath, init) => {
 	        const validatedInit = validateFetchOptions(init);
@@ -6679,57 +3812,62 @@ function requireFetch$3 () {
 	        requestBitbucket: (restPath, fetchOptions) => fetch('bitbucket', restPath, fetchOptions)
 	    };
 	};
-	fetch$3.productFetchApi = productFetchApi;
-	return fetch$3;
+	fetch$1.productFetchApi = productFetchApi;
+	return fetch$1;
 }
 
-var hasRequiredFetch$2;
+var hasRequiredFetch;
 
-function requireFetch$2 () {
-	if (hasRequiredFetch$2) return fetch$4;
-	hasRequiredFetch$2 = 1;
+function requireFetch () {
+	if (hasRequiredFetch) return fetch$2;
+	hasRequiredFetch = 1;
 	var _a;
-	Object.defineProperty(fetch$4, "__esModule", { value: true });
-	fetch$4.requestRemote = fetch$4.requestBitbucket = fetch$4.requestJira = fetch$4.requestConfluence = void 0;
-	const bridge_1 = requireBridge$1();
-	const fetch_1 = requireFetch$3();
-	_a = (0, fetch_1.productFetchApi)((0, bridge_1.getCallBridge)()), fetch$4.requestConfluence = _a.requestConfluence, fetch$4.requestJira = _a.requestJira, fetch$4.requestBitbucket = _a.requestBitbucket;
-	fetch$4.requestRemote = (0, fetch_1.remoteFetchApi)((0, bridge_1.getCallBridge)()).requestRemote;
-	return fetch$4;
+	Object.defineProperty(fetch$2, "__esModule", { value: true });
+	fetch$2.fetchUserRecommendations = fetch$2.requestRemote = fetch$2.requestBitbucket = fetch$2.requestJira = fetch$2.requestConfluence = void 0;
+	const bridge_1 = requireBridge();
+	const fetch_1 = requireFetch$1();
+	_a = (0, fetch_1.productFetchApi)((0, bridge_1.getCallBridge)()), fetch$2.requestConfluence = _a.requestConfluence, fetch$2.requestJira = _a.requestJira, fetch$2.requestBitbucket = _a.requestBitbucket;
+	fetch$2.requestRemote = (0, fetch_1.remoteFetchApi)((0, bridge_1.getCallBridge)()).requestRemote;
+	const fetchUserRecommendations = async (input) => {
+	    const callBridge = (0, bridge_1.getCallBridge)();
+	    return await callBridge('fetchUserRecommendations', input);
+	};
+	fetch$2.fetchUserRecommendations = fetchUserRecommendations;
+	return fetch$2;
 }
 
-var requestTeamworkGraph$1 = {};
+var requestTeamworkGraph = {};
 
-var hasRequiredRequestTeamworkGraph$1;
+var hasRequiredRequestTeamworkGraph;
 
-function requireRequestTeamworkGraph$1 () {
-	if (hasRequiredRequestTeamworkGraph$1) return requestTeamworkGraph$1;
-	hasRequiredRequestTeamworkGraph$1 = 1;
-	Object.defineProperty(requestTeamworkGraph$1, "__esModule", { value: true });
-	requestTeamworkGraph$1.requestTeamworkGraph = void 0;
-	const bridge_1 = requireBridge$1();
+function requireRequestTeamworkGraph () {
+	if (hasRequiredRequestTeamworkGraph) return requestTeamworkGraph;
+	hasRequiredRequestTeamworkGraph = 1;
+	Object.defineProperty(requestTeamworkGraph, "__esModule", { value: true });
+	requestTeamworkGraph.requestTeamworkGraph = void 0;
+	const bridge_1 = requireBridge();
 	const callBridge = (0, bridge_1.getCallBridge)();
-	const requestTeamworkGraph = async (query, variables) => {
+	const requestTeamworkGraph$1 = async (query, variables) => {
 	    const response = await callBridge('requestTeamworkGraph', { query, variables });
 	    return response;
 	};
-	requestTeamworkGraph$1.requestTeamworkGraph = requestTeamworkGraph;
-	return requestTeamworkGraph$1;
+	requestTeamworkGraph.requestTeamworkGraph = requestTeamworkGraph$1;
+	return requestTeamworkGraph;
 }
 
-var flag$3 = {};
+var flag$1 = {};
 
-var flag$2 = {};
+var flag = {};
 
-var hasRequiredFlag$3;
+var hasRequiredFlag$1;
 
-function requireFlag$3 () {
-	if (hasRequiredFlag$3) return flag$2;
-	hasRequiredFlag$3 = 1;
-	Object.defineProperty(flag$2, "__esModule", { value: true });
-	flag$2.showFlag = void 0;
-	const bridge_1 = requireBridge$1();
-	const errors_1 = requireErrors$1();
+function requireFlag$1 () {
+	if (hasRequiredFlag$1) return flag;
+	hasRequiredFlag$1 = 1;
+	Object.defineProperty(flag, "__esModule", { value: true });
+	flag.showFlag = void 0;
+	const bridge_1 = requireBridge();
+	const errors_1 = requireErrors();
 	const callBridge = (0, bridge_1.getCallBridge)();
 	const showFlag = (options) => {
 	    var _a;
@@ -6747,51 +3885,51 @@ function requireFlag$3 () {
 	        }
 	    };
 	};
-	flag$2.showFlag = showFlag;
-	return flag$2;
+	flag.showFlag = showFlag;
+	return flag;
 }
 
-var hasRequiredFlag$2;
+var hasRequiredFlag;
 
-function requireFlag$2 () {
-	if (hasRequiredFlag$2) return flag$3;
-	hasRequiredFlag$2 = 1;
+function requireFlag () {
+	if (hasRequiredFlag) return flag$1;
+	hasRequiredFlag = 1;
 	(function (exports) {
 		Object.defineProperty(exports, "__esModule", { value: true });
 		exports.showFlag = void 0;
-		var flag_1 = requireFlag$3();
+		var flag_1 = requireFlag$1();
 		Object.defineProperty(exports, "showFlag", { enumerable: true, get: function () { return flag_1.showFlag; } }); 
-	} (flag$3));
-	return flag$3;
+	} (flag$1));
+	return flag$1;
 }
 
-var events$2 = {};
+var events = {};
 
-var hasRequiredEvents$2;
+var hasRequiredEvents;
 
-function requireEvents$2 () {
-	if (hasRequiredEvents$2) return events$2;
-	hasRequiredEvents$2 = 1;
+function requireEvents () {
+	if (hasRequiredEvents) return events;
+	hasRequiredEvents = 1;
 	(function (exports) {
 		Object.defineProperty(exports, "__esModule", { value: true });
 		const tslib_1 = require$$0;
-		tslib_1.__exportStar(requireEvents$3(), exports); 
-	} (events$2));
-	return events$2;
+		tslib_1.__exportStar(requireEvents$1(), exports); 
+	} (events));
+	return events;
 }
 
-var realtime$3 = {};
+var realtime$1 = {};
 
-var realtime$2 = {};
+var realtime = {};
 
-var hasRequiredRealtime$3;
+var hasRequiredRealtime$1;
 
-function requireRealtime$3 () {
-	if (hasRequiredRealtime$3) return realtime$2;
-	hasRequiredRealtime$3 = 1;
-	Object.defineProperty(realtime$2, "__esModule", { value: true });
-	realtime$2.realtime = void 0;
-	const bridge_1 = requireBridge$1();
+function requireRealtime$1 () {
+	if (hasRequiredRealtime$1) return realtime;
+	hasRequiredRealtime$1 = 1;
+	Object.defineProperty(realtime, "__esModule", { value: true });
+	realtime.realtime = void 0;
+	const bridge_1 = requireBridge();
 	const callBridge = (0, bridge_1.getCallBridge)();
 	const publish = (channel, payload, options) => {
 	    return callBridge('publishRealtimeChannel', { channelName: channel, eventPayload: payload, options });
@@ -6814,79 +3952,79 @@ function requireRealtime$3 () {
 	        isGlobal: true
 	    });
 	};
-	realtime$2.realtime = {
+	realtime.realtime = {
 	    publish,
 	    subscribe,
 	    publishGlobal,
 	    subscribeGlobal
 	};
-	return realtime$2;
+	return realtime;
 }
 
-var productContext$1 = {};
+var productContext = {};
 
-var hasRequiredProductContext$1;
+var hasRequiredProductContext;
 
-function requireProductContext$1 () {
-	if (hasRequiredProductContext$1) return productContext$1;
-	hasRequiredProductContext$1 = 1;
+function requireProductContext () {
+	if (hasRequiredProductContext) return productContext;
+	hasRequiredProductContext = 1;
 	// These enum values directly map to properties in the context.extension object in a product's FCT.
 	// It allows a subset of properties to be specified for Realtime channel authorization.
-	Object.defineProperty(productContext$1, "__esModule", { value: true });
-	productContext$1.Bitbucket = productContext$1.Confluence = productContext$1.Jira = void 0;
+	Object.defineProperty(productContext, "__esModule", { value: true });
+	productContext.Bitbucket = productContext.Confluence = productContext.Jira = void 0;
 	var Jira;
 	(function (Jira) {
 	    Jira["Board"] = "board";
 	    Jira["Issue"] = "issue";
 	    Jira["Project"] = "project";
-	})(Jira || (productContext$1.Jira = Jira = {}));
+	})(Jira || (productContext.Jira = Jira = {}));
 	var Confluence;
 	(function (Confluence) {
 	    Confluence["Content"] = "content";
 	    Confluence["Space"] = "space";
-	})(Confluence || (productContext$1.Confluence = Confluence = {}));
+	})(Confluence || (productContext.Confluence = Confluence = {}));
 	var Bitbucket;
 	(function (Bitbucket) {
 	    Bitbucket["Repository"] = "repository";
 	    Bitbucket["PullRequest"] = "pullRequest";
-	})(Bitbucket || (productContext$1.Bitbucket = Bitbucket = {}));
-	return productContext$1;
+	})(Bitbucket || (productContext.Bitbucket = Bitbucket = {}));
+	return productContext;
 }
 
-var hasRequiredRealtime$2;
+var hasRequiredRealtime;
 
-function requireRealtime$2 () {
-	if (hasRequiredRealtime$2) return realtime$3;
-	hasRequiredRealtime$2 = 1;
+function requireRealtime () {
+	if (hasRequiredRealtime) return realtime$1;
+	hasRequiredRealtime = 1;
 	(function (exports) {
 		Object.defineProperty(exports, "__esModule", { value: true });
 		exports.Bitbucket = exports.Confluence = exports.Jira = exports.realtime = void 0;
-		var realtime_1 = requireRealtime$3();
+		var realtime_1 = requireRealtime$1();
 		Object.defineProperty(exports, "realtime", { enumerable: true, get: function () { return realtime_1.realtime; } });
-		var productContext_1 = requireProductContext$1();
+		var productContext_1 = requireProductContext();
 		Object.defineProperty(exports, "Jira", { enumerable: true, get: function () { return productContext_1.Jira; } });
 		Object.defineProperty(exports, "Confluence", { enumerable: true, get: function () { return productContext_1.Confluence; } });
 		Object.defineProperty(exports, "Bitbucket", { enumerable: true, get: function () { return productContext_1.Bitbucket; } }); 
-	} (realtime$3));
-	return realtime$3;
+	} (realtime$1));
+	return realtime$1;
 }
 
-var rovo$3 = {};
+var rovo$1 = {};
 
-var rovo$2 = {};
+var rovo = {};
 
-var open$2 = {};
+var open = {};
 
-var hasRequiredOpen$2;
+var hasRequiredOpen;
 
-function requireOpen$2 () {
-	if (hasRequiredOpen$2) return open$2;
-	hasRequiredOpen$2 = 1;
+function requireOpen () {
+	if (hasRequiredOpen) return open;
+	hasRequiredOpen = 1;
 	(function (exports) {
 		Object.defineProperty(exports, "__esModule", { value: true });
 		exports.open = exports.OPEN_ROVO_BRIDGE_ERROR_MESSAGE = void 0;
-		const bridge_1 = requireBridge$1();
-		const errors_1 = requireErrors$1();
+		const bridge_1 = requireBridge();
+		const errors_1 = requireErrors();
 		const MAX_AGENT_LENGTH = 30;
 		const callBridge = (0, bridge_1.getCallBridge)();
 		exports.OPEN_ROVO_BRIDGE_ERROR_MESSAGE = 'Unable to open Rovo Chat due to usage in an unsupported product. Only Confluence, Jira and some Jira Service Management modules are supported at this point. See https://developer.atlassian.com/platform/forge/apis-reference/ui-api-bridge/rovo/';
@@ -6932,73 +4070,118 @@ function requireOpen$2 () {
 		    }
 		};
 		exports.open = open; 
-	} (open$2));
-	return open$2;
+	} (open));
+	return open;
 }
 
-var isEnabled$1 = {};
+var isEnabled = {};
 
-var hasRequiredIsEnabled$1;
+var hasRequiredIsEnabled;
 
-function requireIsEnabled$1 () {
-	if (hasRequiredIsEnabled$1) return isEnabled$1;
-	hasRequiredIsEnabled$1 = 1;
-	Object.defineProperty(isEnabled$1, "__esModule", { value: true });
-	isEnabled$1.isEnabled = void 0;
-	const bridge_1 = requireBridge$1();
+function requireIsEnabled () {
+	if (hasRequiredIsEnabled) return isEnabled;
+	hasRequiredIsEnabled = 1;
+	Object.defineProperty(isEnabled, "__esModule", { value: true });
+	isEnabled.isEnabled = void 0;
+	const bridge_1 = requireBridge();
 	const callBridge = (0, bridge_1.getCallBridge)();
 	/**
 	 * Checks if Rovo is enabled for the current tenant.
 	 *
 	 * @returns boolean
 	 */
-	const isEnabled = () => {
+	const isEnabled$1 = () => {
 	    return callBridge('isRovoEnabled');
 	};
-	isEnabled$1.isEnabled = isEnabled;
-	return isEnabled$1;
+	isEnabled.isEnabled = isEnabled$1;
+	return isEnabled;
 }
 
-var hasRequiredRovo$3;
+var hasRequiredRovo$1;
 
-function requireRovo$3 () {
-	if (hasRequiredRovo$3) return rovo$2;
-	hasRequiredRovo$3 = 1;
-	Object.defineProperty(rovo$2, "__esModule", { value: true });
-	rovo$2.rovo = void 0;
-	const open_1 = requireOpen$2();
-	const isEnabled_1 = requireIsEnabled$1();
-	rovo$2.rovo = {
+function requireRovo$1 () {
+	if (hasRequiredRovo$1) return rovo;
+	hasRequiredRovo$1 = 1;
+	Object.defineProperty(rovo, "__esModule", { value: true });
+	rovo.rovo = void 0;
+	const open_1 = requireOpen();
+	const isEnabled_1 = requireIsEnabled();
+	rovo.rovo = {
 	    open: open_1.open,
 	    isEnabled: isEnabled_1.isEnabled
 	};
-	return rovo$2;
+	return rovo;
 }
 
-var hasRequiredRovo$2;
+var hasRequiredRovo;
 
-function requireRovo$2 () {
-	if (hasRequiredRovo$2) return rovo$3;
-	hasRequiredRovo$2 = 1;
+function requireRovo () {
+	if (hasRequiredRovo) return rovo$1;
+	hasRequiredRovo = 1;
 	(function (exports) {
 		Object.defineProperty(exports, "__esModule", { value: true });
 		const tslib_1 = require$$0;
-		tslib_1.__exportStar(requireRovo$3(), exports); 
-	} (rovo$3));
-	return rovo$3;
+		tslib_1.__exportStar(requireRovo$1(), exports); 
+	} (rovo$1));
+	return rovo$1;
 }
 
-var i18n$1 = {};
+var cookieConsent = {};
 
-var hasRequiredI18n$1;
+var getCookieConsentPreferences = {};
 
-function requireI18n$1 () {
-	if (hasRequiredI18n$1) return i18n$1;
-	hasRequiredI18n$1 = 1;
-	Object.defineProperty(i18n$1, "__esModule", { value: true });
-	i18n$1.createTranslationFunction = i18n$1.getTranslations = i18n$1.resetTranslationsCache = void 0;
-	const i18n_1 = requireOut$4();
-	const view_1 = requireView$2();
+var hasRequiredGetCookieConsentPreferences;
+
+function requireGetCookieConsentPreferences () {
+	if (hasRequiredGetCookieConsentPreferences) return getCookieConsentPreferences;
+	hasRequiredGetCookieConsentPreferences = 1;
+	Object.defineProperty(getCookieConsentPreferences, "__esModule", { value: true });
+	getCookieConsentPreferences.getCookieConsentPreferences = void 0;
+	const bridge_1 = requireBridge();
+	const callBridge = (0, bridge_1.getCallBridge)();
+	/**
+	 * Gets the user's current cookie-consent preferences.
+	 *
+	 * Resolves to `null` if the host has not published preferences, or if the host doesn't support
+	 * this API.
+	 */
+	const getCookieConsentPreferences$1 = async () => {
+	    var _a;
+	    try {
+	        return (_a = (await callBridge('getCookieConsentPreferences'))) !== null && _a !== void 0 ? _a : null;
+	    }
+	    catch {
+	        return null;
+	    }
+	};
+	getCookieConsentPreferences.getCookieConsentPreferences = getCookieConsentPreferences$1;
+	return getCookieConsentPreferences;
+}
+
+var hasRequiredCookieConsent;
+
+function requireCookieConsent () {
+	if (hasRequiredCookieConsent) return cookieConsent;
+	hasRequiredCookieConsent = 1;
+	(function (exports) {
+		Object.defineProperty(exports, "__esModule", { value: true });
+		const tslib_1 = require$$0;
+		tslib_1.__exportStar(requireGetCookieConsentPreferences(), exports); 
+	} (cookieConsent));
+	return cookieConsent;
+}
+
+var i18n = {};
+
+var hasRequiredI18n;
+
+function requireI18n () {
+	if (hasRequiredI18n) return i18n;
+	hasRequiredI18n = 1;
+	Object.defineProperty(i18n, "__esModule", { value: true });
+	i18n.createTranslationFunction = i18n.getTranslations = i18n.resetTranslationsCache = void 0;
+	const i18n_1 = requireOut$3();
+	const view_1 = requireView();
 	const frontendResourcesAccessor = {
 	    getI18nInfoConfig: async () => {
 	        const resp = await fetch(`./${i18n_1.I18N_BUNDLE_FOLDER_NAME}/${i18n_1.I18N_INFO_FILE_NAME}`);
@@ -7020,7 +4203,7 @@ function requireI18n$1 () {
 	const resetTranslationsCache = () => {
 	    translationsGetter.reset();
 	};
-	i18n$1.resetTranslationsCache = resetTranslationsCache;
+	i18n.resetTranslationsCache = resetTranslationsCache;
 	const getTranslations = async (locale = null, options = {
 	    fallback: true
 	}) => {
@@ -7031,7 +4214,7 @@ function requireI18n$1 () {
 	    }
 	    return await translationsGetter.getTranslations(targetLocale, options);
 	};
-	i18n$1.getTranslations = getTranslations;
+	i18n.getTranslations = getTranslations;
 	/**
 	 * Creates a translation function (i.e. `t`) for the given locale.
 	 * If no locale is provided, the locale from the current view context is used.
@@ -7049,22 +4232,22 @@ function requireI18n$1 () {
 	    await translator.init();
 	    return (i18nKey, defaultValue) => { var _a, _b; return (_b = (_a = translator.translate(i18nKey)) !== null && _a !== void 0 ? _a : defaultValue) !== null && _b !== void 0 ? _b : i18nKey; };
 	};
-	i18n$1.createTranslationFunction = createTranslationFunction;
-	return i18n$1;
+	i18n.createTranslationFunction = createTranslationFunction;
+	return i18n;
 }
 
-var permissions$3 = {};
+var permissions$1 = {};
 
-var permissions$2 = {};
+var permissions = {};
 
-var hasRequiredPermissions$3;
+var hasRequiredPermissions$1;
 
-function requirePermissions$3 () {
-	if (hasRequiredPermissions$3) return permissions$2;
-	hasRequiredPermissions$3 = 1;
-	Object.defineProperty(permissions$2, "__esModule", { value: true });
-	permissions$2.permissions = void 0;
-	const bridge_1 = requireBridge$1();
+function requirePermissions$1 () {
+	if (hasRequiredPermissions$1) return permissions;
+	hasRequiredPermissions$1 = 1;
+	Object.defineProperty(permissions, "__esModule", { value: true });
+	permissions.permissions = void 0;
+	const bridge_1 = requireBridge();
 	const callBridge = (0, bridge_1.getCallBridge)();
 	const egressGet = async (payload) => {
 	    return callBridge('__permission__egressGet', payload);
@@ -7084,7 +4267,7 @@ function requirePermissions$3 () {
 	const remoteSet = async (payload) => {
 	    return callBridge('__permission__remoteSet', payload);
 	};
-	permissions$2.permissions = {
+	permissions.permissions = {
 	    egress: {
 	        get: egressGet,
 	        set: egressSet,
@@ -7096,12 +4279,12 @@ function requirePermissions$3 () {
 	        set: remoteSet
 	    }
 	};
-	return permissions$2;
+	return permissions;
 }
 
-var permissionsUtil$1 = {};
+var permissionsUtil = {};
 
-var out$1 = {};
+var out = {};
 
 var egress = {};
 
@@ -7127,16 +4310,16 @@ function requireUrlParser () {
 	return urlParser;
 }
 
-var utils$1 = {};
+var utils = {};
 
-var hasRequiredUtils$1;
+var hasRequiredUtils;
 
-function requireUtils$1 () {
-	if (hasRequiredUtils$1) return utils$1;
-	hasRequiredUtils$1 = 1;
-	Object.defineProperty(utils$1, "__esModule", { value: true });
-	utils$1.getEgressesBasedOnToggles = utils$1.sortAndGroupEgressPermissionsByDomain = utils$1.EgressCategory = utils$1.EgressType = void 0;
-	utils$1.globToRegex = globToRegex;
+function requireUtils () {
+	if (hasRequiredUtils) return utils;
+	hasRequiredUtils = 1;
+	Object.defineProperty(utils, "__esModule", { value: true });
+	utils.getEgressesBasedOnToggles = utils.sortAndGroupEgressPermissionsByDomain = utils.EgressCategory = utils.EgressType = void 0;
+	utils.globToRegex = globToRegex;
 	const url_parser_1 = requireUrlParser();
 	function globToRegex(pattern) {
 	    const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, '\\$&');
@@ -7168,7 +4351,7 @@ function requireUtils$1 () {
 	        return grouped;
 	    }, []);
 	};
-	utils$1.sortAndGroupEgressPermissionsByDomain = sortAndGroupEgressPermissionsByDomain;
+	utils.sortAndGroupEgressPermissionsByDomain = sortAndGroupEgressPermissionsByDomain;
 	var EgressType;
 	(function (EgressType) {
 	    EgressType["FetchBackendSide"] = "FETCH_BACKEND_SIDE";
@@ -7179,11 +4362,11 @@ function requireUtils$1 () {
 	    EgressType["Media"] = "MEDIA";
 	    EgressType["Scripts"] = "SCRIPTS";
 	    EgressType["Styles"] = "STYLES";
-	})(EgressType || (utils$1.EgressType = EgressType = {}));
+	})(EgressType || (utils.EgressType = EgressType = {}));
 	var EgressCategory;
 	(function (EgressCategory) {
 	    EgressCategory["ANALYTICS"] = "ANALYTICS";
-	})(EgressCategory || (utils$1.EgressCategory = EgressCategory = {}));
+	})(EgressCategory || (utils.EgressCategory = EgressCategory = {}));
 	const getEgressesBasedOnToggles = (input) => {
 	    const filteredEgresses = input.egress.filter((egress) => {
 	        var _a;
@@ -7210,8 +4393,8 @@ function requireUtils$1 () {
 	        addresses: [...new Set(egresses)]
 	    }));
 	};
-	utils$1.getEgressesBasedOnToggles = getEgressesBasedOnToggles;
-	return utils$1;
+	utils.getEgressesBasedOnToggles = getEgressesBasedOnToggles;
+	return utils;
 }
 
 var hasRequiredEgressFilteringService;
@@ -7222,7 +4405,7 @@ function requireEgressFilteringService () {
 	Object.defineProperty(egressFilteringService, "__esModule", { value: true });
 	egressFilteringService.EgressFilteringService = void 0;
 	const url_parser_1 = requireUrlParser();
-	const utils_1 = requireUtils$1();
+	const utils_1 = requireUtils();
 	class EgressFilteringService {
 	    constructor(allowList) {
 	        this.URLs = allowList.filter((domainOrURL) => !domainOrURL.startsWith('*')).map((url) => this.parseUrl(url));
@@ -7315,34 +4498,34 @@ function requireEgress () {
 		const tslib_1 = require$$0;
 		tslib_1.__exportStar(requireEgressFilteringService(), exports);
 		tslib_1.__exportStar(requireUrlParser(), exports);
-		tslib_1.__exportStar(requireUtils$1(), exports); 
+		tslib_1.__exportStar(requireUtils(), exports); 
 	} (egress));
 	return egress;
 }
 
-var hasRequiredOut$3;
+var hasRequiredOut$2;
 
-function requireOut$3 () {
-	if (hasRequiredOut$3) return out$1;
-	hasRequiredOut$3 = 1;
+function requireOut$2 () {
+	if (hasRequiredOut$2) return out;
+	hasRequiredOut$2 = 1;
 	(function (exports) {
 		Object.defineProperty(exports, "__esModule", { value: true });
 		const tslib_1 = require$$0;
 		tslib_1.__exportStar(requireEgress(), exports); 
-	} (out$1));
-	return out$1;
+	} (out));
+	return out;
 }
 
-var hasRequiredPermissionsUtil$1;
+var hasRequiredPermissionsUtil;
 
-function requirePermissionsUtil$1 () {
-	if (hasRequiredPermissionsUtil$1) return permissionsUtil$1;
-	hasRequiredPermissionsUtil$1 = 1;
-	Object.defineProperty(permissionsUtil$1, "__esModule", { value: true });
-	permissionsUtil$1.createPermissionUtils = createPermissionUtils;
-	permissionsUtil$1.checkPermissions = checkPermissions;
-	const egress_1 = requireOut$3();
-	const view_1 = requireView$2();
+function requirePermissionsUtil () {
+	if (hasRequiredPermissionsUtil) return permissionsUtil;
+	hasRequiredPermissionsUtil = 1;
+	Object.defineProperty(permissionsUtil, "__esModule", { value: true });
+	permissionsUtil.createPermissionUtils = createPermissionUtils;
+	permissionsUtil.checkPermissions = checkPermissions;
+	const egress_1 = requireOut$2();
+	const view_1 = requireView();
 	/**
 	 * Helper function to extract URL string from external URL permissions.
 	 * Matches the implementation in @forge/api for consistency.
@@ -7560,40 +4743,40 @@ function requirePermissionsUtil$1 () {
 	        missing: hasAllRequiredPermissions ? null : missing
 	    };
 	}
-	return permissionsUtil$1;
+	return permissionsUtil;
 }
 
-var hasRequiredPermissions$2;
+var hasRequiredPermissions;
 
-function requirePermissions$2 () {
-	if (hasRequiredPermissions$2) return permissions$3;
-	hasRequiredPermissions$2 = 1;
+function requirePermissions () {
+	if (hasRequiredPermissions) return permissions$1;
+	hasRequiredPermissions = 1;
 	(function (exports) {
 		Object.defineProperty(exports, "__esModule", { value: true });
 		const tslib_1 = require$$0;
-		tslib_1.__exportStar(requirePermissions$3(), exports);
-		tslib_1.__exportStar(requirePermissionsUtil$1(), exports); 
-	} (permissions$3));
-	return permissions$3;
+		tslib_1.__exportStar(requirePermissions$1(), exports);
+		tslib_1.__exportStar(requirePermissionsUtil(), exports); 
+	} (permissions$1));
+	return permissions$1;
 }
 
-var objectStore$3 = {};
+var objectStore$1 = {};
 
-var objectStore$2 = {};
+var objectStore = {};
 
-var upload$1 = {};
+var upload = {};
 
-var hasRequiredUpload$1;
+var hasRequiredUpload;
 
-function requireUpload$1 () {
-	if (hasRequiredUpload$1) return upload$1;
-	hasRequiredUpload$1 = 1;
+function requireUpload () {
+	if (hasRequiredUpload) return upload;
+	hasRequiredUpload = 1;
 	(function (exports) {
 		Object.defineProperty(exports, "__esModule", { value: true });
 		exports.upload = exports.createUploadPromises = void 0;
-		const invoke_1 = requireInvoke$2();
-		const errors_1 = requireErrors$1();
-		const bridge_1 = requireBridge$1();
+		const invoke_1 = requireInvoke();
+		const errors_1 = requireErrors();
+		const bridge_1 = requireBridge();
 		const callBridge = (0, bridge_1.getCallBridge)();
 		/**
 		 * Convert base64 string to Blob
@@ -7741,22 +4924,22 @@ function requireUpload$1 () {
 		    return results;
 		};
 		exports.upload = upload; 
-	} (upload$1));
-	return upload$1;
+	} (upload));
+	return upload;
 }
 
-var deleteObjects$1 = {};
+var deleteObjects = {};
 
-var hasRequiredDeleteObjects$1;
+var hasRequiredDeleteObjects;
 
-function requireDeleteObjects$1 () {
-	if (hasRequiredDeleteObjects$1) return deleteObjects$1;
-	hasRequiredDeleteObjects$1 = 1;
-	Object.defineProperty(deleteObjects$1, "__esModule", { value: true });
-	deleteObjects$1.deleteObjects = void 0;
-	const invoke_1 = requireInvoke$2();
-	const errors_1 = requireErrors$1();
-	const bridge_1 = requireBridge$1();
+function requireDeleteObjects () {
+	if (hasRequiredDeleteObjects) return deleteObjects;
+	hasRequiredDeleteObjects = 1;
+	Object.defineProperty(deleteObjects, "__esModule", { value: true });
+	deleteObjects.deleteObjects = void 0;
+	const invoke_1 = requireInvoke();
+	const errors_1 = requireErrors();
+	const bridge_1 = requireBridge();
 	const callBridge = (0, bridge_1.getCallBridge)();
 	/**
 	 * Delete multiple objects
@@ -7766,7 +4949,7 @@ function requireDeleteObjects$1 () {
 	 * @returns Promise<void>
 	 * @throws {BridgeAPIError} When deleting fails
 	 */
-	const deleteObjects = async ({ functionKey, keys }) => {
+	const deleteObjects$1 = async ({ functionKey, keys }) => {
 	    void callBridge('trackObjectStoreAction', { action: 'delete' });
 	    if (!functionKey || functionKey.length === 0) {
 	        throw new errors_1.BridgeAPIError('functionKey is required to delete objects');
@@ -7778,22 +4961,22 @@ function requireDeleteObjects$1 () {
 	        await (0, invoke_1.invoke)(functionKey, { key });
 	    }));
 	};
-	deleteObjects$1.deleteObjects = deleteObjects;
-	return deleteObjects$1;
+	deleteObjects.deleteObjects = deleteObjects$1;
+	return deleteObjects;
 }
 
-var download$1 = {};
+var download = {};
 
-var hasRequiredDownload$1;
+var hasRequiredDownload;
 
-function requireDownload$1 () {
-	if (hasRequiredDownload$1) return download$1;
-	hasRequiredDownload$1 = 1;
-	Object.defineProperty(download$1, "__esModule", { value: true });
-	download$1.download = void 0;
-	const invoke_1 = requireInvoke$2();
-	const errors_1 = requireErrors$1();
-	const bridge_1 = requireBridge$1();
+function requireDownload () {
+	if (hasRequiredDownload) return download;
+	hasRequiredDownload = 1;
+	Object.defineProperty(download, "__esModule", { value: true });
+	download.download = void 0;
+	const invoke_1 = requireInvoke();
+	const errors_1 = requireErrors();
+	const bridge_1 = requireBridge();
 	const callBridge = (0, bridge_1.getCallBridge)();
 	/**
 	 * Download multiple objects from pre-signed URLs
@@ -7803,7 +4986,7 @@ function requireDownload$1 () {
 	 * @returns Promise resolving to DownloadResult[]
 	 * @throws {BridgeAPIError} When filtering fails or download encounters an error
 	 */
-	const download = async ({ functionKey, keys }) => {
+	const download$1 = async ({ functionKey, keys }) => {
 	    void callBridge('trackObjectStoreAction', { action: 'download' });
 	    if (!functionKey || functionKey.length === 0) {
 	        throw new errors_1.BridgeAPIError('functionKey is required to filter and generate download URLs');
@@ -7850,22 +5033,22 @@ function requireDownload$1 () {
 	    const results = await Promise.all(downloadPromises);
 	    return results;
 	};
-	download$1.download = download;
-	return download$1;
+	download.download = download$1;
+	return download;
 }
 
-var getMetadata$1 = {};
+var getMetadata = {};
 
-var hasRequiredGetMetadata$1;
+var hasRequiredGetMetadata;
 
-function requireGetMetadata$1 () {
-	if (hasRequiredGetMetadata$1) return getMetadata$1;
-	hasRequiredGetMetadata$1 = 1;
-	Object.defineProperty(getMetadata$1, "__esModule", { value: true });
-	getMetadata$1.getMetadata = void 0;
-	const index_1 = requireInvoke$2();
-	const errors_1 = requireErrors$1();
-	const bridge_1 = requireBridge$1();
+function requireGetMetadata () {
+	if (hasRequiredGetMetadata) return getMetadata;
+	hasRequiredGetMetadata = 1;
+	Object.defineProperty(getMetadata, "__esModule", { value: true });
+	getMetadata.getMetadata = void 0;
+	const index_1 = requireInvoke();
+	const errors_1 = requireErrors();
+	const bridge_1 = requireBridge();
 	const callBridge = (0, bridge_1.getCallBridge)();
 	/**
 	 * Get metadata for multiple objectIds
@@ -7875,7 +5058,7 @@ function requireGetMetadata$1 () {
 	 * @returns Promise resolving to GetMetadataResult[]
 	 * @throws {BridgeAPIError} When filtering fails or download encounters an error
 	 */
-	const getMetadata = async ({ functionKey, keys }) => {
+	const getMetadata$1 = async ({ functionKey, keys }) => {
 	    void callBridge('trackObjectStoreAction', { action: 'getMetadata' });
 	    if (!functionKey || functionKey.length === 0) {
 	        throw new errors_1.BridgeAPIError('functionKey is required to filter and generate object metadata');
@@ -7895,71 +5078,71 @@ function requireGetMetadata$1 () {
 	    }));
 	    return results;
 	};
-	getMetadata$1.getMetadata = getMetadata;
-	return getMetadata$1;
+	getMetadata.getMetadata = getMetadata$1;
+	return getMetadata;
 }
 
-var hasRequiredObjectStore$3;
+var hasRequiredObjectStore$1;
 
-function requireObjectStore$3 () {
-	if (hasRequiredObjectStore$3) return objectStore$2;
-	hasRequiredObjectStore$3 = 1;
+function requireObjectStore$1 () {
+	if (hasRequiredObjectStore$1) return objectStore;
+	hasRequiredObjectStore$1 = 1;
 	(function (exports) {
 		Object.defineProperty(exports, "__esModule", { value: true });
 		exports.createUploadPromises = exports.objectStore = void 0;
-		const upload_1 = requireUpload$1();
+		const upload_1 = requireUpload();
 		Object.defineProperty(exports, "createUploadPromises", { enumerable: true, get: function () { return upload_1.createUploadPromises; } });
-		const deleteObjects_1 = requireDeleteObjects$1();
-		const download_1 = requireDownload$1();
-		const getMetadata_1 = requireGetMetadata$1();
+		const deleteObjects_1 = requireDeleteObjects();
+		const download_1 = requireDownload();
+		const getMetadata_1 = requireGetMetadata();
 		exports.objectStore = {
 		    upload: upload_1.upload,
 		    download: download_1.download,
 		    getMetadata: getMetadata_1.getMetadata,
 		    delete: deleteObjects_1.deleteObjects
 		}; 
-	} (objectStore$2));
-	return objectStore$2;
+	} (objectStore));
+	return objectStore;
 }
 
-var types$2 = {};
+var types$1 = {};
 
-var hasRequiredTypes$2;
+var hasRequiredTypes$1;
 
-function requireTypes$2 () {
-	if (hasRequiredTypes$2) return types$2;
-	hasRequiredTypes$2 = 1;
-	Object.defineProperty(types$2, "__esModule", { value: true });
-	return types$2;
+function requireTypes$1 () {
+	if (hasRequiredTypes$1) return types$1;
+	hasRequiredTypes$1 = 1;
+	Object.defineProperty(types$1, "__esModule", { value: true });
+	return types$1;
 }
 
-var hasRequiredObjectStore$2;
+var hasRequiredObjectStore;
 
-function requireObjectStore$2 () {
-	if (hasRequiredObjectStore$2) return objectStore$3;
-	hasRequiredObjectStore$2 = 1;
+function requireObjectStore () {
+	if (hasRequiredObjectStore) return objectStore$1;
+	hasRequiredObjectStore = 1;
 	(function (exports) {
 		Object.defineProperty(exports, "__esModule", { value: true });
 		const tslib_1 = require$$0;
-		tslib_1.__exportStar(requireObjectStore$3(), exports);
-		tslib_1.__exportStar(requireTypes$2(), exports); 
-	} (objectStore$3));
-	return objectStore$3;
+		tslib_1.__exportStar(requireObjectStore$1(), exports);
+		tslib_1.__exportStar(requireTypes$1(), exports); 
+	} (objectStore$1));
+	return objectStore$1;
 }
 
-var featureFlags$3 = {};
+var featureFlags$1 = {};
 
-var featureFlags$2 = {};
+var featureFlags = {};
 
-var evaluator$1 = {};
+var evaluator = {};
 
-var hasRequiredEvaluator$1;
+var hasRequiredEvaluator;
 
-function requireEvaluator$1 () {
-	if (hasRequiredEvaluator$1) return evaluator$1;
-	hasRequiredEvaluator$1 = 1;
-	Object.defineProperty(evaluator$1, "__esModule", { value: true });
-	evaluator$1.Evaluator = void 0;
+function requireEvaluator () {
+	if (hasRequiredEvaluator) return evaluator;
+	hasRequiredEvaluator = 1;
+	Object.defineProperty(evaluator, "__esModule", { value: true });
+	evaluator.Evaluator = void 0;
 	class Evaluator {
 	    constructor(results) {
 	        this.results = results;
@@ -8018,22 +5201,22 @@ function requireEvaluator$1 () {
 	        return (hash >>> 0).toString();
 	    }
 	}
-	evaluator$1.Evaluator = Evaluator;
-	return evaluator$1;
+	evaluator.Evaluator = Evaluator;
+	return evaluator;
 }
 
-var initFeatureFlags$1 = {};
+var initFeatureFlags = {};
 
-var hasRequiredInitFeatureFlags$1;
+var hasRequiredInitFeatureFlags;
 
-function requireInitFeatureFlags$1 () {
-	if (hasRequiredInitFeatureFlags$1) return initFeatureFlags$1;
-	hasRequiredInitFeatureFlags$1 = 1;
-	Object.defineProperty(initFeatureFlags$1, "__esModule", { value: true });
-	initFeatureFlags$1.initFeatureFlags = void 0;
-	const bridge_1 = requireBridge$1();
-	const errors_1 = requireErrors$1();
-	const utils_1 = requireUtils$2();
+function requireInitFeatureFlags () {
+	if (hasRequiredInitFeatureFlags) return initFeatureFlags;
+	hasRequiredInitFeatureFlags = 1;
+	Object.defineProperty(initFeatureFlags, "__esModule", { value: true });
+	initFeatureFlags.initFeatureFlags = void 0;
+	const bridge_1 = requireBridge();
+	const errors_1 = requireErrors();
+	const utils_1 = requireUtils$1();
 	const maxOps = 500;
 	const intervalInMs = 1000 * 25;
 	const callBridge = (0, bridge_1.getCallBridge)();
@@ -8052,19 +5235,19 @@ function requireInitFeatureFlags$1 () {
 	    validatePayload(payload);
 	    return callBridge('initFeatureFlags', { user: payload.user, config: payload.config });
 	};
-	initFeatureFlags$1.initFeatureFlags = (0, utils_1.withRateLimiter)(_initFeatureFlags, maxOps, intervalInMs, `Feature flags initialisation calls are rate limited at ${maxOps}req/${intervalInMs / 1000}s`);
-	return initFeatureFlags$1;
+	initFeatureFlags.initFeatureFlags = (0, utils_1.withRateLimiter)(_initFeatureFlags, maxOps, intervalInMs, `Feature flags initialisation calls are rate limited at ${maxOps}req/${intervalInMs / 1000}s`);
+	return initFeatureFlags;
 }
 
-var hasRequiredFeatureFlags$3;
+var hasRequiredFeatureFlags$1;
 
-function requireFeatureFlags$3 () {
-	if (hasRequiredFeatureFlags$3) return featureFlags$2;
-	hasRequiredFeatureFlags$3 = 1;
-	Object.defineProperty(featureFlags$2, "__esModule", { value: true });
-	featureFlags$2.FeatureFlags = void 0;
-	const evaluator_1 = requireEvaluator$1();
-	const initFeatureFlags_1 = requireInitFeatureFlags$1();
+function requireFeatureFlags$1 () {
+	if (hasRequiredFeatureFlags$1) return featureFlags;
+	hasRequiredFeatureFlags$1 = 1;
+	Object.defineProperty(featureFlags, "__esModule", { value: true });
+	featureFlags.FeatureFlags = void 0;
+	const evaluator_1 = requireEvaluator();
+	const initFeatureFlags_1 = requireInitFeatureFlags();
 	class FeatureFlags {
 	    constructor() {
 	        this.initialized = false;
@@ -8106,37 +5289,37 @@ function requireFeatureFlags$3 () {
 	        return this.initialized;
 	    }
 	}
-	featureFlags$2.FeatureFlags = FeatureFlags;
-	return featureFlags$2;
+	featureFlags.FeatureFlags = FeatureFlags;
+	return featureFlags;
 }
 
-var hasRequiredFeatureFlags$2;
+var hasRequiredFeatureFlags;
 
-function requireFeatureFlags$2 () {
-	if (hasRequiredFeatureFlags$2) return featureFlags$3;
-	hasRequiredFeatureFlags$2 = 1;
+function requireFeatureFlags () {
+	if (hasRequiredFeatureFlags) return featureFlags$1;
+	hasRequiredFeatureFlags = 1;
 	(function (exports) {
 		Object.defineProperty(exports, "__esModule", { value: true });
 		exports.FeatureFlags = void 0;
-		var featureFlags_1 = requireFeatureFlags$3();
+		var featureFlags_1 = requireFeatureFlags$1();
 		Object.defineProperty(exports, "FeatureFlags", { enumerable: true, get: function () { return featureFlags_1.FeatureFlags; } }); 
-	} (featureFlags$3));
-	return featureFlags$3;
+	} (featureFlags$1));
+	return featureFlags$1;
 }
 
-var frontendCustomMetrics$3 = {};
+var frontendCustomMetrics$1 = {};
 
-var frontendCustomMetrics$2 = {};
+var frontendCustomMetrics = {};
 
-var hasRequiredFrontendCustomMetrics$3;
+var hasRequiredFrontendCustomMetrics$1;
 
-function requireFrontendCustomMetrics$3 () {
-	if (hasRequiredFrontendCustomMetrics$3) return frontendCustomMetrics$2;
-	hasRequiredFrontendCustomMetrics$3 = 1;
-	Object.defineProperty(frontendCustomMetrics$2, "__esModule", { value: true });
-	frontendCustomMetrics$2.frontendCustomMetrics = void 0;
-	const bridge_1 = requireBridge$1();
-	const errors_1 = requireErrors$1();
+function requireFrontendCustomMetrics$1 () {
+	if (hasRequiredFrontendCustomMetrics$1) return frontendCustomMetrics;
+	hasRequiredFrontendCustomMetrics$1 = 1;
+	Object.defineProperty(frontendCustomMetrics, "__esModule", { value: true });
+	frontendCustomMetrics.frontendCustomMetrics = void 0;
+	const bridge_1 = requireBridge();
+	const errors_1 = requireErrors();
 	const callBridge = (0, bridge_1.getCallBridge)();
 	const emit = async (customMetricName, value) => {
 	    await callBridge('emitFrontendCustomMetric', {
@@ -8192,52 +5375,53 @@ function requireFrontendCustomMetrics$3 () {
 	 * c.incr();        // increment by 1
 	 * c.incrBy(5);     // increment by 5 (rejects if value <= 0)
 	 */
-	frontendCustomMetrics$2.frontendCustomMetrics = { counter };
-	return frontendCustomMetrics$2;
+	frontendCustomMetrics.frontendCustomMetrics = { counter };
+	return frontendCustomMetrics;
 }
 
-var hasRequiredFrontendCustomMetrics$2;
+var hasRequiredFrontendCustomMetrics;
 
-function requireFrontendCustomMetrics$2 () {
-	if (hasRequiredFrontendCustomMetrics$2) return frontendCustomMetrics$3;
-	hasRequiredFrontendCustomMetrics$2 = 1;
+function requireFrontendCustomMetrics () {
+	if (hasRequiredFrontendCustomMetrics) return frontendCustomMetrics$1;
+	hasRequiredFrontendCustomMetrics = 1;
 	(function (exports) {
 		Object.defineProperty(exports, "__esModule", { value: true });
 		const tslib_1 = require$$0;
-		tslib_1.__exportStar(requireFrontendCustomMetrics$3(), exports); 
-	} (frontendCustomMetrics$3));
-	return frontendCustomMetrics$3;
+		tslib_1.__exportStar(requireFrontendCustomMetrics$1(), exports); 
+	} (frontendCustomMetrics$1));
+	return frontendCustomMetrics$1;
 }
 
-var hasRequiredOut$2;
+var hasRequiredOut$1;
 
-function requireOut$2 () {
-	if (hasRequiredOut$2) return out$3;
-	hasRequiredOut$2 = 1;
+function requireOut$1 () {
+	if (hasRequiredOut$1) return out$2;
+	hasRequiredOut$1 = 1;
 	(function (exports) {
 		Object.defineProperty(exports, "__esModule", { value: true });
 		exports.i18n = exports.NavigationTarget = void 0;
 		const tslib_1 = require$$0;
-		var targets_1 = requireTargets$1();
+		var targets_1 = requireTargets();
 		Object.defineProperty(exports, "NavigationTarget", { enumerable: true, get: function () { return targets_1.NavigationTarget; } });
-		tslib_1.__exportStar(requireInvoke$2(), exports);
-		tslib_1.__exportStar(requireInvokeEndpoint$2(), exports);
-		tslib_1.__exportStar(requireView$2(), exports);
-		tslib_1.__exportStar(requireRouter$2(), exports);
-		tslib_1.__exportStar(requireModal$2(), exports);
-		tslib_1.__exportStar(requireFetch$2(), exports);
-		tslib_1.__exportStar(requireRequestTeamworkGraph$1(), exports);
-		tslib_1.__exportStar(requireFlag$2(), exports);
-		tslib_1.__exportStar(requireEvents$2(), exports);
-		tslib_1.__exportStar(requireRealtime$2(), exports);
-		tslib_1.__exportStar(requireRovo$2(), exports);
-		exports.i18n = tslib_1.__importStar(requireI18n$1());
-		tslib_1.__exportStar(requirePermissions$2(), exports);
-		tslib_1.__exportStar(requireObjectStore$2(), exports);
-		tslib_1.__exportStar(requireFeatureFlags$2(), exports);
-		tslib_1.__exportStar(requireFrontendCustomMetrics$2(), exports); 
-	} (out$3));
-	return out$3;
+		tslib_1.__exportStar(requireInvoke(), exports);
+		tslib_1.__exportStar(requireInvokeEndpoint(), exports);
+		tslib_1.__exportStar(requireView(), exports);
+		tslib_1.__exportStar(requireRouter(), exports);
+		tslib_1.__exportStar(requireModal(), exports);
+		tslib_1.__exportStar(requireFetch(), exports);
+		tslib_1.__exportStar(requireRequestTeamworkGraph(), exports);
+		tslib_1.__exportStar(requireFlag(), exports);
+		tslib_1.__exportStar(requireEvents(), exports);
+		tslib_1.__exportStar(requireRealtime(), exports);
+		tslib_1.__exportStar(requireRovo(), exports);
+		tslib_1.__exportStar(requireCookieConsent(), exports);
+		exports.i18n = tslib_1.__importStar(requireI18n());
+		tslib_1.__exportStar(requirePermissions(), exports);
+		tslib_1.__exportStar(requireObjectStore(), exports);
+		tslib_1.__exportStar(requireFeatureFlags(), exports);
+		tslib_1.__exportStar(requireFrontendCustomMetrics(), exports); 
+	} (out$2));
+	return out$2;
 }
 
 var hasRequiredUseProductContext;
@@ -8247,7 +5431,7 @@ function requireUseProductContext () {
 	hasRequiredUseProductContext = 1;
 	Object.defineProperty(useProductContext, "__esModule", { value: true });
 	useProductContext.useProductContext = void 0;
-	const bridge_1 = requireOut$2();
+	const bridge_1 = requireOut$1();
 	const react_1 = requireReact();
 	const useProductContext$1 = () => {
 	    const [productContext, setProductContext] = (0, react_1.useState)();
@@ -8275,7 +5459,7 @@ function requireUseConfig () {
 	Object.defineProperty(useConfig, "__esModule", { value: true });
 	useConfig.useConfig = void 0;
 	const react_1 = requireReact();
-	const bridge_1 = requireOut$2();
+	const bridge_1 = requireOut$1();
 	const updateConfig = (setConfig) => {
 	    bridge_1.view
 	        .getContext()
@@ -10207,7 +7391,7 @@ function requireUseTheme () {
 	useTheme.useTheme = void 0;
 	const tslib_1 = require$$0;
 	const react_1 = requireReact();
-	const bridge_1 = requireOut$2();
+	const bridge_1 = requireOut$1();
 	const isEqual_1 = tslib_1.__importDefault(requireIsEqual());
 	const useTheme$1 = () => {
 	    const [theme, setTheme] = (0, react_1.useState)(null);
@@ -10282,7 +7466,7 @@ function requireUsePermissions () {
 	Object.defineProperty(usePermissions, "__esModule", { value: true });
 	usePermissions.usePermissions = void 0;
 	const react_1 = requireReact();
-	const bridge_1 = requireOut$2();
+	const bridge_1 = requireOut$1();
 	/**
 	 * Hook for checking permissions in Forge apps
 	 *
@@ -10727,45 +7911,33 @@ function requireConstants () {
 	return constants.exports;
 }
 
-var commonjsBrowser = {};
+var cjsBrowser = {};
 
-var v1 = {};
+var max = {};
 
-var rng = {};
+var hasRequiredMax;
 
-var hasRequiredRng;
-
-function requireRng () {
-	if (hasRequiredRng) return rng;
-	hasRequiredRng = 1;
-
-	Object.defineProperty(rng, "__esModule", {
-	  value: true
-	});
-	rng.default = rng$1;
-	// Unique ID creation requires a high quality random # generator. In the browser we therefore
-	// require the crypto API and do not support built-in fallback to lower quality random number
-	// generators (like Math.random()).
-	let getRandomValues;
-	const rnds8 = new Uint8Array(16);
-
-	function rng$1() {
-	  // lazy load so that environments that need to polyfill have a chance to do so
-	  if (!getRandomValues) {
-	    // getRandomValues needs to be invoked in a context where "this" is a Crypto implementation.
-	    getRandomValues = typeof crypto !== 'undefined' && crypto.getRandomValues && crypto.getRandomValues.bind(crypto);
-
-	    if (!getRandomValues) {
-	      throw new Error('crypto.getRandomValues() not supported. See https://github.com/uuidjs/uuid#getrandomvalues-not-supported');
-	    }
-	  }
-
-	  return getRandomValues(rnds8);
-	}
-	return rng;
+function requireMax () {
+	if (hasRequiredMax) return max;
+	hasRequiredMax = 1;
+	Object.defineProperty(max, "__esModule", { value: true });
+	max.default = 'ffffffff-ffff-ffff-ffff-ffffffffffff';
+	return max;
 }
 
-var stringify = {};
+var nil = {};
+
+var hasRequiredNil;
+
+function requireNil () {
+	if (hasRequiredNil) return nil;
+	hasRequiredNil = 1;
+	Object.defineProperty(nil, "__esModule", { value: true });
+	nil.default = '00000000-0000-0000-0000-000000000000';
+	return nil;
+}
+
+var parse = {};
 
 var validate = {};
 
@@ -10776,13 +7948,8 @@ var hasRequiredRegex;
 function requireRegex () {
 	if (hasRequiredRegex) return regex;
 	hasRequiredRegex = 1;
-
-	Object.defineProperty(regex, "__esModule", {
-	  value: true
-	});
-	regex.default = void 0;
-	var _default = /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}|00000000-0000-0000-0000-000000000000)$/i;
-	regex.default = _default;
+	Object.defineProperty(regex, "__esModule", { value: true });
+	regex.default = /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$/i;
 	return regex;
 }
 
@@ -10791,74 +7958,104 @@ var hasRequiredValidate;
 function requireValidate () {
 	if (hasRequiredValidate) return validate;
 	hasRequiredValidate = 1;
-
-	Object.defineProperty(validate, "__esModule", {
-	  value: true
-	});
-	validate.default = void 0;
-
-	var _regex = _interopRequireDefault(/*@__PURE__*/ requireRegex());
-
-	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
+	Object.defineProperty(validate, "__esModule", { value: true });
+	const regex_js_1 = requireRegex();
 	function validate$1(uuid) {
-	  return typeof uuid === 'string' && _regex.default.test(uuid);
+	    return typeof uuid === 'string' && regex_js_1.default.test(uuid);
 	}
-
-	var _default = validate$1;
-	validate.default = _default;
+	validate.default = validate$1;
 	return validate;
 }
+
+var hasRequiredParse;
+
+function requireParse () {
+	if (hasRequiredParse) return parse;
+	hasRequiredParse = 1;
+	Object.defineProperty(parse, "__esModule", { value: true });
+	const validate_js_1 = requireValidate();
+	function parse$1(uuid) {
+	    if (!(0, validate_js_1.default)(uuid)) {
+	        throw TypeError('Invalid UUID');
+	    }
+	    let v;
+	    return Uint8Array.of((v = parseInt(uuid.slice(0, 8), 16)) >>> 24, (v >>> 16) & 0xff, (v >>> 8) & 0xff, v & 0xff, (v = parseInt(uuid.slice(9, 13), 16)) >>> 8, v & 0xff, (v = parseInt(uuid.slice(14, 18), 16)) >>> 8, v & 0xff, (v = parseInt(uuid.slice(19, 23), 16)) >>> 8, v & 0xff, ((v = parseInt(uuid.slice(24, 36), 16)) / 0x10000000000) & 0xff, (v / 0x100000000) & 0xff, (v >>> 24) & 0xff, (v >>> 16) & 0xff, (v >>> 8) & 0xff, v & 0xff);
+	}
+	parse.default = parse$1;
+	return parse;
+}
+
+var stringify = {};
 
 var hasRequiredStringify;
 
 function requireStringify () {
 	if (hasRequiredStringify) return stringify;
 	hasRequiredStringify = 1;
-
-	Object.defineProperty(stringify, "__esModule", {
-	  value: true
-	});
-	stringify.default = void 0;
-	stringify.unsafeStringify = unsafeStringify;
-
-	var _validate = _interopRequireDefault(/*@__PURE__*/ requireValidate());
-
-	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-	/**
-	 * Convert array of 16 byte values to UUID string format of the form:
-	 * XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX
-	 */
+	Object.defineProperty(stringify, "__esModule", { value: true });
+	stringify.unsafeStringify = void 0;
+	const validate_js_1 = requireValidate();
 	const byteToHex = [];
-
 	for (let i = 0; i < 256; ++i) {
-	  byteToHex.push((i + 0x100).toString(16).slice(1));
+	    byteToHex.push((i + 0x100).toString(16).slice(1));
 	}
-
 	function unsafeStringify(arr, offset = 0) {
-	  // Note: Be careful editing this code!  It's been tuned for performance
-	  // and works in ways you may not expect. See https://github.com/uuidjs/uuid/pull/434
-	  return byteToHex[arr[offset + 0]] + byteToHex[arr[offset + 1]] + byteToHex[arr[offset + 2]] + byteToHex[arr[offset + 3]] + '-' + byteToHex[arr[offset + 4]] + byteToHex[arr[offset + 5]] + '-' + byteToHex[arr[offset + 6]] + byteToHex[arr[offset + 7]] + '-' + byteToHex[arr[offset + 8]] + byteToHex[arr[offset + 9]] + '-' + byteToHex[arr[offset + 10]] + byteToHex[arr[offset + 11]] + byteToHex[arr[offset + 12]] + byteToHex[arr[offset + 13]] + byteToHex[arr[offset + 14]] + byteToHex[arr[offset + 15]];
+	    return (byteToHex[arr[offset + 0]] +
+	        byteToHex[arr[offset + 1]] +
+	        byteToHex[arr[offset + 2]] +
+	        byteToHex[arr[offset + 3]] +
+	        '-' +
+	        byteToHex[arr[offset + 4]] +
+	        byteToHex[arr[offset + 5]] +
+	        '-' +
+	        byteToHex[arr[offset + 6]] +
+	        byteToHex[arr[offset + 7]] +
+	        '-' +
+	        byteToHex[arr[offset + 8]] +
+	        byteToHex[arr[offset + 9]] +
+	        '-' +
+	        byteToHex[arr[offset + 10]] +
+	        byteToHex[arr[offset + 11]] +
+	        byteToHex[arr[offset + 12]] +
+	        byteToHex[arr[offset + 13]] +
+	        byteToHex[arr[offset + 14]] +
+	        byteToHex[arr[offset + 15]]).toLowerCase();
 	}
-
+	stringify.unsafeStringify = unsafeStringify;
 	function stringify$1(arr, offset = 0) {
-	  const uuid = unsafeStringify(arr, offset); // Consistency check for valid UUID.  If this throws, it's likely due to one
-	  // of the following:
-	  // - One or more input array values don't map to a hex octet (leading to
-	  // "undefined" in the uuid)
-	  // - Invalid input values for the RFC `version` or `variant` fields
-
-	  if (!(0, _validate.default)(uuid)) {
-	    throw TypeError('Stringified UUID is invalid');
-	  }
-
-	  return uuid;
+	    const uuid = unsafeStringify(arr, offset);
+	    if (!(0, validate_js_1.default)(uuid)) {
+	        throw TypeError('Stringified UUID is invalid');
+	    }
+	    return uuid;
 	}
-
-	var _default = stringify$1;
-	stringify.default = _default;
+	stringify.default = stringify$1;
 	return stringify;
+}
+
+var v1 = {};
+
+var rng = {};
+
+var hasRequiredRng;
+
+function requireRng () {
+	if (hasRequiredRng) return rng;
+	hasRequiredRng = 1;
+	Object.defineProperty(rng, "__esModule", { value: true });
+	let getRandomValues;
+	const rnds8 = new Uint8Array(16);
+	function rng$1() {
+	    if (!getRandomValues) {
+	        if (typeof crypto === 'undefined' || !crypto.getRandomValues) {
+	            throw new Error('crypto.getRandomValues() not supported. See https://github.com/uuidjs/uuid#getrandomvalues-not-supported');
+	        }
+	        getRandomValues = crypto.getRandomValues.bind(crypto);
+	    }
+	    return getRandomValues(rnds8);
+	}
+	rng.default = rng$1;
+	return rng;
 }
 
 var hasRequiredV1;
@@ -10866,259 +8063,118 @@ var hasRequiredV1;
 function requireV1 () {
 	if (hasRequiredV1) return v1;
 	hasRequiredV1 = 1;
-
-	Object.defineProperty(v1, "__esModule", {
-	  value: true
-	});
-	v1.default = void 0;
-
-	var _rng = _interopRequireDefault(/*@__PURE__*/ requireRng());
-
-	var _stringify = /*@__PURE__*/ requireStringify();
-
-	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-	// **`v1()` - Generate time-based UUID**
-	//
-	// Inspired by https://github.com/LiosK/UUID.js
-	// and http://docs.python.org/library/uuid.html
-	let _nodeId;
-
-	let _clockseq; // Previous uuid creation time
-
-
-	let _lastMSecs = 0;
-	let _lastNSecs = 0; // See https://github.com/uuidjs/uuid for API details
-
+	Object.defineProperty(v1, "__esModule", { value: true });
+	v1.updateV1State = void 0;
+	const rng_js_1 = requireRng();
+	const stringify_js_1 = requireStringify();
+	const _state = {};
 	function v1$1(options, buf, offset) {
-	  let i = buf && offset || 0;
-	  const b = buf || new Array(16);
-	  options = options || {};
-	  let node = options.node || _nodeId;
-	  let clockseq = options.clockseq !== undefined ? options.clockseq : _clockseq; // node and clockseq need to be initialized to random values if they're not
-	  // specified.  We do this lazily to minimize issues related to insufficient
-	  // system entropy.  See #189
-
-	  if (node == null || clockseq == null) {
-	    const seedBytes = options.random || (options.rng || _rng.default)();
-
-	    if (node == null) {
-	      // Per 4.5, create and 48-bit node id, (47 random bits + multicast bit = 1)
-	      node = _nodeId = [seedBytes[0] | 0x01, seedBytes[1], seedBytes[2], seedBytes[3], seedBytes[4], seedBytes[5]];
+	    let bytes;
+	    const isV6 = options?._v6 ?? false;
+	    if (options) {
+	        const optionsKeys = Object.keys(options);
+	        if (optionsKeys.length === 1 && optionsKeys[0] === '_v6') {
+	            options = undefined;
+	        }
 	    }
-
-	    if (clockseq == null) {
-	      // Per 4.2.2, randomize (14 bit) clockseq
-	      clockseq = _clockseq = (seedBytes[6] << 8 | seedBytes[7]) & 0x3fff;
+	    if (options) {
+	        bytes = v1Bytes(options.random ?? options.rng?.() ?? (0, rng_js_1.default)(), options.msecs, options.nsecs, options.clockseq, options.node, buf, offset);
 	    }
-	  } // UUID timestamps are 100 nano-second units since the Gregorian epoch,
-	  // (1582-10-15 00:00).  JSNumbers aren't precise enough for this, so
-	  // time is handled internally as 'msecs' (integer milliseconds) and 'nsecs'
-	  // (100-nanoseconds offset from msecs) since unix epoch, 1970-01-01 00:00.
-
-
-	  let msecs = options.msecs !== undefined ? options.msecs : Date.now(); // Per 4.2.1.2, use count of uuid's generated during the current clock
-	  // cycle to simulate higher resolution clock
-
-	  let nsecs = options.nsecs !== undefined ? options.nsecs : _lastNSecs + 1; // Time since last uuid creation (in msecs)
-
-	  const dt = msecs - _lastMSecs + (nsecs - _lastNSecs) / 10000; // Per 4.2.1.2, Bump clockseq on clock regression
-
-	  if (dt < 0 && options.clockseq === undefined) {
-	    clockseq = clockseq + 1 & 0x3fff;
-	  } // Reset nsecs if clock regresses (new clockseq) or we've moved onto a new
-	  // time interval
-
-
-	  if ((dt < 0 || msecs > _lastMSecs) && options.nsecs === undefined) {
-	    nsecs = 0;
-	  } // Per 4.2.1.2 Throw error if too many uuids are requested
-
-
-	  if (nsecs >= 10000) {
-	    throw new Error("uuid.v1(): Can't create more than 10M uuids/sec");
-	  }
-
-	  _lastMSecs = msecs;
-	  _lastNSecs = nsecs;
-	  _clockseq = clockseq; // Per 4.1.4 - Convert from unix epoch to Gregorian epoch
-
-	  msecs += 12219292800000; // `time_low`
-
-	  const tl = ((msecs & 0xfffffff) * 10000 + nsecs) % 0x100000000;
-	  b[i++] = tl >>> 24 & 0xff;
-	  b[i++] = tl >>> 16 & 0xff;
-	  b[i++] = tl >>> 8 & 0xff;
-	  b[i++] = tl & 0xff; // `time_mid`
-
-	  const tmh = msecs / 0x100000000 * 10000 & 0xfffffff;
-	  b[i++] = tmh >>> 8 & 0xff;
-	  b[i++] = tmh & 0xff; // `time_high_and_version`
-
-	  b[i++] = tmh >>> 24 & 0xf | 0x10; // include version
-
-	  b[i++] = tmh >>> 16 & 0xff; // `clock_seq_hi_and_reserved` (Per 4.2.2 - include variant)
-
-	  b[i++] = clockseq >>> 8 | 0x80; // `clock_seq_low`
-
-	  b[i++] = clockseq & 0xff; // `node`
-
-	  for (let n = 0; n < 6; ++n) {
-	    b[i + n] = node[n];
-	  }
-
-	  return buf || (0, _stringify.unsafeStringify)(b);
+	    else {
+	        const now = Date.now();
+	        const rnds = (0, rng_js_1.default)();
+	        updateV1State(_state, now, rnds);
+	        bytes = v1Bytes(rnds, _state.msecs, _state.nsecs, isV6 ? undefined : _state.clockseq, isV6 ? undefined : _state.node, buf, offset);
+	    }
+	    return buf ?? (0, stringify_js_1.unsafeStringify)(bytes);
 	}
-
-	var _default = v1$1;
-	v1.default = _default;
+	function updateV1State(state, now, rnds) {
+	    state.msecs ??= -Infinity;
+	    state.nsecs ??= 0;
+	    if (now === state.msecs) {
+	        state.nsecs++;
+	        if (state.nsecs >= 10000) {
+	            state.node = undefined;
+	            state.nsecs = 0;
+	        }
+	    }
+	    else if (now > state.msecs) {
+	        state.nsecs = 0;
+	    }
+	    else if (now < state.msecs) {
+	        state.node = undefined;
+	    }
+	    if (!state.node) {
+	        state.node = rnds.slice(10, 16);
+	        state.node[0] |= 0x01;
+	        state.clockseq = ((rnds[8] << 8) | rnds[9]) & 0x3fff;
+	    }
+	    state.msecs = now;
+	    return state;
+	}
+	v1.updateV1State = updateV1State;
+	function v1Bytes(rnds, msecs, nsecs, clockseq, node, buf, offset = 0) {
+	    if (rnds.length < 16) {
+	        throw new Error('Random bytes length must be >= 16');
+	    }
+	    if (!buf) {
+	        buf = new Uint8Array(16);
+	        offset = 0;
+	    }
+	    else {
+	        if (offset < 0 || offset + 16 > buf.length) {
+	            throw new RangeError(`UUID byte range ${offset}:${offset + 15} is out of buffer bounds`);
+	        }
+	    }
+	    msecs ??= Date.now();
+	    nsecs ??= 0;
+	    clockseq ??= ((rnds[8] << 8) | rnds[9]) & 0x3fff;
+	    node ??= rnds.slice(10, 16);
+	    msecs += 12219292800000;
+	    const tl = ((msecs & 0xfffffff) * 10000 + nsecs) % 0x100000000;
+	    buf[offset++] = (tl >>> 24) & 0xff;
+	    buf[offset++] = (tl >>> 16) & 0xff;
+	    buf[offset++] = (tl >>> 8) & 0xff;
+	    buf[offset++] = tl & 0xff;
+	    const tmh = ((msecs / 0x100000000) * 10000) & 0xfffffff;
+	    buf[offset++] = (tmh >>> 8) & 0xff;
+	    buf[offset++] = tmh & 0xff;
+	    buf[offset++] = ((tmh >>> 24) & 0xf) | 0x10;
+	    buf[offset++] = (tmh >>> 16) & 0xff;
+	    buf[offset++] = (clockseq >>> 8) | 0x80;
+	    buf[offset++] = clockseq & 0xff;
+	    for (let n = 0; n < 6; ++n) {
+	        buf[offset++] = node[n];
+	    }
+	    return buf;
+	}
+	v1.default = v1$1;
 	return v1;
 }
 
+var v1ToV6 = {};
+
+var hasRequiredV1ToV6;
+
+function requireV1ToV6 () {
+	if (hasRequiredV1ToV6) return v1ToV6;
+	hasRequiredV1ToV6 = 1;
+	Object.defineProperty(v1ToV6, "__esModule", { value: true });
+	const parse_js_1 = requireParse();
+	const stringify_js_1 = requireStringify();
+	function v1ToV6$1(uuid) {
+	    const v1Bytes = typeof uuid === 'string' ? (0, parse_js_1.default)(uuid) : uuid;
+	    const v6Bytes = _v1ToV6(v1Bytes);
+	    return typeof uuid === 'string' ? (0, stringify_js_1.unsafeStringify)(v6Bytes) : v6Bytes;
+	}
+	v1ToV6.default = v1ToV6$1;
+	function _v1ToV6(v1Bytes) {
+	    return Uint8Array.of(((v1Bytes[6] & 0x0f) << 4) | ((v1Bytes[7] >> 4) & 0x0f), ((v1Bytes[7] & 0x0f) << 4) | ((v1Bytes[4] & 0xf0) >> 4), ((v1Bytes[4] & 0x0f) << 4) | ((v1Bytes[5] & 0xf0) >> 4), ((v1Bytes[5] & 0x0f) << 4) | ((v1Bytes[0] & 0xf0) >> 4), ((v1Bytes[0] & 0x0f) << 4) | ((v1Bytes[1] & 0xf0) >> 4), ((v1Bytes[1] & 0x0f) << 4) | ((v1Bytes[2] & 0xf0) >> 4), 0x60 | (v1Bytes[2] & 0x0f), v1Bytes[3], v1Bytes[8], v1Bytes[9], v1Bytes[10], v1Bytes[11], v1Bytes[12], v1Bytes[13], v1Bytes[14], v1Bytes[15]);
+	}
+	return v1ToV6;
+}
+
 var v3 = {};
-
-var v35 = {};
-
-var parse = {};
-
-var hasRequiredParse;
-
-function requireParse () {
-	if (hasRequiredParse) return parse;
-	hasRequiredParse = 1;
-
-	Object.defineProperty(parse, "__esModule", {
-	  value: true
-	});
-	parse.default = void 0;
-
-	var _validate = _interopRequireDefault(/*@__PURE__*/ requireValidate());
-
-	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-	function parse$1(uuid) {
-	  if (!(0, _validate.default)(uuid)) {
-	    throw TypeError('Invalid UUID');
-	  }
-
-	  let v;
-	  const arr = new Uint8Array(16); // Parse ########-....-....-....-............
-
-	  arr[0] = (v = parseInt(uuid.slice(0, 8), 16)) >>> 24;
-	  arr[1] = v >>> 16 & 0xff;
-	  arr[2] = v >>> 8 & 0xff;
-	  arr[3] = v & 0xff; // Parse ........-####-....-....-............
-
-	  arr[4] = (v = parseInt(uuid.slice(9, 13), 16)) >>> 8;
-	  arr[5] = v & 0xff; // Parse ........-....-####-....-............
-
-	  arr[6] = (v = parseInt(uuid.slice(14, 18), 16)) >>> 8;
-	  arr[7] = v & 0xff; // Parse ........-....-....-####-............
-
-	  arr[8] = (v = parseInt(uuid.slice(19, 23), 16)) >>> 8;
-	  arr[9] = v & 0xff; // Parse ........-....-....-....-############
-	  // (Use "/" to avoid 32-bit truncation when bit-shifting high-order bytes)
-
-	  arr[10] = (v = parseInt(uuid.slice(24, 36), 16)) / 0x10000000000 & 0xff;
-	  arr[11] = v / 0x100000000 & 0xff;
-	  arr[12] = v >>> 24 & 0xff;
-	  arr[13] = v >>> 16 & 0xff;
-	  arr[14] = v >>> 8 & 0xff;
-	  arr[15] = v & 0xff;
-	  return arr;
-	}
-
-	var _default = parse$1;
-	parse.default = _default;
-	return parse;
-}
-
-var hasRequiredV35;
-
-function requireV35 () {
-	if (hasRequiredV35) return v35;
-	hasRequiredV35 = 1;
-
-	Object.defineProperty(v35, "__esModule", {
-	  value: true
-	});
-	v35.URL = v35.DNS = void 0;
-	v35.default = v35$1;
-
-	var _stringify = /*@__PURE__*/ requireStringify();
-
-	var _parse = _interopRequireDefault(/*@__PURE__*/ requireParse());
-
-	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-	function stringToBytes(str) {
-	  str = unescape(encodeURIComponent(str)); // UTF8 escape
-
-	  const bytes = [];
-
-	  for (let i = 0; i < str.length; ++i) {
-	    bytes.push(str.charCodeAt(i));
-	  }
-
-	  return bytes;
-	}
-
-	const DNS = '6ba7b810-9dad-11d1-80b4-00c04fd430c8';
-	v35.DNS = DNS;
-	const URL = '6ba7b811-9dad-11d1-80b4-00c04fd430c8';
-	v35.URL = URL;
-
-	function v35$1(name, version, hashfunc) {
-	  function generateUUID(value, namespace, buf, offset) {
-	    var _namespace;
-
-	    if (typeof value === 'string') {
-	      value = stringToBytes(value);
-	    }
-
-	    if (typeof namespace === 'string') {
-	      namespace = (0, _parse.default)(namespace);
-	    }
-
-	    if (((_namespace = namespace) === null || _namespace === void 0 ? void 0 : _namespace.length) !== 16) {
-	      throw TypeError('Namespace must be array-like (16 iterable integer values, 0-255)');
-	    } // Compute hash of namespace and value, Per 4.3
-	    // Future: Use spread syntax when supported on all platforms, e.g. `bytes =
-	    // hashfunc([...namespace, ... value])`
-
-
-	    let bytes = new Uint8Array(16 + value.length);
-	    bytes.set(namespace);
-	    bytes.set(value, namespace.length);
-	    bytes = hashfunc(bytes);
-	    bytes[6] = bytes[6] & 0x0f | version;
-	    bytes[8] = bytes[8] & 0x3f | 0x80;
-
-	    if (buf) {
-	      offset = offset || 0;
-
-	      for (let i = 0; i < 16; ++i) {
-	        buf[offset + i] = bytes[i];
-	      }
-
-	      return buf;
-	    }
-
-	    return (0, _stringify.unsafeStringify)(bytes);
-	  } // Function#name is not settable on some platforms (#270)
-
-
-	  try {
-	    generateUUID.name = name; // eslint-disable-next-line no-empty
-	  } catch (err) {} // For CommonJS default export support
-
-
-	  generateUUID.DNS = DNS;
-	  generateUUID.URL = URL;
-	  return generateUUID;
-	}
-	return v35;
-}
 
 var md5 = {};
 
@@ -11127,229 +8183,196 @@ var hasRequiredMd5;
 function requireMd5 () {
 	if (hasRequiredMd5) return md5;
 	hasRequiredMd5 = 1;
-
-	Object.defineProperty(md5, "__esModule", {
-	  value: true
-	});
-	md5.default = void 0;
-
-	/*
-	 * Browser-compatible JavaScript MD5
-	 *
-	 * Modification of JavaScript MD5
-	 * https://github.com/blueimp/JavaScript-MD5
-	 *
-	 * Copyright 2011, Sebastian Tschan
-	 * https://blueimp.net
-	 *
-	 * Licensed under the MIT license:
-	 * https://opensource.org/licenses/MIT
-	 *
-	 * Based on
-	 * A JavaScript implementation of the RSA Data Security, Inc. MD5 Message
-	 * Digest Algorithm, as defined in RFC 1321.
-	 * Version 2.2 Copyright (C) Paul Johnston 1999 - 2009
-	 * Other contributors: Greg Holt, Andrew Kepert, Ydnar, Lostinet
-	 * Distributed under the BSD License
-	 * See http://pajhome.org.uk/crypt/md5 for more info.
-	 */
+	Object.defineProperty(md5, "__esModule", { value: true });
 	function md5$1(bytes) {
-	  if (typeof bytes === 'string') {
-	    const msg = unescape(encodeURIComponent(bytes)); // UTF8 escape
-
-	    bytes = new Uint8Array(msg.length);
-
-	    for (let i = 0; i < msg.length; ++i) {
-	      bytes[i] = msg.charCodeAt(i);
+	    const words = uint8ToUint32(bytes);
+	    const md5Bytes = wordsToMd5(words, bytes.length * 8);
+	    return uint32ToUint8(md5Bytes);
+	}
+	function uint32ToUint8(input) {
+	    const bytes = new Uint8Array(input.length * 4);
+	    for (let i = 0; i < input.length * 4; i++) {
+	        bytes[i] = (input[i >> 2] >>> ((i % 4) * 8)) & 0xff;
 	    }
-	  }
-
-	  return md5ToHexEncodedArray(wordsToMd5(bytesToWords(bytes), bytes.length * 8));
+	    return bytes;
 	}
-	/*
-	 * Convert an array of little-endian words to an array of bytes
-	 */
-
-
-	function md5ToHexEncodedArray(input) {
-	  const output = [];
-	  const length32 = input.length * 32;
-	  const hexTab = '0123456789abcdef';
-
-	  for (let i = 0; i < length32; i += 8) {
-	    const x = input[i >> 5] >>> i % 32 & 0xff;
-	    const hex = parseInt(hexTab.charAt(x >>> 4 & 0x0f) + hexTab.charAt(x & 0x0f), 16);
-	    output.push(hex);
-	  }
-
-	  return output;
-	}
-	/**
-	 * Calculate output length with padding and bit length
-	 */
-
-
 	function getOutputLength(inputLength8) {
-	  return (inputLength8 + 64 >>> 9 << 4) + 14 + 1;
+	    return (((inputLength8 + 64) >>> 9) << 4) + 14 + 1;
 	}
-	/*
-	 * Calculate the MD5 of an array of little-endian words, and a bit length.
-	 */
-
-
 	function wordsToMd5(x, len) {
-	  /* append padding */
-	  x[len >> 5] |= 0x80 << len % 32;
-	  x[getOutputLength(len) - 1] = len;
-	  let a = 1732584193;
-	  let b = -271733879;
-	  let c = -1732584194;
-	  let d = 271733878;
-
-	  for (let i = 0; i < x.length; i += 16) {
-	    const olda = a;
-	    const oldb = b;
-	    const oldc = c;
-	    const oldd = d;
-	    a = md5ff(a, b, c, d, x[i], 7, -680876936);
-	    d = md5ff(d, a, b, c, x[i + 1], 12, -389564586);
-	    c = md5ff(c, d, a, b, x[i + 2], 17, 606105819);
-	    b = md5ff(b, c, d, a, x[i + 3], 22, -1044525330);
-	    a = md5ff(a, b, c, d, x[i + 4], 7, -176418897);
-	    d = md5ff(d, a, b, c, x[i + 5], 12, 1200080426);
-	    c = md5ff(c, d, a, b, x[i + 6], 17, -1473231341);
-	    b = md5ff(b, c, d, a, x[i + 7], 22, -45705983);
-	    a = md5ff(a, b, c, d, x[i + 8], 7, 1770035416);
-	    d = md5ff(d, a, b, c, x[i + 9], 12, -1958414417);
-	    c = md5ff(c, d, a, b, x[i + 10], 17, -42063);
-	    b = md5ff(b, c, d, a, x[i + 11], 22, -1990404162);
-	    a = md5ff(a, b, c, d, x[i + 12], 7, 1804603682);
-	    d = md5ff(d, a, b, c, x[i + 13], 12, -40341101);
-	    c = md5ff(c, d, a, b, x[i + 14], 17, -1502002290);
-	    b = md5ff(b, c, d, a, x[i + 15], 22, 1236535329);
-	    a = md5gg(a, b, c, d, x[i + 1], 5, -165796510);
-	    d = md5gg(d, a, b, c, x[i + 6], 9, -1069501632);
-	    c = md5gg(c, d, a, b, x[i + 11], 14, 643717713);
-	    b = md5gg(b, c, d, a, x[i], 20, -373897302);
-	    a = md5gg(a, b, c, d, x[i + 5], 5, -701558691);
-	    d = md5gg(d, a, b, c, x[i + 10], 9, 38016083);
-	    c = md5gg(c, d, a, b, x[i + 15], 14, -660478335);
-	    b = md5gg(b, c, d, a, x[i + 4], 20, -405537848);
-	    a = md5gg(a, b, c, d, x[i + 9], 5, 568446438);
-	    d = md5gg(d, a, b, c, x[i + 14], 9, -1019803690);
-	    c = md5gg(c, d, a, b, x[i + 3], 14, -187363961);
-	    b = md5gg(b, c, d, a, x[i + 8], 20, 1163531501);
-	    a = md5gg(a, b, c, d, x[i + 13], 5, -1444681467);
-	    d = md5gg(d, a, b, c, x[i + 2], 9, -51403784);
-	    c = md5gg(c, d, a, b, x[i + 7], 14, 1735328473);
-	    b = md5gg(b, c, d, a, x[i + 12], 20, -1926607734);
-	    a = md5hh(a, b, c, d, x[i + 5], 4, -378558);
-	    d = md5hh(d, a, b, c, x[i + 8], 11, -2022574463);
-	    c = md5hh(c, d, a, b, x[i + 11], 16, 1839030562);
-	    b = md5hh(b, c, d, a, x[i + 14], 23, -35309556);
-	    a = md5hh(a, b, c, d, x[i + 1], 4, -1530992060);
-	    d = md5hh(d, a, b, c, x[i + 4], 11, 1272893353);
-	    c = md5hh(c, d, a, b, x[i + 7], 16, -155497632);
-	    b = md5hh(b, c, d, a, x[i + 10], 23, -1094730640);
-	    a = md5hh(a, b, c, d, x[i + 13], 4, 681279174);
-	    d = md5hh(d, a, b, c, x[i], 11, -358537222);
-	    c = md5hh(c, d, a, b, x[i + 3], 16, -722521979);
-	    b = md5hh(b, c, d, a, x[i + 6], 23, 76029189);
-	    a = md5hh(a, b, c, d, x[i + 9], 4, -640364487);
-	    d = md5hh(d, a, b, c, x[i + 12], 11, -421815835);
-	    c = md5hh(c, d, a, b, x[i + 15], 16, 530742520);
-	    b = md5hh(b, c, d, a, x[i + 2], 23, -995338651);
-	    a = md5ii(a, b, c, d, x[i], 6, -198630844);
-	    d = md5ii(d, a, b, c, x[i + 7], 10, 1126891415);
-	    c = md5ii(c, d, a, b, x[i + 14], 15, -1416354905);
-	    b = md5ii(b, c, d, a, x[i + 5], 21, -57434055);
-	    a = md5ii(a, b, c, d, x[i + 12], 6, 1700485571);
-	    d = md5ii(d, a, b, c, x[i + 3], 10, -1894986606);
-	    c = md5ii(c, d, a, b, x[i + 10], 15, -1051523);
-	    b = md5ii(b, c, d, a, x[i + 1], 21, -2054922799);
-	    a = md5ii(a, b, c, d, x[i + 8], 6, 1873313359);
-	    d = md5ii(d, a, b, c, x[i + 15], 10, -30611744);
-	    c = md5ii(c, d, a, b, x[i + 6], 15, -1560198380);
-	    b = md5ii(b, c, d, a, x[i + 13], 21, 1309151649);
-	    a = md5ii(a, b, c, d, x[i + 4], 6, -145523070);
-	    d = md5ii(d, a, b, c, x[i + 11], 10, -1120210379);
-	    c = md5ii(c, d, a, b, x[i + 2], 15, 718787259);
-	    b = md5ii(b, c, d, a, x[i + 9], 21, -343485551);
-	    a = safeAdd(a, olda);
-	    b = safeAdd(b, oldb);
-	    c = safeAdd(c, oldc);
-	    d = safeAdd(d, oldd);
-	  }
-
-	  return [a, b, c, d];
+	    const xpad = new Uint32Array(getOutputLength(len)).fill(0);
+	    xpad.set(x);
+	    xpad[len >> 5] |= 0x80 << len % 32;
+	    xpad[xpad.length - 1] = len;
+	    x = xpad;
+	    let a = 1732584193;
+	    let b = -271733879;
+	    let c = -1732584194;
+	    let d = 271733878;
+	    for (let i = 0; i < x.length; i += 16) {
+	        const olda = a;
+	        const oldb = b;
+	        const oldc = c;
+	        const oldd = d;
+	        a = md5ff(a, b, c, d, x[i], 7, -680876936);
+	        d = md5ff(d, a, b, c, x[i + 1], 12, -389564586);
+	        c = md5ff(c, d, a, b, x[i + 2], 17, 606105819);
+	        b = md5ff(b, c, d, a, x[i + 3], 22, -1044525330);
+	        a = md5ff(a, b, c, d, x[i + 4], 7, -176418897);
+	        d = md5ff(d, a, b, c, x[i + 5], 12, 1200080426);
+	        c = md5ff(c, d, a, b, x[i + 6], 17, -1473231341);
+	        b = md5ff(b, c, d, a, x[i + 7], 22, -45705983);
+	        a = md5ff(a, b, c, d, x[i + 8], 7, 1770035416);
+	        d = md5ff(d, a, b, c, x[i + 9], 12, -1958414417);
+	        c = md5ff(c, d, a, b, x[i + 10], 17, -42063);
+	        b = md5ff(b, c, d, a, x[i + 11], 22, -1990404162);
+	        a = md5ff(a, b, c, d, x[i + 12], 7, 1804603682);
+	        d = md5ff(d, a, b, c, x[i + 13], 12, -40341101);
+	        c = md5ff(c, d, a, b, x[i + 14], 17, -1502002290);
+	        b = md5ff(b, c, d, a, x[i + 15], 22, 1236535329);
+	        a = md5gg(a, b, c, d, x[i + 1], 5, -165796510);
+	        d = md5gg(d, a, b, c, x[i + 6], 9, -1069501632);
+	        c = md5gg(c, d, a, b, x[i + 11], 14, 643717713);
+	        b = md5gg(b, c, d, a, x[i], 20, -373897302);
+	        a = md5gg(a, b, c, d, x[i + 5], 5, -701558691);
+	        d = md5gg(d, a, b, c, x[i + 10], 9, 38016083);
+	        c = md5gg(c, d, a, b, x[i + 15], 14, -660478335);
+	        b = md5gg(b, c, d, a, x[i + 4], 20, -405537848);
+	        a = md5gg(a, b, c, d, x[i + 9], 5, 568446438);
+	        d = md5gg(d, a, b, c, x[i + 14], 9, -1019803690);
+	        c = md5gg(c, d, a, b, x[i + 3], 14, -187363961);
+	        b = md5gg(b, c, d, a, x[i + 8], 20, 1163531501);
+	        a = md5gg(a, b, c, d, x[i + 13], 5, -1444681467);
+	        d = md5gg(d, a, b, c, x[i + 2], 9, -51403784);
+	        c = md5gg(c, d, a, b, x[i + 7], 14, 1735328473);
+	        b = md5gg(b, c, d, a, x[i + 12], 20, -1926607734);
+	        a = md5hh(a, b, c, d, x[i + 5], 4, -378558);
+	        d = md5hh(d, a, b, c, x[i + 8], 11, -2022574463);
+	        c = md5hh(c, d, a, b, x[i + 11], 16, 1839030562);
+	        b = md5hh(b, c, d, a, x[i + 14], 23, -35309556);
+	        a = md5hh(a, b, c, d, x[i + 1], 4, -1530992060);
+	        d = md5hh(d, a, b, c, x[i + 4], 11, 1272893353);
+	        c = md5hh(c, d, a, b, x[i + 7], 16, -155497632);
+	        b = md5hh(b, c, d, a, x[i + 10], 23, -1094730640);
+	        a = md5hh(a, b, c, d, x[i + 13], 4, 681279174);
+	        d = md5hh(d, a, b, c, x[i], 11, -358537222);
+	        c = md5hh(c, d, a, b, x[i + 3], 16, -722521979);
+	        b = md5hh(b, c, d, a, x[i + 6], 23, 76029189);
+	        a = md5hh(a, b, c, d, x[i + 9], 4, -640364487);
+	        d = md5hh(d, a, b, c, x[i + 12], 11, -421815835);
+	        c = md5hh(c, d, a, b, x[i + 15], 16, 530742520);
+	        b = md5hh(b, c, d, a, x[i + 2], 23, -995338651);
+	        a = md5ii(a, b, c, d, x[i], 6, -198630844);
+	        d = md5ii(d, a, b, c, x[i + 7], 10, 1126891415);
+	        c = md5ii(c, d, a, b, x[i + 14], 15, -1416354905);
+	        b = md5ii(b, c, d, a, x[i + 5], 21, -57434055);
+	        a = md5ii(a, b, c, d, x[i + 12], 6, 1700485571);
+	        d = md5ii(d, a, b, c, x[i + 3], 10, -1894986606);
+	        c = md5ii(c, d, a, b, x[i + 10], 15, -1051523);
+	        b = md5ii(b, c, d, a, x[i + 1], 21, -2054922799);
+	        a = md5ii(a, b, c, d, x[i + 8], 6, 1873313359);
+	        d = md5ii(d, a, b, c, x[i + 15], 10, -30611744);
+	        c = md5ii(c, d, a, b, x[i + 6], 15, -1560198380);
+	        b = md5ii(b, c, d, a, x[i + 13], 21, 1309151649);
+	        a = md5ii(a, b, c, d, x[i + 4], 6, -145523070);
+	        d = md5ii(d, a, b, c, x[i + 11], 10, -1120210379);
+	        c = md5ii(c, d, a, b, x[i + 2], 15, 718787259);
+	        b = md5ii(b, c, d, a, x[i + 9], 21, -343485551);
+	        a = safeAdd(a, olda);
+	        b = safeAdd(b, oldb);
+	        c = safeAdd(c, oldc);
+	        d = safeAdd(d, oldd);
+	    }
+	    return Uint32Array.of(a, b, c, d);
 	}
-	/*
-	 * Convert an array bytes to an array of little-endian words
-	 * Characters >255 have their high-byte silently ignored.
-	 */
-
-
-	function bytesToWords(input) {
-	  if (input.length === 0) {
-	    return [];
-	  }
-
-	  const length8 = input.length * 8;
-	  const output = new Uint32Array(getOutputLength(length8));
-
-	  for (let i = 0; i < length8; i += 8) {
-	    output[i >> 5] |= (input[i / 8] & 0xff) << i % 32;
-	  }
-
-	  return output;
+	function uint8ToUint32(input) {
+	    if (input.length === 0) {
+	        return new Uint32Array();
+	    }
+	    const output = new Uint32Array(getOutputLength(input.length * 8)).fill(0);
+	    for (let i = 0; i < input.length; i++) {
+	        output[i >> 2] |= (input[i] & 0xff) << ((i % 4) * 8);
+	    }
+	    return output;
 	}
-	/*
-	 * Add integers, wrapping at 2^32. This uses 16-bit operations internally
-	 * to work around bugs in some JS interpreters.
-	 */
-
-
 	function safeAdd(x, y) {
-	  const lsw = (x & 0xffff) + (y & 0xffff);
-	  const msw = (x >> 16) + (y >> 16) + (lsw >> 16);
-	  return msw << 16 | lsw & 0xffff;
+	    const lsw = (x & 0xffff) + (y & 0xffff);
+	    const msw = (x >> 16) + (y >> 16) + (lsw >> 16);
+	    return (msw << 16) | (lsw & 0xffff);
 	}
-	/*
-	 * Bitwise rotate a 32-bit number to the left.
-	 */
-
-
 	function bitRotateLeft(num, cnt) {
-	  return num << cnt | num >>> 32 - cnt;
+	    return (num << cnt) | (num >>> (32 - cnt));
 	}
-	/*
-	 * These functions implement the four basic operations the algorithm uses.
-	 */
-
-
 	function md5cmn(q, a, b, x, s, t) {
-	  return safeAdd(bitRotateLeft(safeAdd(safeAdd(a, q), safeAdd(x, t)), s), b);
+	    return safeAdd(bitRotateLeft(safeAdd(safeAdd(a, q), safeAdd(x, t)), s), b);
 	}
-
 	function md5ff(a, b, c, d, x, s, t) {
-	  return md5cmn(b & c | ~b & d, a, b, x, s, t);
+	    return md5cmn((b & c) | (~b & d), a, b, x, s, t);
 	}
-
 	function md5gg(a, b, c, d, x, s, t) {
-	  return md5cmn(b & d | c & ~d, a, b, x, s, t);
+	    return md5cmn((b & d) | (c & ~d), a, b, x, s, t);
 	}
-
 	function md5hh(a, b, c, d, x, s, t) {
-	  return md5cmn(b ^ c ^ d, a, b, x, s, t);
+	    return md5cmn(b ^ c ^ d, a, b, x, s, t);
 	}
-
 	function md5ii(a, b, c, d, x, s, t) {
-	  return md5cmn(c ^ (b | ~d), a, b, x, s, t);
+	    return md5cmn(c ^ (b | ~d), a, b, x, s, t);
 	}
-
-	var _default = md5$1;
-	md5.default = _default;
+	md5.default = md5$1;
 	return md5;
+}
+
+var v35 = {};
+
+var hasRequiredV35;
+
+function requireV35 () {
+	if (hasRequiredV35) return v35;
+	hasRequiredV35 = 1;
+	Object.defineProperty(v35, "__esModule", { value: true });
+	v35.URL = v35.DNS = v35.stringToBytes = void 0;
+	const parse_js_1 = requireParse();
+	const stringify_js_1 = requireStringify();
+	function stringToBytes(str) {
+	    str = unescape(encodeURIComponent(str));
+	    const bytes = new Uint8Array(str.length);
+	    for (let i = 0; i < str.length; ++i) {
+	        bytes[i] = str.charCodeAt(i);
+	    }
+	    return bytes;
+	}
+	v35.stringToBytes = stringToBytes;
+	v35.DNS = '6ba7b810-9dad-11d1-80b4-00c04fd430c8';
+	v35.URL = '6ba7b811-9dad-11d1-80b4-00c04fd430c8';
+	function v35$1(version, hash, value, namespace, buf, offset) {
+	    const valueBytes = typeof value === 'string' ? stringToBytes(value) : value;
+	    const namespaceBytes = typeof namespace === 'string' ? (0, parse_js_1.default)(namespace) : namespace;
+	    if (typeof namespace === 'string') {
+	        namespace = (0, parse_js_1.default)(namespace);
+	    }
+	    if (namespace?.length !== 16) {
+	        throw TypeError('Namespace must be array-like (16 iterable integer values, 0-255)');
+	    }
+	    let bytes = new Uint8Array(16 + valueBytes.length);
+	    bytes.set(namespaceBytes);
+	    bytes.set(valueBytes, namespaceBytes.length);
+	    bytes = hash(bytes);
+	    bytes[6] = (bytes[6] & 0x0f) | version;
+	    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+	    if (buf) {
+	        offset = offset || 0;
+	        if (offset < 0 || offset + 16 > buf.length) {
+	            throw new RangeError(`UUID byte range ${offset}:${offset + 15} is out of buffer bounds`);
+	        }
+	        for (let i = 0; i < 16; ++i) {
+	            buf[offset + i] = bytes[i];
+	        }
+	        return buf;
+	    }
+	    return (0, stringify_js_1.unsafeStringify)(bytes);
+	}
+	v35.default = v35$1;
+	return v35;
 }
 
 var hasRequiredV3;
@@ -11357,21 +8380,21 @@ var hasRequiredV3;
 function requireV3 () {
 	if (hasRequiredV3) return v3;
 	hasRequiredV3 = 1;
-
-	Object.defineProperty(v3, "__esModule", {
-	  value: true
-	});
-	v3.default = void 0;
-
-	var _v = _interopRequireDefault(/*@__PURE__*/ requireV35());
-
-	var _md = _interopRequireDefault(/*@__PURE__*/ requireMd5());
-
-	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-	const v3$1 = (0, _v.default)('v3', 0x30, _md.default);
-	var _default = v3$1;
-	v3.default = _default;
+	(function (exports) {
+		Object.defineProperty(exports, "__esModule", { value: true });
+		exports.URL = exports.DNS = void 0;
+		const md5_js_1 = requireMd5();
+		const v35_js_1 = requireV35();
+		var v35_js_2 = requireV35();
+		Object.defineProperty(exports, "DNS", { enumerable: true, get: function () { return v35_js_2.DNS; } });
+		Object.defineProperty(exports, "URL", { enumerable: true, get: function () { return v35_js_2.URL; } });
+		function v3(value, namespace, buf, offset) {
+		    return (0, v35_js_1.default)(0x30, md5_js_1.default, value, namespace, buf, offset);
+		}
+		v3.DNS = v35_js_1.DNS;
+		v3.URL = v35_js_1.URL;
+		exports.default = v3; 
+	} (v3));
 	return v3;
 }
 
@@ -11384,16 +8407,9 @@ var hasRequiredNative;
 function requireNative () {
 	if (hasRequiredNative) return native;
 	hasRequiredNative = 1;
-
-	Object.defineProperty(native, "__esModule", {
-	  value: true
-	});
-	native.default = void 0;
+	Object.defineProperty(native, "__esModule", { value: true });
 	const randomUUID = typeof crypto !== 'undefined' && crypto.randomUUID && crypto.randomUUID.bind(crypto);
-	var _default = {
-	  randomUUID
-	};
-	native.default = _default;
+	native.default = { randomUUID };
 	return native;
 }
 
@@ -11402,48 +8418,34 @@ var hasRequiredV4;
 function requireV4 () {
 	if (hasRequiredV4) return v4;
 	hasRequiredV4 = 1;
-
-	Object.defineProperty(v4, "__esModule", {
-	  value: true
-	});
-	v4.default = void 0;
-
-	var _native = _interopRequireDefault(/*@__PURE__*/ requireNative());
-
-	var _rng = _interopRequireDefault(/*@__PURE__*/ requireRng());
-
-	var _stringify = /*@__PURE__*/ requireStringify();
-
-	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
+	Object.defineProperty(v4, "__esModule", { value: true });
+	const native_js_1 = requireNative();
+	const rng_js_1 = requireRng();
+	const stringify_js_1 = requireStringify();
 	function v4$1(options, buf, offset) {
-	  if (_native.default.randomUUID && !buf && !options) {
-	    return _native.default.randomUUID();
-	  }
-
-	  options = options || {};
-
-	  const rnds = options.random || (options.rng || _rng.default)(); // Per 4.4, set bits for version and `clock_seq_hi_and_reserved`
-
-
-	  rnds[6] = rnds[6] & 0x0f | 0x40;
-	  rnds[8] = rnds[8] & 0x3f | 0x80; // Copy bytes to buffer, if provided
-
-	  if (buf) {
-	    offset = offset || 0;
-
-	    for (let i = 0; i < 16; ++i) {
-	      buf[offset + i] = rnds[i];
+	    if (native_js_1.default.randomUUID && !buf && !options) {
+	        return native_js_1.default.randomUUID();
 	    }
-
-	    return buf;
-	  }
-
-	  return (0, _stringify.unsafeStringify)(rnds);
+	    options = options || {};
+	    const rnds = options.random ?? options.rng?.() ?? (0, rng_js_1.default)();
+	    if (rnds.length < 16) {
+	        throw new Error('Random bytes length must be >= 16');
+	    }
+	    rnds[6] = (rnds[6] & 0x0f) | 0x40;
+	    rnds[8] = (rnds[8] & 0x3f) | 0x80;
+	    if (buf) {
+	        offset = offset || 0;
+	        if (offset < 0 || offset + 16 > buf.length) {
+	            throw new RangeError(`UUID byte range ${offset}:${offset + 15} is out of buffer bounds`);
+	        }
+	        for (let i = 0; i < 16; ++i) {
+	            buf[offset + i] = rnds[i];
+	        }
+	        return buf;
+	    }
+	    return (0, stringify_js_1.unsafeStringify)(rnds);
 	}
-
-	var _default = v4$1;
-	v4.default = _default;
+	v4.default = v4$1;
 	return v4;
 }
 
@@ -11456,109 +8458,77 @@ var hasRequiredSha1;
 function requireSha1 () {
 	if (hasRequiredSha1) return sha1;
 	hasRequiredSha1 = 1;
-
-	Object.defineProperty(sha1, "__esModule", {
-	  value: true
-	});
-	sha1.default = void 0;
-
-	// Adapted from Chris Veness' SHA1 code at
-	// http://www.movable-type.co.uk/scripts/sha1.html
+	Object.defineProperty(sha1, "__esModule", { value: true });
 	function f(s, x, y, z) {
-	  switch (s) {
-	    case 0:
-	      return x & y ^ ~x & z;
-
-	    case 1:
-	      return x ^ y ^ z;
-
-	    case 2:
-	      return x & y ^ x & z ^ y & z;
-
-	    case 3:
-	      return x ^ y ^ z;
-	  }
+	    switch (s) {
+	        case 0:
+	            return (x & y) ^ (~x & z);
+	        case 1:
+	            return x ^ y ^ z;
+	        case 2:
+	            return (x & y) ^ (x & z) ^ (y & z);
+	        case 3:
+	            return x ^ y ^ z;
+	    }
 	}
-
 	function ROTL(x, n) {
-	  return x << n | x >>> 32 - n;
+	    return (x << n) | (x >>> (32 - n));
 	}
-
 	function sha1$1(bytes) {
-	  const K = [0x5a827999, 0x6ed9eba1, 0x8f1bbcdc, 0xca62c1d6];
-	  const H = [0x67452301, 0xefcdab89, 0x98badcfe, 0x10325476, 0xc3d2e1f0];
-
-	  if (typeof bytes === 'string') {
-	    const msg = unescape(encodeURIComponent(bytes)); // UTF8 escape
-
-	    bytes = [];
-
-	    for (let i = 0; i < msg.length; ++i) {
-	      bytes.push(msg.charCodeAt(i));
+	    const K = [0x5a827999, 0x6ed9eba1, 0x8f1bbcdc, 0xca62c1d6];
+	    const H = [0x67452301, 0xefcdab89, 0x98badcfe, 0x10325476, 0xc3d2e1f0];
+	    const newBytes = new Uint8Array(bytes.length + 1);
+	    newBytes.set(bytes);
+	    newBytes[bytes.length] = 0x80;
+	    bytes = newBytes;
+	    const l = bytes.length / 4 + 2;
+	    const N = Math.ceil(l / 16);
+	    const M = new Array(N);
+	    for (let i = 0; i < N; ++i) {
+	        const arr = new Uint32Array(16);
+	        for (let j = 0; j < 16; ++j) {
+	            arr[j] =
+	                (bytes[i * 64 + j * 4] << 24) |
+	                    (bytes[i * 64 + j * 4 + 1] << 16) |
+	                    (bytes[i * 64 + j * 4 + 2] << 8) |
+	                    bytes[i * 64 + j * 4 + 3];
+	        }
+	        M[i] = arr;
 	    }
-	  } else if (!Array.isArray(bytes)) {
-	    // Convert Array-like to Array
-	    bytes = Array.prototype.slice.call(bytes);
-	  }
-
-	  bytes.push(0x80);
-	  const l = bytes.length / 4 + 2;
-	  const N = Math.ceil(l / 16);
-	  const M = new Array(N);
-
-	  for (let i = 0; i < N; ++i) {
-	    const arr = new Uint32Array(16);
-
-	    for (let j = 0; j < 16; ++j) {
-	      arr[j] = bytes[i * 64 + j * 4] << 24 | bytes[i * 64 + j * 4 + 1] << 16 | bytes[i * 64 + j * 4 + 2] << 8 | bytes[i * 64 + j * 4 + 3];
+	    M[N - 1][14] = ((bytes.length - 1) * 8) / Math.pow(2, 32);
+	    M[N - 1][14] = Math.floor(M[N - 1][14]);
+	    M[N - 1][15] = ((bytes.length - 1) * 8) & 0xffffffff;
+	    for (let i = 0; i < N; ++i) {
+	        const W = new Uint32Array(80);
+	        for (let t = 0; t < 16; ++t) {
+	            W[t] = M[i][t];
+	        }
+	        for (let t = 16; t < 80; ++t) {
+	            W[t] = ROTL(W[t - 3] ^ W[t - 8] ^ W[t - 14] ^ W[t - 16], 1);
+	        }
+	        let a = H[0];
+	        let b = H[1];
+	        let c = H[2];
+	        let d = H[3];
+	        let e = H[4];
+	        for (let t = 0; t < 80; ++t) {
+	            const s = Math.floor(t / 20);
+	            const T = (ROTL(a, 5) + f(s, b, c, d) + e + K[s] + W[t]) >>> 0;
+	            e = d;
+	            d = c;
+	            c = ROTL(b, 30) >>> 0;
+	            b = a;
+	            a = T;
+	        }
+	        H[0] = (H[0] + a) >>> 0;
+	        H[1] = (H[1] + b) >>> 0;
+	        H[2] = (H[2] + c) >>> 0;
+	        H[3] = (H[3] + d) >>> 0;
+	        H[4] = (H[4] + e) >>> 0;
 	    }
-
-	    M[i] = arr;
-	  }
-
-	  M[N - 1][14] = (bytes.length - 1) * 8 / Math.pow(2, 32);
-	  M[N - 1][14] = Math.floor(M[N - 1][14]);
-	  M[N - 1][15] = (bytes.length - 1) * 8 & 0xffffffff;
-
-	  for (let i = 0; i < N; ++i) {
-	    const W = new Uint32Array(80);
-
-	    for (let t = 0; t < 16; ++t) {
-	      W[t] = M[i][t];
-	    }
-
-	    for (let t = 16; t < 80; ++t) {
-	      W[t] = ROTL(W[t - 3] ^ W[t - 8] ^ W[t - 14] ^ W[t - 16], 1);
-	    }
-
-	    let a = H[0];
-	    let b = H[1];
-	    let c = H[2];
-	    let d = H[3];
-	    let e = H[4];
-
-	    for (let t = 0; t < 80; ++t) {
-	      const s = Math.floor(t / 20);
-	      const T = ROTL(a, 5) + f(s, b, c, d) + e + K[s] + W[t] >>> 0;
-	      e = d;
-	      d = c;
-	      c = ROTL(b, 30) >>> 0;
-	      b = a;
-	      a = T;
-	    }
-
-	    H[0] = H[0] + a >>> 0;
-	    H[1] = H[1] + b >>> 0;
-	    H[2] = H[2] + c >>> 0;
-	    H[3] = H[3] + d >>> 0;
-	    H[4] = H[4] + e >>> 0;
-	  }
-
-	  return [H[0] >> 24 & 0xff, H[0] >> 16 & 0xff, H[0] >> 8 & 0xff, H[0] & 0xff, H[1] >> 24 & 0xff, H[1] >> 16 & 0xff, H[1] >> 8 & 0xff, H[1] & 0xff, H[2] >> 24 & 0xff, H[2] >> 16 & 0xff, H[2] >> 8 & 0xff, H[2] & 0xff, H[3] >> 24 & 0xff, H[3] >> 16 & 0xff, H[3] >> 8 & 0xff, H[3] & 0xff, H[4] >> 24 & 0xff, H[4] >> 16 & 0xff, H[4] >> 8 & 0xff, H[4] & 0xff];
+	    return Uint8Array.of(H[0] >> 24, H[0] >> 16, H[0] >> 8, H[0], H[1] >> 24, H[1] >> 16, H[1] >> 8, H[1], H[2] >> 24, H[2] >> 16, H[2] >> 8, H[2], H[3] >> 24, H[3] >> 16, H[3] >> 8, H[3], H[4] >> 24, H[4] >> 16, H[4] >> 8, H[4]);
 	}
-
-	var _default = sha1$1;
-	sha1.default = _default;
+	sha1.default = sha1$1;
 	return sha1;
 }
 
@@ -11567,39 +8537,153 @@ var hasRequiredV5;
 function requireV5 () {
 	if (hasRequiredV5) return v5;
 	hasRequiredV5 = 1;
-
-	Object.defineProperty(v5, "__esModule", {
-	  value: true
-	});
-	v5.default = void 0;
-
-	var _v = _interopRequireDefault(/*@__PURE__*/ requireV35());
-
-	var _sha = _interopRequireDefault(/*@__PURE__*/ requireSha1());
-
-	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-	const v5$1 = (0, _v.default)('v5', 0x50, _sha.default);
-	var _default = v5$1;
-	v5.default = _default;
+	(function (exports) {
+		Object.defineProperty(exports, "__esModule", { value: true });
+		exports.URL = exports.DNS = void 0;
+		const sha1_js_1 = requireSha1();
+		const v35_js_1 = requireV35();
+		var v35_js_2 = requireV35();
+		Object.defineProperty(exports, "DNS", { enumerable: true, get: function () { return v35_js_2.DNS; } });
+		Object.defineProperty(exports, "URL", { enumerable: true, get: function () { return v35_js_2.URL; } });
+		function v5(value, namespace, buf, offset) {
+		    return (0, v35_js_1.default)(0x50, sha1_js_1.default, value, namespace, buf, offset);
+		}
+		v5.DNS = v35_js_1.DNS;
+		v5.URL = v35_js_1.URL;
+		exports.default = v5; 
+	} (v5));
 	return v5;
 }
 
-var nil = {};
+var v6 = {};
 
-var hasRequiredNil;
+var hasRequiredV6;
 
-function requireNil () {
-	if (hasRequiredNil) return nil;
-	hasRequiredNil = 1;
+function requireV6 () {
+	if (hasRequiredV6) return v6;
+	hasRequiredV6 = 1;
+	Object.defineProperty(v6, "__esModule", { value: true });
+	const stringify_js_1 = requireStringify();
+	const v1_js_1 = requireV1();
+	const v1ToV6_js_1 = requireV1ToV6();
+	function v6$1(options, buf, offset) {
+	    options ??= {};
+	    offset ??= 0;
+	    let bytes = (0, v1_js_1.default)({ ...options, _v6: true }, new Uint8Array(16));
+	    bytes = (0, v1ToV6_js_1.default)(bytes);
+	    if (buf) {
+	        if (offset < 0 || offset + 16 > buf.length) {
+	            throw new RangeError(`UUID byte range ${offset}:${offset + 15} is out of buffer bounds`);
+	        }
+	        for (let i = 0; i < 16; i++) {
+	            buf[offset + i] = bytes[i];
+	        }
+	        return buf;
+	    }
+	    return (0, stringify_js_1.unsafeStringify)(bytes);
+	}
+	v6.default = v6$1;
+	return v6;
+}
 
-	Object.defineProperty(nil, "__esModule", {
-	  value: true
-	});
-	nil.default = void 0;
-	var _default = '00000000-0000-0000-0000-000000000000';
-	nil.default = _default;
-	return nil;
+var v6ToV1 = {};
+
+var hasRequiredV6ToV1;
+
+function requireV6ToV1 () {
+	if (hasRequiredV6ToV1) return v6ToV1;
+	hasRequiredV6ToV1 = 1;
+	Object.defineProperty(v6ToV1, "__esModule", { value: true });
+	const parse_js_1 = requireParse();
+	const stringify_js_1 = requireStringify();
+	function v6ToV1$1(uuid) {
+	    const v6Bytes = typeof uuid === 'string' ? (0, parse_js_1.default)(uuid) : uuid;
+	    const v1Bytes = _v6ToV1(v6Bytes);
+	    return typeof uuid === 'string' ? (0, stringify_js_1.unsafeStringify)(v1Bytes) : v1Bytes;
+	}
+	v6ToV1.default = v6ToV1$1;
+	function _v6ToV1(v6Bytes) {
+	    return Uint8Array.of(((v6Bytes[3] & 0x0f) << 4) | ((v6Bytes[4] >> 4) & 0x0f), ((v6Bytes[4] & 0x0f) << 4) | ((v6Bytes[5] & 0xf0) >> 4), ((v6Bytes[5] & 0x0f) << 4) | (v6Bytes[6] & 0x0f), v6Bytes[7], ((v6Bytes[1] & 0x0f) << 4) | ((v6Bytes[2] & 0xf0) >> 4), ((v6Bytes[2] & 0x0f) << 4) | ((v6Bytes[3] & 0xf0) >> 4), 0x10 | ((v6Bytes[0] & 0xf0) >> 4), ((v6Bytes[0] & 0x0f) << 4) | ((v6Bytes[1] & 0xf0) >> 4), v6Bytes[8], v6Bytes[9], v6Bytes[10], v6Bytes[11], v6Bytes[12], v6Bytes[13], v6Bytes[14], v6Bytes[15]);
+	}
+	return v6ToV1;
+}
+
+var v7 = {};
+
+var hasRequiredV7;
+
+function requireV7 () {
+	if (hasRequiredV7) return v7;
+	hasRequiredV7 = 1;
+	Object.defineProperty(v7, "__esModule", { value: true });
+	v7.updateV7State = void 0;
+	const rng_js_1 = requireRng();
+	const stringify_js_1 = requireStringify();
+	const _state = {};
+	function v7$1(options, buf, offset) {
+	    let bytes;
+	    if (options) {
+	        bytes = v7Bytes(options.random ?? options.rng?.() ?? (0, rng_js_1.default)(), options.msecs, options.seq, buf, offset);
+	    }
+	    else {
+	        const now = Date.now();
+	        const rnds = (0, rng_js_1.default)();
+	        updateV7State(_state, now, rnds);
+	        bytes = v7Bytes(rnds, _state.msecs, _state.seq, buf, offset);
+	    }
+	    return buf ?? (0, stringify_js_1.unsafeStringify)(bytes);
+	}
+	function updateV7State(state, now, rnds) {
+	    state.msecs ??= -Infinity;
+	    state.seq ??= 0;
+	    if (now > state.msecs) {
+	        state.seq = (rnds[6] << 23) | (rnds[7] << 16) | (rnds[8] << 8) | rnds[9];
+	        state.msecs = now;
+	    }
+	    else {
+	        state.seq = (state.seq + 1) | 0;
+	        if (state.seq === 0) {
+	            state.msecs++;
+	        }
+	    }
+	    return state;
+	}
+	v7.updateV7State = updateV7State;
+	function v7Bytes(rnds, msecs, seq, buf, offset = 0) {
+	    if (rnds.length < 16) {
+	        throw new Error('Random bytes length must be >= 16');
+	    }
+	    if (!buf) {
+	        buf = new Uint8Array(16);
+	        offset = 0;
+	    }
+	    else {
+	        if (offset < 0 || offset + 16 > buf.length) {
+	            throw new RangeError(`UUID byte range ${offset}:${offset + 15} is out of buffer bounds`);
+	        }
+	    }
+	    msecs ??= Date.now();
+	    seq ??= ((rnds[6] * 0x7f) << 24) | (rnds[7] << 16) | (rnds[8] << 8) | rnds[9];
+	    buf[offset++] = (msecs / 0x10000000000) & 0xff;
+	    buf[offset++] = (msecs / 0x100000000) & 0xff;
+	    buf[offset++] = (msecs / 0x1000000) & 0xff;
+	    buf[offset++] = (msecs / 0x10000) & 0xff;
+	    buf[offset++] = (msecs / 0x100) & 0xff;
+	    buf[offset++] = msecs & 0xff;
+	    buf[offset++] = 0x70 | ((seq >>> 28) & 0x0f);
+	    buf[offset++] = (seq >>> 20) & 0xff;
+	    buf[offset++] = 0x80 | ((seq >>> 14) & 0x3f);
+	    buf[offset++] = (seq >>> 6) & 0xff;
+	    buf[offset++] = ((seq << 2) & 0xff) | (rnds[10] & 0x03);
+	    buf[offset++] = rnds[11];
+	    buf[offset++] = rnds[12];
+	    buf[offset++] = rnds[13];
+	    buf[offset++] = rnds[14];
+	    buf[offset++] = rnds[15];
+	    return buf;
+	}
+	v7.default = v7$1;
+	return v7;
 }
 
 var version = {};
@@ -11609,115 +8693,56 @@ var hasRequiredVersion;
 function requireVersion () {
 	if (hasRequiredVersion) return version;
 	hasRequiredVersion = 1;
-
-	Object.defineProperty(version, "__esModule", {
-	  value: true
-	});
-	version.default = void 0;
-
-	var _validate = _interopRequireDefault(/*@__PURE__*/ requireValidate());
-
-	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
+	Object.defineProperty(version, "__esModule", { value: true });
+	const validate_js_1 = requireValidate();
 	function version$1(uuid) {
-	  if (!(0, _validate.default)(uuid)) {
-	    throw TypeError('Invalid UUID');
-	  }
-
-	  return parseInt(uuid.slice(14, 15), 16);
+	    if (!(0, validate_js_1.default)(uuid)) {
+	        throw TypeError('Invalid UUID');
+	    }
+	    return parseInt(uuid.slice(14, 15), 16);
 	}
-
-	var _default = version$1;
-	version.default = _default;
+	version.default = version$1;
 	return version;
 }
 
-var hasRequiredCommonjsBrowser;
+var hasRequiredCjsBrowser;
 
-function requireCommonjsBrowser () {
-	if (hasRequiredCommonjsBrowser) return commonjsBrowser;
-	hasRequiredCommonjsBrowser = 1;
+function requireCjsBrowser () {
+	if (hasRequiredCjsBrowser) return cjsBrowser;
+	hasRequiredCjsBrowser = 1;
 	(function (exports) {
-
-		Object.defineProperty(exports, "__esModule", {
-		  value: true
-		});
-		Object.defineProperty(exports, "NIL", {
-		  enumerable: true,
-		  get: function get() {
-		    return _nil.default;
-		  }
-		});
-		Object.defineProperty(exports, "parse", {
-		  enumerable: true,
-		  get: function get() {
-		    return _parse.default;
-		  }
-		});
-		Object.defineProperty(exports, "stringify", {
-		  enumerable: true,
-		  get: function get() {
-		    return _stringify.default;
-		  }
-		});
-		Object.defineProperty(exports, "v1", {
-		  enumerable: true,
-		  get: function get() {
-		    return _v.default;
-		  }
-		});
-		Object.defineProperty(exports, "v3", {
-		  enumerable: true,
-		  get: function get() {
-		    return _v2.default;
-		  }
-		});
-		Object.defineProperty(exports, "v4", {
-		  enumerable: true,
-		  get: function get() {
-		    return _v3.default;
-		  }
-		});
-		Object.defineProperty(exports, "v5", {
-		  enumerable: true,
-		  get: function get() {
-		    return _v4.default;
-		  }
-		});
-		Object.defineProperty(exports, "validate", {
-		  enumerable: true,
-		  get: function get() {
-		    return _validate.default;
-		  }
-		});
-		Object.defineProperty(exports, "version", {
-		  enumerable: true,
-		  get: function get() {
-		    return _version.default;
-		  }
-		});
-
-		var _v = _interopRequireDefault(/*@__PURE__*/ requireV1());
-
-		var _v2 = _interopRequireDefault(/*@__PURE__*/ requireV3());
-
-		var _v3 = _interopRequireDefault(/*@__PURE__*/ requireV4());
-
-		var _v4 = _interopRequireDefault(/*@__PURE__*/ requireV5());
-
-		var _nil = _interopRequireDefault(/*@__PURE__*/ requireNil());
-
-		var _version = _interopRequireDefault(/*@__PURE__*/ requireVersion());
-
-		var _validate = _interopRequireDefault(/*@__PURE__*/ requireValidate());
-
-		var _stringify = _interopRequireDefault(/*@__PURE__*/ requireStringify());
-
-		var _parse = _interopRequireDefault(/*@__PURE__*/ requireParse());
-
-		function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; } 
-	} (commonjsBrowser));
-	return commonjsBrowser;
+		Object.defineProperty(exports, "__esModule", { value: true });
+		exports.version = exports.validate = exports.v7 = exports.v6ToV1 = exports.v6 = exports.v5 = exports.v4 = exports.v3 = exports.v1ToV6 = exports.v1 = exports.stringify = exports.parse = exports.NIL = exports.MAX = void 0;
+		var max_js_1 = requireMax();
+		Object.defineProperty(exports, "MAX", { enumerable: true, get: function () { return max_js_1.default; } });
+		var nil_js_1 = requireNil();
+		Object.defineProperty(exports, "NIL", { enumerable: true, get: function () { return nil_js_1.default; } });
+		var parse_js_1 = requireParse();
+		Object.defineProperty(exports, "parse", { enumerable: true, get: function () { return parse_js_1.default; } });
+		var stringify_js_1 = requireStringify();
+		Object.defineProperty(exports, "stringify", { enumerable: true, get: function () { return stringify_js_1.default; } });
+		var v1_js_1 = requireV1();
+		Object.defineProperty(exports, "v1", { enumerable: true, get: function () { return v1_js_1.default; } });
+		var v1ToV6_js_1 = requireV1ToV6();
+		Object.defineProperty(exports, "v1ToV6", { enumerable: true, get: function () { return v1ToV6_js_1.default; } });
+		var v3_js_1 = requireV3();
+		Object.defineProperty(exports, "v3", { enumerable: true, get: function () { return v3_js_1.default; } });
+		var v4_js_1 = requireV4();
+		Object.defineProperty(exports, "v4", { enumerable: true, get: function () { return v4_js_1.default; } });
+		var v5_js_1 = requireV5();
+		Object.defineProperty(exports, "v5", { enumerable: true, get: function () { return v5_js_1.default; } });
+		var v6_js_1 = requireV6();
+		Object.defineProperty(exports, "v6", { enumerable: true, get: function () { return v6_js_1.default; } });
+		var v6ToV1_js_1 = requireV6ToV1();
+		Object.defineProperty(exports, "v6ToV1", { enumerable: true, get: function () { return v6ToV1_js_1.default; } });
+		var v7_js_1 = requireV7();
+		Object.defineProperty(exports, "v7", { enumerable: true, get: function () { return v7_js_1.default; } });
+		var validate_js_1 = requireValidate();
+		Object.defineProperty(exports, "validate", { enumerable: true, get: function () { return validate_js_1.default; } });
+		var version_js_1 = requireVersion();
+		Object.defineProperty(exports, "version", { enumerable: true, get: function () { return version_js_1.default; } }); 
+	} (cjsBrowser));
+	return cjsBrowser;
 }
 
 var hasRequiredReconciler;
@@ -11731,7 +8756,7 @@ function requireReconciler () {
 		const tslib_1 = require$$0;
 		const react_reconciler_1 = tslib_1.__importDefault(requireReactReconciler());
 		const constants_1 = requireConstants();
-		const uuid_1 = /*@__PURE__*/ requireCommonjsBrowser();
+		const uuid_1 = /*@__PURE__*/ requireCjsBrowser();
 		// Only taking the first 5 characters of the uuid to keep the id shorter in the DOM to readability.
 		// The chances of clashing with 5 characters is still 1 in 1 million.
 		const idPropsPrefixAppUUID = (0, uuid_1.v4)().slice(0, 5);
@@ -11760,6 +8785,17 @@ function requireReconciler () {
 		    }
 		    return props;
 		};
+		// Normalises raw React props into the props stored on a ForgeDoc: the `children`
+		// prop is dropped (children are tracked separately on the ForgeDoc tree) and the
+		// id/function-id transforms are applied. Keeping the `children` React element out
+		// of the serialised props is important: in React's development build a React
+		// element carries an `_owner` fiber reference, which produces a circular
+		// structure when the reconcile payload is JSON-serialised over the bridge.
+		const normaliseProps = (props) => {
+		    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+		    const { children, ...restProps } = props;
+		    return newPropsWithIdPrefix(attachFunctionPropId(restProps));
+		};
 		const handleReconcilerError = async (error) => {
 		    try {
 		        await self?.__bridge?.callBridge('onError', { error });
@@ -11776,9 +8812,7 @@ function requireReconciler () {
 		};
 		exports.callBridge = callBridge;
 		const createElement = ({ type, props = {}, forgeReactMajorVersion }) => {
-		    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-		    const { children, ...restProps } = props;
-		    const newProps = newPropsWithIdPrefix(attachFunctionPropId(restProps));
+		    const newProps = normaliseProps(props);
 		    const element = {
 		        type,
 		        children: [],
@@ -11865,8 +8899,9 @@ function requireReconciler () {
 		        return false;
 		    },
 		    prepareUpdate(instance, type, oldProps, newProps) {
-		        instance.props = newProps;
-		        return newProps;
+		        const normalisedProps = normaliseProps(newProps);
+		        instance.props = normalisedProps;
+		        return normalisedProps;
 		    },
 		    shouldSetTextContent() {
 		        return false;
@@ -12233,7 +9268,7 @@ function requireComment () {
 	return comment;
 }
 
-var adfRenderer$1 = {};
+var adfRenderer = {};
 
 var replaceUnsupportedDocumentNodes = {};
 
@@ -12373,7 +9408,7 @@ function requireReplaceUnsupportedDocumentNodes () {
 	hasRequiredReplaceUnsupportedDocumentNodes = 1;
 	Object.defineProperty(replaceUnsupportedDocumentNodes, "__esModule", { value: true });
 	replaceUnsupportedDocumentNodes.replaceUnsupportedMediaNodes = replaceUnsupportedDocumentNodes.replaceUnsupportedDocumentNodes = void 0;
-	const uuid_1 = /*@__PURE__*/ requireCommonjsBrowser();
+	const uuid_1 = /*@__PURE__*/ requireCjsBrowser();
 	const traverse_1 = require$$1;
 	const replaceUnsupportedDocumentNodes$1 = (document, replaceUnsupportedNode) => {
 	    const visitors = {
@@ -12426,13 +9461,13 @@ function requireReplaceUnsupportedDocumentNodes () {
 	return replaceUnsupportedDocumentNodes;
 }
 
-var hasRequiredAdfRenderer$1;
+var hasRequiredAdfRenderer;
 
-function requireAdfRenderer$1 () {
-	if (hasRequiredAdfRenderer$1) return adfRenderer$1;
-	hasRequiredAdfRenderer$1 = 1;
-	Object.defineProperty(adfRenderer$1, "__esModule", { value: true });
-	adfRenderer$1.AdfRenderer = void 0;
+function requireAdfRenderer () {
+	if (hasRequiredAdfRenderer) return adfRenderer;
+	hasRequiredAdfRenderer = 1;
+	Object.defineProperty(adfRenderer, "__esModule", { value: true });
+	adfRenderer.AdfRenderer = void 0;
 	const jsx_runtime_1 = requireJsxRuntime();
 	const replaceUnsupportedDocumentNodes_1 = requireReplaceUnsupportedDocumentNodes();
 	const PlatformAdfRenderer = 'AdfRenderer';
@@ -12457,8 +9492,8 @@ function requireAdfRenderer$1 () {
 	        : documentWithMedia;
 	    return ((0, jsx_runtime_1.jsx)(PlatformAdfRenderer, { ...adfRendererProps, document: documentWithMedia, documentWithoutMedia: documentWithoutMedia }));
 	};
-	adfRenderer$1.AdfRenderer = AdfRenderer;
-	return adfRenderer$1;
+	adfRenderer.AdfRenderer = AdfRenderer;
+	return adfRenderer;
 }
 
 var uiKitComponents = {};
@@ -12981,7 +10016,7 @@ function requireComponents () {
 		Object.defineProperty(exports, "Popup", { enumerable: true, get: function () { return popup_1.Popup; } });
 		var comment_1 = requireComment();
 		Object.defineProperty(exports, "Comment", { enumerable: true, get: function () { return comment_1.Comment; } });
-		var adf_renderer_1 = requireAdfRenderer$1();
+		var adf_renderer_1 = requireAdfRenderer();
 		Object.defineProperty(exports, "AdfRenderer", { enumerable: true, get: function () { return adf_renderer_1.AdfRenderer; } });
 		/**
 		 * @deprecated - UIKit 1 specific component
@@ -13015,7 +10050,7 @@ var confluenceEntity = {};
 
 var apiRequestUtils = {};
 
-var types$1 = {};
+var types = {};
 
 var entityProps = {};
 
@@ -13057,19 +10092,19 @@ function requireJiraEntityProps () {
 	return jiraEntityProps;
 }
 
-var hasRequiredTypes$1;
+var hasRequiredTypes;
 
-function requireTypes$1 () {
-	if (hasRequiredTypes$1) return types$1;
-	hasRequiredTypes$1 = 1;
+function requireTypes () {
+	if (hasRequiredTypes) return types;
+	hasRequiredTypes = 1;
 	(function (exports) {
 		Object.defineProperty(exports, "__esModule", { value: true });
 		const tslib_1 = require$$0;
 		tslib_1.__exportStar(requireEntityProps(), exports);
 		tslib_1.__exportStar(requireConfEntityProps(), exports);
 		tslib_1.__exportStar(requireJiraEntityProps(), exports); 
-	} (types$1));
-	return types$1;
+	} (types));
+	return types;
 }
 
 var hasRequiredApiRequestUtils;
@@ -13080,8 +10115,8 @@ function requireApiRequestUtils () {
 	(function (exports) {
 		Object.defineProperty(exports, "__esModule", { value: true });
 		exports.assertSuccessfulResponse = exports.getJSONData = exports.makeRequest = exports.withContext = exports.FETCH_HEADERS = void 0;
-		const bridge_1 = requireOut$2();
-		const types_1 = requireTypes$1();
+		const bridge_1 = requireOut$1();
+		const types_1 = requireTypes();
 		exports.FETCH_HEADERS = {
 		    Accept: 'application/json',
 		    'Content-Type': 'application/json'
@@ -13161,10 +10196,10 @@ function requireConfluenceEntity () {
 	(function (exports) {
 		Object.defineProperty(exports, "__esModule", { value: true });
 		exports.confluenceEntity = exports.confAPIEndpoints = void 0;
-		const bridge_1 = requireOut$2();
+		const bridge_1 = requireOut$1();
 		const apiRequestUtils_1 = requireApiRequestUtils();
 		const valueUtils_1 = requireValueUtils();
-		const types_1 = requireTypes$1();
+		const types_1 = requireTypes();
 		/**
 		 * given an entityType and a product context, returns functions that uses property data to
 		 * output URLs to use for property management via Confluence v2 REST API
@@ -13341,7 +10376,7 @@ function requireUseContentProperty () {
 	Object.defineProperty(useContentProperty, "__esModule", { value: true });
 	useContentProperty.useContentProperty = void 0;
 	const react_1 = requireReact();
-	const bridge_1 = requireOut$2();
+	const bridge_1 = requireOut$1();
 	const confluenceEntity_1 = requireConfluenceEntity();
 	const useEntityProperty_1 = requireUseEntityProperty();
 	/**
@@ -13417,10 +10452,10 @@ function requireJiraEntity () {
 	(function (exports) {
 		Object.defineProperty(exports, "__esModule", { value: true });
 		exports.jiraIssuePropsManager = exports.issueAPIEndpoints = void 0;
-		const bridge_1 = requireOut$2();
+		const bridge_1 = requireOut$1();
 		const apiRequestUtils_1 = requireApiRequestUtils();
 		const valueUtils_1 = requireValueUtils();
-		const types_1 = requireTypes$1();
+		const types_1 = requireTypes();
 		/**
 		 * given a context, returns functions that uses property data to
 		 * output URLs to use for issue property management via Jira v2 REST API
@@ -13574,7 +10609,7 @@ function requireUseTranslation () {
 	useTranslation.I18nProvider = useTranslation.useTranslation = void 0;
 	const jsx_runtime_1 = requireJsxRuntime();
 	const react_1 = requireReact();
-	const bridge_1 = requireOut$2();
+	const bridge_1 = requireOut$1();
 	const EMPTY_I18N_CONTEXT_VALUE = {
 	    ready: false,
 	    t: (key, defaultValue) => defaultValue ?? key
@@ -13769,7 +10804,7 @@ function requireUseObjectStore () {
 	Object.defineProperty(useObjectStore, "__esModule", { value: true });
 	useObjectStore.useObjectStore = useObjectStore$1;
 	const react_1 = requireReact();
-	const bridge_1 = requireOut$2();
+	const bridge_1 = requireOut$1();
 	// Helper function to update an object by key
 	const updateObjectByKey = (objects, key, updates) => objects.map((obj) => (obj.key === key ? { ...obj, ...updates } : obj));
 	function objectStoreReducer(state, action) {
@@ -13929,11 +10964,11 @@ function requireUseObjectStore () {
 	return useObjectStore;
 }
 
-var hasRequiredOut$1;
+var hasRequiredOut;
 
-function requireOut$1 () {
-	if (hasRequiredOut$1) return out$4;
-	hasRequiredOut$1 = 1;
+function requireOut () {
+	if (hasRequiredOut) return out$3;
+	hasRequiredOut = 1;
 	(function (exports) {
 		Object.defineProperty(exports, "__esModule", { value: true });
 		exports.useObjectStore = exports.useForm = exports.replaceUnsupportedDocumentNodes = exports.I18nProvider = exports.useTranslation = exports.useIssueProperty = exports.useSpaceProperty = exports.useContentProperty = exports.default = exports.usePermissions = exports.useTheme = exports.useConfig = exports.useProductContext = exports.xcss = void 0;
@@ -13967,2561 +11002,16 @@ function requireOut$1 () {
 		Object.defineProperty(exports, "useForm", { enumerable: true, get: function () { return useForm_1.useForm; } });
 		var useObjectStore_1 = requireUseObjectStore();
 		Object.defineProperty(exports, "useObjectStore", { enumerable: true, get: function () { return useObjectStore_1.useObjectStore; } }); 
-	} (out$4));
-	return out$4;
+	} (out$3));
+	return out$3;
 }
 
-var outExports$1 = requireOut$1();
+var outExports$1 = requireOut();
 var ForgeReconciler = /*@__PURE__*/getDefaultExportFromCjs(outExports$1);
 
-var out = {};
-
-var targets = {};
-
-var hasRequiredTargets;
-
-function requireTargets () {
-	if (hasRequiredTargets) return targets;
-	hasRequiredTargets = 1;
-	Object.defineProperty(targets, "__esModule", { value: true });
-	targets.NavigationTarget = void 0;
-	// Constants for developer convenience. The JS Docs below will also be displayed in the IDE when the developer is using this object.
-	targets.NavigationTarget = {
-	    /**
-	     * The view page for pages, blogs and custom content. Takes a contentId to identify the content.
-	     */
-	    ContentView: 'contentView',
-	    /**
-	     * The edit page for pages, blogs and custom content. Takes a contentId to identify the content.
-	     */
-	    ContentEdit: 'contentEdit',
-	    /**
-	     * The list/collector page for pages, blogs and custom content contained in a space. Takes a spaceKey and a contentType to identify the content type for pages and blogs. Takes a moduleKey for custom content.
-	     */
-	    ContentList: 'contentList',
-	    /**
-	     * The space view page. Takes a spaceKey to identify the space.
-	     */
-	    SpaceView: 'spaceView',
-	    /**
-	     * The page within a specific module. Takes a moduleKey to identify the correct module.
-	     */
-	    Module: 'module',
-	    /**
-	     * The profile page for a specific user. Takes an accountId to identify the user.
-	     */
-	    UserProfile: 'userProfile',
-	    /**
-	     * A dashboard in Jira. Takes a dashboardId to identify the dashboard.
-	     */
-	    Dashboard: 'dashboard',
-	    /**
-	     * An issue in Jira. Takes an issueKey to identify the issue.
-	     */
-	    Issue: 'issue',
-	    /**
-	     * The project settings details of a Jira project. Takes a projectKey to identify the project. Only accessible to administrators.
-	     */
-	    ProjectSettingsDetails: 'projectSettingsDetails'
-	};
-	return targets;
-}
-
-var invoke$1 = {};
-
-var invoke = {};
-
-var bridge = {};
-
-var errors = {};
-
-var hasRequiredErrors;
-
-function requireErrors () {
-	if (hasRequiredErrors) return errors;
-	hasRequiredErrors = 1;
-	Object.defineProperty(errors, "__esModule", { value: true });
-	errors.BridgeAPIError = void 0;
-	class BridgeAPIError extends Error {
-	}
-	errors.BridgeAPIError = BridgeAPIError;
-	return errors;
-}
-
-var hasRequiredBridge;
-
-function requireBridge () {
-	if (hasRequiredBridge) return bridge;
-	hasRequiredBridge = 1;
-	Object.defineProperty(bridge, "__esModule", { value: true });
-	bridge.getCallBridge = void 0;
-	const errors_1 = requireErrors();
-	function isBridgeAvailable(bridge) {
-	    return !!(bridge === null || bridge === void 0 ? void 0 : bridge.callBridge);
-	}
-	const getCallBridge = () => {
-	    if (!isBridgeAvailable(globalThis.__bridge)) {
-	        throw new errors_1.BridgeAPIError(`
-      Unable to establish a connection with the Custom UI bridge.
-      If you are trying to run your app locally, Forge apps only work in the context of Atlassian products. Refer to https://go.atlassian.com/forge-tunneling-with-custom-ui for how to tunnel when using a local development server.
-    `);
-	    }
-	    return globalThis.__bridge.callBridge;
-	};
-	bridge.getCallBridge = getCallBridge;
-	return bridge;
-}
-
-var utils = {};
-
-var hasRequiredUtils;
-
-function requireUtils () {
-	if (hasRequiredUtils) return utils;
-	hasRequiredUtils = 1;
-	Object.defineProperty(utils, "__esModule", { value: true });
-	utils.withRateLimiter = void 0;
-	const errors_1 = requireErrors();
-	const withRateLimiter = (wrappedFn, maxOps, intervalInMs, exceededErrorMessage) => {
-	    let start = Date.now();
-	    let numOps = 0;
-	    return async (...args) => {
-	        const now = Date.now();
-	        const elapsed = now - start;
-	        if (elapsed > intervalInMs) {
-	            start = now;
-	            numOps = 0;
-	        }
-	        if (numOps >= maxOps) {
-	            throw new errors_1.BridgeAPIError(exceededErrorMessage || 'Too many invocations.');
-	        }
-	        numOps = numOps + 1;
-	        return wrappedFn(...args);
-	    };
-	};
-	utils.withRateLimiter = withRateLimiter;
-	return utils;
-}
-
-var hasRequiredInvoke$1;
-
-function requireInvoke$1 () {
-	if (hasRequiredInvoke$1) return invoke;
-	hasRequiredInvoke$1 = 1;
-	Object.defineProperty(invoke, "__esModule", { value: true });
-	invoke.invoke = invoke$1;
-	invoke.makeInvoke = makeInvoke;
-	const bridge_1 = requireBridge();
-	const errors_1 = requireErrors();
-	const utils_1 = requireUtils();
-	const callBridge = (0, bridge_1.getCallBridge)();
-	const validatePayload = (payload) => {
-	    if (!payload)
-	        return;
-	    if (Object.values(payload).some((val) => typeof val === 'function')) {
-	        throw new errors_1.BridgeAPIError('Passing functions as part of the payload is not supported!');
-	    }
-	};
-	const _invoke = async (functionKey, payload, metadata) => {
-	    if (typeof functionKey !== 'string') {
-	        throw new errors_1.BridgeAPIError('functionKey must be a string!');
-	    }
-	    validatePayload(payload);
-	    // When metadata is defined, the bridge returns the response wrapped in metadata as { body, metadata }
-	    // Otherwise, the bridge returns the response directly
-	    return await callBridge('invoke', { functionKey, payload, metadata });
-	};
-	const limitedInvoke = (0, utils_1.withRateLimiter)(_invoke, 500, 1000 * 25, 'Resolver calls are rate limited at 500req/25s');
-	/**
-	 * Calls a backend resolver function by key.
-	 */
-	function invoke$1(functionKey, payload, metadata) {
-	    return limitedInvoke(functionKey, payload, metadata);
-	}
-	/**
-	 * Specialises the invoke function to a given Definitions type.
-	 *
-	 * @returns An invoke function that can be used to call backend functions.
-	 */
-	function makeInvoke() {
-	    return invoke$1;
-	}
-	return invoke;
-}
-
-var hasRequiredInvoke;
-
-function requireInvoke () {
-	if (hasRequiredInvoke) return invoke$1;
-	hasRequiredInvoke = 1;
-	(function (exports) {
-		Object.defineProperty(exports, "__esModule", { value: true });
-		const tslib_1 = require$$0;
-		tslib_1.__exportStar(requireInvoke$1(), exports); 
-	} (invoke$1));
-	return invoke$1;
-}
-
-var invokeEndpoint$1 = {};
-
-var invokeRemote = {};
-
-var invokeEndpoint = {};
-
-var hasRequiredInvokeEndpoint$1;
-
-function requireInvokeEndpoint$1 () {
-	if (hasRequiredInvokeEndpoint$1) return invokeEndpoint;
-	hasRequiredInvokeEndpoint$1 = 1;
-	Object.defineProperty(invokeEndpoint, "__esModule", { value: true });
-	invokeEndpoint.InvokeType = void 0;
-	invokeEndpoint._invokeEndpointFn = _invokeEndpointFn;
-	const bridge_1 = requireBridge();
-	const errors_1 = requireErrors();
-	const utils_1 = requireUtils();
-	const MAX_NUM_OPERATIONS = 500;
-	const OPERATION_INTERVAL_SEC = 25;
-	const OPERATION_INTERVAL_MS = 1000 * OPERATION_INTERVAL_SEC;
-	var InvokeType;
-	(function (InvokeType) {
-	    InvokeType["REMOTE"] = "Remote";
-	    InvokeType["SERVICE"] = "Container";
-	})(InvokeType || (invokeEndpoint.InvokeType = InvokeType = {}));
-	const callBridge = (0, bridge_1.getCallBridge)();
-	const validatePayload = (payload) => {
-	    if (!payload)
-	        return;
-	    if (Object.values(payload).some((val) => typeof val === 'function')) {
-	        throw new errors_1.BridgeAPIError('Passing functions as part of the payload is not supported!');
-	    }
-	};
-	const _setupInvokeEndpointFn = (invokeType) => async (input) => {
-	    validatePayload(input);
-	    const callBridgePayload = {
-	        ...input,
-	        invokeType: `ui-${invokeType.toLowerCase()}-fetch`
-	    };
-	    const bridgeResponse = await callBridge('invoke', callBridgePayload);
-	    const { success, payload, error } = bridgeResponse !== null && bridgeResponse !== void 0 ? bridgeResponse : {};
-	    const response = { ...(success ? payload : error) };
-	    if (response && response.headers) {
-	        for (const header in response.headers) {
-	            if (Array.isArray(response.headers[header])) {
-	                response.headers[header] = response.headers[header].join(',');
-	            }
-	        }
-	    }
-	    return response;
-	};
-	function _invokeEndpointFn(invokeType) {
-	    const invokeEndpointFn = _setupInvokeEndpointFn(invokeType);
-	    return (0, utils_1.withRateLimiter)(invokeEndpointFn, MAX_NUM_OPERATIONS, OPERATION_INTERVAL_MS, `${invokeType} invocation calls are rate limited at ${MAX_NUM_OPERATIONS}/${OPERATION_INTERVAL_SEC}s`);
-	}
-	return invokeEndpoint;
-}
-
-var hasRequiredInvokeRemote;
-
-function requireInvokeRemote () {
-	if (hasRequiredInvokeRemote) return invokeRemote;
-	hasRequiredInvokeRemote = 1;
-	Object.defineProperty(invokeRemote, "__esModule", { value: true });
-	invokeRemote.invokeRemote = void 0;
-	const invoke_endpoint_1 = requireInvokeEndpoint$1();
-	const invokeRemote$1 = (input) => {
-	    const invokeEndpoint = (0, invoke_endpoint_1._invokeEndpointFn)(invoke_endpoint_1.InvokeType.REMOTE);
-	    return invokeEndpoint(input);
-	};
-	invokeRemote.invokeRemote = invokeRemote$1;
-	return invokeRemote;
-}
-
-var invokeService = {};
-
-var hasRequiredInvokeService;
-
-function requireInvokeService () {
-	if (hasRequiredInvokeService) return invokeService;
-	hasRequiredInvokeService = 1;
-	Object.defineProperty(invokeService, "__esModule", { value: true });
-	invokeService.invokeService = void 0;
-	const invoke_endpoint_1 = requireInvokeEndpoint$1();
-	const invokeService$1 = (input) => {
-	    const invokeEndpoint = (0, invoke_endpoint_1._invokeEndpointFn)(invoke_endpoint_1.InvokeType.SERVICE);
-	    return invokeEndpoint(input);
-	};
-	invokeService.invokeService = invokeService$1;
-	return invokeService;
-}
-
-var hasRequiredInvokeEndpoint;
-
-function requireInvokeEndpoint () {
-	if (hasRequiredInvokeEndpoint) return invokeEndpoint$1;
-	hasRequiredInvokeEndpoint = 1;
-	(function (exports) {
-		Object.defineProperty(exports, "__esModule", { value: true });
-		const tslib_1 = require$$0;
-		tslib_1.__exportStar(requireInvokeRemote(), exports);
-		tslib_1.__exportStar(requireInvokeService(), exports); 
-	} (invokeEndpoint$1));
-	return invokeEndpoint$1;
-}
-
-var view$1 = {};
-
-var view = {};
-
-var submit = {};
-
-var hasRequiredSubmit;
-
-function requireSubmit () {
-	if (hasRequiredSubmit) return submit;
-	hasRequiredSubmit = 1;
-	Object.defineProperty(submit, "__esModule", { value: true });
-	submit.submit = void 0;
-	const bridge_1 = requireBridge();
-	const errors_1 = requireErrors();
-	const callBridge = (0, bridge_1.getCallBridge)();
-	const submit$1 = async (payload) => {
-	    const success = await callBridge('submit', payload);
-	    if (success === false) {
-	        throw new errors_1.BridgeAPIError("this resource's view is not submittable.");
-	    }
-	};
-	submit.submit = submit$1;
-	return submit;
-}
-
-var close = {};
-
-var hasRequiredClose;
-
-function requireClose () {
-	if (hasRequiredClose) return close;
-	hasRequiredClose = 1;
-	Object.defineProperty(close, "__esModule", { value: true });
-	close.close = void 0;
-	const bridge_1 = requireBridge();
-	const errors_1 = requireErrors();
-	const callBridge = (0, bridge_1.getCallBridge)();
-	const close$1 = async (payload) => {
-	    try {
-	        const success = await callBridge('close', payload);
-	        // TODO: Modify @atlassian/forge-ui to throw if close fails instead of returning boolean DEVO-680
-	        if (success === false) {
-	            throw new errors_1.BridgeAPIError("this resource's view is not closable.");
-	        }
-	    }
-	    catch (e) {
-	        throw new errors_1.BridgeAPIError("this resource's view is not closable.");
-	    }
-	};
-	close.close = close$1;
-	return close;
-}
-
-var open$1 = {};
-
-var hasRequiredOpen$1;
-
-function requireOpen$1 () {
-	if (hasRequiredOpen$1) return open$1;
-	hasRequiredOpen$1 = 1;
-	Object.defineProperty(open$1, "__esModule", { value: true });
-	open$1.open = void 0;
-	const bridge_1 = requireBridge();
-	const errors_1 = requireErrors();
-	const callBridge = (0, bridge_1.getCallBridge)();
-	const open = async () => {
-	    try {
-	        const success = await callBridge('open');
-	        // TODO: Modify @atlassian/forge-ui to throw if close fails instead of returning boolean DEVO-680
-	        if (success === false) {
-	            throw new errors_1.BridgeAPIError("this resource's view is not openable.");
-	        }
-	    }
-	    catch (e) {
-	        throw new errors_1.BridgeAPIError("this resource's view is not openable.");
-	    }
-	};
-	open$1.open = open;
-	return open$1;
-}
-
-var refresh = {};
-
-var hasRequiredRefresh;
-
-function requireRefresh () {
-	if (hasRequiredRefresh) return refresh;
-	hasRequiredRefresh = 1;
-	Object.defineProperty(refresh, "__esModule", { value: true });
-	refresh.refresh = void 0;
-	const bridge_1 = requireBridge();
-	const errors_1 = requireErrors();
-	const callBridge = (0, bridge_1.getCallBridge)();
-	const refresh$1 = async (payload) => {
-	    const success = await callBridge('refresh', payload);
-	    if (success === false) {
-	        throw new errors_1.BridgeAPIError("this resource's view is not refreshable.");
-	    }
-	};
-	refresh.refresh = refresh$1;
-	return refresh;
-}
-
-var createHistory = {};
-
-var hasRequiredCreateHistory;
-
-function requireCreateHistory () {
-	if (hasRequiredCreateHistory) return createHistory;
-	hasRequiredCreateHistory = 1;
-	Object.defineProperty(createHistory, "__esModule", { value: true });
-	createHistory.createHistory = void 0;
-	const bridge_1 = requireBridge();
-	const callBridge = (0, bridge_1.getCallBridge)();
-	const createHistory$1 = async () => {
-	    const history = await callBridge('createHistory');
-	    history.listen((location) => {
-	        history.location = location;
-	    });
-	    return history;
-	};
-	createHistory.createHistory = createHistory$1;
-	return createHistory;
-}
-
-var getContext = {};
-
-var hasRequiredGetContext;
-
-function requireGetContext () {
-	if (hasRequiredGetContext) return getContext;
-	hasRequiredGetContext = 1;
-	Object.defineProperty(getContext, "__esModule", { value: true });
-	getContext.getContext = void 0;
-	const bridge_1 = requireBridge();
-	const i18n_1 = requireOut$4();
-	const callBridge = (0, bridge_1.getCallBridge)();
-	const getContext$1 = async () => {
-	    var _a;
-	    const context = await callBridge('getContext');
-	    const locale = context === null || context === void 0 ? void 0 : context.locale;
-	    if (locale) {
-	        // still fallback to the locale if it is not supported,
-	        // this is to avoid breaking changes
-	        context.locale = (_a = (0, i18n_1.ensureLocale)(locale)) !== null && _a !== void 0 ? _a : locale;
-	    }
-	    return context;
-	};
-	getContext.getContext = getContext$1;
-	return getContext;
-}
-
-var changeWindowTitle = {};
-
-var hasRequiredChangeWindowTitle;
-
-function requireChangeWindowTitle () {
-	if (hasRequiredChangeWindowTitle) return changeWindowTitle;
-	hasRequiredChangeWindowTitle = 1;
-	Object.defineProperty(changeWindowTitle, "__esModule", { value: true });
-	changeWindowTitle.changeWindowTitle = void 0;
-	const bridge_1 = requireBridge();
-	const errors_1 = requireErrors();
-	const callBridge = (0, bridge_1.getCallBridge)();
-	const changeWindowTitle$1 = async (title) => {
-	    try {
-	        await callBridge('changeWindowTitle', title);
-	    }
-	    catch (e) {
-	        throw new errors_1.BridgeAPIError("the window title wasn't changed due to error.");
-	    }
-	};
-	changeWindowTitle.changeWindowTitle = changeWindowTitle$1;
-	return changeWindowTitle;
-}
-
-var theme = {};
-
-var hasRequiredTheme;
-
-function requireTheme () {
-	if (hasRequiredTheme) return theme;
-	hasRequiredTheme = 1;
-	Object.defineProperty(theme, "__esModule", { value: true });
-	theme.theme = void 0;
-	const bridge_1 = requireBridge();
-	const callBridge = (0, bridge_1.getCallBridge)();
-	theme.theme = {
-	    enable: () => callBridge('enableTheming')
-	};
-	return theme;
-}
-
-var emitReadyEvent = {};
-
-var events$1 = {};
-
-var serialiseBlob = {};
-
-var blobParser = {};
-
-var hasRequiredBlobParser;
-
-function requireBlobParser () {
-	if (hasRequiredBlobParser) return blobParser;
-	hasRequiredBlobParser = 1;
-	Object.defineProperty(blobParser, "__esModule", { value: true });
-	blobParser.blobToBase64 = blobParser.base64ToBlob = void 0;
-	const base64ToBlob = (b64string, mimeType) => {
-	    if (!b64string) {
-	        return null;
-	    }
-	    const base64Data = b64string.includes(';base64') ? b64string.split(',')[1] : b64string;
-	    const byteCharacters = atob(base64Data);
-	    const byteNumbers = new Array(byteCharacters.length);
-	    for (let i = 0; i < byteCharacters.length; i++) {
-	        byteNumbers[i] = byteCharacters.charCodeAt(i);
-	    }
-	    const byteArray = new Uint8Array(byteNumbers);
-	    return new Blob([byteArray], { type: mimeType });
-	};
-	blobParser.base64ToBlob = base64ToBlob;
-	const blobToBase64 = (blob) => {
-	    return new Promise((resolve, reject) => {
-	        const reader = new FileReader();
-	        reader.onloadend = () => {
-	            resolve(reader.result);
-	        };
-	        reader.onerror = reject;
-	        reader.readAsDataURL(blob);
-	    });
-	};
-	blobParser.blobToBase64 = blobToBase64;
-	return blobParser;
-}
-
-var hasRequiredSerialiseBlob;
-
-function requireSerialiseBlob () {
-	if (hasRequiredSerialiseBlob) return serialiseBlob;
-	hasRequiredSerialiseBlob = 1;
-	(function (exports) {
-		Object.defineProperty(exports, "__esModule", { value: true });
-		exports.containsSerialisedBlobs = exports.containsBlobs = exports.deserialiseBlobsInPayload = exports.serialiseBlobsInPayload = void 0;
-		const blobParser_1 = requireBlobParser();
-		// Copied from https://github.com/you-dont-need/You-Dont-Need-Lodash-Underscore?tab=readme-ov-file#_isplainobject
-		const isPlainObject = (value) => {
-		    if (typeof value !== 'object' || value === null)
-		        return false;
-		    if (Object.prototype.toString.call(value) !== '[object Object]')
-		        return false;
-		    const proto = Object.getPrototypeOf(value);
-		    if (proto === null)
-		        return true;
-		    const Ctor = Object.prototype.hasOwnProperty.call(proto, 'constructor') && proto.constructor;
-		    return (typeof Ctor === 'function' &&
-		        Ctor instanceof Ctor &&
-		        Function.prototype.call(Ctor) === Function.prototype.call(value));
-		};
-		const blobToBase64WithMetadata = async (blob) => {
-		    const base64Data = await (0, blobParser_1.blobToBase64)(blob);
-		    return {
-		        data: base64Data,
-		        type: blob.type
-		    };
-		};
-		const base64WithMetadataToBlob = (metadata) => {
-		    // typecasting as Blob since base64ToBlob returns Blob | null but this is only null if data is undefined which it won't be here
-		    return (0, blobParser_1.base64ToBlob)(metadata.data, metadata.type);
-		};
-		// Recursively converts all Blobs in an object or array to base64 with metadata
-		const serialiseBlobsInPayload = async (payload) => {
-		    if (payload instanceof Blob) {
-		        // Convert blob to base64 with metadata and mark it as a serialized blob
-		        const blobData = await blobToBase64WithMetadata(payload);
-		        return {
-		            ...blobData,
-		            // Custom property used to identify serialized blob data for deserialization
-		            __isBlobData: true
-		        };
-		    }
-		    if (Array.isArray(payload)) {
-		        // Recursively process array elements
-		        return Promise.all(payload.map((item) => (0, exports.serialiseBlobsInPayload)(item)));
-		    }
-		    if (payload && isPlainObject(payload)) {
-		        // Recursively process object properties
-		        const entries = await Promise.all(Object.entries(payload).map(async ([key, value]) => [key, await (0, exports.serialiseBlobsInPayload)(value)]));
-		        return Object.fromEntries(entries);
-		    }
-		    return payload;
-		};
-		exports.serialiseBlobsInPayload = serialiseBlobsInPayload;
-		// Recursively converts all serialized blob data back to Blobs in an object or array
-		const deserialiseBlobsInPayload = (payload) => {
-		    if (payload && isPlainObject(payload) && '__isBlobData' in payload) {
-		        const typedData = payload;
-		        // Convert serialized blob data back to Blob
-		        return base64WithMetadataToBlob({
-		            data: typedData.data,
-		            type: typedData.type
-		        });
-		    }
-		    if (Array.isArray(payload)) {
-		        // Recursively process array elements
-		        return payload.map((item) => (0, exports.deserialiseBlobsInPayload)(item));
-		    }
-		    if (payload && isPlainObject(payload)) {
-		        // Recursively process object properties
-		        const result = {};
-		        for (const [key, value] of Object.entries(payload)) {
-		            result[key] = (0, exports.deserialiseBlobsInPayload)(value);
-		        }
-		        return result;
-		    }
-		    return payload;
-		};
-		exports.deserialiseBlobsInPayload = deserialiseBlobsInPayload;
-		const containsBlobs = (payload) => {
-		    if (payload instanceof Blob) {
-		        return true;
-		    }
-		    if (Array.isArray(payload)) {
-		        return payload.some((item) => (0, exports.containsBlobs)(item));
-		    }
-		    if (payload && isPlainObject(payload)) {
-		        return Object.values(payload).some((value) => (0, exports.containsBlobs)(value));
-		    }
-		    return false;
-		};
-		exports.containsBlobs = containsBlobs;
-		const containsSerialisedBlobs = (payload) => {
-		    if (payload && isPlainObject(payload) && '__isBlobData' in payload) {
-		        return true;
-		    }
-		    if (Array.isArray(payload)) {
-		        return payload.some((item) => (0, exports.containsSerialisedBlobs)(item));
-		    }
-		    if (payload && isPlainObject(payload)) {
-		        return Object.values(payload).some((value) => (0, exports.containsSerialisedBlobs)(value));
-		    }
-		    return false;
-		};
-		exports.containsSerialisedBlobs = containsSerialisedBlobs; 
-	} (serialiseBlob));
-	return serialiseBlob;
-}
-
-var hasRequiredEvents$1;
-
-function requireEvents$1 () {
-	if (hasRequiredEvents$1) return events$1;
-	hasRequiredEvents$1 = 1;
-	Object.defineProperty(events$1, "__esModule", { value: true });
-	events$1.events = void 0;
-	const bridge_1 = requireBridge();
-	const serialiseBlob_1 = requireSerialiseBlob();
-	const callBridge = (0, bridge_1.getCallBridge)();
-	const wrapCallback = (callback) => {
-	    return (payload) => {
-	        let newPayload = payload;
-	        if ((0, serialiseBlob_1.containsSerialisedBlobs)(payload)) {
-	            newPayload = (0, serialiseBlob_1.deserialiseBlobsInPayload)(payload);
-	        }
-	        return callback(newPayload);
-	    };
-	};
-	const emit = async (event, payload) => {
-	    let newPayload = payload;
-	    if ((0, serialiseBlob_1.containsBlobs)(payload)) {
-	        newPayload = await (0, serialiseBlob_1.serialiseBlobsInPayload)(payload);
-	    }
-	    return callBridge('emit', { event, payload: newPayload });
-	};
-	const on = (event, callback) => {
-	    return callBridge('on', { event, callback: wrapCallback(callback) });
-	};
-	const emitPublic = async (event, payload) => {
-	    let newPayload = payload;
-	    if ((0, serialiseBlob_1.containsBlobs)(payload)) {
-	        newPayload = await (0, serialiseBlob_1.serialiseBlobsInPayload)(payload);
-	    }
-	    return callBridge('emitPublic', { event, payload: newPayload });
-	};
-	const onPublic = (event, callback) => {
-	    return callBridge('onPublic', { event, callback: wrapCallback(callback) });
-	};
-	events$1.events = {
-	    emit,
-	    on,
-	    emitPublic,
-	    onPublic
-	};
-	return events$1;
-}
-
-var hasRequiredEmitReadyEvent;
-
-function requireEmitReadyEvent () {
-	if (hasRequiredEmitReadyEvent) return emitReadyEvent;
-	hasRequiredEmitReadyEvent = 1;
-	Object.defineProperty(emitReadyEvent, "__esModule", { value: true });
-	emitReadyEvent.emitReadyEvent = void 0;
-	const events_1 = requireEvents$1();
-	const view_1 = requireView$1();
-	const bridge_1 = requireBridge();
-	const callBridge = (0, bridge_1.getCallBridge)();
-	const EXTENSION_READY = 'EXTENSION_READY';
-	const emitReadyEvent$1 = async () => {
-	    // Confluence export relies on events instead of `callBridge`
-	    const context = await view_1.view.getContext();
-	    // dispatches event 'forge.bridge.EXTENSION_READY' on product window
-	    await events_1.events.emit(EXTENSION_READY, {
-	        localId: context.localId
-	    });
-	    // TODO: Consider using the above event for static macros as well for to avoid two calls
-	    // `callBridge` is used for static macros in XEP to signal that the forgeDoc is ready to be snapshotted
-	    try {
-	        await callBridge('emitReadyEvent');
-	    }
-	    catch {
-	        // Silently ignore the error as this app may be calling this method in Confluence view mode where the method is not supported.
-	    }
-	};
-	emitReadyEvent.emitReadyEvent = emitReadyEvent$1;
-	return emitReadyEvent;
-}
-
-var adfRenderer = {};
-
-var hasRequiredAdfRenderer;
-
-function requireAdfRenderer () {
-	if (hasRequiredAdfRenderer) return adfRenderer;
-	hasRequiredAdfRenderer = 1;
-	(function (exports) {
-		var __createBinding = (adfRenderer && adfRenderer.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-		    if (k2 === undefined) k2 = k;
-		    var desc = Object.getOwnPropertyDescriptor(m, k);
-		    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-		      desc = { enumerable: true, get: function() { return m[k]; } };
-		    }
-		    Object.defineProperty(o, k2, desc);
-		}) : (function(o, m, k, k2) {
-		    if (k2 === undefined) k2 = k;
-		    o[k2] = m[k];
-		}));
-		var __setModuleDefault = (adfRenderer && adfRenderer.__setModuleDefault) || (Object.create ? (function(o, v) {
-		    Object.defineProperty(o, "default", { enumerable: true, value: v });
-		}) : function(o, v) {
-		    o["default"] = v;
-		});
-		var __importStar = (adfRenderer && adfRenderer.__importStar) || (function () {
-		    var ownKeys = function(o) {
-		        ownKeys = Object.getOwnPropertyNames || function (o) {
-		            var ar = [];
-		            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
-		            return ar;
-		        };
-		        return ownKeys(o);
-		    };
-		    return function (mod) {
-		        if (mod && mod.__esModule) return mod;
-		        var result = {};
-		        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
-		        __setModuleDefault(result, mod);
-		        return result;
-		    };
-		})();
-		Object.defineProperty(exports, "__esModule", { value: true });
-		exports.createAdfRendererIframeProps = exports.sendMessageWhenReady = void 0;
-		/**
-		 * Sends the ADF document message to the adf-renderer iframe once it signals readiness.
-		 */
-		const READY_SIGNAL_FALLBACK_DELAY_MS = 10000;
-		const sendMessageWhenReady = (iframe, message, origin) => {
-		    const sendMessage = () => { var _a; return (_a = iframe === null || iframe === void 0 ? void 0 : iframe.contentWindow) === null || _a === void 0 ? void 0 : _a.postMessage(message, origin); };
-		    const timeoutId = setTimeout(() => {
-		        window.removeEventListener('message', handleReady);
-		        sendMessage();
-		    }, READY_SIGNAL_FALLBACK_DELAY_MS);
-		    const handleReady = (event) => {
-		        var _a;
-		        if (event.source === (iframe === null || iframe === void 0 ? void 0 : iframe.contentWindow) && ((_a = event.data) === null || _a === void 0 ? void 0 : _a.source) === 'forge-adf-renderer-ready') {
-		            clearTimeout(timeoutId);
-		            window.removeEventListener('message', handleReady);
-		            sendMessage();
-		        }
-		    };
-		    window.addEventListener('message', handleReady);
-		};
-		exports.sendMessageWhenReady = sendMessageWhenReady;
-		const createAdfRendererIframeProps = async (context, iframeId) => {
-		    const IframeResizer = await Promise.resolve().then(() => __importStar(requireIframeResizer()));
-		    const IframeResizerModule = IframeResizer.default || IframeResizer;
-		    const origin = new URL(document.referrer).origin;
-		    const src = `${origin}/forge-apps/adf-renderer`;
-		    const id = iframeId || `forge-adf-renderer-iframe-${crypto.randomUUID()}`;
-		    const onLoad = () => {
-		        var _a, _b, _c, _d, _e;
-		        const iframe = document.getElementById(id);
-		        const message = {
-		            type: 'adf-document',
-		            document: (_a = context.extension.macro) === null || _a === void 0 ? void 0 : _a.body,
-		            timestamp: Date.now(),
-		            source: 'forge-adf-renderer',
-		            localId: context.localId,
-		            isEditing: (_c = (_b = context.extension) === null || _b === void 0 ? void 0 : _b.isEditing) !== null && _c !== void 0 ? _c : false,
-		            contentId: (_e = (_d = context.extension) === null || _d === void 0 ? void 0 : _d.content) === null || _e === void 0 ? void 0 : _e.id
-		        };
-		        IframeResizerModule.iframeResizer({
-		            heightCalculationMethod: 'taggedElement',
-		            widthCalculationMethod: 'bodyScroll',
-		            initCallback: (iframe) => {
-		                var _a;
-		                (_a = iframe === null || iframe === void 0 ? void 0 : iframe.iFrameResizer) === null || _a === void 0 ? void 0 : _a.resize();
-		            }
-		        }, iframe || '');
-		        (0, exports.sendMessageWhenReady)(iframe, message, origin);
-		    };
-		    setTimeout(() => {
-		        document.documentElement.style.height = 'auto';
-		        document.body.style.height = 'auto';
-		    }, 200);
-		    return {
-		        id,
-		        src,
-		        onLoad
-		    };
-		};
-		exports.createAdfRendererIframeProps = createAdfRendererIframeProps; 
-	} (adfRenderer));
-	return adfRenderer;
-}
-
-var onClose = {};
-
-var hasRequiredOnClose;
-
-function requireOnClose () {
-	if (hasRequiredOnClose) return onClose;
-	hasRequiredOnClose = 1;
-	Object.defineProperty(onClose, "__esModule", { value: true });
-	onClose.onClose = void 0;
-	const bridge_1 = requireBridge();
-	const errors_1 = requireErrors();
-	const callBridge = (0, bridge_1.getCallBridge)();
-	const onClose$1 = async (payload) => {
-	    try {
-	        const success = await callBridge('onClose', payload);
-	        if (success === false) {
-	            throw new errors_1.BridgeAPIError('`onClose` call has failed.');
-	        }
-	    }
-	    catch (e) {
-	        throw new errors_1.BridgeAPIError("`onClose` failed because this resource's view is not closable.");
-	    }
-	};
-	onClose.onClose = onClose$1;
-	return onClose;
-}
-
-var getFrameDispatch = {};
-
-var hasRequiredGetFrameDispatch;
-
-function requireGetFrameDispatch () {
-	if (hasRequiredGetFrameDispatch) return getFrameDispatch;
-	hasRequiredGetFrameDispatch = 1;
-	Object.defineProperty(getFrameDispatch, "__esModule", { value: true });
-	getFrameDispatch.getFrameDispatch = void 0;
-	const bridge_1 = requireBridge();
-	const callBridge = (0, bridge_1.getCallBridge)();
-	const getFrameDispatch$1 = async () => {
-	    return await callBridge('getFrameDispatch');
-	};
-	getFrameDispatch.getFrameDispatch = getFrameDispatch$1;
-	return getFrameDispatch;
-}
-
-var hasRequiredView$1;
-
-function requireView$1 () {
-	if (hasRequiredView$1) return view;
-	hasRequiredView$1 = 1;
-	Object.defineProperty(view, "__esModule", { value: true });
-	view.view = void 0;
-	const submit_1 = requireSubmit();
-	const close_1 = requireClose();
-	const open_1 = requireOpen$1();
-	const refresh_1 = requireRefresh();
-	const createHistory_1 = requireCreateHistory();
-	const getContext_1 = requireGetContext();
-	const changeWindowTitle_1 = requireChangeWindowTitle();
-	const theme_1 = requireTheme();
-	const emitReadyEvent_1 = requireEmitReadyEvent();
-	const adf_renderer_1 = requireAdfRenderer();
-	const onClose_1 = requireOnClose();
-	const getFrameDispatch_1 = requireGetFrameDispatch();
-	view.view = {
-	    submit: submit_1.submit,
-	    close: close_1.close,
-	    onClose: onClose_1.onClose,
-	    open: open_1.open,
-	    refresh: refresh_1.refresh,
-	    createHistory: createHistory_1.createHistory,
-	    getContext: getContext_1.getContext,
-	    getFrameDispatch: getFrameDispatch_1.getFrameDispatch,
-	    theme: theme_1.theme,
-	    changeWindowTitle: changeWindowTitle_1.changeWindowTitle,
-	    emitReadyEvent: emitReadyEvent_1.emitReadyEvent,
-	    createAdfRendererIframeProps: adf_renderer_1.createAdfRendererIframeProps
-	};
-	return view;
-}
-
-var hasRequiredView;
-
-function requireView () {
-	if (hasRequiredView) return view$1;
-	hasRequiredView = 1;
-	(function (exports) {
-		Object.defineProperty(exports, "__esModule", { value: true });
-		const tslib_1 = require$$0;
-		tslib_1.__exportStar(requireView$1(), exports); 
-	} (view$1));
-	return view$1;
-}
-
-var router$1 = {};
-
-var router = {};
-
-var hasRequiredRouter$1;
-
-function requireRouter$1 () {
-	if (hasRequiredRouter$1) return router;
-	hasRequiredRouter$1 = 1;
-	Object.defineProperty(router, "__esModule", { value: true });
-	router.router = void 0;
-	const bridge_1 = requireBridge();
-	const callBridge = (0, bridge_1.getCallBridge)();
-	/**
-	 * Returns a URL object for a given location.
-	 *
-	 * @param location - The location to get the URL for
-	 * @returns A URL object for the given location
-	 */
-	const getUrl = async (location) => {
-	    if (!(location === null || location === void 0 ? void 0 : location.target)) {
-	        throw new Error('target is required for getUrl');
-	    }
-	    const url = await callBridge('getUrl', location);
-	    if (!url) {
-	        throw new Error('Failed to get URL');
-	    }
-	    try {
-	        return new URL(url);
-	    }
-	    catch (error) {
-	        throw new Error(`Failed to parse URL: ${url} (${error})`);
-	    }
-	};
-	/**
-	 * Navigates to a location within the same tab.
-	 *
-	 * @param location URL or `NavigationLocation` object
-	 * @returns a promise that resolves when navigation is complete
-	 */
-	const navigate = (location) => {
-	    if (typeof location === 'string') {
-	        return callBridge('navigate', { url: location, type: 'same-tab' });
-	    }
-	    else {
-	        if (!(location === null || location === void 0 ? void 0 : location.target)) {
-	            throw new Error('target is required for navigation');
-	        }
-	        return callBridge('navigate', { ...location, type: 'same-tab' });
-	    }
-	};
-	/**
-	 * Opens a new tab in the browser and navigates to the specified location.
-	 *
-	 * @param location URL or `NavigationLocation` object
-	 * @returns a promise that resolves when navigation is complete
-	 */
-	const open = (location) => {
-	    if (typeof location === 'string') {
-	        return callBridge('navigate', { url: location, type: 'new-tab' });
-	    }
-	    else {
-	        if (!(location === null || location === void 0 ? void 0 : location.target)) {
-	            throw new Error('target is required for navigation');
-	        }
-	        return callBridge('navigate', { ...location, type: 'new-tab' });
-	    }
-	};
-	/**
-	 * Reloads the page.
-	 *
-	 * @returns a promise that resolves to void when the page is reloaded
-	 */
-	const reload = async () => callBridge('reload');
-	router.router = {
-	    getUrl,
-	    navigate,
-	    open,
-	    reload
-	};
-	return router;
-}
-
-var hasRequiredRouter;
-
-function requireRouter () {
-	if (hasRequiredRouter) return router$1;
-	hasRequiredRouter = 1;
-	(function (exports) {
-		Object.defineProperty(exports, "__esModule", { value: true });
-		const tslib_1 = require$$0;
-		tslib_1.__exportStar(requireRouter$1(), exports); 
-	} (router$1));
-	return router$1;
-}
-
-var modal$1 = {};
-
-var modal = {};
-
-var hasRequiredModal$1;
-
-function requireModal$1 () {
-	if (hasRequiredModal$1) return modal;
-	hasRequiredModal$1 = 1;
-	Object.defineProperty(modal, "__esModule", { value: true });
-	modal.Modal = void 0;
-	const bridge_1 = requireBridge();
-	const errors_1 = requireErrors();
-	const callBridge = (0, bridge_1.getCallBridge)();
-	const NAMED_MODAL_SIZES = ['small', 'medium', 'large', 'xlarge', 'max', 'fullscreen', 'resizable'];
-	// eslint-disable-next-line @typescript-eslint/no-empty-function
-	const noop = () => { };
-	function isNamedModalSize(size) {
-	    return typeof size === 'string' && NAMED_MODAL_SIZES.includes(size);
-	}
-	function isCustomModalSize(size) {
-	    if (typeof size !== 'object' || size === null)
-	        return false;
-	    const s = size;
-	    return typeof s.width === 'string' && (s.height === undefined || typeof s.height === 'string');
-	}
-	function isValidModalSize(size) {
-	    return isNamedModalSize(size) || isCustomModalSize(size);
-	}
-	class Modal {
-	    constructor(opts) {
-	        var _a, _b;
-	        this.resource = (opts === null || opts === void 0 ? void 0 : opts.resource) || null;
-	        this.onClose = (opts === null || opts === void 0 ? void 0 : opts.onClose) || noop;
-	        this.size = (opts === null || opts === void 0 ? void 0 : opts.size) || 'medium';
-	        this.context = (opts === null || opts === void 0 ? void 0 : opts.context) || {};
-	        this.closeOnEscape = (_a = opts === null || opts === void 0 ? void 0 : opts.closeOnEscape) !== null && _a !== void 0 ? _a : true;
-	        this.closeOnOverlayClick = (_b = opts === null || opts === void 0 ? void 0 : opts.closeOnOverlayClick) !== null && _b !== void 0 ? _b : true;
-	        this.title = (opts === null || opts === void 0 ? void 0 : opts.title) || '';
-	        this.icon = (opts === null || opts === void 0 ? void 0 : opts.icon) || '';
-	    }
-	    async open() {
-	        if (!isValidModalSize(this.size)) {
-	            throw new errors_1.BridgeAPIError(`Invalid modal size: ${JSON.stringify(this.size)}. Must be one of the named sizes (${NAMED_MODAL_SIZES.join(', ')}) or a custom dimensions object with a "width" string property and an optional "height" string property.`);
-	        }
-	        try {
-	            const success = await callBridge('openModal', {
-	                resource: this.resource,
-	                onClose: this.onClose,
-	                size: this.size,
-	                context: this.context,
-	                closeOnEscape: this.closeOnEscape,
-	                closeOnOverlayClick: this.closeOnOverlayClick,
-	                title: this.title,
-	                icon: this.icon
-	            });
-	            if (success === false) {
-	                throw new errors_1.BridgeAPIError('Unable to open modal.');
-	            }
-	        }
-	        catch (err) {
-	            throw new errors_1.BridgeAPIError('Unable to open modal.');
-	        }
-	    }
-	}
-	modal.Modal = Modal;
-	return modal;
-}
-
-var hasRequiredModal;
-
-function requireModal () {
-	if (hasRequiredModal) return modal$1;
-	hasRequiredModal = 1;
-	(function (exports) {
-		Object.defineProperty(exports, "__esModule", { value: true });
-		const tslib_1 = require$$0;
-		tslib_1.__exportStar(requireModal$1(), exports); 
-	} (modal$1));
-	return modal$1;
-}
-
-var fetch$2 = {};
-
-var fetch$1 = {};
-
-var hasRequiredFetch$1;
-
-function requireFetch$1 () {
-	if (hasRequiredFetch$1) return fetch$1;
-	hasRequiredFetch$1 = 1;
-	Object.defineProperty(fetch$1, "__esModule", { value: true });
-	fetch$1.productFetchApi = fetch$1.remoteFetchApi = void 0;
-	const blobParser_1 = requireBlobParser();
-	const parseFormData = async (form, matchFilePrefix = false) => {
-	    const parsed = {};
-	    for (const [key, value] of form.entries()) {
-	        // Jira and Confluence REST APIs requires that the field containing
-	        // the file MUST be named exactly 'file'
-	        const isFileKey = matchFilePrefix ? key.startsWith('file') : key === 'file';
-	        if (isFileKey) {
-	            const fileName = value.name;
-	            const fileType = value.type;
-	            // we parse the file as a base64 string so it
-	            // can be properly transfered over the bridge.
-	            // we'll parse it back to Blob in the host product
-	            parsed[key] = await (0, blobParser_1.blobToBase64)(value);
-	            // we also need to pass the file name and type,
-	            // as those will be lost in the base64 conversion
-	            parsed[`__${key}Name`] = fileName;
-	            parsed[`__${key}Type`] = fileType;
-	        }
-	        else {
-	            parsed[key] = value;
-	        }
-	    }
-	    return JSON.stringify(parsed);
-	};
-	const validateFetchOptions = (init) => {
-	    if (!init) {
-	        return init;
-	    }
-	    if ('signal' in init) {
-	        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-	        const { signal: _signal, ...rest } = init;
-	        // eslint-disable-next-line no-console
-	        console.error('Signal is not supported in @forge/bridge and was removed from fetch options. Please use the fetch method from @forge/api for signal support.');
-	        return rest;
-	    }
-	    return init;
-	};
-	const parseRequest = async (fetchType, init) => {
-	    const isFormData = (init === null || init === void 0 ? void 0 : init.body) instanceof FormData ? true : false;
-	    const requestBody = isFormData ? await parseFormData(init === null || init === void 0 ? void 0 : init.body, fetchType === 'remote') : init === null || init === void 0 ? void 0 : init.body;
-	    const req = new Request('', { body: requestBody, method: init === null || init === void 0 ? void 0 : init.method, headers: init === null || init === void 0 ? void 0 : init.headers });
-	    // If `init.body` is a `FormData`, a `content-type` header required for the body to be parsed by the
-	    // API receiving this request will be generated in req.headers.
-	    const headers = Object.fromEntries(req.headers.entries());
-	    const body = req.method !== 'GET' ? await req.text() : null;
-	    return {
-	        body,
-	        headers: new Headers(headers),
-	        isMultipartFormData: isFormData
-	    };
-	};
-	const remoteFetchApi = (callBridge) => {
-	    const fetch = async (remoteKey, init) => {
-	        const validatedInit = validateFetchOptions(init);
-	        const { body: requestBody, headers: requestHeaders, isMultipartFormData } = await parseRequest('remote', validatedInit);
-	        const fetchPayload = {
-	            remoteKey,
-	            fetchRequestInit: { ...validatedInit, body: requestBody, headers: [...requestHeaders.entries()] },
-	            isMultipartFormData
-	        };
-	        const { body, headers, statusText, status, isAttachment } = await callBridge('fetchRemote', fetchPayload);
-	        const responseBody = isAttachment ? (0, blobParser_1.base64ToBlob)(body, headers['content-type']) : body;
-	        return new Response(responseBody || null, { headers, status, statusText });
-	    };
-	    return {
-	        requestRemote: (remoteKey, fetchOptions) => fetch(remoteKey, fetchOptions)
-	    };
-	};
-	fetch$1.remoteFetchApi = remoteFetchApi;
-	const productFetchApi = (callBridge) => {
-	    const fetch = async (product, restPath, init) => {
-	        const validatedInit = validateFetchOptions(init);
-	        const { body: requestBody, headers: requestHeaders, isMultipartFormData } = await parseRequest('product', validatedInit);
-	        // https://ecosystem.atlassian.net/browse/BUILD-1118 Skip xsrf check for oauth request
-	        if (!requestHeaders.has('X-Atlassian-Token')) {
-	            requestHeaders.set('X-Atlassian-Token', 'no-check');
-	        }
-	        const fetchPayload = {
-	            product,
-	            restPath,
-	            fetchRequestInit: {
-	                ...validatedInit,
-	                body: requestBody,
-	                headers: [...requestHeaders.entries()]
-	            },
-	            isMultipartFormData
-	        };
-	        const { body, headers, statusText, status, isAttachment } = await callBridge('fetchProduct', fetchPayload);
-	        const responseBody = isAttachment ? (0, blobParser_1.base64ToBlob)(body, headers['content-type']) : body;
-	        return new Response(responseBody || null, { headers, status, statusText });
-	    };
-	    return {
-	        requestConfluence: (restPath, fetchOptions) => fetch('confluence', restPath, fetchOptions),
-	        requestJira: (restPath, fetchOptions) => fetch('jira', restPath, fetchOptions),
-	        requestBitbucket: (restPath, fetchOptions) => fetch('bitbucket', restPath, fetchOptions)
-	    };
-	};
-	fetch$1.productFetchApi = productFetchApi;
-	return fetch$1;
-}
-
-var hasRequiredFetch;
-
-function requireFetch () {
-	if (hasRequiredFetch) return fetch$2;
-	hasRequiredFetch = 1;
-	var _a;
-	Object.defineProperty(fetch$2, "__esModule", { value: true });
-	fetch$2.fetchUserRecommendations = fetch$2.requestRemote = fetch$2.requestBitbucket = fetch$2.requestJira = fetch$2.requestConfluence = void 0;
-	const bridge_1 = requireBridge();
-	const fetch_1 = requireFetch$1();
-	_a = (0, fetch_1.productFetchApi)((0, bridge_1.getCallBridge)()), fetch$2.requestConfluence = _a.requestConfluence, fetch$2.requestJira = _a.requestJira, fetch$2.requestBitbucket = _a.requestBitbucket;
-	fetch$2.requestRemote = (0, fetch_1.remoteFetchApi)((0, bridge_1.getCallBridge)()).requestRemote;
-	const fetchUserRecommendations = async (input) => {
-	    const callBridge = (0, bridge_1.getCallBridge)();
-	    return await callBridge('fetchUserRecommendations', input);
-	};
-	fetch$2.fetchUserRecommendations = fetchUserRecommendations;
-	return fetch$2;
-}
-
-var requestTeamworkGraph = {};
-
-var hasRequiredRequestTeamworkGraph;
-
-function requireRequestTeamworkGraph () {
-	if (hasRequiredRequestTeamworkGraph) return requestTeamworkGraph;
-	hasRequiredRequestTeamworkGraph = 1;
-	Object.defineProperty(requestTeamworkGraph, "__esModule", { value: true });
-	requestTeamworkGraph.requestTeamworkGraph = void 0;
-	const bridge_1 = requireBridge();
-	const callBridge = (0, bridge_1.getCallBridge)();
-	const requestTeamworkGraph$1 = async (query, variables) => {
-	    const response = await callBridge('requestTeamworkGraph', { query, variables });
-	    return response;
-	};
-	requestTeamworkGraph.requestTeamworkGraph = requestTeamworkGraph$1;
-	return requestTeamworkGraph;
-}
-
-var flag$1 = {};
-
-var flag = {};
-
-var hasRequiredFlag$1;
-
-function requireFlag$1 () {
-	if (hasRequiredFlag$1) return flag;
-	hasRequiredFlag$1 = 1;
-	Object.defineProperty(flag, "__esModule", { value: true });
-	flag.showFlag = void 0;
-	const bridge_1 = requireBridge();
-	const errors_1 = requireErrors();
-	const callBridge = (0, bridge_1.getCallBridge)();
-	const showFlag = (options) => {
-	    var _a;
-	    if (!options.id) {
-	        throw new errors_1.BridgeAPIError('"id" must be defined in flag options');
-	    }
-	    const result = callBridge('showFlag', {
-	        ...options,
-	        type: (_a = options.type) !== null && _a !== void 0 ? _a : 'info'
-	    });
-	    return {
-	        close: async () => {
-	            await result;
-	            return callBridge('closeFlag', { id: options.id });
-	        }
-	    };
-	};
-	flag.showFlag = showFlag;
-	return flag;
-}
-
-var hasRequiredFlag;
-
-function requireFlag () {
-	if (hasRequiredFlag) return flag$1;
-	hasRequiredFlag = 1;
-	(function (exports) {
-		Object.defineProperty(exports, "__esModule", { value: true });
-		exports.showFlag = void 0;
-		var flag_1 = requireFlag$1();
-		Object.defineProperty(exports, "showFlag", { enumerable: true, get: function () { return flag_1.showFlag; } }); 
-	} (flag$1));
-	return flag$1;
-}
-
-var events = {};
-
-var hasRequiredEvents;
-
-function requireEvents () {
-	if (hasRequiredEvents) return events;
-	hasRequiredEvents = 1;
-	(function (exports) {
-		Object.defineProperty(exports, "__esModule", { value: true });
-		const tslib_1 = require$$0;
-		tslib_1.__exportStar(requireEvents$1(), exports); 
-	} (events));
-	return events;
-}
-
-var realtime$1 = {};
-
-var realtime = {};
-
-var hasRequiredRealtime$1;
-
-function requireRealtime$1 () {
-	if (hasRequiredRealtime$1) return realtime;
-	hasRequiredRealtime$1 = 1;
-	Object.defineProperty(realtime, "__esModule", { value: true });
-	realtime.realtime = void 0;
-	const bridge_1 = requireBridge();
-	const callBridge = (0, bridge_1.getCallBridge)();
-	const publish = (channel, payload, options) => {
-	    return callBridge('publishRealtimeChannel', { channelName: channel, eventPayload: payload, options });
-	};
-	const subscribe = (channel, callback, options) => {
-	    return callBridge('subscribeRealtimeChannel', {
-	        channelName: channel,
-	        onEvent: callback,
-	        options
-	    });
-	};
-	const publishGlobal = (channel, payload, options) => {
-	    return callBridge('publishRealtimeChannel', { channelName: channel, eventPayload: payload, options, isGlobal: true });
-	};
-	const subscribeGlobal = (channel, callback, options) => {
-	    return callBridge('subscribeRealtimeChannel', {
-	        channelName: channel,
-	        onEvent: callback,
-	        options,
-	        isGlobal: true
-	    });
-	};
-	realtime.realtime = {
-	    publish,
-	    subscribe,
-	    publishGlobal,
-	    subscribeGlobal
-	};
-	return realtime;
-}
-
-var productContext = {};
-
-var hasRequiredProductContext;
-
-function requireProductContext () {
-	if (hasRequiredProductContext) return productContext;
-	hasRequiredProductContext = 1;
-	// These enum values directly map to properties in the context.extension object in a product's FCT.
-	// It allows a subset of properties to be specified for Realtime channel authorization.
-	Object.defineProperty(productContext, "__esModule", { value: true });
-	productContext.Bitbucket = productContext.Confluence = productContext.Jira = void 0;
-	var Jira;
-	(function (Jira) {
-	    Jira["Board"] = "board";
-	    Jira["Issue"] = "issue";
-	    Jira["Project"] = "project";
-	})(Jira || (productContext.Jira = Jira = {}));
-	var Confluence;
-	(function (Confluence) {
-	    Confluence["Content"] = "content";
-	    Confluence["Space"] = "space";
-	})(Confluence || (productContext.Confluence = Confluence = {}));
-	var Bitbucket;
-	(function (Bitbucket) {
-	    Bitbucket["Repository"] = "repository";
-	    Bitbucket["PullRequest"] = "pullRequest";
-	})(Bitbucket || (productContext.Bitbucket = Bitbucket = {}));
-	return productContext;
-}
-
-var hasRequiredRealtime;
-
-function requireRealtime () {
-	if (hasRequiredRealtime) return realtime$1;
-	hasRequiredRealtime = 1;
-	(function (exports) {
-		Object.defineProperty(exports, "__esModule", { value: true });
-		exports.Bitbucket = exports.Confluence = exports.Jira = exports.realtime = void 0;
-		var realtime_1 = requireRealtime$1();
-		Object.defineProperty(exports, "realtime", { enumerable: true, get: function () { return realtime_1.realtime; } });
-		var productContext_1 = requireProductContext();
-		Object.defineProperty(exports, "Jira", { enumerable: true, get: function () { return productContext_1.Jira; } });
-		Object.defineProperty(exports, "Confluence", { enumerable: true, get: function () { return productContext_1.Confluence; } });
-		Object.defineProperty(exports, "Bitbucket", { enumerable: true, get: function () { return productContext_1.Bitbucket; } }); 
-	} (realtime$1));
-	return realtime$1;
-}
-
-var rovo$1 = {};
-
-var rovo = {};
-
-var open = {};
-
-var hasRequiredOpen;
-
-function requireOpen () {
-	if (hasRequiredOpen) return open;
-	hasRequiredOpen = 1;
-	(function (exports) {
-		Object.defineProperty(exports, "__esModule", { value: true });
-		exports.open = exports.OPEN_ROVO_BRIDGE_ERROR_MESSAGE = void 0;
-		const bridge_1 = requireBridge();
-		const errors_1 = requireErrors();
-		const MAX_AGENT_LENGTH = 30;
-		const callBridge = (0, bridge_1.getCallBridge)();
-		exports.OPEN_ROVO_BRIDGE_ERROR_MESSAGE = 'Unable to open Rovo Chat due to usage in an unsupported product. Only Confluence, Jira and some Jira Service Management modules are supported at this point. See https://developer.atlassian.com/platform/forge/apis-reference/ui-api-bridge/rovo/';
-		const transformRovoPayload = (openRovoPayload) => {
-		    switch (openRovoPayload.type) {
-		        case 'forge':
-		            return {
-		                agentName: openRovoPayload.agentName,
-		                agentKey: openRovoPayload.agentKey,
-		                prompt: openRovoPayload.prompt
-		            };
-		        case 'atlassian':
-		            return {
-		                agentName: openRovoPayload.agentName,
-		                prompt: openRovoPayload.prompt
-		            };
-		        default:
-		            return { prompt: openRovoPayload.prompt };
-		    }
-		};
-		/**
-		 * Opens Rovo chat from the given Rovo agent name.
-		 *
-		 * @param {OpenRovoPayload} [openRovoPayload] - Payload to open chat.
-		 *   Can be one of:
-		 *     - ForgeAgentPayload: { agentName: string, agentKey: string, prompt?: string }
-		 *     - AtlassianAgentPayload: { agentName: string, prompt?: string }
-		 *     - DefaultAgentPayload: { prompt?: string }
-		 */
-		const open = async (openRovoPayload) => {
-		    if (openRovoPayload.type === 'forge') {
-		        if (openRovoPayload.agentName.length > MAX_AGENT_LENGTH) {
-		            throw new Error('rovo agent name too long');
-		        }
-		        if (openRovoPayload.agentKey.length > MAX_AGENT_LENGTH) {
-		            throw new Error('rovo agent key too long');
-		        }
-		    }
-		    const rovoArgs = transformRovoPayload(openRovoPayload);
-		    const success = await callBridge('openRovo', rovoArgs);
-		    if (success === false) {
-		        throw new errors_1.BridgeAPIError(exports.OPEN_ROVO_BRIDGE_ERROR_MESSAGE);
-		    }
-		};
-		exports.open = open; 
-	} (open));
-	return open;
-}
-
-var isEnabled = {};
-
-var hasRequiredIsEnabled;
-
-function requireIsEnabled () {
-	if (hasRequiredIsEnabled) return isEnabled;
-	hasRequiredIsEnabled = 1;
-	Object.defineProperty(isEnabled, "__esModule", { value: true });
-	isEnabled.isEnabled = void 0;
-	const bridge_1 = requireBridge();
-	const callBridge = (0, bridge_1.getCallBridge)();
-	/**
-	 * Checks if Rovo is enabled for the current tenant.
-	 *
-	 * @returns boolean
-	 */
-	const isEnabled$1 = () => {
-	    return callBridge('isRovoEnabled');
-	};
-	isEnabled.isEnabled = isEnabled$1;
-	return isEnabled;
-}
-
-var hasRequiredRovo$1;
-
-function requireRovo$1 () {
-	if (hasRequiredRovo$1) return rovo;
-	hasRequiredRovo$1 = 1;
-	Object.defineProperty(rovo, "__esModule", { value: true });
-	rovo.rovo = void 0;
-	const open_1 = requireOpen();
-	const isEnabled_1 = requireIsEnabled();
-	rovo.rovo = {
-	    open: open_1.open,
-	    isEnabled: isEnabled_1.isEnabled
-	};
-	return rovo;
-}
-
-var hasRequiredRovo;
-
-function requireRovo () {
-	if (hasRequiredRovo) return rovo$1;
-	hasRequiredRovo = 1;
-	(function (exports) {
-		Object.defineProperty(exports, "__esModule", { value: true });
-		const tslib_1 = require$$0;
-		tslib_1.__exportStar(requireRovo$1(), exports); 
-	} (rovo$1));
-	return rovo$1;
-}
-
-var i18n = {};
-
-var hasRequiredI18n;
-
-function requireI18n () {
-	if (hasRequiredI18n) return i18n;
-	hasRequiredI18n = 1;
-	Object.defineProperty(i18n, "__esModule", { value: true });
-	i18n.createTranslationFunction = i18n.getTranslations = i18n.resetTranslationsCache = void 0;
-	const i18n_1 = requireOut$4();
-	const view_1 = requireView();
-	const frontendResourcesAccessor = {
-	    getI18nInfoConfig: async () => {
-	        const resp = await fetch(`./${i18n_1.I18N_BUNDLE_FOLDER_NAME}/${i18n_1.I18N_INFO_FILE_NAME}`);
-	        if (!resp.ok) {
-	            throw new Error('Failed to get i18n info config: ' + resp.statusText);
-	        }
-	        const info = (await resp.json());
-	        return info.config;
-	    },
-	    getTranslationResource: async (locale) => {
-	        const resp = await fetch(`./${i18n_1.I18N_BUNDLE_FOLDER_NAME}/${locale}.json`);
-	        if (!resp.ok) {
-	            throw new Error(`Failed to get translation resource for locale: ${locale}`);
-	        }
-	        return resp.json();
-	    }
-	};
-	const translationsGetter = new i18n_1.TranslationsGetter(frontendResourcesAccessor);
-	const resetTranslationsCache = () => {
-	    translationsGetter.reset();
-	};
-	i18n.resetTranslationsCache = resetTranslationsCache;
-	const getTranslations = async (locale = null, options = {
-	    fallback: true
-	}) => {
-	    let targetLocale = locale;
-	    if (!targetLocale) {
-	        const context = await view_1.view.getContext();
-	        targetLocale = context.locale;
-	    }
-	    return await translationsGetter.getTranslations(targetLocale, options);
-	};
-	i18n.getTranslations = getTranslations;
-	/**
-	 * Creates a translation function (i.e. `t`) for the given locale.
-	 * If no locale is provided, the locale from the current view context is used.
-	 *
-	 * @param locale The locale to create the translation function for.
-	 * @returns The translation function.
-	 */
-	const createTranslationFunction = async (locale = null) => {
-	    let targetLocale = locale;
-	    if (!targetLocale) {
-	        const context = await view_1.view.getContext();
-	        targetLocale = context.locale;
-	    }
-	    const translator = new i18n_1.Translator(targetLocale, translationsGetter);
-	    await translator.init();
-	    return (i18nKey, defaultValue) => { var _a, _b; return (_b = (_a = translator.translate(i18nKey)) !== null && _a !== void 0 ? _a : defaultValue) !== null && _b !== void 0 ? _b : i18nKey; };
-	};
-	i18n.createTranslationFunction = createTranslationFunction;
-	return i18n;
-}
-
-var permissions$1 = {};
-
-var permissions = {};
-
-var hasRequiredPermissions$1;
-
-function requirePermissions$1 () {
-	if (hasRequiredPermissions$1) return permissions;
-	hasRequiredPermissions$1 = 1;
-	Object.defineProperty(permissions, "__esModule", { value: true });
-	permissions.permissions = void 0;
-	const bridge_1 = requireBridge();
-	const callBridge = (0, bridge_1.getCallBridge)();
-	const egressGet = async (payload) => {
-	    return callBridge('__permission__egressGet', payload);
-	};
-	const egressSet = async (payload) => {
-	    return callBridge('__permission__egressSet', payload);
-	};
-	const egressDeleteDomain = async (payload) => {
-	    return callBridge('__permission__egressDeleteDomain', payload);
-	};
-	const egressDeleteGroup = async (payload) => {
-	    return callBridge('__permission__egressDeleteGroup', payload);
-	};
-	const remoteGet = async (payload) => {
-	    return callBridge('__permission__remoteGet', payload);
-	};
-	const remoteSet = async (payload) => {
-	    return callBridge('__permission__remoteSet', payload);
-	};
-	permissions.permissions = {
-	    egress: {
-	        get: egressGet,
-	        set: egressSet,
-	        deleteDomain: egressDeleteDomain,
-	        deleteGroup: egressDeleteGroup
-	    },
-	    remote: {
-	        get: remoteGet,
-	        set: remoteSet
-	    }
-	};
-	return permissions;
-}
-
-var permissionsUtil = {};
-
-var hasRequiredPermissionsUtil;
-
-function requirePermissionsUtil () {
-	if (hasRequiredPermissionsUtil) return permissionsUtil;
-	hasRequiredPermissionsUtil = 1;
-	Object.defineProperty(permissionsUtil, "__esModule", { value: true });
-	permissionsUtil.createPermissionUtils = createPermissionUtils;
-	permissionsUtil.checkPermissions = checkPermissions;
-	const egress_1 = requireOut$3();
-	const view_1 = requireView();
-	/**
-	 * Helper function to extract URL string from external URL permissions.
-	 * Matches the implementation in @forge/api for consistency.
-	 */
-	function extractUrlString(url) {
-	    if (typeof url === 'string') {
-	        return url;
-	    }
-	    if ('address' in url && url.address) {
-	        return url.address;
-	    }
-	    return url.remote || '';
-	}
-	/**
-	 * Resource types that can be loaded externally
-	 */
-	const RESOURCE_TYPES = ['fonts', 'styles', 'frames', 'images', 'media', 'scripts'];
-	/**
-	 * Fetch types for external requests
-	 */
-	const FETCH_TYPES = ['backend', 'client'];
-	/**
-	 * Create permission utilities from runtime permissions
-	 * @param runtimePermissions - The runtime permissions from context
-	 * @returns Permission utilities or null if permissions are not available
-	 */
-	function createPermissionUtils(runtimePermissions) {
-	    if (!runtimePermissions) {
-	        return null;
-	    }
-	    const { scopes, external = {} } = runtimePermissions;
-	    const scopeArray = Array.isArray(scopes) ? scopes : Object.keys(scopes || {});
-	    return {
-	        hasScope: (scope) => scopeArray.includes(scope),
-	        canFetchFrom: (type, url) => {
-	            var _a;
-	            const fetchUrls = (_a = external.fetch) === null || _a === void 0 ? void 0 : _a[type];
-	            if (!(fetchUrls === null || fetchUrls === void 0 ? void 0 : fetchUrls.length))
-	                return false;
-	            // Extract URLs and create egress filter
-	            const allowList = fetchUrls.map(extractUrlString).filter((u) => u.length > 0);
-	            if (allowList.length === 0)
-	                return false;
-	            const egressFilter = new egress_1.EgressFilteringService(allowList);
-	            // Backend: hostname-only matching, Client: CSP validation (includes paths)
-	            // Type assertion needed because node_modules may have outdated types
-	            const egressFilterWithCSP = egressFilter;
-	            return type === 'client' ? egressFilterWithCSP.isValidUrlCSP(url) : egressFilter.isValidUrl(url);
-	        },
-	        canLoadResource: (type, url) => {
-	            const resourceUrls = external[type];
-	            if (!(resourceUrls === null || resourceUrls === void 0 ? void 0 : resourceUrls.length))
-	                return false;
-	            // Extract URLs and create egress filter
-	            const allowList = resourceUrls.map(extractUrlString).filter((u) => u.length > 0);
-	            if (allowList.length === 0)
-	                return false;
-	            const egressFilter = new egress_1.EgressFilteringService(allowList);
-	            // All resources use CSP validation (checks protocol + hostname + paths)
-	            // Type assertion needed because node_modules may have outdated types
-	            const egressFilterWithCSP = egressFilter;
-	            return egressFilterWithCSP.isValidUrlCSP(url);
-	        },
-	        getScopes: () => scopeArray,
-	        getExternalPermissions: () => external,
-	        hasAnyPermissions: () => scopeArray.length > 0 || Object.keys(external).length > 0
-	    };
-	}
-	/**
-	 * Check if required scopes are granted
-	 */
-	function checkScopes(requiredScopes, permissionUtils) {
-	    if (!(requiredScopes === null || requiredScopes === void 0 ? void 0 : requiredScopes.length)) {
-	        return undefined;
-	    }
-	    const missingScopes = requiredScopes.filter((scope) => !permissionUtils.hasScope(scope));
-	    return missingScopes.length > 0 ? missingScopes : undefined;
-	}
-	/**
-	 * Check if required fetch permissions are granted
-	 */
-	function checkFetchPermissions(requiredFetch, permissionUtils) {
-	    if (!(requiredFetch === null || requiredFetch === void 0 ? void 0 : requiredFetch.fetch)) {
-	        return undefined;
-	    }
-	    const missingFetch = {};
-	    FETCH_TYPES.forEach((type) => {
-	        var _a;
-	        const requiredUrls = (_a = requiredFetch.fetch) === null || _a === void 0 ? void 0 : _a[type];
-	        if (requiredUrls === null || requiredUrls === void 0 ? void 0 : requiredUrls.length) {
-	            const missingUrls = requiredUrls.filter((url) => !permissionUtils.canFetchFrom(type, url));
-	            if (missingUrls.length > 0) {
-	                missingFetch[type] = missingUrls;
-	            }
-	        }
-	    });
-	    return Object.keys(missingFetch).length > 0 ? missingFetch : undefined;
-	}
-	/**
-	 * Check if required resource permissions are granted
-	 */
-	function checkResourcePermissions(requiredExternal, permissionUtils) {
-	    const missingResources = {};
-	    RESOURCE_TYPES.forEach((type) => {
-	        const requiredUrls = requiredExternal === null || requiredExternal === void 0 ? void 0 : requiredExternal[type];
-	        if (requiredUrls === null || requiredUrls === void 0 ? void 0 : requiredUrls.length) {
-	            const missingUrls = requiredUrls.filter((url) => !permissionUtils.canLoadResource(type, url));
-	            if (missingUrls.length > 0) {
-	                missingResources[type] = missingUrls;
-	            }
-	        }
-	    });
-	    return Object.keys(missingResources).length > 0 ? missingResources : undefined;
-	}
-	/**
-	 * Check if required external permissions are granted
-	 */
-	function checkExternalPermissions(requiredExternal, permissionUtils) {
-	    if (!requiredExternal) {
-	        return undefined;
-	    }
-	    const missingFetch = checkFetchPermissions(requiredExternal, permissionUtils);
-	    const missingResources = checkResourcePermissions(requiredExternal, permissionUtils);
-	    if (!missingFetch && !missingResources) {
-	        return undefined;
-	    }
-	    const missingExternal = {};
-	    if (missingFetch) {
-	        missingExternal.fetch = missingFetch;
-	    }
-	    if (missingResources) {
-	        Object.assign(missingExternal, missingResources);
-	    }
-	    return missingExternal;
-	}
-	// Throws if a field that should be a plain object but is something else.
-	// Only used for external and external.fetch, which are guarded above.
-	function validateObjectField(value, fieldPath) {
-	    if (value !== undefined) {
-	        if (typeof value !== 'object' || value === null || Array.isArray(value)) {
-	            throw new TypeError(`${fieldPath} should be an object, not ${Array.isArray(value) ? 'an array' : `a ${typeof value}`}`);
-	        }
-	    }
-	}
-	// Throws if a field that should be an array but is something else.
-	function validateArrayField(value, fieldPath) {
-	    if (value !== undefined && !Array.isArray(value)) {
-	        throw new TypeError(`${fieldPath} should be an array, not a ${typeof value}`);
-	    }
-	}
-	/**
-	 * Validates that fields in requiredPermissions have the correct types.
-	 */
-	function validatePermissionShape(requiredPermissions) {
-	    validateArrayField(requiredPermissions.scopes, 'scopes');
-	    const external = requiredPermissions.external;
-	    if (external === undefined)
-	        return;
-	    validateObjectField(external, 'external');
-	    if (external.fetch !== undefined) {
-	        validateObjectField(external.fetch, 'external.fetch');
-	        for (const type of FETCH_TYPES) {
-	            validateArrayField(external.fetch[type], `external.fetch.${type}`);
-	        }
-	    }
-	    for (const type of RESOURCE_TYPES) {
-	        validateArrayField(external[type], `external.${type}`);
-	    }
-	}
-	/**
-	 * Check if required permissions are granted
-	 * @param requiredPermissions - The permissions required to check
-	 * @param runtimePermissions - The runtime permissions from context (optional, will be fetched from view.getContext() if not provided)
-	 * @returns Promise resolving to permission check result with granted status and missing permissions
-	 */
-	async function checkPermissions(requiredPermissions, runtimePermissions) {
-	    var _a;
-	    // Early return for falsy required permissions
-	    if (!requiredPermissions) {
-	        return { granted: false, missing: null };
-	    }
-	    validatePermissionShape(requiredPermissions);
-	    // Early return for empty permissions (no requirements = all granted)
-	    if (!((_a = requiredPermissions.scopes) === null || _a === void 0 ? void 0 : _a.length) && !requiredPermissions.external) {
-	        return { granted: true, missing: null };
-	    }
-	    // If runtimePermissions is not provided, fetch it from context
-	    let permissionsToCheck = runtimePermissions;
-	    if (!permissionsToCheck) {
-	        const context = await view_1.view.getContext();
-	        permissionsToCheck = context.permissions;
-	    }
-	    const permissionUtils = createPermissionUtils(permissionsToCheck);
-	    if (!permissionUtils) {
-	        // If permissions are not available, return not granted
-	        return { granted: false, missing: null };
-	    }
-	    const missing = {};
-	    let hasAllRequiredPermissions = true;
-	    // Check scopes
-	    const missingScopes = checkScopes(requiredPermissions.scopes, permissionUtils);
-	    if (missingScopes) {
-	        missing.scopes = missingScopes;
-	        hasAllRequiredPermissions = false;
-	    }
-	    // Check external permissions
-	    const missingExternal = checkExternalPermissions(requiredPermissions.external, permissionUtils);
-	    if (missingExternal) {
-	        missing.external = missingExternal;
-	        hasAllRequiredPermissions = false;
-	    }
-	    // Note: Content permissions are not supported in the current RuntimePermissions type
-	    return {
-	        granted: hasAllRequiredPermissions,
-	        missing: hasAllRequiredPermissions ? null : missing
-	    };
-	}
-	return permissionsUtil;
-}
-
-var hasRequiredPermissions;
-
-function requirePermissions () {
-	if (hasRequiredPermissions) return permissions$1;
-	hasRequiredPermissions = 1;
-	(function (exports) {
-		Object.defineProperty(exports, "__esModule", { value: true });
-		const tslib_1 = require$$0;
-		tslib_1.__exportStar(requirePermissions$1(), exports);
-		tslib_1.__exportStar(requirePermissionsUtil(), exports); 
-	} (permissions$1));
-	return permissions$1;
-}
-
-var objectStore$1 = {};
-
-var objectStore = {};
-
-var upload = {};
-
-var hasRequiredUpload;
-
-function requireUpload () {
-	if (hasRequiredUpload) return upload;
-	hasRequiredUpload = 1;
-	(function (exports) {
-		Object.defineProperty(exports, "__esModule", { value: true });
-		exports.upload = exports.createUploadPromises = void 0;
-		const invoke_1 = requireInvoke();
-		const errors_1 = requireErrors();
-		const bridge_1 = requireBridge();
-		const callBridge = (0, bridge_1.getCallBridge)();
-		/**
-		 * Convert base64 string to Blob
-		 */
-		const base64ToBlob = (base64, mimeType) => {
-		    const byteCharacters = atob(base64);
-		    const byteNumbers = new Array(byteCharacters.length);
-		    for (let i = 0; i < byteCharacters.length; i++) {
-		        byteNumbers[i] = byteCharacters.charCodeAt(i);
-		    }
-		    const byteArray = new Uint8Array(byteNumbers);
-		    return new Blob([byteArray], { type: mimeType || 'application/octet-stream' });
-		};
-		/**
-		 * Get metadata for a blob object including size and checksum
-		 */
-		const getObjectMetadata = async (blob) => {
-		    const length = blob.size;
-		    // Calculate checksum using SubtleCrypto API
-		    const arrayBuffer = await blob.arrayBuffer();
-		    const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer);
-		    const hashArray = new Uint8Array(hashBuffer);
-		    // Convert to base64 format (required by OS API)
-		    const checksum = btoa(String.fromCharCode(...hashArray));
-		    const checksumType = 'SHA256';
-		    return {
-		        length,
-		        checksum,
-		        checksumType
-		    };
-		};
-		/**
-		 * Start individual upload operations and return array of promises
-		 * This allows tracking per-file upload progress
-		 *
-		 * @param functionKey - Configuration object containing the backend function key to filter and generate presigned URLs
-		 * @param objects - Array of Blob objects or Base64Object (with data and optional mimeType) to upload
-		 * @returns Array of individual upload promises with their associated index
-		 * @throws {BridgeAPIError} When filtering fails or upload encounters an error
-		 */
-		const createUploadPromises = async ({ functionKey, objects }) => {
-		    if (!functionKey || functionKey.length === 0) {
-		        throw new errors_1.BridgeAPIError('functionKey is required to filter and generate presigned URLs');
-		    }
-		    if (!Array.isArray(objects) || objects.length === 0) {
-		        throw new errors_1.BridgeAPIError('objects array is required and must not be empty');
-		    }
-		    // Validate and convert objects to Blobs in a single pass
-		    const blobs = objects.map((obj, index) => {
-		        if (obj instanceof Blob) {
-		            return obj;
-		        }
-		        const isBase64Object = obj && typeof obj === 'object' && 'data' in obj && typeof obj.data === 'string';
-		        if (!isBase64Object) {
-		            throw new errors_1.BridgeAPIError(`Invalid object type at index ${index}. Only Blob or Base64Object (with data string and optional mimeType) are accepted.`);
-		        }
-		        try {
-		            return base64ToBlob(obj.data, obj.mimeType);
-		        }
-		        catch (e) {
-		            throw new errors_1.BridgeAPIError(`Invalid base64 data at index ${index}. The data string must be valid base64 encoded.`);
-		        }
-		    });
-		    const allObjectMetadata = await Promise.all(blobs.map((blob) => getObjectMetadata(blob)));
-		    const presignedURLsToObjectMetadata = (await (0, invoke_1.invoke)(functionKey, {
-		        allObjectMetadata
-		    }));
-		    if (!presignedURLsToObjectMetadata || typeof presignedURLsToObjectMetadata !== 'object') {
-		        throw new errors_1.BridgeAPIError('Invalid response from functionKey');
-		    }
-		    const checksumToBlobMap = new Map();
-		    const checksumToIndexMap = new Map();
-		    blobs.forEach((blob, index) => {
-		        const metadata = allObjectMetadata[index];
-		        checksumToBlobMap.set(metadata.checksum, blob);
-		        checksumToIndexMap.set(metadata.checksum, index);
-		    });
-		    const uploadPromises = Object.entries(presignedURLsToObjectMetadata).map(([presignedUrl, metadata]) => {
-		        const { key, checksum } = metadata;
-		        const object = checksumToBlobMap.get(checksum);
-		        const index = checksumToIndexMap.get(checksum);
-		        if (index === undefined) {
-		            return {
-		                promise: Promise.resolve({
-		                    success: false,
-		                    key: key,
-		                    error: `Index not found for checksum ${checksum}`
-		                }),
-		                index: -1
-		            };
-		        }
-		        if (!object) {
-		            return {
-		                promise: Promise.resolve({
-		                    success: false,
-		                    key: key,
-		                    error: `Blob not found for checksum ${checksum}`
-		                }),
-		                index
-		            };
-		        }
-		        const uploadPromise = (async () => {
-		            try {
-		                const response = await fetch(presignedUrl, {
-		                    method: 'PUT',
-		                    body: object,
-		                    headers: {
-		                        'Content-Type': object.type || 'application/octet-stream',
-		                        'Content-Length': object.size.toString()
-		                    }
-		                });
-		                return {
-		                    success: response.ok,
-		                    key: key,
-		                    status: response.status,
-		                    error: response.ok ? undefined : `Upload failed with status ${response.status}`
-		                };
-		            }
-		            catch (error) {
-		                return {
-		                    success: false,
-		                    key: key,
-		                    status: 503,
-		                    error: error instanceof Error ? error.message : 'Upload failed'
-		                };
-		            }
-		        })();
-		        return { promise: uploadPromise, index, objectType: object.type, objectSize: object.size };
-		    });
-		    return uploadPromises;
-		};
-		exports.createUploadPromises = createUploadPromises;
-		/**
-		 * Upload multiple objects to pre-signed URLs
-		 *
-		 * @param functionKey - Configuration object containing the backend function key to filter and generate presigned URLs
-		 * @param objects - Array of Blob objects or Base64Object (with data and optional mimeType) to upload
-		 * @returns Promise resolving to UploadResult[]
-		 * @throws {BridgeAPIError} When filtering fails or upload encounters an error
-		 */
-		const upload = async ({ functionKey, objects }) => {
-		    void callBridge('trackObjectStoreAction', { action: 'upload' });
-		    const uploadPromises = await (0, exports.createUploadPromises)({ functionKey, objects });
-		    const results = await Promise.all(uploadPromises.map((item) => item.promise));
-		    return results;
-		};
-		exports.upload = upload; 
-	} (upload));
-	return upload;
-}
-
-var deleteObjects = {};
-
-var hasRequiredDeleteObjects;
-
-function requireDeleteObjects () {
-	if (hasRequiredDeleteObjects) return deleteObjects;
-	hasRequiredDeleteObjects = 1;
-	Object.defineProperty(deleteObjects, "__esModule", { value: true });
-	deleteObjects.deleteObjects = void 0;
-	const invoke_1 = requireInvoke();
-	const errors_1 = requireErrors();
-	const bridge_1 = requireBridge();
-	const callBridge = (0, bridge_1.getCallBridge)();
-	/**
-	 * Delete multiple objects
-	 *
-	 * @param functionKey - Configuration object containing the backend function key to delete objects
-	 * @param keys - Array of object keys to delete
-	 * @returns Promise<void>
-	 * @throws {BridgeAPIError} When deleting fails
-	 */
-	const deleteObjects$1 = async ({ functionKey, keys }) => {
-	    void callBridge('trackObjectStoreAction', { action: 'delete' });
-	    if (!functionKey || functionKey.length === 0) {
-	        throw new errors_1.BridgeAPIError('functionKey is required to delete objects');
-	    }
-	    if (!Array.isArray(keys) || keys.length === 0) {
-	        throw new errors_1.BridgeAPIError('keys array is required and must not be empty');
-	    }
-	    await Promise.all(keys.map(async (key) => {
-	        await (0, invoke_1.invoke)(functionKey, { key });
-	    }));
-	};
-	deleteObjects.deleteObjects = deleteObjects$1;
-	return deleteObjects;
-}
-
-var download = {};
-
-var hasRequiredDownload;
-
-function requireDownload () {
-	if (hasRequiredDownload) return download;
-	hasRequiredDownload = 1;
-	Object.defineProperty(download, "__esModule", { value: true });
-	download.download = void 0;
-	const invoke_1 = requireInvoke();
-	const errors_1 = requireErrors();
-	const bridge_1 = requireBridge();
-	const callBridge = (0, bridge_1.getCallBridge)();
-	/**
-	 * Download multiple objects from pre-signed URLs
-	 *
-	 * @param functionKey - Configuration object containing the backend function key to filter and generate download URLs
-	 * @param keys - Array of object keys to download
-	 * @returns Promise resolving to DownloadResult[]
-	 * @throws {BridgeAPIError} When filtering fails or download encounters an error
-	 */
-	const download$1 = async ({ functionKey, keys }) => {
-	    void callBridge('trackObjectStoreAction', { action: 'download' });
-	    if (!functionKey || functionKey.length === 0) {
-	        throw new errors_1.BridgeAPIError('functionKey is required to filter and generate download URLs');
-	    }
-	    if (!Array.isArray(keys) || keys.length === 0) {
-	        throw new errors_1.BridgeAPIError('keys array is required and must not be empty');
-	    }
-	    const downloadUrlsTokeys = (await (0, invoke_1.invoke)(functionKey, {
-	        keys
-	    }));
-	    if (!downloadUrlsTokeys || typeof downloadUrlsTokeys !== 'object') {
-	        throw new errors_1.BridgeAPIError('Invalid response from functionKey');
-	    }
-	    const downloadPromises = Object.entries(downloadUrlsTokeys).map(async ([downloadUrl, key]) => {
-	        try {
-	            const response = await fetch(downloadUrl, {
-	                method: 'GET'
-	            });
-	            if (!response.ok) {
-	                return {
-	                    success: false,
-	                    key: key,
-	                    status: response.status,
-	                    error: `Download failed with status ${response.status}`
-	                };
-	            }
-	            const blob = await response.blob();
-	            return {
-	                success: true,
-	                key: key,
-	                blob,
-	                status: response.status
-	            };
-	        }
-	        catch (error) {
-	            return {
-	                success: false,
-	                key: key,
-	                status: 503,
-	                error: error instanceof Error ? error.message : 'Download failed'
-	            };
-	        }
-	    });
-	    const results = await Promise.all(downloadPromises);
-	    return results;
-	};
-	download.download = download$1;
-	return download;
-}
-
-var getMetadata = {};
-
-var hasRequiredGetMetadata;
-
-function requireGetMetadata () {
-	if (hasRequiredGetMetadata) return getMetadata;
-	hasRequiredGetMetadata = 1;
-	Object.defineProperty(getMetadata, "__esModule", { value: true });
-	getMetadata.getMetadata = void 0;
-	const index_1 = requireInvoke();
-	const errors_1 = requireErrors();
-	const bridge_1 = requireBridge();
-	const callBridge = (0, bridge_1.getCallBridge)();
-	/**
-	 * Get metadata for multiple objectIds
-	 *
-	 * @param functionKey - Configuration object containing the backend function key to filter and generate object metadata
-	 * @param keys - Array of object keys to get metadata for
-	 * @returns Promise resolving to GetMetadataResult[]
-	 * @throws {BridgeAPIError} When filtering fails or download encounters an error
-	 */
-	const getMetadata$1 = async ({ functionKey, keys }) => {
-	    void callBridge('trackObjectStoreAction', { action: 'getMetadata' });
-	    if (!functionKey || functionKey.length === 0) {
-	        throw new errors_1.BridgeAPIError('functionKey is required to filter and generate object metadata');
-	    }
-	    if (!Array.isArray(keys) || keys.length === 0) {
-	        throw new errors_1.BridgeAPIError('keys array is required and must not be empty');
-	    }
-	    const results = await Promise.all(keys.map(async (key) => {
-	        const result = (await (0, index_1.invoke)(functionKey, { key }));
-	        if (!result || typeof result !== 'object') {
-	            return {
-	                key: key,
-	                error: 'Invalid response from functionKey'
-	            };
-	        }
-	        return result;
-	    }));
-	    return results;
-	};
-	getMetadata.getMetadata = getMetadata$1;
-	return getMetadata;
-}
-
-var hasRequiredObjectStore$1;
-
-function requireObjectStore$1 () {
-	if (hasRequiredObjectStore$1) return objectStore;
-	hasRequiredObjectStore$1 = 1;
-	(function (exports) {
-		Object.defineProperty(exports, "__esModule", { value: true });
-		exports.createUploadPromises = exports.objectStore = void 0;
-		const upload_1 = requireUpload();
-		Object.defineProperty(exports, "createUploadPromises", { enumerable: true, get: function () { return upload_1.createUploadPromises; } });
-		const deleteObjects_1 = requireDeleteObjects();
-		const download_1 = requireDownload();
-		const getMetadata_1 = requireGetMetadata();
-		exports.objectStore = {
-		    upload: upload_1.upload,
-		    download: download_1.download,
-		    getMetadata: getMetadata_1.getMetadata,
-		    delete: deleteObjects_1.deleteObjects
-		}; 
-	} (objectStore));
-	return objectStore;
-}
-
-var types = {};
-
-var hasRequiredTypes;
-
-function requireTypes () {
-	if (hasRequiredTypes) return types;
-	hasRequiredTypes = 1;
-	Object.defineProperty(types, "__esModule", { value: true });
-	return types;
-}
-
-var hasRequiredObjectStore;
-
-function requireObjectStore () {
-	if (hasRequiredObjectStore) return objectStore$1;
-	hasRequiredObjectStore = 1;
-	(function (exports) {
-		Object.defineProperty(exports, "__esModule", { value: true });
-		const tslib_1 = require$$0;
-		tslib_1.__exportStar(requireObjectStore$1(), exports);
-		tslib_1.__exportStar(requireTypes(), exports); 
-	} (objectStore$1));
-	return objectStore$1;
-}
-
-var featureFlags$1 = {};
-
-var featureFlags = {};
-
-var evaluator = {};
-
-var hasRequiredEvaluator;
-
-function requireEvaluator () {
-	if (hasRequiredEvaluator) return evaluator;
-	hasRequiredEvaluator = 1;
-	Object.defineProperty(evaluator, "__esModule", { value: true });
-	evaluator.Evaluator = void 0;
-	class Evaluator {
-	    constructor(results) {
-	        this.results = results;
-	    }
-	    checkFlag(flagName, defaultValue) {
-	        if (!this.results || !this.results.feature_flags) {
-	            // fallback to default value
-	            return defaultValue;
-	        }
-	        const featureFlags = this.results.feature_flags;
-	        let hashedValue = '';
-	        try {
-	            hashedValue = this.getHashedValue(flagName);
-	        }
-	        catch (err) {
-	            // eslint-disable-next-line no-console
-	            console.error('Unexpected error occurred while evaluating flag ', err);
-	            // If hashing fails for any reason, do not throw; safely return default
-	            return defaultValue;
-	        }
-	        if (!hashedValue) {
-	            return defaultValue;
-	        }
-	        const evaluatedFlag = featureFlags[hashedValue];
-	        if (evaluatedFlag) {
-	            // if flag being checked is disabled
-	            if (evaluatedFlag.disabled) {
-	                return false;
-	            }
-	            return evaluatedFlag.value;
-	        }
-	        // fallback to default value
-	        return defaultValue;
-	    }
-	    shutDown() {
-	        this.results = undefined;
-	    }
-	    // To be Updated with proper hashing function
-	    getHashedValue(flagName) {
-	        // Defensive: ensure stable, non-throwing behavior for unexpected inputs
-	        if (typeof flagName !== 'string') {
-	            return '';
-	        }
-	        const input = flagName.trim();
-	        if (input.length === 0) {
-	            return '';
-	        }
-	        // djb2 hashing (unsigned 32-bit), matches server-side encoding
-	        let hash = 5381;
-	        for (let i = 0; i < input.length; i += 1) {
-	            const charCode = input.charCodeAt(i);
-	            hash = (hash << 5) + hash + charCode; // hash * 33 + c
-	            hash |= 0; // force 32-bit signed int
-	        }
-	        // Convert to unsigned 32-bit and return as a decimal string
-	        return (hash >>> 0).toString();
-	    }
-	}
-	evaluator.Evaluator = Evaluator;
-	return evaluator;
-}
-
-var initFeatureFlags = {};
-
-var hasRequiredInitFeatureFlags;
-
-function requireInitFeatureFlags () {
-	if (hasRequiredInitFeatureFlags) return initFeatureFlags;
-	hasRequiredInitFeatureFlags = 1;
-	Object.defineProperty(initFeatureFlags, "__esModule", { value: true });
-	initFeatureFlags.initFeatureFlags = void 0;
-	const bridge_1 = requireBridge();
-	const errors_1 = requireErrors();
-	const utils_1 = requireUtils();
-	const maxOps = 500;
-	const intervalInMs = 1000 * 25;
-	const callBridge = (0, bridge_1.getCallBridge)();
-	const validatePayload = (payload) => {
-	    if (!payload || !payload.user || !payload.config) {
-	        throw new errors_1.BridgeAPIError('Missing required parameters. Parameter user is required in the payload.');
-	    }
-	    if (!payload.config.environment || !['development', 'staging', 'production'].includes(payload.config.environment)) {
-	        throw new errors_1.BridgeAPIError('Invalid environment. Valid environments are: development, staging, production');
-	    }
-	    if (Object.values(payload).some((val) => typeof val === 'function')) {
-	        throw new errors_1.BridgeAPIError('Passing functions as part of the payload is not supported!');
-	    }
-	};
-	const _initFeatureFlags = (payload) => {
-	    validatePayload(payload);
-	    return callBridge('initFeatureFlags', { user: payload.user, config: payload.config });
-	};
-	initFeatureFlags.initFeatureFlags = (0, utils_1.withRateLimiter)(_initFeatureFlags, maxOps, intervalInMs, `Feature flags initialisation calls are rate limited at ${maxOps}req/${intervalInMs / 1000}s`);
-	return initFeatureFlags;
-}
-
-var hasRequiredFeatureFlags$1;
-
-function requireFeatureFlags$1 () {
-	if (hasRequiredFeatureFlags$1) return featureFlags;
-	hasRequiredFeatureFlags$1 = 1;
-	Object.defineProperty(featureFlags, "__esModule", { value: true });
-	featureFlags.FeatureFlags = void 0;
-	const evaluator_1 = requireEvaluator();
-	const initFeatureFlags_1 = requireInitFeatureFlags();
-	class FeatureFlags {
-	    constructor() {
-	        this.initialized = false;
-	    }
-	    /**
-	     * Initialize the feature flags client
-	     */
-	    async initialize(user, config = { environment: 'development' }) {
-	        if (this.isInitialized()) {
-	            return;
-	        }
-	        if (!(config === null || config === void 0 ? void 0 : config.environment)) {
-	            config.environment = 'development';
-	        }
-	        const result = await (0, initFeatureFlags_1.initFeatureFlags)({ user, config });
-	        this.initialized = true;
-	        this.evaluator = new evaluator_1.Evaluator(result);
-	    }
-	    /**
-	     * Check if a feature flag is enabled for the user
-	     */
-	    checkFlag(flagName, defaultValue = false) {
-	        if (!this.isInitialized() || !this.evaluator) {
-	            throw new Error('FeatureFlags not initialized. Call initialize() first.');
-	        }
-	        return this.evaluator.checkFlag(flagName, defaultValue);
-	    }
-	    /**
-	     * Shutdown the feature flags client
-	     */
-	    shutdown() {
-	        if (!this.isInitialized()) {
-	            return;
-	        }
-	        this.initialized = false;
-	        this.evaluator.shutDown();
-	    }
-	    isInitialized() {
-	        return this.initialized;
-	    }
-	}
-	featureFlags.FeatureFlags = FeatureFlags;
-	return featureFlags;
-}
-
-var hasRequiredFeatureFlags;
-
-function requireFeatureFlags () {
-	if (hasRequiredFeatureFlags) return featureFlags$1;
-	hasRequiredFeatureFlags = 1;
-	(function (exports) {
-		Object.defineProperty(exports, "__esModule", { value: true });
-		exports.FeatureFlags = void 0;
-		var featureFlags_1 = requireFeatureFlags$1();
-		Object.defineProperty(exports, "FeatureFlags", { enumerable: true, get: function () { return featureFlags_1.FeatureFlags; } }); 
-	} (featureFlags$1));
-	return featureFlags$1;
-}
-
-var frontendCustomMetrics$1 = {};
-
-var frontendCustomMetrics = {};
-
-var hasRequiredFrontendCustomMetrics$1;
-
-function requireFrontendCustomMetrics$1 () {
-	if (hasRequiredFrontendCustomMetrics$1) return frontendCustomMetrics;
-	hasRequiredFrontendCustomMetrics$1 = 1;
-	Object.defineProperty(frontendCustomMetrics, "__esModule", { value: true });
-	frontendCustomMetrics.frontendCustomMetrics = void 0;
-	const bridge_1 = requireBridge();
-	const errors_1 = requireErrors();
-	const callBridge = (0, bridge_1.getCallBridge)();
-	const emit = async (customMetricName, value) => {
-	    await callBridge('emitFrontendCustomMetric', {
-	        customMetricName,
-	        value
-	    });
-	};
-	const MAX_METRIC_NAME_LENGTH = 50;
-	// Must start and end with an alphanumeric character and may only contain
-	// letters, numbers, dots (.) and hyphens (-) in between.
-	const METRIC_NAME_REGEX = /^[a-zA-Z0-9]([a-zA-Z0-9.-]*[a-zA-Z0-9])?$/;
-	/**
-	 * Validates a custom metric name against the same rules enforced when
-	 * registering a metric in the developer console. Throws synchronously so
-	 * developer errors fail fast without a wasted bridge round-trip.
-	 *
-	 * Note: this is a best-effort, client-side convenience check. The metric name
-	 * must still match a custom metric registered in the developer console, which
-	 * remains the source of truth and is validated by the backend.
-	 */
-	const validateMetricName = (name) => {
-	    if (name.trim().length === 0) {
-	        throw new errors_1.BridgeAPIError('Custom metric name cannot be empty');
-	    }
-	    if (name.length > MAX_METRIC_NAME_LENGTH) {
-	        throw new errors_1.BridgeAPIError(`Custom metric name cannot exceed ${MAX_METRIC_NAME_LENGTH} characters`);
-	    }
-	    if (!METRIC_NAME_REGEX.test(name)) {
-	        throw new errors_1.BridgeAPIError('Custom metric name must start and end with alphanumeric characters and can only contain letters, numbers, dots (.), and hyphens (-)');
-	    }
-	    if (name.includes('..') || name.includes('--')) {
-	        throw new errors_1.BridgeAPIError('Custom metric name cannot contain consecutive dots or hyphens');
-	    }
-	};
-	const counter = (name) => {
-	    validateMetricName(name);
-	    return {
-	        incr: () => emit(name, 1),
-	        incrBy: (value) => {
-	            if (value <= 0) {
-	                throw new errors_1.BridgeAPIError('Counter value must be a positive number');
-	            }
-	            return emit(name, value);
-	        }
-	    };
-	};
-	/**
-	 * Public namespace for emitting Forge frontend custom metrics from a Forge UI app.
-	 *
-	 * @example
-	 * import { frontendCustomMetrics } from '@forge/bridge';
-	 * const c = frontendCustomMetrics.counter('button-click');
-	 * c.incr();        // increment by 1
-	 * c.incrBy(5);     // increment by 5 (rejects if value <= 0)
-	 */
-	frontendCustomMetrics.frontendCustomMetrics = { counter };
-	return frontendCustomMetrics;
-}
-
-var hasRequiredFrontendCustomMetrics;
-
-function requireFrontendCustomMetrics () {
-	if (hasRequiredFrontendCustomMetrics) return frontendCustomMetrics$1;
-	hasRequiredFrontendCustomMetrics = 1;
-	(function (exports) {
-		Object.defineProperty(exports, "__esModule", { value: true });
-		const tslib_1 = require$$0;
-		tslib_1.__exportStar(requireFrontendCustomMetrics$1(), exports); 
-	} (frontendCustomMetrics$1));
-	return frontendCustomMetrics$1;
-}
-
-var hasRequiredOut;
-
-function requireOut () {
-	if (hasRequiredOut) return out;
-	hasRequiredOut = 1;
-	(function (exports) {
-		Object.defineProperty(exports, "__esModule", { value: true });
-		exports.i18n = exports.NavigationTarget = void 0;
-		const tslib_1 = require$$0;
-		var targets_1 = requireTargets();
-		Object.defineProperty(exports, "NavigationTarget", { enumerable: true, get: function () { return targets_1.NavigationTarget; } });
-		tslib_1.__exportStar(requireInvoke(), exports);
-		tslib_1.__exportStar(requireInvokeEndpoint(), exports);
-		tslib_1.__exportStar(requireView(), exports);
-		tslib_1.__exportStar(requireRouter(), exports);
-		tslib_1.__exportStar(requireModal(), exports);
-		tslib_1.__exportStar(requireFetch(), exports);
-		tslib_1.__exportStar(requireRequestTeamworkGraph(), exports);
-		tslib_1.__exportStar(requireFlag(), exports);
-		tslib_1.__exportStar(requireEvents(), exports);
-		tslib_1.__exportStar(requireRealtime(), exports);
-		tslib_1.__exportStar(requireRovo(), exports);
-		exports.i18n = tslib_1.__importStar(requireI18n());
-		tslib_1.__exportStar(requirePermissions(), exports);
-		tslib_1.__exportStar(requireObjectStore(), exports);
-		tslib_1.__exportStar(requireFeatureFlags(), exports);
-		tslib_1.__exportStar(requireFrontendCustomMetrics(), exports); 
-	} (out));
-	return out;
-}
-
-var outExports = requireOut();
+var outExports = requireOut$1();
 
 // Shared by both multi-entry pages so bundlers emit a shared chunk.
 const label = (name) => 'entry:' + name;
 
-export { ForgeReconciler as F, React as R, outExports$1 as a, label as l, outExports as o, reactExports as r };
+export { ForgeReconciler as F, React as R, outExports$1 as a, getDefaultExportFromCjs as g, label as l, outExports as o, reactExports as r };

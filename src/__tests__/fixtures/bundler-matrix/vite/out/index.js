@@ -1,3 +1,6 @@
+var __defProp = Object.defineProperty;
+var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
 import require$$2 from "async_hooks";
 import require$$1 from "fs";
 import require$$2$1 from "path";
@@ -10,12 +13,7 @@ function getAugmentedNamespace(n) {
   var f = n.default;
   if (typeof f == "function") {
     var a = function a2() {
-      var isInstance = false;
-      try {
-        isInstance = this instanceof a2;
-      } catch {
-      }
-      if (isInstance) {
+      if (this instanceof a2) {
         return Reflect.construct(f, arguments, this.constructor);
       }
       return f.apply(this, arguments);
@@ -42,8 +40,8 @@ function requireOut$5() {
   Object.defineProperty(out$5, "__esModule", { value: true });
   out$5.makeResolver = makeResolver;
   class Resolver2 {
-    functions;
     constructor() {
+      __publicField(this, "functions");
       this.functions = {};
     }
     define(functionKey, cb) {
@@ -67,16 +65,17 @@ function requireOut$5() {
     }
     getDefinitions() {
       return async ({ call: { functionKey, payload, jobId }, context }, backendRuntimePayload) => {
+        var _a;
         const cb = this.getFunction(functionKey);
         const result = await cb({
           payload: payload || {},
           context: {
             ...context,
-            installContext: backendRuntimePayload?.installContext,
-            accountId: backendRuntimePayload?.principal?.accountId,
-            license: backendRuntimePayload?.license,
+            installContext: backendRuntimePayload == null ? void 0 : backendRuntimePayload.installContext,
+            accountId: (_a = backendRuntimePayload == null ? void 0 : backendRuntimePayload.principal) == null ? void 0 : _a.accountId,
+            license: backendRuntimePayload == null ? void 0 : backendRuntimePayload.license,
             jobId,
-            installation: backendRuntimePayload?.installation
+            installation: backendRuntimePayload == null ? void 0 : backendRuntimePayload.installation
           }
         });
         if (typeof result === "object") {
@@ -630,10 +629,10 @@ function requireEntityQuery() {
   Object.defineProperty(entityQuery, "__esModule", { value: true });
   entityQuery.FilterBuilder = entityQuery.BaseFilter = entityQuery.KvsIndexQueryBuilder = void 0;
   class KvsIndexQueryBuilder {
-    entityName;
-    storageApi;
-    options;
     constructor(entityName, storageApi2, options) {
+      __publicField(this, "entityName");
+      __publicField(this, "storageApi");
+      __publicField(this, "options");
       this.entityName = entityName;
       this.storageApi = storageApi2;
       this.options = options;
@@ -643,16 +642,16 @@ function requireEntityQuery() {
         ...this.options,
         entityName: this.entityName,
         indexName: name2,
-        partition: indexOptions?.partition,
+        partition: indexOptions == null ? void 0 : indexOptions.partition,
         filters: []
       });
     }
   }
   entityQuery.KvsIndexQueryBuilder = KvsIndexQueryBuilder;
   class KvsEntityQueryBuilder {
-    storageApi;
-    queryOptions;
     constructor(storageApi2, queryOptions) {
+      __publicField(this, "storageApi");
+      __publicField(this, "queryOptions");
       this.storageApi = storageApi2;
       this.queryOptions = queryOptions;
     }
@@ -685,8 +684,9 @@ function requireEntityQuery() {
       return void 0;
     }
     async getMany() {
+      var _a;
       const maybeOptions = {
-        ...this.queryOptions?.metadataFields ? { options: { metadataFields: this.queryOptions.metadataFields } } : {}
+        ...((_a = this.queryOptions) == null ? void 0 : _a.metadataFields) ? { options: { metadataFields: this.queryOptions.metadataFields } } : {}
       };
       const { filters, filterOperator, metadataFields, ...rest } = this.queryOptions;
       if (filters && filterOperator && filters.length > 0) {
@@ -702,8 +702,8 @@ function requireEntityQuery() {
     }
   }
   class BaseFilter {
-    items;
     constructor(items = []) {
+      __publicField(this, "items");
       this.items = items;
     }
     filters() {
@@ -745,9 +745,9 @@ function requireEntity() {
   entity.EntityImpl = void 0;
   const entity_query_1 = requireEntityQuery();
   class EntityImpl {
-    entityName;
-    storageApi;
     constructor(entityName, storageApi2) {
+      __publicField(this, "entityName");
+      __publicField(this, "storageApi");
       this.entityName = entityName;
       this.storageApi = storageApi2;
     }
@@ -787,9 +787,9 @@ function requireQuery() {
   Object.defineProperty(query, "__esModule", { value: true });
   query.KvsQueryBuilder = void 0;
   class KvsQueryBuilder {
-    storageApi;
-    options;
     constructor(storageApi2, options = {}) {
+      __publicField(this, "storageApi");
+      __publicField(this, "options");
       this.storageApi = storageApi2;
       this.options = options;
     }
@@ -813,8 +813,9 @@ function requireQuery() {
       return void 0;
     }
     getMany() {
+      var _a;
       const maybeOptions = {
-        ...this.options?.metadataFields ? { options: { metadataFields: this.options.metadataFields } } : {}
+        ...((_a = this.options) == null ? void 0 : _a.metadataFields) ? { options: { metadataFields: this.options.metadataFields } } : {}
       };
       return this.storageApi.query({
         limit: this.options.limit,
@@ -856,21 +857,21 @@ function requireErrors$1() {
   errors$1.ForgeKvsAPIError = errors$1.ForgeKvsError = void 0;
   const version_1 = requireVersion();
   class ForgeKvsError extends Error {
-    packageVersion;
     constructor(message, packageVersion = version_1.PACKAGE_VERSION) {
       super(message);
+      __publicField(this, "packageVersion");
       this.name = "ForgeKvsError";
       this.packageVersion = packageVersion;
     }
   }
   errors$1.ForgeKvsError = ForgeKvsError;
   class ForgeKvsAPIError extends ForgeKvsError {
-    responseDetails;
-    code;
-    message;
-    context;
     constructor(responseDetails, forgeError) {
       super(forgeError.message);
+      __publicField(this, "responseDetails");
+      __publicField(this, "code");
+      __publicField(this, "message");
+      __publicField(this, "context");
       const { status, statusText, traceId, httpMethod, httpPath, responseBodyLength } = responseDetails;
       this.responseDetails = { status, statusText, traceId, httpMethod, httpPath, responseBodyLength };
       const { code, message, context, ...bodyData } = forgeError;
@@ -902,8 +903,8 @@ function requireTransactionRequestBuilder() {
   }
   const buildRequestSet = (setOperation) => {
     const { key, value, entity: entity2, options } = setOperation;
-    const entityName = entity2?.entityName;
-    const conditions2 = buildConditionsRequest(entity2?.conditions);
+    const entityName = entity2 == null ? void 0 : entity2.entityName;
+    const conditions2 = buildConditionsRequest(entity2 == null ? void 0 : entity2.conditions);
     return {
       key,
       value,
@@ -915,8 +916,8 @@ function requireTransactionRequestBuilder() {
   transactionRequestBuilder.buildRequestSet = buildRequestSet;
   const buildRequestDeletes = (deleteOperation) => {
     const { key, entity: entity2 } = deleteOperation;
-    const entityName = entity2?.entityName;
-    const conditions2 = buildConditionsRequest(entity2?.conditions);
+    const entityName = entity2 == null ? void 0 : entity2.entityName;
+    const conditions2 = buildConditionsRequest(entity2 == null ? void 0 : entity2.conditions);
     return {
       key,
       entityName,
@@ -945,11 +946,11 @@ function requireTransactionApi() {
   transactionApi.TransactionBuilderImpl = void 0;
   const transaction_request_builder_1 = requireTransactionRequestBuilder();
   class TransactionBuilderImpl {
-    storageApi;
-    sets;
-    deletes;
-    checks;
     constructor(storageApi2, sets = [], deletes = [], checks = []) {
+      __publicField(this, "storageApi");
+      __publicField(this, "sets");
+      __publicField(this, "deletes");
+      __publicField(this, "checks");
       this.storageApi = storageApi2;
       this.sets = sets;
       this.deletes = deletes;
@@ -1019,8 +1020,8 @@ function requireKvs() {
   const query_1 = requireQuery();
   const transaction_api_1 = requireTransactionApi();
   class KvsImpl {
-    storageApi;
     constructor(storageApi2) {
+      __publicField(this, "storageApi");
       this.storageApi = storageApi2;
     }
     get(key, options) {
@@ -1113,8 +1114,8 @@ function requireErrorHandling() {
       status: response.status,
       statusText: response.statusText,
       traceId: extractTraceId(response),
-      httpMethod: requestContext?.httpMethod,
-      httpPath: requestContext?.httpPath,
+      httpMethod: requestContext == null ? void 0 : requestContext.httpMethod,
+      httpPath: requestContext == null ? void 0 : requestContext.httpPath,
       responseBodyLength: responseText.length
     };
   }
@@ -1158,8 +1159,8 @@ function requireStorageApi() {
     ResponseType2[ResponseType2["OPTIONAL"] = 2] = "OPTIONAL";
   })(ResponseType || (ResponseType = {}));
   class StorageApi {
-    apiClient;
     constructor(apiClient) {
+      __publicField(this, "apiClient");
       this.apiClient = apiClient;
     }
     async get(body) {
@@ -1288,10 +1289,11 @@ function requireStorageApi() {
       return parsedBody;
     }
     processGetResponse(response, options) {
+      var _a, _b, _c;
       if (response && options) {
-        const maybeCreatedAt = options.metadataFields?.includes(types_1.MetadataField.CREATED_AT) ? { createdAt: response.createdAt } : {};
-        const maybeUpdatedAt = options.metadataFields?.includes(types_1.MetadataField.UPDATED_AT) ? { updatedAt: response.updatedAt } : {};
-        const maybeExpireTime = options.metadataFields?.includes(types_1.MetadataField.EXPIRE_TIME) ? { expireTime: response.expireTime } : {};
+        const maybeCreatedAt = ((_a = options.metadataFields) == null ? void 0 : _a.includes(types_1.MetadataField.CREATED_AT)) ? { createdAt: response.createdAt } : {};
+        const maybeUpdatedAt = ((_b = options.metadataFields) == null ? void 0 : _b.includes(types_1.MetadataField.UPDATED_AT)) ? { updatedAt: response.updatedAt } : {};
+        const maybeExpireTime = ((_c = options.metadataFields) == null ? void 0 : _c.includes(types_1.MetadataField.EXPIRE_TIME)) ? { expireTime: response.expireTime } : {};
         return {
           key: response.key,
           value: response.value,
@@ -1300,18 +1302,19 @@ function requireStorageApi() {
           ...maybeExpireTime
         };
       }
-      return response?.value;
+      return response == null ? void 0 : response.value;
     }
     processSetResponse(response, options) {
+      var _a, _b, _c;
       if (!response) {
         return void 0;
       }
       return {
         key: response.key,
         value: response.value,
-        ...options.returnMetadataFields?.includes(types_1.MetadataField.CREATED_AT) && { createdAt: response.createdAt },
-        ...options.returnMetadataFields?.includes(types_1.MetadataField.UPDATED_AT) && { updatedAt: response.updatedAt },
-        ...options.returnMetadataFields?.includes(types_1.MetadataField.EXPIRE_TIME) && { expireTime: response.expireTime }
+        ...((_a = options.returnMetadataFields) == null ? void 0 : _a.includes(types_1.MetadataField.CREATED_AT)) && { createdAt: response.createdAt },
+        ...((_b = options.returnMetadataFields) == null ? void 0 : _b.includes(types_1.MetadataField.UPDATED_AT)) && { updatedAt: response.updatedAt },
+        ...((_c = options.returnMetadataFields) == null ? void 0 : _c.includes(types_1.MetadataField.EXPIRE_TIME)) && { expireTime: response.expireTime }
       };
     }
   }
@@ -1433,16 +1436,17 @@ function requireOut$4() {
     const kvs_1 = requireKvs();
     const storage_api_1 = requireStorageApi();
     function getFetchClient() {
+      var _a, _b;
       const runtime2 = commonjsGlobal.__forge_runtime__;
-      if (runtime2?.kvs?.url && runtime2?.kvs?.host) {
+      if (((_a = runtime2 == null ? void 0 : runtime2.kvs) == null ? void 0 : _a.url) && ((_b = runtime2 == null ? void 0 : runtime2.kvs) == null ? void 0 : _b.host)) {
         const { proxy, kvs: kvs3, tracing } = runtime2;
         return async function(path, options) {
           return await commonjsGlobal.__forge_fetch__({ type: "kvs" }, path, {
             ...options,
             headers: {
-              ...options?.headers,
+              ...options == null ? void 0 : options.headers,
               Authorization: `Bearer ${proxy.token}`,
-              Host: kvs3?.host,
+              Host: kvs3 == null ? void 0 : kvs3.host,
               "x-b3-traceid": tracing.traceId,
               "x-b3-spanid": tracing.spanId
             }
@@ -1487,7 +1491,7 @@ function requireErrors() {
   hasRequiredErrors = 1;
   (function(exports) {
     Object.defineProperty(exports, "__esModule", { value: true });
-    exports.ApiNotReadyError = exports.ProxyRequestError = exports.InvalidContainerServiceError = exports.InvalidRemoteError = exports.NeedsAuthenticationError = exports.InvalidWorkspaceRequestedError = exports.RequestProductNotAllowedError = exports.ProductEndpointNotAllowedError = exports.ExternalEndpointNotAllowedError = exports.NotAllowedError = exports.FetchError = exports.HttpError = exports.API_NOT_READY_ERR = exports.PROXY_ERR = exports.INVALID_CONTAINER_SERVICE_ERR = exports.INVALID_REMOTE_ERR = exports.NEEDS_AUTHENTICATION_ERR = exports.FUNCTION_FETCH_ERR = exports.REQUEST_EGRESS_ALLOWLIST_ERR = exports.FUNCTION_ERR = void 0;
+    exports.ApiNotReadyError = exports.SendEmailError = exports.ProxyRequestError = exports.InvalidContainerServiceError = exports.InvalidRemoteError = exports.NeedsAuthenticationError = exports.InvalidWorkspaceRequestedError = exports.RequestProductNotAllowedError = exports.ProductEndpointNotAllowedError = exports.ExternalEndpointNotAllowedError = exports.NotAllowedError = exports.FetchError = exports.HttpError = exports.API_NOT_READY_ERR = exports.SEND_EMAIL_ERR = exports.PROXY_ERR = exports.INVALID_CONTAINER_SERVICE_ERR = exports.INVALID_REMOTE_ERR = exports.NEEDS_AUTHENTICATION_ERR = exports.FUNCTION_FETCH_ERR = exports.REQUEST_EGRESS_ALLOWLIST_ERR = exports.FUNCTION_ERR = void 0;
     exports.isForgePlatformError = isForgePlatformError;
     exports.isHostedCodeError = isHostedCodeError;
     exports.isExpectedError = isExpectedError;
@@ -1498,6 +1502,7 @@ function requireErrors() {
     exports.INVALID_REMOTE_ERR = "INVALID_REMOTE_ERR";
     exports.INVALID_CONTAINER_SERVICE_ERR = "INVALID_CONTAINER_SERVICE_ERR";
     exports.PROXY_ERR = "PROXY_ERR";
+    exports.SEND_EMAIL_ERR = "SEND_EMAIL_ERR";
     exports.API_NOT_READY_ERR = "API_NOT_READY_ERR";
     function isForgePlatformError(err) {
       return [
@@ -1505,19 +1510,27 @@ function requireErrors() {
         exports.FUNCTION_FETCH_ERR,
         exports.NEEDS_AUTHENTICATION_ERR,
         exports.PROXY_ERR,
+        exports.SEND_EMAIL_ERR,
         exports.API_NOT_READY_ERR
       ].includes(err.name);
     }
     function isHostedCodeError(err) {
-      return [exports.FUNCTION_ERR, exports.REQUEST_EGRESS_ALLOWLIST_ERR, exports.FUNCTION_FETCH_ERR, exports.NEEDS_AUTHENTICATION_ERR].includes(typeof err === "string" ? err : err.name);
+      return [
+        exports.FUNCTION_ERR,
+        exports.REQUEST_EGRESS_ALLOWLIST_ERR,
+        exports.FUNCTION_FETCH_ERR,
+        exports.NEEDS_AUTHENTICATION_ERR,
+        exports.SEND_EMAIL_ERR
+      ].includes(typeof err === "string" ? err : err.name);
     }
     function isExpectedError(err) {
-      return err.name === exports.NEEDS_AUTHENTICATION_ERR && !!err.options?.isExpectedError;
+      var _a;
+      return err.name === exports.NEEDS_AUTHENTICATION_ERR && !!((_a = err.options) == null ? void 0 : _a.isExpectedError);
     }
     class HttpError extends Error {
-      status;
       constructor(message) {
         super(message);
+        __publicField(this, "status");
       }
     }
     exports.HttpError = HttpError;
@@ -1563,10 +1576,10 @@ function requireErrors() {
     }
     exports.InvalidWorkspaceRequestedError = InvalidWorkspaceRequestedError;
     class NeedsAuthenticationError extends HttpError {
-      serviceKey;
-      options;
       constructor(error, serviceKey, options) {
         super(error);
+        __publicField(this, "serviceKey");
+        __publicField(this, "options");
         this.serviceKey = serviceKey;
         this.options = options;
         this.stack = void 0;
@@ -1576,9 +1589,9 @@ function requireErrors() {
     }
     exports.NeedsAuthenticationError = NeedsAuthenticationError;
     class InvalidRemoteError extends HttpError {
-      remoteKey;
       constructor(error, remoteKey) {
         super(error);
+        __publicField(this, "remoteKey");
         this.remoteKey = remoteKey;
         this.name = exports.INVALID_REMOTE_ERR;
         this.status = 400;
@@ -1586,9 +1599,9 @@ function requireErrors() {
     }
     exports.InvalidRemoteError = InvalidRemoteError;
     class InvalidContainerServiceError extends HttpError {
-      serviceKey;
       constructor(error, serviceKey) {
         super(error);
+        __publicField(this, "serviceKey");
         this.serviceKey = serviceKey;
         this.name = exports.INVALID_CONTAINER_SERVICE_ERR;
         this.status = 400;
@@ -1596,16 +1609,33 @@ function requireErrors() {
     }
     exports.InvalidContainerServiceError = InvalidContainerServiceError;
     class ProxyRequestError extends HttpError {
-      status;
-      errorCode;
       constructor(status, errorCode) {
         super(`Forge platform failed to process runtime HTTP request - ${status} - ${errorCode}`);
+        __publicField(this, "status");
+        __publicField(this, "errorCode");
         this.status = status;
         this.errorCode = errorCode;
         this.name = exports.PROXY_ERR;
       }
     }
     exports.ProxyRequestError = ProxyRequestError;
+    class SendEmailError extends HttpError {
+      constructor(status, errorCode, code, responseCode, command) {
+        super(`Failed to send email with error code: ${errorCode}`);
+        __publicField(this, "status");
+        __publicField(this, "errorCode");
+        __publicField(this, "code");
+        __publicField(this, "responseCode");
+        __publicField(this, "command");
+        this.status = status;
+        this.errorCode = errorCode;
+        this.code = code;
+        this.responseCode = responseCode;
+        this.command = command;
+        this.name = exports.SEND_EMAIL_ERR;
+      }
+    }
+    exports.SendEmailError = SendEmailError;
     class ApiNotReadyError extends Error {
       constructor(message = "Forge API currently not available") {
         super(message);
@@ -1629,8 +1659,8 @@ function requireSafeUrl_1() {
   safeUrl.requireSafeUrl = requireSafeUrl;
   safeUrl.assumeTrustedRoute = assumeTrustedRoute;
   class ReadonlyRoute {
-    value_;
     constructor(value_) {
+      __publicField(this, "value_");
       this.value_ = value_;
     }
     set value(_) {
@@ -1808,30 +1838,30 @@ function requireRuntime() {
   }
   runtime.Permissions = Permissions;
   class RuntimePermissions extends Permissions {
-    scopes;
-    external;
     constructor(scopes, external) {
       super();
+      __publicField(this, "scopes");
+      __publicField(this, "external");
       this.scopes = scopes;
       this.external = external;
     }
   }
   runtime.RuntimePermissions = RuntimePermissions;
   class PermissionRequirements extends Permissions {
-    scopes;
-    external;
     constructor(scopes, external) {
       super();
+      __publicField(this, "scopes");
+      __publicField(this, "external");
       this.scopes = scopes;
       this.external = external;
     }
   }
   runtime.PermissionRequirements = PermissionRequirements;
   class MissingPermissions extends Permissions {
-    scopes;
-    external;
     constructor(scopes, external) {
       super();
+      __publicField(this, "scopes");
+      __publicField(this, "external");
       this.scopes = scopes;
       this.external = external;
     }
@@ -1861,7 +1891,7 @@ function requireRuntime() {
       moduleKey,
       license,
       installation,
-      permissions: new RuntimePermissions(permissions2?.scopes || [], permissions2?.external || {})
+      permissions: new RuntimePermissions((permissions2 == null ? void 0 : permissions2.scopes) || [], (permissions2 == null ? void 0 : permissions2.external) || {})
     };
   }
   function wrapInMetrics(name2, fn) {
@@ -1946,7 +1976,7 @@ function requireFetch() {
     }
     function findExternalAuthProviderConfigOrThrow(provider) {
       const { externalAuth } = (0, runtime_1.__getRuntime)();
-      const externalAuthProvider = externalAuth?.find((externalAuthMetaData) => {
+      const externalAuthProvider = externalAuth == null ? void 0 : externalAuth.find((externalAuthMetaData) => {
         return externalAuthMetaData.service === provider;
       });
       if (!externalAuthProvider) {
@@ -2230,7 +2260,7 @@ function requireConfluence() {
   const getPermissionsCheckFactory = (requestConfluence, accountId, contentId) => (permission) => {
     return async () => {
       const res = await checkConfluencePermissions(requestConfluence, accountId, contentId, permission);
-      return Boolean(res?.hasPermission);
+      return Boolean(res == null ? void 0 : res.hasPermission);
     };
   };
   const authorizeConfluenceWithFetch = (requestConfluence, accountId) => {
@@ -2300,9 +2330,10 @@ function requireJira() {
     return res;
   };
   const hasPermissionsForEntities = (projectPermissions, permission, type, entities) => {
+    var _a;
     if (!entities || entities.length === 0)
       return true;
-    const allowedEntities = projectPermissions.find((permissionResponse) => permissionResponse.permission === permission)?.[type];
+    const allowedEntities = (_a = projectPermissions.find((permissionResponse) => permissionResponse.permission === permission)) == null ? void 0 : _a[type];
     return !!allowedEntities && arrayEquals(allowedEntities, entities);
   };
   const getPermissionCheckFactory = (requestJira, accountId, type, entities) => (permission) => {
@@ -2420,6 +2451,7 @@ function requireWebTrigger() {
   const runtime_1 = requireRuntime();
   const fetch_1 = requireFetch();
   const proxyGetWebTriggerURL = (0, runtime_1.wrapInMetrics)("api.getWebTriggerUrl", async (webTriggerModuleKey, forceCreate, secretKeyConfig) => {
+    var _a, _b;
     const runtime2 = (0, runtime_1.__getRuntime)();
     const input = {
       appId: runtime2.appContext.appId,
@@ -2454,12 +2486,13 @@ function requireWebTrigger() {
       throw new Error(`Internal error occurred: Failed to get web trigger URL: ${response.statusText}.`);
     }
     const responseBody = await response.json();
-    if (!responseBody?.data?.createWebTriggerUrl?.url) {
+    if (!((_b = (_a = responseBody == null ? void 0 : responseBody.data) == null ? void 0 : _a.createWebTriggerUrl) == null ? void 0 : _b.url)) {
       throw new Error(`Internal error occurred: Failed to get web trigger URL.`);
     }
     return responseBody.data.createWebTriggerUrl.url;
   });
   const proxyDeleteWebTriggerURL = (0, runtime_1.wrapInMetrics)("api.deleteWebTriggerUrl", async (webTriggerUrl) => {
+    var _a, _b, _c, _d;
     const webTriggerUrlIdRegexGroupMatch = /\/(?:x1|public)\/([^\/\?\#]+)/;
     const matches = webTriggerUrl.match(webTriggerUrlIdRegexGroupMatch);
     if (!matches || matches.length < 2) {
@@ -2487,12 +2520,13 @@ function requireWebTrigger() {
       throw new Error(`Internal error occurred: Failed to delete web trigger URL: ${response.statusText}.`);
     }
     const responseBody = await response.json();
-    if (!responseBody?.data?.deleteWebTriggerUrl?.success) {
-      const errorText = responseBody?.data?.deleteWebTriggerUrl?.message || "unknown error";
+    if (!((_b = (_a = responseBody == null ? void 0 : responseBody.data) == null ? void 0 : _a.deleteWebTriggerUrl) == null ? void 0 : _b.success)) {
+      const errorText = ((_d = (_c = responseBody == null ? void 0 : responseBody.data) == null ? void 0 : _c.deleteWebTriggerUrl) == null ? void 0 : _d.message) || "unknown error";
       throw new Error(`Internal error occurred: Failed to delete web trigger URL: ${errorText}`);
     }
   });
   const proxyQueryWebTriggerURLs = (0, runtime_1.wrapInMetrics)("api.queryWebTriggerUrls", async (moduleKey) => {
+    var _a;
     const runtime2 = (0, runtime_1.__getRuntime)();
     const response = await (0, fetch_1.__requestAtlassianAsApp)("/graphql", {
       method: "POST",
@@ -2517,7 +2551,7 @@ function requireWebTrigger() {
       throw new Error(`Internal error occurred: Failed to get web trigger URLs: ${response.statusText}.`);
     }
     const responseBody = await response.json();
-    if (!responseBody?.data?.webTriggerUrlsByAppContext) {
+    if (!((_a = responseBody == null ? void 0 : responseBody.data) == null ? void 0 : _a.webTriggerUrlsByAppContext)) {
       throw new Error("Internal error occurred: No data from web trigger URLs query.");
     }
     let result = responseBody.data.webTriggerUrlsByAppContext;
@@ -2532,7 +2566,7 @@ function requireWebTrigger() {
   });
   webTrigger.webTrigger = {
     getUrl: async (webTriggerModuleKey, optionsOrForceCreate) => {
-      const forceCreate = typeof optionsOrForceCreate === "boolean" ? optionsOrForceCreate : optionsOrForceCreate?.forceCreate ?? false;
+      const forceCreate = typeof optionsOrForceCreate === "boolean" ? optionsOrForceCreate : (optionsOrForceCreate == null ? void 0 : optionsOrForceCreate.forceCreate) ?? false;
       const secretKeyConfig = typeof optionsOrForceCreate === "object" && optionsOrForceCreate !== null ? optionsOrForceCreate.secretKeyConfig : void 0;
       return proxyGetWebTriggerURL(webTriggerModuleKey, forceCreate, secretKeyConfig);
     },
@@ -2602,10 +2636,10 @@ function requireTranslationsGetter() {
   }
   translationsGetter.TranslationGetterError = TranslationGetterError;
   class TranslationsGetter {
-    resourcesAccessor;
-    i18nInfoConfig = null;
-    translationResources = /* @__PURE__ */ new Map();
     constructor(resourcesAccessor) {
+      __publicField(this, "resourcesAccessor");
+      __publicField(this, "i18nInfoConfig", null);
+      __publicField(this, "translationResources", /* @__PURE__ */ new Map());
       this.resourcesAccessor = resourcesAccessor;
     }
     async getTranslations(locale, options = { fallback: true }) {
@@ -3549,11 +3583,11 @@ function requireTranslator() {
   translator.Translator = void 0;
   const translationValueGetter_1 = requireTranslationValueGetter();
   class Translator {
-    locale;
-    translationsGetter;
-    localeLookupOrderedTranslations = null;
-    cache = /* @__PURE__ */ new Map();
     constructor(locale, translationsGetter2) {
+      __publicField(this, "locale");
+      __publicField(this, "translationsGetter");
+      __publicField(this, "localeLookupOrderedTranslations", null);
+      __publicField(this, "cache", /* @__PURE__ */ new Map());
       this.locale = locale;
       this.translationsGetter = translationsGetter2;
     }
@@ -3627,7 +3661,7 @@ function requireModuleI18nHelper() {
       return typeof value === "object" && value !== null && !Array.isArray(value);
     };
     const isI18nValue = (value) => {
-      return typeof value?.i18n === "string";
+      return typeof (value == null ? void 0 : value.i18n) === "string";
     };
     const isConnectModuleKey = (moduleKey) => moduleKey.startsWith("connect-");
     const isCoreModuleKey = (moduleKey) => moduleKey.startsWith("core:");
@@ -4122,7 +4156,7 @@ function requirePermissions() {
         const requiredUrls = requiredFetch[fetchType];
         if (!requiredUrls || !Array.isArray(requiredUrls) || requiredUrls.length === 0)
           return;
-        const missingUrls = getMissingUrls(requiredUrls, currentlyGrantedFetch?.[fetchType] ?? [], fetchType === "client");
+        const missingUrls = getMissingUrls(requiredUrls, (currentlyGrantedFetch == null ? void 0 : currentlyGrantedFetch[fetchType]) ?? [], fetchType === "client");
         if (missingUrls.length) {
           missingFetch[fetchType] = missingUrls.map(extractUrlString);
         }

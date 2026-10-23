@@ -1,4 +1,4 @@
-import { F as ForgeReconciler, R as React, r as reactExports, o as outExports, a as outExports$1, l as label } from './chunks/shared-47Si1RVz.js';
+import { F as ForgeReconciler, R as React, r as reactExports, o as outExports, a as outExports$1, l as label } from './chunks/shared-Dyv9WOwu.js';
 
 const Settings = () => {
   const [data, setData] = reactExports.useState(null);

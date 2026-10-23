@@ -1508,7 +1508,7 @@ var require_errors2 = __commonJS({
   "node_modules/@forge/api/out/api/errors.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
-    exports2.ApiNotReadyError = exports2.ProxyRequestError = exports2.InvalidContainerServiceError = exports2.InvalidRemoteError = exports2.NeedsAuthenticationError = exports2.InvalidWorkspaceRequestedError = exports2.RequestProductNotAllowedError = exports2.ProductEndpointNotAllowedError = exports2.ExternalEndpointNotAllowedError = exports2.NotAllowedError = exports2.FetchError = exports2.HttpError = exports2.API_NOT_READY_ERR = exports2.PROXY_ERR = exports2.INVALID_CONTAINER_SERVICE_ERR = exports2.INVALID_REMOTE_ERR = exports2.NEEDS_AUTHENTICATION_ERR = exports2.FUNCTION_FETCH_ERR = exports2.REQUEST_EGRESS_ALLOWLIST_ERR = exports2.FUNCTION_ERR = void 0;
+    exports2.ApiNotReadyError = exports2.SendEmailError = exports2.ProxyRequestError = exports2.InvalidContainerServiceError = exports2.InvalidRemoteError = exports2.NeedsAuthenticationError = exports2.InvalidWorkspaceRequestedError = exports2.RequestProductNotAllowedError = exports2.ProductEndpointNotAllowedError = exports2.ExternalEndpointNotAllowedError = exports2.NotAllowedError = exports2.FetchError = exports2.HttpError = exports2.API_NOT_READY_ERR = exports2.SEND_EMAIL_ERR = exports2.PROXY_ERR = exports2.INVALID_CONTAINER_SERVICE_ERR = exports2.INVALID_REMOTE_ERR = exports2.NEEDS_AUTHENTICATION_ERR = exports2.FUNCTION_FETCH_ERR = exports2.REQUEST_EGRESS_ALLOWLIST_ERR = exports2.FUNCTION_ERR = void 0;
     exports2.isForgePlatformError = isForgePlatformError;
     exports2.isHostedCodeError = isHostedCodeError;
     exports2.isExpectedError = isExpectedError;
@@ -1519,6 +1519,7 @@ var require_errors2 = __commonJS({
     exports2.INVALID_REMOTE_ERR = "INVALID_REMOTE_ERR";
     exports2.INVALID_CONTAINER_SERVICE_ERR = "INVALID_CONTAINER_SERVICE_ERR";
     exports2.PROXY_ERR = "PROXY_ERR";
+    exports2.SEND_EMAIL_ERR = "SEND_EMAIL_ERR";
     exports2.API_NOT_READY_ERR = "API_NOT_READY_ERR";
     function isForgePlatformError(err) {
       return [
@@ -1526,11 +1527,18 @@ var require_errors2 = __commonJS({
         exports2.FUNCTION_FETCH_ERR,
         exports2.NEEDS_AUTHENTICATION_ERR,
         exports2.PROXY_ERR,
+        exports2.SEND_EMAIL_ERR,
         exports2.API_NOT_READY_ERR
       ].includes(err.name);
     }
     function isHostedCodeError(err) {
-      return [exports2.FUNCTION_ERR, exports2.REQUEST_EGRESS_ALLOWLIST_ERR, exports2.FUNCTION_FETCH_ERR, exports2.NEEDS_AUTHENTICATION_ERR].includes(typeof err === "string" ? err : err.name);
+      return [
+        exports2.FUNCTION_ERR,
+        exports2.REQUEST_EGRESS_ALLOWLIST_ERR,
+        exports2.FUNCTION_FETCH_ERR,
+        exports2.NEEDS_AUTHENTICATION_ERR,
+        exports2.SEND_EMAIL_ERR
+      ].includes(typeof err === "string" ? err : err.name);
     }
     function isExpectedError(err) {
       return err.name === exports2.NEEDS_AUTHENTICATION_ERR && !!err.options?.isExpectedError;
@@ -1627,6 +1635,23 @@ var require_errors2 = __commonJS({
       }
     };
     exports2.ProxyRequestError = ProxyRequestError;
+    var SendEmailError = class extends HttpError {
+      status;
+      errorCode;
+      code;
+      responseCode;
+      command;
+      constructor(status, errorCode, code, responseCode, command) {
+        super(`Failed to send email with error code: ${errorCode}`);
+        this.status = status;
+        this.errorCode = errorCode;
+        this.code = code;
+        this.responseCode = responseCode;
+        this.command = command;
+        this.name = exports2.SEND_EMAIL_ERR;
+      }
+    };
+    exports2.SendEmailError = SendEmailError;
     var ApiNotReadyError = class extends Error {
       constructor(message = "Forge API currently not available") {
         super(message);
