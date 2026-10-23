@@ -36,5 +36,7 @@ LAB_DOM=jsdom node --import ../../dist/loader/register.js run.mjs  # jsdom globa
 ```
 
 Results land in `RESULTS-<mode>.md` / `results-<mode>.json` (gitignored —
-per-machine measurements, not fixtures). Findings are summarized in
-`bundled-reliability.md` at the repo root.
+per-machine measurements, not fixtures). Lasting findings live where they
+act: parity requirements in `bundler-spec-contract.test.ts`, real bundler
+output as `src/__tests__/fixtures/bundler-matrix/` (regenerated via
+`export-fixtures.mjs`), and open questions in `deferred-issues.md`.

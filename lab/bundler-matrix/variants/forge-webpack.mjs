@@ -1,5 +1,6 @@
 // Replica of @forge/bundler 7.3.0's webpack config, read off the installed
-// Forge CLI (bundled-reliability.md, "Forge's real bundler, measured").
+// package (out/config/common.js, out/config/nativeui.js — the same modules
+// bundler-spec-contract.test.ts derives its assertions from).
 // Backend: getCommonWebpackConfig + NodeBundler — target node18, [name].cjs,
 // commonjs library, globalObject 'this', no externals, minimize false,
 // IgnorePlugin for the optional natives. Frontend: getNativeUiBuildConfig —
