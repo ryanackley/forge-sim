@@ -150,6 +150,19 @@ resources:
     const settingsDoc = await sim.ui.waitForContent('page-settings', 'from-settings-entry');
     expect(JSON.stringify(settingsDoc)).toContain('from-settings-entry');
   });
+
+  it('a second render of the same prebuilt module is a real re-evaluation (page-reload semantics)', async () => {
+    // The deferred bug: prebuilt bundles were imported by their real path
+    // with a `?t=` cache-bust, which vite-node STRIPS for externalized files
+    // (this appDir lives in os.tmpdir()) — so a second render was a silent
+    // cache hit: no top-level ForgeReconciler.render(), no reconcile frame,
+    // timeout. Each render now imports a fresh per-render copy of the .js
+    // graph, so this render must produce a fresh doc, not hang.
+    const again = await sim.ui.render('panel');
+    expect(JSON.stringify(again ?? {})).not.toContain('__timeout__');
+    const doc = await sim.ui.waitForContent('panel', 'resolved:prebuilt', 15_000);
+    expect(JSON.stringify(doc)).toContain('resolved:prebuilt');
+  });
 });
 
 describe('manual packaging: detectModuleType (dev server path)', () => {

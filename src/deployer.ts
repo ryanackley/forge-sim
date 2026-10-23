@@ -541,6 +541,12 @@ export interface ResolvedUiResource {
   filePaths?: string[];
   /** Custom UI only: HTML filename (relative to the dir) to serve as the page. */
   entryHtml?: string;
+  /**
+   * uikit-prebuilt only: the resource directory the scripts live in. Headless
+   * render copies the whole .js graph from here per render (chunks are
+   * imported relative to the entry, so the entry alone is not enough).
+   */
+  resourceDir?: string;
 }
 
 // Tag-level parsing instead of one mega-regex: Parcel's production optimizer
@@ -691,7 +697,7 @@ export async function resolveUiResourceEntry(
       );
     }
     const filePaths = scripts.map((s) => join(resourceDir, s));
-    return { kind: 'uikit-prebuilt', filePath: filePaths[filePaths.length - 1], filePaths };
+    return { kind: 'uikit-prebuilt', filePath: filePaths[filePaths.length - 1], filePaths, resourceDir };
   }
 
   // Multi-entry WITHOUT manual packaging: entry values are source files

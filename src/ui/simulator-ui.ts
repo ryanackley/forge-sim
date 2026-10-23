@@ -55,7 +55,7 @@ import type { ForgeSimulator } from '../simulator.js';
 import { setSimulator } from '../shims/globals.js';
 import { onViewEvent, resetViewEvents, type ViewEventType } from './view-events.js';
 import { pathToFileURL } from 'node:url';
-import { join as joinPath } from 'node:path';
+import { join as joinPath, dirname as dirnamePath, relative as relativePath } from 'node:path';
 import { rm } from 'node:fs/promises';
 import { bundleEntries, importEntry } from '../bundler.js';
 import { AsyncLocalStorage } from 'node:async_hooks';
@@ -248,6 +248,7 @@ export class SimulatorUI {
    * browser executes every one, so headless must import every one).
    */
   private prebuiltScriptPaths = new Map<string, string[]>();
+  private prebuiltResourceDirs = new Map<string, string>();
 
   /** Render listeners scoped per module */
   private moduleListeners = new Map<string, Array<(doc: ForgeDoc) => void>>();
@@ -845,6 +846,7 @@ export class SimulatorUI {
       if (prebuilt) {
         this.prebuiltResources.add(moduleKey);
         this.prebuiltScriptPaths.set(moduleKey, resolved.filePaths ?? [resourcePath]);
+        if (resolved.resourceDir) this.prebuiltResourceDirs.set(moduleKey, resolved.resourceDir);
       }
     }
 
@@ -948,27 +950,49 @@ export class SimulatorUI {
       // removed as soon as the import resolves: the module is in memory, and
       // its sourcemap is inline, so nothing reads it again.
       //
-      // PREBUILT (manual-packaged) bundles are imported as-is — real Forge
-      // uploads them unmodified. They carry the forge-sim-esm marker:
-      // browsers load entry scripts as <script type="module"> — always ESM —
-      // while Node infers .js format from the app's package.json. The loader
-      // hooks force ESM for marked URLs (and propagate the marker to the
-      // bundle's relative chunk imports) so both environments agree. Parcel's
-      // multi-entry HTML lists shared bundles before the entry bundle — a
-      // browser executes every module script in document order, so headless
-      // imports every one in order too (adversarial B2).
+      // PREBUILT (manual-packaged) bundles: copy the resource's .js graph
+      // into a fresh per-render directory and import THAT. Two problems, one
+      // move: (1) a page load is a full re-evaluation in a browser, and a
+      // fresh path is the only cache-bust every loader honours — the old
+      // `?t=` query was stripped by vite-node for externalized files (an app
+      // in os.tmpdir()), so a second render was a silent cache hit that never
+      // reconciled and timed out; (2) browsers load entry scripts as
+      // <script type="module"> — always ESM — while Node infers .js format
+      // from the nearest package.json, so the copy ships its own
+      // `{"type":"module"}`, replacing the loader-hook ESM marker. The whole
+      // graph comes along because chunks are imported relative to the entry
+      // (Vite assets/, Rollup chunks/). The directory is NOT removed after
+      // import — lazy chunks (iframe-resizer) may load mid-render —
+      // sweepStaleBundles reclaims render-* dirs. Parcel's multi-entry HTML
+      // lists shared bundles before the entry bundle — a browser executes
+      // every module script in document order, so headless imports every one
+      // in order too (adversarial B2).
       if (prebuilt) {
         const scriptPaths = this.prebuiltScriptPaths.get(moduleKey) ?? [resourcePath];
-        const stamp = Date.now();
+        const srcDir = this.prebuiltResourceDirs.get(moduleKey) ?? dirnamePath(resourcePath);
+        const renderDir = joinPath(appDir, '.forge-sim', 'bundles', `render-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+        const { readdir, mkdir: mkdirP, readFile: readFileP, writeFile: writeFileP } = await import('node:fs/promises');
+        await mkdirP(renderDir, { recursive: true });
+        await writeFileP(joinPath(renderDir, 'package.json'), '{ "type": "module" }');
+        for (const rel of await readdir(srcDir, { recursive: true })) {
+          if (!/\.(js|mjs|cjs)$/.test(rel)) continue;
+          const dest = joinPath(renderDir, rel);
+          await mkdirP(dirnamePath(dest), { recursive: true });
+          // read + write, not cp — see bundleEntries' cache-hit note on
+          // vite-node's pathological handling of cp() output.
+          await writeFileP(dest, await readFileP(joinPath(srcDir, rel)));
+        }
         for (const scriptPath of scriptPaths) {
-          const fileUrl = pathToFileURL(scriptPath).href;
+          const copied = joinPath(renderDir, relativePath(srcDir, scriptPath));
           try {
             // Browser parity for bundler runtimes that derive publicPath from
-            // document.currentScript.src at module eval (adversarial A). Only
-            // touches our headless stub; cleared in finally like a browser
-            // clears it when script evaluation ends.
-            setStubCurrentScript(fileUrl);
-            await import(fileUrl + '?t=' + stamp + '&forge-sim-esm=1');
+            // document.currentScript.src at module eval (adversarial A) — the
+            // ORIGINAL script URL, so assets resolve against the real
+            // resource dir, not the copy. Only touches our headless stub;
+            // cleared in finally like a browser clears it when script
+            // evaluation ends.
+            setStubCurrentScript(pathToFileURL(scriptPath).href);
+            await import(pathToFileURL(copied).href);
           } catch (importErr: any) {
             // Prebuilt bundles sometimes touch browser globals at module-eval
             // time (CSS injection helpers, polyfills beyond the stubbed
@@ -1528,6 +1552,7 @@ export class SimulatorUI {
     this.resolvedResources.clear();
     this.prebuiltResources.clear();
     this.prebuiltScriptPaths.clear();
+    this.prebuiltResourceDirs.clear();
     this.viewEventListeners.clear();
     this.activeModuleKey = null;
     // Clear the per-render resolver context overlay — UI is gone, so post-
@@ -1548,6 +1573,7 @@ export class SimulatorUI {
     this.resolvedResources.clear();
     this.prebuiltResources.clear();
     this.prebuiltScriptPaths.clear();
+    this.prebuiltResourceDirs.clear();
     this.moduleListeners.clear();
     this.viewEventListeners.clear();
     if (this.viewEventUnbind) {
