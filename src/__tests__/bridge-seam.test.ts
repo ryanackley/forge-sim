@@ -74,6 +74,23 @@ describe('globalThis.__bridge is installed by the ForgeSimulator constructor', (
     expect(typeof g.addEventListener).toBe('undefined');
   });
 
+  it('answers the iframe-resizer contentWindow evaluation path: parent.postMessage on a loaded document', () => {
+    // node_modules/iframe-resizer/js/iframeResizer.contentWindow.js (via
+    // @forge/bridge's ADF renderer view) runs at module evaluation:
+    //   if ('loading' !== document.readyState) window.parent.postMessage('[iFrameResizerChild]Ready', '*')
+    // Headless, the simulator is the host and talks through __bridge, so the
+    // message has nowhere to go — but it must not be a TypeError.
+    createSimulator();
+    const g = globalThis as any;
+    expect(g.document.readyState).toBe('complete');
+    expect(g.window.parent).toBe(g.window);
+    expect(g.window.top).toBe(g.window);
+    expect(() => {
+      if ('loading' !== g.document.readyState) g.window.parent.postMessage('[iFrameResizerChild]Ready', '*');
+    }).not.toThrow();
+    expect(typeof g.postMessage).toBe('undefined');
+  });
+
   it('the REAL @forge/bridge evaluates and answers a frame, with no sim.ui.render() involved', async () => {
     const sim = createSimulator();
     // CJS require → the real package, not the aliased shim. It captures

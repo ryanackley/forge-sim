@@ -220,6 +220,9 @@ function installDocumentStub(): void {
 
   (globalThis as any).document = {
     __forgeSimStub: true,
+    // Module and deferred scripts run after parsing, so a bundle never sees
+    // 'loading' — iframe-resizer branches on exactly this at evaluation.
+    readyState: 'complete',
     // null (not undefined) outside script evaluation — browser parity.
     // simulator-ui points this at the bundle being imported via
     // setStubCurrentScript(): webpack/Rspack's `publicPath: 'auto'` runtime
@@ -432,6 +435,17 @@ const TRAMPOLINE_MARK = Symbol.for('forge-sim.bridge-trampoline');
  * EventTarget behind add/remove/dispatchEvent and self-referential
  * `window`/`self`. Nothing is added to globalThis itself, so backend bundles
  * sharing the process see no new browser API.
+ *
+ * `parent`/`top` are the window itself and `postMessage` is inert. A Forge
+ * app runs in an iframe whose parent is the Atlassian host page; headless,
+ * the simulator IS the host, and it speaks to the app through `__bridge`,
+ * not postMessage — so a message to the parent has no one to reach, which
+ * is also what a top-level page's `window.parent` (itself) does with a
+ * message nobody listens for. iframe-resizer's contentWindow script posts
+ * `[iFrameResizerChild]Ready` to `window.parent` AT MODULE EVALUATION
+ * whenever `document.readyState !== 'loading'`; without these answers that
+ * is a TypeError inside whatever loaded it (@forge/bridge's ADF renderer
+ * view).
  */
 function createHeadlessWindow(): any {
   const events = new EventTarget();
@@ -439,10 +453,12 @@ function createHeadlessWindow(): any {
     addEventListener: { value: events.addEventListener.bind(events) },
     removeEventListener: { value: events.removeEventListener.bind(events) },
     dispatchEvent: { value: events.dispatchEvent.bind(events) },
+    postMessage: { value: () => {} },
     __forgeSimHeadlessWindow: { value: true },
   });
-  Object.defineProperty(win, 'window', { value: win, enumerable: true });
-  Object.defineProperty(win, 'self', { value: win, enumerable: true });
+  for (const alias of ['window', 'self', 'parent', 'top']) {
+    Object.defineProperty(win, alias, { value: win, enumerable: true });
+  }
   return win;
 }
 

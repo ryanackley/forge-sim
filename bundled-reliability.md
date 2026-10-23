@@ -416,6 +416,20 @@ Results (`results-{stub,jsdom}.json`):
   `"type": "module"` (`nearestPackageType` in `deployer.ts`, Node's own
   rule). The lab keeps the Vite ESM backend only as a negative control whose
   `std-warning` phase asserts the warning fires.
+- **Follow-ups landed (2026-10-23).** (a) `MANUAL_FILE_EXTENSIONS` dropped
+  `.tsx`/`.jsx`: the standard allows only extensions Node can load, and the
+  sim's loader hooks transpiling JSX made a handler resolvable here that
+  crashes on Forge. `.ts` stays (Node 22.18+ strips types) with its warning.
+  (b) The headless window now answers `parent`/`top` (itself) and
+  `postMessage` (inert), and the stub document reports
+  `readyState: 'complete'`: iframe-resizer's contentWindow script calls
+  `window.parent.postMessage('[iFrameResizerChild]Ready')` AT EVALUATION
+  when readyState isn't 'loading'. A reported Rollup flake did not reproduce
+  (10/10 passes across stub and jsdom modes); in the current bundle
+  iframe-resizer is only reached inside `@forge/bridge`'s
+  `createAdfRendererIframeProps`, i.e. when an ADF renderer view is used,
+  whereas the first lab build evaluated it at top level — so the path is
+  real and now answered either way.
 - Not measured: Custom UI resources, the dev-server/browser path, repeated
   renders, `__`-prefixed reserved names, Parcel's `<script type=importmap>`
   in a browser.
