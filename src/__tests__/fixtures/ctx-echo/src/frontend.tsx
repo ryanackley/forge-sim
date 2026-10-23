@@ -1,6 +1,6 @@
 import ForgeReconciler, { Text, Stack } from '@forge/react';
 import { invoke } from '@forge/bridge';
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 
 /**
  * Renders what the RESOLVER (not the frontend) sees in its context —

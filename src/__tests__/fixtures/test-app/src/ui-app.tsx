@@ -4,7 +4,7 @@
  * This is a realistic Forge app: the UI calls invoke() to fetch data
  * from the resolver, which in turn calls Jira APIs and uses KVS.
  */
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import ForgeReconciler, { Text, Button, Stack, Box } from '@forge/react';
 import { invoke } from '@forge/bridge';
 

@@ -5,6 +5,7 @@
  * exported from '@forge/react'. Used to verify the sim matches (UIK-003)
  * instead of silently passing the host element through.
  */
+import React from 'react';
 import ForgeReconciler, { Text } from '@forge/react';
 
 const RawHtmlApp = () => (

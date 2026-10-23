@@ -159,7 +159,7 @@ Three consequences the deployer handles:
 
 - **Cache busting without a bundle.** The entry import gets a per-deploy query string, and the app's slice of the CommonJS `require` cache is evicted before each deploy (realpath-aware — `require.cache` keys are realpaths and macOS tmpdirs are symlinks). Transitive **native-ESM** files inside the package dir have no evictable cache; rebuilds that touch helpers should also touch the entry, which content-hashing bundlers do anyway.
 - **CJS `@forge/*` interception.** Manual output is typically TypeScript-compiled CJS, and `require('@forge/api')` bypasses the ESM loader hooks entirely. A scoped `Module._resolveFilename` patch (`src/loader/cjs-interception.ts`) maps shim names — only for requests from inside a deployed app dir, never from `node_modules/@forge/` (real packages' internal cross-requires stay native), and never from forge-sim's own shims, whose fallthrough requires *depend* on bypassing interception.
-- **Handler extensions follow Forge lint**: `.js`/`.cjs` (plus TS sources with a parity warning). No `.mjs` — lint rejects it; ship ESM as `.js` + `"type": "module"`.
+- **Handler extensions follow the packaging standard**: `.js`/`.cjs`, plus `.ts` with a parity warning (Node 22.18+ strips types). No `.tsx`/`.jsx` — Node can't load JSX. No `.mjs` — lint rejects it. Handlers must be CommonJS; an ESM `.js` under `"type": "module"` loads but draws a deploy warning.
 - **Bundled `@forge/resolver`** — see below; the one shimmed package with no runtime seam.
 
 ### Bundled `@forge/*` backends are the normal case

@@ -8,6 +8,7 @@
  * Initial render shows Router's "History is not defined" SectionMessage until
  * the createHistory effect settles — tests must wait for routed content.
  */
+import React from 'react';
 import ForgeReconciler, { Text, Button } from '@forge/react';
 import { Router, Route, useNavigate, useLocation, useParams } from '@forge/react/router';
 

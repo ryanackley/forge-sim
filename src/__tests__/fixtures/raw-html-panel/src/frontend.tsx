@@ -3,6 +3,7 @@
  * Real Forge rejects this — the sim's test API / MCP surface must hard-fail
  * with UIKitRawHtmlError (spec UIK-003).
  */
+import React from 'react';
 import ForgeReconciler, { Text } from '@forge/react';
 
 const App = () => {

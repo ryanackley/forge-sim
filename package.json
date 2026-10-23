@@ -98,6 +98,7 @@
   },
   "devDependencies": {
     "@forge/bridge": "^7.1.0",
+    "@forge/bundler": "^7.3.0",
     "@forge/confluence-bridge": "^3.1.0",
     "@forge/dashboards-bridge": "^0.1.17",
     "@forge/events": "^3.0.7",

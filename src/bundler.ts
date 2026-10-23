@@ -105,7 +105,7 @@ const BUNDLER_FINGERPRINT = createHash('sha1').update(readFileSync(HERE)).digest
  * measured, not assumed. `__dirname` points at the bundle, as it does in
  * Forge's bundled output.
  */
-const NODE_BANNER = [
+export const NODE_BANNER = [
   `import { createRequire as __forgeSimCreateRequire } from 'node:module';`,
   `import { fileURLToPath as __forgeSimFileURLToPath } from 'node:url';`,
   `import { dirname as __forgeSimDirname } from 'node:path';`,
@@ -113,6 +113,74 @@ const NODE_BANNER = [
   `const __filename = __forgeSimFileURLToPath(import.meta.url);`,
   `const __dirname = __forgeSimDirname(__filename);`,
 ].join('\n');
+
+/**
+ * Extension resolution order, mirrored from @forge/bundler's webpack
+ * `resolve.extensions` — backend from config/common.js, frontend from
+ * config/nativeui.js minus the image types (esbuild would need loaders for
+ * those; Forge serves them as asset/resource URLs). Order only matters when
+ * siblings differ by extension, but `.ts` before `.tsx` and `.js` before
+ * `.jsx` is Forge's order, not esbuild's default (`.tsx` first). Asserted
+ * against the installed package by bundler-spec-contract.test.ts.
+ */
+export const RESOLVE_EXTENSIONS: Record<BundlePlatform, string[]> = {
+  node: ['.ts', '.tsx', '.js', '.jsx', '.json', '.cjs'],
+  browser: ['.ts', '.tsx', '.js', '.jsx'],
+};
+
+/**
+ * Where the sim's esbuild output KNOWINGLY differs from Forge's webpack
+ * output. The contract test asserts each entry in both directions — if
+ * Atlassian changes their side or we change ours, it fails and the record
+ * must be revisited rather than quietly drift. Keep the reasons honest.
+ */
+export const KNOWN_SPEC_DEVIATIONS = {
+  outputFormat: {
+    forge: 'commonjs',
+    ours: 'esm',
+    reason:
+      'We emit bundle.mjs and supply require/__dirname via NODE_BANNER. Emitting CJS like Forge would ' +
+      'delete the banner and make bundles evictable from require.cache (the per-deploy ESM retention in ' +
+      'deferred-issues.md), but must first decide what import.meta in app code means under CJS.',
+  },
+  backendTarget: {
+    forge: 'node18',
+    ours: 'node22',
+    reason:
+      'esbuild `target` only lowers syntax. Forge lowers to node18 and runs the result on the nodejs22.x ' +
+      'runtime the manifest names; node22 syntax is a superset the same runtime executes identically.',
+  },
+} as const;
+
+/**
+ * The static esbuild options every build shares — one object so the contract
+ * test can compare them with @forge/bundler's config instead of reading the
+ * build call.
+ *
+ * JSX is deliberately NOT set. Forge's bundler (config/nativeui.js) has two
+ * rules: .jsx goes through Babel with `pragma: 'React.createElement'`
+ * (classic, always), and .tsx goes through ts-loader with no override, so
+ * the app's own tsconfig.json decides. esbuild unset does exactly that
+ * pair: tsconfig `jsx` for .tsx, `React.createElement` otherwise. Forcing
+ * 'automatic' (the old setting) let a .tsx app with no React import and no
+ * tsconfig render here and fail `forge deploy` — the inverse parity
+ * violation. No `minify` either: Forge builds `mode: production` with
+ * `optimization.minimize: false`.
+ */
+export function esbuildBaseOptions(platform: BundlePlatform) {
+  const isNode = platform === 'node';
+  return {
+    bundle: true as const,
+    format: KNOWN_SPEC_DEVIATIONS.outputFormat.ours,
+    platform,
+    target: isNode ? KNOWN_SPEC_DEVIATIONS.backendTarget.ours : 'es2022',
+    resolveExtensions: RESOLVE_EXTENSIONS[platform],
+    sourcemap: 'inline' as const,
+    metafile: true as const,
+    write: false as const,
+    logLevel: 'silent' as const,
+  };
+}
 
 /**
  * Force bundler-style ("Babel") CommonJS interop for default imports.
@@ -410,21 +478,13 @@ export async function bundleEntries(opts: BundleOptions): Promise<BundleResult> 
   const entry = syntheticEntry(entries);
   const reactDir = isNode ? appDir : await reactResolveDir(appDir);
   const result = await esbuild.build({
+    ...esbuildBaseOptions(opts.platform),
     stdin: { contents: entry.contents, resolveDir: appDir, sourcefile: 'forge-sim-entry.js', loader: 'js' },
-    bundle: true,
-    format: 'esm',
-    platform: opts.platform,
-    target: isNode ? 'node22' : 'es2022',
-    jsx: 'automatic',
-    sourcemap: 'inline',
-    metafile: true,
-    write: false,
     outfile: outFile,
     absWorkingDir: appDir,
     nodePaths: [FORGE_SIM_NODE_MODULES],
     banner: isNode ? { js: NODE_BANNER } : undefined,
     plugins: forgeSimPlugins(opts.platform, reactDir),
-    logLevel: 'silent',
   });
 
   await mkdir(opts.outDir, { recursive: true });

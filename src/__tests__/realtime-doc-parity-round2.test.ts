@@ -45,7 +45,7 @@ function subscriberFrontend(label: string): string {
   return `
 import ForgeReconciler, { Text, Stack } from '@forge/react';
 import { realtime } from '@forge/bridge';
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 
 const App = () => {
   const [events, setEvents] = useState<string[]>([]);

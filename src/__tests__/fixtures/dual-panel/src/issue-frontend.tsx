@@ -1,6 +1,6 @@
 import ForgeReconciler, { Text, Stack, Button, Badge } from '@forge/react';
 import { invoke } from '@forge/bridge';
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 
 const IssueSummary = () => {
   const [data, setData] = useState<any>(null);

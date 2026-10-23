@@ -1,6 +1,6 @@
 import ForgeReconciler, { Text, Stack, Button } from '@forge/react';
 import { invoke } from '@forge/bridge';
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 
 const AdminSettings = () => {
   const [settings, setSettings] = useState<any>(null);

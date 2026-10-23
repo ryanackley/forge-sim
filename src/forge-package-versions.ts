@@ -55,6 +55,12 @@ export const VERIFIED_FORGE_VERSIONS: Record<string, string> = {
   // `global.__forge_fetch__` bridge. Still worth pinning: the bridge protocol
   // (and the migrationRunner singleton quirk in deployer.ts) is version-coupled.
   '@forge/sql': '3.0.26',
+  // Not a runtime package at all: Forge's own bundler, kept as the pinned
+  // SPECIFICATION our esbuild config is contract-tested against
+  // (bundler-spec-contract.test.ts reads its webpack config off the installed
+  // package). A bump is a review of that test's assertions and
+  // KNOWN_SPEC_DEVIATIONS in src/bundler.ts.
+  '@forge/bundler': '7.3.0',
 };
 
 /**

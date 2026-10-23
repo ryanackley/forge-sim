@@ -127,7 +127,7 @@ permissions:
 const FRONTEND = `
 import ForgeReconciler, { Text } from '@forge/react';
 import { invoke } from '@forge/bridge';
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 const App = () => {
   const [v, setV] = useState('loading');
   useEffect(() => { invoke('value').then(setV); }, []);

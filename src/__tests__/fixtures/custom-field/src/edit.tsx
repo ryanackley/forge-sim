@@ -1,3 +1,4 @@
+import React from 'react';
 import ForgeReconciler, { Text, Button } from '@forge/react';
 import { view } from '@forge/bridge';
 
