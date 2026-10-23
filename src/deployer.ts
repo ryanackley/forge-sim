@@ -865,7 +865,7 @@ export async function deploy(sim: ForgeSimulator, appDir: string, options: Deplo
   // bundle.cjs under .forge-sim/bundles/ (default packaging) and the app's
   // own files (manual packaging). This is what makes a redeploy actually
   // RELEASE the old module graph; the fresh-URL ESM output this replaced was
-  // retained for the life of the process (deferred-issues.md).
+  // retained for the life of the process (Node's ESM registry never evicts).
   clearAppRequireCache(absDir);
 
   // 3. Load each function module

@@ -48,53 +48,6 @@ let the page's next `useTranslation` fetch pick it up. Decide whether a locale
 change should also trigger a browser reload, since the real package caches
 translations per page load too.
 
-## `@forge/bridge` must evaluate after forge-sim is loaded (import order in test files)
-
-The real `@forge/bridge` captures `globalThis.__bridge` at module evaluation and throws
-BridgeAPIError if it is absent. forge-sim installs the seam when `src/ui/bridge.ts`
-evaluates (module scope, Phase 4c), so `import 'forge-sim'` before `import '@forge/bridge'`
-works and the reverse order dies inside the package with Atlassian's "Unable to establish
-a connection with the Custom UI bridge" message — which does not mention forge-sim at all.
-Left as a documented rule because the alternatives each cost something: a vitest
-`setupFiles` entry (`forge-sim/setup`) that only installs the seam would fix it for vitest
-users but adds a second thing to configure; the Node loader (`--import forge-sim/register`)
-could install it for the CLI path. A fix must decide whether to ship the setup entry, and
-whether to intercept that specific BridgeAPIError message somewhere to append a hint.
-
-## Second headless render of a PREBUILT (manual-packaged) frontend under vite-node
-
-Source UI Kit entries are bundled per render into a fresh directory (Phase 5b), so a 2nd+
-`sim.ui.render()` is always a real re-evaluation. Prebuilt resources are imported as-is with a
-`?t=` cache-bust, which native Node honours but vite-node strips for files it externalizes
-(anything outside the project root, e.g. an app in os.tmpdir()): the second render is a cache
-hit, no top-level render() runs, no reconcile frame arrives, and the render times out. Not hit
-by any current test. A fix must decide between copying the whole resource directory to a
-per-render path (chunks are relative to the entry, so the entry alone is not enough), or
-documenting `vi.resetModules()` between renders for that case alone.
-
-## Every deploy and render retains its bundle in Node's ESM cache (~4 MB/deploy)
-
-`sim.deploy()` and headless `sim.ui.render()` each write a bundle to a fresh path and
-`import()` it, because a new URL is what guarantees fresh module state (it is what replaced
-`clearMigrationRegistry`). Node's ESM registry never evicts, so every deploy and render
-retains its whole module graph for the life of the process. Measured with a repeated-deploy
-probe: ~4 MB per deploy now, ~3 MB before Phase 5 — the delta is the inlined `@forge/*`
-(~240 kB of source per backend bundle, versus a 4 kB bundle with the packages external).
-
-Harmless for a test run, which is short-lived and peaks on worker count rather than this.
-It matters for a LONG-RUNNING process that redeploys repeatedly — `forge-sim dev` rebuilds
-on every file change, and the MCP daemon redeploys per `forge_deploy` call — where a long
-session accumulates hundreds of MB. Nothing observed it in practice yet; recorded because
-the measurement exists and the growth is unbounded by design.
-
-A fix must decide what to give up. Reusing one URL per app would cap the growth but
-reintroduce the stale-singleton bug the fresh URL fixed (edited migration DDL silently
-discarded across redeploys). Pinning the backend `@forge/*` to absolute paths the way
-frontend bundles pin their runtime would shrink each retained graph to app code only, but
-those packages' module state (notably `@forge/sql`'s migrationRunner) would then persist
-across deploys — which is exactly the thing a redeploy is supposed to reset. A worker/daemon
-recycle after N deploys sidesteps both but needs a policy and a way to hand off sim state.
-
 ## Per-deploy heap growth that is NOT the module graph (~140–550 KB/deploy)
 
 After the CJS-output switch, bundle retention is provably closed — a heap snapshot after 40

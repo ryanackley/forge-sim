@@ -519,9 +519,10 @@ export async function bundleEntries(opts: BundleOptions): Promise<BundleResult> 
  * files. Backend bundles are CJS and go through `require()` — Node's own CJS
  * loader (vite-node never sees them), and the entry lands in `require.cache`
  * where the next deploy's clearAppRequireCache() can EVICT it. The old ESM
- * output was pinned in Node's module registry for the life of the process
- * (deferred-issues.md, ~4 MB/deploy). Frontend bundles stay ESM module
- * scripts and keep dynamic import().
+ * output was pinned in Node's module registry for the life of the process —
+ * measured at ~280 KB to several MB per redeploy depending on how much
+ * @forge/* was inlined. Frontend bundles stay ESM module scripts and keep
+ * dynamic import().
  */
 export async function importEntry(bundle: BundleResult, entryPath: string): Promise<any> {
   const name = bundle.entryExports.get(resolve(entryPath));
