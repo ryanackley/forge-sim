@@ -94,3 +94,19 @@ frontend bundles pin their runtime would shrink each retained graph to app code 
 those packages' module state (notably `@forge/sql`'s migrationRunner) would then persist
 across deploys — which is exactly the thing a redeploy is supposed to reset. A worker/daemon
 recycle after N deploys sidesteps both but needs a policy and a way to hand off sim state.
+
+## Per-deploy heap growth that is NOT the module graph (~140–550 KB/deploy)
+
+After the CJS-output switch, bundle retention is provably closed — a heap snapshot after 40
+redeploys holds exactly one copy of the app's source and one `.forge-sim/bundles` entry in
+`require.cache`, and backend source maps are external so Node's source-map cache holds nothing.
+Yet `heapUsed` still grows per deploy: ~137 KB on a one-handler app, ~550 KB on an app inlining
+`@forge/api` + `@forge/events` + `@forge/kvs` (measured with `--expose-gc`, gc twice, 40 deploys
+after warm-up). It scales with app size but is not source text, so it is sim-side state
+produced per deploy — candidates are deploy summaries/warnings kept on the simulator, console
+capture buffers, bundler cache metadata (`meta.json` inputs are ~150 bytes × every inlined file),
+or registry entries keyed by something per-deploy. Pre-existing: the ESM baseline showed the
+same residual (280 KB on the tiny app) underneath the module-graph retention it has now lost.
+Harmless for tests; it is the remaining unbounded term for long `forge-sim dev` / MCP daemon
+sessions. A fix needs a heap-snapshot retainer-path diff between deploy N and N+10 to name the
+holder before changing anything.

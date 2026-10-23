@@ -26,7 +26,6 @@ import {
   esbuildBaseOptions,
   RESOLVE_EXTENSIONS,
   KNOWN_SPEC_DEVIATIONS,
-  NODE_BANNER,
   bundleEntries,
 } from '../bundler.js';
 import { VERIFIED_FORGE_VERSIONS } from '../forge-package-versions.js';
@@ -129,7 +128,7 @@ describe('@forge/bundler is the pinned specification', () => {
             .join('\n') + '\nexport const handler = () => "ok";\n',
         );
         const out = await bundleEntries({ appDir, entryPoints: [join(appDir, 'index.js')], platform: 'node', outDir: join(appDir, '.out'), noCache: true });
-        expect(out.url).toMatch(/bundle\.mjs$/);
+        expect(out.url).toMatch(/bundle\.cjs$/);
       } finally {
         rmSync(appDir, { recursive: true, force: true });
       }
@@ -145,10 +144,12 @@ describe('@forge/bundler is the pinned specification', () => {
       expect((esbuildBaseOptions('browser') as Record<string, unknown>).minify).toBeFalsy();
     });
 
-    it('output format: Forge emits CommonJS, we emit ESM — a recorded deviation, asserted both ways', () => {
-      expect(backend.output.libraryTarget).toBe(KNOWN_SPEC_DEVIATIONS.outputFormat.forge);
-      expect(esbuildBaseOptions('node').format).toBe(KNOWN_SPEC_DEVIATIONS.outputFormat.ours);
-      expect(KNOWN_SPEC_DEVIATIONS.outputFormat.reason.length).toBeGreaterThan(40);
+    it('output format matches: Forge emits CommonJS and so do we (backend); frontends are ESM module scripts', () => {
+      expect(backend.output.libraryTarget).toBe('commonjs');
+      expect(esbuildBaseOptions('node').format).toBe('cjs');
+      // Browsers load <script type="module"> as ESM by definition — the
+      // frontend side mirrors the page contract, not the backend loader.
+      expect(esbuildBaseOptions('browser').format).toBe('esm');
     });
 
     it('backend target: Forge lowers to node18, we lower to node22 — a recorded deviation, asserted both ways', () => {
@@ -157,10 +158,12 @@ describe('@forge/bundler is the pinned specification', () => {
       expect(esbuildBaseOptions('node').target).toBe(KNOWN_SPEC_DEVIATIONS.backendTarget.ours);
     });
 
-    it('node.__dirname: Forge polyfills it (true); our ESM banner defines it', () => {
+    it('node.__dirname: Forge polyfills it (true); CJS output has it natively', () => {
       expect(backend.node).toEqual({ __dirname: true });
-      expect(NODE_BANNER).toMatch(/\b__dirname\b/);
-      expect(NODE_BANNER).toMatch(/\brequire\b/);
+      // No banner to assert anymore: with format cjs, require/__filename/
+      // __dirname are the real CJS module-scope bindings. The behavioural
+      // check lives in the suite (every backend fixture evaluates).
+      expect(esbuildBaseOptions('node').format).toBe('cjs');
     });
 
     it('globalObject is `this` for the backend (a CJS module scope, not window)', () => {

@@ -854,8 +854,13 @@ export async function deploy(sim: ForgeSimulator, appDir: string, options: Deplo
   };
   if (manualPackaging) {
     interceptCjsForgeRequires(absDir);
-    clearAppRequireCache(absDir);
   }
+  // Evict the app's CJS trees from require.cache — the previous deploy's
+  // bundle.cjs under .forge-sim/bundles/ (default packaging) and the app's
+  // own files (manual packaging). This is what makes a redeploy actually
+  // RELEASE the old module graph; the fresh-URL ESM output this replaced was
+  // retained for the life of the process (deferred-issues.md).
+  clearAppRequireCache(absDir);
 
   // 3. Load each function module
   const handlerExports = new Map<string, any>();

@@ -2359,8 +2359,11 @@ export async function deployResolversOnly(
   };
   if (manualPackaging) {
     interceptCjsForgeRequires(appDir);
-    clearAppRequireCache(appDir);
   }
+  // Unconditional for the same reason as deploy(): default-packaging bundles
+  // are CJS under <app>/.forge-sim/bundles/ and must be evicted on reload or
+  // a long dev session retains every rebuild's module graph.
+  clearAppRequireCache(appDir);
 
   for (const [fnKey, fnDef] of manifest.functions) {
     try {

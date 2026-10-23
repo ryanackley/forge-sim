@@ -228,7 +228,7 @@ async function collect(root: string): Promise<string[]> {
   for (const entry of await readdir(root, { withFileTypes: true })) {
     const p = join(root, entry.name);
     if (entry.isDirectory()) out.push(...(await collect(p)));
-    else if (entry.name.endsWith('.mjs')) out.push(p);
+    else if (/\.(mjs|cjs)$/.test(entry.name)) out.push(p);
   }
   return out;
 }

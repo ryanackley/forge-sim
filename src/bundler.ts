@@ -43,6 +43,7 @@ import { cp, mkdir, readFile, readdir, rename, rm, stat, writeFile } from 'node:
 import { readFileSync } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { createRequire } from 'node:module';
 import type { Metafile, Plugin } from 'esbuild';
 import { PASSTHROUGH_OK } from './shims/shim-registry.js';
 
@@ -97,24 +98,6 @@ const FORGE_SIM_NODE_MODULES = join(PKG_ROOT, 'node_modules');
 const BUNDLER_FINGERPRINT = createHash('sha1').update(readFileSync(HERE)).digest('hex').slice(0, 12);
 
 /**
- * `require`, `__filename` and `__dirname` for the ESM output. Inlined CommonJS
- * packages call `require('fs')` and the like; esbuild leaves those as a
- * `__require` helper that throws "Dynamic require is not supported" unless a
- * real `require` is in scope (esbuild's own documented fix is this banner).
- * esbuild renames an app's own top-level `require` to avoid the collision —
- * measured, not assumed. `__dirname` points at the bundle, as it does in
- * Forge's bundled output.
- */
-export const NODE_BANNER = [
-  `import { createRequire as __forgeSimCreateRequire } from 'node:module';`,
-  `import { fileURLToPath as __forgeSimFileURLToPath } from 'node:url';`,
-  `import { dirname as __forgeSimDirname } from 'node:path';`,
-  `const require = __forgeSimCreateRequire(import.meta.url);`,
-  `const __filename = __forgeSimFileURLToPath(import.meta.url);`,
-  `const __dirname = __forgeSimDirname(__filename);`,
-].join('\n');
-
-/**
  * Extension resolution order, mirrored from @forge/bundler's webpack
  * `resolve.extensions` — backend from config/common.js, frontend from
  * config/nativeui.js minus the image types (esbuild would need loaders for
@@ -135,14 +118,6 @@ export const RESOLVE_EXTENSIONS: Record<BundlePlatform, string[]> = {
  * must be revisited rather than quietly drift. Keep the reasons honest.
  */
 export const KNOWN_SPEC_DEVIATIONS = {
-  outputFormat: {
-    forge: 'commonjs',
-    ours: 'esm',
-    reason:
-      'We emit bundle.mjs and supply require/__dirname via NODE_BANNER. Emitting CJS like Forge would ' +
-      'delete the banner and make bundles evictable from require.cache (the per-deploy ESM retention in ' +
-      'deferred-issues.md), but must first decide what import.meta in app code means under CJS.',
-  },
   backendTarget: {
     forge: 'node18',
     ours: 'node22',
@@ -166,16 +141,36 @@ export const KNOWN_SPEC_DEVIATIONS = {
  * tsconfig render here and fail `forge deploy` — the inverse parity
  * violation. No `minify` either: Forge builds `mode: production` with
  * `optimization.minimize: false`.
+ *
+ * Format: CJS for the backend — what Forge ships (`libraryTarget:
+ * 'commonjs'`) and what its runtime loader require()s. Native `require`/
+ * `__dirname` in scope (the old ESM output needed a banner to fake them),
+ * bundles evict from `require.cache` on redeploy instead of pinning their
+ * module graph in Node's ESM registry forever, and importing them bypasses
+ * vite-node. `import.meta` in app code becomes undefined with a build
+ * warning — measured against the real pipeline: webpack freezes
+ * `import.meta.url` into a compile-time string of the build machine's
+ * source path, so it is already meaningless on Forge, and nothing in any
+ * fixture, docs example or real app reads it. ESM for the frontend —
+ * browsers load `<script type="module">` as ESM by definition, and the
+ * pinned-runtime facade is `file://` imports.
  */
 export function esbuildBaseOptions(platform: BundlePlatform) {
   const isNode = platform === 'node';
   return {
     bundle: true as const,
-    format: KNOWN_SPEC_DEVIATIONS.outputFormat.ours,
+    format: isNode ? ('cjs' as const) : ('esm' as const),
     platform,
     target: isNode ? KNOWN_SPEC_DEVIATIONS.backendTarget.ours : 'es2022',
     resolveExtensions: RESOLVE_EXTENSIONS[platform],
-    sourcemap: 'inline' as const,
+    // Backend maps are EXTERNAL (bundle.cjs.map): Node caches every loaded
+    // module's inline source map in memory and keeps it after the module is
+    // evicted from require.cache — measured at ~950 KB/deploy on a fat app
+    // (heap snapshot: 41 sourceMappingURL strings after 40 deploys, 1 module
+    // source). A linked map keeps stack traces readable at zero heap cost.
+    // Frontend bundles keep inline maps: their file is deleted right after
+    // import, so a linked map would 404.
+    sourcemap: isNode ? ('linked' as const) : ('inline' as const),
     metafile: true as const,
     write: false as const,
     logLevel: 'silent' as const,
@@ -391,7 +386,7 @@ function cacheKey(opts: BundleOptions): string {
   return h.digest('hex').slice(0, 16);
 }
 
-async function readCache(dir: string): Promise<CacheMeta | null> {
+async function readCache(dir: string, fileName: string): Promise<CacheMeta | null> {
   try {
     const meta = JSON.parse(await readFile(join(dir, 'meta.json'), 'utf8')) as CacheMeta;
     if (meta.version !== 2) return null;
@@ -399,7 +394,7 @@ async function readCache(dir: string): Promise<CacheMeta | null> {
       const s = await stat(input.path);
       if (s.mtimeMs !== input.mtimeMs || s.size !== input.size) return null;
     }
-    await stat(join(dir, 'files', BUNDLE_FILE));
+    await stat(join(dir, 'files', fileName));
     return meta;
   } catch {
     return null; // missing, torn by a concurrent writer, or an input changed/vanished
@@ -423,7 +418,9 @@ async function writeCache(dir: string, filesFrom: string, meta: CacheMeta): Prom
 
 // ── Build ─────────────────────────────────────────────────────────────────
 
-const BUNDLE_FILE = 'bundle.mjs';
+// .cjs/.mjs by platform so Node picks the loader from the extension alone,
+// independent of the app's package.json `type`.
+const bundleFileName = (platform: BundlePlatform) => (platform === 'node' ? 'bundle.cjs' : 'bundle.mjs');
 
 /**
  * ONE bundle per build, from a synthetic entry that re-exports every handler
@@ -452,17 +449,21 @@ export async function bundleEntries(opts: BundleOptions): Promise<BundleResult> 
   const entries = opts.entryPoints.map((e) => resolve(e));
   const key = cacheKey({ ...opts, appDir, entryPoints: entries });
   const cacheDir = join(cacheRoot(appDir), key);
-  const outFile = join(opts.outDir, BUNDLE_FILE);
+  const fileName = bundleFileName(opts.platform);
+  const outFile = join(opts.outDir, fileName);
 
   if (!opts.noCache) {
-    const hit = await readCache(cacheDir);
+    const hit = await readCache(cacheDir, fileName);
     if (hit) {
       await mkdir(opts.outDir, { recursive: true });
       // read + write, NOT fs.cp: under vite-node a bundle produced by cp()
       // took ~1.1 s to import where an identical freshly written file took
       // ~30 ms (measured; cp's APFS clone / dir-event timing interacts badly
       // with Vite's cached fs checks). A plain write behaves like the build.
-      await writeFile(outFile, await readFile(join(cacheDir, 'files', BUNDLE_FILE)));
+      // Every cached file comes along — node bundles ship a linked .map.
+      for (const f of await readdir(join(cacheDir, 'files'))) {
+        await writeFile(join(opts.outDir, f), await readFile(join(cacheDir, 'files', f)));
+      }
       return {
         url: pathToFileURL(outFile).href,
         entryExports: new Map(hit.entries),
@@ -483,13 +484,13 @@ export async function bundleEntries(opts: BundleOptions): Promise<BundleResult> 
     outfile: outFile,
     absWorkingDir: appDir,
     nodePaths: [FORGE_SIM_NODE_MODULES],
-    banner: isNode ? { js: NODE_BANNER } : undefined,
     plugins: forgeSimPlugins(opts.platform, reactDir),
   });
 
   await mkdir(opts.outDir, { recursive: true });
   for (const file of result.outputFiles) {
-    await writeFile(file.path, forceBundlerInterop(file.text), 'utf8');
+    const text = file.path.endsWith('.map') ? file.text : forceBundlerInterop(file.text);
+    await writeFile(file.path, text, 'utf8');
   }
 
   const meta = result.metafile!;
@@ -513,10 +514,22 @@ export async function bundleEntries(opts: BundleOptions): Promise<BundleResult> 
   return { url: pathToFileURL(outFile).href, entryExports: entry.exportsFor, cached: false, ...analysis };
 }
 
-/** Import the bundle and return the module namespace of one of its entry files. */
+/**
+ * Import the bundle and return the module namespace of one of its entry
+ * files. Backend bundles are CJS and go through `require()` — Node's own CJS
+ * loader (vite-node never sees them), and the entry lands in `require.cache`
+ * where the next deploy's clearAppRequireCache() can EVICT it. The old ESM
+ * output was pinned in Node's module registry for the life of the process
+ * (deferred-issues.md, ~4 MB/deploy). Frontend bundles stay ESM module
+ * scripts and keep dynamic import().
+ */
 export async function importEntry(bundle: BundleResult, entryPath: string): Promise<any> {
   const name = bundle.entryExports.get(resolve(entryPath));
   if (!name) throw new Error(`forge-sim: bundle has no entry for ${entryPath}`);
+  if (bundle.url.endsWith('.cjs')) {
+    const require = createRequire(import.meta.url);
+    return require(fileURLToPath(bundle.url))[name];
+  }
   const mod = await import(bundle.url);
   return mod[name];
 }
