@@ -180,6 +180,31 @@ modules:
     ).toBe(true);
   });
 
+  it('warns when a manual-packaged .js handler is ESM via "type": "module" (standard requires CommonJS)', async () => {
+    // Packaging standard: "a CommonJS module file <path>.js". Node (and the
+    // sim's import()) load an ESM .js fine when the nearest package.json says
+    // "type": "module", so the app runs here while being off-standard in
+    // production — surface it at deploy. Bundler-matrix lab: Vite's SSR
+    // build is ESM-only and passed silently before this.
+    await mkdir(join(appDir, 'out'), { recursive: true });
+    await writeFile(join(appDir, 'package.json'), '{ "name": "esm-probe", "private": true, "type": "module" }', 'utf8');
+    await writeFile(join(appDir, 'out', 'index.js'), 'export const run = () => ({ statusCode: 200 });', 'utf8');
+    const result = await deploy(sim, appDir, { throwOnError: false });
+    expect(result.errors).toEqual([]);
+    expect(
+      result.warnings.some((w) => /requires manual-packaged handlers to be CommonJS/.test(w.message))
+    ).toBe(true);
+  });
+
+  it('does not warn about a CommonJS .js handler under manual packaging', async () => {
+    await mkdir(join(appDir, 'out'), { recursive: true });
+    await writeFile(join(appDir, 'package.json'), '{ "name": "cjs-ok", "private": true }', 'utf8');
+    await writeFile(join(appDir, 'out', 'index.js'), 'exports.run = () => ({ statusCode: 200 });', 'utf8');
+    const result = await deploy(sim, appDir, { throwOnError: false });
+    expect(result.errors).toEqual([]);
+    expect(result.warnings.some((w) => /CommonJS/.test(w.message))).toBe(false);
+  });
+
   it('redeploy refreshes web trigger handlers under DEFAULT packaging too (regression)', async () => {
     // Pre-existing bug surfaced by this work: web-trigger registration was
     // guarded by `!sim.functions.has(key)`, which can't tell "registered

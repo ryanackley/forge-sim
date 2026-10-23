@@ -409,10 +409,13 @@ Results (`results-{stub,jsdom}.json`):
   the same esbuild interop on the USER side (`type: module` in the app's
   package.json + `import Resolver from '@forge/resolver'` → "not a
   constructor") — breaks identically on real Forge, user error, not a sim
-  gap. Open parity nit: the standard says **CommonJS**, yet the deploy error
-  hint (`deployer.ts` ~line 882) recommends "ship ESM as .js with type:
-  module", and the sim accepts it (Vite ESM backend passed). Whether real
-  Forge's `require()`-based loader accepts ESM on nodejs22 is unverified.
+  gap. The standard says **CommonJS** handlers, full stop; the deploy error
+  hint used to recommend "ship ESM as .js with type: module" and the sim
+  accepted the Vite ESM backend silently. **Fixed**: hint corrected, and a
+  deploy warning now fires when a manual-packaged `.js` handler sits under
+  `"type": "module"` (`nearestPackageType` in `deployer.ts`, Node's own
+  rule). The lab keeps the Vite ESM backend only as a negative control whose
+  `std-warning` phase asserts the warning fires.
 - Not measured: Custom UI resources, the dev-server/browser path, repeated
   renders, `__`-prefixed reserved names, Parcel's `<script type=importmap>`
   in a browser.

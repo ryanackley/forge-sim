@@ -9,7 +9,8 @@ renders.
 
 Variants: `forge-webpack` (replica of `@forge/bundler` 7.3.0's webpack
 config), `rspack`, `vite` (bare defaults + the canonical Forge docs
-multi-entry example + an off-standard ESM backend probe), `rollup`
+multi-entry example + an off-standard ESM backend as a negative control:
+the sim must warn), `rollup`
 (single-file + code-split), `parcel`, `esbuild-user` (IIFE classic +
 `splitting`), `tsc-unbundled` (the docs' "plain TypeScript" shape: nothing
 bundled, `node_modules` inside the package dir, nested handler path).

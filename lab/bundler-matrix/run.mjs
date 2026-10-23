@@ -25,7 +25,8 @@ const VARIANTS = [
   { name: 'rspack', pkgType: 'commonjs', backend: 'self', backendFile: 'out/index.js', multi: true,
     blurb: 'Rspack production defaults: MINIFIED CJS backend, minified classic-script frontend, publicPath auto, classic JSX; multi-entry with splitChunks all' },
   { name: 'vite', pkgType: 'module', backend: 'self', backendFile: 'out/index.js', multi: true,
-    blurb: 'Vite: single = bare defaults (ABSOLUTE src, automatic JSX, modulepreload polyfill); multi = the CANONICAL Forge docs example (plugin-react classic JSX, base ./, StrictMode); backend = OFF-STANDARD ESM .js + type:module probe' },
+    expectWarning: /requires manual-packaged handlers to be CommonJS/,
+    blurb: 'Vite: single = bare defaults (ABSOLUTE src, automatic JSX, modulepreload polyfill); multi = the CANONICAL Forge docs example (plugin-react classic JSX, base ./, StrictMode); backend = OFF-STANDARD ESM .js + type:module — a NEGATIVE CONTROL: the sim must flag it (std-warning phase)' },
   { name: 'rollup', pkgType: 'commonjs', backend: 'self', backendFile: 'out/index.js', multi: true,
     blurb: 'Rollup: CJS backend, single-file ESM frontend, code-split multi-entry (shared + lazy chunks under chunks/), classic JSX' },
   { name: 'parcel', pkgType: 'commonjs', backend: 'ref', backendFile: 'out/index.js', multi: true,
@@ -196,6 +197,17 @@ async function runVariant(v) {
     const deployed = await phase(record, 'deploy', async () => { await sim.deploy(dir, { fireScheduledTriggers: false }); });
     if (!deployed) return record;
 
+    // Off-standard variants are negative controls: the parity requirement is
+    // that the sim FLAGS the shape, not that it runs it.
+    if (v.expectWarning) {
+      await phase(record, 'std-warning', async () => {
+        if (!record.warnings.some((w) => v.expectWarning.test(w))) {
+          throw new Error(`off-standard shape ran without a warning matching ${v.expectWarning}`);
+        }
+        return 'sim flagged the off-standard shape at deploy';
+      });
+    }
+
     await phase(record, 'resolver+kvs', async () => {
       const r = await sim.invoke('save', { id: 'a1' });
       if (r !== 'saved a1') throw new Error(`unexpected invoke result: ${JSON.stringify(r)}`);
@@ -232,7 +244,7 @@ async function runVariant(v) {
 
 // ── report ───────────────────────────────────────────────────────────────
 
-const COLS = ['build', 'deploy', 'resolver+kvs', 'product-api', 'ui-single', 'ui-home', 'ui-settings'];
+const COLS = ['build', 'deploy', 'std-warning', 'resolver+kvs', 'product-api', 'ui-single', 'ui-home', 'ui-settings'];
 const cell = (p) => (p ? (p.ok ? '✅' : '❌') : '—');
 
 function toMarkdown(results) {

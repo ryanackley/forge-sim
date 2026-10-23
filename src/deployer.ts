@@ -340,8 +340,32 @@ const FILE_EXTENSIONS = ['.js', '.ts', '.tsx', '.jsx', '.mjs', '.cjs'];
 // Deliberately NO .mjs: upstream lint's handler extension set is
 // (tsx|jsx|ts|js|cjs) and lint gates real deploys — resolving .mjs here
 // while the validator rejects it produced contradictory errors
-// (adversarial finding #6). ESM output ships as .js + "type": "module".
+// (adversarial finding #6). The packaging standard requires CommonJS
+// handlers regardless (see nearestPackageType below).
 const MANUAL_FILE_EXTENSIONS = ['.js', '.cjs', '.ts', '.tsx', '.jsx'];
+
+/**
+ * Does Node load this `.js` file as an ES module? Mirrors Node's own rule:
+ * the nearest package.json's "type" field. Used only under manual
+ * packaging, where files ship as-is and the Forge packaging standard
+ * requires CommonJS handlers ("a CommonJS module file <path>.js" —
+ * manifest-reference/packaging/standard/); Forge's runtime loader
+ * require()s the file. The sim's import() loads ESM just as happily, so
+ * without this check an ESM backend passes here while being off-standard
+ * in production — the inverse parity violation.
+ */
+async function nearestPackageType(filePath: string): Promise<string | undefined> {
+  let dir = dirname(filePath);
+  for (;;) {
+    try {
+      const pkg = JSON.parse(await readFile(join(dir, 'package.json'), 'utf-8'));
+      return typeof pkg.type === 'string' ? pkg.type : undefined;
+    } catch { /* no package.json at this level */ }
+    const parent = dirname(dir);
+    if (parent === dir) return undefined;
+    dir = parent;
+  }
+}
 
 export interface HandlerResolutionOptions {
   /** Directory handlers resolve from, relative to the app root (ParsedManifest.handlersDirectory). */
@@ -886,7 +910,7 @@ export async function deploy(sim: ForgeSimulator, appDir: string, options: Deplo
           error: manualPackaging
             ? `Could not find handler file for "${fnDef.handler}" under app.package.path ` +
               `(tried ${manifest.handlersDirectory}/${fileStem}.{js,cjs,ts,tsx,jsx} — .mjs is not ` +
-              `accepted by Forge lint; ship ESM as .js with "type": "module"). Manual packaging ` +
+              `accepted by Forge lint, and the packaging standard requires CommonJS handlers). Manual packaging ` +
               `resolves handlers ONLY inside the package directory — run your build so the ` +
               `compiled file exists there.`
             : `Could not find handler file for "${fnDef.handler}" (tried src/${fileStem}.{js,ts,mjs,cjs} and ${fileStem}.{js,ts,mjs,cjs})`,
@@ -901,6 +925,21 @@ export async function deploy(sim: ForgeSimulator, appDir: string, options: Deplo
             `(${filePath.slice(absDir.length + 1)}). Manual packaging uploads files as-is and the ` +
             `Forge runtime executes JavaScript — forge-sim runs this file, but real Forge likely ` +
             `won't. Point app.package.path at your build output.`,
+        };
+        manifest.warnings.push(w);
+        printManifestWarnings([w]);
+      }
+
+      if (manualPackaging && filePath.endsWith('.js') && (await nearestPackageType(filePath)) === 'module') {
+        const w = {
+          level: 'warning' as const,
+          message: `Handler "${fnDef.handler}" resolved to ${filePath.slice(absDir.length + 1)}, which Node ` +
+            `loads as an ES module because the nearest package.json declares "type": "module". The Forge ` +
+            `packaging standard requires manual-packaged handlers to be CommonJS modules ` +
+            `(developer.atlassian.com/platform/forge/manifest-reference/packaging/standard/) — the Forge ` +
+            `runtime require()s the file. forge-sim can import it, so the app runs here but is off-standard ` +
+            `in production. Build to CommonJS (esbuild --format=cjs, tsc "module": "commonjs", webpack ` +
+            `output.library.type commonjs).`,
         };
         manifest.warnings.push(w);
         printManifestWarnings([w]);
