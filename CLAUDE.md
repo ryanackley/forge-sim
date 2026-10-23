@@ -59,7 +59,7 @@ Three integration paths into the sim, depending on which surface the app uses:
 | Backend | `src/resolver.ts`, `src/product-api.ts`, `src/web-trigger.ts`, `src/remote-proxy.ts`, `src/llm.ts`, `src/realtime.ts` (scheduled triggers wired in `src/deployer.ts`) |
 | Shims | `src/shims/` — `forge-resolver.ts`, the one remaining app-facing shim, plus the registry (`SHIM_NAMES` / `PASSTHROUGH_OK`) and the seam installers (`globals.ts`) |
 | Bundler | `src/bundler.ts` — esbuild over the app (backend: everything inlined; frontend: runtime pinned), content-keyed cache, the two bundle-time touches on real packages |
-| Loader | `src/loader/` — Node `--import` hooks, now only for what forge-sim does not bundle (manual packaging, plain-node scripts): resolver shim routing, ESM marker, stray .tsx |
+| Loader | `src/loader/` — Node `--import` hooks, now only for what forge-sim does not bundle (manual packaging, plain-node scripts): resolver shim routing, stray .tsx |
 | Bridge protocol + hosts | `src/bridge/protocol/` (dispatcher, `BridgeHost`, command registry), `src/bridge/hosts/headless.ts`, `src/bridge/hosts/browser/` (bundled to `dist/bridge.js`, served at `/__forge/bridge.js`) |
 | UIKit bridge (headless lifecycle) | `src/ui/bridge.ts`, `src/ui/simulator-ui.ts`, `src/ui/doc-utils.ts` |
 | CLI | `src/cli.ts`, `src/dev-command.ts`, `src/auth/auth-command.ts`, `src/proxy-server.ts` |
