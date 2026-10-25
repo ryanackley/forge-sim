@@ -369,6 +369,15 @@ export async function createDevServer(options: DevServerOptions = {}): Promise<D
     // If the client sent a moduleKey, rebuild context for that module
     if (reqModuleKey && context) {
       const ctx = { ...context, moduleKey: reqModuleKey, extension: { ...context.extension } };
+      // The startup context is built once for the PRIMARY module, so its
+      // extension.type is that module's type — stamp the requested module's
+      // real type or every other module sees the wrong placement and
+      // type-branching app code takes the wrong branch (adversarial 1019 F6:
+      // a jira:globalPage rendered with extension.type === 'macro'). The
+      // rest of the extension (hydrated issue/content, config) is shared
+      // dev-mode context and stays.
+      const reqModule = simulator?.getManifest?.()?.uiModules.find((m) => m.key === reqModuleKey);
+      if (reqModule?.type) ctx.extension.type = reqModule.type;
       // Inject stored field value for custom field modules
       const cfBaseKey = reqModuleKey.replace(/--(?:view|edit)$/, '');
       if (cfBaseKey !== reqModuleKey && fieldValues.has(cfBaseKey)) {
