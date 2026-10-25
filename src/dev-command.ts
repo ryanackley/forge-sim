@@ -1480,11 +1480,12 @@ export async function devCommand(options: DevCommandOptions) {
   // `sim.functions` here always showed "0 registered" (eval 3.7).
   let registeredFunctionCount = 0;
 
-  // 4a.4. Load the app's translations. deploy() does this through
-  // sim.setAppDir(), but dev mode deploys with deployResolversOnly() and
-  // never did — so sim.i18n had no locales dir, the __LOCALES__ route (and
-  // before it, the shim's i18n RPCs) answered "No locale files loaded", and
-  // every useTranslation() in dev silently fell back to returning keys.
+  // 4a.4. Load the app's translations BEFORE deploy, so deploy-time work
+  // (scheduled triggers) can translate. deployResolversOnly's setAppDir
+  // also loads them — idempotent — but that runs mid-deploy and this call
+  // owns the startup banner. Without either, sim.i18n had no locales dir,
+  // the __LOCALES__ route answered "No locale files loaded", and every
+  // useTranslation() in dev silently fell back to returning keys.
   // Same lookup as deploy: <app>/src/__LOCALES__, then <app>/__LOCALES__.
   if (sim.i18n.loadFromAppDir(appDir)) {
     console.log('  🌐 Loaded __LOCALES__ translations');
@@ -2461,6 +2462,15 @@ export async function deployResolversOnly(
   // Register manifest data FIRST — module routing, remotes, endpoints
   // This must happen before anything that might fail (FIT, scheduled triggers)
   sim.loadManifestData(manifest);
+
+  // Pair setAppDir with loadManifestData, exactly as deployer.deploy() does.
+  // Dev mode never set it, so anything resolving resources off the deployed
+  // app dir was dead for the whole session: `POST /__tools/api/ui/render`
+  // answered 500 "No app directory set. Deploy an app first." even though
+  // dev mode had just deployed the app, and /api/ui/context 404'd forever
+  // behind it (adversarial 1019 F9). Headless render does its own esbuild
+  // pass, independent of Vite, so it works here the same as under deploy().
+  sim.setAppDir(appDir);
 
   // Initialize FIT provider if manifest has remotes (non-fatal)
   if (manifest.remotes.size > 0) {

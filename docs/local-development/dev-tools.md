@@ -115,6 +115,6 @@ All endpoints are under `/__tools/api/`. Request bodies are JSON; responses are 
 | DELETE | `/api/providers/:key` | — | Disconnect — revoke stored provider token |
 | GET | `/__tools/oauth/callback` | — | Unified OAuth callback URL (dispatched to pending flow by `state`) |
 
-> **The `ui/*` endpoints track headless renders, not browser pages.** A module rendered in the browser (`/module/<key>/`) lives in the browser's own React tree; it does not populate server-side UI state, so `/api/ui/state` and `/api/ui/context` only answer after a headless `ui/render` through this API (or `sim.ui.render()` in the same process).
+> **The `ui/*` endpoints track headless renders, not browser pages.** `POST /api/ui/render` renders a module *in the simulator process* (its own esbuild pass, independent of Vite) and works in `forge-sim dev` as well as the daemon — handy for inspecting a ForgeDoc tree without driving a browser. A module open in a browser tab is a separate render that lives in the browser's own React tree, so it does not populate `/api/ui/state` or `/api/ui/context`; those answer only after a headless render through this API (or `sim.ui.render()` in the same process).
 
 > The Tools UI also accepts `?theme=dark|light|auto` on the URL. See [cli.md](../reference/cli.md#theme-dark--light) for the convention shared with the renderer.

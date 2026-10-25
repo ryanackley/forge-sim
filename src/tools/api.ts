@@ -358,9 +358,18 @@ export function createApiHandler(
       }
 
       // ── UI State ──────────────────────────────────────────────────
+      // These three endpoints track HEADLESS renders (sim.ui.*), which run
+      // in this process. A module rendered in a browser tab lives in the
+      // browser's own React tree and never reaches them — so say that,
+      // rather than "no UI rendered yet" to someone looking at their
+      // rendered page (adversarial 1019 F9).
+      const HEADLESS_ONLY_HINT =
+        'These endpoints track headless renders (POST /api/ui/render) run in the simulator process. ' +
+        'A module open in a browser tab renders in the browser and does not populate them.';
+
       if (path === '/api/ui/state' && method === 'GET') {
         const doc = sim.ui.getForgeDoc();
-        if (!doc) return json(res, { rendered: false, message: 'No UI rendered yet.' });
+        if (!doc) return json(res, { rendered: false, message: `No headless render yet. ${HEADLESS_ONLY_HINT}` });
         return json(res, { rendered: true, tree: sim.ui.prettyPrint(doc) });
       }
 
@@ -381,7 +390,11 @@ export function createApiHandler(
       if (path === '/api/ui/context' && method === 'GET') {
         const moduleKey = url.searchParams.get('module') ?? undefined;
         const ctx = sim.ui.getContext(moduleKey);
-        if (!ctx) return json(res, { error: 'No context available. Render a module first.' }, 404);
+        if (!ctx) {
+          return json(res, {
+            error: `No context available${moduleKey ? ` for module "${moduleKey}"` : ''}. ${HEADLESS_ONLY_HINT}`,
+          }, 404);
+        }
         return json(res, ctx);
       }
 

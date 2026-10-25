@@ -74,14 +74,6 @@ worse than rejecting does, so the registry keeps `unsupported` with its current 
 Revisit only if a real app is observed calling it (the command registry will say which
 module), in which case capture the real host's answer shape first.
 
-## Adversarial 1019 minors — `/__tools/api/ui/render` and `/ui/context` are dead in dev mode (F9)
-
-In `forge-sim dev`, `POST /__tools/api/ui/render` answers 500 "No app directory set. Deploy an
-app first." even though dev mode deployed the app, and `GET /__tools/api/ui/context` 404s after
-a browser render (browser renders never populate server-side UI state, by design). Decide
-whether dev mode should wire these to something real or have them return a clear "not available
-in dev mode — use the browser page" answer; the current errors read like user mistakes.
-
 ## Adversarial 1019 minors — false "not simulated" warning for transitive `@forge/manifest` (F11)
 
 Dev mode prints `"@forge/manifest" is not simulated by forge-sim — the real Atlassian package
