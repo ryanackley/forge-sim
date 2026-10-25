@@ -110,25 +110,25 @@ What to expect:
 - UI Kit vs Custom UI for a prebuilt resource is decided by the module's `render: native` flag, since built bundles can't be sniffed. Keep asset paths **relative** (`base: './'` in Vite) — forge-sim warns if an entry script src is absolute, because real Forge serves resources from a nested path where absolute URLs 404.
 - Every `<script type="module">` in the entry HTML runs, in document order — so multi-bundle output (e.g. Parcel's shared-bundle-then-entry layout) works as-is, and webpack/Rspack's `publicPath: 'auto'` resolves against the bundle's own directory in headless renders.
 
-### Keep `@forge/*` external in your backend build
+### `@forge/*` in your backend build: inlined or external, both work
 
-> **Not supported: backends that bundle `@forge/*` into their output.** Mark them external:
->
-> ```bash
-> esbuild src/index.js --bundle --platform=node --external:@forge/*
-> ```
-> ```js
-> // rollup / webpack
-> external: [/^@forge\//]
-> ```
->
-> …and ship `node_modules` inside your package. Real Forge doesn't run `npm install` on a manually packaged app either, so its dependencies have to be in the upload regardless.
+Your build can inline `@forge/*` into the output or mark them external — forge-sim runs both layouts, because nothing connects at import time. Every real `@forge/*` backend package talks to the runtime through the two globals Forge itself injects (`global.__forge_fetch__` and `global.__forge_runtime__`), and forge-sim installs those same seams. They survive bundling: an inlined `@forge/kvs` calls the same global a `node_modules` one does.
 
-forge-sim replaces `@forge/*` **at import time** — that interception is what connects your app to the simulator's KVS, SQL, queues, product APIs and mocks. A bundler that inlines those packages leaves no import to intercept, so the real package runs instead and talks to Atlassian's internal endpoints, which forge-sim does not implement.
+```bash
+# Smallest package: inline everything — no node_modules needed in the upload
+esbuild src/index.js --bundle --platform=node
 
-`@forge/events`, `@forge/object-store`, `@forge/llm` and `@forge/realtime` detect this and throw an error naming the package and the fix. Some other packages happen to keep working when bundled (`@forge/api`, `@forge/kvs` and `@forge/sql` route through a runtime hook that survives bundling) — but that is incidental, not tested, and not a guarantee.
+# Or keep @forge/* external — then node_modules must ship INSIDE the package
+# (real Forge doesn't run npm install on a manually packaged app):
+esbuild src/index.js --bundle --platform=node --external:@forge/*
+npm install --omit=dev --prefix dist
+```
 
-**This applies to your backend only.** A UI resource is *always* built output — raw JSX can't run in a browser — so a prebuilt UI Kit or Custom UI resource has `@forge/react` and `@forge/bridge` inlined by necessity. That is fully supported: those packages talk to the simulator through the `window.__bridge` protocol, which forge-sim implements completely.
+Real Forge accepts both layouts too, so this is not a sim-only liberty — and inlining spares you copying a `node_modules` tree into the package directory.
+
+`@forge/resolver` is the one package forge-sim shims rather than runs. An **external** import is routed to the shim by the loader hooks; an **inlined** resolver is recognized at deploy by its dispatch shape (real Forge supports inlined resolvers, so the deployer must too). Either way `invoke()` reaches your resolver definitions.
+
+For the frontend there is nothing to decide: a UI resource is *always* built output — raw JSX can't run in a browser — so a prebuilt UI Kit or Custom UI resource has `@forge/react` and `@forge/bridge` inlined by necessity. Those packages talk to the simulator through the `window.__bridge` protocol, which forge-sim implements completely.
 
 ### Per-bundler notes
 
