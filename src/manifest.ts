@@ -752,6 +752,12 @@ export function parseManifestContent(content: string): ParsedManifest {
         const hasInlineConfig = configField === true ||
           (configField && typeof configField === 'object' && !configResource);
 
+        // `render` must survive this hand-built branch: for manual-packaged
+        // resources it is the ONLY UI Kit vs Custom UI signal (bundles can't
+        // be sniffed), and dropping it made every prebuilt UI Kit macro serve
+        // as a blank Custom UI iframe (adversarial 1019 F2).
+        const render = typeof mod.render === 'string' ? { render: mod.render } : {};
+
         if (configResource && mod.resource) {
           // Custom config: split into --view + --config sub-modules
           uiModules.push({
@@ -763,6 +769,7 @@ export function parseManifestContent(content: string): ParsedManifest {
             resourceKey: mod.resource,
             viewMode: 'view',
             icon: mod.icon,
+            ...render,
           });
           uiModules.push({
             type: moduleType,
@@ -773,6 +780,7 @@ export function parseManifestContent(content: string): ParsedManifest {
             resourceKey: configResource,
             viewMode: 'config',
             icon: (configField && typeof configField === 'object' ? configField.icon : undefined) || mod.icon,
+            ...render,
           });
         } else if (mod.resource) {
           // No config or inline config — keep the flat shape for backward compat
@@ -785,6 +793,7 @@ export function parseManifestContent(content: string): ParsedManifest {
             resourceKey: mod.resource,
             icon: mod.icon,
             inlineMacroConfig: hasInlineConfig || undefined,
+            ...render,
           });
         }
 

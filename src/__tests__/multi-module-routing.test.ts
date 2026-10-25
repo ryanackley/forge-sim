@@ -199,6 +199,70 @@ describe('Multi-Module Routing', () => {
       expect(result).toBeNull();
     });
 
+    // Adversarial 1019 F2: the macro branch of the manifest parser builds its
+    // uiModules by hand and dropped `render` — for a manual-packaged resource
+    // that flag is the ONLY UI Kit vs Custom UI signal (bundles can't be
+    // sniffed), so a prebuilt UI Kit macro was classified Custom UI and served
+    // as a blank iframe. Same resource on jira:globalPage worked.
+    it('classifies a manual-packaged macro with render: native as prebuilt UI Kit', () => {
+      setupTestFiles(appDir, {
+        'frontend/dist/index.html': '<html><body><div id="root"></div><script type="module" src="./index.js"></script></body></html>',
+        'frontend/dist/index.js': 'export {};',
+        'dist/index.js': 'exports.handler = () => {};',
+      });
+
+      const manifest = parseManifestContent(`
+app:
+  id: ari:cloud:ecosystem::app/macro-manual-test
+  runtime:
+    name: nodejs22.x
+  package:
+    bundler: manual@2026
+    path: dist
+modules:
+  macro:
+    - key: board-macro
+      title: Board
+      resource: board
+      render: native
+      resolver:
+        function: resolver
+    - key: cfg-macro
+      title: Board With Config
+      resource: board
+      render: native
+      config:
+        resource: board
+      resolver:
+        function: resolver
+  function:
+    - key: resolver
+      handler: index.handler
+resources:
+  - key: board
+    path: frontend/dist
+    bundler: manual@2026
+`);
+
+      // `render` must survive the macro parsing branch — flat macro AND the
+      // custom-config --view/--config sub-modules.
+      const flat = manifest.uiModules.find((m) => m.key === 'board-macro')!;
+      const view = manifest.uiModules.find((m) => m.key === 'cfg-macro--view')!;
+      const config = manifest.uiModules.find((m) => m.key === 'cfg-macro--config')!;
+      expect(flat.render).toBe('native');
+      expect(view.render).toBe('native');
+      expect(config.render).toBe('native');
+
+      // And the dev-server classifier must land on prebuilt UI Kit, not
+      // Custom UI, for all of them.
+      for (const mod of [flat, view, config]) {
+        const detected = detectModuleType(appDir, manifest, mod);
+        expect(detected, mod.key).not.toBeNull();
+        expect(detected!.mode, mod.key).toBe('uikit');
+        expect(detected!.prebuilt, mod.key).toBe(true);
+      }
+    });
+
     it('should return null for module with missing resource file', () => {
       const manifest = createTestManifest({
         'jira:issuePanel': [{
