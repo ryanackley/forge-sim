@@ -73,3 +73,47 @@ nested frames with no documented shape. Guessing a shape would violate no-silent
 worse than rejecting does, so the registry keeps `unsupported` with its current message.
 Revisit only if a real app is observed calling it (the command registry will say which
 module), in which case capture the real host's answer shape first.
+
+## Adversarial 1019 minors — `/__tools/api/ui/render` and `/ui/context` are dead in dev mode (F9)
+
+In `forge-sim dev`, `POST /__tools/api/ui/render` answers 500 "No app directory set. Deploy an
+app first." even though dev mode deployed the app, and `GET /__tools/api/ui/context` 404s after
+a browser render (browser renders never populate server-side UI state, by design). Decide
+whether dev mode should wire these to something real or have them return a clear "not available
+in dev mode — use the browser page" answer; the current errors read like user mistakes.
+
+## Adversarial 1019 minors — false "not simulated" warning for transitive `@forge/manifest` (F11)
+
+Dev mode prints `"@forge/manifest" is not simulated by forge-sim — the real Atlassian package
+will be loaded instead` for apps that never import it; it is a transitive dependency of
+`@forge/api`/`@forge/kvs`. The warning should fire only for packages the APP's own source
+imports, or `@forge/manifest` should be allowlisted (loading the real package is exactly right
+for it).
+
+## Adversarial 1019 minors — stale `dev.lock` after clean shutdown (F12)
+
+Ctrl-C / `kill` of `forge-sim dev` leaves `<app>/.forge-sim/state/dev.lock` behind (startup
+still works, so stale-lock detection covers it). Left because it is cosmetic; a fix is removing
+the lock in the same shutdown path that prints "💾 Saved …", and deciding what SIGKILL leaves
+behind is out of scope.
+
+## Adversarial 1019 minors — mock route matching is first-registered-prefix-wins (F13)
+
+A `GET /rest/api/3/issue/` catch-all registered in `mocks.json` shadows a more specific route
+registered later via the tools API. Documented behavior, but longest-prefix-wins matches
+expectations better. A fix must decide tie-breaking (longest prefix, then registration order?)
+and check nothing relies on the current order (mock-file merge semantics do).
+
+## Adversarial 1019 minors — dev-page console noise from Atlaskit internals (F14)
+
+Every dev-mode UI Kit page logs repeated `Multiple versions of FeatureGateClients found`,
+`You are loading @emotion/react when it is already loaded`, and a feature-gate "Client must be
+initialized" error object — none from app code. Worth a look at whether the page shell
+double-loads something; purely cosmetic otherwise.
+
+## Adversarial 1019 doc gaps — MCP deploy wipes pre-registered mocks; getConsoleLogs shape
+
+Two small doc debts from the trial: (1) `docs/ai/mcp.md` should say that `forge_deploy`
+(reset defaults true) wipes mock routes registered before it — agents must re-register after
+deploy; the forge_deploy/forge_mock_routes tool descriptions should say so too. (2) The element
+shape of `sim.getConsoleLogs()` is undocumented in `docs/reference/api.md`.
