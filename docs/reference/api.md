@@ -266,7 +266,7 @@ interface DeployOptions {
 ```
 Deploy a Forge app. Reads `manifest.yml`, imports handlers, wires resolvers/consumers/triggers.
 
-By default, each scheduled trigger fires **once at deploy time**. This mirrors real Forge, where every scheduled trigger starts ~5 minutes after deployment (and redeploys reset/re-create them). It's also what runs migration triggers before your tests touch the database. If a scheduled job has side effects you don't want on every deploy (daily digest, outbound webhook), pass `{ fireScheduledTriggers: false }` and fire it explicitly with `sim.fireScheduledTrigger(key)`.
+By default, each scheduled trigger fires **once at deploy time**. This mirrors real Forge, where every scheduled trigger starts ~5 minutes after deployment (and redeploys reset/re-create them). It's also what runs migration triggers before your tests touch the database. If a scheduled job has side effects you don't want on every deploy (daily digest, outbound webhook), pass `{ fireScheduledTriggers: false }` and fire it explicitly with `sim.fireScheduledTrigger(key)`. (`forge-sim dev` fires them on the initial deploy only — hot redeploys on file save deliberately do **not** re-fire scheduled work, matching `forge tunnel`, even though a real `forge deploy` would reset the schedules.)
 
 ```typescript no-check
 sim.reset(): Promise<void>
@@ -353,9 +353,11 @@ sim.fireTrigger(event: string, data: object): Promise<any[]>
 Fire a product event trigger. Typed overloads exist for all 143 known events.
 
 ```typescript no-check
-sim.fireScheduledTrigger(triggerKey: string): Promise<{ statusCode: number }>
+sim.fireScheduledTrigger(triggerKey: string): Promise<{ statusCode: number; error?: string }>
 ```
 Fire a scheduled trigger. Handler receives `{ context: { cloudId, moduleKey }, contextToken }`.
+
+Parity note: per Atlassian's scheduled-trigger doc, the handler's **return value is ignored** — a handler that returns nothing (like Atlassian's own example) succeeds. The result is the sim's report, not a platform response: `{ statusCode: 204 }` when the handler completes, `{ statusCode: 500, error }` when it throws (real Forge logs the error and does not retry).
 
 ```typescript no-check
 sim.fireWebTrigger(triggerKey: string, request?: WebTriggerRequestInit): Promise<WebTriggerResponse>
@@ -1067,7 +1069,7 @@ forge-sim enforces the correct calling convention per Forge function type:
 |------|-----------|-----------------|
 | **Resolver** (UI bridge) | `({ payload, context }) => result` | Any JSON |
 | **Event Trigger** | `(event, context) => result` | Any |
-| **Scheduled Trigger** | `({ context }) => { statusCode }` | Must return `{ statusCode }` or 424 |
+| **Scheduled Trigger** | `({ context }) => void` | Return value **ignored** (per Forge docs); only a thrown error fails the fire |
 | **Consumer** (async events) | `(event, context) => result` | Returning `new InvocationError(retryOptions)` (or a `QueueResponse` with `.retry()` called) requests a retry — re-delivered with `event.retryContext`, capped at 4 retries. Re-delivery is immediate; forge-sim does not wait out `retryAfter`. |
 | **Web Trigger** | `(request) => { statusCode, body?, headers? }` | HTTP-like response |
 

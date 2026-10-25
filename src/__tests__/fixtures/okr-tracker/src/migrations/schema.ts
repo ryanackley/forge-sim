@@ -54,16 +54,15 @@ const createDBObjects = migrationRunner
   .enqueue('v003_create_progress_updates_table', CREATE_PROGRESS_UPDATES_TABLE);
 
 export const runMigration = async () => {
-  // Scheduled trigger handlers must return { statusCode } — real Forge records
-  // a 424 Failed Dependency for anything else (the okr-tracker silent-424,
-  // 2026-07-14). The sim now enforces that on deploy-time firing too.
+  // Per Atlassian's scheduled-trigger doc the return value is IGNORED — only
+  // a thrown error marks the fire as failed. Rethrow so a broken migration
+  // fails the deploy-time fire loudly instead of logging into the void.
   try {
     const results = await createDBObjects.run();
     console.log('[migration] Migrations applied:', results);
-    return { statusCode: 204, statusText: 'Migrations applied' };
   } catch (err: any) {
     console.error('[migration] Migration failed:', err.message);
     if (err.cause) console.error('[migration] Cause:', err.cause?.message ?? err.cause);
-    return { statusCode: 500, body: { error: err.message } };
+    throw err;
   }
 };

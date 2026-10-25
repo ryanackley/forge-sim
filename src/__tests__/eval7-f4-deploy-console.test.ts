@@ -39,13 +39,13 @@ describe('eval-7 F4 — DeployResult.scheduledTriggerFires', () => {
 
     expect(result.scheduledTriggerFires).toEqual([
       { key: 'ok-tick', function: 'fn-ok', statusCode: 204 },
-      { key: 'bad-tick', function: 'fn-bad', statusCode: 500, error: 'status 500' },
+      { key: 'bad-tick', function: 'fn-bad', statusCode: 500, error: 'Error: sched boom' },
     ]);
 
     // The failing fire still lands in errors too — scheduledTriggerFires
     // is the per-fire record, errors is the deploy verdict.
     expect(result.errors).toEqual([
-      { functionKey: 'fn-bad', error: 'Scheduled trigger error: status 500' },
+      { functionKey: 'fn-bad', error: 'Scheduled trigger error: Error: sched boom' },
     ]);
   });
 

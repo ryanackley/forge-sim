@@ -203,44 +203,38 @@ app:
       expect(context.installContext).toBeDefined();
     });
 
-    it('returns 424 when handler does not return { statusCode }', async () => {
+    // Atlassian's scheduled-trigger doc: "If a function invoked from a
+    // scheduled trigger returns a value, it is ignored." The sim used to
+    // demand the web-trigger { statusCode } shape and report 424 otherwise,
+    // which failed deploys for the no-return handler Atlassian's own example
+    // uses (adversarial 1019 F4).
+    it('a void return is a success — return values are ignored per Forge docs', async () => {
       sim.registerFunction('badFn', async () => {
-        return { success: true }; // Missing statusCode!
+        // void return — Atlassian's own example handler returns nothing
       }, 'scheduledTrigger');
 
       const result = await sim.fireScheduledTrigger('bad-trigger');
-
-      expect(result.statusCode).toBe(424);
-      expect(result.error).toContain('Invalid response');
-      expect(result.error).toContain('statusCode');
-    });
-
-    it('returns 424 for undefined return value', async () => {
-      sim.registerFunction('badFn', async () => {
-        // void return — no statusCode
-      }, 'scheduledTrigger');
-
-      const result = await sim.fireScheduledTrigger('bad-trigger');
-      expect(result.statusCode).toBe(424);
-    });
-
-    it('accepts valid success response (204)', async () => {
-      sim.registerFunction('migrationFn', async () => {
-        return { statusCode: 204, body: 'Migrations complete' };
-      }, 'scheduledTrigger');
-
-      const result = await sim.fireScheduledTrigger('run-migrations');
       expect(result.statusCode).toBe(204);
-      expect(result.body).toBe('Migrations complete');
+      expect(result.error).toBeUndefined();
     });
 
-    it('passes through error status codes (5xx)', async () => {
+    it('an arbitrary object return is a success', async () => {
+      sim.registerFunction('badFn', async () => {
+        return { success: true }; // ignored, per Forge docs
+      }, 'scheduledTrigger');
+
+      const result = await sim.fireScheduledTrigger('bad-trigger');
+      expect(result.statusCode).toBe(204);
+      expect(result.error).toBeUndefined();
+    });
+
+    it('even a returned { statusCode: 500 } is ignored — Forge never reads it', async () => {
       sim.registerFunction('cleanupFn', async () => {
         return { statusCode: 500, statusText: 'Internal error' };
       }, 'scheduledTrigger');
 
       const result = await sim.fireScheduledTrigger('run-cleanup');
-      expect(result.statusCode).toBe(500);
+      expect(result.statusCode).toBe(204);
     });
 
     it('catches thrown errors and returns 500', async () => {

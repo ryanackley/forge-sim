@@ -1251,13 +1251,14 @@ export async function deploy(sim: ForgeSimulator, appDir: string, options: Deplo
   // scheduled jobs have side effects you don't want on every deploy.
   //
   // Delegates to sim.fireScheduledTrigger — the single source of truth for
-  // the request shape ({ context: { cloudId, moduleKey }, contextToken }),
-  // full context (installContext, connected-account identity), and strict
-  // response validation. This used to be a lenient inline copy that swallowed
-  // missing-statusCode responses; real Forge records a 424 Failed Dependency
-  // for those, so hiding them was an inverted parity violation (the
-  // okr-tracker silent-424, 2026-07-14). Requires loadManifestData to have
-  // run first — see the hoisted call above.
+  // the request shape ({ context: { cloudId, moduleKey }, contextToken }) and
+  // full context (installContext, connected-account identity). Per Atlassian's
+  // scheduled-trigger doc the handler's RETURN VALUE IS IGNORED — so only a
+  // THROWING handler lands in `errors` (and fails the deploy by default). An
+  // earlier version demanded the web-trigger { statusCode } shape and failed
+  // the whole deploy for the no-return handler Atlassian's own example uses
+  // (adversarial 1019 F4). Requires loadManifestData to have run first — see
+  // the hoisted call above.
   const fireScheduled = options.fireScheduledTriggers !== false;
   const scheduledTriggerFires: DeployScheduledTriggerFire[] = [];
   for (const st of fireScheduled ? manifest.scheduledTriggers : []) {

@@ -491,7 +491,7 @@ server.tool(
 
 server.tool(
   'forge_fire_scheduled_trigger',
-  'Fire a scheduled trigger by key. Validates the response format per Forge docs: handler must return { statusCode, body?, headers?, statusText? }. Returns 424 if response format is invalid.',
+  'Fire a scheduled trigger by key. Per Forge docs the handler\'s return value is ignored — any completion is a success (204 in the result report); a thrown error reports 500 with the message.',
   {
     triggerKey: z.string().describe('The scheduled trigger key from the manifest'),
   },

@@ -2503,9 +2503,10 @@ export async function deployResolversOnly(
   // doesn't re-run scheduled work on every file save.
   //
   // Delegates to sim.fireScheduledTrigger so the handler receives the real
-  // Forge request shape — { context: { cloudId, moduleKey }, contextToken }
-  // — plus response-format validation (424 on missing statusCode). The dev
-  // path used to hand-roll a made-up `{ scheduledTrigger: { key, interval } }`
+  // Forge request shape — { context: { cloudId, moduleKey }, contextToken }.
+  // Return values are ignored per Forge docs; only a THROWING handler is an
+  // error (statusCode 500 in the sim's report shape). The dev path used to
+  // hand-roll a made-up `{ scheduledTrigger: { key, interval } }`
   // payload, so apps that switch on `event.context.moduleKey` (the documented
   // way to tell which schedule fired) saw `undefined` locally but worked in
   // production — an inverted parity violation.

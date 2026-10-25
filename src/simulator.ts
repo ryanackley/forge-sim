@@ -911,12 +911,18 @@ export class ForgeSimulator {
    * Per Forge docs, scheduled trigger handlers receive a SINGLE argument:
    *   { context: { cloudId, moduleKey }, contextToken }
    *
-   * They MUST return: { statusCode: number, body?: string, headers?: object, statusText?: string }
-   * - statusCode 204 = success
-   * - statusCode 5xx = error
-   * - Missing/wrong format = 424 Failed Dependency (platform error)
+   * The handler's RETURN VALUE IS IGNORED — Atlassian's scheduled-trigger
+   * doc: "If a function invoked from a scheduled trigger returns a value,
+   * it is ignored." (An earlier version demanded the web-trigger
+   * { statusCode } shape and reported 424 otherwise, which failed deploys
+   * for handlers Atlassian's own example uses — adversarial 1019 F4.)
+   *
+   * The sim's result shape is its own report, not a platform response:
+   * - handler completed → { statusCode: 204 }
+   * - handler threw     → { statusCode: 500, error } (Forge logs the error
+   *   and does not retry; here the error is surfaced to the caller)
    */
-  async fireScheduledTrigger(triggerKey: string): Promise<{ statusCode: number; body?: string; error?: string }> {
+  async fireScheduledTrigger(triggerKey: string): Promise<{ statusCode: number; error?: string }> {
     if (!this.manifest) {
       throw new Error('No manifest loaded. Call loadManifest() first.');
     }
@@ -970,27 +976,17 @@ export class ForgeSimulator {
       }
       this.checkInvocationTime(`scheduledTrigger:${triggerKey}`, schedStartMs, 'scheduledTrigger', customTimeout);
 
-      // Validate response format per Forge docs
-      if (result === undefined || result === null || typeof result !== 'object' || !('statusCode' in result)) {
-        this.log('warn',
-          `Scheduled trigger "${triggerKey}" returned invalid response (missing statusCode). ` +
-          `Forge would record a 424 Failed Dependency. Got: ${JSON.stringify(result)}`
+      // Per Forge docs the return value is ignored — any completion is a
+      // success. Mention non-undefined returns so apps written against the
+      // old (wrong) { statusCode } contract learn the value does nothing.
+      if (result !== undefined && result !== null) {
+        this.log('scheduledTrigger',
+          `Scheduled trigger "${triggerKey}" returned a value — ignored ` +
+          `(per Forge: scheduled trigger return values are ignored)`
         );
-        return {
-          statusCode: 424,
-          error: `Invalid response from scheduled trigger "${triggerKey}": must return { statusCode, body?, headers?, statusText? }`,
-        };
       }
-
-      const typedResult = result as { statusCode: number; body?: string; headers?: Record<string, string[]>; statusText?: string };
-
-      if (typedResult.statusCode >= 500) {
-        this.log('error', `Scheduled trigger "${triggerKey}" returned error status: ${typedResult.statusCode}`);
-      } else if (typedResult.statusCode === 204) {
-        this.log('scheduledTrigger', `Scheduled trigger "${triggerKey}" completed successfully (204)`);
-      }
-
-      return typedResult;
+      this.log('scheduledTrigger', `Scheduled trigger "${triggerKey}" completed successfully`);
+      return { statusCode: 204 };
     } catch (err) {
       if ((err as any).capturedConsole) {
         this.consoleLogs.push(...(err as any).capturedConsole);

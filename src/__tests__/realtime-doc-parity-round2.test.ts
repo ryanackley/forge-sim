@@ -107,8 +107,10 @@ export async function onIssue(event, context) {
   return both('trigger-channel', 'trigger');
 }
 export async function onSched(event, context) {
+  // Scheduled-trigger return values are IGNORED per Forge docs, so the
+  // publish results travel via KVS like the consumer's do.
   const r = await both('sched-channel', 'sched');
-  return { statusCode: 200, body: JSON.stringify(r) };
+  await kvs.set('sched-result', r);
 }
 export async function onHook(request, context) {
   const r = await both('hook-channel', 'hook');
@@ -496,7 +498,7 @@ describe('D. global channels and async invocation contexts', () => {
     const job = await subscribeGlobalAs('job-channel');
 
     const [trigResult] = await sim.fireTrigger('avi:jira:created:issue', { issue: { key: 'RT-9' } });
-    const schedResult = await sim.fireScheduledTrigger('sched');
+    await sim.fireScheduledTrigger('sched');
     const hookResult = await sim.fireWebTrigger('hook', { method: 'POST', body: '{}' });
     await sim.queue.push('jobs', { body: { id: 1 } });
     await flush();
@@ -507,7 +509,10 @@ describe('D. global channels and async invocation contexts', () => {
     expect(job.received).toEqual(['global-from-job']);
 
     expect(typeof trigResult.global.eventId).toBe('string');
-    expect(typeof JSON.parse(schedResult.body!).global.eventId).toBe('string');
+    // Scheduled-trigger returns are ignored per Forge docs; the handler
+    // parks its publish results in KVS instead.
+    const schedStored = await sim.kvs.get('sched-result');
+    expect(typeof (schedStored as any).global.eventId).toBe('string');
     expect(typeof JSON.parse(hookResult.body as string).global.eventId).toBe('string');
     const jobResult = await sim.kvs.get('job-result');
     expect(typeof (jobResult as any).global.eventId).toBe('string');
@@ -528,7 +533,7 @@ describe('D. global channels and async invocation contexts', () => {
     const job = await subscribeAs('panel-a', 'job-channel');
 
     const [trigResult] = await sim.fireTrigger('avi:jira:created:issue', { issue: { key: 'RT-9' } });
-    const schedResult = await sim.fireScheduledTrigger('sched');
+    await sim.fireScheduledTrigger('sched');
     const hookResult = await sim.fireWebTrigger('hook', { method: 'POST', body: '{}' });
     await sim.queue.push('jobs', { body: { id: 2 } });
     await flush();
@@ -537,7 +542,7 @@ describe('D. global channels and async invocation contexts', () => {
 
     const scopedResults = [
       trigResult.scoped,
-      JSON.parse(schedResult.body!).scoped,
+      ((await sim.kvs.get('sched-result')) as any).scoped,
       JSON.parse(hookResult.body as string).scoped,
       ((await sim.kvs.get('job-result')) as any).scoped,
     ];
