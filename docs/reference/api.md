@@ -539,7 +539,7 @@ app:
           - name: by-department       # object form
             partition:
               - department            # partition key attribute(s)
-            range: age                # single range key attribute
+            range: [age]              # single range key attribute (must be a list)
 ```
 
 Parsing rules (mirroring real Forge):
@@ -554,10 +554,11 @@ Parsing rules (mirroring real Forge):
     with that attribute as the range key (this is the form Atlassian's docs
     use in their first example).
   - **Object form** — `name` (required, unique), `partition` (optional list
-    of attribute names), `range` (optional single attribute name). `range`
-    also accepts a one-element list (`range: [age]`) to match the YAML shape
-    in Atlassian's docs, but an empty list or a multi-element list is a
-    deploy error, because real Forge rejects multi-attribute range keys.
+    of attribute names), `range` (optional **one-element list**, `range: [age]`).
+    A bare string (`range: age`) is rejected at deploy by the upstream
+    `@forge/manifest` validator — the schema requires an array here — and an
+    empty or multi-element list is a deploy error, because real Forge rejects
+    multi-attribute range keys.
 - Partition or range keys referencing attributes that aren't declared in
   `attributes` produce deploy warnings.
 
