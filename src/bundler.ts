@@ -229,11 +229,24 @@ const PINNED_FRONTEND = /^(react|react-dom)(\/.*)?$|^@forge\/(react|bridge|jira-
 const REACT_SPECIFIER = /^(react|react-dom)(\/.*)?$/;
 const PINNED_NS = 'forge-sim-pinned';
 
+/**
+ * The directory `react` must be resolved FROM so the bundle gets the same
+ * copy @forge/react itself requires: the directory of @forge/react's entry
+ * file, found through the app's own resolution. From there, esbuild walks
+ * the same node_modules chain Node walks for @forge/react's `require('react')`
+ * — a nested `@forge/react/node_modules/react` included. Falls back to
+ * forge-sim's copy when the app does not ship @forge/react.
+ *
+ * Resolve the entry, NOT `@forge/react/package.json`: @forge/react's
+ * `exports` map does not expose `./package.json`, so that probe throws
+ * ERR_PACKAGE_PATH_NOT_EXPORTED for every app and silently fell back to
+ * forge-sim's React while @forge/react still came from the app — two Reacts,
+ * `Cannot read properties of null (reading 'useState')` on the first hook.
+ */
 async function reactResolveDir(appDir: string): Promise<string> {
   const { createRequire } = await import('node:module');
   try {
-    createRequire(join(appDir, 'package.json')).resolve('@forge/react/package.json');
-    return appDir;
+    return dirname(createRequire(join(appDir, 'package.json')).resolve('@forge/react'));
   } catch {
     return PKG_ROOT;
   }

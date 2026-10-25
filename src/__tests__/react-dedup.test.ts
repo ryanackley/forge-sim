@@ -29,7 +29,15 @@ const FIXTURE_DIR = join(import.meta.dirname, 'fixtures/react-dedup');
 const FIXTURE_NODE_MODULES = join(FIXTURE_DIR, 'node_modules');
 const FIXTURE_REACT = join(FIXTURE_NODE_MODULES, 'react');
 
-const FORGE_SIM_REACT = join(import.meta.dirname, '..', '..', 'node_modules', 'react');
+const FORGE_SIM_NODE_MODULES = join(import.meta.dirname, '..', '..', 'node_modules');
+const FORGE_SIM_REACT = join(FORGE_SIM_NODE_MODULES, 'react');
+
+// What a real project has after `npm install @forge/react react`: its own
+// @forge/react, which pulls its own react-reconciler, which requires its own
+// react. Copying only `react` is not enough — then @forge/react resolves
+// (importer-first) to forge-sim's copy and so does its React, and there is
+// nothing to deduplicate. This exact gap let the bug ship once.
+const FIXTURE_PACKAGES = ['react', 'react-reconciler', '@forge/react'];
 
 describe('React deduplication — project with its own node_modules/react', () => {
   beforeAll(async () => {
@@ -41,7 +49,9 @@ describe('React deduplication — project with its own node_modules/react', () =
       throw new Error(`forge-sim's react not found at ${FORGE_SIM_REACT}`);
     }
     await rm(FIXTURE_NODE_MODULES, { recursive: true, force: true });
-    await cp(FORGE_SIM_REACT, FIXTURE_REACT, { recursive: true });
+    for (const pkg of FIXTURE_PACKAGES) {
+      await cp(join(FORGE_SIM_NODE_MODULES, pkg), join(FIXTURE_NODE_MODULES, pkg), { recursive: true });
+    }
     // Sanity check
     await access(join(FIXTURE_REACT, 'package.json'));
   }, 30_000);
@@ -69,13 +79,15 @@ describe('React deduplication — project with its own node_modules/react', () =
     expect(text).toMatch(/Loading|hello from resolver/);
   });
 
-  it('confirms the fixture has its own node_modules/react (test prerequisite)', async () => {
+  it('confirms the fixture has its own react, react-reconciler and @forge/react (test prerequisite)', async () => {
     // Sanity: this test exists to verify our test setup actually creates
-    // duplication. If forge-sim's react and the fixture's react point at
-    // the same inode, we're not testing what we think we are.
+    // duplication. If forge-sim's copies and the fixture's copies point at
+    // the same inodes, we're not testing what we think we are.
     const { statSync } = await import('node:fs');
-    const forgeSimInode = statSync(join(FORGE_SIM_REACT, 'package.json')).ino;
-    const fixtureInode = statSync(join(FIXTURE_REACT, 'package.json')).ino;
-    expect(fixtureInode, 'fixture react and forge-sim react must be different copies').not.toBe(forgeSimInode);
+    for (const pkg of FIXTURE_PACKAGES) {
+      const forgeSimInode = statSync(join(FORGE_SIM_NODE_MODULES, pkg, 'package.json')).ino;
+      const fixtureInode = statSync(join(FIXTURE_NODE_MODULES, pkg, 'package.json')).ino;
+      expect(fixtureInode, `fixture ${pkg} and forge-sim ${pkg} must be different copies`).not.toBe(forgeSimInode);
+    }
   });
 });
