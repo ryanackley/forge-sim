@@ -221,7 +221,14 @@ export async function resolve(
   // real package loads. Nothing is rewritten: forge-sim-built bundles never
   // reach this hook, and a manual-packaged app ships the dependencies it
   // imports, exactly as Forge requires of it.
-  if (specifier.startsWith('@forge/')) {
+  //
+  // Only the APP's own imports get the advisory. An importer inside
+  // node_modules is a real package pulling in its own dependency chain
+  // (@forge/api → @forge/manifest), which is normal and nothing the user
+  // can act on — the warning fired for apps that never import the package
+  // (adversarial 1019 F11). Same direct-vs-transitive line the bundled
+  // deploy path draws (deployer.ts unsimulatedForgeImports).
+  if (specifier.startsWith('@forge/') && !context.parentURL?.includes('/node_modules/')) {
     const rootPkg = specifier.split('/').slice(0, 2).join('/');
     if (!PASSTHROUGH_OK.has(rootPkg)) warnUnshimmedForgeImport(specifier);
   }

@@ -129,6 +129,33 @@ describe('Loader Hooks — resolve()', () => {
       expect(warnings).toHaveLength(0);
     });
 
+    // Adversarial 1019 F11: a manual-packaged app shipping the real
+    // @forge/api in its package got "@forge/manifest is not simulated" at
+    // every boot — @forge/manifest is @forge/api's OWN dependency, imported
+    // from inside node_modules, not anything the app's author wrote or can
+    // act on. Only app-code importers get the advisory.
+    it('does NOT warn when the importer is inside node_modules (transitive dependency)', async () => {
+      await resolve('@forge/transitive-dep-test', {
+        parentURL: 'file:///some/app/dist/node_modules/@forge/api/out/api/index.js',
+      }, nextResolve);
+
+      const warnings = warnSpy.mock.calls.filter(c =>
+        String(c[0]).includes('@forge/transitive-dep-test')
+      );
+      expect(warnings).toHaveLength(0);
+    });
+
+    it('DOES warn when app code is the importer', async () => {
+      await resolve('@forge/app-direct-test', {
+        parentURL: 'file:///some/app/dist/handlers/resolver.js',
+      }, nextResolve);
+
+      const warnings = warnSpy.mock.calls.filter(c =>
+        String(c[0]).includes('@forge/app-direct-test')
+      );
+      expect(warnings).toHaveLength(1);
+    });
+
     it('does NOT warn for @forge/sql subpaths', async () => {
       await resolve('@forge/sql/out/migration', {}, nextResolve);
 
