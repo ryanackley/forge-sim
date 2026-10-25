@@ -14,9 +14,8 @@
  *  - a test script run under plain `node --import ./dist/loader/register.js`.
  *
  * For those they still: route `@forge/resolver` to the shim (the one package
- * with no seam), warn once about an `@forge/*` import the sim does not
- * simulate, force ESM for marked prebuilt UI bundles and their chunks,
- * transpile stray .tsx/.jsx, and infer extensions on relative imports.
+ * with no seam), warn once about an `@forge/*` import the sim has no answer
+ * for, transpile stray .tsx/.jsx, and infer extensions on relative imports.
  */
 
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -47,39 +46,40 @@ const FORGE_SHIMS: Record<string, string> = Object.fromEntries(
 // Deliberate real-package passthroughs (see shim-registry for the why).
 const PASSTHROUGH_OK = new Set(REGISTRY_PASSTHROUGH_OK);
 
-// Warn (once per specifier) when app code imports a @forge/* package that
-// forge-sim doesn't simulate. Without this, the REAL Atlassian package loads
-// silently and fails — or worse, silently misbehaves — at call time, deep in
-// the app, with an error that says nothing about forge-sim. This is the #1
-// "works in Forge, breaks mysteriously in the sim" footgun.
+// Warn (once per specifier) when app code imports a @forge/* package the sim
+// has no ANSWER for — not "no shim for". The covered set is PASSTHROUGH_OK
+// (real packages whose I/O the `__forge_fetch__` seam serves) plus the one
+// remaining shim; a package outside it either sends a descriptor the seam
+// doesn't know, or bypasses the seam entirely with its own transport.
 //
-// Warn, don't throw: some real packages partially work outside Forge (e.g.
-// @forge/feature-flags catches transport errors and serves defaults), and
-// throwing here would break apps that only import — but never call — the
-// package from a code path the test exercises.
+// The second case is why this warning earns its keep. A package with its own
+// transport may catch its own failures and serve defaults (@forge/feature-flags
+// does exactly that) — no throw, no log, the app silently takes a different
+// branch than it would in production and the test passes green. The sim can't
+// stop a real package from stubbing itself, so it says so at the boundary.
+// (A package that DOES reach the seam with an unknown descriptor already
+// fails loudly and diagnosably in seam-fetch.ts.)
+//
+// Warn, don't throw: throwing would break apps that import but never call the
+// package on the path under test.
 //
 // Known blind spot: CJS `require()` bypasses ESM loader hooks entirely, so
-// requires of unshimmed packages load the real package with no warning.
-const warnedUnshimmed = new Set<string>();
+// requires of unanswered packages load the real package with no warning.
+const warnedUnanswered = new Set<string>();
 
-function warnUnshimmedForgeImport(specifier: string): void {
-  if (warnedUnshimmed.has(specifier)) return;
-  warnedUnshimmed.add(specifier);
+function warnUnansweredForgeImport(specifier: string): void {
+  if (warnedUnanswered.has(specifier)) return;
+  warnedUnanswered.add(specifier);
 
   // '@forge/feature-flags/out/client' → '@forge/feature-flags'
   const rootPkg = specifier.split('/').slice(0, 2).join('/');
-  const rootIsShimmed = rootPkg in FORGE_SHIMS;
 
-  const message = rootIsShimmed
-    ? `[forge-sim] "${specifier}" resolves to the REAL Atlassian package — ` +
-      `forge-sim shims "${rootPkg}" but not this subpath. ` +
-      `Behavior may not match the simulated "${rootPkg}".`
-    : `[forge-sim] "${specifier}" is not simulated by forge-sim — the real ` +
-      `Atlassian package will be loaded instead. Outside the real Forge ` +
-      `runtime it may throw or silently misbehave when called. If calls ` +
-      `into "${rootPkg}" fail or return unexpected results, this is why.`;
-
-  console.warn(message);
+  console.warn(
+    `[forge-sim] "${specifier}" is not simulated by forge-sim — the real ` +
+    `Atlassian package will be loaded instead. Outside the real Forge ` +
+    `runtime it may throw or silently misbehave when called. If calls ` +
+    `into "${rootPkg}" fail or return unexpected results, this is why.`
+  );
 }
 
 // Extensions to try when resolving extensionless/directory imports from app code.
@@ -230,7 +230,7 @@ export async function resolve(
   // deploy path draws (deployer.ts unsimulatedForgeImports).
   if (specifier.startsWith('@forge/') && !context.parentURL?.includes('/node_modules/')) {
     const rootPkg = specifier.split('/').slice(0, 2).join('/');
-    if (!PASSTHROUGH_OK.has(rootPkg)) warnUnshimmedForgeImport(specifier);
+    if (!PASSTHROUGH_OK.has(rootPkg)) warnUnansweredForgeImport(specifier);
   }
 
   // 3. Try native resolution first

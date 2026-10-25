@@ -173,15 +173,22 @@ describe('Loader Hooks — resolve()', () => {
       expect(warnSpy).not.toHaveBeenCalled();
     });
 
-    it('warns with a subpath-specific message for unshimmed subpaths of shimmed packages', async () => {
-      // @forge/resolver is the only shimmed package left.
-      await resolve('@forge/resolver/some-internal-util', {}, nextResolve);
+    it('warns for a subpath of the one shimmed package', async () => {
+      // @forge/resolver is the only shimmed package left, and `./shared` its
+      // only subpath export — a TYPES-ONLY module (its runtime JS exports
+      // nothing), so `import type` is erased and never reaches this hook at
+      // all. The warning used to have a second, subpath-specific wording
+      // ("we shim the root but not this subpath, behavior may differ") that
+      // could only ever fire here, where it is inapplicable: there is no
+      // runtime behavior to differ. One message now, for every specifier the
+      // sim has no answer for.
+      await resolve('@forge/resolver/shared', {}, nextResolve);
 
       const warning = warnSpy.mock.calls.map(c => String(c[0])).find(m =>
-        m.includes('@forge/resolver/some-internal-util')
+        m.includes('@forge/resolver/shared')
       );
       expect(warning).toBeDefined();
-      expect(warning).toContain('not this subpath');
+      expect(warning).toContain('not simulated by forge-sim');
     });
 
     it('does not warn for non-@forge packages', async () => {
