@@ -473,8 +473,9 @@ Calls to `mockProductRoutes()` **merge**: routes accumulate across calls as if
 they'd all been passed in one call, and re-registering the same
 `"METHOD /path"` key updates that route's response in place, so the mid-test
 update above changes only the search route and leaves `GET /rest/api/3/myself`
-intact. Matching is first-match-wins in registration order with prefix path
-matching. Wipe everything with `sim.reset()`.
+intact. Paths match by prefix and the longest matching prefix wins, so a
+catch-all never shadows a more specific route regardless of registration
+order. Wipe everything with `sim.reset()`.
 
 #### Error responses with `mockResponse()`
 

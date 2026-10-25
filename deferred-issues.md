@@ -74,27 +74,12 @@ worse than rejecting does, so the registry keeps `unsupported` with its current 
 Revisit only if a real app is observed calling it (the command registry will say which
 module), in which case capture the real host's answer shape first.
 
-## Adversarial 1019 minors — false "not simulated" warning for transitive `@forge/manifest` (F11)
-
-Dev mode prints `"@forge/manifest" is not simulated by forge-sim — the real Atlassian package
-will be loaded instead` for apps that never import it; it is a transitive dependency of
-`@forge/api`/`@forge/kvs`. The warning should fire only for packages the APP's own source
-imports, or `@forge/manifest` should be allowlisted (loading the real package is exactly right
-for it).
-
 ## Adversarial 1019 minors — stale `dev.lock` after clean shutdown (F12)
 
 Ctrl-C / `kill` of `forge-sim dev` leaves `<app>/.forge-sim/state/dev.lock` behind (startup
 still works, so stale-lock detection covers it). Left because it is cosmetic; a fix is removing
 the lock in the same shutdown path that prints "💾 Saved …", and deciding what SIGKILL leaves
 behind is out of scope.
-
-## Adversarial 1019 minors — mock route matching is first-registered-prefix-wins (F13)
-
-A `GET /rest/api/3/issue/` catch-all registered in `mocks.json` shadows a more specific route
-registered later via the tools API. Documented behavior, but longest-prefix-wins matches
-expectations better. A fix must decide tie-breaking (longest prefix, then registration order?)
-and check nothing relies on the current order (mock-file merge semantics do).
 
 ## Adversarial 1019 minors — dev-page console noise from Atlaskit internals (F14)
 

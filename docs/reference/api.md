@@ -733,7 +733,7 @@ sim.productApi.clear(): void
 
 Mock routes take priority over real APIs.
 
-**Repeated `mockRoutes()` calls merge**: routes accumulate across calls for the same product, as if all were passed in one call. Re-registering the same `"METHOD /path"` key updates that route's response in place (keeping its match position). Route matching is first-match-wins in registration order, with prefix matching on paths. To wipe mocks, use `sim.reset()` or `sim.productApi.clear()`; `mock(product, handler)` replaces the product's handler wholesale.
+**Repeated `mockRoutes()` calls merge**: routes accumulate across calls for the same product, as if all were passed in one call. Re-registering the same `"METHOD /path"` key updates that route's response in place. Paths match by prefix and the **longest matching prefix wins** — a `GET /rest/api/3/issue/` catch-all never shadows a more specific `GET /rest/api/3/issue/PROJ-1`, no matter which was registered first (ties on length fall back to registration order). To wipe mocks, use `sim.reset()` or `sim.productApi.clear()`; `mock(product, handler)` replaces the product's handler wholesale.
 
 Use a function handler for dynamic responses (the `route` export is the template tag mirroring `@forge/api`'s, for building request paths):
 

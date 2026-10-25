@@ -246,8 +246,9 @@ export class SimulatedProductApi {
    * Per-product accumulated mock routes, keyed "METHOD pathPattern".
    * `mockRoutes()` MERGES into this table (eval-6 F2) — repeated calls add
    * routes as if they'd all been passed in one call; re-registering the
-   * same METHOD+pattern updates the response in place (Map.set keeps the
-   * original insertion position, preserving first-match-wins ordering).
+   * same METHOD+pattern updates the response in place. Matching is
+   * longest-prefix-wins (adversarial 1019 F13), so insertion order only
+   * breaks ties between equal-length patterns.
    */
   private mockRouteTables = new Map<
     string,
@@ -416,7 +417,10 @@ export class SimulatedProductApi {
    *
    * Route keys are "METHOD /path" tuples (e.g. "GET /rest/api/3/issue/TEST-1").
    * Method defaults to GET if omitted (just "/rest/api/3/issue/TEST-1").
-   * Path matching is prefix-based so "/rest/api/3/issue" matches "/rest/api/3/issue/TEST-1".
+   * Path matching is prefix-based so "/rest/api/3/issue" matches
+   * "/rest/api/3/issue/TEST-1" — and the LONGEST matching prefix wins, so a
+   * catch-all never shadows a more specific route regardless of which was
+   * registered first.
    *
    * Repeated calls MERGE (eval-6 F2): routes accumulate across calls as if
    * they'd all been passed in one call. Re-registering the same
@@ -429,8 +433,8 @@ export class SimulatedProductApi {
     routes: Record<string, any | ((path: string, options?: ProductApiRequest) => any)>
   ): void {
     // Merge parsed routes into the per-product table. Map.set on an
-    // existing key updates the value without moving its position, so
-    // first-match-wins ordering stays stable across re-registrations.
+    // existing key updates the value without moving its position; position
+    // only matters as the tie-break between equal-length patterns.
     let table = this.mockRouteTables.get(product);
     if (!table) {
       table = new Map();
@@ -451,16 +455,26 @@ export class SimulatedProductApi {
       routeHandler = (path: string, options?: ProductApiRequest) => {
         const requestMethod = (options?.method ?? 'GET').toUpperCase();
 
+        // Longest-prefix-wins: the most specific matching route answers, no
+        // matter when it was registered. First-registered used to win, so a
+        // "GET /rest/api/3/issue/" catch-all loaded from mocks.json at boot
+        // shadowed every more specific route added later via the tools API
+        // or MCP (adversarial 1019 F13). Ties on pattern length keep
+        // registration order (strict `>` below).
+        let best: { pathPattern: string; response: any } | null = null;
         for (const { method, pathPattern, response } of this.mockRouteTables.get(product)?.values() ?? []) {
           if (requestMethod === method && (path === pathPattern || path.startsWith(pathPattern))) {
-            // Resolve the route value — function form OR static value.
-            const raw = typeof response === 'function' ? response(path, options) : response;
-            // Unwrap the (optional) mockResponse() shape into a status/body/headers
-            // triple. Bare values become 200 OK bodies. Throws on the `__status`
-            // footgun so the next agent finds the right helper fast.
-            const { status, body, headers } = unwrapMockResponse(raw);
-            return makeResponse(status, body, headers);
+            if (!best || pathPattern.length > best.pathPattern.length) best = { pathPattern, response };
           }
+        }
+        if (best) {
+          // Resolve the route value — function form OR static value.
+          const raw = typeof best.response === 'function' ? best.response(path, options) : best.response;
+          // Unwrap the (optional) mockResponse() shape into a status/body/headers
+          // triple. Bare values become 200 OK bodies. Throws on the `__status`
+          // footgun so the next agent finds the right helper fast.
+          const { status, body, headers } = unwrapMockResponse(raw);
+          return makeResponse(status, body, headers);
         }
         return makeResponse(404, { error: `No mock route matched: ${requestMethod} ${path}` });
       };
@@ -475,8 +489,9 @@ export class SimulatedProductApi {
   }
 
   /**
-   * Registered mock route keys ("METHOD /path") for a product, in match
-   * order. Handy for surfacing the merged state (MCP tool response).
+   * Registered mock route keys ("METHOD /path") for a product, in
+   * registration order (matching itself is longest-prefix-wins). Handy for
+   * surfacing the merged state (MCP tool response).
    */
   getMockRoutes(product: string): string[] {
     return [...(this.mockRouteTables.get(product)?.keys() ?? [])];
