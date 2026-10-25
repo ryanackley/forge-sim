@@ -181,7 +181,20 @@ export function createApiHandler(
       if (path.startsWith('/api/kvs/') && method === 'PUT') {
         const key = decodeURIComponent(path.slice('/api/kvs/'.length));
         const body = await readBody(req);
-        await sim.kvs.set(key, body.value);
+        // The stored value rides in a `value` wrapper (same as the MCP
+        // forge_kvs_set tool) — a raw body is NOT stored as-is. Adversarial
+        // 1019 F8: a plain JSON body used to fall through as `undefined` and
+        // die in the store as a 500 INVALID_VALUE with no hint.
+        if (!body || typeof body !== 'object' || !('value' in body)) {
+          return json(res, {
+            error: `Missing "value". Send {"value": <data to store>} — the raw body is not stored as-is.`,
+          }, 400);
+        }
+        try {
+          await sim.kvs.set(key, body.value);
+        } catch (err: any) {
+          return json(res, { error: err.message }, 400);
+        }
         return json(res, { success: true, key });
       }
 
@@ -235,11 +248,24 @@ export function createApiHandler(
         return json(res, stats);
       }
 
+      // Canonical shape: { queueKey, events } — the same names as the MCP
+      // forge_queue_push tool, and `events` mirrors the real @forge/events
+      // push(event | event[]). The pre-unification HTTP names ({ queue,
+      // body } — single event) stay accepted as legacy aliases so older
+      // scripts and version-skewed daemon/CLI pairs keep working
+      // (adversarial 1019 F8).
       if (path === '/api/queue/push' && method === 'POST') {
         const body = await readBody(req);
-        const { queue: queueKey, body: eventBody } = body;
-        if (!queueKey) return json(res, { error: 'Missing queue key' }, 400);
-        const result = await sim.queue.push(queueKey, { body: eventBody ?? {} });
+        const queueKey = body.queueKey ?? body.queue;
+        if (!queueKey) {
+          return json(res, {
+            error: 'Missing queueKey. Send {"queueKey": "<key>", "events": [{"body": {...}, "delayInSeconds"?: n}]} (legacy {"queue": ..., "body": ...} also accepted).',
+          }, 400);
+        }
+        const events = Array.isArray(body.events)
+          ? body.events
+          : { body: body.body ?? {} };
+        const result = await sim.queue.push(queueKey, events);
         return json(res, result);
       }
 
@@ -287,8 +313,11 @@ export function createApiHandler(
 
       if (path === '/api/scheduled-trigger' && method === 'POST') {
         const body = await readBody(req);
-        const { key } = body;
-        if (!key) return json(res, { error: 'Missing key' }, 400);
+        // Canonical name: triggerKey (same as the MCP tool; bare `key` is
+        // overloaded across KVS/entity/module keys). Legacy `key` stays
+        // accepted (adversarial 1019 F8 unification).
+        const key = body.triggerKey ?? body.key;
+        if (!key) return json(res, { error: 'Missing triggerKey. Send {"triggerKey": "<scheduled trigger key>"} (legacy "key" also accepted).' }, 400);
         try {
           const result = await sim.fireScheduledTrigger(key);
           return json(res, result);
@@ -306,8 +335,12 @@ export function createApiHandler(
       // real webhook caller would see.
       if (path === '/api/webtrigger' && method === 'POST') {
         const body = await readBody(req);
-        const { key, method: reqMethod, userPath, headers, queryParameters, body: reqBody } = body;
-        if (!key) return json(res, { error: 'Missing key' }, 400);
+        const { method: reqMethod, userPath, headers, queryParameters, body: reqBody } = body;
+        // Canonical name: triggerKey (same as the MCP tool; bare `key` is
+        // overloaded across KVS/entity/module keys). Legacy `key` stays
+        // accepted (adversarial 1019 F8 unification).
+        const key = body.triggerKey ?? body.key;
+        if (!key) return json(res, { error: 'Missing triggerKey. Send {"triggerKey": "<webtrigger key>", "method"?, "userPath"?, "headers"?, "queryParameters"?, "body"?} (legacy "key" also accepted).' }, 400);
         try {
           const result = await sim.fireWebTrigger(key, {
             method: reqMethod,
@@ -387,7 +420,19 @@ export function createApiHandler(
         }
         if (method === 'PUT') {
           const body = await readBody(req);
-          await sim.kvs.entity(entityName).set(key, body.value);
+          if (!body || typeof body !== 'object' || !('value' in body)) {
+            return json(res, {
+              error: `Missing "value". Send {"value": <entity data>} — the raw body is not stored as-is.`,
+            }, 400);
+          }
+          try {
+            await sim.kvs.entity(entityName).set(key, body.value);
+          } catch (err: any) {
+            // Client errors get client statuses: unknown entity → 404,
+            // schema violation (VALIDATION_ERROR etc.) → 400.
+            const status = String(err.message).includes('ENTITY_NOT_FOUND') ? 404 : 400;
+            return json(res, { error: err.message }, status);
+          }
           return json(res, { success: true, entityName, key });
         }
         if (method === 'DELETE') {

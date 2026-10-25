@@ -920,7 +920,7 @@ async function fireScheduled(key) {
   const res = await fetch(API + '/api/scheduled-trigger', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ key }),
+    body: JSON.stringify({ triggerKey: key }),
   });
   const result = await res.json();
   alert(result.statusCode < 400 ? '✅ Success (' + result.statusCode + ')' : '⚠️ Status: ' + result.statusCode + '\\n' + JSON.stringify(result));
@@ -928,12 +928,14 @@ async function fireScheduled(key) {
 
 async function pushQueue() {
   const queue = document.getElementById('queueSelect').value;
-  let payload;
-  try { payload = JSON.parse(document.getElementById('queuePayload').value); } catch { payload = { body: {} }; }
+  // The textarea holds ONE event ({ body, delayInSeconds? }); send it in the
+  // canonical { queueKey, events } shape the API and MCP tool share.
+  let event;
+  try { event = JSON.parse(document.getElementById('queuePayload').value); } catch { event = { body: {} }; }
   const res = await fetch(API + '/api/queue/push', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ queue, ...payload }),
+    body: JSON.stringify({ queueKey: queue, events: [event] }),
   });
   const result = await res.json();
   const el = document.getElementById('queueResult');

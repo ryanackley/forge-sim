@@ -79,39 +79,42 @@ Connect to `ws://localhost:5173/__tools/ws` for live updates.
 
 ## HTTP API
 
-All endpoints are under `/__tools/api/`:
+All endpoints are under `/__tools/api/`. Request bodies are JSON; responses are JSON. Field names are the **same as the equivalent MCP tool's** (`triggerKey`, `queueKey`, `events`, …) — one vocabulary across both surfaces, so anything written against `forge_*` tool schemas works here verbatim. Pre-unification names (`key` for triggers, `queue`/`body` for queue push) remain accepted as legacy aliases.
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/api/manifest` | Deployed app manifest |
-| GET | `/api/functions` | Registered functions |
-| GET | `/api/kvs` | List all KVS entries |
-| GET | `/api/kvs/:key` | Get a KVS value |
-| PUT | `/api/kvs/:key` | Set a KVS value |
-| DELETE | `/api/kvs/:key` | Delete a KVS entry |
-| GET | `/api/sql/tables` | List SQL tables |
-| POST | `/api/sql/query` | Execute a SQL query |
-| GET | `/api/sql/schema` | Full schema dump |
-| GET | `/api/queues` | Queue statistics |
-| POST | `/api/queue/push` | Push an event to a queue |
-| GET | `/api/logs` | All simulator logs |
-| GET | `/api/logs/console` | Captured console output only |
-| POST | `/api/invoke` | Invoke a resolver function |
-| POST | `/api/trigger` | Fire a product event trigger |
-| POST | `/api/scheduled-trigger` | Fire a scheduled trigger |
-| POST | `/api/webtrigger` | Fire a web trigger (`{ key, method?, userPath?, headers?, queryParameters?, body? }`) |
-| POST | `/api/deploy` | Deploy a Forge app |
-| POST | `/api/reset` | Reset all simulator state |
-| GET | `/api/health` | Health check |
-| GET | `/api/ui/state` | Current ForgeDoc UI tree |
-| POST | `/api/ui/render` | Render a UI module |
-| GET | `/api/ui/context` | Inspect the current Forge context |
-| GET | `/api/entities` | List Custom Entities and registered schemas |
-| POST | `/api/mock/routes` | Register mock HTTP responses for product APIs / remotes (in-memory; cleared on restart) |
-| POST | `/api/mock/graphql` | Register mock GraphQL operation responses (in-memory; cleared on restart) |
-| GET | `/api/providers` | List external OAuth providers + connection status |
-| POST | `/api/providers/:key/start` | Begin OAuth flow; returns `{ authUrl, state, redirectUri }` |
-| DELETE | `/api/providers/:key` | Disconnect — revoke stored provider token |
-| GET | `/__tools/oauth/callback` | Unified OAuth callback URL (dispatched to pending flow by `state`) |
+| Method | Path | Request body | Response / notes |
+|--------|------|--------------|------------------|
+| GET | `/api/manifest` | — | Deployed app manifest summary |
+| GET | `/api/functions` | — | `{ registered: [{key, type}], resolverDefinitions }` |
+| GET | `/api/kvs?prefix=` | — | `[{ key, value }]` |
+| GET | `/api/kvs/:key` | — | `{ key, value }`; 404 if absent |
+| PUT | `/api/kvs/:key` | `{ "value": <data> }` — the stored value rides in a `value` wrapper; a raw body is a 400 with this hint | `{ success, key }` |
+| DELETE | `/api/kvs/:key` | — | `{ success, key }` |
+| GET | `/api/sql/tables` | — | `{ tables: [...] }` |
+| POST | `/api/sql/query` | `{ "query": "SELECT ..." }` | `{ rows, rowCount }`; SQL errors are 400 |
+| GET | `/api/sql/schema` | — | `{ <table>: [columns...] }` |
+| GET | `/api/queues` | — | Queue statistics |
+| POST | `/api/queue/push` | `{ "queueKey": "<key>", "events": [{ "body": {...}, "delayInSeconds"? }] }` — same shape as real `@forge/events` `push()` (legacy `{ "queue", "body" }` single-event form also accepted) | `{ jobId }` |
+| GET | `/api/logs` | — | All simulator logs |
+| GET | `/api/logs/console` | — | Captured console output only |
+| POST | `/api/invoke` | `{ "functionKey": "<key>", "payload"?: {...}, "moduleKey"?, "context"?, "actionKey"? }` | `{ success, result }` |
+| POST | `/api/trigger` | `{ "event": "avi:...", "data"?: {...} }` | `{ event, triggersMatched, results }` |
+| POST | `/api/scheduled-trigger` | `{ "triggerKey": "<trigger key>" }` (legacy `key` also accepted) | `{ statusCode }` — 204 on completion; 500 + `error` if the handler threw |
+| POST | `/api/webtrigger` | `{ "triggerKey": "<trigger key>", "method"?, "userPath"?, "headers"?, "queryParameters"?, "body"? }` (legacy `key` also accepted) | The Forge `{ statusCode, headers, body }` response; handler errors come back as 5xx *inside* it |
+| POST | `/api/deploy` | `{ "appDir": "<path>", "reset"?: true }` | Deploy summary (`loadedFunctions`, `errors`, `warnings`, …) |
+| POST | `/api/reset` | — | Clears all simulator state |
+| GET | `/api/health` | — | `{ status, deployed, appName, uptime }` |
+| GET | `/api/ui/state` | — | Current ForgeDoc UI tree (headless renders only — see note) |
+| POST | `/api/ui/render` | `{ "moduleKey": "<key>", "issueKey"?, "contentId"?, "spaceKey"?, "context"?, "extension"? }` | `{ rendered, tree, context }` (headless renders only — see note) |
+| GET | `/api/ui/context?module=` | — | Forge context of the last headless render; 404 before one |
+| GET | `/api/entities` | — | `{ schemas, entities }` |
+| GET/PUT/DELETE | `/api/entities/:name/:key` | PUT: `{ "value": <entity data> }` | Schema-validated; unknown entity is 404, schema violation is 400 |
+| POST | `/api/mock/routes` | `{ "product": "jira", "routes": { "<METHOD /path>": <response> } }` (in-memory; cleared on restart) | `{ success, product, routeCount }` |
+| POST | `/api/mock/graphql` | `{ "operations": { "<OperationName>": <response> } }` (in-memory; cleared on restart) | `{ success, operationCount }` |
+| GET | `/api/providers` | — | External OAuth providers + connection status |
+| POST | `/api/providers/:key/start` | — | `{ authUrl, state, redirectUri }` |
+| DELETE | `/api/providers/:key` | — | Disconnect — revoke stored provider token |
+| GET | `/__tools/oauth/callback` | — | Unified OAuth callback URL (dispatched to pending flow by `state`) |
+
+> **The `ui/*` endpoints track headless renders, not browser pages.** A module rendered in the browser (`/module/<key>/`) lives in the browser's own React tree; it does not populate server-side UI state, so `/api/ui/state` and `/api/ui/context` only answer after a headless `ui/render` through this API (or `sim.ui.render()` in the same process).
 
 > The Tools UI also accepts `?theme=dark|light|auto` on the URL. See [cli.md](../reference/cli.md#theme-dark--light) for the convention shared with the renderer.

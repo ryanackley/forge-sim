@@ -100,10 +100,21 @@ describe('F6 — /api/webtrigger route (shared daemon/dev-tools handler)', () =>
     expect(body.error).toContain('github-webhook'); // lists available keys
   });
 
-  it('missing key → HTTP 400', async () => {
+  it('missing key → HTTP 400 with the expected body shape in the hint', async () => {
     const { status, body } = await fire({});
     expect(status).toBe(400);
-    expect(body.error).toBe('Missing key');
+    expect(body.error).toContain('Missing triggerKey');
+    expect(body.error).toContain('"key"'); // the legacy alias is named too
+  });
+
+  it('accepts the canonical field name (triggerKey, same as the MCP tool)', async () => {
+    // Adversarial 1019 F8: the MCP tool said triggerKey, the HTTP API said
+    // key — scripts written against one got "Missing key" from the other.
+    // triggerKey is now canonical on both; `key` stays as a legacy alias
+    // (the `fire({key})` calls above pin it).
+    const { status, body } = await fire({ triggerKey: 'github-webhook', method: 'POST', body: {} });
+    expect(status).toBe(200);
+    expect(body.statusCode).toBe(200);
   });
 
   it('no manifest deployed is a setup error → HTTP 404', async () => {

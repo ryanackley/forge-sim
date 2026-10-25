@@ -438,7 +438,7 @@ else if (command === 'webtrigger') {
     const result = await daemonRequest('/api/webtrigger', {
       method: 'POST',
       body: {
-        key,
+        triggerKey: key,
         method: httpMethod,
         userPath,
         headers: Object.keys(headers).length ? headers : undefined,
@@ -469,7 +469,7 @@ else if (command === 'scheduled') {
   try {
     const result = await daemonRequest('/api/scheduled-trigger', {
       method: 'POST',
-      body: { key },
+      body: { triggerKey: key },
     });
     console.log(JSON.stringify(result, null, 2));
   } catch (err: any) {

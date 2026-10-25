@@ -131,6 +131,8 @@ In practice: credentials, secrets, and variables are set-once-and-shared; runtim
 2,832 tests · 41 MCP tools · 4 MCP resources
 <!-- END:STATS_COMPACT -->
 
+These tool schemas are the canonical vocabulary for forge-sim's operations — the [Tools HTTP API](../local-development/dev-tools.md#http-api) accepts the same field names (`triggerKey`, `queueKey`, `events`, `{ value }`, …), so a request built from a tool schema works on either surface.
+
 | Tool | Description |
 |------|-------------|
 | `forge_deploy` | Deploy a Forge app from a directory (auto-loads auth credentials) |
