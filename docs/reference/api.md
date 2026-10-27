@@ -476,9 +476,36 @@ Unified storage implementing `@forge/kvs`, `@forge/api` storage, and Custom Enti
 
 ```typescript no-check
 sim.kvs.get(key: string): Promise<any>
-sim.kvs.set(key: string, value: any): Promise<void>
+sim.kvs.set(key: string, value: any, options?: SetOptions): Promise<void | SetResult>
 sim.kvs.delete(key: string): Promise<void>
 ```
+
+`options` is what the real `kvs.set` takes: `keyPolicy` (`'OVERRIDE'` |
+`'FAIL_IF_EXISTS'`), `returnValue` (`'PREVIOUS'` | `'LATEST'`, which makes the
+call resolve with that entry) and `ttl` (`{ value, unit }`).
+
+#### Limits and error codes
+
+Forge's storage limits apply on every path into the store, and with the same
+error codes: this direct API, `kvs.entity().set()`, `setSecret()`, batch items,
+transaction items, and the `@forge/kvs` package inside a deployed app (which
+validates nothing itself and reaches the same checks through the runtime seam).
+A rejected direct call throws a `KVSQueryError` with the code in `.code`; the
+real package surfaces the same code on its `ForgeKvsAPIError`.
+
+| Rule | Code |
+|---|---|
+| Key matches `/^(?!\s+$)[a-zA-Z0-9:._\s-#]+$/` | `INVALID_KEY` |
+| Key is at most 500 characters | `KEY_TOO_LONG` |
+| Key is non-empty | `KEY_TOO_SHORT` (KVS, secrets) / `EMPTY_KEY` (entities) |
+| Value is not `null`/`undefined` | `INVALID_VALUE` |
+| Serialized value is at most 240 KiB | `MAX_SIZE` |
+| Object depth is at most 31 | `MAX_DEPTH` |
+| `keyPolicy: 'FAIL_IF_EXISTS'` on an existing key | `KEY_ALREADY_EXISTS` |
+
+Codes follow [KVS error handling](https://developer.atlassian.com/platform/forge/storage-reference/kvs-errorhandling/)
+and [Custom Entity Store error handling](https://developer.atlassian.com/platform/forge/storage-reference/entities-errorhandling/);
+limits follow [KVS and Custom Entity Store limits](https://developer.atlassian.com/platform/forge/limits-kvs-ce/).
 
 ### Queries
 
@@ -506,6 +533,13 @@ helpers: `beginsWith(prefix)`, `between(min, max)`, `equalTo(value)`,
 `lessThanEqualTo(value)`. Plain object literals are rejected at runtime;
 the simulator throws a clear error pointing you at the helper form.
 
+A page holds 10 results unless `limit(n)` says otherwise, and `n` must be an
+integer from 1 to 100, as on Forge. Out of range is `LIST_QUERY_LIMIT_EXCEEDED`
+for `kvs.query()` and `COMPLEX_QUERY_PAGE_LIMIT_NOT_IN_RANGE` for entity
+queries. Keys come back in code-unit order on every surface (this builder, the
+`@forge/kvs` package in a deployed app, `forge_kvs_list`, the dev-tools KVS
+listing), so a page looks the same whichever way it was fetched.
+
 ### Transactions
 
 ```typescript run=docs-examples/api-examples.test.ts#kvs-transactions
@@ -522,6 +556,7 @@ await sim.kvs.transact()
 const employees = sim.kvs.entity('Employee');   // schema comes from manifest.yml
 
 await employees.set('emp-1', { name: 'Pat', department: 'Engineering' });
+// set() takes the same options as sim.kvs.set(): keyPolicy, returnValue, ttl
 const emp = await employees.get('emp-1');
 await employees.delete('emp-1');
 

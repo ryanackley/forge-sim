@@ -43,6 +43,26 @@ export interface StoredEntry {
   expireTime?: string;
 }
 
+/**
+ * Write options accepted by every set surface — the union of the real
+ * package's `SetOptions` / `PolicySetOptions` / `OverrideAndReturnSetOptions`
+ * (node_modules/@forge/kvs/out/interfaces/types.d.ts).
+ */
+export interface SetOptions {
+  keyPolicy?: 'OVERRIDE' | 'FAIL_IF_EXISTS';
+  returnValue?: 'PREVIOUS' | 'LATEST';
+  ttl?: { value: number; unit: 'SECONDS' | 'MINUTES' | 'HOURS' | 'DAYS' | string };
+}
+
+/** What a set with `returnValue` hands back (real `SetResult<T>`). */
+export interface SetResult {
+  key: string;
+  value: any;
+  createdAt: number;
+  updatedAt: number;
+  expireTime?: string;
+}
+
 export interface EntityStoreDump {
   kvs?: StoredEntry[];
   entities?: StoredEntry[];
@@ -115,29 +135,17 @@ export class UnifiedKVS {
     return detach(this.store.get(key)?.value ?? undefined);
   }
 
-  async set(key: string, value: any): Promise<void> {
+  /**
+   * Every write — this direct API, the `__forge_fetch__` wire the real
+   * `@forge/kvs` talks to, batch and transaction items — goes through
+   * `putEntry`, so the key/value limits are enforced once and cannot differ
+   * by surface. `options` mirrors the real `kvs.set` options (`keyPolicy`,
+   * `returnValue`, `ttl`); the result is the previous/latest entry only when
+   * `returnValue` asks for it, as in the real package.
+   */
+  async set(key: string, value: any, options?: SetOptions): Promise<void | SetResult> {
     await this.simulateDelay();
-    // Eval-9 E9-1: single-op set() must enforce the same key/value limits as
-    // batchSet — real Forge validates every write path identically. Before
-    // this, an invalid key (or an oversized value) that batchSet rejected
-    // with INVALID_KEY / MAX_SIZE sailed through set() and became data that
-    // only exists locally.
-    const keyError = validateKvsKey(key);
-    if (keyError) throw new KVSQueryError(keyError.code, keyError.message);
-    if (value === null || value === undefined) {
-      throw new KVSQueryError('INVALID_VALUE', 'Cannot store null or undefined values');
-    }
-    const valueError = validateKvsValue(value);
-    if (valueError) throw new KVSQueryError(valueError.code, valueError.message);
-    const now = Date.now();
-    const existing = this.store.get(key);
-    const serialized = JSON.parse(JSON.stringify(value));
-    this.store.set(key, {
-      key,
-      value: serialized,
-      createdAt: existing?.createdAt ?? now,
-      updatedAt: now,
-    });
+    return this.putEntry({ store: this.store, kind: 'kvs' }, key, value, options);
   }
 
   async delete(key: string): Promise<void> {
@@ -151,15 +159,8 @@ export class UnifiedKVS {
     return detach(this.secrets.get(key)?.value ?? undefined);
   }
 
-  async setSecret(key: string, value: any): Promise<void> {
-    const now = Date.now();
-    const existing = this.secrets.get(key);
-    this.secrets.set(key, {
-      key,
-      value: JSON.parse(JSON.stringify(value)),
-      createdAt: existing?.createdAt ?? now,
-      updatedAt: now,
-    });
+  async setSecret(key: string, value: any, options?: SetOptions): Promise<void | SetResult> {
+    return this.putEntry({ store: this.secrets, kind: 'kvs' }, key, value, options);
   }
 
   async deleteSecret(key: string): Promise<void> {
@@ -225,7 +226,7 @@ export class UnifiedKVS {
     const failedKeys: Array<{ key: string; entityName?: string; error: { code: string; message: string } }> = [];
 
     for (const item of items) {
-      const keyError = validateKvsKey(item.key);
+      const keyError = validateKvsKey(item.key, item.entityName ? 'entity' : 'kvs');
       if (keyError) {
         failedKeys.push({ key: item.key, ...(item.entityName ? { entityName: item.entityName } : {}), error: keyError });
         continue;
@@ -271,7 +272,7 @@ export class UnifiedKVS {
       const failure = (error: { code: string; message: string }) =>
         failedKeys.push({ key: item.key, ...(item.entityName ? { entityName: item.entityName } : {}), error });
 
-      const keyError = validateKvsKey(item.key);
+      const keyError = validateKvsKey(item.key, item.entityName ? 'entity' : 'kvs');
       if (keyError) { failure(keyError); continue; }
 
       if (item.value === null || item.value === undefined) {
@@ -336,7 +337,7 @@ export class UnifiedKVS {
     const failedKeys: Array<{ key: string; entityName?: string; error: { code: string; message: string } }> = [];
 
     for (const item of items) {
-      const keyError = validateKvsKey(item.key);
+      const keyError = validateKvsKey(item.key, item.entityName ? 'entity' : 'kvs');
       if (keyError) {
         failedKeys.push({ key: item.key, ...(item.entityName ? { entityName: item.entityName } : {}), error: keyError });
         continue;
@@ -445,34 +446,8 @@ export class UnifiedKVS {
     return detach(entry?.value ?? undefined);
   }
 
-  /** @internal */ async entitySet(entityName: string, key: string, value: any): Promise<void> {
-    this.assertEntityDeclared(entityName);
-    // Same limits as batchSet's entity branch (eval-9 E9-1 — every single-op
-    // write path enforces what the batch path enforces).
-    const keyError = validateKvsKey(key);
-    if (keyError) throw new KVSQueryError(keyError.code, keyError.message);
-    if (value === null || value === undefined) {
-      throw new KVSQueryError('INVALID_VALUE', 'Cannot store null or undefined values');
-    }
-    const valueError = validateKvsValue(value);
-    if (valueError) throw new KVSQueryError(valueError.code, valueError.message);
-    // Schema validation
-    const schema = this.entitySchemas.get(entityName);
-    if (schema && value && typeof value === 'object') {
-      const error = validateEntityValue(value, schema, entityName);
-      if (error) throw new Error(error);
-    }
-
-    const now = Date.now();
-    const ek = this.entityKey(entityName, key);
-    const existing = this.entities.get(ek);
-    this.entities.set(ek, {
-      key,
-      value: JSON.parse(JSON.stringify(value)),
-      entityName,
-      createdAt: existing?.createdAt ?? now,
-      updatedAt: now,
-    });
+  /** @internal */ async entitySet(entityName: string, key: string, value: any, options?: SetOptions): Promise<void | SetResult> {
+    return this.putEntry({ store: this.entities, kind: 'entity', entityName }, key, value, options);
   }
 
   /** @internal */ async entityDelete(entityName: string, key: string): Promise<void> {
@@ -483,6 +458,67 @@ export class UnifiedKVS {
   /** @internal */ entityQuery(entityName: string): EntityIndexQueryBuilder {
     this.assertEntityDeclared(entityName);
     return new EntityIndexQueryBuilder(entityName, this.entities, this.entitySchemas);
+  }
+
+  /**
+   * The one write path. Validates the key (regex / length / emptiness — the
+   * KVS and Custom Entity tables differ only in the empty-key code), rejects
+   * null, enforces the 240 KiB / 31-level value limits, checks the entity
+   * schema, applies `keyPolicy`, `ttl` and `returnValue`, and stores a
+   * detached copy. Throws `KVSQueryError` with the Forge error code; callers
+   * on the wire map that to 400 (409 for KEY_ALREADY_EXISTS).
+   *
+   * Codes: developer.atlassian.com/platform/forge/storage-reference/
+   * kvs-errorhandling and entities-errorhandling; limits: limits-kvs-ce.
+   */
+  private putEntry(
+    target: { store: Map<string, StoredEntry>; kind: 'kvs' | 'entity'; entityName?: string },
+    key: string,
+    value: any,
+    options?: SetOptions,
+  ): SetResult | undefined {
+    if (target.entityName !== undefined) this.assertEntityDeclared(target.entityName);
+    const keyError = validateKvsKey(key, target.kind);
+    if (keyError) throw new KVSQueryError(keyError.code, keyError.message);
+    if (value === null || value === undefined) {
+      throw new KVSQueryError('INVALID_VALUE', 'Cannot store null or undefined values');
+    }
+    const valueError = validateKvsValue(value);
+    if (valueError) throw new KVSQueryError(valueError.code, valueError.message);
+    if (target.entityName !== undefined) {
+      const schema = this.entitySchemas.get(target.entityName);
+      if (schema && typeof value === 'object') {
+        const schemaError = validateEntityValue(value, schema, target.entityName);
+        if (schemaError) throw new KVSQueryError('VALIDATION_ERROR', schemaError);
+      }
+    }
+
+    const storeKey = target.entityName !== undefined ? this.entityKey(target.entityName, key) : key;
+    const existing = target.store.get(storeKey);
+    if (options?.keyPolicy === 'FAIL_IF_EXISTS' && existing) {
+      throw new KVSQueryError(
+        'KEY_ALREADY_EXISTS',
+        target.entityName !== undefined
+          ? `Entity key already exists: ${target.entityName}/${key}`
+          : `Key already exists: ${key}`,
+      );
+    }
+
+    const now = Date.now();
+    const previous = existing ? { ...existing } : undefined;
+    const entry: StoredEntry = {
+      key,
+      value: JSON.parse(JSON.stringify(value)),
+      ...(target.entityName !== undefined ? { entityName: target.entityName } : {}),
+      createdAt: existing?.createdAt ?? now,
+      updatedAt: now,
+      expireTime: options?.ttl ? computeExpireTime(now, options.ttl) : existing?.expireTime,
+    };
+    target.store.set(storeKey, entry);
+
+    if (options?.returnValue === 'PREVIOUS') return previous ? setResultOf(previous) : undefined;
+    if (options?.returnValue === 'LATEST') return setResultOf(entry);
+    return undefined;
   }
 
   /**
@@ -541,10 +577,16 @@ export class UnifiedKVS {
     for (const op of allOps) {
       if (op.entityName) this.assertEntityDeclared(op.entityName);
     }
+    for (const op of allOps) {
+      const keyError = validateKvsKey(op.key, op.entityName ? 'entity' : 'kvs');
+      if (keyError) throw new KVSQueryError(keyError.code, keyError.message);
+    }
     for (const item of sets) {
       if (item.value === null || item.value === undefined) {
         throw new KVSQueryError('INVALID_VALUE', `Cannot store null or undefined values (key "${item.key}")`);
       }
+      const valueError = validateKvsValue(item.value);
+      if (valueError) throw new KVSQueryError(valueError.code, `${valueError.message} (key "${item.key}")`);
       if (item.entityName) {
         const schema = this.entitySchemas.get(item.entityName);
         if (schema && item.value && typeof item.value === 'object') {
@@ -705,45 +747,28 @@ export class UnifiedKVS {
     });
   }
 
-  private handleHttpSet(store: Map<string, StoredEntry>, body: { key: string; value: any; options?: any }): FetchLikeResponse {
-    const now = Date.now();
-    const existing = store.get(body.key);
+  private handleHttpSet(store: Map<string, StoredEntry>, body: { key: string; value: any; options?: SetOptions }): FetchLikeResponse {
+    return this.handleWrite({ store, kind: 'kvs' }, body);
+  }
 
-    if (body.options?.keyPolicy === 'FAIL_IF_EXISTS' && existing) {
-      return jsonResponse(409, { code: 'KEY_ALREADY_EXISTS', message: `Key already exists: ${body.key}` });
+  /**
+   * Wire adapter over `putEntry`: the real package POSTs `{ key, value,
+   * options }` and reads an empty 200, or the previous/latest entry when
+   * `returnValue` was set (node_modules/@forge/kvs/out/storage-api.js).
+   */
+  private handleWrite(
+    target: { store: Map<string, StoredEntry>; kind: 'kvs' | 'entity'; entityName?: string },
+    body: { key: string; value: any; options?: SetOptions },
+  ): FetchLikeResponse {
+    try {
+      const returned = this.putEntry(target, body.key, body.value, body.options);
+      return returned ? jsonResponse(200, returned) : emptyResponse(200);
+    } catch (err) {
+      if (err instanceof KVSQueryError) {
+        return jsonResponse(err.code === 'KEY_ALREADY_EXISTS' ? 409 : 400, { code: err.code, message: err.detail });
+      }
+      throw err;
     }
-
-    const previous = existing ? { ...existing } : undefined;
-
-    const entry: StoredEntry = {
-      key: body.key,
-      value: body.value,
-      createdAt: existing?.createdAt ?? now,
-      updatedAt: now,
-      expireTime: body.options?.ttl ? computeExpireTime(now, body.options.ttl) : existing?.expireTime,
-    };
-    store.set(body.key, entry);
-
-    if (body.options?.returnValue === 'PREVIOUS' && previous) {
-      return jsonResponse(200, {
-        key: previous.key,
-        value: previous.value,
-        createdAt: previous.createdAt,
-        updatedAt: previous.updatedAt,
-        expireTime: previous.expireTime,
-      });
-    }
-    if (body.options?.returnValue === 'LATEST') {
-      return jsonResponse(200, {
-        key: entry.key,
-        value: entry.value,
-        createdAt: entry.createdAt,
-        updatedAt: entry.updatedAt,
-        expireTime: entry.expireTime,
-      });
-    }
-
-    return emptyResponse(200);
   }
 
   private handleHttpDelete(store: Map<string, StoredEntry>, body: { key: string }): FetchLikeResponse {
@@ -781,7 +806,19 @@ export class UnifiedKVS {
       }
     }
 
-    entries.sort((a, b) => a.key.localeCompare(b.key));
+    // Same code-unit key order as kvs.query() and the entity surfaces, so a
+    // page looks identical whichever surface fetched it.
+    entries.sort((a, b) => compareValues(a.key, b.key));
+
+    let limit: number;
+    try {
+      limit = resolveQueryLimit(body.limit, 'kvs');
+    } catch (err) {
+      if (err instanceof KVSQueryError) {
+        return jsonResponse(400, { code: err.code, message: err.detail });
+      }
+      throw err;
+    }
 
     if (body.after) {
       let token: CursorToken;
@@ -789,17 +826,15 @@ export class UnifiedKVS {
         token = decodeCursor(body.after, 'the KVS query wire API');
       } catch (err) {
         if (err instanceof KVSQueryError) {
-          return jsonResponse(400, { code: err.code, message: err.message });
+          return jsonResponse(400, { code: err.code, message: err.detail });
         }
         throw err;
       }
       // Positional resume (eval-8 E8-1): first key strictly after the
-      // cursor position — survives deletion of the cursor row. Uses the
-      // same localeCompare collation as the sort above.
-      entries = entries.filter(e => e.key.localeCompare(token.k) > 0);
+      // cursor position — survives deletion of the cursor row.
+      entries = entries.filter(e => compareValues(e.key, token.k) > 0);
     }
 
-    const limit = body.limit ?? 20;
     const page = entries.slice(0, limit);
     const hasMore = entries.length > limit;
 
@@ -831,58 +866,8 @@ export class UnifiedKVS {
     });
   }
 
-  private handleEntitySet(body: { entityName: string; key: string; value: any; options?: any }): FetchLikeResponse {
-    const undeclared = this.undeclaredEntityError(body.entityName);
-    if (undeclared) return jsonResponse(400, undeclared);
-    // Schema validation
-    const schema = this.entitySchemas.get(body.entityName);
-    if (schema && body.value && typeof body.value === 'object') {
-      const validationError = validateEntityValue(body.value, schema, body.entityName);
-      if (validationError) {
-        return jsonResponse(400, { code: 'VALIDATION_ERROR', message: validationError });
-      }
-    }
-
-    const now = Date.now();
-    const ek = this.entityKey(body.entityName, body.key);
-    const existing = this.entities.get(ek);
-
-    if (body.options?.keyPolicy === 'FAIL_IF_EXISTS' && existing) {
-      return jsonResponse(409, { code: 'KEY_ALREADY_EXISTS', message: `Entity key already exists: ${body.entityName}/${body.key}` });
-    }
-
-    const previous = existing ? { ...existing } : undefined;
-
-    const entry: StoredEntry = {
-      key: body.key,
-      value: body.value,
-      entityName: body.entityName,
-      createdAt: existing?.createdAt ?? now,
-      updatedAt: now,
-      expireTime: body.options?.ttl ? computeExpireTime(now, body.options.ttl) : existing?.expireTime,
-    };
-    this.entities.set(ek, entry);
-
-    if (body.options?.returnValue === 'PREVIOUS' && previous) {
-      return jsonResponse(200, {
-        key: previous.key,
-        value: previous.value,
-        createdAt: previous.createdAt,
-        updatedAt: previous.updatedAt,
-        expireTime: previous.expireTime,
-      });
-    }
-    if (body.options?.returnValue === 'LATEST') {
-      return jsonResponse(200, {
-        key: entry.key,
-        value: entry.value,
-        createdAt: entry.createdAt,
-        updatedAt: entry.updatedAt,
-        expireTime: entry.expireTime,
-      });
-    }
-
-    return emptyResponse(200);
+  private handleEntitySet(body: { entityName: string; key: string; value: any; options?: SetOptions }): FetchLikeResponse {
+    return this.handleWrite({ store: this.entities, kind: 'entity', entityName: body.entityName }, body);
   }
 
   private handleEntityDelete(body: { entityName: string; key: string }): FetchLikeResponse {
@@ -913,7 +898,9 @@ export class UnifiedKVS {
     // wire path silently no-op'd a typo'd index name, returning ALL entities
     // unscoped — worse than the builder's pre-fix empty result).
     let indexDef: IndexDefinition | undefined;
+    let limit: number;
     try {
+      limit = resolveQueryLimit(body.limit, 'entity');
       // Unknown-entity rejection (eval-8 E8-4).
       this.assertEntityDeclared(body.entityName);
       // Entity queries require an index (eval-8 E8-2): the real wire
@@ -931,7 +918,7 @@ export class UnifiedKVS {
       validatePartitionArity(indexDef, body.partition, body.entityName, body.indexName);
     } catch (err) {
       if (err instanceof KVSQueryError) {
-        return jsonResponse(400, { code: err.code, message: err.message });
+        return jsonResponse(400, { code: err.code, message: err.detail });
       }
       throw err;
     }
@@ -996,7 +983,7 @@ export class UnifiedKVS {
         token = decodeCursor(body.cursor, 'the entity query wire API');
       } catch (err) {
         if (err instanceof KVSQueryError) {
-          return jsonResponse(400, { code: err.code, message: err.message });
+          return jsonResponse(400, { code: err.code, message: err.detail });
         }
         throw err;
       }
@@ -1009,7 +996,6 @@ export class UnifiedKVS {
       });
     }
 
-    const limit = body.limit ?? 20;
     const page = entries.slice(0, limit);
     const hasMore = entries.length > limit;
 
@@ -1050,49 +1036,26 @@ export class UnifiedKVS {
       return jsonResponse(200, result);
     } catch (err: any) {
       if (err instanceof KVSQueryError) {
-        return jsonResponse(400, { code: err.code, message: err.message });
+        return jsonResponse(400, { code: err.code, message: err.detail });
       }
       throw err;
     }
   }
 
   private async handleTransaction(body: any): Promise<FetchLikeResponse> {
-    // Legacy dev-tools format: { actions: [{ type, key, value, entityName? }] }
-    if (body.actions) {
-      for (const action of body.actions) {
-        if (action.type === 'set') {
-          const now = Date.now();
-          if (action.entityName) {
-            const ek = this.entityKey(action.entityName, action.key);
-            const existing = this.entities.get(ek);
-            this.entities.set(ek, {
-              key: action.key,
-              value: action.value,
-              entityName: action.entityName,
-              createdAt: existing?.createdAt ?? now,
-              updatedAt: now,
-            });
-          } else {
-            const existing = this.store.get(action.key);
-            this.store.set(action.key, {
-              key: action.key,
-              value: action.value,
-              createdAt: existing?.createdAt ?? now,
-              updatedAt: now,
-            });
-          }
-        } else if (action.type === 'delete') {
-          if (action.entityName) {
-            this.entities.delete(this.entityKey(action.entityName, action.key));
-          } else {
-            this.store.delete(action.key);
-          }
-        }
-      }
-      return emptyResponse(200);
+    // The pre-@forge/kvs `{ actions: [...] }` body wrote straight to the
+    // store with no validation and nothing sends it any more; refuse it so a
+    // stale client fails loudly instead of succeeding where Forge would not.
+    if (body && typeof body === 'object' && 'actions' in body) {
+      return jsonResponse(400, {
+        code: 'BAD_REQUEST',
+        message:
+          '{ actions } is not a @forge/kvs transaction body. POST { set?, delete?, check? } ' +
+          'as TransactionBuilder.execute() does (node_modules/@forge/kvs/out/transaction-api.js).',
+      });
     }
 
-    // New-style transaction format — the wire shape real @forge/kvs
+    // The transaction format — the wire shape real @forge/kvs
     // TransactionBuilder POSTs to /api/v1/transaction: { set?, delete?, check? }.
     // Routed through executeTransaction so HTTP callers get the same
     // ENT-030 atomicity + ENT-031 limits as the direct API.
@@ -1101,7 +1064,7 @@ export class UnifiedKVS {
       return emptyResponse(200);
     } catch (err: any) {
       if (err instanceof KVSQueryError) {
-        return jsonResponse(400, { code: err.code, message: err.message });
+        return jsonResponse(400, { code: err.code, message: err.detail });
       }
       throw err;
     }
@@ -1219,9 +1182,13 @@ export class UnifiedKVS {
  * code both as `.code` and in the message so either matching style works.
  */
 export class KVSQueryError extends Error {
+  /** The message without the code prefix — what the wire puts in `message`. */
+  readonly detail: string;
+
   constructor(public readonly code: string, detail: string) {
     super(`${code}: ${detail}`);
     this.name = 'KVSQueryError';
+    this.detail = detail;
   }
 }
 
@@ -1348,13 +1315,33 @@ function validatePartitionArity(
 const KVS_QUERY_DEFAULT_LIMIT = 10;
 const KVS_QUERY_MAX_LIMIT = 100;
 
+/**
+ * One page-size rule for every query surface — the two builders and the two
+ * wire handlers. No limit → 10 ("The query API returns up to 10 values by
+ * default, this can be increased to a maximum of 100", storage-reference/
+ * kvs-api-query). Anything else must be an integer in 1..100: KVS reports
+ * LIST_QUERY_LIMIT_EXCEEDED (kvs-errorhandling), entities report
+ * COMPLEX_QUERY_PAGE_LIMIT_NOT_IN_RANGE ("The page limit must be set between
+ * 1 and 100", entities-errorhandling).
+ */
+function resolveQueryLimit(limit: unknown, kind: 'kvs' | 'entity'): number {
+  if (limit === undefined) return KVS_QUERY_DEFAULT_LIMIT;
+  if (Number.isInteger(limit) && (limit as number) >= 1 && (limit as number) <= KVS_QUERY_MAX_LIMIT) {
+    return limit as number;
+  }
+  throw new KVSQueryError(
+    kind === 'kvs' ? 'LIST_QUERY_LIMIT_EXCEEDED' : 'COMPLEX_QUERY_PAGE_LIMIT_NOT_IN_RANGE',
+    `limit(${JSON.stringify(limit)}) is out of range; page limit must be between 1 and ${KVS_QUERY_MAX_LIMIT}.`,
+  );
+}
+
 export class KVSQueryBuilder {
   private conditions: Array<{
     field: string;
     condition: string;
     value: string;
   }> = [];
-  private _limit = KVS_QUERY_DEFAULT_LIMIT;
+  private _limit?: number;
   private _cursor?: string;
   private _sortDirection: 'ASC' | 'DESC' = 'ASC';
 
@@ -1408,12 +1395,7 @@ export class KVSQueryBuilder {
         `Only one where clause is supported per query; got ${this.conditions.length}.`
       );
     }
-    if (this._limit > KVS_QUERY_MAX_LIMIT) {
-      throw new KVSQueryError(
-        'LIST_QUERY_LIMIT_EXCEEDED',
-        `limit(${this._limit}) exceeds the maximum page size of ${KVS_QUERY_MAX_LIMIT}.`
-      );
-    }
+    const limit = resolveQueryLimit(this._limit, 'kvs');
 
     let keys = [...this.store.keys()];
 
@@ -1443,7 +1425,7 @@ export class KVSQueryBuilder {
       });
     }
 
-    const page = keys.slice(0, this._limit);
+    const page = keys.slice(0, limit);
     const results: StorageEntry[] = page.map((key) => ({
       key,
       value: detach(this.store.get(key)!.value),
@@ -1451,7 +1433,7 @@ export class KVSQueryBuilder {
 
     return {
       results,
-      nextCursor: keys.length > this._limit ? encodeCursor({ k: page[page.length - 1] }) : undefined,
+      nextCursor: keys.length > limit ? encodeCursor({ k: page[page.length - 1] }) : undefined,
     };
   }
 
@@ -1504,8 +1486,8 @@ export class EntityAPI {
     return this.kvs.entityGet(this.entityName, key);
   }
 
-  set(key: string, value: any): Promise<void> {
-    return this.kvs.entitySet(this.entityName, key, value);
+  set(key: string, value: any, options?: SetOptions): Promise<void | SetResult> {
+    return this.kvs.entitySet(this.entityName, key, value, options);
   }
 
   delete(key: string): Promise<void> {
@@ -1567,7 +1549,7 @@ export class EntityQueryBuilder {
   private _filters?: { and?: FilterItem[]; or?: FilterItem[] };
   private _sort: 'ASC' | 'DESC' = 'ASC';
   private _cursor?: string;
-  private _limit = KVS_QUERY_DEFAULT_LIMIT;
+  private _limit?: number;
 
   constructor(
     private entityName: string,
@@ -1610,12 +1592,7 @@ export class EntityQueryBuilder {
 
   async getMany(): Promise<{ results: Array<{ key: string; value: any }>; nextCursor?: string }> {
     // Parity: entity query page limit must be 1–100 (ENT-025).
-    if (this._limit < 1 || this._limit > KVS_QUERY_MAX_LIMIT) {
-      throw new KVSQueryError(
-        'COMPLEX_QUERY_PAGE_LIMIT_NOT_IN_RANGE',
-        `limit(${this._limit}) is out of range; page limit must be between 1 and ${KVS_QUERY_MAX_LIMIT}.`
-      );
-    }
+    const limit = resolveQueryLimit(this._limit, 'entity');
 
     // Get all entities for this entity name
     let entries = [...this.entities.values()].filter(e => e.entityName === this.entityName);
@@ -1691,8 +1668,8 @@ export class EntityQueryBuilder {
     }
 
     // Limit
-    const page = entries.slice(0, this._limit);
-    const hasMore = entries.length > this._limit;
+    const page = entries.slice(0, limit);
+    const hasMore = entries.length > limit;
 
     return {
       results: page.map(e => ({ key: e.key, value: detach(e.value) })),
@@ -1904,11 +1881,14 @@ function validateEntityValue(value: Record<string, any>, schema: EntitySchema, e
   return null;
 }
 
-// ── Key/Value Validation (batch ops) ──────────────────────────────────
+// ── Key/Value Validation ──────────────────────────────────────────────
 //
-// Spec KVS-016..021: key regex, key length, value size, value depth.
-// Used by the batch ops for per-item failedKeys entries. (Single-op
-// set/get deliberately don't enforce these yet — behavioral-gap bucket.)
+// Spec KVS-016..021: key regex, key length, value size, value depth. Every
+// write path runs these — `putEntry` (single set on both surfaces), the
+// batch ops (per-item failedKeys entries) and transactions — because the
+// real `@forge/kvs` client validates nothing itself (node_modules/@forge/
+// kvs/out/storage-api.js); the server, which the sim stands in for, is the
+// only place the rules live.
 
 /** Forge KVS key regex (spec KVS-016, storage-reference/handling-errors-kvs). */
 const KVS_KEY_REGEX = /^(?!\s+$)[a-zA-Z0-9:._\s\-#]+$/;
@@ -1918,9 +1898,16 @@ const KVS_VALUE_MAX_BYTES = 240 * 1024;
 /** Max object nesting depth: 31 levels. */
 const KVS_VALUE_MAX_DEPTH = 31;
 
-function validateKvsKey(key: unknown): { code: string; message: string } | null {
+/**
+ * Key rules are identical for KVS and Custom Entities except for the code an
+ * empty key gets: KEY_TOO_SHORT (kvs-errorhandling) vs EMPTY_KEY
+ * (entities-errorhandling).
+ */
+function validateKvsKey(key: unknown, kind: 'kvs' | 'entity' = 'kvs'): { code: string; message: string } | null {
   if (typeof key !== 'string' || key.length === 0) {
-    return { code: 'KEY_TOO_SHORT', message: 'Key must be at least 1 character' };
+    return kind === 'entity'
+      ? { code: 'EMPTY_KEY', message: 'Key cannot be empty' }
+      : { code: 'KEY_TOO_SHORT', message: 'Key must be at least 1 character' };
   }
   if (key.length > KVS_KEY_MAX_LENGTH) {
     return { code: 'KEY_TOO_LONG', message: `Key exceeds ${KVS_KEY_MAX_LENGTH} characters` };
@@ -2025,6 +2012,17 @@ function emptyResponse(status: number): FetchLikeResponse {
 }
 
 // ── TTL ───────────────────────────────────────────────────────────────
+
+/** The entry as a set-with-returnValue response / wire body (real `SetResult<T>`). */
+function setResultOf(entry: StoredEntry): SetResult {
+  return {
+    key: entry.key,
+    value: detach(entry.value),
+    createdAt: entry.createdAt,
+    updatedAt: entry.updatedAt,
+    expireTime: entry.expireTime,
+  };
+}
 
 function computeExpireTime(now: number, ttl: { value: number; unit: string }): string {
   const multipliers: Record<string, number> = {

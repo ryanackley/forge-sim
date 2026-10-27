@@ -335,7 +335,7 @@ describe('KVS transactions (ENT-030/031)', () => {
       expect(body.code).toBe('TRANSACTION_OPERATION_LIMIT_EXCEEDED');
     });
 
-    it('legacy { actions } format still works', async () => {
+    it('the pre-@forge/kvs { actions } body is refused with a pointer to the real shape', async () => {
       const res = await kvs.handleRequest('/api/v1/transaction', {
         body: JSON.stringify({
           actions: [
@@ -343,8 +343,11 @@ describe('KVS transactions (ENT-030/031)', () => {
           ],
         }),
       });
-      expect(res.status).toBe(200);
-      expect(await kvs.get('legacy')).toBe('ok');
+      expect(res.status).toBe(400);
+      const body = await res.json();
+      expect(body.code).toBe('BAD_REQUEST');
+      expect(body.message).toContain('{ set?, delete?, check? }');
+      expect(await kvs.get('legacy')).toBeUndefined();
     });
   });
 });

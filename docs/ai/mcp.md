@@ -184,9 +184,9 @@ These tool schemas are the canonical vocabulary for forge-sim's operations — t
 | `forge_sql_migrate` | Run idempotent database migrations |
 | `forge_sql_schema` | Inspect database schema |
 | `forge_entity_get` | Get a Custom Entity by name + key |
-| `forge_entity_set` | Create/update a Custom Entity |
+| `forge_entity_set` | Create/update a Custom Entity (`ifNotExists`, `ttlSeconds`); same key/value/schema checks as app code |
 | `forge_entity_delete` | Delete a Custom Entity |
-| `forge_entity_query` | Query entities with indexes, filters, sort, pagination |
+| `forge_entity_query` | Query entities with indexes, filters, sort, pagination (page size 1-100, default 10) |
 | `forge_entity_list` | List all entities and schemas |
 | `forge_auth_status` | Show Atlassian account info, 3p provider tokens, and auth status |
 | `forge_mock_routes` | Register mock HTTP responses for product APIs (Jira, Confluence, Bitbucket), remotes, provider remotes, or `stargate` (the app's real `requestGraph`) |

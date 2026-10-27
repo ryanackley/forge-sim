@@ -288,9 +288,11 @@ export function createApiHandler(
         // Eval-10 F6: the CLI sends ?prefix= but the handler never read it,
         // so `forge-sim kvs list --prefix foo:` silently returned everything.
         const prefix = url.searchParams.get('prefix');
-        const entries = Object.entries(dump)
-          .filter(([key]) => !prefix || key.startsWith(prefix))
-          .map(([key, value]) => ({ key, value }));
+        // Same code-unit key order as kvs.query().
+        const entries = Object.keys(dump)
+          .sort()
+          .filter((key) => !prefix || key.startsWith(prefix))
+          .map((key) => ({ key, value: dump[key] }));
         return json(res, entries);
       }
 

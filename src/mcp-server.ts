@@ -969,7 +969,9 @@ server.tool(
     }
 
     const dump = sim.kvs.dump();
-    const keys = Object.keys(dump);
+    // Same code-unit key order as kvs.query(), so a listing and a query
+    // page agree on what comes first.
+    const keys = Object.keys(dump).sort();
     const limited = limit ? keys.slice(0, limit) : keys;
     const entries = limited.map((k) => ({ key: k, value: dump[k] }));
 
@@ -1515,25 +1517,13 @@ server.tool(
   },
   async ({ entityName, key, value, options }) => {
     try {
-      const body: any = { entityName, key, value };
-      if (options?.ifNotExists) {
-        body.options = { keyPolicy: 'FAIL_IF_EXISTS' };
-      } else if (options?.ttlSeconds) {
-        body.options = { ttlSeconds: options.ttlSeconds };
-      }
-
-      const res = await sim.kvs.handleRequest('/api/v1/entity/set', {
-        method: 'POST',
-        body: JSON.stringify(body),
+      // Same public surface the test library uses — the sim validates the
+      // key, the value limits and the entity schema on every write path.
+      await sim.kvs.entity(entityName).set(key, value, {
+        ...(options?.ifNotExists ? { keyPolicy: 'FAIL_IF_EXISTS' as const } : {}),
+        ...(options?.ttlSeconds ? { ttl: { value: options.ttlSeconds, unit: 'SECONDS' as const } } : {}),
       });
-      if (res.ok) {
-        return { content: [{ type: 'text' as const, text: `✅ Set ${entityName}:${key}` }] };
-      }
-      const data = await res.json();
-      return {
-        content: [{ type: 'text' as const, text: JSON.stringify(data, null, 2) }],
-        isError: true,
-      };
+      return { content: [{ type: 'text' as const, text: `✅ Set ${entityName}:${key}` }] };
     } catch (err) {
       return {
         content: [{ type: 'text' as const, text: `❌ ${err instanceof Error ? err.message : String(err)}` }],
@@ -1592,7 +1582,7 @@ server.tool(
     filterOperator: z.enum(['AND', 'OR']).optional().describe('How to combine filters (default: AND)'),
     sort: z.enum(['ASC', 'DESC']).optional().describe('Sort direction on range key (default: ASC)'),
     cursor: z.string().optional().describe('Pagination cursor from previous query'),
-    limit: z.number().optional().describe('Max results to return (default: 20)'),
+    limit: z.number().optional().describe('Page size, 1-100 (default: 10, as on Forge)'),
   },
   async ({ entityName, indexName, partition, range, filters, filterOperator, sort, cursor, limit }) => {
     try {

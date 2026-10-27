@@ -1225,7 +1225,7 @@ describe('UnifiedKVS', () => {
       expect(await kvs.get('keep')).toBeUndefined();
     });
 
-    it('old-style transaction (actions array)', async () => {
+    it('the pre-@forge/kvs { actions } body is refused, not written', async () => {
       const resp = await kvs.handleRequest('/api/v1/transaction', {
         body: JSON.stringify({
           actions: [
@@ -1233,8 +1233,9 @@ describe('UnifiedKVS', () => {
           ],
         }),
       });
-      expect(resp.ok).toBe(true);
-      expect(await kvs.get('legacy')).toBe('works');
+      expect(resp.status).toBe(400);
+      expect((await resp.json()).code).toBe('BAD_REQUEST');
+      expect(await kvs.get('legacy')).toBeUndefined();
     });
   });
 

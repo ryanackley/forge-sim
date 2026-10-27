@@ -96,7 +96,9 @@ export function buildEntityQueryWireBody(args: McpEntityQueryArgs): any {
 
   if (sort) body.sort = sort;
   if (cursor) body.cursor = cursor;
-  if (limit) body.limit = limit;
+  // Pass limit through untouched — 0 included — so the wire's range check
+  // answers, instead of a dropped value silently becoming the default.
+  if (limit !== undefined) body.limit = limit;
 
   return body;
 }
