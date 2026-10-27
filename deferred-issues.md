@@ -94,3 +94,8 @@ Two small doc debts from the trial: (1) `docs/ai/mcp.md` should say that `forge_
 (reset defaults true) wipes mock routes registered before it — agents must re-register after
 deploy; the forge_deploy/forge_mock_routes tool descriptions should say so too. (2) The element
 shape of `sim.getConsoleLogs()` is undocumented in `docs/reference/api.md`.
+
+## resolve.modules setting has no affect
+
+In the vite.config this seems to be a hallucination for a config that doesn't exist. It's been verified this 
+setting has no effect. 
