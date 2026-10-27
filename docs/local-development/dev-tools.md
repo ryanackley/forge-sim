@@ -100,8 +100,8 @@ All endpoints are under `/__tools/api/`. Request bodies are JSON; responses are 
 | POST | `/api/trigger` | `{ "event": "avi:...", "data"?: {...} }` | `{ event, triggersMatched, results }` |
 | POST | `/api/scheduled-trigger` | `{ "triggerKey": "<trigger key>" }` (legacy `key` also accepted) | `{ statusCode }` — 204 on completion; 500 + `error` if the handler threw |
 | POST | `/api/webtrigger` | `{ "triggerKey": "<trigger key>", "method"?, "userPath"?, "headers"?, "queryParameters"?, "body"? }` (legacy `key` also accepted) | The Forge `{ statusCode, headers, body }` response; handler errors come back as 5xx *inside* it |
-| POST | `/api/deploy` | `{ "appDir": "<path>", "reset"?: true }` | Deploy summary (`loadedFunctions`, `errors`, `warnings`, …) |
-| POST | `/api/reset` | — | Clears all simulator state |
+| POST | `/api/deploy` | `{ "appDir": "<path>", "reset"?: true, "connect"?: boolean }` (a non-boolean `connect` is a 400) | Deploy summary (`loadedFunctions`, `errors`, `warnings`, …), plus `auth` when the deploy connected and `disconnected` when it unloaded credentials an earlier connect had loaded. Under `forge-sim dev` it connects unless `--offline` or `"connect": false`; on the daemon only with `"connect": true`. Every deploy first unloads what an earlier connect loaded; one that connects reloads stored credentials after deploying (deploy-time triggers run without them). A deploy that throws is a 500 `{ error }` that still reconnects when it connects and carries the same `auth`, `disconnected` and `mockFile` fields |
+| POST | `/api/reset` | — | Clears all simulator state and unloads loaded credentials. Under `forge-sim dev` it then re-applies `.forge-sim/mocks.json` (`mockFile` in the response) and, unless `--offline`, reloads stored credentials (`auth`) |
 | GET | `/api/health` | — | `{ status, deployed, appName, uptime }` |
 | GET | `/api/ui/state` | — | Current ForgeDoc UI tree (headless renders only — see note) |
 | POST | `/api/ui/render` | `{ "moduleKey": "<key>", "issueKey"?, "contentId"?, "spaceKey"?, "context"?, "extension"? }` | `{ rendered, tree, context }` (headless renders only — see note) |

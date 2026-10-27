@@ -100,6 +100,8 @@ sim.mockProductRoutes('jira', {
 
 ### Auth / Environment Connection
 
+`createSimulator()` and `deploy()` never load credentials; this call is the only way the test library connects. (`forge-sim dev` calls it by default, the MCP server and CLI daemon only with `--connect`; see [Credentials](../local-development/credentials.md#when-stored-credentials-are-used).)
+
 ```typescript
 await sim.deploy('./my-forge-app');
 const result = await sim.loadAuthFromEnv();
@@ -389,12 +391,14 @@ Web trigger functions are **not** resolvers: `sim.invoke()` on one throws with a
 ```typescript no-check
 sim.mockProductApi(product: string, handler: ProductApiHandler): void
 ```
-Register a mock handler function for a product.
+Register a mock handler function for a product: it answers every call to that product (full replacement, routes included).
 
 ```typescript no-check
 sim.mockProductRoutes(product: string, routes: Record<string, any>): void
 ```
-Register route-based mocks. Keys are `"METHOD /path"` (method defaults to GET).
+Register route-based mocks. Keys are `"METHOD /path"` (method defaults to GET). Routes registered after a `mockProductApi()` handler answer first, and the handler answers whatever they don't match.
+
+**Mocks always win over a connected site**, whether registered before or after `loadAuthFromEnv()`, and whatever status they return: a route mocked as `mockResponse(404, …)` answers 404, it is never read as "unmocked" and sent to the site (or, for a remote or provider remote, a `mockResponse(501)` to the real backend). A call no mock answers goes to the connected site for `jira`/`confluence`/`bitbucket`; to the real backend for a remote or provider remote only when nothing at all is mocked for that key (otherwise `404 "No mock route matched"`); and nowhere for `stargate` (`501`).
 
 ```typescript no-check
 sim.mockGraphQL(mocks: Record<string, any>): void
@@ -415,12 +419,30 @@ sim.mockProductRoutes('jira', {
 ```typescript no-check
 sim.loadAuthFromEnv(): Promise<LoadAuthResult>
 ```
-Load credentials from env vars and/or `.forge-sim/` files. **Must be called after `deploy()`.**
+Load credentials from env vars and/or `.forge-sim/` files. **Must be called after `deploy()`.** It is the only way the in-process library connects to a real site: nothing else loads credentials, and `FORGE_SIM_CONNECT` does not apply here. Mocks registered before or after the call keep answering ahead of the real site.
 
 ```typescript
 interface LoadAuthResult {
   atlassian: { connected: boolean; site?: string; authType?: string };
-  providers: string[];   // Provider keys with tokens loaded
+  providers: string[];        // Provider keys with tokens loaded
+  providerSecrets?: number;   // Provider client secrets loaded from <app>/.forge-sim/providers.json (present when > 0)
+  llm?: { configured: boolean; source: 'env' | 'config' };  // Anthropic key, when one was found
+}
+```
+
+```typescript no-check
+sim.unloadAuth(): UnloadAuthResult
+```
+Take back what `loadAuthFromEnv()` loaded: disconnect its Atlassian account and drop the provider tokens, provider client secrets and `forge-sim auth --llm` key it set. A provider token derived from one of those goes too: a loaded token that was refreshed since (`withProvider()` refreshes an expiring token on use), or a token an OAuth flow exchanged with a loaded client secret. Anything else is left alone: a value set some other way (your own `sim.externalAuth.setToken(...)` or `setSecret(...)` after the load), and an `ANTHROPIC_API_KEY` in the process env, which `@forge/llm` reads at call time and which `loadAuthFromEnv()` therefore reports (`llm.source: 'env'`) but does not record. A value the load overwrote (your own `setToken(...)` made *before* it) is removed, not restored. Recording is cumulative across `loadAuthFromEnv()` calls; `unloadAuth()` clears it.
+
+`reset()` does not do this: it drops the Atlassian connection but keeps provider tokens and the LLM key. The daemon and dev Tools API call it on every `/api/reset` and before every `/api/deploy`; a deploy that connects then reloads from the store *after* deploying (also when the deploy throws), so deploy-time triggers always run without stored credentials. MCP `forge_deploy` does the same. A deploy that did not ask to connect therefore keeps none of the stored credentials; what is not gated by credentials (an unmocked `invokeRemote`, an env `ANTHROPIC_API_KEY`) still works as on every channel.
+
+```typescript
+interface UnloadAuthResult {
+  atlassian?: string;       // site it disconnected, if any
+  providers: string[];      // provider keys whose loaded (or refreshed / exchanged-from-loaded) token it removed
+  providerSecrets: number;  // provider client secrets it removed
+  llm: boolean;             // whether it cleared the `auth --llm` key
 }
 ```
 
@@ -801,7 +823,9 @@ In mock mode, `asUser().withProvider('google').fetch('/me')` routes through `sim
 Backend for the `@forge/llm` shim. Two modes:
 
 1. **Mock** — pre-registered responses returned FIFO. Good for tests.
-2. **Real proxy** — if `ANTHROPIC_API_KEY` is set (env or via `forge-sim auth --llm`), forwards to the Anthropic Messages API and translates between `@forge/llm`'s OpenAI-shaped dialect and Anthropic's native format.
+2. **Real proxy** — if an Anthropic key is available, forwards to the Anthropic Messages API and translates between `@forge/llm`'s OpenAI-shaped dialect and Anthropic's native format.
+
+An `ANTHROPIC_API_KEY` in the process env always counts as available; the `forge-sim auth --llm` key only after `sim.loadAuthFromEnv()` loaded it (or on a channel that connects; `sim.unloadAuth()` drops it again).
 
 Mock responses take priority over the real proxy: if the queue has entries, they're consumed first.
 

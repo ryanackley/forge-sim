@@ -615,7 +615,7 @@ sim.llm.reset();  // clears mocks + history, leaves the rest of the sim alone
 
 #### Real API fallthrough
 
-If no mock is queued **and** `ANTHROPIC_API_KEY` is set (via env or `forge-sim auth --llm`), the simulator forwards the call to the real Anthropic API. In CI you almost always want this to be impossible: either always queue a mock before every chat(), or unset the env var. When both are absent, `chat()` throws `LlmApiError(NO_API_KEY)` instead of silently doing nothing.
+If no mock is queued **and** an Anthropic key is available, the simulator forwards the call to the real Anthropic API. An `ANTHROPIC_API_KEY` in the process env always counts; the `forge-sim auth --llm` key counts only after `sim.loadAuthFromEnv()` (or on a channel that connects, see [Credentials](../local-development/credentials.md#when-stored-credentials-are-used)). In CI you almost always want this to be impossible: either always queue a mock before every chat(), or unset the env var. When both are absent, `chat()` throws `LlmApiError(NO_API_KEY)` instead of silently doing nothing.
 
 ### UIKit 2 Rendering
 

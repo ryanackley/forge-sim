@@ -105,7 +105,7 @@ Features:
 
 ## AI-driven development
 
-forge-sim gives AI agents a local Forge runtime that needs no Atlassian credentials and no deploy permissions. An agent can write code, deploy it locally, test it, and iterate without touching a real site. If you *do* connect a real account (`forge-sim auth`), unmocked product API calls pass through to it; mocked routes always win, so you control exactly which calls stay local. Everything is reachable through CLI commands:
+forge-sim gives AI agents a local Forge runtime that needs no Atlassian credentials and no deploy permissions. An agent can write code, deploy it locally, test it, and iterate without touching a real site. If you *do* connect a real account (`forge-sim auth`, then `--connect` on `forge-sim deploy` or `forge-sim-mcp`; only `forge-sim dev` connects without being asked), unmocked product API calls pass through to it; mocked routes always win, so you control exactly which calls stay local. Everything is reachable through CLI commands:
 
 ```bash
 # Deploy the app (daemon auto-starts)

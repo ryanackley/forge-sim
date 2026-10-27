@@ -164,7 +164,7 @@ Credential plumbing shared by all three (account management, storage locations, 
 
 ## File-based mocks: `.forge-sim/mocks.json`
 
-Without a connected real site, unmocked product API calls return a `501`. You can register mocks at runtime from the dev tools UI or its HTTP API, but anything that runs **during boot** (deploy-time scheduled triggers, resolver warm-up paths) executes before you get the chance. For those, put mocks in a file and they're applied *before* the initial deploy:
+Without a connected real site, unmocked product API calls return a `501`. You can register mocks at runtime from the dev tools UI or its HTTP API, but anything that runs **during boot** (deploy-time scheduled triggers, resolver warm-up paths) executes before you get the chance. For those, put mocks in a file and `forge-sim dev` applies them *before* the initial deploy. The file is read **only by `forge-sim dev`**: the CLI daemon (`forge-sim deploy`, even with `--connect`) and the MCP server ignore it, so register their mocks with `forge-sim mock routes` / `forge_mock_routes`.
 
 ```json
 // <your-app>/.forge-sim/mocks.json
@@ -188,7 +188,8 @@ Without a connected real site, unmocked product API calls return a `501`. You ca
 - The reserved key **`graphql`** maps GraphQL operation names to response bodies (`"*"` is a catch-all).
 - The file is **hot-reloaded** on save. Reloads *merge* into the live mock tables (same semantics as every other mock call), so editing a route's value takes effect immediately — but *deleting* a route from the file doesn't un-mock it until the dev server restarts.
 - JSON can't express function-valued (per-request) handlers; for dynamic responses use the [programmatic API](../testing/) in tests.
-- When a real account is connected, mocked routes always win over passthrough — the file is an easy way to pin specific calls local while everything else hits your real site.
+- When a real account is connected (`forge-sim dev` connects by default; `--offline` to skip), mocked routes always win over passthrough, whatever status they return — the file is an easy way to pin specific `jira`/`confluence`/`bitbucket` calls local while everything else hits your real site. For a remote key, mocking any route makes every other path on that key answer `404 "No mock route matched"` instead of reaching the remote.
+- A Tools-API reset (`POST /__tools/api/reset`, or a resetting `/__tools/api/deploy`) re-applies this file before the dev server reconnects, so its routes never go unmocked while connected.
 
 ## App environment variables
 

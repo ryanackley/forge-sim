@@ -16,6 +16,8 @@ forge-sim dev [appDir]
 | `--no-open` | — | Don't open browser automatically |
 | `--module <key>` | auto | Specific UI module key to render |
 | `--clean` | — | Start fresh (wipe app state, keep credentials) |
+| `--offline` | — | Don't load stored credentials. Dev connects to your site by default when `forge-sim auth` has an account (see [Connecting to a real site](#connecting-to-a-real-site)) |
+| `--connect` | — | Load stored credentials even when `FORGE_SIM_CONNECT=0` is set (the default for dev already connects) |
 | `--issue <key>` | — | Set Jira issue context (e.g., `PROJ-42`); hydrates via real API if connected |
 | `--content <id>` | — | Set Confluence content context (e.g., `12345`) |
 | `--space <key>` | — | Set Confluence space context (e.g., `SPACEKEY`) |
@@ -33,6 +35,12 @@ forge-sim dev [appDir]
 **State persistence:** On exit (`Ctrl+C`), KVS and SQL data are saved to `<app>/.forge-sim/state/`. On next startup, state is restored. Use `--clean` to ignore persisted state.
 
 **File-based mocks:** `<app>/.forge-sim/mocks.json` is applied before the initial deploy and hot-reloaded on save — see [Local development](../local-development/README.md#file-based-mocks-forge-simmocksjson).
+
+### Connecting to a real site
+
+`forge-sim dev` loads your stored credentials (`forge-sim auth`, or `FORGE_SIM_SITE`/`FORGE_SIM_EMAIL`/`FORGE_SIM_PAT`) at startup and says so on the console (`🔐 Real Atlassian APIs ACTIVE: …`); unmocked product API calls then reach that site for real. Pass `--offline` to start without loading them. `forge-sim deploy` and `forge-sim-mcp` are the opposite: offline unless you pass `--connect`.
+
+`FORGE_SIM_CONNECT=1` forces connecting on and `FORGE_SIM_CONNECT=0` forces it off for `forge-sim dev`, `forge-sim deploy` and `forge-sim-mcp` (the test library ignores it); a `--connect`/`--offline` flag beats the env, and both flags together are an error. Mocks always win over the real site. See [Credentials](../local-development/credentials.md#when-stored-credentials-are-used).
 
 ### Module Context
 
@@ -107,11 +115,18 @@ Deploy a Forge app to the simulator daemon.
 ```bash
 forge-sim deploy [appDir]
 forge-sim deploy ./my-app --no-reset
+forge-sim deploy ./my-app --connect
 ```
 
 | Option | Description |
 |--------|-------------|
 | `--no-reset` | Keep existing state (don't reset before deploying) |
+| `--connect` | Load stored credentials into the daemon after deploying: unmocked product API calls reach your real site, except routes you mocked (`forge-sim mock routes`; the daemon does not read `.forge-sim/mocks.json`). Off by default (`FORGE_SIM_CONNECT=1` also turns it on) |
+| `--offline` | Don't load stored credentials (the default) |
+
+Each deploy decides for itself: the CLI resolves `--connect`/`--offline`/`FORGE_SIM_CONNECT` and sends the answer to the daemon (setting `FORGE_SIM_CONNECT` on `forge-sim serve` does nothing). A deploy without `--connect` — `--no-reset` included — unloads everything an earlier `--connect` loaded: the Atlassian connection, provider tokens, provider secrets and the `forge-sim auth --llm` key; `forge-sim reset` does the same. A deploy with `--connect` reloads from the store after deploying. The CLI prints `🔐 Real Atlassian APIs ACTIVE: <site>` when a deploy connects to a site, `🔑`/`🔐`/`🤖` lines for the provider tokens, provider secrets and Anthropic key it loaded, a `⚠️` line when a connect found nothing at all, and `🔒 Offline: unloaded …` when it dropped something (a deploy that fails included).
+
+The env credentials (`FORGE_SIM_SITE`/`FORGE_SIM_EMAIL`/`FORGE_SIM_PAT`, `FORGE_SIM_PROVIDER_<KEY>_TOKEN`) are read by the daemon from the environment it was started with, not from each `forge-sim deploy`; run `forge-sim stop` to pick up new ones. `<app>/.forge-sim/mocks.json` is applied only by `forge-sim dev`; register daemon mocks with `forge-sim mock routes`.
 
 ### `forge-sim invoke`
 

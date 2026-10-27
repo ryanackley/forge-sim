@@ -26,9 +26,17 @@ PAT requests go straight to `https://{site}/...`, with no `api.atlassian.com` ga
 
 ## How it works
 
-When `forge-sim dev` starts, it loads stored credentials and connects automatically:
+When `forge-sim dev` starts, it loads stored credentials and connects automatically, and says so:
 
 ```
 📡 Connected to real APIs as Ryan Ackley @ mysite.atlassian.net
+🔐 Real Atlassian APIs ACTIVE: mysite.atlassian.net (you@example.com)
+   Unmocked product API requests from resolvers hit this site for real.
 ```
+
+Start it with `forge-sim dev --offline` (or `FORGE_SIM_CONNECT=0`) to skip that and keep every unmocked call at `501`.
+
+The other channels are **opt-in**: the MCP server connects only when started with `--connect` (or `FORGE_SIM_CONNECT=1`), the CLI daemon only on `forge-sim deploy --connect`, and the test library only when a test calls `sim.loadAuthFromEnv()`. See [When stored credentials are used](./credentials.md#when-stored-credentials-are-used).
+
+Mocks always win over the real site: a mocked route answers whether it was registered before or after the connection, and whatever status it returns (a mocked `404` for a missing issue stays a `404`), for products, remotes, provider remotes and `stargate` alike. Only a `jira`/`confluence`/`bitbucket` call that no mock answers reaches your site.
 

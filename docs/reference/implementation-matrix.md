@@ -56,10 +56,10 @@ The main backend API package. Imported by resolver/trigger/consumer functions.
 | `asUser(accountId).requestJira()` | ⚠️ | — | `accountId` param is ignored; no user impersonation |
 | `asApp().requestConfluence()` | ✅ | `shims.test.ts` | |
 | `asApp().requestBitbucket()` | ✅ | — | |
-| `asApp().requestGraph()` | ✅ | `graphql.test.ts` | Mock by operation name + real API fallback via Atlassian Gateway |
-| `asUser().requestGraph()` | ✅ | `graphql.test.ts` | Same as asApp |
-| `asApp().requestAtlassian()` | ❌ | — | Generic Atlassian API not implemented |
-| `asUser().requestAtlassian()` | ❌ | — | Generic Atlassian API not implemented |
+| `asApp().requestGraph()` | ⚠️ | `product-api-mock-precedence-connected.test.ts` | From app code the call reaches the `stargate` mock key: mock it with `sim.mockProductRoutes('stargate', { 'POST /graphql': … })`; unmocked it returns 501, connected or not (no gateway fallback). `sim.mockGraphQL()` operation mocks answer only the sim-side `sim.productApi.requestGraph()` (`graphql.test.ts`), not the app's call yet |
+| `asUser().requestGraph()` | ⚠️ | — | Same as asApp (the `stargate` key; `accountId` is ignored) |
+| `asApp().requestAtlassian()` | ⚠️ | — | Reaches the `stargate` mock key: mock it with `sim.mockProductRoutes('stargate', { 'GET /…': … })`; unmocked it returns 501, connected or not (no gateway fallback) |
+| `asUser().requestAtlassian()` | ⚠️ | — | Same as asApp (`accountId` is ignored) |
 | `asUser().withProvider(provider, remote)` | ✅ | `external-auth.test.ts` | Full `ExternalAuthFetchMethods` interface |
 | `.withProvider().hasCredentials(scopes?)` | ✅ | `external-auth.test.ts` | Checks token existence, expiry, and scopes |
 | `.withProvider().requestCredentials(scopes?)` | ✅ | `external-auth.test.ts` | Real package: always rejects with `NeedsAuthenticationError`, as in Forge. Authorize locally via `forge-sim auth` or the Tools UI |
@@ -215,7 +215,7 @@ Async events and queue processing.
 
 ## @forge/llm
 
-OpenAI-shaped Anthropic LLM interface. Mock-first; falls through to the real Anthropic Messages API when `ANTHROPIC_API_KEY` is set (env or via `forge-sim auth --llm`).
+OpenAI-shaped Anthropic LLM interface. Mock-first; falls through to the real Anthropic Messages API when an Anthropic key is available: an `ANTHROPIC_API_KEY` in the process env, or the `forge-sim auth --llm` key once `sim.loadAuthFromEnv()` (or a connecting channel) has loaded it.
 
 | API | Status | Tests | Notes |
 |-----|--------|-------|-------|

@@ -43,9 +43,24 @@ For MCP clients that support stdio servers, add to your `.mcp.json`:
 
 ## Talking to real Atlassian APIs and providers
 
-By default the MCP simulator is fully isolated: unmocked product API calls return a `501` with a hint to register a mock, and `withProvider()` calls run in mock mode. That's the right default for automated tests, but for live iteration you often want the AI's app code hitting your real Jira/Confluence site and real provider endpoints instead of mocks.
+By default the MCP server does **not** load stored credentials, even when `~/.forge-sim/credentials.json` holds an account: unmocked Atlassian product API calls return a `501` with a hint to register a mock, and `withProvider()` calls get no stored token. (Not everything is gated by this: an unmocked `invokeRemote` still goes to the remote's `baseUrl` from the manifest, and an `ANTHROPIC_API_KEY` in the server's own env still reaches Anthropic.) That's the right default for an agent, but for live iteration you often want the AI's app code hitting your real Jira/Confluence site and real provider endpoints instead of mocks.
 
-Credential setup happens **outside** the MCP session, with the CLI. `forge_deploy` re-reads the credential store on every call, so credentials added mid-session are picked up on the next deploy, no daemon restart needed.
+Connecting is **opt-in**. Start the server with `--connect`:
+
+```json
+{
+  "mcpServers": {
+    "forge-sim": {
+      "command": "forge-sim-mcp",
+      "args": ["--connect"]
+    }
+  }
+}
+```
+
+Launched through `npx` (the Claude Code plugin's config), the flag goes after the binary: `"args": ["-y", "-p", "forge-sim", "forge-sim-mcp", "--connect"]`. Or set `FORGE_SIM_CONNECT=1` in the server's `env` block (`FORGE_SIM_CONNECT=0` or `--offline` forces it off; a flag beats the env). The server prints its policy on stderr at startup, and `forge_sim_info` reports it as `connectPolicy`.
+
+Credential setup happens **outside** the MCP session, with the CLI. When the server connects, `forge_deploy` reloads the credential store from scratch on every call (after deploying, and also when the deploy fails), so credentials added mid-session are picked up on the next deploy and ones removed are dropped, no server restart needed. When it doesn't, `forge_deploy` and `forge_auth_status` tell you if credentials exist that `--connect` would load (`auth.atlassian.credentialsFound` plus a `hint`), without loading them.
 
 ### Atlassian APIs (PAT)
 
@@ -55,7 +70,7 @@ Add an Atlassian account with a Personal Access Token:
 forge-sim auth
 ```
 
-This prompts for your site URL, email, and PAT, and stores them in the credential store (`.forge-sim/credentials.json` in the app directory if present, otherwise `~/.forge-sim/credentials.json`). After the next `forge_deploy`, `requestJira` / `requestConfluence` calls that don't match a registered mock go to your real site, authenticated with the PAT.
+This prompts for your site URL, email, and PAT, and stores them in the credential store (`.forge-sim/credentials.json` in the app directory if present, otherwise `~/.forge-sim/credentials.json`). With the server started with `--connect`, after the next `forge_deploy`, `requestJira` / `requestConfluence` calls that don't match a registered mock go to your real site, authenticated with the PAT.
 
 ### Third-party providers (OAuth)
 
@@ -66,13 +81,13 @@ forge-sim auth --provider google --secret   # set the client secret first (one t
 forge-sim auth --provider google            # opens the browser, runs the authorization flow
 ```
 
-Tokens land in the same credential store. After the next `forge_deploy`, `api.asUser().withProvider('google')` calls use the real token instead of mock mode.
+Tokens land in the same credential store. With `--connect`, after the next `forge_deploy`, `api.asUser().withProvider('google')` calls that no mock answers use the real token.
 
 > If `forge-sim dev` is running, the CLI can't run the OAuth dance (the callback listener needs port 5173, which the dev server holds). Use the Providers panel in the Tools UI at `http://localhost:5173/__tools/` instead; tokens end up in the same store either way.
 
 ### Environment variables
 
-As an alternative to the credential store, credentials can come from env vars (env vars win when both are set):
+As an alternative to the credential store, credentials can come from env vars (env vars win when both are set). They are read only when the server connects (`--connect` / `FORGE_SIM_CONNECT=1`), like the store:
 
 ```
 FORGE_SIM_SITE=mysite.atlassian.net
@@ -88,6 +103,7 @@ These must be set in the **MCP server's process environment**; exporting them in
   "mcpServers": {
     "forge-sim": {
       "command": "forge-sim-mcp",
+      "args": ["--connect"],
       "env": {
         "FORGE_SIM_SITE": "mysite.atlassian.net",
         "FORGE_SIM_EMAIL": "you@example.com",
@@ -100,9 +116,13 @@ These must be set in the **MCP server's process environment**; exporting them in
 
 ### How routing works once connected
 
-Mocks still take priority. A route registered with `forge_mock_routes` or `forge_mock_graphql` is served from the mock; anything unmatched falls through to the real API. This lets an AI agent mix both: mock the endpoints under test, hit the real site for everything else.
+Mocks always take priority, whether you registered them before or after the server connected, and whatever status they return: a route mocked as `{ "__forgeSimMockResponse": true, "status": 404 }` answers 404, it is never sent to the site. What happens to a call no mock answers depends on the target:
 
-The `forge_deploy` response includes an `auth` block showing what connected, and `forge_auth_status` reports the current account, provider tokens, and manifest providers at any time.
+- **`jira` / `confluence` / `bitbucket`**: it goes to your real site. This lets an AI agent mix both: mock the endpoints under test, hit the real site for everything else.
+- **A remote or provider remote** (a remote key from `manifest.yml`): it reaches the real backend only if *no* route at all is mocked for that key. Once one is, every other path on that key answers `404 "No mock route matched"`.
+- **`stargate`** (where the real `@forge/api` `requestGraph` / `requestAtlassian` go): it never reaches a real backend; an unmocked call returns `501`. Mock it with `forge_mock_routes` on `stargate`, e.g. `{ "POST /graphql": … }`. `forge_mock_graphql` does not answer the app's `requestGraph` yet.
+
+The `forge_deploy` response includes an `auth` block showing what connected, and `forge_auth_status` reports the connect `policy`, the current account, provider tokens, and manifest providers at any time.
 
 See [Credentials](../local-development/credentials.md) for the full `forge-sim auth` flag reference.
 
@@ -116,7 +136,7 @@ What the two surfaces **do** share is the `.forge-sim/` directory on disk:
 
 | Path | Shared? | Notes |
 |------|---------|-------|
-| `credentials.json` | ✅ Shared | Atlassian accounts + provider tokens. Local `.forge-sim/` checked first, then `~/.forge-sim/`. Auth once with the CLI; dev mode, MCP, and the test library all read it. |
+| `credentials.json` | ✅ Shared | Atlassian accounts + provider tokens. Local `.forge-sim/` checked first, then `~/.forge-sim/`. Auth once with the CLI; `forge-sim dev` reads it by default (`--offline` to skip); the MCP server only when started with `--connect`/`FORGE_SIM_CONNECT=1`; the CLI daemon only on `forge-sim deploy --connect`; the test library on `sim.loadAuthFromEnv()`. |
 | `providers.json` | ✅ Shared | OAuth client secrets for manifest providers. |
 | `variables.json` | ✅ Shared | Environment variables — read at deploy time by every surface. |
 | `fit-keys/` | ✅ Shared | FIT signing keys for remotes. Sharing these means your remote backend's cached JWKS stays valid across surfaces. |
@@ -169,8 +189,8 @@ These tool schemas are the canonical vocabulary for forge-sim's operations — t
 | `forge_entity_query` | Query entities with indexes, filters, sort, pagination |
 | `forge_entity_list` | List all entities and schemas |
 | `forge_auth_status` | Show Atlassian account info, 3p provider tokens, and auth status |
-| `forge_mock_routes` | Register mock HTTP responses for product APIs (Jira, Confluence, Bitbucket) or remotes |
-| `forge_mock_graphql` | Register mock GraphQL operation responses (gateway) |
+| `forge_mock_routes` | Register mock HTTP responses for product APIs (Jira, Confluence, Bitbucket), remotes, provider remotes, or `stargate` (the app's real `requestGraph`) |
+| `forge_mock_graphql` | Register mock GraphQL operation responses (gateway); does not answer the app's `requestGraph` yet (use `forge_mock_routes` on `stargate`) |
 | `forge_llm_mock` | Queue mock responses for `@forge/llm` chat() calls |
 | `forge_llm_history` | Inspect captured `@forge/llm` chat() call history |
 | `forge_realtime_publish` | Publish events to a Forge Realtime channel |
