@@ -681,7 +681,6 @@ Features beyond individual APIs.
 | Dev server proxy mode | ✅ | `proxy-server.test.ts` | `forge-sim dev --proxy <url>` — reverse-proxy with bridge injection, WS passthrough |
 | Stateful daemon (CLI) | ✅ | — | Auto-start, idle timeout, PID management |
 | MCP server (stdio) | ✅ | `mcp-server.test.ts` | 41 tools, 4 resources (see auto-generated stats block above) |
-| MCP server (HTTP) | ✅ | — | StreamableHTTP transport |
 | Egress filtering | ❌ | — | No enforcement of `permissions.external` |
 | Content Security Policy | ❌ | — | No CSP enforcement |
 | App installation lifecycle | 🔇 | — | Manifest lifecycle triggers (install/uninstall/enable/disable), not simulated |

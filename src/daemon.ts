@@ -3,8 +3,7 @@
  * forge-sim Daemon — Standalone HTTP server for AI agents and CLI.
  *
  * Runs as a background process, auto-started by CLI commands.
- * Provides the same REST API as the __tools panel (via shared createApiHandler)
- * plus StreamableHTTP for native MCP clients.
+ * Provides the same REST API as the __tools panel (via shared createApiHandler).
  *
  * Lifecycle:
  *   - Auto-starts on first CLI command

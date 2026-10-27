@@ -53,9 +53,7 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { z } from 'zod';
-import { createServer } from 'node:http';
 import { statSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { createSimulator } from './simulator.js';
@@ -91,11 +89,9 @@ const MCP_USAGE = `
   forge-sim-mcp — forge-sim's MCP server (Model Context Protocol)
 
   Usage:
-    forge-sim-mcp [--http] [--port=N] [--connect|--offline]
+    forge-sim-mcp [--connect|--offline]
 
   Options:
-    --http         Serve Streamable HTTP on 127.0.0.1 instead of stdio
-    --port=N       HTTP port (default: 3100; with --http only)
     --connect      forge_deploy loads stored credentials (~/.forge-sim or the
                    app's .forge-sim/, or FORGE_SIM_SITE/EMAIL/PAT): unmocked
                    product API calls then reach your real site
@@ -114,6 +110,19 @@ const MCP_USAGE = `
 if (MCP_ARGV.includes('--help') || MCP_ARGV.includes('-h')) {
   process.stdout.write(MCP_USAGE);
   process.exit(0);
+}
+// The server speaks stdio only: an MCP client spawns it and owns both pipes,
+// so there is no listening socket for another process (or a web page the
+// developer has open) to reach. Refuse the old transport flags outright
+// rather than ignoring them and leaving the caller waiting on a port.
+for (const flag of MCP_ARGV) {
+  if (flag === '--http' || flag.startsWith('--port=')) {
+    console.error(
+      `[forge-sim] ${flag}: forge-sim-mcp has no HTTP transport; it speaks stdio to the client that spawns it. ` +
+      `Remove the flag (and any "url" MCP config) and launch it as a stdio server: "command": "forge-sim-mcp".`,
+    );
+    process.exit(2);
+  }
 }
 
 /**
@@ -136,11 +145,8 @@ try {
 //
 // Over the stdio transport, stdout IS the JSON-RPC framing channel — any
 // stray `console.log` corrupts the stream. Rebind log/info/debug to stderr
-// before anything else runs. The HTTP transport doesn't use stdout for
-// framing — leave it alone there. See stdio-guard.ts for the full story.
-if (!MCP_ARGV.includes('--http')) {
-  redirectStdoutConsoleToStderr();
-}
+// before anything else runs. See stdio-guard.ts for the full story.
+redirectStdoutConsoleToStderr();
 
 // ── Simulator Instance ──────────────────────────────────────────────────
 
@@ -2126,35 +2132,10 @@ server.resource(
 // ── Start ───────────────────────────────────────────────────────────────
 
 async function main() {
-  const args = MCP_ARGV;
-  const httpMode = args.includes('--http');
-  const port = parseInt(args.find((a) => a.startsWith('--port='))?.split('=')[1] ?? '3100');
-
-  if (httpMode) {
-    const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: () => 'forge-sim-session' });
-    await server.connect(transport);
-
-    const httpServer = createServer(async (req, res) => {
-      const url = new URL(req.url ?? '/', `http://localhost:${port}`);
-      if (url.pathname === '/mcp') {
-        await transport.handleRequest(req, res);
-      } else {
-        res.writeHead(404).end('Not found');
-      }
-    });
-
-    // Loopback only — the MCP HTTP endpoint executes SQL/KVS operations with
-    // no auth, so it must never accept connections from other machines.
-    httpServer.listen(port, '127.0.0.1', () => {
-      console.error(`[forge-sim] MCP server running on http://localhost:${port}/mcp`);
-      console.error(`[forge-sim] ${describeConnectPolicy(CONNECT_POLICY)}`);
-    });
-  } else {
-    const transport = new StdioServerTransport();
-    await server.connect(transport);
-    console.error('[forge-sim] MCP server running on stdio');
-    console.error(`[forge-sim] ${describeConnectPolicy(CONNECT_POLICY)}`);
-  }
+  const transport = new StdioServerTransport();
+  await server.connect(transport);
+  console.error('[forge-sim] MCP server running on stdio');
+  console.error(`[forge-sim] ${describeConnectPolicy(CONNECT_POLICY)}`);
 }
 
 main().catch((err) => {

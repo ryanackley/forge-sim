@@ -120,14 +120,16 @@ describe('startup: --connect / --offline / --help are parsed', () => {
 
   it('the usage names every option and the env var', () => {
     const usage = SOURCE.slice(SOURCE.indexOf('const MCP_USAGE'), SOURCE.indexOf(`MCP_ARGV.includes('--help')`));
-    for (const opt of ['--http', '--port=N', '--connect', '--offline', '--help', '${CONNECT_ENV}=1', '"args": ["--connect"]']) {
+    for (const opt of ['--connect', '--offline', '--help', '${CONNECT_ENV}=1', '"args": ["--connect"]']) {
       expect(usage).toContain(opt);
     }
   });
 
-  it('both transports print the policy banner on stderr', () => {
+  it('the stdio server prints the policy banner on stderr at startup', () => {
     const main = SOURCE.slice(SOURCE.indexOf('async function main()'));
-    expect(main.match(/console\.error\(`\[forge-sim\] \$\{describeConnectPolicy\(CONNECT_POLICY\)\}`\)/g)).toHaveLength(2);
+    expect(main).toContain('new StdioServerTransport()');
+    expect(main).not.toContain('createServer(');
+    expect(main.match(/console\.error\(`\[forge-sim\] \$\{describeConnectPolicy\(CONNECT_POLICY\)\}`\)/g)).toHaveLength(1);
   });
 });
 
@@ -179,7 +181,7 @@ describe.runIf(hasDist)('forge-sim-mcp startup paths that exit before serving (d
   it('--help prints usage on stdout and exits 0', () => {
     const r = run(['--help']);
     expect(r.status).toBe(0);
-    expect(r.stdout).toContain('forge-sim-mcp [--http] [--port=N] [--connect|--offline]');
+    expect(r.stdout).toContain('forge-sim-mcp [--connect|--offline]');
     expect(r.stdout).toContain('FORGE_SIM_CONNECT=1');
     expect(r.stderr).not.toContain('MCP server running');
   });
@@ -189,6 +191,16 @@ describe.runIf(hasDist)('forge-sim-mcp startup paths that exit before serving (d
     expect(r.status).toBe(2);
     expect(r.stderr).toContain('--connect and --offline cannot be used together');
     expect(r.stderr).not.toContain('MCP server running');
+  });
+
+  it('the old HTTP transport flags are refused, not ignored (stdio is the only transport)', () => {
+    for (const args of [['--http'], ['--port=3100'], ['--http', '--connect']]) {
+      const r = run(args);
+      expect(r.status).toBe(2);
+      expect(r.stderr).toContain('forge-sim-mcp has no HTTP transport');
+      expect(r.stderr).toContain('"command": "forge-sim-mcp"');
+      expect(r.stderr).not.toContain('MCP server running');
+    }
   });
 
   it('an unrecognised FORGE_SIM_CONNECT exits 2 naming the accepted values', () => {

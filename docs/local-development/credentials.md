@@ -32,7 +32,7 @@ Storing an account does not by itself connect anything. Each channel decides whe
 | Channel | Default | Turn it on | Turn it off |
 |---------|---------|------------|-------------|
 | `forge-sim dev` | **connects** (announced on the console) | — | `--offline` or `FORGE_SIM_CONNECT=0` |
-| MCP server (`forge-sim-mcp`, stdio and `--http`) | offline | `--connect` (in the server's `args` in `.mcp.json`, after the binary) or `FORGE_SIM_CONNECT=1` in its env | default |
+| MCP server (`forge-sim-mcp`) | offline | `--connect` (in the server's `args` in `.mcp.json`, after the binary) or `FORGE_SIM_CONNECT=1` in its env | default |
 | CLI daemon (`forge-sim deploy`) | offline, decided per deploy | `forge-sim deploy --connect`, or `FORGE_SIM_CONNECT=1` set for that `forge-sim deploy` command | default (a deploy without `--connect` unloads what an earlier one loaded) |
 | Test library (`createSimulator()`) | offline | call `sim.loadAuthFromEnv()` after `deploy()` | default |
 
