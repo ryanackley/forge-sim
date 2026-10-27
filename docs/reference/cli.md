@@ -329,7 +329,7 @@ The daemon is a background HTTP server that maintains simulator state across CLI
 | `~/.forge-sim/daemon.log` | Stderr log |
 
 - **Auto-starts** on first CLI command (`deploy`, `invoke`, `kvs`, etc.)
-- **Binds to `127.0.0.1`** only (not accessible from network)
+- **Binds to `127.0.0.1`** only (not accessible from network), and answers a browser page only when its `Origin` is a loopback host; see [Dev Tools](../local-development/dev-tools.md)
 - **Random port** — avoids collisions, written to `~/.forge-sim/daemon.port`
 - **Idle timeout** — exits after 30 minutes with no API calls
 - **`forge-sim stop`** — kills it explicitly

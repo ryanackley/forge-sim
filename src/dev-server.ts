@@ -14,6 +14,7 @@
  */
 
 import { WebSocketServer, WebSocket } from 'ws';
+import { isLocalOrigin } from './local-origin.js';
 import { watch } from 'node:fs';
 import { resolve, relative } from 'node:path';
 import type { ForgeDoc } from './ui/bridge.js';
@@ -64,11 +65,18 @@ export interface DevServerOptions {
  * 'listening' or 'error' event.
  *
  * Bound to loopback only: the bridge WS carries resolver invocations and
- * must never accept remote connections.
+ * must never accept remote connections. A page in the developer's browser
+ * connects from loopback too, so the Origin header is checked as well: the
+ * dev page (localhost or 127.0.0.1, any port) and non-browser clients (no
+ * Origin) are accepted; any other page is refused at the handshake.
  */
 function tryBindWebSocketServer(port: number): Promise<WebSocketServer | null> {
   return new Promise((resolve, reject) => {
-    const wss = new WebSocketServer({ port, host: '127.0.0.1' });
+    const wss = new WebSocketServer({
+      port,
+      host: '127.0.0.1',
+      verifyClient: ({ origin }: { origin: string }) => isLocalOrigin(origin),
+    });
     let settled = false;
     wss.once('listening', () => {
       if (settled) return;

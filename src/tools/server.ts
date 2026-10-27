@@ -12,6 +12,7 @@
 
 import { type IncomingMessage, type ServerResponse } from 'node:http';
 import { WebSocketServer, WebSocket } from 'ws';
+import { applyLocalOriginPolicy, allowLocalUpgrade } from '../local-origin.js';
 import { resolve, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { ViteDevServer } from 'vite';
@@ -130,14 +131,8 @@ export function attachToolsToVite(options: ToolsServerOptions): ToolsServer {
     // Strip prefix for internal routing
     const toolsPath = url.pathname.slice(PREFIX.length) || '/';
 
-    // CORS
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-
-    if (req.method === 'OPTIONS') {
-      res.writeHead(204);
-      res.end();
+    // Loopback origins only (see local-origin.ts); a foreign page gets 403.
+    if (!applyLocalOriginPolicy(req, res)) {
       return;
     }
 
@@ -187,6 +182,7 @@ export function attachToolsToVite(options: ToolsServerOptions): ToolsServer {
     httpServer.on('upgrade', (request: any, socket: any, head: any) => {
       const url = new URL(request.url ?? '/', 'http://localhost');
       if (url.pathname === `${PREFIX}/ws`) {
+        if (!allowLocalUpgrade(request, socket)) return;
         wss.handleUpgrade(request, socket, head, (ws) => {
           wss.emit('connection', ws, request);
         });

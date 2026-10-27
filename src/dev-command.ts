@@ -19,6 +19,7 @@
  */
 
 import { resolve, join, relative, dirname, sep } from 'node:path';
+import { applyLocalOriginPolicy, allowLocalUpgrade } from './local-origin.js';
 import { existsSync, mkdirSync, writeFileSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createSimulator, ForgeSimulator, type LoadAuthResult } from './simulator.js';
@@ -1718,10 +1719,8 @@ export async function devCommand(options: DevCommandOptions) {
 
     proxyServer.addMiddleware(TOOLS_PREFIX, (req, res, pathname, searchParams) => {
       const toolsPath = pathname.slice(TOOLS_PREFIX.length) || '/';
-      res.setHeader('Access-Control-Allow-Origin', '*');
-      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-      res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-      if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return true; }
+      // Loopback origins only (see local-origin.ts); a foreign page gets 403.
+      if (!applyLocalOriginPolicy(req, res)) return true;
       if (toolsPath.startsWith('/api/')) {
         const apiUrl = new URL(toolsPath + (searchParams ? '?' + searchParams : ''), 'http://localhost');
         apiHandler(req, res, apiUrl).catch((err: any) => {
@@ -1753,6 +1752,7 @@ export async function devCommand(options: DevCommandOptions) {
     let lastTypeErrors: { errors: any[]; critical: any[]; checking: boolean } | null = null;
 
     proxyServer.addUpgradeHandler(`${TOOLS_PREFIX}/ws`, (req, socket, head) => {
+      if (!allowLocalUpgrade(req, socket)) return;
       toolsWss.handleUpgrade(req, socket, head, (ws) => {
         toolsWss.emit('connection', ws, req);
       });

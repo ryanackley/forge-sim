@@ -2,6 +2,8 @@
 
 Built-in developer tools available at `http://localhost:5173/__tools/` when running `forge-sim dev`.
 
+The tools API, the daemon API and both WebSockets bind to `127.0.0.1` and answer a browser only when the page's `Origin` is `localhost`, `127.0.0.1` or `::1` (any port). Any other origin gets `403` before a handler runs, and WebSocket handshakes from it are refused. Requests with no `Origin` (curl, the CLI, MCP clients) pass. Nothing is ever answered with `Access-Control-Allow-Origin: *`.
+
 ## Panels
 
 ### Logs

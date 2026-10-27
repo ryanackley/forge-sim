@@ -19,6 +19,7 @@ import { mkdirSync, writeFileSync, unlinkSync, existsSync, readFileSync, appendF
 import { homedir } from 'node:os';
 import { createSimulator } from './simulator.js';
 import { createApiHandler } from './tools/api.js';
+import { applyLocalOriginPolicy } from './local-origin.js';
 
 // ── Config ──────────────────────────────────────────────────────────────
 
@@ -93,16 +94,9 @@ const server = createServer(async (req: IncomingMessage, res: ServerResponse) =>
 
   const url = new URL(req.url ?? '/', `http://localhost`);
 
-  // CORS headers
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-
-  if (req.method === 'OPTIONS') {
-    res.writeHead(204);
-    res.end();
-    return;
-  }
+  // Only pages served from localhost may call this from a browser; the CLI
+  // and MCP clients send no Origin and pass. See local-origin.ts.
+  if (!applyLocalOriginPolicy(req, res)) return;
 
   // All routes go through the shared API handler.
   // The API handler expects paths like /api/health, /api/deploy, etc.
