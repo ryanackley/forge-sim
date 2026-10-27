@@ -42,6 +42,13 @@ export interface StartOptions {
   wsPort?: number;
   proxy?: string;
   timeoutMs?: number;
+  /**
+   * Let `forge-sim dev` load the developer's stored credentials (its default
+   * outside tests). Off by default: the harness passes `--offline`, so an e2e
+   * run never reaches the real site in ~/.forge-sim — a connected dev server
+   * sends PAT-authenticated requests to it even from a green run.
+   */
+  connect?: boolean;
 }
 
 /** How long to give forge-sim's graceful shutdown before escalating to SIGKILL. */
@@ -88,7 +95,7 @@ async function waitForPortsReleased(ports: number[], timeoutMs: number): Promise
  * Waits until HTTP server is ready, then returns handle.
  */
 export async function startForgeSimDev(opts: StartOptions): Promise<DevServerInstance> {
-  const { appDir, proxy, timeoutMs = 30_000 } = opts;
+  const { appDir, proxy, timeoutMs = 30_000, connect = false } = opts;
   // Ports default to whatever is free right now. Fixed ports were the root of
   // the suite's "random" mid-run ERR_CONNECTION_REFUSED: two forge-sim devs
   // on the same machine (another worktree's e2e run, a developer's own
@@ -111,6 +118,9 @@ export async function startForgeSimDev(opts: StartOptions): Promise<DevServerIns
   const args = ['tsx', CLI_PATH, 'dev', '--port', String(port), '--ws-port', String(wsPort), '--no-open'];
   if (proxy) {
     args.push('--proxy', proxy);
+  }
+  if (!connect) {
+    args.push('--offline');
   }
   args.push(appDir);
 

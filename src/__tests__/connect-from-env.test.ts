@@ -5,15 +5,66 @@
  * - ENV var Atlassian PAT connection
  * - ENV var third-party token loading (various key formats)
  * - ENV vars take priority over .forge-sim files
- * - .forge-sim fallback when no env vars (mocked file reads)
+ * - .forge-sim fallback when no env vars (a temp HOME's credential store)
  * - loadAuthFromEnv returns correct summary object
  * - Clean env between tests
  * - Provider key normalization (hyphen→underscore, case insensitive)
  * - Requires deploy() first
+ *
+ * HERMETIC: the credential store's global path is computed from
+ * `os.homedir()` when src/auth/credentials.ts loads, so HOME is pointed at an
+ * empty temp dir BEFORE any import (vi.hoisted). Without that the file would
+ * read the developer's real ~/.forge-sim/credentials.json: tests would fail on
+ * a machine with a stored third-party token, and every run would load a real
+ * account into the simulator.
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from 'vitest';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { homedir, tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { createSimulator, type ForgeSimulator } from '../simulator.js';
+
+const hermetic = await vi.hoisted(async () => {
+  const fs = await import('node:fs');
+  const os = await import('node:os');
+  const path = await import('node:path');
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'forge-sim-connect-env-home-'));
+  const prevHome = process.env.HOME;
+  process.env.HOME = home;
+  return { home, prevHome };
+});
+
+afterAll(() => {
+  if (hermetic.prevHome === undefined) delete process.env.HOME;
+  else process.env.HOME = hermetic.prevHome;
+  rmSync(hermetic.home, { recursive: true, force: true });
+});
+
+/** Write the temp HOME's global credential store (~/.forge-sim/credentials.json). */
+function writeGlobalStore(store: unknown): void {
+  mkdirSync(join(hermetic.home, '.forge-sim'), { recursive: true });
+  writeFileSync(join(hermetic.home, '.forge-sim', 'credentials.json'), JSON.stringify(store));
+}
+
+function removeGlobalStore(): void {
+  rmSync(join(hermetic.home, '.forge-sim'), { recursive: true, force: true });
+}
+
+const STORE_ACCOUNT = {
+  id: 'store-1',
+  name: 'Store User',
+  email: 'store@example.com',
+  site: 'forge-sim-store.invalid',
+  cloudId: 'store-cloud',
+  accountId: 'store-account',
+  authType: 'pat',
+  accessToken: 'store-pat',
+  refreshToken: '',
+  expiresAt: 0,
+  scopes: [],
+  default: true,
+};
 
 // ── Env Helpers ────────────────────────────────────────────────────────────
 
@@ -51,8 +102,11 @@ resources:
 describe('loadAuthFromEnv', () => {
   let sim: ForgeSimulator;
   let savedEnv: Record<string, string | undefined>;
+  let appDir: string;
 
   beforeEach(async () => {
+    removeGlobalStore();
+    appDir = mkdtempSync(join(tmpdir(), 'forge-sim-connect-env-app-'));
     // Save all FORGE_SIM_* env vars
     savedEnv = {};
     for (const key of Object.keys(process.env)) {
@@ -62,12 +116,15 @@ describe('loadAuthFromEnv', () => {
     }
     clearForgeEnv();
     sim = createSimulator();
-    // loadAuthFromEnv requires deploy — set appDir to simulate a deploy
+    // loadAuthFromEnv requires deploy — set appDir to simulate a deploy.
+    // A fresh temp dir: a fixed path could hold a stray per-app store.
     await sim.loadManifest(MINIMAL_MANIFEST);
-    sim.setAppDir('/tmp/test-forge-app');
+    sim.setAppDir(appDir);
   });
 
   afterEach(() => {
+    rmSync(appDir, { recursive: true, force: true });
+    removeGlobalStore();
     // Restore env
     clearForgeEnv();
     for (const [key, val] of Object.entries(savedEnv)) {
@@ -78,6 +135,10 @@ describe('loadAuthFromEnv', () => {
   });
 
   // ── Requires deploy ─────────────────────────────────────────────────
+
+  it('runs against a temp HOME, never the real one', () => {
+    expect(homedir()).toBe(hermetic.home);
+  });
 
   it('throws if deploy() has not been called', async () => {
     const freshSim = createSimulator();
@@ -128,18 +189,60 @@ describe('loadAuthFromEnv', () => {
 
   it('does not connect Atlassian via env when vars are incomplete', async () => {
     process.env.FORGE_SIM_SITE = 'test.atlassian.net';
-    // Missing EMAIL and PAT — env path skipped, falls through to .forge-sim fallback
-    // Whether it connects depends on whether .forge-sim/credentials.json exists locally.
-    // We just verify the env path was NOT taken (no 'pat' from env).
+    // Missing EMAIL and PAT — env path skipped, falls through to the
+    // .forge-sim fallback, which is empty in the temp HOME.
     const result = await sim.loadAuthFromEnv();
 
-    // If it connected, it was from .forge-sim fallback, not env vars
-    if (result.atlassian.connected) {
-      // It found a stored account — that's fine, just verify it wasn't from our incomplete env
-      expect(result.atlassian.authType).toBeDefined();
-    } else {
-      expect(sim.productApi.isRealMode).toBe(false);
-    }
+    expect(result.atlassian.connected).toBe(false);
+    expect(sim.productApi.isRealMode).toBe(false);
+  });
+
+  // ── .forge-sim fallback ──────────────────────────────────────────────
+
+  it('falls back to the global credential store (default account + its 3p tokens)', async () => {
+    writeGlobalStore({
+      accounts: [STORE_ACCOUNT],
+      thirdParty: { 'store-1': { google: { provider: 'google', accessToken: 'store-google' } } },
+    });
+
+    const result = await sim.loadAuthFromEnv();
+
+    expect(result.atlassian).toEqual({ connected: true, site: 'forge-sim-store.invalid', authType: 'pat' });
+    expect(result.providers).toEqual(['google']);
+    expect(sim.productApi.connectedAccount?.email).toBe('store@example.com');
+    expect(sim.externalAuth.getToken('google')?.accessToken).toBe('store-google');
+  });
+
+  it('a per-app store shadows the global one', async () => {
+    writeGlobalStore({ accounts: [STORE_ACCOUNT], thirdParty: {} });
+    mkdirSync(join(appDir, '.forge-sim'), { recursive: true });
+    writeFileSync(join(appDir, '.forge-sim', 'credentials.json'), JSON.stringify({ accounts: [], thirdParty: {} }));
+
+    const result = await sim.loadAuthFromEnv();
+
+    expect(result.atlassian.connected).toBe(false);
+    expect(sim.productApi.isRealMode).toBe(false);
+  });
+
+  it('env PAT vars win over the store', async () => {
+    writeGlobalStore({ accounts: [STORE_ACCOUNT], thirdParty: {} });
+    process.env.FORGE_SIM_SITE = 'env.atlassian.net';
+    process.env.FORGE_SIM_EMAIL = 'env@example.com';
+    process.env.FORGE_SIM_PAT = 'env-pat';
+
+    const result = await sim.loadAuthFromEnv();
+
+    expect(result.atlassian.site).toBe('env.atlassian.net');
+    expect(sim.productApi.connectedAccount?.email).toBe('env@example.com');
+  });
+
+  it('reports provider client secrets it loaded', async () => {
+    mkdirSync(join(appDir, '.forge-sim'), { recursive: true });
+    writeFileSync(join(appDir, '.forge-sim', 'providers.json'), JSON.stringify({ google: { clientSecret: 'shh' }, github: { clientSecret: 'shh2' } }));
+
+    const result = await sim.loadAuthFromEnv();
+
+    expect(result.providerSecrets).toBe(2);
   });
 
   // ── ENV var third-party tokens ──────────────────────────────────────
