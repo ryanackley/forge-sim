@@ -5,7 +5,7 @@
  * falling back to real HTTP with FIT authorization headers.
  */
 
-import type { SimulatedProductApi } from './product-api.js';
+import { noMockAnswer, type SimulatedProductApi } from './product-api.js';
 import type { FITProvider } from './fit-provider.js';
 import type { ParsedManifest } from './manifest.js';
 import type { ProductApiResponse } from './types.js';
@@ -80,8 +80,11 @@ export class RemoteProxy {
       body: options.body,
     });
 
-    // If mock returned a real match (not 501 unmocked / not 404 no route), use it
-    if (mockResult.status !== 501) {
+    // Real HTTP only when NOTHING is mocked for this remote. A mock's answer
+    // is final whatever its status — `mockResponse(501)` included, so this
+    // never decides on `status !== 501`. Once any route is mocked for the
+    // remote, an unmatched path gets the 404 "No mock route matched".
+    if (noMockAnswer(mockResult) !== 'unmocked') {
       return mockResult;
     }
 

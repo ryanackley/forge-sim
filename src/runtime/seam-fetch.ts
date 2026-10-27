@@ -28,6 +28,7 @@ import {
 import { publishAppEventsViaTriggers } from '../app-events.js';
 import { ObjectStoreError } from '../object-store.js';
 import { LlmApiError } from '../llm.js';
+import { noMockAnswer } from '../product-api.js';
 
 export interface ForgeFetchDescriptor {
   type?: string;
@@ -551,7 +552,11 @@ async function handleThirdParty(
   const providerKey = descriptor.provider ?? '';
   const mockProduct = descriptor.remote ?? providerKey;
   const mock = await sim.productApi.request(mockProduct, path, init);
-  if (mock.status !== 501) return asResponse(mock);
+  // Past the mocks only when NOTHING is mocked for this provider remote: a
+  // mock's answer is final whatever its status (`mockResponse(501)`
+  // included), so a mocked call never reaches the provider WITH the stored
+  // bearer token.
+  if (noMockAnswer(mock) !== 'unmocked') return asResponse(mock);
 
   const provider = sim.externalAuth.getProvider(providerKey);
   if (provider) {

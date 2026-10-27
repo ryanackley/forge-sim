@@ -205,14 +205,52 @@ function permissivePermissionCheck(
   return null;
 }
 
+// ── "No mock answered" signal ───────────────────────────────────────────
+//
+// Callers that fall back to a real backend (the jira/confluence/bitbucket
+// real handler below, remote-proxy.ts, seam-fetch.ts handleThirdParty) need
+// to know whether a MOCK answered — never whether the status was 404 or 501.
+// The status cannot decide it: a mock can return either on purpose
+// (`mockResponse(404)` for "issue not found", `mockResponse(501)` for a down
+// upstream), and that answer is final — it never sends the call on to the
+// real site or provider. So the mock layer stamps its own "nothing answered"
+// responses, as a non-enumerable symbol property (invisible to JSON and to
+// app code), and the fallbacks read the stamp.
+
+/**
+ * Why the mock layer had no answer for a request:
+ *  - `'unmocked'` — nothing is registered for the target at all (the default
+ *    501 handler, or no handler: "Unknown product").
+ *  - `'no-route-matched'` — routes are registered for the target, none
+ *    matched (the 404 "No mock route matched" answer).
+ */
+export type NoMockAnswer = 'unmocked' | 'no-route-matched';
+
+const NO_MOCK_ANSWER = Symbol.for('forge-sim.productApi.noMockAnswer');
+
+function markNoMockAnswer(res: ProductApiResponse, why: NoMockAnswer): ProductApiResponse {
+  Object.defineProperty(res, NO_MOCK_ANSWER, { value: why, enumerable: false });
+  return res;
+}
+
+/**
+ * Why no mock answered `res`, or `undefined` when something did answer: a
+ * mock route or `mock()` handler (whatever status it chose), the real
+ * backend, or one of the sim's own synthesized answers.
+ */
+export function noMockAnswer(res: ProductApiResponse | null | undefined): NoMockAnswer | undefined {
+  if (res === null || typeof res !== 'object') return undefined;
+  return (res as unknown as Record<symbol, NoMockAnswer | undefined>)[NO_MOCK_ANSWER];
+}
+
 /**
  * Default handler that returns a helpful error for unmocked API calls.
  */
 function unmockedHandler(product: string): ProductApiHandler {
   return (path: string) => {
-    return makeResponse(501, {
+    return markNoMockAnswer(makeResponse(501, {
       error: `Unmocked ${product} API call: ${path}. Register a handler with sim.mockProductApi('${product}', handler)`,
-    });
+    }), 'unmocked');
   };
 }
 
@@ -242,6 +280,16 @@ function extractOperationName(query: string): string | null {
 export class SimulatedProductApi {
   private handlers = new Map<string, ProductApiHandler>();
   private mockRouteHandlers = new Map<string, ProductApiHandler>();
+  /**
+   * Full-replacement mocks from `mock()` (`sim.mockProductApi`), per product.
+   * Connecting a real site never overwrites one: a mock wins over the real
+   * backend whichever was set up first.
+   * `behindRoutes` is set when `mockRoutes()` was called AFTER `mock()`: the
+   * routes then answer first and the full mock answers whatever they don't
+   * match — it is never dropped in favour of the real site. A later `mock()`
+   * puts it back in front of everything (full replacement).
+   */
+  private fullMocks = new Map<string, { handler: ProductApiHandler; behindRoutes: boolean }>();
   /**
    * Per-product accumulated mock routes, keyed "METHOD pathPattern".
    * `mockRoutes()` MERGES into this table (eval-6 F2) — repeated calls add
@@ -287,7 +335,15 @@ export class SimulatedProductApi {
 
   /**
    * Connect to real Atlassian APIs using a PAT account.
-   * Mock routes still take priority — real API is the fallback.
+   *
+   * Mocks always take priority, on every mock target and in any order: only
+   * jira/confluence/bitbucket ever get a real handler, and it consults the
+   * mock route table (and a full mock behind it) first; a full-replacement
+   * `mock()` handler is left in place; every other key (remotes, provider
+   * remotes, `stargate`, ...) keeps its mock table as its primary handler,
+   * whether that table was registered before or after this call. A mock's
+   * answer is final whatever its status (see `noMockAnswer`); the real API
+   * is only the fallback for a call no mock answers.
    *
    * Atlassian OAuth was removed; only PAT is supported now. PATs don't
    * expire so there's no token-refresh callback to wire.
@@ -297,7 +353,7 @@ export class SimulatedProductApi {
 
     // Set up real API handlers for each product
     for (const product of REAL_API_PRODUCTS) {
-      this.handlers.set(product, this.createRealHandler(product));
+      this.installPrimaryHandler(product);
     }
 
     console.log(`  📡 Connected to real APIs as ${account.name} @ ${account.site}`);
@@ -308,10 +364,40 @@ export class SimulatedProductApi {
    */
   disconnectRealApis(): void {
     this.realApiAccount = null;
-    for (const product of ['jira', 'confluence', 'bitbucket']) {
-      if (!this.mockRouteHandlers.has(product)) {
-        this.handlers.set(product, unmockedHandler(product));
-      }
+    for (const product of REAL_API_PRODUCTS) {
+      this.installPrimaryHandler(product);
+    }
+  }
+
+  private static isRealApiProduct(product: string): boolean {
+    return (REAL_API_PRODUCTS as readonly string[]).includes(product);
+  }
+
+  /**
+   * (Re)install a product's primary handler from the current state, so the
+   * answer never depends on the order mocks and the connection were set up:
+   *   full `mock()` handler registered last  >  real handler (mock routes,
+   *   then a full mock behind them, then the site; jira/confluence/bitbucket
+   *   while connected only)  >  mock route table (then a full mock behind
+   *   it)  >  the 501 "unmocked" handler.
+   */
+  private installPrimaryHandler(product: string): void {
+    const full = this.fullMocks.get(product);
+    if (full && !full.behindRoutes) {
+      this.handlers.set(product, full.handler);
+      return;
+    }
+    if (this.realApiAccount && SimulatedProductApi.isRealApiProduct(product)) {
+      this.handlers.set(product, this.createRealHandler(product));
+      return;
+    }
+    const routeHandler = this.mockRouteHandlers.get(product);
+    if (routeHandler) {
+      this.handlers.set(product, routeHandler);
+    } else if (full) {
+      this.handlers.set(product, full.handler);
+    } else if (SimulatedProductApi.isRealApiProduct(product)) {
+      this.handlers.set(product, unmockedHandler(product));
     }
   }
 
@@ -345,19 +431,21 @@ export class SimulatedProductApi {
 
   private createRealHandler(product: string): ProductApiHandler {
     return async (path: string, options?: ProductApiRequest): Promise<ProductApiResponse> => {
-      // Check mock routes first — they take priority over real API
+      // Mocks first — they take priority over the real API. The route
+      // table (and a full mock() behind it) answers unless it stamped its
+      // answer "no route matched": a mock that deliberately returns 404 is
+      // the answer, so this never decides on `status !== 404`.
       const mockHandler = this.mockRouteHandlers.get(product);
       if (mockHandler) {
         const mockResult = await mockHandler(path, options);
-        // If mock returned a real match (not 404 from route matching), use it
-        if (mockResult.status !== 404) {
+        if (noMockAnswer(mockResult) === undefined) {
           return mockResult;
         }
       }
 
       // Real API call
       if (!this.realApiAccount) {
-        return makeResponse(501, { error: 'Not connected to real APIs' });
+        return markNoMockAnswer(makeResponse(501, { error: 'Not connected to real APIs' }), 'unmocked');
       }
 
       // PAT hits the site URL directly with HTTP Basic auth (email:token).
@@ -409,7 +497,10 @@ export class SimulatedProductApi {
    * Register a mock handler for a product API.
    */
   mock(product: string, handler: ProductApiHandler): void {
-    this.handlers.set(product, handler);
+    // Recorded so a later connectRealApis() leaves it in place (mocks win
+    // regardless of order). In front of any routes: full replacement.
+    this.fullMocks.set(product, { handler, behindRoutes: false });
+    this.installPrimaryHandler(product);
   }
 
   /**
@@ -452,7 +543,7 @@ export class SimulatedProductApi {
     // call's handler replaced the previous one, wiping earlier routes).
     let routeHandler = this.mockRouteHandlers.get(product);
     if (!routeHandler) {
-      routeHandler = (path: string, options?: ProductApiRequest) => {
+      routeHandler = async (path: string, options?: ProductApiRequest) => {
         const requestMethod = (options?.method ?? 'GET').toUpperCase();
 
         // Longest-prefix-wins: the most specific matching route answers, no
@@ -468,24 +559,43 @@ export class SimulatedProductApi {
           }
         }
         if (best) {
-          // Resolve the route value — function form OR static value.
-          const raw = typeof best.response === 'function' ? best.response(path, options) : best.response;
+          // Resolve the route value — function form OR static value. Awaited:
+          // an async lambda's `mockResponse(404)` is that 404, not a 200 whose
+          // body is the serialized Promise (`{}`).
+          const raw = typeof best.response === 'function' ? await best.response(path, options) : best.response;
           // Unwrap the (optional) mockResponse() shape into a status/body/headers
           // triple. Bare values become 200 OK bodies. Throws on the `__status`
           // footgun so the next agent finds the right helper fast.
           const { status, body, headers } = unwrapMockResponse(raw);
           return makeResponse(status, body, headers);
         }
-        return makeResponse(404, { error: `No mock route matched: ${requestMethod} ${path}` });
+        // No route matched. A full mock() registered before these routes
+        // answers next (mocks win: it is never skipped for the real site);
+        // otherwise say so, stamped so a fallback can tell this apart from
+        // a mock that deliberately answers 404.
+        const fullMock = this.fullMocks.get(product);
+        if (fullMock?.behindRoutes) return fullMock.handler(path, options);
+        return markNoMockAnswer(
+          makeResponse(404, { error: `No mock route matched: ${requestMethod} ${path}` }),
+          'no-route-matched',
+        );
       };
       // Store as mock route handler (real API handler checks this first)
       this.mockRouteHandlers.set(product, routeHandler);
     }
 
-    // If not in real mode, also set as the primary handler
-    if (!this.realApiAccount) {
-      this.handlers.set(product, routeHandler);
-    }
+    // The route table becomes the product's primary handler unless a REAL
+    // handler is installed for it — and the real handler consults this table
+    // first. That holds whether or not a site is connected: a remote,
+    // provider-remote or `stargate` mock registered AFTER a connect is still
+    // the key's handler — without one, request() would answer 501, which
+    // remote-proxy.ts and seam-fetch.ts read as "unmocked" and send to the
+    // real backend. An earlier full `mock()` handler moves behind the routes
+    // and answers what they don't match, so while connected those calls
+    // never reach the real site.
+    const full = this.fullMocks.get(product);
+    if (full) full.behindRoutes = true;
+    this.installPrimaryHandler(product);
   }
 
   /**
@@ -518,17 +628,18 @@ export class SimulatedProductApi {
 
     const handler = this.handlers.get(product);
     if (!handler) {
-      return makeResponse(501, {
+      return markNoMockAnswer(makeResponse(501, {
         error: `Unknown product: ${product}`,
-      });
+      }), 'unmocked');
     }
     const result = await handler(path, options);
 
     // Unmocked permission check → permissive default. Fires on both ways a
-    // request can go unanswered: 501 (no mocks registered for the product at
-    // all) and 404 (mockRoutes IS registered but nothing matched). An app
-    // that explicitly mocked the route keeps its own answer.
-    if ((result.status === 501 || result.status === 404) && !this.hasMockRoute(product, path, options)) {
+    // request can go unanswered: nothing registered for the product at all
+    // (501) and mockRoutes registered but nothing matched (404) — read from
+    // the stamp, not the status, so an app's own mock (route or mock()
+    // handler) keeps its answer whatever status it chose.
+    if (noMockAnswer(result) !== undefined) {
       const permissive = permissivePermissionCheck(product, path, options);
       if (permissive) return permissive;
     }
@@ -722,6 +833,7 @@ export class SimulatedProductApi {
   clear(): void {
     this.handlers.clear();
     this.mockRouteHandlers.clear();
+    this.fullMocks.clear();
     this.mockRouteTables.clear();
     this.graphqlMocks.clear();
     this.realApiAccount = null;
