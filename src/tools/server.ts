@@ -41,6 +41,16 @@ export interface ToolsServerOptions {
    * so counting `sim.functions` here always showed "0 registered" (eval 3.7).
    */
   getRegisteredFunctionCount?: () => number;
+  /**
+   * Reconnect stored credentials after a Tools-UI deploy/reset — `forge-sim
+   * dev` passes `!offline` (see CreateApiHandlerOptions.connectByDefault).
+   */
+  connectByDefault?: boolean;
+  /**
+   * Re-apply `.forge-sim/mocks.json` after a Tools-API reset — `forge-sim
+   * dev` passes true (see CreateApiHandlerOptions.reapplyMockFile).
+   */
+  reapplyMockFile?: boolean;
 }
 
 export interface ToolsServer {
@@ -91,7 +101,7 @@ export async function handleOAuthCallback(url: URL, res: ServerResponse): Promis
  * WebSocket connections to /__tools/ws get upgraded to the tools WS.
  */
 export function attachToolsToVite(options: ToolsServerOptions): ToolsServer {
-  const { sim, manifest, viteServer, appDir, getRegisteredFunctionCount } = options;
+  const { sim, manifest, viteServer, appDir, getRegisteredFunctionCount, connectByDefault, reapplyMockFile } = options;
   const clients = new Set<WebSocket>();
 
   // Wire the api handler to broadcastStateChange so the Providers panel
@@ -99,6 +109,8 @@ export function attachToolsToVite(options: ToolsServerOptions): ToolsServer {
   const apiHandler = createApiHandler(sim, manifest, {
     broadcastStateChange: (type, data) => broadcast({ type: 'stateChange', changeType: type, data }),
     appDir,
+    connectByDefault,
+    reapplyMockFile,
   });
   let lastTypeErrors: { errors: any[]; critical: any[]; checking: boolean } | null = null;
 

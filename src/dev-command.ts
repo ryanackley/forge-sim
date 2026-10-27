@@ -21,7 +21,7 @@
 import { resolve, join, relative, dirname, sep } from 'node:path';
 import { existsSync, mkdirSync, writeFileSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { createSimulator, ForgeSimulator } from './simulator.js';
+import { createSimulator, ForgeSimulator, type LoadAuthResult } from './simulator.js';
 import { deploy, importBundledHandler, sweepStaleBundles, deployBundleDir, wrapV1ConsumerHandler, parseHandlerString, resolveHandlerFile, clearAppRequireCache, extractEntryScripts, detectResolverDispatch } from './deployer.js';
 import { interceptCjsForgeRequires } from './loader/cjs-interception.js';
 import { createDevServer } from './dev-server.js';
@@ -55,6 +55,77 @@ export interface DevCommandOptions {
   proxy?: string;
   /** Context options for the rendered module (issue key, content ID, etc.) */
   renderContext?: RenderContextOptions;
+  /**
+   * Do not load stored credentials (`--offline`, or FORGE_SIM_CONNECT=0).
+   * Dev is the one channel that connects by default — see
+   * src/auth/connect-policy.ts.
+   */
+  offline?: boolean;
+}
+
+/**
+ * Step 4c of `forge-sim dev`: load stored credentials per the dev connect
+ * policy and print what happened. Exported so the offline branch can be
+ * pinned without booting a dev server.
+ *
+ * Offline: nothing is loaded — no Atlassian account, provider tokens or
+ * secrets, no Anthropic key. Otherwise this is `sim.loadAuthFromEnv()`, the
+ * same loader the MCP server and the daemon use when they connect, so dev
+ * honours the FORGE_SIM_SITE/EMAIL/PAT env credentials as well as the
+ * credential store, exactly like the other channels.
+ * Returns the load result, or null when offline or when loading failed.
+ */
+export async function loadDevAuth(
+  sim: ForgeSimulator,
+  opts: { appDir: string; offline: boolean },
+): Promise<LoadAuthResult | null> {
+  if (opts.offline) {
+    console.log(`  🔒 Offline (--offline / FORGE_SIM_CONNECT=0): stored credentials not loaded`);
+    console.log(`     Unmocked product API calls return 501; mocks and the seeded user roster still work.`);
+    return null;
+  }
+
+  // loadAuthFromEnv resolves .forge-sim lookups against the deployed app
+  // dir. deployResolversOnly sets it, but a deploy that failed early may not
+  // have got that far — the credential lookup must not depend on it.
+  if (!sim.getAppDir()) sim.setAppDir(opts.appDir);
+
+  let auth: LoadAuthResult;
+  try {
+    auth = await sim.loadAuthFromEnv();
+  } catch (err: any) {
+    console.log(`  📡 Using mock APIs (auth load failed: ${err.message})`);
+    return null;
+  }
+
+  const account = sim.productApi.connectedAccount;
+  if (auth.atlassian.connected && account) {
+    // Publish-gate F8: when credentials exist, resolvers live-fire at
+    // production APIs on any unmocked route — say so loudly at startup
+    // instead of letting the dev find out from their audit log.
+    console.log(`  🔐 Real Atlassian APIs ACTIVE: ${account.site} (${account.email})`);
+    console.log(`     Unmocked product API requests from resolvers hit this site for real.`);
+    console.log(`     Mock routes take priority; run 'forge-sim auth' to manage accounts.`);
+    console.log(`     Pass --offline to start without loading credentials.`);
+  } else {
+    console.log(`  📡 No Atlassian accounts — using mock APIs`);
+    console.log(`     Run 'forge-sim auth' to connect to a real site`);
+  }
+
+  // Third-party OAuth tokens (`forge-sim auth --provider`, or env).
+  for (const providerKey of auth.providers) {
+    console.log(`  🔑 Loaded 3p token: ${providerKey}`);
+  }
+  // Provider client secrets (<app>/.forge-sim/providers.json).
+  const secretCount = auth.providerSecrets ?? 0;
+  if (secretCount > 0) {
+    console.log(`  🔐 Loaded ${secretCount} provider secret${secretCount > 1 ? 's' : ''}`);
+  }
+  // LLM API key (Anthropic for @forge/llm).
+  if (auth.llm?.configured) {
+    console.log(`  🤖 Loaded Anthropic API key (${auth.llm.source})`);
+  }
+  return auth;
 }
 
 // ── UI Module Detection ──────────────────────────────────────────────────
@@ -1327,6 +1398,7 @@ export async function buildViteConfig(opts: {
 
 export async function devCommand(options: DevCommandOptions) {
   const { appDir, port, open, moduleKey, clean, strictMode, proxy, renderContext } = options;
+  const offline = options.offline ?? false;
   // wsPort may shift up if the requested one is in use — keep this as `let`
   // and reassign once createDevServer returns the actual bound port.
   let wsPort = options.wsPort;
@@ -1535,59 +1607,9 @@ export async function devCommand(options: DevCommandOptions) {
     }
   }
 
-  // 4c. Connect to real Atlassian APIs if credentials exist
-  try {
-    const { loadCredentials, getDefaultAccount } = await import('./auth/credentials.js');
-    const store = await loadCredentials(appDir);
-    const account = getDefaultAccount(store);
-
-    if (account) {
-      sim.productApi.connectRealApis(account);
-
-      // Publish-gate F8: when credentials exist, resolvers live-fire at
-      // production APIs on any unmocked route — say so loudly at startup
-      // instead of letting the dev find out from their audit log.
-      console.log(`  🔐 Real Atlassian APIs ACTIVE: ${account.site} (${account.email})`);
-      console.log(`     Unmocked product API requests from resolvers hit this site for real.`);
-      console.log(`     Mock routes take priority; run 'forge-sim auth' to manage accounts.`);
-
-      // Load third-party OAuth tokens for this account (from `forge-sim auth --provider`)
-      const thirdPartyTokens = store.thirdParty[account.id];
-      if (thirdPartyTokens) {
-        for (const [providerKey, token] of Object.entries(thirdPartyTokens)) {
-          sim.externalAuth.setToken(providerKey, token);
-          console.log(`  🔑 Loaded 3p token: ${providerKey}`);
-        }
-      }
-    } else {
-      console.log(`  📡 No Atlassian accounts — using mock APIs`);
-      console.log(`     Run 'forge-sim auth' to connect to a real site`);
-    }
-
-    // Load third-party provider secrets (client secrets from providers.json)
-    try {
-      const { loadProviderSecrets } = await import('./external-auth-store.js');
-      const secrets = await loadProviderSecrets(appDir);
-      sim.externalAuth.loadSecrets(secrets);
-      const secretCount = Object.keys(secrets).length;
-      if (secretCount > 0) {
-        console.log(`  🔐 Loaded ${secretCount} provider secret${secretCount > 1 ? 's' : ''}`);
-      }
-    } catch {}
-
-    // Load LLM API key (Anthropic for @forge/llm)
-    try {
-      const { getAnthropicApiKey } = await import('./auth/config.js');
-      const llmKey = await getAnthropicApiKey();
-      if (llmKey) {
-        sim.llm.setApiKey(llmKey);
-        const source = process.env.ANTHROPIC_API_KEY?.trim() ? 'env' : 'config';
-        console.log(`  🤖 Loaded Anthropic API key (${source})`);
-      }
-    } catch {}
-  } catch (err: any) {
-    console.log(`  📡 Using mock APIs (auth load failed: ${err.message})`);
-  }
+  // 4c. Connect to real Atlassian APIs — dev connects by default when
+  // credentials exist (`--offline` / FORGE_SIM_CONNECT=0 to skip).
+  await loadDevAuth(sim, { appDir, offline });
 
   console.log('');
 
@@ -1686,6 +1708,11 @@ export async function devCommand(options: DevCommandOptions) {
       broadcastStateChange: (type, data) =>
         proxyBroadcast({ type: 'stateChange', changeType: type, data }),
       appDir,
+      connectByDefault: !offline,
+      // A Tools-API reset wipes the mocks.json routes dev applied at boot;
+      // put them back before reconnecting, so a reconnect never reaches a
+      // route the file mocks.
+      reapplyMockFile: true,
     });
     const toolsHtml = generateFallbackHTML(TOOLS_PREFIX);
 
@@ -2066,6 +2093,11 @@ export async function devCommand(options: DevCommandOptions) {
       viteServer,
       appDir,
       getRegisteredFunctionCount: () => registeredFunctionCount,
+      connectByDefault: !offline,
+      // A Tools-API reset wipes the mocks.json routes dev applied at boot;
+      // put them back before reconnecting, so a reconnect never reaches a
+      // route the file mocks.
+      reapplyMockFile: true,
     });
 
     // Hook simulator logs into tools broadcast

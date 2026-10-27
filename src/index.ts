@@ -3,7 +3,7 @@
  */
 
 export { ForgeSimulator, createSimulator } from './simulator.js';
-export type { LoadAuthResult, LogEntry } from './simulator.js';
+export type { LoadAuthResult, UnloadAuthResult, LogEntry } from './simulator.js';
 export type { ConsoleLine } from './console-capture.js';
 export { SimulatedForgeSQL } from './forge-sql.js';
 export type { ForgeSQLOptions } from './forge-sql.js';

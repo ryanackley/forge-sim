@@ -1237,6 +1237,12 @@ export class ForgeSimulator {
    * Load auth credentials from environment variables and/or .forge-sim config files.
    * **Must be called after deploy()** — uses the deployed app directory for .forge-sim lookups.
    *
+   * This is the ONLY way the in-process library connects: `createSimulator()`
+   * and `deploy()` never load credentials on their own. The channels decide
+   * when to call it (src/auth/connect-policy.ts): `forge-sim dev` by default
+   * (`--offline` to skip), the MCP server and the CLI daemon only when asked
+   * (`--connect` / FORGE_SIM_CONNECT=1). Mocks win over whatever it connects.
+   *
    * ENV vars take priority over .forge-sim files.
    *
    * **Atlassian credentials (ENV):**
@@ -1261,6 +1267,15 @@ export class ForgeSimulator {
     }
     const appDir = this.appDir;
     const result: LoadAuthResult = { atlassian: { connected: false }, providers: [] };
+    // Record what this call loads, so unloadAuth() can take back exactly
+    // that (and nothing set some other way). Cumulative across calls.
+    const loaded = (this.loadedAuth ??= {
+      account: null, tokens: new Map(), secrets: new Map(), llmKey: null,
+    });
+    const setToken = (providerKey: string, token: import('./auth/credentials.js').ThirdPartyToken) => {
+      this.externalAuth.setToken(providerKey, token);
+      loaded.tokens.set(providerKey, token);
+    };
 
     // Track which provider keys got tokens from env vars (so we skip them in fallback)
     const envProviderKeys = new Set<string>();
@@ -1289,6 +1304,7 @@ export class ForgeSimulator {
       };
 
       this.productApi.connectRealApis(account);
+      loaded.account = account;
       result.atlassian = { connected: true, site: envSite, authType: 'pat' };
       this.log('info', `Connected to Atlassian via PAT (env): ${envSite}`);
     } else {
@@ -1300,6 +1316,7 @@ export class ForgeSimulator {
 
         if (account) {
           this.productApi.connectRealApis(account);
+          loaded.account = account;
 
           result.atlassian = { connected: true, site: account.site, authType: account.authType };
           this.log('info', `Connected to Atlassian via PAT (.forge-sim): ${account.site}`);
@@ -1310,7 +1327,7 @@ export class ForgeSimulator {
             for (const [providerKey, token] of Object.entries(thirdPartyTokens)) {
               // Only set if not already set by env var
               if (!envProviderKeys.has(providerKey)) {
-                this.externalAuth.setToken(providerKey, token);
+                setToken(providerKey, token);
                 result.providers.push(providerKey);
                 this.log('info', `Loaded 3p token (.forge-sim): ${providerKey}`);
               }
@@ -1329,7 +1346,7 @@ export class ForgeSimulator {
         // Extract provider key: FORGE_SIM_PROVIDER_GOOGLE_APIS_TOKEN → GOOGLE_APIS → google-apis
         const rawKey = envKey.slice(providerEnvPrefix.length, -providerEnvSuffix.length);
         const providerKey = rawKey.toLowerCase().replace(/_/g, '-');
-        this.externalAuth.setToken(providerKey, { provider: providerKey, accessToken: envValue });
+        setToken(providerKey, { provider: providerKey, accessToken: envValue });
         envProviderKeys.add(providerKey);
         if (!result.providers.includes(providerKey)) {
           result.providers.push(providerKey);
@@ -1351,7 +1368,7 @@ export class ForgeSimulator {
           if (thirdPartyTokens) {
             for (const [providerKey, token] of Object.entries(thirdPartyTokens)) {
               if (!envProviderKeys.has(providerKey)) {
-                this.externalAuth.setToken(providerKey, token);
+                setToken(providerKey, token);
                 if (!result.providers.includes(providerKey)) {
                   result.providers.push(providerKey);
                 }
@@ -1369,8 +1386,12 @@ export class ForgeSimulator {
       const { loadProviderSecrets } = await import('./external-auth-store.js');
       const secrets = await loadProviderSecrets(appDir);
       this.externalAuth.loadSecrets(secrets);
+      for (const [key, val] of Object.entries(secrets)) {
+        if (val.clientSecret) loaded.secrets.set(key, val.clientSecret);
+      }
       const secretCount = Object.keys(secrets).length;
       if (secretCount > 0) {
+        result.providerSecrets = secretCount;
         this.log('info', `Loaded ${secretCount} provider secret${secretCount > 1 ? 's' : ''}`);
       }
     } catch {}
@@ -1381,14 +1402,85 @@ export class ForgeSimulator {
       const { getAnthropicApiKey } = await import('./auth/config.js');
       const llmKey = await getAnthropicApiKey();
       if (llmKey) {
-        this.llm.setApiKey(llmKey);
         const source = process.env.ANTHROPIC_API_KEY?.trim() ? 'env' : 'config';
+        // An env key is read at call time (SimulatedLLM.getApiKey) whether
+        // or not this runs, so only the `auth --llm` config key is loaded
+        // here — and only it is recorded, so unloadAuth() never reports
+        // taking back a key that keeps working.
+        if (source === 'config') {
+          this.llm.setApiKey(llmKey);
+          loaded.llmKey = llmKey;
+        }
         result.llm = { configured: true, source };
         this.log('info', `Loaded Anthropic API key (${source})`);
       }
     } catch {}
 
     return result;
+  }
+
+  /** What loadAuthFromEnv() loaded, for unloadAuth(). Null when nothing was. */
+  private loadedAuth: {
+    account: import('./auth/credentials.js').AtlassianAccount | null;
+    tokens: Map<string, import('./auth/credentials.js').ThirdPartyToken>;
+    secrets: Map<string, string>;
+    llmKey: string | null;
+  } | null = null;
+
+  /**
+   * Take back what `loadAuthFromEnv()` loaded: disconnect the Atlassian
+   * account and drop the provider tokens, provider client secrets and
+   * Anthropic config key it set — including a provider token DERIVED from
+   * one of them: a loaded token that was refreshed since, or a token an
+   * OAuth flow exchanged with a loaded client secret. Anything else is left
+   * alone: a value set some other way (a test's own `externalAuth.setToken()`
+   * after the load), and an `ANTHROPIC_API_KEY` in the process env, which
+   * applies at call time and is not forge-sim's to unload. A value the load
+   * overwrote is removed, not restored. Returns what was dropped.
+   *
+   * Recording is cumulative across `loadAuthFromEnv()` calls and cleared
+   * here. `reset()` does not do this (it keeps provider tokens and the LLM
+   * key); the daemon and dev Tools API call it on every `/api/reset` and
+   * before every `/api/deploy` (a connecting one reloads after deploying),
+   * and MCP `forge_deploy` before deploying, so nothing an earlier connect
+   * loaded outlives a deploy or reset that did not ask for it.
+   */
+  unloadAuth(): UnloadAuthResult {
+    const dropped: UnloadAuthResult = { providers: [], providerSecrets: 0, llm: false };
+    const loaded = this.loadedAuth;
+    this.loadedAuth = null;
+    if (!loaded) return dropped;
+
+    if (loaded.account && this.productApi.connectedAccount === loaded.account) {
+      this.productApi.disconnectRealApis();
+      dropped.atlassian = loaded.account.site;
+    }
+    for (const key of new Set([...loaded.tokens.keys(), ...loaded.secrets.keys()])) {
+      const current = this.externalAuth.getToken(key);
+      if (!current) continue;
+      const origin = this.externalAuth.tokenOrigin(current);
+      const fromLoad = 'exchangedWith' in origin
+        ? origin.exchangedWith === loaded.secrets.get(key)
+        : origin === loaded.tokens.get(key);
+      if (fromLoad) {
+        this.externalAuth.revokeToken(key);
+        dropped.providers.push(key);
+      }
+    }
+    for (const [key, secret] of loaded.secrets) {
+      if (this.externalAuth.getSecret(key) === secret) {
+        this.externalAuth.removeSecret(key);
+        dropped.providerSecrets++;
+      }
+    }
+    if (loaded.llmKey !== null && this.llm.getConfigApiKey() === loaded.llmKey) {
+      this.llm.clearApiKey();
+      dropped.llm = true;
+    }
+    if (dropped.atlassian || dropped.providers.length > 0 || dropped.providerSecrets > 0 || dropped.llm) {
+      this.log('info', 'Unloaded stored credentials', dropped);
+    }
+    return dropped;
   }
 
   // ── Full Reset ──────────────────────────────────────────────────────────
@@ -1470,6 +1562,18 @@ export interface LogEntry {
   data?: any;
 }
 
+/** What `sim.unloadAuth()` dropped. */
+export interface UnloadAuthResult {
+  /** Site of the Atlassian account it disconnected, if one was connected. */
+  atlassian?: string;
+  /** Provider keys whose loaded token it removed (or a token refreshed from it, or exchanged with a loaded client secret). */
+  providers: string[];
+  /** Number of provider client secrets it removed. */
+  providerSecrets: number;
+  /** Whether it cleared the `forge-sim auth --llm` config key. */
+  llm: boolean;
+}
+
 export interface LoadAuthResult {
   atlassian: {
     connected: boolean;
@@ -1478,6 +1582,11 @@ export interface LoadAuthResult {
   };
   /** Provider keys that had tokens loaded (from env or .forge-sim). */
   providers: string[];
+  /**
+   * Number of provider client secrets loaded from
+   * `<app>/.forge-sim/providers.json`. Present only when at least one was.
+   */
+  providerSecrets?: number;
   /** LLM (Anthropic) API key status. */
   llm?: {
     configured: boolean;

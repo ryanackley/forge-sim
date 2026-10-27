@@ -56,7 +56,8 @@ if (command === '--help' || command === '-h' || !command) {
 
   Usage:
     forge-sim dev [appDir]           Start dev server with live UIKit/Custom UI preview
-    forge-sim deploy <appDir>        Deploy a Forge app to the simulator daemon
+    forge-sim deploy [appDir] [--no-reset] [--connect|--offline]
+                                     Deploy a Forge app to the simulator daemon
     forge-sim invoke <fn> [payload]  Call a resolver function (payload is JSON string)
     forge-sim trigger <event> [--data json]  Fire a product event trigger
     forge-sim webtrigger <key> [opts]  Fire a web trigger (--method/--data/--header/--query/--path)
@@ -77,7 +78,7 @@ if (command === '--help' || command === '-h' || !command) {
     forge-sim mock routes <p> <json> Mock product API routes (jira/confluence/bitbucket/remote)
     forge-sim mock graphql <json>    Mock GraphQL operations
     forge-sim serve [--port=N]       Start daemon in foreground
-    forge-sim auth                   Add or manage Atlassian accounts (OAuth)
+    forge-sim auth                   Add or manage Atlassian accounts (API token)
     forge-sim --version              Show version
     forge-sim --help                 Show this help
 
@@ -94,6 +95,26 @@ if (command === '--help' || command === '-h' || !command) {
     --content <id>             Set Confluence content context (e.g., 12345)
     --space <key>              Set Confluence space context (e.g., SPACEKEY)
     --context '{"k":"v"}'      Set raw context JSON (merged into extension)
+    --offline                  Don't load stored credentials (dev connects to your site by default)
+    --connect                  Load stored credentials even when FORGE_SIM_CONNECT=0 is set
+
+  Deploy Options:
+    --no-reset                 Keep existing daemon state (don't reset before deploying)
+    --connect                  Load stored credentials: unmocked product API calls reach your real site
+    --offline                  Don't load stored credentials (the default for deploy)
+
+  Connecting to a real site:
+    forge-sim dev loads stored credentials by default; forge-sim deploy and
+    forge-sim-mcp only with --connect. FORGE_SIM_CONNECT=1 forces it on and
+    FORGE_SIM_CONNECT=0 forces it off for forge-sim dev, forge-sim deploy and
+    forge-sim-mcp (the test library ignores it); a flag beats the env. Each
+    forge-sim deploy decides for itself: one without --connect unloads what an
+    earlier --connect loaded. Mocks always win over the real site.
+    The daemon reads env credentials (FORGE_SIM_SITE/EMAIL/PAT,
+    FORGE_SIM_PROVIDER_<KEY>_TOKEN) from the shell that started it; run
+    forge-sim stop to pick up new ones. Only forge-sim dev applies
+    <app>/.forge-sim/mocks.json; register mocks for the daemon with
+    forge-sim mock routes.
 
   Auth Options:
     --list                     List configured accounts
@@ -123,10 +144,16 @@ if (command === 'dev') {
   let contentId: string | undefined;
   let spaceKey: string | undefined;
   let rawContext: Record<string, unknown> | undefined;
+  let connectFlag = false;
+  let offlineFlag = false;
 
   for (let i = 0; i < restArgs.length; i++) {
     const arg = restArgs[i];
-    if (arg === '--port' && restArgs[i + 1]) {
+    if (arg === '--offline') {
+      offlineFlag = true;
+    } else if (arg === '--connect') {
+      connectFlag = true;
+    } else if (arg === '--port' && restArgs[i + 1]) {
       port = parseInt(restArgs[++i], 10);
     } else if (arg === '--ws-port' && restArgs[i + 1]) {
       wsPort = parseInt(restArgs[++i], 10);
@@ -167,6 +194,16 @@ if (command === 'dev') {
     ? { issueKey, projectKey, contentId, spaceKey, context: rawContext }
     : undefined;
 
+  // Dev is the one channel that connects by default (src/auth/connect-policy.ts).
+  const { resolveConnectPolicy } = await import('./auth/connect-policy.js');
+  let devConnect: boolean;
+  try {
+    devConnect = resolveConnectPolicy('dev', { connectFlag, offlineFlag }).connect;
+  } catch (err: any) {
+    console.error(`❌ ${err.message}`);
+    process.exit(1);
+  }
+
   const { devCommand } = await import('./dev-command.js');
   await devCommand({
     appDir: resolve(appDir),
@@ -179,6 +216,7 @@ if (command === 'dev') {
     strictMode,
     proxy,
     renderContext,
+    offline: !devConnect,
   });
 }
 
@@ -221,14 +259,30 @@ else if (command === 'auth') {
 // ── Deploy ──────────────────────────────────────────────────────────────
 
 else if (command === 'deploy') {
-  const appDir = resolve(args[1] ?? '.');
-  const noReset = args.includes('--no-reset');
+  const deployArgs = args.slice(1);
+  // First non-flag argument is the app dir (flags may come before it).
+  const appDir = resolve(deployArgs.find((a) => !a.startsWith('-')) ?? '.');
+  const noReset = deployArgs.includes('--no-reset');
+  // Opt-in: the daemon loads stored credentials only
+  // when asked. Resolved HERE, not in the daemon — the daemon's env is
+  // whatever spawned it first, not this invocation's.
+  const { resolveConnectPolicy } = await import('./auth/connect-policy.js');
+  let connect: boolean;
+  try {
+    connect = resolveConnectPolicy('cli', {
+      connectFlag: deployArgs.includes('--connect'),
+      offlineFlag: deployArgs.includes('--offline'),
+    }).connect;
+  } catch (err: any) {
+    console.error(`❌ ${err.message}`);
+    process.exit(1);
+  }
   const { daemonRequest } = await import('./daemon-client.js');
 
   try {
     const result = await daemonRequest('/api/deploy', {
       method: 'POST',
-      body: { appDir, reset: !noReset },
+      body: { appDir, reset: !noReset, connect },
     });
 
     if (result.error) {
@@ -254,6 +308,27 @@ else if (command === 'deploy') {
     if (result.scheduledTriggers?.length) console.log(`   Scheduled: ${result.scheduledTriggers.map((s: any) => `${s.key} (${s.interval})`).join(', ')}`);
     if (result.webTriggers?.length) console.log(`   Web:       ${result.webTriggers.map((w: any) => w.key).join(', ')}`);
     if (result.uiModules?.length) console.log(`   UI:        ${result.uiModules.map((u: any) => u.key).join(', ')}`);
+    if (connect) {
+      // What the connect loaded — the same lines dev prints at startup. A
+      // provider token alone already sends real traffic (withProvider), so
+      // "nothing found" means nothing at all was loaded.
+      const auth = result.auth;
+      if (auth?.atlassian?.connected) {
+        console.log(`🔐 Real Atlassian APIs ACTIVE: ${auth.atlassian.site}`);
+        console.log(`   Unmocked product API requests hit this site for real. Mock routes take priority.`);
+      }
+      for (const providerKey of auth?.providers ?? []) console.log(`🔑 Loaded 3p token: ${providerKey}`);
+      const secretCount = auth?.providerSecrets ?? 0;
+      if (secretCount > 0) console.log(`🔐 Loaded ${secretCount} provider secret${secretCount > 1 ? 's' : ''}`);
+      if (auth?.llm?.configured) console.log(`🤖 Loaded Anthropic API key (${auth.llm.source})`);
+      if (!auth?.atlassian?.connected && !auth?.providers?.length && secretCount === 0 && !auth?.llm?.configured) {
+        console.log(`⚠️  Connect requested (--connect / FORGE_SIM_CONNECT=1) but no credentials found (run forge-sim auth)`);
+      }
+    } else if (result.disconnected) {
+      // Each deploy connects only if IT asked: whatever an earlier --connect
+      // loaded was just unloaded — say so, so nobody assumes it is still on.
+      console.log(describeDisconnected(result.disconnected));
+    }
     if (errCount > 0) {
       console.log(`   ❌ ${errCount} error(s):`);
       // Errors are { functionKey, error } objects — printing them raw gave
@@ -273,6 +348,9 @@ else if (command === 'deploy') {
     if (errCount > 0 || typeErrCount > 0) process.exit(1);
   } catch (err: any) {
     console.error(`❌ ${err.message}`);
+    // The daemon unloads before deploying, so a deploy that failed has still
+    // dropped what an earlier --connect loaded: say so, as a successful one does.
+    if (!connect && err?.body?.disconnected) console.log(describeDisconnected(err.body.disconnected));
     process.exit(1);
   }
 }
@@ -769,6 +847,7 @@ else if (command === 'reset') {
   try {
     const result = await daemonRequest('/api/reset', { method: 'POST' });
     console.log(`✅ ${result.message}`);
+    if (result.disconnected) console.log(describeDisconnected(result.disconnected));
   } catch (err: any) {
     console.error(`❌ ${err.message}`);
     process.exit(1);
@@ -854,4 +933,19 @@ else {
   console.error(`Unknown command: ${command}`);
   console.error(`Run 'forge-sim --help' for usage.`);
   process.exit(1);
+}
+
+/**
+ * One line for the daemon's `disconnected` report: what an earlier
+ * `forge-sim deploy --connect` had loaded and this deploy/reset unloaded.
+ */
+function describeDisconnected(d: {
+  atlassian?: string; providers?: string[]; providerSecrets?: number; llm?: boolean;
+}): string {
+  const parts: string[] = [];
+  if (d.atlassian) parts.push(`the connection to ${d.atlassian}`);
+  if (d.providers?.length) parts.push(`provider token${d.providers.length > 1 ? 's' : ''} (${d.providers.join(', ')})`);
+  if (d.providerSecrets) parts.push(`${d.providerSecrets} provider secret${d.providerSecrets > 1 ? 's' : ''}`);
+  if (d.llm) parts.push('the Anthropic key');
+  return `🔒 Offline: unloaded ${parts.join(', ')} from an earlier --connect deploy. Run forge-sim deploy --connect to connect again.`;
 }

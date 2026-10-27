@@ -181,6 +181,19 @@ export class SimulatedLLM {
     this.configApiKey = key;
   }
 
+  /** The config key set by `setApiKey()`, or null (the env key is not included). */
+  getConfigApiKey(): string | null {
+    return this.configApiKey;
+  }
+
+  /**
+   * Forget the config key (`sim.unloadAuth()`). An ANTHROPIC_API_KEY in the
+   * process env still applies at call time — it is not forge-sim's to unload.
+   */
+  clearApiKey(): void {
+    this.configApiKey = null;
+  }
+
   /**
    * Get the active API key (env wins over config).
    *

@@ -13,6 +13,7 @@ import type { ForgeSimulator } from '../simulator.js';
 import type { ParsedManifest } from '../manifest.js';
 import { getTriggerEventTemplateMap } from '../trigger-event-templates.js';
 import { getOAuthCallbackRegistry } from '../auth/oauth-callback-registry.js';
+import { applyMockFile, type MockFileSummary } from '../mock-file.js';
 import {
   loadCredentials,
   saveCredentials,
@@ -27,6 +28,53 @@ export interface CreateApiHandlerOptions {
   broadcastStateChange?: (type: string, data?: any) => void;
   /** App directory — required for persistent provider token storage. */
   appDir?: string;
+  /**
+   * Load stored credentials (`sim.loadAuthFromEnv()`) after every
+   * `/api/deploy` and `/api/reset`, without the caller asking. `forge-sim dev`
+   * passes `!offline` so a Tools-UI deploy or reset does not silently drop the
+   * connection it booted with. The daemon passes
+   * nothing: there a deploy connects only when its body says `connect: true`
+   * (`forge-sim deploy --connect`). See src/auth/connect-policy.ts.
+   *
+   * Either way every deploy and reset first takes back what an earlier
+   * connect loaded (`sim.unloadAuth()`), so the connection matches THIS
+   * request's policy: one that did not ask to connect keeps none of the
+   * stored credentials — no Atlassian account, provider token (refreshed or
+   * not), provider secret or `auth --llm` key from an earlier `--connect` —
+   * and one that connects reloads from the store after deploying. Not
+   * gated by this: an ANTHROPIC_API_KEY in the process env, and an unmocked
+   * remote, which `invokeRemote` reaches with or without credentials.
+   */
+  connectByDefault?: boolean;
+  /**
+   * Re-apply `<appDir>/.forge-sim/mocks.json` (`options.appDir`) after every
+   * reset — `/api/reset` and a resetting `/api/deploy` — before deploying or
+   * reconnecting. `forge-sim dev` passes true: it applies the file at boot
+   * and on every save, and a reset that wiped those mocks and then
+   * reconnected would send the routes the file still declares to the real
+   * site. Defaults to `connectByDefault`: a handler that reconnects after a
+   * reset must never do so with the file unapplied.
+   */
+  reapplyMockFile?: boolean;
+}
+
+type AuthSummary = import('../simulator.js').LoadAuthResult;
+type UnloadSummary = import('../simulator.js').UnloadAuthResult;
+/** What re-applying dev's mocks.json after a reset did (reported in the response). */
+type MockFileOutcome = { applied: MockFileSummary } | { error: string };
+
+/** The part of an unload worth telling the caller about, or undefined if nothing was dropped. */
+function droppedConnection(dropped: UnloadSummary): UnloadSummary | undefined {
+  return dropped.atlassian || dropped.providers.length > 0 || dropped.providerSecrets > 0 || dropped.llm
+    ? dropped
+    : undefined;
+}
+
+/** Connect per policy; a failed load is reported as offline, never thrown. */
+async function loadStoredCredentials(sim: ForgeSimulator): Promise<AuthSummary> {
+  return sim.loadAuthFromEnv().catch(
+    (): AuthSummary => ({ atlassian: { connected: false }, providers: [] }),
+  );
 }
 
 function json(res: ServerResponse, data: any, status = 200): void {
@@ -57,6 +105,22 @@ export function createApiHandler(
   manifestOrNull?: ParsedManifest | null,
   options: CreateApiHandlerOptions = {},
 ): ApiHandler {
+  /**
+   * Re-apply dev's `.forge-sim/mocks.json` after a reset (options.reapplyMockFile).
+   * Returns what happened for the response, or undefined when not asked / no file.
+   * A broken file is reported, not thrown — same as dev boot.
+   */
+  const reapplyMockFile = (): MockFileOutcome | undefined => {
+    const reapply = options.reapplyMockFile ?? options.connectByDefault === true;
+    if (!reapply || !options.appDir) return undefined;
+    try {
+      const summary = applyMockFile(sim, options.appDir);
+      return summary ? { applied: summary } : undefined;
+    } catch (err: any) {
+      return { error: err instanceof Error ? err.message : String(err) };
+    }
+  };
+
   return async (req, res, url) => {
     const path = url.pathname;
     const method = req.method ?? 'GET';
@@ -81,17 +145,39 @@ export function createApiHandler(
         const body = await readBody(req);
         const { appDir, reset } = body;
         if (!appDir) return json(res, { error: 'Missing appDir' }, 400);
+        if (body.connect !== undefined && typeof body.connect !== 'boolean') {
+          return json(res, { error: `"connect" must be a boolean (true loads stored credentials; false stays offline).` }, 400);
+        }
+        // Explicit `connect` in the body wins (the CLI resolves --connect /
+        // --offline / FORGE_SIM_CONNECT on its side — the daemon's env is
+        // whatever spawned it); otherwise the handler's channel default.
+        const shouldConnect = body.connect === true
+          || (body.connect !== false && options.connectByDefault === true);
 
+        // Every deploy first takes back whatever an earlier connect loaded,
+        // BEFORE anything runs (deploy fires deploy-time triggers, which
+        // therefore never see stored credentials): one that does not connect stays
+        // that way — `--no-reset` included — and one that connects reloads
+        // from the store after deploying, so its connection matches the
+        // store rather than an earlier request. The unload is reported only
+        // when it ends a connection the caller did not ask to keep.
+        const dropped = sim.unloadAuth();
+        const disconnected = shouldConnect ? undefined : droppedConnection(dropped);
+        let mockFile: MockFileOutcome | undefined;
         if (reset !== false) {
           await sim.reset();
           sim.ui.reset();
+          mockFile = reapplyMockFile();
         }
 
+        let auth: AuthSummary | undefined;
         try {
           // Continue-and-inform surface: never throw on deploy errors,
           // always type-check (once per deploy request is cheap). Errors
           // and typeErrors come back in the response body. (Eval-6 F3/F4/F10)
           const result = await sim.deploy(appDir, { throwOnError: false, typeCheck: true });
+          // Credentials load only when the policy says so.
+          if (shouldConnect) auth = await loadStoredCredentials(sim);
           return json(res, {
             success: result.errors.length === 0,
             app: result.manifest.raw.app,
@@ -107,17 +193,54 @@ export function createApiHandler(
             errors: result.errors,
             warnings: result.warnings,
             ...(result.typeErrors && result.typeErrors.length > 0 ? { typeErrors: result.typeErrors } : {}),
+            ...(auth ? { auth } : {}),
+            ...(disconnected ? { disconnected } : {}),
+            ...(mockFile ? { mockFile } : {}),
           });
         } catch (err) {
-          return json(res, { error: err instanceof Error ? err.message : String(err) }, 500);
+          // A failed deploy ends in the same credential state as a
+          // successful one, and says so the same way: a connecting deploy
+          // still ends connected, as its policy says (dev must not go
+          // offline on a broken deploy); one that does not connect still
+          // reports what the unload above dropped (and what the reset
+          // re-applied).
+          if (shouldConnect && !auth) auth = await loadStoredCredentials(sim);
+          return json(res, {
+            error: err instanceof Error ? err.message : String(err),
+            ...(auth ? { auth } : {}),
+            ...(disconnected ? { disconnected } : {}),
+            ...(mockFile ? { mockFile } : {}),
+          }, 500);
         }
       }
 
       // ── Reset ──────────────────────────────────────────────────────
       if (path === '/api/reset' && method === 'POST') {
+        // reset() drops the Atlassian connection with the rest of the
+        // productApi state but keeps provider tokens and the LLM key; take
+        // back everything an earlier connect loaded so the state matches the
+        // channel's policy. A channel that connects by default (dev) then
+        // re-applies its mocks.json and reconnects, so a Tools-UI reset
+        // neither goes silently offline nor
+        // leaves the file's routes unmocked while connected. reset() keeps
+        // the app dir.
+        const dropped = sim.unloadAuth();
         await sim.reset();
         sim.ui.reset();
-        return json(res, { success: true, message: 'Simulator reset. All state cleared (in-memory + SQL tables dropped).' });
+        const mockFile = reapplyMockFile();
+        let auth: AuthSummary | undefined;
+        if (options.connectByDefault === true) {
+          if (!sim.getAppDir() && options.appDir) sim.setAppDir(options.appDir);
+          if (sim.getAppDir()) auth = await loadStoredCredentials(sim);
+        }
+        const disconnected = auth ? undefined : droppedConnection(dropped);
+        return json(res, {
+          success: true,
+          message: 'Simulator reset. All state cleared (in-memory + SQL tables dropped).',
+          ...(auth ? { auth } : {}),
+          ...(disconnected ? { disconnected } : {}),
+          ...(mockFile ? { mockFile } : {}),
+        });
       }
 
       // ── Manifest ───────────────────────────────────────────────────
@@ -501,8 +624,16 @@ export function createApiHandler(
         const provider = sim.externalAuth.getProvider(providerKey);
         if (!provider) return json(res, { error: `Unknown provider "${providerKey}"` }, 404);
         if (!sim.externalAuth.hasSecret(providerKey)) {
+          // Client secrets load with the rest of the stored credentials
+          // (loadAuthFromEnv), so on a channel that is not connecting,
+          // "restart dev" alone does not help: say what does. Connected dev
+          // reloads them on a Tools-UI reset.
+          const how = options.connectByDefault === true
+            ? 'then reset from the Tools UI (or restart dev).'
+            : '— client secrets load only when the server connects: `forge-sim deploy --connect` on the daemon, ' +
+              'or `forge-sim dev` without --offline (and without FORGE_SIM_CONNECT=0).';
           return json(res, {
-            error: `No client secret for "${providerKey}". Set it via \`forge-sim auth --provider ${providerKey} --secret\` and restart dev.`,
+            error: `No client secret for "${providerKey}". Set it via \`forge-sim auth --provider ${providerKey} --secret\` ${how}`,
           }, 400);
         }
 

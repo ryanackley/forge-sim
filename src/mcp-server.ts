@@ -73,6 +73,64 @@ import {
 // UI access is now through sim.ui.* — no direct bridge/doc-utils imports
 import { withCapture, type ConsoleLine } from './console-capture.js';
 import { redirectStdoutConsoleToStderr } from './stdio-guard.js';
+import {
+  resolveConnectPolicy,
+  describeConnectPolicy,
+  connectHint,
+  findAvailableCredentials,
+  CONNECT_ENV,
+  type ConnectPolicy,
+} from './auth/connect-policy.js';
+
+// ── Command line ────────────────────────────────────────────────────────
+//
+// --help prints usage and exits instead of starting a server. Handled
+// before the stdio guard so the usage lands on stdout like any CLI's.
+const MCP_ARGV = process.argv.slice(2);
+const MCP_USAGE = `
+  forge-sim-mcp — forge-sim's MCP server (Model Context Protocol)
+
+  Usage:
+    forge-sim-mcp [--http] [--port=N] [--connect|--offline]
+
+  Options:
+    --http         Serve Streamable HTTP on 127.0.0.1 instead of stdio
+    --port=N       HTTP port (default: 3100; with --http only)
+    --connect      forge_deploy loads stored credentials (~/.forge-sim or the
+                   app's .forge-sim/, or FORGE_SIM_SITE/EMAIL/PAT): unmocked
+                   product API calls then reach your real site
+    --offline      Never load stored credentials (the default)
+    --help, -h     Show this help
+
+  Environment:
+    ${CONNECT_ENV}=1   Same as --connect (0 = same as --offline; a flag beats the env)
+
+  Credentials are opt-in here: by default the simulator stays offline and
+  unmocked product API calls return 501. Mocks always win over the real site.
+  In .mcp.json, add --connect to the server's "args", after the binary:
+    "args": ["--connect"]                                        (forge-sim-mcp)
+    "args": ["-y", "-p", "forge-sim", "forge-sim-mcp", "--connect"]  (npx)
+`;
+if (MCP_ARGV.includes('--help') || MCP_ARGV.includes('-h')) {
+  process.stdout.write(MCP_USAGE);
+  process.exit(0);
+}
+
+/**
+ * Whether forge_deploy loads stored credentials. Opt-in:
+ * offline unless started with --connect or FORGE_SIM_CONNECT=1. Resolved once
+ * at startup — the server's flags and env do not change under it.
+ */
+let CONNECT_POLICY: ConnectPolicy;
+try {
+  CONNECT_POLICY = resolveConnectPolicy('mcp', {
+    connectFlag: MCP_ARGV.includes('--connect'),
+    offlineFlag: MCP_ARGV.includes('--offline'),
+  });
+} catch (err) {
+  console.error(`[forge-sim] ${err instanceof Error ? err.message : String(err)}`);
+  process.exit(2);
+}
 
 // ── Stdio hygiene (eval-7 F4) ───────────────────────────────────────────
 //
@@ -80,7 +138,7 @@ import { redirectStdoutConsoleToStderr } from './stdio-guard.js';
 // stray `console.log` corrupts the stream. Rebind log/info/debug to stderr
 // before anything else runs. The HTTP transport doesn't use stdout for
 // framing — leave it alone there. See stdio-guard.ts for the full story.
-if (!process.argv.includes('--http')) {
+if (!MCP_ARGV.includes('--http')) {
   redirectStdoutConsoleToStderr();
 }
 
@@ -253,6 +311,27 @@ const originalServerTool = server.tool.bind(server) as any;
   return originalServerTool(...rest, wrappedHandler);
 };
 
+// ── Connect policy helpers ──────────────────────────────────────────────
+
+/**
+ * The advisory an offline server attaches when credentials exist that
+ * --connect would load (forge_deploy `auth`, forge_auth_status `atlassian`).
+ */
+function offlineAdvisory(
+  policy: ConnectPolicy,
+  available: { site: string; email?: string; source: 'store' | 'env' },
+) {
+  return {
+    connected: false as const,
+    policy: policy.source === 'default' ? 'opt-in' : 'offline',
+    credentialsFound: available.site,
+    hint:
+      `Credentials for ${available.site} exist (${available.source === 'env' ? 'FORGE_SIM_SITE/EMAIL/PAT env' : 'credential store'}) ` +
+      `but were not loaded: this server is offline, so unmocked product API calls return 501. ` +
+      `To connect: ${connectHint(policy)}.`,
+  };
+}
+
 // ── Tools ───────────────────────────────────────────────────────────────
 
 server.tool(
@@ -285,6 +364,12 @@ server.tool(
             ? 'auto-restart armed — daemon exits after this response; call forge_deploy again, then retry'
             : `kill ${DAEMON_PID}  # MCP client respawns automatically`)
         : null,
+      // Whether forge_deploy loads stored credentials (opt-in: --connect /
+      // FORGE_SIM_CONNECT=1).
+      connectPolicy: {
+        ...CONNECT_POLICY,
+        description: describeConnectPolicy(CONNECT_POLICY),
+      },
     };
     return {
       content: [{ type: 'text' as const, text: JSON.stringify(info, null, 2) }],
@@ -294,17 +379,28 @@ server.tool(
 
 server.tool(
   'forge_deploy',
-  'Deploy a Forge app directory into the simulator. Reads manifest.yml, loads handlers, wires resolvers/consumers/triggers. The app code runs unmodified.',
+  'Deploy a Forge app directory into the simulator. Reads manifest.yml, loads handlers, wires resolvers/consumers/triggers. The app code runs unmodified. ' +
+  'Stored credentials (forge-sim auth, or FORGE_SIM_SITE/EMAIL/PAT) are loaded only when this server was started with --connect ' +
+  '(or FORGE_SIM_CONNECT=1); otherwise the simulator stays offline and unmocked product API calls return 501. Mocks always win over a connected site.',
   {
     appDir: z.string().describe('Path to the Forge app directory (must contain manifest.yml)'),
     reset: z.boolean().optional().describe('Reset simulator state before deploying (default: true)'),
   },
   async ({ appDir, reset }) => {
+    // Under --connect each deploy reloads from the store (below), so first
+    // take back what the previous one loaded — reset() keeps provider tokens,
+    // secrets and the LLM key, and a credential removed from the store since
+    // must not stay loaded. Before deploying, as the daemon does: deploy-time
+    // triggers run offline. A no-op when the server never connected.
+    sim.unloadAuth();
     if (reset !== false) {
       await sim.reset();
       sim.ui.reset();
     }
 
+    // Whether this call has reloaded yet — a deploy that throws reloads in
+    // the catch instead (see there).
+    let reloaded = false;
     try {
       // Continue-and-inform surface: never throw on deploy errors, always
       // run the type checker (once per MCP iteration is cheap). Errors and
@@ -365,16 +461,27 @@ server.tool(
         summary.warnings = result.warnings;
       }
 
-      // Connect auth credentials (env vars + .forge-sim) now that manifest
-      // providers are loaded. Captured too — the 📡 "Connected to real
-      // APIs" banner belongs in the response's console array, not on the
-      // transport (eval-7 F4). `summary.auth` carries the structured form.
-      const { result: authResult, console: authConsole } = await withCapture(() =>
-        sim.loadAuthFromEnv().catch(() => ({ atlassian: { connected: false as const }, providers: [] })),
-      );
-      capturedLines.push(...authConsole);
-      if (authResult.atlassian.connected || authResult.providers.length > 0) {
-        summary.auth = authResult;
+      // Credentials are OPT-IN on this channel: load
+      // them (env vars + .forge-sim) only when the server was started with
+      // --connect / FORGE_SIM_CONNECT=1. Captured too — the 📡 "Connected to
+      // real APIs" banner belongs in the response's console array, not on
+      // the transport (eval-7 F4). `summary.auth` carries the structured form.
+      if (CONNECT_POLICY.connect) {
+        reloaded = true;
+        const { result: authResult, console: authConsole } = await withCapture(() =>
+          sim.loadAuthFromEnv().catch(() => ({ atlassian: { connected: false as const }, providers: [] })),
+        );
+        capturedLines.push(...authConsole);
+        if (authResult.atlassian.connected || authResult.providers.length > 0) {
+          summary.auth = authResult;
+        }
+      } else {
+        // Offline. If credentials exist that --connect WOULD load, say so —
+        // without loading them — so the agent knows why calls answer 501.
+        const available = await findAvailableCredentials(sim.getAppDir() ?? appDir).catch(() => null);
+        if (available) {
+          summary.auth = { atlassian: offlineAdvisory(CONNECT_POLICY, available) };
+        }
       }
 
       // Everything deploy + auth printed, in-band (eval-7 F4). Same shape
@@ -403,8 +510,21 @@ server.tool(
         }],
       };
     } catch (err) {
+      let text = `❌ Deploy failed: ${err instanceof Error ? err.message : String(err)}`;
+      // A --connect server stays connected through a failed deploy, as the
+      // Tools API's /api/deploy does: the unload above already ran, so
+      // reload here — otherwise the previous app (reset: false) runs on
+      // with no credentials until the next deploy that succeeds.
+      if (CONNECT_POLICY.connect && !reloaded) {
+        const { result: authResult } = await withCapture(() =>
+          sim.loadAuthFromEnv().catch(() => ({ atlassian: { connected: false as const }, providers: [] })),
+        );
+        if (authResult.atlassian.connected || authResult.providers.length > 0) {
+          text += `\nauth: ${JSON.stringify(authResult)}`;
+        }
+      }
       return {
-        content: [{ type: 'text' as const, text: `❌ Deploy failed: ${err instanceof Error ? err.message : String(err)}` }],
+        content: [{ type: 'text' as const, text }],
         isError: true,
       };
     }
@@ -1529,7 +1649,8 @@ server.tool(
 
 server.tool(
   'forge_auth_status',
-  'Show what authentication is available: Atlassian account info, third-party provider tokens, and external auth providers from the manifest.',
+  'Show what authentication is available: Atlassian account info, third-party provider tokens, and external auth providers from the manifest. ' +
+  'Also reports the connect policy (credentials are opt-in: --connect / FORGE_SIM_CONNECT=1) and, when offline, whether stored credentials exist that --connect would load.',
   async () => {
     const output: Record<string, any> = {};
 
@@ -1546,7 +1667,17 @@ server.tool(
       };
     } else {
       output.atlassian = { connected: false };
+      // Offline with credentials on disk / in env: say they exist and how
+      // to use them, without loading them.
+      if (!CONNECT_POLICY.connect) {
+        const available = await findAvailableCredentials(sim.getAppDir()).catch(() => null);
+        if (available) {
+          output.atlassian.available = available;
+          output.atlassian.hint = offlineAdvisory(CONNECT_POLICY, available).hint;
+        }
+      }
     }
+    output.policy = { ...CONNECT_POLICY, description: describeConnectPolicy(CONNECT_POLICY) };
 
     // External auth providers from manifest
     const providers = sim.externalAuth.listProviders();
@@ -1610,13 +1741,18 @@ server.tool(
 
 server.tool(
   'forge_mock_routes',
-  `Register mock HTTP responses for product APIs (Jira, Confluence, Bitbucket) or remotes.
+  `Register mock HTTP responses for product APIs (Jira, Confluence, Bitbucket), remotes, provider remotes, or "stargate" (the app's real requestGraph/requestAtlassian).
 Route keys are "METHOD /path" (e.g. "GET /rest/api/3/version/10001"). Method defaults to GET if omitted.
 Path matching is prefix-based, so "/rest/api/3/issue" matches "/rest/api/3/issue/TEST-1".
 
 Repeated calls MERGE: routes accumulate across calls for the same product, as if all were passed
 in one call. Re-registering the same "METHOD /path" key updates that route's response in place.
 Use forge_reset to wipe all mocks.
+
+Mocks always win over a connected site (--connect), whether registered before or after it, and
+whatever status they return: a mocked 404 is the answer, never a cue to ask the real site. A call
+no route matches goes to the connected site for jira/confluence/bitbucket; for a remote or provider
+remote it answers 404 "No mock route matched" once any route is mocked for that key.
 
 A route value is one of:
   • A bare JSON object → returned as the response body with 200 OK (the common case).
@@ -1639,7 +1775,7 @@ tagged shape above. Real Jira/Confluence bodies frequently include a \`status\` 
 status), so the marker is required to disambiguate "this is the response shape" from "this is just
 data that happens to have a status field".`,
   {
-    product: z.string().describe('Product name: "jira", "confluence", "bitbucket", or a remote key from manifest.yml'),
+    product: z.string().describe('Mock target: "jira", "confluence", "bitbucket", a remote key from manifest.yml (including a provider\'s remote, e.g. "google-apis"), or "stargate" for the app\'s real requestGraph/requestAtlassian (e.g. "POST /graphql")'),
     routes: z.record(z.string(), z.any()).describe('Route map: keys are "METHOD /path" patterns, values are JSON response bodies'),
   },
   async ({ product, routes }) => {
@@ -1670,6 +1806,9 @@ server.tool(
   `Register mock responses for Atlassian GraphQL (gateway) operations, keyed by operation name.
 Values are the full response body (typically { data: { ... } }).
 Use '*' as a catch-all for anonymous or unmatched operations.
+
+Note: these do not yet answer @forge/api requestGraph() from app code — that call reaches the
+"stargate" key; mock it with forge_mock_routes on "stargate" (e.g. "POST /graphql").
 
 Example:
   operations: {
@@ -1987,7 +2126,7 @@ server.resource(
 // ── Start ───────────────────────────────────────────────────────────────
 
 async function main() {
-  const args = process.argv.slice(2);
+  const args = MCP_ARGV;
   const httpMode = args.includes('--http');
   const port = parseInt(args.find((a) => a.startsWith('--port='))?.split('=')[1] ?? '3100');
 
@@ -2008,11 +2147,13 @@ async function main() {
     // no auth, so it must never accept connections from other machines.
     httpServer.listen(port, '127.0.0.1', () => {
       console.error(`[forge-sim] MCP server running on http://localhost:${port}/mcp`);
+      console.error(`[forge-sim] ${describeConnectPolicy(CONNECT_POLICY)}`);
     });
   } else {
     const transport = new StdioServerTransport();
     await server.connect(transport);
     console.error('[forge-sim] MCP server running on stdio');
+    console.error(`[forge-sim] ${describeConnectPolicy(CONNECT_POLICY)}`);
   }
 }
 

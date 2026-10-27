@@ -163,7 +163,14 @@ export async function stopDaemon(): Promise<boolean> {
   }
 }
 
-/** Send a request to the daemon. Auto-starts if needed. */
+/**
+ * Send a request to the daemon. Auto-starts if needed.
+ *
+ * A non-2xx answer with an `error` field throws an Error with that message;
+ * the error also carries the HTTP `status` and the whole response `body`,
+ * since an error response can say more than the message (a failed
+ * `/api/deploy` reports what it unloaded in `disconnected`).
+ */
 export async function daemonRequest(
   path: string,
   options: { method?: string; body?: any; timeout?: number } = {}
@@ -181,7 +188,7 @@ export async function daemonRequest(
   const data = await res.json() as any;
 
   if (!res.ok && data.error) {
-    throw new Error(data.error);
+    throw Object.assign(new Error(data.error), { status: res.status, body: data });
   }
 
   return data;

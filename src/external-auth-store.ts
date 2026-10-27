@@ -51,6 +51,12 @@ export async function saveProviderSecrets(appDir: string, secrets: ProviderSecre
 
 // ── ExternalAuthStore ───────────────────────────────────────────────────────
 
+/**
+ * What a stored token derives from (ExternalAuthStore.tokenOrigin): a token
+ * set directly, or the client secret an OAuth exchange used.
+ */
+export type TokenOrigin = ThirdPartyToken | { exchangedWith: string };
+
 export class ExternalAuthStore {
   /** Provider definitions from manifest */
   private providers = new Map<string, ManifestAuthProvider>();
@@ -60,6 +66,12 @@ export class ExternalAuthStore {
   private secrets = new Map<string, string>();
   /** Stored tokens keyed by provider key */
   private tokens = new Map<string, ThirdPartyToken>();
+  /**
+   * Where a token this store minted came from (tokenOrigin()): the client
+   * secret an OAuth exchange used, or the origin of the token a refresh
+   * replaced. A token set directly has no entry — it is its own origin.
+   */
+  private origins = new WeakMap<ThirdPartyToken, TokenOrigin>();
 
   /**
    * Hook for intercepting the auth URL instead of opening a browser.
@@ -106,6 +118,14 @@ export class ExternalAuthStore {
     return this.secrets.has(providerKey);
   }
 
+  /**
+   * Remove a provider's client secret (`sim.unloadAuth()` uses it to take
+   * back what `loadAuthFromEnv()` loaded).
+   */
+  removeSecret(providerKey: string): void {
+    this.secrets.delete(providerKey);
+  }
+
   // ── Token Management ────────────────────────────────────────────────
 
   /**
@@ -120,6 +140,18 @@ export class ExternalAuthStore {
    */
   getToken(providerKey: string): ThirdPartyToken | undefined {
     return this.tokens.get(providerKey);
+  }
+
+  /**
+   * The credential `token` derives from: the token itself when it was set
+   * directly (setToken), the token it was refreshed from — through any
+   * number of refreshes — or `{ exchangedWith }` for one an OAuth exchange
+   * minted with that client secret. `sim.unloadAuth()` uses it to take back
+   * a credential derived from one `loadAuthFromEnv()` loaded: a refresh or
+   * an exchange replaces the token object, so identity alone misses it.
+   */
+  tokenOrigin(token: ThirdPartyToken): TokenOrigin {
+    return this.origins.get(token) ?? token;
   }
 
   /**
@@ -310,6 +342,7 @@ export class ExternalAuthStore {
       }
     }
 
+    this.origins.set(token, { exchangedWith: secret });
     this.tokens.set(providerKey, token);
     return token;
   }
@@ -367,6 +400,7 @@ export class ExternalAuthStore {
       expiresAt: expiresIn ? Date.now() + Number(expiresIn) * 1000 : existing.expiresAt,
     };
 
+    this.origins.set(updated, this.tokenOrigin(existing));
     this.tokens.set(providerKey, updated);
     return updated;
   }
