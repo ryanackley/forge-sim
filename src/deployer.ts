@@ -8,7 +8,7 @@
  * This is the "deploy to sim" equivalent — one call, zero app modifications.
  */
 
-import { resolve, join, dirname, sep as pathSep } from 'node:path';
+import { resolve, join, dirname, sep as pathSep, relative } from 'node:path';
 import { access, mkdir, writeFile, readFile, readdir, unlink, stat, rm } from 'node:fs/promises';
 import { realpathSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
@@ -94,14 +94,15 @@ export async function sweepStaleBundles(dir: string): Promise<void> {
 
 /**
  * Bundle every handler file of a deploy in ONE esbuild build, every dependency
- * inlined (src/bundler.ts), into a fresh per-deploy directory under
- * `<appDir>/.forge-sim/bundles/`. Returns handler path → `file://` URL.
+ * inlined, ONE OUTPUT PER FILE (src/bundler.ts), into a fresh per-deploy
+ * directory under `<appDir>/.forge-sim/bundles/`.
  *
- * One build rather than one per file so that modules shared between handler
- * files — and `@forge/*` is now one of those — become shared chunks and so
- * single INSTANCES per deploy. `@forge/sql`'s migrationRunner is the case
- * that matters: a migration enqueued in one handler file and run from another
- * must see the same runner, as it does in Forge's single app bundle.
+ * One output per file is Forge's shape: @forge/bundler makes one entry per
+ * distinct handler module and splits nothing, and the runtime wrapper loads
+ * one file per invocation. So a module shared between handler files —
+ * `@forge/*` included — is one instance PER FILE: `@forge/sql`'s
+ * migrationRunner enqueued in one handler file is not the runner another
+ * file runs, exactly as on Forge.
  *
  * A fresh directory per deploy is what makes a redeploy a real re-evaluation:
  * the URL is one neither Node's ESM cache nor vite-node's path cache has
@@ -115,6 +116,39 @@ export async function sweepStaleBundles(dir: string): Promise<void> {
 export async function bundleHandlers(entryPaths: string[], appDir: string): Promise<BundleResult> {
   const outDir = join(deployBundleDir(appDir), `deploy-${Date.now()}-${Math.random().toString(36).slice(2)}`);
   return bundleEntries({ appDir, entryPoints: entryPaths, platform: 'node', outDir });
+}
+
+/** What esbuild refused, grouped by source file, for per-function error reports. */
+interface BuildFailure {
+  /** Absolute source file → that file's messages (`line:col: text`). */
+  byFile: Map<string, string[]>;
+  /** Every message, one per line, for functions in files without their own. */
+  summary: string;
+}
+
+/**
+ * esbuild rejects a build with a BuildFailure whose `errors[]` carry a
+ * `location.file` relative to the app dir (esbuild's Message type); anything
+ * else (a plugin throw, a crash) has only a message.
+ */
+function describeBuildFailure(err: unknown, absDir: string): BuildFailure {
+  const byFile = new Map<string, string[]>();
+  const lines: string[] = [];
+  const messages = (err as { errors?: Array<{ text: string; location?: { file?: string; line?: number; column?: number } | null }> })?.errors;
+  if (Array.isArray(messages) && messages.length > 0) {
+    for (const m of messages) {
+      const loc = m.location;
+      const where = loc?.file ? `${loc.file}:${loc.line ?? 0}:${loc.column ?? 0}: ` : '';
+      lines.push(`${where}${m.text}`);
+      if (loc?.file) {
+        const abs = resolve(absDir, loc.file);
+        byFile.set(abs, [...(byFile.get(abs) ?? []), `${loc.line ?? 0}:${loc.column ?? 0}: ${m.text}`]);
+      }
+    }
+  } else {
+    lines.push(err instanceof Error ? err.message : String(err));
+  }
+  return { byFile, summary: lines.join('\n') };
 }
 
 /** One handler file, bundled and imported on its own (dev-server hot reload). Returns its module namespace. */
@@ -202,6 +236,17 @@ export interface DeployOptions {
    * and what tests that deliberately deploy broken apps should pass.
    */
   throwOnError?: boolean;
+  /**
+   * Reset the simulator before wiring this deploy, AFTER its build succeeded
+   * (default: false). `forge deploy` uploads nothing when the bundle fails,
+   * so the version already deployed keeps running; a surface that reset
+   * before building left an empty simulator behind every failed redeploy
+   * ("No resolver defined … Available: none"). MCP and the daemon pass this
+   * instead of calling `sim.reset()` themselves.
+   */
+  reset?: boolean;
+  /** Runs right after the reset that `reset: true` performs (the daemon re-applies its mocks file here). */
+  afterReset?: () => void | Promise<void>;
   /**
    * Run TypeScript type checking as part of the deploy (default: false).
    *
@@ -774,6 +819,87 @@ export async function deploy(sim: ForgeSimulator, appDir: string, options: Deplo
   // printManifestWarnings in manifest-validation.ts, F7).
   printManifestWarnings(manifest.warnings);
 
+  // Manual packaging (#40): the app ships prebuilt code in app.package.path
+  // and real Forge uploads it UNMODIFIED. Three deviations from the default
+  // path below: handlers resolve only inside the package dir, modules are
+  // imported without esbuild (bundling breaks require()/__dirname/data files
+  // /wasm — the very things manual packaging legitimizes), and CJS requires
+  // of @forge/* from app code are routed to the shims (the ESM hooks never
+  // see require()).
+  const manualPackaging = manifest.raw.app?.package?.bundler === 'manual@2026';
+  const handlerResolution = {
+    handlersDirectory: manifest.handlersDirectory,
+    manualPackaging,
+  };
+
+  // Sweep old deploy bundles so this dir doesn't grow without bound. Bundles
+  // from previous deploys are no longer needed once their modules are cached
+  // by Node — we generate a fresh one per deploy anyway.
+  await sweepStaleBundles(deployBundleDir(absDir));
+
+  // 2. Build the backend the way `forge deploy` does, BEFORE touching the
+  // simulator: every handler file resolved up front and built in one esbuild
+  // run, one output per file (see bundleEntries). A build that fails deploys
+  // nothing — `forge deploy` fails before upload and the deployed version is
+  // unchanged — so the failure is recorded here and reported per function
+  // below, and the reset a surface asked for happens only after a build that
+  // succeeded. Resolution failures are reported per function in the loop.
+  let bundle: BundleResult | null = null;
+  let buildFailure: BuildFailure | null = null;
+  if (!manualPackaging) {
+    const files = new Set<string>();
+    for (const fnDef of manifest.functions.values()) {
+      try {
+        const { fileStem } = parseHandlerString(fnDef.handler);
+        const f = await resolveHandlerFile(absDir, fileStem, handlerResolution);
+        if (f) files.add(f);
+      } catch { /* reported in the per-function loop */ }
+    }
+    if (files.size > 0) {
+      try {
+        bundle = await bundleHandlers([...files], absDir);
+      } catch (err) {
+        buildFailure = describeBuildFailure(err, absDir);
+      }
+    }
+  }
+
+  if (buildFailure) {
+    // Nothing deploys: `forge deploy` fails before upload and the deployed
+    // version is unchanged, so the simulator is left exactly as it was (no
+    // reset, no wiring, no manifest swap) and every function says why.
+    const errors: Array<{ functionKey: string; error: string }> = manifest.warnings
+      .filter((w) => w.level === 'error')
+      .map((w) => ({ functionKey: 'manifest', error: w.message }));
+    const failing = [...buildFailure.byFile.keys()].map((f) => relative(absDir, f)).join(', ') || 'the bundle';
+    for (const [fnKey, fnDef] of manifest.functions) {
+      let own: string[] | undefined;
+      let file = fnDef.handler;
+      try {
+        const { fileStem } = parseHandlerString(fnDef.handler);
+        const filePath = await resolveHandlerFile(absDir, fileStem, handlerResolution);
+        if (filePath) {
+          own = buildFailure.byFile.get(filePath);
+          file = relative(absDir, filePath);
+        }
+      } catch { /* an unparseable handler string has no file to attribute */ }
+      errors.push({
+        functionKey: fnKey,
+        error: own
+          ? `Build failed in ${file}:\n${own.join('\n')}`
+          : `Not loaded: the build failed in ${failing} (forge deploy uploads nothing when the bundle ` +
+            `fails):\n${buildFailure.summary}`,
+      });
+    }
+    return finishDeploy({ loadedFunctions: [], loadedResources: [], bundle: null, scheduledTriggerFires: [], errors });
+  }
+
+  if (options.reset) {
+    await sim.reset();
+    sim.ui.reset();
+    await options.afterReset?.();
+  }
+
   // 1b. If there are UI resources, install the bridge and connect to sim
   if (manifest.resources.size > 0) {
     sim.ui.ensureBridge();
@@ -822,12 +948,7 @@ export async function deploy(sim: ForgeSimulator, appDir: string, options: Deplo
   // deploy — the actual duplicate-key footgun. Publish-gate F6.
   sim.resolver.beginDeployEpoch();
 
-  // Sweep old deploy bundles so this dir doesn't grow without bound. Bundles
-  // from previous deploys are no longer needed once their modules are cached
-  // by Node — we generate a fresh one per deploy anyway.
-  await sweepStaleBundles(deployBundleDir(absDir));
-
-  // 2. Register @forge/* loader hooks (redirects @forge/api etc. to our shims).
+  // 2b. Register @forge/* loader hooks (redirects @forge/api etc. to our shims).
   //    Called lazily so users don't need --import. Hooks apply to all subsequent
   //    dynamic imports, which is exactly how we load app handler modules below.
   //    Safe to call multiple times — Node deduplicates registered hooks.
@@ -846,18 +967,6 @@ export async function deploy(sim: ForgeSimulator, appDir: string, options: Deplo
     // Fallback: loader hooks already registered via --import, or Node version doesn't support register()
   }
 
-  // Manual packaging (#40): the app ships prebuilt code in app.package.path
-  // and real Forge uploads it UNMODIFIED. Three deviations from the default
-  // path below: handlers resolve only inside the package dir, modules are
-  // imported without esbuild (bundling breaks require()/__dirname/data files
-  // /wasm — the very things manual packaging legitimizes), and CJS requires
-  // of @forge/* from app code are routed to the shims (the ESM hooks never
-  // see require()).
-  const manualPackaging = manifest.raw.app?.package?.bundler === 'manual@2026';
-  const handlerResolution = {
-    handlersDirectory: manifest.handlersDirectory,
-    manualPackaging,
-  };
   if (manualPackaging) {
     interceptCjsForgeRequires(absDir);
   }
@@ -881,37 +990,22 @@ export async function deploy(sim: ForgeSimulator, appDir: string, options: Deplo
   // function scope and dies when this call returns. (F8 root cause)
   const moduleCache = new Map<string, any>();
 
-  // Default packaging: resolve every handler file first and bundle them all
-  // in ONE esbuild build (see bundleHandlers), then import each entry's
-  // output below. Resolution failures are reported per function in the loop.
-  let bundle: BundleResult | null = null;
-  if (!manualPackaging) {
-    const files = new Set<string>();
-    for (const fnDef of manifest.functions.values()) {
-      try {
-        const { fileStem } = parseHandlerString(fnDef.handler);
-        const f = await resolveHandlerFile(absDir, fileStem, handlerResolution);
-        if (f) files.add(f);
-      } catch { /* reported in the per-function loop */ }
-    }
-    if (files.size > 0) {
-      bundle = await bundleHandlers([...files], absDir);
-      // Advisory: a DIRECT import of an @forge/* package the sim does not
-      // answer. The real package is inlined and runs, but outside the Forge
-      // runtime it may throw or misbehave when called — this is the #1
-      // "works in Forge, breaks mysteriously in the sim" footgun, so name it
-      // at deploy time. (Replaces the loader hook's import-time warning,
-      // which a bundle never triggered.)
-      for (const pkg of unsimulatedForgeImports(bundle)) {
-        const w = {
-          level: 'warning' as const,
-          message: `"${pkg}" is not simulated by forge-sim — the real Atlassian package is bundled ` +
-            `and will run, but outside the Forge runtime it may throw or return unexpected results ` +
-            `when called. If calls into "${pkg}" fail, this is why.`,
-        };
-        manifest.warnings.push(w);
-        printManifestWarnings([w]);
-      }
+  if (bundle) {
+    // Advisory: a DIRECT import of an @forge/* package the sim does not
+    // answer. The real package is inlined and runs, but outside the Forge
+    // runtime it may throw or misbehave when called — this is the #1
+    // "works in Forge, breaks mysteriously in the sim" footgun, so name it
+    // at deploy time. (Replaces the loader hook's import-time warning,
+    // which a bundle never triggered.)
+    for (const pkg of unsimulatedForgeImports(bundle)) {
+      const w = {
+        level: 'warning' as const,
+        message: `"${pkg}" is not simulated by forge-sim — the real Atlassian package is bundled ` +
+          `and will run, but outside the Forge runtime it may throw or return unexpected results ` +
+          `when called. If calls into "${pkg}" fail, this is why.`,
+      };
+      manifest.warnings.push(w);
+      printManifestWarnings([w]);
     }
   }
 
@@ -919,6 +1013,7 @@ export async function deploy(sim: ForgeSimulator, appDir: string, options: Deplo
     try {
       const { fileStem, exportName } = parseHandlerString(fnDef.handler);
       const filePath = await resolveHandlerFile(absDir, fileStem, handlerResolution);
+
 
       if (!filePath) {
         errors.push({
@@ -1320,62 +1415,77 @@ export async function deploy(sim: ForgeSimulator, appDir: string, options: Deplo
     await sim.fit.init(absDir);
   }
 
-  // Optional TypeScript check (opt-in here; always on for MCP/daemon —
-  // see DeployOptions.typeCheck for the cost rationale). Eval-6 F4.
-  let typeErrors: TypeCheckError[] | undefined;
-  if (options.typeCheck) {
-    const { typeCheck } = await import('./type-checker.js');
-    typeErrors = typeCheck(absDir);
+  return finishDeploy({ loadedFunctions, loadedResources, bundle, scheduledTriggerFires, errors });
+
+  /**
+   * The result every exit of deploy() goes through: the manifest-derived
+   * summaries, the optional type check, and the throwOnError contract.
+   */
+  async function finishDeploy(outcome: {
+    loadedFunctions: string[];
+    loadedResources: string[];
+    bundle: BundleResult | null;
+    scheduledTriggerFires: DeployScheduledTriggerFire[];
+    errors: Array<{ functionKey: string; error: string }>;
+  }): Promise<DeployResult> {
+    const { loadedFunctions, loadedResources, bundle, scheduledTriggerFires, errors } = outcome;
+    // Optional TypeScript check (opt-in here; always on for MCP/daemon —
+    // see DeployOptions.typeCheck for the cost rationale). Eval-6 F4.
+    let typeErrors: TypeCheckError[] | undefined;
+    if (options.typeCheck) {
+      const { typeCheck } = await import('./type-checker.js');
+      typeErrors = typeCheck(absDir);
+    }
+
+    const result: DeployResult = {
+      manifest,
+      loadedFunctions,
+      loadedResources,
+      resolvers: sim.resolver.getDefinitions(),
+      bundle: bundle ? { cached: bundle.cached, inlinedForgePackages: bundle.inlinedForgePackages } : undefined,
+      triggers: manifest.triggers.map((t) => ({
+        key: t.key,
+        events: t.events,
+        function: t.functionKey,
+      })),
+      consumers: manifest.consumers.map((c) => ({
+        key: c.key,
+        queue: c.queue,
+        function: c.functionKey,
+      })),
+      uiModules: manifest.uiModules.map((u) => ({
+        key: u.key,
+        type: u.type,
+        resource: u.resourceKey,
+        resolver: u.resolverFunctionKey,
+      })),
+      webTriggers: manifest.webTriggers.map((wt) => ({
+        key: wt.key,
+        function: wt.functionKey,
+      })),
+      scheduledTriggers: manifest.scheduledTriggers.map((st) => ({
+        key: st.key,
+        function: st.functionKey,
+        interval: st.interval,
+      })),
+      scheduledTriggerFires,
+      errors,
+      // Error-level entries were promoted into `errors` above (eval-6 F5) —
+      // keeping them here too would double-report on every surface.
+      warnings: manifest.warnings.filter((w) => w.level !== 'error'),
+      ...(typeErrors !== undefined ? { typeErrors } : {}),
+    };
+
+    // Eval-6 F3: throw by default so a broken deploy fails AT the deploy, not
+    // 19 tests later with "No resolver defined". MCP / daemon / dev pass
+    // { throwOnError: false } and inform instead.
+    if (
+      options.throwOnError !== false &&
+      (errors.length > 0 || (typeErrors?.length ?? 0) > 0)
+    ) {
+      throw new DeployError(result);
+    }
+
+    return result;
   }
-
-  const result: DeployResult = {
-    manifest,
-    loadedFunctions,
-    loadedResources,
-    resolvers: sim.resolver.getDefinitions(),
-    bundle: bundle ? { cached: bundle.cached, inlinedForgePackages: bundle.inlinedForgePackages } : undefined,
-    triggers: manifest.triggers.map((t) => ({
-      key: t.key,
-      events: t.events,
-      function: t.functionKey,
-    })),
-    consumers: manifest.consumers.map((c) => ({
-      key: c.key,
-      queue: c.queue,
-      function: c.functionKey,
-    })),
-    uiModules: manifest.uiModules.map((u) => ({
-      key: u.key,
-      type: u.type,
-      resource: u.resourceKey,
-      resolver: u.resolverFunctionKey,
-    })),
-    webTriggers: manifest.webTriggers.map((wt) => ({
-      key: wt.key,
-      function: wt.functionKey,
-    })),
-    scheduledTriggers: manifest.scheduledTriggers.map((st) => ({
-      key: st.key,
-      function: st.functionKey,
-      interval: st.interval,
-    })),
-    scheduledTriggerFires,
-    errors,
-    // Error-level entries were promoted into `errors` above (eval-6 F5) —
-    // keeping them here too would double-report on every surface.
-    warnings: manifest.warnings.filter((w) => w.level !== 'error'),
-    ...(typeErrors !== undefined ? { typeErrors } : {}),
-  };
-
-  // Eval-6 F3: throw by default so a broken deploy fails AT the deploy, not
-  // 19 tests later with "No resolver defined". MCP / daemon / dev pass
-  // { throwOnError: false } and inform instead.
-  if (
-    options.throwOnError !== false &&
-    (errors.length > 0 || (typeErrors?.length ?? 0) > 0)
-  ) {
-    throw new DeployError(result);
-  }
-
-  return result;
 }

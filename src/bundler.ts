@@ -52,7 +52,11 @@ export type BundlePlatform = 'node' | 'browser';
 export interface BundleOptions {
   /** The app root. Entry paths are reported relative to it; its node_modules win. */
   appDir: string;
-  /** Absolute paths of the files to bundle. One esbuild build, shared chunks. */
+  /**
+   * Absolute paths of the files to bundle. One esbuild build, one output per
+   * entry, no chunk splitting: each output carries its own copy of every
+   * shared module, as @forge/bundler emits `[name].cjs` per handler module.
+   */
   entryPoints: string[];
   platform: BundlePlatform;
   /** Unique, not-yet-existing directory to write this build (or the cache hit) into. */
@@ -62,14 +66,16 @@ export interface BundleOptions {
 }
 
 export interface BundleResult {
-  /** `file://` URL of THE bundle — one file per build, like Forge's one artifact per app. */
-  url: string;
   /**
-   * Absolute entry path → the export name under which that file's module
-   * namespace is exposed on the bundle (`export * as e0 from '<file>'`).
-   * `importEntry()` does the lookup.
+   * Absolute entry path → absolute path of that entry's own output file.
+   * `importEntry()` does the lookup. The Forge runtime wrapper does the
+   * same per invocation: `require(<appCodeDir>/<dir>/bundled/<file>.cjs)`
+   * and calls the export the handler string names, so two handler files
+   * never share a module instance, while two functions in one file do.
    */
-  entryExports: Map<string, string>;
+  entryFiles: Map<string, string>;
+  /** `file://` URL of the first entry's output (single-entry callers: the frontend render). */
+  url: string;
   /** True when the output came from the cache rather than a fresh build. */
   cached: boolean;
   /** `@forge/<name>` packages whose code ended up inside the bundle (any depth). */
@@ -378,9 +384,9 @@ export function unsimulatedForgeImports(result: Pick<BundleResult, 'directForgeI
 // ── Cache ─────────────────────────────────────────────────────────────────
 
 interface CacheMeta {
-  version: 2;
+  version: 3;
   inputs: Array<{ path: string; mtimeMs: number; size: number }>;
-  /** Entry (absolute) → export name on the bundle. */
+  /** Entry (absolute) → its output file, relative to the output directory. */
   entries: Array<[string, string]>;
   inlinedForgePackages: string[];
   directForgeImports: string[];
@@ -399,15 +405,15 @@ function cacheKey(opts: BundleOptions): string {
   return h.digest('hex').slice(0, 16);
 }
 
-async function readCache(dir: string, fileName: string): Promise<CacheMeta | null> {
+async function readCache(dir: string): Promise<CacheMeta | null> {
   try {
     const meta = JSON.parse(await readFile(join(dir, 'meta.json'), 'utf8')) as CacheMeta;
-    if (meta.version !== 2) return null;
+    if (meta.version !== 3) return null;
     for (const input of meta.inputs) {
       const s = await stat(input.path);
       if (s.mtimeMs !== input.mtimeMs || s.size !== input.size) return null;
     }
-    await stat(join(dir, 'files', fileName));
+    for (const [, out] of meta.entries) await stat(join(dir, 'files', out));
     return meta;
   } catch {
     return null; // missing, torn by a concurrent writer, or an input changed/vanished
@@ -431,70 +437,67 @@ async function writeCache(dir: string, filesFrom: string, meta: CacheMeta): Prom
 
 // ── Build ─────────────────────────────────────────────────────────────────
 
-// .cjs/.mjs by platform so Node picks the loader from the extension alone,
-// independent of the app's package.json `type`.
-const bundleFileName = (platform: BundlePlatform) => (platform === 'node' ? 'bundle.cjs' : 'bundle.mjs');
-
 /**
- * ONE bundle per build, from a synthetic entry that re-exports every handler
- * file as its own namespace — `forge deploy` builds one artifact per app, and
- * so does this. The alternative, esbuild's multi-entry code splitting, was
- * tried and rejected: a dynamically imported CommonJS module becomes a split
- * chunk that exposes only `default`, so an app's
- * `const { route } = await import('@forge/api')` lost its named exports.
- * Without splitting that form is `__toESM(require_api())` and keeps them.
- * A single file also makes every shared module a single instance per deploy
- * (@forge/sql's migrationRunner across handler files) with no chunk plumbing.
+ * Copy a built output tree file by file: read + write, NOT fs.cp. Under
+ * vite-node a bundle produced by cp() took ~1.1 s to import where an
+ * identical freshly written file took ~30 ms (measured; cp's APFS clone /
+ * dir-event timing interacts badly with Vite's cached fs checks). A plain
+ * write behaves like the build. Every cached file comes along — node
+ * bundles ship a linked .map next to each output.
  */
-function syntheticEntry(entries: string[]): { contents: string; exportsFor: Map<string, string> } {
-  const exportsFor = new Map<string, string>();
-  const lines: string[] = [];
-  [...entries].sort().forEach((file, i) => {
-    const name = `e${i}`;
-    exportsFor.set(file, name);
-    lines.push(`export * as ${name} from ${JSON.stringify(file)};`);
-  });
-  return { contents: lines.join('\n') + '\n', exportsFor };
+async function copyTree(from: string, to: string): Promise<void> {
+  await mkdir(to, { recursive: true });
+  for (const entry of await readdir(from, { withFileTypes: true })) {
+    const src = join(from, entry.name);
+    const dst = join(to, entry.name);
+    if (entry.isDirectory()) await copyTree(src, dst);
+    else await writeFile(dst, await readFile(src));
+  }
 }
 
+/**
+ * One esbuild build per call, ONE OUTPUT PER ENTRY and no chunk splitting —
+ * what `forge deploy` does: @forge/bundler makes one webpack entry per
+ * distinct handler module (out/common.js getEntryPoints) and emits
+ * `[name].cjs` for each (out/runtime.js) with no splitChunks, so every
+ * output carries its own copy of every shared module. Module state is
+ * therefore per handler file: a counter bumped by `a.js` is invisible to
+ * `b.js`, and `@forge/sql`'s migrationRunner is one instance per file.
+ * (Splitting was tried and rejected: a dynamically imported CommonJS module
+ * becomes a split chunk that exposes only `default`, so an app's
+ * `const { route } = await import('@forge/api')` lost its named exports.)
+ */
 export async function bundleEntries(opts: BundleOptions): Promise<BundleResult> {
   const appDir = resolve(opts.appDir);
   const entries = opts.entryPoints.map((e) => resolve(e));
   const key = cacheKey({ ...opts, appDir, entryPoints: entries });
   const cacheDir = join(cacheRoot(appDir), key);
-  const fileName = bundleFileName(opts.platform);
-  const outFile = join(opts.outDir, fileName);
+  const isNode = opts.platform === 'node';
+  const toResult = (entryOuts: Array<[string, string]>, cached: boolean, analysis: Pick<BundleResult, 'inlinedForgePackages' | 'directForgeImports'>): BundleResult => {
+    const entryFiles = new Map(entryOuts.map(([entry, rel]) => [entry, join(opts.outDir, rel)] as [string, string]));
+    const first = entryFiles.get(entries[0]) ?? [...entryFiles.values()][0];
+    return { entryFiles, url: pathToFileURL(first).href, cached, ...analysis };
+  };
 
   if (!opts.noCache) {
-    const hit = await readCache(cacheDir, fileName);
+    const hit = await readCache(cacheDir);
     if (hit) {
-      await mkdir(opts.outDir, { recursive: true });
-      // read + write, NOT fs.cp: under vite-node a bundle produced by cp()
-      // took ~1.1 s to import where an identical freshly written file took
-      // ~30 ms (measured; cp's APFS clone / dir-event timing interacts badly
-      // with Vite's cached fs checks). A plain write behaves like the build.
-      // Every cached file comes along — node bundles ship a linked .map.
-      for (const f of await readdir(join(cacheDir, 'files'))) {
-        await writeFile(join(opts.outDir, f), await readFile(join(cacheDir, 'files', f)));
-      }
-      return {
-        url: pathToFileURL(outFile).href,
-        entryExports: new Map(hit.entries),
-        cached: true,
-        inlinedForgePackages: hit.inlinedForgePackages,
-        directForgeImports: hit.directForgeImports,
-      };
+      await copyTree(join(cacheDir, 'files'), opts.outDir);
+      return toResult(hit.entries, true, hit);
     }
   }
 
   const esbuild = await import('esbuild');
-  const isNode = opts.platform === 'node';
-  const entry = syntheticEntry(entries);
   const reactDir = isNode ? appDir : await reactResolveDir(appDir);
   const result = await esbuild.build({
     ...esbuildBaseOptions(opts.platform),
-    stdin: { contents: entry.contents, resolveDir: appDir, sourcefile: 'forge-sim-entry.js', loader: 'js' },
-    outfile: outFile,
+    entryPoints: entries,
+    outdir: opts.outDir,
+    outbase: appDir,
+    entryNames: '[dir]/[name]',
+    // .cjs/.mjs so Node picks the loader from the extension alone,
+    // independent of the app's package.json `type`.
+    outExtension: { '.js': isNode ? '.cjs' : '.mjs' },
     absWorkingDir: appDir,
     nodePaths: [FORGE_SIM_NODE_MODULES],
     plugins: forgeSimPlugins(opts.platform, reactDir),
@@ -502,12 +505,24 @@ export async function bundleEntries(opts: BundleOptions): Promise<BundleResult> 
 
   await mkdir(opts.outDir, { recursive: true });
   for (const file of result.outputFiles) {
+    await mkdir(dirname(file.path), { recursive: true });
     const text = file.path.endsWith('.map') ? file.text : forceBundlerInterop(file.text);
     await writeFile(file.path, text, 'utf8');
   }
 
   const meta = result.metafile!;
-  const entryOuts: Array<[string, string]> = [...entry.exportsFor];
+  // Entry → its own output, read off the metafile (paths relative to appDir).
+  const entryOuts: Array<[string, string]> = [];
+  for (const [outRel, info] of Object.entries(meta.outputs)) {
+    if (!info.entryPoint) continue;
+    const abs = resolve(appDir, info.entryPoint);
+    entryOuts.push([abs, relative(opts.outDir, resolve(appDir, outRel))]);
+  }
+  for (const e of entries) {
+    if (!entryOuts.some(([abs]) => abs === e)) {
+      throw new Error(`forge-sim: esbuild produced no output for entry ${e}`);
+    }
+  }
   const analysis = analyze(meta);
 
   if (!opts.noCache) {
@@ -521,31 +536,30 @@ export async function bundleEntries(opts: BundleOptions): Promise<BundleResult> 
         // virtual or namespaced input — not a file to watch
       }
     }
-    await writeCache(cacheDir, opts.outDir, { version: 2, inputs, entries: entryOuts, ...analysis });
+    await writeCache(cacheDir, opts.outDir, { version: 3, inputs, entries: entryOuts, ...analysis });
   }
 
-  return { url: pathToFileURL(outFile).href, entryExports: entry.exportsFor, cached: false, ...analysis };
+  return toResult(entryOuts, false, analysis);
 }
 
 /**
- * Import the bundle and return the module namespace of one of its entry
- * files. Backend bundles are CJS and go through `require()` — Node's own CJS
- * loader (vite-node never sees them), and the entry lands in `require.cache`
- * where the next deploy's clearAppRequireCache() can EVICT it. The old ESM
- * output was pinned in Node's module registry for the life of the process —
+ * Import one entry's own output and return its module namespace. Backend
+ * bundles are CJS and go through `require()` — Node's own CJS loader
+ * (vite-node never sees them), and the file lands in `require.cache` where
+ * the next deploy's clearAppRequireCache() can EVICT it. The old ESM output
+ * was pinned in Node's module registry for the life of the process —
  * measured at ~280 KB to several MB per redeploy depending on how much
  * @forge/* was inlined. Frontend bundles stay ESM module scripts and keep
  * dynamic import().
  */
 export async function importEntry(bundle: BundleResult, entryPath: string): Promise<any> {
-  const name = bundle.entryExports.get(resolve(entryPath));
-  if (!name) throw new Error(`forge-sim: bundle has no entry for ${entryPath}`);
-  if (bundle.url.endsWith('.cjs')) {
+  const file = bundle.entryFiles.get(resolve(entryPath));
+  if (!file) throw new Error(`forge-sim: bundle has no entry for ${entryPath}`);
+  if (file.endsWith('.cjs')) {
     const require = createRequire(import.meta.url);
-    return require(fileURLToPath(bundle.url))[name];
+    return require(file);
   }
-  const mod = await import(bundle.url);
-  return mod[name];
+  return await import(pathToFileURL(file).href);
 }
 
 /** Remove cache entries for an app (tests, `forge-sim reset`). Best-effort. */

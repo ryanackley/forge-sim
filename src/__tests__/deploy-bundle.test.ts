@@ -1,8 +1,8 @@
 /**
- * Phase 5a — sim.deploy() bundles the backend the way `forge deploy` does:
- * one esbuild build per deploy, EVERY dependency inlined, nothing left for a
- * module loader to resolve at runtime. These tests pin what that buys and
- * what it must not break (src/bundler.ts for the why).
+ * sim.deploy() bundles the backend the way `forge deploy` does: one esbuild
+ * build per deploy, one output per handler file, EVERY dependency inlined,
+ * nothing left for a module loader to resolve at runtime. These tests pin
+ * what that buys and what it must not break (src/bundler.ts for the why).
  *
  * The app lives in os.tmpdir() with NO node_modules of its own, so it also
  * exercises the scratch-app path: `@forge/*` resolves from forge-sim's copy
@@ -138,7 +138,8 @@ describe('deploy bundles the backend like forge deploy', () => {
     const deployDirs = (await readdir(bundles)).filter((n) => n.startsWith('deploy-'));
     expect(deployDirs).toHaveLength(1);
     const files = await collect(join(bundles, deployDirs[0]));
-    expect(files).toHaveLength(1); // one artifact per deploy, like forge deploy
+    expect(files.map((f) => f.slice(join(bundles, deployDirs[0]).length + 1)).sort())
+      .toEqual(['src/index.cjs', 'src/other.cjs']); // one output per handler file, like forge deploy
     for (const f of files) {
       const text = await readFile(f, 'utf8');
       // Strip inline sourcemaps: the ORIGINAL sources (with their imports)
@@ -151,10 +152,10 @@ describe('deploy bundles the backend like forge deploy', () => {
     }
   });
 
-  it('handler files share ONE @forge/* instance per deploy (shared chunks, like Forge\'s single app bundle)', async () => {
+  it('each handler file carries its own @forge/* copies (one output per entry, no chunk splitting, like Forge)', async () => {
     await writeApp();
     await sim.deploy(dir, { fireScheduledTriggers: false });
-    expect(await sim.invoke('probeB')).toEqual({ sameRunnerAsIndex: true });
+    expect(await sim.invoke('probeB')).toEqual({ sameRunnerAsIndex: false });
   });
 
   it('a redeploy is a fresh evaluation: module state resets, like a cold Forge process', async () => {

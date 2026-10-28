@@ -473,13 +473,16 @@ describe('tools API connect policy', () => {
       await expectFileMocksAnswer();
     });
 
-    it('connected dev: a resetting /api/deploy that throws still re-applies the file and says so', async () => {
+    it('connected dev: a resetting /api/deploy that throws resets nothing, so the file\'s mocks and the connection stand', async () => {
       ({ server, port } = await start(sim, { connectByDefault: true, appDir: mockAppDir, reapplyMockFile: true }));
       await post(port, '/api/deploy', { appDir: mockAppDir });
       failNextDeploy(sim);
       const res = await post(port, '/api/deploy', { appDir: mockAppDir });
       expect(res.status).toBe(500);
-      expect(res.body.mockFile).toEqual({ applied: { products: { jira: 2 }, graphqlOperations: 0 } });
+      // The reset belongs to deploy() and waits for a successful build: a
+      // failed deploy leaves the previous one running, mocks included, so
+      // there was nothing to re-apply and the response does not claim one.
+      expect(res.body.mockFile).toBeUndefined();
       expect(sim.productApi.isRealMode).toBe(true);
       await expectFileMocksAnswer();
     });

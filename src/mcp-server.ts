@@ -399,10 +399,6 @@ server.tool(
     // must not stay loaded. Before deploying, as the daemon does: deploy-time
     // triggers run offline. A no-op when the server never connected.
     sim.unloadAuth();
-    if (reset !== false) {
-      await sim.reset();
-      sim.ui.reset();
-    }
 
     // Whether this call has reloaded yet — a deploy that throws reloads in
     // the catch instead (see there).
@@ -423,7 +419,9 @@ server.tool(
       // both.
       const consoleStart = sim.getConsoleLogs().length;
       const { result, console: deployConsole } = await withCapture(() =>
-        sim.deploy(appDir, { throwOnError: false, typeCheck: true }),
+        // The reset happens inside deploy(), after the build succeeded: a
+        // failed redeploy leaves the previous version running, as on Forge.
+        sim.deploy(appDir, { throwOnError: false, typeCheck: true, reset: reset !== false }),
       );
       const capturedLines: ConsoleLine[] = [
         ...deployConsole,

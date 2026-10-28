@@ -27,6 +27,7 @@ import {
   RESOLVE_EXTENSIONS,
   KNOWN_SPEC_DEVIATIONS,
   bundleEntries,
+  importEntry,
 } from '../bundler.js';
 import { VERIFIED_FORGE_VERSIONS } from '../forge-package-versions.js';
 
@@ -128,7 +129,7 @@ describe('@forge/bundler is the pinned specification', () => {
             .join('\n') + '\nexport const handler = () => "ok";\n',
         );
         const out = await bundleEntries({ appDir, entryPoints: [join(appDir, 'index.js')], platform: 'node', outDir: join(appDir, '.out'), noCache: true });
-        expect(out.url).toMatch(/bundle\.cjs$/);
+        expect(out.url).toMatch(/\/index\.cjs$/);
       } finally {
         rmSync(appDir, { recursive: true, force: true });
       }
@@ -136,6 +137,36 @@ describe('@forge/bundler is the pinned specification', () => {
   });
 
   describe('output', () => {
+    it('one entry per distinct handler module and no chunk splitting: each output owns its shared modules', async () => {
+      // out/common.js getEntryPoints dedupes handlers by module (file); the
+      // backend config sets no optimization.splitChunks, so webpack emits a
+      // self-contained [name].cjs per entry. Our build does the same: one
+      // esbuild run, one output per entry, `splitting` off.
+      const common = require('@forge/bundler/out/common.js');
+      const entries = common.getEntryPoints([
+        { module: 'index', function: 'a' }, { module: 'index', function: 'b' }, { module: 'other', function: 'c' },
+      ]);
+      expect(entries.map((e: { name: string }) => e.name)).toEqual(['index', 'other']);
+      expect(backend.optimization?.splitChunks).toBeUndefined();
+      expect((esbuildBaseOptions('node') as Record<string, unknown>).splitting).toBeFalsy();
+
+      const appDir = mkdtempSync(join(tmpdir(), 'forge-sim-spec-entries-'));
+      try {
+        writeFileSync(join(appDir, 'package.json'), '{ "name": "spec-entries", "private": true }');
+        writeFileSync(join(appDir, 'shared.js'), 'module.exports = { n: 0 };\n');
+        writeFileSync(join(appDir, 'a.js'), 'const s = require("./shared"); exports.bump = () => ++s.n;\n');
+        writeFileSync(join(appDir, 'b.js'), 'const s = require("./shared"); exports.read = () => s.n;\n');
+        const out = await bundleEntries({ appDir, entryPoints: [join(appDir, 'a.js'), join(appDir, 'b.js')], platform: 'node', outDir: join(appDir, '.out'), noCache: true });
+        expect([...out.entryFiles.values()].map((f) => f.slice(appDir.length + 1)).sort()).toEqual(['.out/a.cjs', '.out/b.cjs']);
+        const a = await importEntry(out, join(appDir, 'a.js'));
+        const b = await importEntry(out, join(appDir, 'b.js'));
+        a.bump(); a.bump();
+        expect(b.read()).toBe(0);
+      } finally {
+        rmSync(appDir, { recursive: true, force: true });
+      }
+    });
+
     it('Forge does not minify; neither do we', () => {
       expect(backend.mode).toBe('production');
       expect(backend.optimization.minimize).toBe(false);

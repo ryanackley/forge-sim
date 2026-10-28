@@ -264,9 +264,15 @@ sim.deploy(appDir: string, options?: DeployOptions): Promise<DeployResult>
 
 interface DeployOptions {
   fireScheduledTriggers?: boolean;  // default: true
+  throwOnError?: boolean;           // default: true — throw DeployError (with .result) on any error
+  typeCheck?: boolean;              // default: false
+  reset?: boolean;                  // default: false — sim.reset() after a SUCCESSFUL build, before wiring
+  afterReset?: () => void | Promise<void>;
 }
 ```
-Deploy a Forge app. Reads `manifest.yml`, imports handlers, wires resolvers/consumers/triggers.
+Deploy a Forge app. Reads `manifest.yml`, builds the backend the way `forge deploy` does (one output per handler file, every dependency inlined, so module state is per handler file), imports the handlers, wires resolvers/consumers/triggers.
+
+A build error (a syntax error, a top-level `await`) lands in `errors[]` with one entry per function, naming the failing file, and nothing is loaded: `forge deploy` uploads nothing when the bundle fails. With `reset: true` the reset happens only after the build succeeded, so a failed redeploy leaves the previous version running; MCP `forge_deploy` and the daemon use this.
 
 By default, each scheduled trigger fires **once at deploy time**. This mirrors real Forge, where every scheduled trigger starts ~5 minutes after deployment (and redeploys reset/re-create them). It's also what runs migration triggers before your tests touch the database. If a scheduled job has side effects you don't want on every deploy (daily digest, outbound webhook), pass `{ fireScheduledTriggers: false }` and fire it explicitly with `sim.fireScheduledTrigger(key)`. (`forge-sim dev` fires them on the initial deploy only — hot redeploys on file save deliberately do **not** re-fire scheduled work, matching `forge tunnel`, even though a real `forge deploy` would reset the schedules.)
 

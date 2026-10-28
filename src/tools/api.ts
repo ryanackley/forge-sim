@@ -164,18 +164,21 @@ export function createApiHandler(
         const dropped = sim.unloadAuth();
         const disconnected = shouldConnect ? undefined : droppedConnection(dropped);
         let mockFile: MockFileOutcome | undefined;
-        if (reset !== false) {
-          await sim.reset();
-          sim.ui.reset();
-          mockFile = reapplyMockFile();
-        }
 
         let auth: AuthSummary | undefined;
         try {
           // Continue-and-inform surface: never throw on deploy errors,
           // always type-check (once per deploy request is cheap). Errors
           // and typeErrors come back in the response body. (Eval-6 F3/F4/F10)
-          const result = await sim.deploy(appDir, { throwOnError: false, typeCheck: true });
+          // The reset happens inside deploy(), after the build succeeded, so
+          // a failed redeploy leaves the previous version running; the mocks
+          // file is re-applied right after it, before deploy-time triggers.
+          const result = await sim.deploy(appDir, {
+            throwOnError: false,
+            typeCheck: true,
+            reset: reset !== false,
+            afterReset: () => { mockFile = reapplyMockFile(); },
+          });
           // Credentials load only when the policy says so.
           if (shouldConnect) auth = await loadStoredCredentials(sim);
           return json(res, {
@@ -202,8 +205,10 @@ export function createApiHandler(
           // successful one, and says so the same way: a connecting deploy
           // still ends connected, as its policy says (dev must not go
           // offline on a broken deploy); one that does not connect still
-          // reports what the unload above dropped (and what the reset
-          // re-applied).
+          // reports what the unload above dropped. The reset inside deploy()
+          // waits for a successful build, so a failed deploy leaves the
+          // previous one and its mocks in place (mockFile is set only when
+          // the file was re-applied after an actual reset).
           if (shouldConnect && !auth) auth = await loadStoredCredentials(sim);
           return json(res, {
             error: err instanceof Error ? err.message : String(err),

@@ -78,11 +78,15 @@ describe('forge_deploy loads credentials only when the policy says connect', () 
     expect(deploy).toMatch(/if \(CONNECT_POLICY\.connect\) \{\s*reloaded = true;/);
   });
 
-  it('forge_deploy first unloads what the previous deploy loaded, before reset and deploy', () => {
+  it('forge_deploy first unloads what the previous deploy loaded, before the deploy (which resets after its build)', () => {
     const deploy = code(toolSource('forge_deploy'));
     const unload = deploy.indexOf('sim.unloadAuth();');
     expect(unload).toBeGreaterThan(-1);
-    expect(unload).toBeLessThan(deploy.indexOf('sim.reset()'));
+    // The reset is deploy()'s, after a successful build — never a bare
+    // sim.reset() ahead of the build, which emptied the simulator behind a
+    // failed redeploy.
+    expect(deploy).not.toContain('sim.reset()');
+    expect(deploy).toContain('reset: reset !== false');
     expect(unload).toBeLessThan(deploy.indexOf('sim.deploy('));
     expect(unload).toBeLessThan(deploy.indexOf('sim.loadAuthFromEnv('));
   });
