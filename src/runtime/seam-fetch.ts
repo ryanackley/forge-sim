@@ -29,6 +29,8 @@ import { publishAppEventsViaTriggers } from '../app-events.js';
 import { ObjectStoreError } from '../object-store.js';
 import { LlmApiError } from '../llm.js';
 import { noMockAnswer } from '../product-api.js';
+import { buildForgeRuntime, currentInvocationRuntime } from './forge-runtime.js';
+import type { ProductApiRequest } from '../types.js';
 
 export interface ForgeFetchDescriptor {
   type?: string;
@@ -202,7 +204,66 @@ async function handleProduct(
     // fall through to the mock layer (sim.mockGraphQL handlers).
   }
   const product = descriptor.remote ?? descriptor.provider ?? 'unknown';
-  return asResponse(await sim.productApi.request(product, path, init));
+  const actor = actingUser(sim, descriptor);
+  if ('refused' in actor) return actor.refused;
+  const options: ProductApiRequest = {
+    ...(init ?? {}),
+    ...(descriptor.provider !== undefined ? { provider: descriptor.provider } : {}),
+    ...actor,
+  };
+  return asResponse(await sim.productApi.request(product, path, options));
+}
+
+const IMPERSONATION_DOC = 'https://developer.atlassian.com/platform/forge/manifest-reference/permissions/';
+
+/**
+ * Who a product request acts as. `asApp()` needs nobody. `asUser()` needs the
+ * invoking user, and Forge attaches one only to user-invoked kinds
+ * (function-registry.ts): from a scheduled trigger, web trigger, event
+ * trigger, consumer, pre-uninstall, custom field value, workflow or JQL
+ * function the proxy answers 401 with `forge-proxy-error:
+ * NEEDS_AUTHENTICATION_ERR`, which the real package turns into
+ * NeedsAuthenticationError('Authentication Required',
+ * 'atlassian-token-service-key') (api/out/api/fetch.js:66-74).
+ * `asUser(accountId)` for another user is offline impersonation and needs a
+ * scope declared with `allowImpersonation: true`; without one it gets the
+ * same 401.
+ */
+function actingUser(
+  sim: ForgeSimulator,
+  descriptor: ForgeFetchDescriptor,
+): { accountId?: string } | { refused: Response } {
+  if (descriptor.provider !== 'user') return {};
+  const invoking = buildForgeRuntime(sim).aaid;
+  const requested = descriptor.accountId;
+  if (requested !== undefined && requested !== invoking) {
+    if ((sim.getManifest()?.impersonationScopes.length ?? 0) === 0) {
+      return noUser(
+        `asUser("${requested}") is offline user impersonation, which needs a scope declared ` +
+          `with allowImpersonation: true under permissions.scopes (${IMPERSONATION_DOC}).`,
+      );
+    }
+    return { accountId: requested };
+  }
+  if (invoking === undefined) {
+    const kind = currentInvocationRuntime()?.moduleType ?? 'this';
+    return noUser(
+      `asUser() has no user to act as: a ${kind} invocation runs as the app, without a user ` +
+        `context. Use asApp(), or asUser(accountId) with a scope declared allowImpersonation: ` +
+        `true (${IMPERSONATION_DOC}).`,
+    );
+  }
+  return { accountId: invoking };
+}
+
+/**
+ * The real package throws NeedsAuthenticationError('Authentication Required')
+ * off the header alone and never shows the body, so the explanation goes to
+ * the console, which the invocation captures into the sim's console log.
+ */
+function noUser(message: string): { refused: Response } {
+  console.warn(`[forge-sim] ${message}`);
+  return { refused: proxyError(401, 'NEEDS_AUTHENTICATION_ERR', message) };
 }
 
 async function handleQueueApi(

@@ -47,8 +47,10 @@ export interface InvocationRuntimeInfo {
   /** The enforced budget for this invocation (per-type limit or manifest timeoutSeconds). */
   timeoutMs: number;
   /**
-   * The Forge context handed to the handler, for entry paths that build it
-   * OUTSIDE the resolver (triggers, scheduled, consumers). Resolver
+   * The Forge context handed to the handler, for every kind that runs
+   * without a user (simulator.buildFunctionContext: triggers, scheduled, web
+   * triggers, consumers, pre-uninstall, custom field value, workflow, JQL).
+   * It carries no accountId, so the runtime view has no `aaid`. Resolver
    * invocations leave this unset: their merged context (defaults + sticky +
    * render overlay + per-call) is computed inside resolver.invoke() and read
    * live via getActiveContext(), which per-call overrides flow into.
@@ -159,12 +161,14 @@ function projectExternalAuth(sim: ForgeSimulator): ExternalAuthMetaData[] {
  */
 export function buildForgeRuntime(sim: ForgeSimulator): ForgeRuntime {
   const info = currentInvocationRuntime();
-  // Who/where: the resolver's merged context wins (it includes per-call
-  // overrides), then the context a non-resolver entry path recorded, then
-  // the same defaults + sticky + render merge the resolver would start from.
+  // Who/where: the context the active invocation's entry path built wins
+  // (every kind but a resolver records one, so a consumer pushed from inside
+  // a resolver is its own invocation, not the pusher's), then the resolver's
+  // merged context (defaults + sticky + render + per-call), then outside any
+  // invocation the same merge the resolver would start from.
   const ctx: Record<string, unknown> =
-    sim.resolver.getActiveContext() ??
-    info?.context ?? {
+    info?.context ??
+    sim.resolver.getActiveContext() ?? {
       ...sim.getDefaultContext(),
       ...sim.resolver.getContextOverrides(),
       ...sim.resolver.getRenderContext(),
@@ -184,7 +188,7 @@ export function buildForgeRuntime(sim: ForgeSimulator): ForgeRuntime {
     // only on its fast path, which stays off because `kvs` is absent below
     // (see seam-registry.ts: kvs/proxy, when: 'import').
     proxy: { token: 'sim-proxy-token', url: 'https://sim-proxy.invalid' },
-    contextAri: (ctx.installContext as string | undefined) ?? 'ari:cloud:jira::site/sim-site',
+    contextAri: (ctx.installContext as string | undefined) ?? `ari:cloud:jira::site/${cloudId}`,
     container: {
       runtime: manifest?.raw.app?.runtime?.name,
       // Backend i18n reads locale JSON from DISK under <appCodeDir>/__LOCALES__

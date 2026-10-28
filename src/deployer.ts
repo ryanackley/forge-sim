@@ -1221,12 +1221,13 @@ export async function deploy(sim: ForgeSimulator, appDir: string, options: Deplo
     }
   }
 
-  // 8. Register remaining functions as generic (if not already registered)
+  // 8. Register remaining functions under the kind the manifest gives them
+  // (pre-uninstall, custom field value, JQL, workflow, action, resolver), or
+  // generic when no known module binds them. The kind is what decides whether
+  // sim.invoke() hands the function a user (function-registry.ts).
   for (const [fnKey, handler] of handlerExports) {
     if (typeof handler === 'function' && !registeredThisDeploy.has(fnKey)) {
-      // Not a trigger, consumer, scheduled trigger, or web trigger —
-      // register as generic
-      registerFresh(fnKey, handler, 'generic');
+      registerFresh(fnKey, handler, manifest.functions.get(fnKey)?.type ?? 'generic');
       // Also make it available via resolver.define() for backward compat
       if (!sim.resolver.getDefinitions().includes(fnKey)) {
         sim.resolver.define(fnKey, handler);

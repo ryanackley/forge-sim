@@ -66,17 +66,6 @@ function buildForgeRequest(
 }
 
 /**
- * Build a Forge context object for web trigger invocation.
- */
-function buildWebTriggerContext(sim: ForgeSimulator, triggerKey: string): Record<string, any> {
-  const account = sim.productApi.connectedAccount;
-  return {
-    installContext: `ari:cloud:jira::site/${account?.cloudId ?? 'sim-cloud-001'}`,
-    principal: null, // Web triggers are anonymous (no user)
-  };
-}
-
-/**
  * Read the full request body as a string.
  */
 function readBody(req: IncomingMessage): Promise<string> {
@@ -224,6 +213,8 @@ export async function executeWebTrigger(
   simulator: ForgeSimulator,
   trigger: ManifestWebTrigger,
   forgeRequest: Record<string, any>,
+  // Web triggers run without a user; the simulator builds the Context per kind.
+  context: Record<string, unknown> = simulator.buildFunctionContext('webTrigger'),
 ): Promise<WebTriggerResponse> {
   // Function registry first (deploy registers web trigger functions with
   // type 'webTrigger'); fall back to the resolver handler map for
@@ -237,8 +228,6 @@ export async function executeWebTrigger(
       `Did the deploy succeed? Check the manifest's modules.function entry for "${trigger.functionKey}".`,
     );
   }
-
-  const context = buildWebTriggerContext(simulator, trigger.key);
 
   let result: any;
   try {

@@ -167,7 +167,8 @@ describe('global.__forge_runtime__', () => {
     expect(seen.scopes).toContain('read:jira-work');
     expect(seen.budget).toBeLessThanOrEqual(55_000);
     expect(seen.budget).toBeGreaterThan(50_000);
-    expect(seen.aaid).toBe('sim-user-001');
+    // A trigger runs as the app: no invoking user, so no aaid (function-registry.ts).
+    expect(seen.aaid).toBeUndefined();
     expect(seen.runtimeName).toBe('nodejs22.x');
   });
 

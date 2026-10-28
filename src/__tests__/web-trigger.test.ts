@@ -136,7 +136,9 @@ describe('Web trigger HTTP handler', () => {
 
     // Verify context
     expect(capturedContext.installContext).toContain('sim-cloud-001');
-    expect(capturedContext.principal).toBeNull();
+    // No user: Forge's Context has an optional principal, absent here.
+    expect(capturedContext.principal).toBeUndefined();
+    expect('accountId' in capturedContext).toBe(false);
   });
 
   it('returns 404 for unknown trigger key', async () => {

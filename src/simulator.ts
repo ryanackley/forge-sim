@@ -14,7 +14,7 @@ import { SimulatedQueue } from './queue.js';
 import { SimulatedResolver } from './resolver.js';
 import { SimulatedProductApi } from './product-api.js';
 import { SimulatedForgeSQL, type ForgeSQLOptions } from './forge-sql.js';
-import { FunctionRegistry, type ForgeFunctionType } from './function-registry.js';
+import { FunctionRegistry, functionTypeHasUser, type ForgeFunctionType } from './function-registry.js';
 import { parseManifest, parseManifestContent, type ParsedManifest } from './manifest.js';
 import {
   validateManifestContent,
@@ -153,7 +153,11 @@ export class ForgeSimulator {
 
   constructor(config?: SimulationConfig) {
     this.kvs = new UnifiedKVS();
-    this.queue = new SimulatedQueue({ mode: config?.queueMode ?? 'sequential' });
+    this.queue = new SimulatedQueue({
+      mode: config?.queueMode ?? 'sequential',
+      // A consumer is its own invocation, as the app: never the pusher's user.
+      consumerContext: () => this.buildFunctionContext('consumer'),
+    });
     // Resolver gets a callback so cold MCP invokes see the same default
     // context (notably accountId/cloudId/siteUrl) as the UI render path.
     // Fix for N3 — without this, cold invokes used sim-user-001 even when
@@ -598,17 +602,35 @@ export class ForgeSimulator {
     // Validate module → resolver access if module context is available
     this.validateResolverAccess(functionKey, moduleKey);
 
-    // Determine function type for timeout limits
+    // The function's kind comes from the module that binds it in the
+    // manifest (or the registry for programmatic registration). It decides
+    // the time budget and, through functionTypeHasUser, whether the function
+    // runs as the invoking user or as the app.
     const fnMeta = this.manifest?.functions.get(functionKey);
-    const fnType = fnMeta?.type || 'resolver';
+    const fnType: ForgeFunctionType = fnMeta?.type ?? this.functions.getType(functionKey) ?? 'resolver';
+    const runsAsUser = functionTypeHasUser(fnType);
 
-    // Invocation context for shims (realtime scoped-publish gate).
-    // Rovo actions and workflow functions are NOT frontend invocation
-    // contexts in Forge, so they don't get scoped realtime.publish().
+    // Invocation context for shims (realtime scoped-publish gate): only a
+    // resolver is a frontend invocation context in Forge. A bare function
+    // driven straight through sim.invoke() counts as one.
     const invocationCtx: RealtimeInvocationContext = {
-      kind: fnType === 'action' ? 'action' : fnType === 'workflow' ? 'workflow' : 'resolver',
+      kind: fnType === 'generic' ? 'resolver' : fnType,
       moduleKey: this.resolveInvocationModuleKey(functionKey, moduleKey),
     };
+
+    // A kind without a user gets Forge's documented Context, built per kind;
+    // a per-call override still applies on top (the caller asked for it).
+    const functionContext = runsAsUser
+      ? undefined
+      : { ...this.buildFunctionContext(fnType), ...(contextOverride ?? {}) };
+
+    // `req.context.moduleKey` and `getAppContext().moduleKey` describe the
+    // same invocation, so a resolved module key reaches both.
+    const attributedModuleKey = invocationCtx.moduleKey ?? this.currentModuleKey;
+    const resolverOverride =
+      attributedModuleKey !== undefined && contextOverride?.moduleKey === undefined
+        ? { ...(contextOverride ?? {}), moduleKey: attributedModuleKey }
+        : contextOverride;
 
     const startMs = Date.now();
     this.pendingInvokeCount++;
@@ -622,13 +644,17 @@ export class ForgeSimulator {
           moduleType: fnType,
           startMs,
           timeoutMs: (fnMeta?.timeoutSeconds ?? INVOCATION_LIMITS[fnType] ?? 25) * 1000,
-          // No `context` here: the resolver computes the merged context
-          // (including the per-call override) and exposes it via
-          // getActiveContext(), which the runtime getter prefers.
+          // User kinds leave `context` unset: the resolver computes the
+          // merged context (including the per-call override) and exposes it
+          // via getActiveContext(). User-less kinds record theirs here, which
+          // is what the runtime view reads (no accountId, so no aaid).
+          ...(functionContext ? { context: functionContext } : {}),
         },
         () =>
           withCapture(() =>
-            this.resolver.invoke(functionKey, payload, contextOverride)
+            functionContext
+              ? this.resolver.invokeWithContext(functionKey, payload, functionContext)
+              : this.resolver.invoke(functionKey, payload, resolverOverride)
           )
       );
       this.consoleLogs.push(...captured);
@@ -748,7 +774,9 @@ export class ForgeSimulator {
    *
    * The handler runs inside a 'consumer' invocation context — like real
    * Forge, queue consumers are async (non-frontend) invocations, so scoped
-   * realtime.publish() is unavailable there (use publishGlobal()).
+   * realtime.publish() is unavailable there (use publishGlobal()). The
+   * `context` the queue delivers is the sim's consumer Context
+   * (buildFunctionContext): the app's identity, never the pusher's user.
    */
   registerConsumer(queueKey: string, handler: (event: any, context: any) => Promise<any>): void {
     this.queue.registerConsumer(queueKey, (event: any, context: any) =>
@@ -788,28 +816,38 @@ export class ForgeSimulator {
    */
   getDefaultContext(): ResolverContext {
     const account = this.productApi.connectedAccount;
+    const cloudId = account?.cloudId ?? 'sim-cloud-001';
     return {
       accountId: account?.accountId ?? 'sim-user-001',
-      cloudId: account?.cloudId ?? 'sim-cloud-001',
+      cloudId,
       siteUrl: account ? `https://${account.site}` : 'https://sim-site.atlassian.net',
       moduleKey: 'sim-module',
-      installContext: account
-        ? `ari:cloud:jira::site/${account.cloudId}`
-        : 'ari:cloud:jira::site/sim-site',
+      // One site id per installation: the install ARI names the same cloudId
+      // the context reports.
+      installContext: `ari:cloud:jira::site/${cloudId}`,
     };
   }
 
   /**
-   * Build a Forge context for trigger/consumer invocation. Layers any
-   * explicit overrides on top of the simulator's default context and the
-   * resolver's context overrides.
+   * The `context` argument for a function kind that runs without a user:
+   * Forge's documented Context
+   * (https://developer.atlassian.com/platform/forge/function-reference/arguments/),
+   * which is `installContext` plus the optional `license`, and never a
+   * `principal`, `accountId` or `cloudId`. Who a function runs as is decided
+   * by its kind (function-registry.ts), so the sticky resolver context and
+   * the last render's user do not reach here; only the installation-level
+   * fields of `setContext()` (`installContext`, `license`) do.
    */
-  private buildContext(overrides?: Record<string, unknown>): Record<string, unknown> {
-    return {
-      ...this.getDefaultContext(),
-      ...this.resolver.getContextOverrides(),
-      ...overrides,
+  buildFunctionContext(kind: ForgeFunctionType): Record<string, unknown> {
+    if (functionTypeHasUser(kind)) {
+      throw new Error(`buildFunctionContext: "${kind}" functions run as a user; their context comes from the resolver.`);
+    }
+    const sticky = this.resolver.getContextOverrides();
+    const context: Record<string, unknown> = {
+      installContext: sticky.installContext ?? this.getDefaultContext().installContext,
     };
+    if (sticky.license !== undefined) context.license = sticky.license;
+    return context;
   }
 
   /**
@@ -839,7 +877,7 @@ export class ForgeSimulator {
       return [];
     }
 
-    const context = this.buildContext();
+    const context = this.buildFunctionContext('trigger');
     const event = { event: eventName, ...data };
 
     // Eval-10 F10: real custom app-event deliveries carry per-subscriber
@@ -864,7 +902,7 @@ export class ForgeSimulator {
         ? {
             ...event,
             context: data.context ?? {
-              cloudId: (context as any).cloudId,
+              cloudId: this.getDefaultContext().cloudId,
               moduleKey: trigger.key,
               userAccess: { enabled: false },
             },
@@ -946,14 +984,14 @@ export class ForgeSimulator {
     // Build the request object per Forge docs
     const request = {
       context: {
-        cloudId: 'sim-cloud-001',
+        cloudId: this.getDefaultContext().cloudId,
         moduleKey: triggerKey,
       },
       contextToken: 'sim-context-token',
     };
 
-    // Build context (principal is undefined for scheduled triggers — no user involved)
-    const context = this.buildContext({ principal: undefined });
+    // Scheduled triggers run without a user context.
+    const context = this.buildFunctionContext('scheduledTrigger');
 
     const schedStartMs = Date.now();
     try {
@@ -1037,6 +1075,8 @@ export class ForgeSimulator {
     this.log('webTrigger', `Firing web trigger: ${triggerKey} (${trigger.functionKey}) ${forgeRequest.method} ${forgeRequest.path}`);
 
     const fnMeta = this.manifest.functions.get(trigger.functionKey);
+    // Web triggers run without a user context.
+    const context = this.buildFunctionContext('webTrigger');
     const startMs = Date.now();
     this.pendingInvokeCount++;
     try {
@@ -1049,8 +1089,9 @@ export class ForgeSimulator {
           moduleType: 'webTrigger',
           startMs,
           timeoutMs: (fnMeta?.timeoutSeconds ?? INVOCATION_LIMITS.webTrigger) * 1000,
+          context,
         },
-        () => withCapture(() => executeWebTrigger(this, trigger, forgeRequest))
+        () => withCapture(() => executeWebTrigger(this, trigger, forgeRequest, context))
       );
       this.consoleLogs.push(...captured);
       for (const line of captured) {

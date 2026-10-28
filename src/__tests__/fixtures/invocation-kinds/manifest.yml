@@ -1,0 +1,84 @@
+# One function per invocation kind, so a deploy can be checked for the kind
+# each function is registered under and for who each one runs as.
+app:
+  id: ari:cloud:ecosystem::app/invocation-kinds
+  name: Invocation Kinds
+  runtime:
+    name: nodejs22.x
+permissions:
+  scopes:
+    - read:jira-work
+modules:
+  function:
+    - key: resolverFn
+      handler: index.resolver
+    - key: triggerFn
+      handler: index.trigger
+    - key: schedFn
+      handler: index.sched
+    - key: hookFn
+      handler: index.hook
+    - key: consumerFn
+      handler: index.consumer
+    - key: preUninstallFn
+      handler: index.preUninstall
+    - key: cfValueFn
+      handler: index.cfValue
+    - key: validatorFn
+      handler: index.validator
+    - key: jqlFn
+      handler: index.jql
+  jira:issuePanel:
+    - key: my-panel
+      resource: main
+      render: native
+      icon: https://example.com/icon.svg
+      title: Kinds panel
+      resolver:
+        function: resolverFn
+  trigger:
+    - key: on-created
+      function: triggerFn
+      events:
+        - avi:jira:created:issue
+  scheduledTrigger:
+    - key: nightly
+      function: schedFn
+      interval: day
+  webtrigger:
+    - key: hook
+      function: hookFn
+  consumer:
+    - key: work-consumer
+      queue: work-queue
+      function: consumerFn
+  preUninstall:
+    - key: pu
+      function: preUninstallFn
+  jira:customField:
+    - key: score
+      name: Score
+      description: A computed score
+      type: string
+      view:
+        value:
+          function: cfValueFn
+  jira:workflowValidator:
+    - key: assigned-validator
+      name: Assigned validator
+      description: Only assigned work items may transition
+      function: validatorFn
+  jira:jqlFunction:
+    - key: issues-with-text
+      name: issuesWithText
+      function: jqlFn
+      arguments:
+        - name: text
+          required: true
+      operators:
+        - in
+      types:
+        - issue
+resources:
+  - key: main
+    path: src/frontend/index.jsx

@@ -52,12 +52,12 @@ The main backend API package. Imported by resolver/trigger/consumer functions.
 | `requestConfluence(route, options)` | ✅ | `shims.test.ts` | Same as Jira |
 | `requestBitbucket(route, options)` | ✅ | — | Same as Jira (no dedicated test) |
 | `asApp().requestJira()` | ✅ | `shims.test.ts` | |
-| `asUser().requestJira()` | ✅ | `shims.test.ts` | |
-| `asUser(accountId).requestJira()` | ⚠️ | — | `accountId` param is ignored; no user impersonation |
+| `asUser().requestJira()` | ✅ | `shims.test.ts`, `invocation-identity.test.ts` | Needs an invoking user: from a trigger, scheduled/web trigger, consumer, pre-uninstall, custom field value, workflow or JQL function it is answered 401 `NEEDS_AUTHENTICATION_ERR` (NeedsAuthenticationError), as on Forge |
+| `asUser(accountId).requestJira()` | ✅ | `invocation-identity.test.ts` | Offline impersonation: needs a scope declared `allowImpersonation: true`; the mock sees `options.accountId` |
 | `asApp().requestConfluence()` | ✅ | `shims.test.ts` | |
 | `asApp().requestBitbucket()` | ✅ | — | |
 | `asApp().requestGraph()` | ⚠️ | `product-api-mock-precedence-connected.test.ts` | From app code the call reaches the `stargate` mock key: mock it with `sim.mockProductRoutes('stargate', { 'POST /graphql': … })`; unmocked it returns 501, connected or not (no gateway fallback). `sim.mockGraphQL()` operation mocks answer only the sim-side `sim.productApi.requestGraph()` (`graphql.test.ts`), not the app's call yet |
-| `asUser().requestGraph()` | ⚠️ | — | Same as asApp (the `stargate` key; `accountId` is ignored) |
+| `asUser().requestGraph()` | ⚠️ | — | Same as asApp (the `stargate` key); the same user rules as `asUser().requestJira()` apply |
 | `asApp().requestAtlassian()` | ⚠️ | — | Reaches the `stargate` mock key: mock it with `sim.mockProductRoutes('stargate', { 'GET /…': … })`; unmocked it returns 501, connected or not (no gateway fallback) |
 | `asUser().requestAtlassian()` | ⚠️ | — | Same as asApp (`accountId` is ignored) |
 | `asUser().withProvider(provider, remote)` | ✅ | `external-auth.test.ts` | Full `ExternalAuthFetchMethods` interface |

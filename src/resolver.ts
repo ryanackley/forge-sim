@@ -41,7 +41,7 @@ const DEFAULT_CONTEXT: ResolverContext = {
   cloudId: 'sim-cloud-001',
   siteUrl: 'https://sim-site.atlassian.net',
   moduleKey: 'sim-module',
-  installContext: 'ari:cloud:jira::site/sim-site',
+  installContext: 'ari:cloud:jira::site/sim-cloud-001',
 };
 
 const defaultContextProvider: ResolverContextProvider = () => ({ ...DEFAULT_CONTEXT });
@@ -236,13 +236,35 @@ export class SimulatedResolver {
       ...this.renderContextOverlay,
       ...(contextOverride ?? {}),
     };
+    return this.invokeWithContext(functionKey, payload, context);
+  }
+
+  /**
+   * Invoke with exactly this context: no defaults, sticky or render merge.
+   * This is how a function kind that runs without a user (scheduled, web
+   * trigger, pre-uninstall, custom field value, workflow, JQL) is driven
+   * through `sim.invoke()` — the simulator builds Forge's documented Context
+   * for the kind and the user-flavoured layers never apply.
+   */
+  async invokeWithContext(
+    functionKey: string,
+    payload: any,
+    context: Record<string, unknown>
+  ): Promise<any> {
+    const handler = this.definitions.get(functionKey);
+    if (!handler && this.dispatchFallbacks.size === 0) {
+      const available = [...this.definitions.keys()];
+      throw new Error(
+        `No resolver defined for "${functionKey}". Available: ${available.join(', ') || 'none'}`
+      );
+    }
 
     const req: ResolverRequest = {
       payload: payload ?? {},
-      context,
+      context: context as ResolverContext,
     };
 
-    return this.activeContextStorage.run(context, async () => {
+    return this.activeContextStorage.run(context as ResolverContext, async () => {
       if (handler) return await handler(req);
       return await this.invokeViaDispatch(functionKey, req);
     });

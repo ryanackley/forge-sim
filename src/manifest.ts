@@ -32,7 +32,16 @@ export interface ParsedManifest {
   scheduledTriggers: ManifestScheduledTrigger[];
   uiModules: ManifestUIModule[];
   webTriggers: ManifestWebTrigger[];
+  preUninstalls: ManifestPreUninstall[];
   permissions: string[];
+  /**
+   * Scope names declared with `allowImpersonation: true` (the map form of
+   * `permissions.scopes`). Non-empty means `asUser(accountId)` offline
+   * impersonation is declared, which is what lets a function without a user
+   * context act as one:
+   * https://developer.atlassian.com/platform/forge/manifest-reference/permissions/
+   */
+  impersonationScopes: string[];
   remotes: Map<string, ManifestRemote>;
   endpoints: Map<string, ManifestEndpoint>;
   authProviders: Map<string, ManifestAuthProvider>;
@@ -77,12 +86,24 @@ export interface ManifestAction {
  */
 export type ManifestResource = Resources[number];
 
+import type { ForgeFunctionType } from './function-registry.js';
+
 export interface ManifestFunction {
   key: string;
   handler: string; // e.g. "index.handler" or "resolvers.handler"
   timeoutSeconds?: number;
-  /** Function type: 'workflow' for post-functions/validators, 'resolver' for resolvers, etc. */
-  type?: string;
+  /**
+   * The kind of the module that binds this function (first binding wins).
+   * Decides the calling convention at deploy and who the function runs as
+   * (`functionTypeHasUser` in function-registry.ts). Unset when no known
+   * module references the function.
+   */
+  type?: ForgeFunctionType;
+}
+
+export interface ManifestPreUninstall {
+  key: string;
+  functionKey: string;
 }
 
 export interface ManifestConsumer {
@@ -296,7 +317,7 @@ export function getCompatibleBackgroundScripts(
 export const KNOWN_MODULE_TYPES = new Set([
   // Platform (product-agnostic)
   'function', 'consumer', 'scheduledTrigger', 'trigger', 'webtrigger',
-  'endpoint', 'action',
+  'preUninstall', 'endpoint', 'action',
   // App Events (Preview) — declares publishable custom events (key + name +
   // allowedRecipients), no code. Required by real Forge for appEvents.publish;
   // the delivered payload's `name` comes from this module (eval-10 F10).
@@ -397,6 +418,15 @@ export function parseManifestContent(content: string): ParsedManifest {
       timeoutSeconds: fn.timeoutSeconds,
     });
   }
+  // One kind per function, from the module that binds it; the first binding
+  // wins. The kind decides the calling convention and who the function runs
+  // as (function-registry.ts), so it has to come from the manifest, not from
+  // which sim API happened to invoke the function.
+  const stampFunctionType = (key: string | undefined, type: ForgeFunctionType): void => {
+    if (!key) return;
+    const fn = functions.get(key);
+    if (fn && fn.type === undefined) fn.type = type;
+  };
 
   // Parse consumers.
   // Two documented shapes (eval-4 F3 — the v1 shape used to parse to
@@ -445,6 +475,13 @@ export function parseManifestContent(content: string): ParsedManifest {
     });
   }
 
+  // Parse pre-uninstall triggers: one function, no user
+  // (https://developer.atlassian.com/platform/forge/manifest-reference/modules/pre-uninstall-trigger/)
+  const preUninstalls: ManifestPreUninstall[] = [];
+  for (const pu of (Array.isArray(modules.preUninstall) ? modules.preUninstall : []) as any[]) {
+    preUninstalls.push({ key: pu.key, functionKey: pu.function });
+  }
+
   // Parse web triggers
   const webTriggers: ManifestWebTrigger[] = [];
   for (const wt of (Array.isArray(modules.webtrigger) ? modules.webtrigger : []) as any[]) {
@@ -487,7 +524,7 @@ export function parseManifestContent(content: string): ParsedManifest {
   // (they appear at the top level of modules: but don't render UI)
   const nonUIModuleTypes = new Set([
     'function', 'endpoint', 'consumer', 'scheduledTrigger',
-    'trigger', 'webtrigger', 'remote', 'sql', 'objectStore',
+    'trigger', 'webtrigger', 'preUninstall', 'remote', 'sql', 'objectStore',
   ]);
 
   // Module types with nested resource patterns (view.resource / edit.resource)
@@ -564,8 +601,9 @@ export function parseManifestContent(content: string): ParsedManifest {
 
         // Register the action function
         if (!functions.has(functionKey)) {
-          functions.set(functionKey, { key: functionKey, handler: functionKey, type: 'action' });
+          functions.set(functionKey, { key: functionKey, handler: functionKey });
         }
+        stampFunctionType(functionKey, 'action');
 
         // Track as an action
         actions.push({
@@ -595,6 +633,15 @@ export function parseManifestContent(content: string): ParsedManifest {
         if (mod.resolver?.function && !functions.has(mod.resolver.function)) {
           functions.set(mod.resolver.function, { key: mod.resolver.function, handler: mod.resolver.function });
         }
+      }
+      continue;
+    }
+
+    // ── JQL functions: function-only, no UI. Not the UIKit 1 `function:`
+    // shape, so they must not draw that warning below.
+    if (moduleType === 'jira:jqlFunction') {
+      for (const mod of moduleDefs as any[]) {
+        stampFunctionType(mod?.function, 'jqlFunction');
       }
       continue;
     }
@@ -637,8 +684,9 @@ export function parseManifestContent(content: string): ParsedManifest {
         if (mod.function) {
           const fnKey = mod.function;
           if (!functions.has(fnKey)) {
-            functions.set(fnKey, { key: fnKey, handler: fnKey, type: 'workflow' });
+            functions.set(fnKey, { key: fnKey, handler: fnKey });
           }
+          stampFunctionType(fnKey, 'workflow');
         }
 
         // Register resolver function if present
@@ -702,12 +750,12 @@ export function parseManifestContent(content: string): ParsedManifest {
           });
         }
 
-        // Register value function as a resolver if present
+        // The value function runs without a user ("asUser isn't supported")
         if (valueFnKey) {
-          const existing = functions.get(valueFnKey);
-          if (!existing) {
+          if (!functions.has(valueFnKey)) {
             functions.set(valueFnKey, { key: valueFnKey, handler: valueFnKey });
           }
+          stampFunctionType(valueFnKey, 'customFieldValue');
         }
 
         // Warn about missing experience — without it, Jira renders the
@@ -1206,6 +1254,17 @@ export function parseManifestContent(content: string): ParsedManifest {
     console.log(`  ℹ️  Command "${cmd.key}" → opens module "${cmd.targetPage}"${shortcutInfo}`);
   }
 
+  for (const t of triggers) stampFunctionType(t.functionKey, 'trigger');
+  for (const st of scheduledTriggers) stampFunctionType(st.functionKey, 'scheduledTrigger');
+  for (const wt of webTriggers) stampFunctionType(wt.functionKey, 'webTrigger');
+  for (const c of consumers) stampFunctionType(c.functionKey, 'consumer');
+  for (const pu of preUninstalls) stampFunctionType(pu.functionKey, 'preUninstall');
+  for (const m of uiModules) stampFunctionType(m.resolverFunctionKey, 'resolver');
+
+  const scopeMap = !Array.isArray(raw.permissions?.scopes) && raw.permissions?.scopes && typeof raw.permissions.scopes === 'object'
+    ? (raw.permissions.scopes as Record<string, { allowImpersonation?: boolean } | null | undefined>)
+    : undefined;
+
   return {
     raw,
     functions,
@@ -1215,14 +1274,18 @@ export function parseManifestContent(content: string): ParsedManifest {
     scheduledTriggers,
     uiModules,
     webTriggers,
+    preUninstalls,
     // Scopes come in two schema shapes: the classic string array, and a map
     // of scope name → { allowImpersonation } (RFC-149 user impersonation).
     // Either way the scope names are what the sim consumes.
     permissions: Array.isArray(raw.permissions?.scopes)
       ? raw.permissions.scopes.filter((s): s is string => typeof s === 'string')
-      : raw.permissions?.scopes && typeof raw.permissions.scopes === 'object'
-        ? Object.keys(raw.permissions.scopes)
+      : scopeMap
+        ? Object.keys(scopeMap)
         : [],
+    impersonationScopes: scopeMap
+      ? Object.entries(scopeMap).filter(([, v]) => v?.allowImpersonation === true).map(([k]) => k)
+      : [],
     remotes,
     endpoints,
     authProviders,

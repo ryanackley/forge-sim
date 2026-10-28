@@ -354,6 +354,34 @@ sim.fireTrigger(event: string, data: object): Promise<any[]>
 ```
 Fire a product event trigger. Typed overloads exist for all 143 known events.
 
+#### Who a function runs as
+
+Forge attaches a user only to invocations a person starts from the app's own
+UI: resolvers behind a bridge `invoke` and Rovo actions. Every other kind runs
+as the app, and forge-sim decides this by the function's kind (the module that
+binds it in the manifest), never by which sim API fired it:
+
+| Kind | Runs as | Handler `context` |
+|---|---|---|
+| resolver, action | the invoking user (`setContext`, render context, per-call `context`) | the resolver `req.context` |
+| trigger, scheduledTrigger, webTrigger, consumer, preUninstall, custom field value, workflow validator/condition/post function, JQL function | the app | `{ installContext, license? }`, no `accountId`, `cloudId` or `principal` |
+
+In an app-identity kind, the real `@forge/api` behaves as on Forge:
+`asApp()` works; `asUser()` is answered 401 with `forge-proxy-error:
+NEEDS_AUTHENTICATION_ERR`, which the package throws as
+`NeedsAuthenticationError('Authentication Required')`; `authorize()` throws
+"Couldn’t find the accountId of the invoking user". A sticky
+`setContext({ accountId })`, a render as another user, or the resolver that
+pushed a queue event do not leak a user into these kinds: a consumer is its
+own invocation. Only the installation-level fields of `setContext()`
+(`installContext`, `license`) reach them.
+
+`asUser(accountId)` for another user is offline impersonation. It works from
+any kind once a scope is declared with `allowImpersonation: true` (the map
+form of `permissions.scopes`); without one it gets the same 401. Mock route
+handlers receive `options.provider` (`'app'` | `'user'`) and, for user
+requests, `options.accountId`, so a mock can answer per identity.
+
 ```typescript no-check
 sim.fireScheduledTrigger(triggerKey: string): Promise<{ statusCode: number; error?: string }>
 ```

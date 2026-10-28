@@ -69,6 +69,12 @@ export interface QueueConfig {
    * - 'concurrent': process events concurrently, respecting concurrency keys
    */
   mode?: 'sequential' | 'concurrent';
+  /**
+   * Builds the `context` argument for each consumer delivery. The simulator
+   * supplies Forge's documented Context for a consumer invocation (no user);
+   * a bare queue hands over an empty object.
+   */
+  consumerContext?: () => Record<string, unknown>;
 }
 
 /**
@@ -281,7 +287,7 @@ export class SimulatedQueue {
               eventId: event.eventId,
               ...(retryContext !== undefined ? { retryContext } : {}),
             },
-            { installContext: 'ari:cloud:jira::site/sim-site' }
+            this.config.consumerContext?.() ?? {}
           );
         } finally {
           // Check consumer invocation time (55s default, up to 900s)

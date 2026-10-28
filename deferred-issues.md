@@ -99,3 +99,34 @@ shape of `sim.getConsoleLogs()` is undocumented in `docs/reference/api.md`.
 
 In the vite.config this seems to be a hallucination for a config that doesn't exist. It's been verified this 
 setting has no effect. 
+
+## The render context overlay is one global, not per module
+
+`sim.resolver.setRenderContext()` (`src/ui/simulator-ui.ts`) holds the last
+render's user and module key for every later resolver invoke, so after
+rendering panel A as alice and panel B as bob, an invoke that panel A's effect
+fires late runs as bob. The overlay should be keyed by module (the headless
+host already knows which module scope a bridge call comes from via
+`runInModuleScope`). A fix must decide what a cold `sim.invoke()` with no
+module sees once overlays are per module: defaults + sticky only is the
+simplest answer.
+
+## Pre-uninstall, custom field value, workflow and JQL functions have no firing API
+
+They are driven through `sim.invoke()`, which wraps the payload resolver-style
+(`{ payload, context }`) while Forge calls them `(payload, context)`. Identity
+is right since `invoke` builds a user-less context for these kinds, but the
+argument convention is not. A fix would add `sim.firePreUninstall()`,
+`sim.fireCustomFieldValue(fieldKey, issues)` and the like, calling the
+registered function with Forge's two-argument shape, and point `sim.invoke()`
+at them the way it already points web trigger functions at
+`fireWebTrigger()`.
+
+## Installation ARIs are always Jira
+
+`getDefaultContext().installContext` and `contextAri` in
+`src/runtime/forge-runtime.ts` are `ari:cloud:jira::site/<cloudId>` whatever
+the app targets, so a Confluence or Bitbucket app sees a Jira install ARI. The
+manifest's module types say which product the app is installed on; a fix must
+decide the ARI for apps that span products (Forge installs per product, so one
+sim instance would have to pick one or model several contexts).

@@ -74,20 +74,15 @@ export interface PublishResult {
   errors?: RealtimeError[];
 }
 
+import type { ForgeFunctionType } from './function-registry.js';
+
 /**
  * What kind of invocation is currently executing.
  * Only 'resolver' invocations (frontend-originated) may use scoped publish() —
  * matching real Forge, where publish is only available from frontend
  * invocation context. Everything else must use publishGlobal().
  */
-export type InvocationKind =
-  | 'resolver'
-  | 'action'
-  | 'workflow'
-  | 'trigger'
-  | 'scheduledTrigger'
-  | 'webTrigger'
-  | 'consumer';
+export type InvocationKind = ForgeFunctionType;
 
 /** Ambient invocation context, provided by the simulator via AsyncLocalStorage. */
 export interface RealtimeInvocationContext {

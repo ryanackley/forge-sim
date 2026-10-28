@@ -214,6 +214,15 @@ export interface ProductApiRequest {
   method?: string;
   headers?: Record<string, string>;
   body?: string;
+  /**
+   * Who the app asked to act as, from the real `@forge/api` descriptor:
+   * `'app'` for `asApp()`, `'user'` for `asUser()` / `asUser(accountId)`,
+   * `'none'` for the top-level `requestJira()`. Absent on direct
+   * `sim.productApi.request()` calls.
+   */
+  provider?: string;
+  /** The user the request acts as (invoking user, or the impersonated one). Only with `provider: 'user'`. */
+  accountId?: string;
 }
 
 export interface ProductApiResponse {

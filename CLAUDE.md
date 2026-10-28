@@ -142,6 +142,7 @@ These are the ones you'll forget and re-learn the hard way:
 - Atlaskit components need `setGlobalTheme({ colorMode, ... })` at boot or they render with unresolved tokens (often invisible).
 - Concurrency keys are scoped to the **installation**, not the queue. The publisher sets concurrency on the event, not the subscriber. Per Forge spec, weird in practice.
 - Function timeouts vary by type: resolvers 25s, triggers 55s, scheduled/consumer up to 900s. We enforce these and warn when an invocation exceeds the limit.
+- Only resolvers and Rovo actions run as a user. Triggers, scheduled and web triggers, consumers, pre-uninstall, custom field value, workflow and JQL functions run as the app: no `aaid`, `asUser()` gets Forge's 401 `NEEDS_AUTHENTICATION_ERR`, `authorize()` throws, and their `context` is `{ installContext, license? }`. The kind comes from the manifest (`function-registry.ts`), not from which sim API fired the function. `asUser(accountId)` needs a scope with `allowImpersonation: true`.
 - `?theme=dark|light` query string is the real-Forge convention for telling the iframe which theme to render. Custom UI apps should read `window.location.search`. Auto = OS preference.
 - KVS uses `@forge/kvs`. `@forge/api`'s legacy `storage` export was REMOVED by Atlassian in June 2026 and no longer exists here either — apps must use `@forge/kvs`.
 - Custom Entity Store uses `@forge/kvs.entity()`: separate API from plain KVS, but same `global.__forge_fetch__({ type: 'kvs' })` bridge underneath.
