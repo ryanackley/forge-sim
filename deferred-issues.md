@@ -130,3 +130,17 @@ the app targets, so a Confluence or Bitbucket app sees a Jira install ARI. The
 manifest's module types say which product the app is installed on; a fix must
 decide the ARI for apps that span products (Forge installs per product, so one
 sim instance would have to pick one or model several contexts).
+
+## Connected `requestAtlassian` paths other than `/graphql` are an unverified guess
+
+An unmocked `stargate` call reaches the connected site's `/gateway/api` for
+every path (`createRealHandler` in `src/product-api.ts`). That is known to
+work for `/graphql`, which `sim.productApi.requestGraph()` always used. For
+any other `requestAtlassian` / `requestConnectedData` path it is a guess
+that the tenanted gateway proxies the service and accepts a PAT; real Forge
+sends these to `api.atlassian.com` with an app token. Atlassian's fetch docs
+do not list `requestAtlassian`; the package's only internal caller is the
+privacy API (`/app/report-accounts`). Worth measuring against a real site
+before relying on it. A fix must decide whether a non-GraphQL path while
+connected should be tried, or refused with a message saying only the GraphQL
+gateway is a known-good target.
