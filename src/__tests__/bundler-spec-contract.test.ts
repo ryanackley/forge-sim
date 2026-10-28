@@ -26,6 +26,7 @@ import {
   esbuildBaseOptions,
   RESOLVE_EXTENSIONS,
   KNOWN_SPEC_DEVIATIONS,
+  FORGE_IGNORED_SPECIFIERS,
   bundleEntries,
   importEntry,
 } from '../bundler.js';
@@ -112,11 +113,12 @@ describe('@forge/bundler is the pinned specification', () => {
       expect(assets?.type).toBe('asset/resource');
     });
 
-    it('every module Forge IgnorePlugins stays external under our unresolvable-stays-external rule', async () => {
+    it('exactly the modules Forge IgnorePlugins stay external; any other unresolved specifier fails the build', async () => {
       const ignored = (backend.plugins as Plugin[])
         .filter((p) => p.constructor.name === 'IgnorePlugin')
         .map((p) => String(p.options.resourceRegExp));
       expect(ignored).toEqual(['/^encoding$/', '/^(bufferutil|utf-8-validate)$/', '/^dtrace-provider$/']);
+      expect(FORGE_IGNORED_SPECIFIERS.map(String)).toEqual(ignored);
       // Behavioural: an app requiring each of them behind try/catch (the way
       // node-fetch, ws and bunyan do) must bundle without error.
       const appDir = mkdtempSync(join(tmpdir(), 'forge-sim-spec-ignore-'));
@@ -130,6 +132,11 @@ describe('@forge/bundler is the pinned specification', () => {
         );
         const out = await bundleEntries({ appDir, entryPoints: [join(appDir, 'index.js')], platform: 'node', outDir: join(appDir, '.out'), noCache: true });
         expect(out.url).toMatch(/\/index\.cjs$/);
+        // Not on the list, not installed: a build error, as under webpack.
+        writeFileSync(join(appDir, 'missing.js'), `const z = require('zod-is-not-installed-here'); export const h = () => z;\n`);
+        await expect(
+          bundleEntries({ appDir, entryPoints: [join(appDir, 'missing.js')], platform: 'node', outDir: join(appDir, '.out2'), noCache: true }),
+        ).rejects.toThrow(/Could not resolve "zod-is-not-installed-here"/);
       } finally {
         rmSync(appDir, { recursive: true, force: true });
       }

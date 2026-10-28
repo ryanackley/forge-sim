@@ -4,9 +4,9 @@
  * nothing left for a module loader to resolve at runtime. These tests pin
  * what that buys and what it must not break (src/bundler.ts for the why).
  *
- * The app lives in os.tmpdir() with NO node_modules of its own, so it also
- * exercises the scratch-app path: `@forge/*` resolves from forge-sim's copy
- * through esbuild's nodePaths fallback.
+ * The app lives in os.tmpdir() with a `node_modules` linked to the repo's
+ * (helpers/scratch-app.ts): forge-sim resolves only from the app's own
+ * node_modules chain, as `forge deploy` does.
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtemp, mkdir, writeFile, readFile, readdir, rm } from 'node:fs/promises';
@@ -14,6 +14,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createSimulator, type ForgeSimulator } from '../simulator.js';
 import { listBundleCache } from '../bundler.js';
+import { linkNodeModules } from './helpers/scratch-app.js';
 
 const MANIFEST = `
 modules:
@@ -95,6 +96,7 @@ let sim: ForgeSimulator;
 
 async function writeApp(opts: { helper?: string; greeting?: string; extraImport?: string } = {}) {
   await mkdir(join(dir, 'src'), { recursive: true });
+  linkNodeModules(dir);
   // `"type": "module"` is the shape CLAUDE.md tells apps to ship (ESM as .js).
   // It is also what flips esbuild into Node-style default-import interop,
   // which would break `import kvs from '@forge/kvs'` — the bundler forces the

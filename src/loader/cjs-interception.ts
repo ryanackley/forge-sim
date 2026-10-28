@@ -28,10 +28,24 @@
  *
  * require() of the ESM shims works via Node's require(esm) (Node >= 22.12,
  * which forge-sim already requires; the shims have no top-level await).
+ *
+ * Containment: "Manual packaging for the Forge functions requires the
+ * dependencies of the application, typically in node_modules, to be
+ * available in the directory to be uploaded as well"
+ * (https://developer.atlassian.com/platform/forge/manifest-reference/packaging/#functions).
+ * Node's resolver walks up from the package directory and would find a
+ * `node_modules` at the app root or above it, which Forge never uploads. So
+ * a require made from inside `app.package.path` must resolve inside it (its
+ * own node_modules, linked or real, included); one that resolves outside
+ * fails with the same "Cannot find module" the Forge runtime would give.
+ * The @forge/resolver shim takes the package's place only when the package
+ * ships it. (ESM manual handlers are imported by Node directly and are not
+ * contained; the packaging standard requires CommonJS anyway.)
  */
 
 import Module from 'node:module';
-import { dirname, resolve as pathResolve, sep } from 'node:path';
+import { realpathSync } from 'node:fs';
+import { dirname, isAbsolute, resolve as pathResolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { SHIM_NAMES, shimFileBase } from '../shims/shim-registry.js';
 
@@ -47,18 +61,47 @@ const FORGE_SHIMS_CJS: Record<string, string> = Object.fromEntries(
   SHIM_NAMES.map((pkg) => [pkg, pathResolve(SHIM_DIR, shimFileBase(pkg) + '.js')])
 );
 
+interface InterceptedApp {
+  /** App root (trailing separator), the given path and its realpath. */
+  appDirs: string[];
+  /** `app.package.path` (trailing separator): the given path, its realpath, and the realpath of its node_modules (a link counts as inside). */
+  packageDirs: string[];
+  /** The package directory as given, for messages. */
+  packageDir: string;
+}
+
 /** App roots whose CJS requires of @forge/* should hit the shims. */
-const interceptedAppDirs = new Set<string>();
+const interceptedApps: InterceptedApp[] = [];
 
 let patched = false;
 
+const withSep = (p: string) => (p.endsWith(sep) ? p : p + sep);
+const forms = (p: string): string[] => {
+  const out = new Set([withSep(p)]);
+  try {
+    out.add(withSep(realpathSync(p)));
+  } catch {
+    // not there (yet)
+  }
+  return [...out];
+};
+
 /**
  * Route CJS `require('@forge/…')` calls made from code under `appDir` to the
- * forge-sim shims. Idempotent; the Module._resolveFilename patch is installed
- * once and consults the registered-dirs set on every call.
+ * forge-sim shims, and contain requires made from inside `packageDir`
+ * (`app.package.path`) to that directory. Idempotent per app; the
+ * Module._resolveFilename patch is installed once and consults the registry
+ * on every call.
  */
-export function interceptCjsForgeRequires(appDir: string): void {
-  interceptedAppDirs.add(appDir.endsWith(sep) ? appDir : appDir + sep);
+export function interceptCjsForgeRequires(appDir: string, packageDir: string = appDir): void {
+  const existing = interceptedApps.find((a) => a.appDirs[0] === withSep(appDir) && a.packageDir === packageDir);
+  if (!existing) {
+    interceptedApps.push({
+      appDirs: forms(appDir),
+      packageDirs: [...forms(packageDir), ...forms(pathResolve(packageDir, 'node_modules'))],
+      packageDir,
+    });
+  }
   if (patched) return;
   patched = true;
 
@@ -67,26 +110,50 @@ export function interceptCjsForgeRequires(appDir: string): void {
   };
   const original = M._resolveFilename;
   M._resolveFilename = function (request, parent, ...rest) {
-    const shimPath = FORGE_SHIMS_CJS[request];
-    if (shimPath && parent?.filename && isInterceptedParent(parent.filename)) {
-      return shimPath;
+    const parentFile = parent?.filename;
+    const app = parentFile ? appOf(parentFile) : undefined;
+    if (!app || Module.isBuiltin(request)) {
+      return original.call(this, request, parent, ...rest);
     }
-    return original.call(this, request, parent, ...rest);
+    const contained = app.packageDirs.some((d) => parentFile!.startsWith(d));
+    const shimPath = FORGE_SHIMS_CJS[request];
+    const crossRequire = parentFile!.includes(`${sep}node_modules${sep}@forge${sep}`);
+
+    // The shim stands in for a package the app ships. A package it does not
+    // ship is a missing dependency, reported as Node reports one.
+    const resolved = original.call(this, request, parent, ...rest);
+    if (contained && !insidePackage(app, resolved)) {
+      const err = new Error(
+        `Cannot find module '${request}' from ${parentFile}: manual packaging uploads only ` +
+          `app.package.path (${app.packageDir}), so its dependencies must be inside it ` +
+          `(${pathResolve(app.packageDir, 'node_modules')}). ${resolved} is outside the package: Forge ` +
+          `would not have it, and forge-sim does not use it.`,
+      ) as NodeJS.ErrnoException;
+      err.code = 'MODULE_NOT_FOUND';
+      throw err;
+    }
+    if (shimPath && !crossRequire) return shimPath;
+    return resolved;
   };
 }
 
-function isInterceptedParent(parentFilename: string): boolean {
-  for (const dir of interceptedAppDirs) {
-    if (parentFilename.startsWith(dir)) {
-      // Real @forge/* packages inside the app's node_modules keep their
-      // native cross-requires (see header).
-      return !parentFilename.includes(`${sep}node_modules${sep}@forge${sep}`);
-    }
+function appOf(parentFilename: string): InterceptedApp | undefined {
+  return interceptedApps.find((a) => a.appDirs.some((d) => parentFilename.startsWith(d)));
+}
+
+function insidePackage(app: InterceptedApp, resolved: string): boolean {
+  if (!isAbsolute(resolved)) return true; // a builtin spelled without `node:`
+  if (app.packageDirs.some((d) => resolved.startsWith(d))) return true;
+  // The package's node_modules may have appeared (or been re-linked) since
+  // registration: a link's realpath is where Node reports the resolution.
+  for (const d of forms(pathResolve(app.packageDir, 'node_modules'))) {
+    if (!app.packageDirs.includes(d)) app.packageDirs.push(d);
+    if (resolved.startsWith(d)) return true;
   }
   return false;
 }
 
 /** Test-only: inspect the registered app roots. */
 export function _interceptedAppDirs(): ReadonlySet<string> {
-  return interceptedAppDirs;
+  return new Set(interceptedApps.map((a) => a.appDirs[0]));
 }

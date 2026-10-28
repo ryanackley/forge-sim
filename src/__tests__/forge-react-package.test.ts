@@ -17,6 +17,7 @@
  *   result ("render-2"), which no stale doc can produce.
  */
 import { describe, it, expect, vi, beforeAll, afterAll, afterEach } from 'vitest';
+import { linkNodeModules } from './helpers/scratch-app.js';
 import { mkdirSync, writeFileSync, rmSync, symlinkSync, existsSync, readdirSync, cpSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -80,6 +81,8 @@ describe('@forge/react runs for real — fixture inside the project root', () =>
     // concurrently and would have their own render-* dir in flight.
     const own = join(tmpdir(), `forge-sim-render-cleanup-${Date.now()}`);
     cpSync(APP_DIR, own, { recursive: true, filter: (p) => !p.includes('.forge-sim') });
+    // Out of the repo the copy has no node_modules chain to resolve from.
+    linkNodeModules(own);
     try {
       sim = new ForgeSimulator();
       await sim.deploy(own);

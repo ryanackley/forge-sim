@@ -24,6 +24,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { linkNodeModules } from './helpers/scratch-app.js';
 import { mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -43,6 +44,9 @@ function makeApp(files: Record<string, string>): string {
     mkdirSync(join(full, '..'), { recursive: true });
     writeFileSync(full, content);
   }
+  // A scratch app resolves only from its own node_modules chain, as on
+  // forge deploy: give it an install.
+  linkNodeModules(dir);
   tempDirs.push(dir);
   return dir;
 }

@@ -10,6 +10,7 @@
  * imports (Node-native, no bundler in the way).
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { linkNodeModules } from './helpers/scratch-app.js';
 import { resolve, join } from 'node:path';
 import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'os';
@@ -17,6 +18,11 @@ import { createSimulator, ForgeSimulator } from '../simulator.js';
 import { deploy } from '../deployer.js';
 
 const FIXTURE_DIR = resolve(import.meta.dirname, 'fixtures/manual-packaging-app');
+
+// The package dir requires @forge/resolver and @forge/kvs. Forge uploads only
+// app.package.path, and so only that directory's node_modules count — the
+// fixture cannot check one in, so link the repo's in (gitignored).
+linkNodeModules(join(FIXTURE_DIR, 'out'));
 
 describe('manual packaging: fixture app deploys and runs as-is', () => {
   let sim: ForgeSimulator;

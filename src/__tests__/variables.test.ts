@@ -15,6 +15,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { linkNodeModules } from './helpers/scratch-app.js';
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -54,6 +55,7 @@ export const handler = resolver.getDefinitions();
 async function makeApp(vars?: Record<string, unknown> | string): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), 'forge-sim-vars-'));
   await mkdir(join(dir, 'src'), { recursive: true });
+  linkNodeModules(dir);
   await writeFile(join(dir, 'manifest.yml'), MANIFEST);
   await writeFile(join(dir, 'src', 'index.js'), HANDLER);
   if (vars !== undefined) await writeVars(dir, vars);

@@ -16,6 +16,7 @@
  * equivalent the plan parked under "After Phase 4".
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { linkNodeModules } from './helpers/scratch-app.js';
 import { mkdtemp, mkdir, writeFile, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -143,6 +144,7 @@ let sim: ForgeSimulator;
 
 beforeAll(async () => {
   appDir = await mkdtemp(join(tmpdir(), 'forge-sim-bundled-e2e-'));
+  linkNodeModules(appDir);
   // No `type` field: the packaged backend is CommonJS, as compiled output is.
   await writeFile(join(appDir, 'package.json'), '{ "name": "bundled-e2e", "private": true }');
   await writeFile(join(appDir, 'manifest.yml'), MANIFEST);

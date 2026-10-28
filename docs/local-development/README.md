@@ -124,7 +124,7 @@ esbuild src/index.js --bundle --platform=node --external:@forge/*
 npm install --omit=dev --prefix dist
 ```
 
-Real Forge accepts both layouts too, so this is not a sim-only liberty — and inlining spares you copying a `node_modules` tree into the package directory.
+Real Forge accepts both layouts too, so this is not a sim-only liberty — and inlining spares you copying a `node_modules` tree into the package directory. forge-sim enforces the upload boundary: a `require` from inside `app.package.path` that resolves to a `node_modules` outside it (at the app root, say) fails with "Cannot find module", because Forge would not have that file either.
 
 `@forge/resolver` is the one package forge-sim shims rather than runs. An **external** import is routed to the shim by the loader hooks; an **inlined** resolver is recognized at deploy by its dispatch shape (real Forge supports inlined resolvers, so the deployer must too). Either way `invoke()` reaches your resolver definitions.
 

@@ -139,10 +139,19 @@ function describeBuildFailure(err: unknown, absDir: string): BuildFailure {
     for (const m of messages) {
       const loc = m.location;
       const where = loc?.file ? `${loc.file}:${loc.line ?? 0}:${loc.column ?? 0}: ` : '';
-      lines.push(`${where}${m.text}`);
+      // esbuild's own advice ("mark it as external … or surround it with
+      // try/catch") does not apply: on Forge the dependency simply has to be
+      // installed, and the app's own node_modules chain is the only place
+      // forge-sim looks.
+      const unresolved = /^Could not resolve "([^"]+)"/.exec(m.text)?.[1];
+      const text = unresolved
+        ? `Could not resolve "${unresolved}": the app must declare and install it (npm install). ` +
+          `forge deploy fails the same way, and forge-sim resolves only from the app's own node_modules chain.`
+        : m.text;
+      lines.push(`${where}${text}`);
       if (loc?.file) {
         const abs = resolve(absDir, loc.file);
-        byFile.set(abs, [...(byFile.get(abs) ?? []), `${loc.line ?? 0}:${loc.column ?? 0}: ${m.text}`]);
+        byFile.set(abs, [...(byFile.get(abs) ?? []), `${loc.line ?? 0}:${loc.column ?? 0}: ${text}`]);
       }
     }
   } else {
@@ -968,7 +977,9 @@ export async function deploy(sim: ForgeSimulator, appDir: string, options: Deplo
   }
 
   if (manualPackaging) {
-    interceptCjsForgeRequires(absDir);
+    // Requires from inside app.package.path must resolve inside it: that
+    // directory is all Forge uploads.
+    interceptCjsForgeRequires(absDir, join(absDir, manifest.handlersDirectory));
   }
   // Evict the app's CJS trees from require.cache — the previous deploy's
   // bundle.cjs under .forge-sim/bundles/ (default packaging) and the app's

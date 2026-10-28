@@ -2391,7 +2391,7 @@ export async function deployResolversOnly(
     manualPackaging,
   };
   if (manualPackaging) {
-    interceptCjsForgeRequires(appDir);
+    interceptCjsForgeRequires(appDir, join(appDir, manifest.handlersDirectory));
   }
   // Unconditional for the same reason as deploy(): default-packaging bundles
   // are CJS under <app>/.forge-sim/bundles/ and must be evicted on reload or

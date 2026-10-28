@@ -13,6 +13,7 @@
  * lookalike) so they keep tracking upstream's actual dispatch shape.
  */
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import { linkNodeModules } from './helpers/scratch-app.js';
 import { resolve, join } from 'node:path';
 import { mkdtemp, mkdir, rm, writeFile, readFile } from 'node:fs/promises';
 import { tmpdir } from 'os';
@@ -92,6 +93,7 @@ ForgeReconciler.render(<App />);
 /** Build a manual-packaged app whose backend inlines @forge/resolver. */
 async function buildApp(prefix: string, frontendInvokeKey: string): Promise<string> {
   const appDir = await mkdtemp(join(tmpdir(), prefix));
+  linkNodeModules(appDir);
   // No `type` field: the packaged .js is CommonJS, as compiled output is.
   await writeFile(join(appDir, 'package.json'), '{ "name": "t", "private": true }', 'utf8');
   await writeFile(join(appDir, 'manifest.yml'), MANIFEST, 'utf8');

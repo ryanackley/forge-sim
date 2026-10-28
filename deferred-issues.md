@@ -144,3 +144,16 @@ privacy API (`/app/report-accounts`). Worth measuring against a real site
 before relying on it. A fix must decide whether a non-GraphQL path while
 connected should be tried, or refused with a message saying only the GraphQL
 gateway is a known-good target.
+
+## ESM manual-packaged handlers are not contained to `app.package.path`
+
+CommonJS requires from inside the package directory are contained by the
+`Module._resolveFilename` patch in `src/loader/cjs-interception.ts`. A
+manual-packaged handler that is ESM (off the packaging standard, which
+requires CommonJS, and already warned about at deploy) is imported by Node
+directly, and its bare imports walk up to a `node_modules` Forge would not
+upload. Containing them needs the ESM loader hook (`src/loader/hooks.ts`) to
+know the registered package directories, which means passing them to the
+hook worker (a MessageChannel on `register()`) and refusing a resolution
+outside them. Decide whether that is worth the machinery for an off-standard
+layout, or whether the deploy warning should become an error instead.

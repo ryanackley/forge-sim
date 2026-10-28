@@ -91,8 +91,17 @@ const HERE = fileURLToPath(import.meta.url);
 const PKG_ROOT = resolve(dirname(HERE), '..');
 /** The compiled resolver shim — the one app-facing shim left, inlined per bundle. */
 const RESOLVER_SHIM = join(PKG_ROOT, 'dist', 'shims', 'forge-resolver.js');
-/** Fallback resolution root for scratch apps that have no node_modules of their own. */
-const FORGE_SIM_NODE_MODULES = join(PKG_ROOT, 'node_modules');
+
+/**
+ * The modules Forge's webpack config ignores (IgnorePlugin entries in
+ * @forge/bundler out/config/common.js): the optional dependencies node-fetch,
+ * ws and bunyan `require` behind try/catch. They stay external here, so the
+ * require fails at call time as it does on Forge. Every OTHER bare specifier
+ * must resolve from the app's own node_modules chain or the build fails, as
+ * `forge deploy` fails: forge-sim's own node_modules are never a fallback.
+ * Asserted against the installed package by bundler-spec-contract.test.ts.
+ */
+export const FORGE_IGNORED_SPECIFIERS: readonly RegExp[] = [/^encoding$/, /^(bufferutil|utf-8-validate)$/, /^dtrace-provider$/];
 /**
  * Fingerprint of THIS module's compiled source, mixed into every cache key so
  * a change to how bundles are produced (plugins, banner, interop rewrite,
@@ -240,8 +249,9 @@ const PINNED_NS = 'forge-sim-pinned';
  * copy @forge/react itself requires: the directory of @forge/react's entry
  * file, found through the app's own resolution. From there, esbuild walks
  * the same node_modules chain Node walks for @forge/react's `require('react')`
- * — a nested `@forge/react/node_modules/react` included. Falls back to
- * forge-sim's copy when the app does not ship @forge/react.
+ * — a nested `@forge/react/node_modules/react` included. An app that does
+ * not ship @forge/react resolves from its own root instead, where the
+ * build then fails on the missing package, as `forge deploy` does.
  *
  * Resolve the entry, NOT `@forge/react/package.json`: @forge/react's
  * `exports` map does not expose `./package.json`, so that probe throws
@@ -254,7 +264,7 @@ async function reactResolveDir(appDir: string): Promise<string> {
   try {
     return dirname(createRequire(join(appDir, 'package.json')).resolve('@forge/react'));
   } catch {
-    return PKG_ROOT;
+    return appDir;
   }
 }
 
@@ -302,8 +312,20 @@ function forgeSimPlugins(platform: BundlePlatform, reactDir: string): Plugin[] {
       name: 'forge-sim-resolver-shim',
       setup(build) {
         // A plugin rather than esbuild's `alias` option so it is applied
-        // deterministically before any other resolution.
-        build.onResolve({ filter: /^@forge\/resolver$/ }, () => ({ path: RESOLVER_SHIM }));
+        // deterministically before any other resolution. Only an app that
+        // ships @forge/resolver gets the shim in its place: a missing
+        // dependency fails this build as it fails `forge deploy`.
+        build.onResolve({ filter: /^@forge\/resolver$/ }, async (args) => {
+          if (args.pluginData?.forgeSimInternal) return undefined;
+          const probe = await build.resolve(args.path, {
+            kind: args.kind,
+            resolveDir: args.resolveDir,
+            importer: args.importer,
+            pluginData: { forgeSimInternal: true },
+          });
+          if (probe.errors.length > 0) return undefined; // esbuild reports "Could not resolve"
+          return { path: RESOLVER_SHIM };
+        });
       },
     },
     {
@@ -324,21 +346,10 @@ function forgeSimPlugins(platform: BundlePlatform, reactDir: string): Plugin[] {
       setup(build) {
         // Native addons cannot be bundled (and do not run in Forge either).
         build.onResolve({ filter: /\.node$/ }, (args) => ({ path: args.path, external: true }));
-        // A bare specifier esbuild cannot resolve — an optional dependency a
-        // package `require`s behind a try/catch, say — stays external so the
-        // failure happens at call time, exactly as it would under Node, and
-        // not at build time where it would block an app that never calls it.
-        build.onResolve({ filter: /^[^./]/ }, async (args) => {
-          if (args.pluginData?.forgeSimInternal || args.kind === 'entry-point') return undefined;
-          const probe = await build.resolve(args.path, {
-            kind: args.kind,
-            resolveDir: args.resolveDir,
-            importer: args.importer,
-            pluginData: { forgeSimInternal: true },
-          });
-          if (probe.errors.length > 0) return { path: args.path, external: true };
-          return undefined;
-        });
+        // Forge's ignore set stays external (see FORGE_IGNORED_SPECIFIERS).
+        // Anything else esbuild cannot resolve is a build error, as on Forge.
+        build.onResolve({ filter: /^[^./]/ }, (args) =>
+          FORGE_IGNORED_SPECIFIERS.some((re) => re.test(args.path)) ? { path: args.path, external: true } : undefined);
       },
     },
     ...(platform === 'browser' ? [] : []),
@@ -347,7 +358,9 @@ function forgeSimPlugins(platform: BundlePlatform, reactDir: string): Plugin[] {
 
 // ── Metafile analysis ─────────────────────────────────────────────────────
 
-const FORGE_PKG_IN_PATH = /[\\/]node_modules[\\/](@forge[\\/][^\\/]+)[\\/]/;
+// Metafile paths are relative to the app dir, so a package installed at the
+// app root starts with `node_modules/` and has no separator before it.
+const FORGE_PKG_IN_PATH = /(?:^|[\\/])node_modules[\\/](@forge[\\/][^\\/]+)[\\/]/;
 
 function forgePackageOf(path: string): string | null {
   const m = FORGE_PKG_IN_PATH.exec(path);
@@ -360,7 +373,7 @@ function analyze(meta: Metafile): Pick<BundleResult, 'inlinedForgePackages' | 'd
   for (const [input, info] of Object.entries(meta.inputs)) {
     const pkg = forgePackageOf(input);
     if (pkg) inlined.add(pkg);
-    const fromApp = !/[\\/]node_modules[\\/]/.test(input);
+    const fromApp = !/(?:^|[\\/])node_modules[\\/]/.test(input);
     if (!fromApp) continue;
     for (const imp of info.imports) {
       const target = forgePackageOf(imp.path);
@@ -499,7 +512,6 @@ export async function bundleEntries(opts: BundleOptions): Promise<BundleResult> 
     // independent of the app's package.json `type`.
     outExtension: { '.js': isNode ? '.cjs' : '.mjs' },
     absWorkingDir: appDir,
-    nodePaths: [FORGE_SIM_NODE_MODULES],
     plugins: forgeSimPlugins(opts.platform, reactDir),
   });
 

@@ -31,6 +31,7 @@ import { SimulatedProductApi, mockResponse, noMockAnswer } from '../product-api.
 import type { ProductApiResponse } from '../types.js';
 import { createSimulator, type ForgeSimulator } from '../simulator.js';
 import type { AtlassianAccount } from '../auth/credentials.js';
+import { linkNodeModules } from './helpers/scratch-app.js';
 
 const realHttp = vi.fn(async (input: unknown) => {
   throw new Error(`real HTTP attempted in a hermetic test: ${String(input)}`);
@@ -429,6 +430,7 @@ describe('connected simulator: the real @forge/api gets the mock body for remote
   beforeAll(async () => {
     dir = await mkdtemp(join(tmpdir(), 'forge-sim-mock-precedence-'));
     await mkdir(join(dir, 'src'), { recursive: true });
+    linkNodeModules(dir);
     await writeFile(join(dir, 'manifest.yml'), MANIFEST);
     await writeFile(join(dir, 'src', 'index.js'), INDEX);
     await writeFile(join(dir, 'src', 'fe.tsx'), FE);
