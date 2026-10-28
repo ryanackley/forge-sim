@@ -74,7 +74,13 @@ export interface ManifestAuthProvider {
   clientId?: string;
   scopes?: string[];
   remotes?: string[];  // remote keys
-  bearerMethod?: string;
+  /**
+   * How the token reaches the service: 'authorization-header' (default),
+   * 'form-encoded' (deprecated, POST body), 'uri-query' (deprecated), or the
+   * advanced object form with a custom prefix/parameter
+   * (https://developer.atlassian.com/platform/forge/manifest-reference/providers/).
+   */
+  bearerMethod?: string | { type: string; prefix?: string; parameter?: string };
   actions: {
     authorization: { remote: string; path: string; queryParameters?: Record<string, string> };
     exchange: { remote: string; path: string; resolvers?: Record<string, string>; useBasicAuth?: boolean };

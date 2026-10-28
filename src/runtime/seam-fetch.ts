@@ -665,16 +665,51 @@ async function handleThirdParty(
     }
     const baseUrl = sim.externalAuth.getProviderBaseUrl(providerKey, descriptor.remote);
     if (baseUrl) {
-      const fullUrl = path.startsWith('/') ? `${baseUrl}${path}` : `${baseUrl}/${path}`;
-      const headers: Record<string, string> = { ...init?.headers };
-      if ((provider.bearerMethod ?? 'authorization-header') === 'uri-query') {
-        const u = new URL(fullUrl);
-        u.searchParams.set('access_token', token.accessToken);
-        return globalThis.fetch(u.toString(), { ...init, headers });
-      }
-      headers['Authorization'] = `Bearer ${token.accessToken}`;
-      return globalThis.fetch(fullUrl, { ...init, headers });
+      const { url, init: authed } = providerRequest(baseUrl, path, init, provider.bearerMethod, token.accessToken);
+      return globalThis.fetch(url, authed);
     }
   }
   return asResponse(mock);
+}
+
+/**
+ * Where a provider request goes and how the token travels, per the providers
+ * reference (https://developer.atlassian.com/platform/forge/manifest-reference/providers/)
+ * and the fetch API ("If the url parameter starts with a /, the remote
+ * baseUrl path is ignored.",
+ * https://developer.atlassian.com/platform/forge/runtime-reference/external-fetch-api/):
+ *  - `/path` replaces the base URL's path; `path` is appended to it
+ *  - authorization-header (default): `<prefix><token>` in `parameter`
+ *    (defaults `Bearer ` and `Authorization`)
+ *  - form-encoded (deprecated): `parameter` (default `access_token`) in the
+ *    form-encoded request body
+ *  - uri-query (deprecated): `parameter` (default `access_token`) as a query
+ *    parameter
+ */
+export function providerRequest(
+  baseUrl: string,
+  path: string,
+  init: ForgeFetchInit | undefined,
+  bearerMethod: string | { type: string; prefix?: string; parameter?: string } | undefined,
+  accessToken: string,
+): { url: string; init: ForgeFetchInit } {
+  const method = typeof bearerMethod === 'string' ? { type: bearerMethod } : (bearerMethod ?? { type: 'authorization-header' });
+  const url = new URL(path.startsWith('/') ? path : `${baseUrl.replace(/\/+$/, '')}/${path}`, baseUrl);
+  const headers: Record<string, string> = { ...init?.headers };
+  switch (method.type) {
+    case 'uri-query':
+      url.searchParams.set(method.parameter ?? 'access_token', accessToken);
+      return { url: url.toString(), init: { ...init, headers } };
+    case 'form-encoded': {
+      const body = new URLSearchParams(typeof init?.body === 'string' ? init.body : '');
+      body.set(method.parameter ?? 'access_token', accessToken);
+      const contentTypeKey = Object.keys(headers).find((h) => h.toLowerCase() === 'content-type');
+      if (contentTypeKey) delete headers[contentTypeKey];
+      headers['Content-Type'] = 'application/x-www-form-urlencoded';
+      return { url: url.toString(), init: { ...init, method: init?.method ?? 'POST', headers, body: body.toString() } };
+    }
+    default:
+      headers[method.parameter ?? 'Authorization'] = `${method.prefix ?? 'Bearer '}${accessToken}`;
+      return { url: url.toString(), init: { ...init, headers } };
+  }
 }

@@ -19,9 +19,19 @@ Then you'll need to add the forge-sim OAuth callback url in the provider's devel
 http://localhost:5173/__tools/oauth/callback
 ```
 
+## What the sim loads
+
+The manifest's `providers.auth` entries are loaded whenever a manifest reaches the simulator: `sim.deploy()` in a test, MCP `forge_deploy`, `forge-sim dev` and `sim.loadManifest()` alike. They are what the real `@forge/api` builds `withProvider()` from, so a provider missing from the manifest fails at construction with "Bad provider or missing config", exactly as on Forge. A redeploy that removes a provider removes it; stored tokens for providers still declared survive the redeploy.
+
+## Request URL and bearer method
+
+A `withProvider(provider, remote).fetch(path)` call goes to the remote's `baseUrl` with the fetch API's rule: a path starting with `/` replaces the base URL's path, any other path is appended to it. The provider's `bearerMethod` decides how the token travels, per the providers reference: `authorization-header` (the default) puts `Bearer <token>` in `Authorization`, the advanced object form sets its own `prefix` and `parameter`, `form-encoded` (deprecated) puts `access_token` in a form-encoded request body, and `uri-query` (deprecated) adds it as a query parameter.
+
+`hasCredentials()` answers true only for a token that is usable: unexpired, or expired with a refresh token, a client secret and a refresh endpoint to use it, which is what the automatic refresh needs. An expired token with no way to refresh reads as no credentials, so `fetch()` fails client-side with "no credentials previously requested" rather than reaching the provider.
+
 ## Authorization Flow
 
-**From app code:** nothing. `withProvider().requestCredentials()` behaves exactly as in Forge: it rejects with `NeedsAuthenticationError`, because in production the frontend drives the consent prompt off that error. Authorizing a provider locally is a sim-side action, done one of the two ways below.
+**From app code:** nothing. `withProvider().requestCredentials()` behaves exactly as in Forge: it rejects with `NeedsAuthenticationError`, because in production the frontend drives the consent prompt off that error. The sim renders no consent button: the resolver's invocation rejects with that error, and the sim log says which provider asked and how to authorize it. Authorizing a provider locally is a sim-side action, done one of the two ways below.
 
 **Via the Tools UI:**
 

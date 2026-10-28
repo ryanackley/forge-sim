@@ -603,9 +603,6 @@ remotes:
   async function startFlow(options: CreateApiHandlerOptions) {
     ({ server, port } = await start(sim, options));
     await post(port, '/api/deploy', { appDir: providerAppDir });
-    // deploy() does not load manifest providers yet; wire them by hand.
-    const manifest = sim.getManifest()!;
-    sim.externalAuth.loadFromManifest(manifest.authProviders, manifest.remotes);
     return post(port, '/api/providers/google/start', {});
   }
 
@@ -673,8 +670,6 @@ remotes:
       ({ server, port } = await start(sim));
       const res = await post(port, '/api/deploy', { appDir: derivedAppDir, connect: true });
       expect(res.body.auth.providers).toEqual(['google']);
-      const manifest = sim.getManifest()!;
-      sim.externalAuth.loadFromManifest(manifest.authProviders, manifest.remotes);
       vi.stubGlobal('fetch', oauth);
     }
 

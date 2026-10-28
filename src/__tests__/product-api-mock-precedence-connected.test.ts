@@ -439,10 +439,7 @@ describe('connected simulator: the real @forge/api gets the mock body for remote
     const result = await sim.deploy(dir, { throwOnError: false, fireScheduledTriggers: false });
     expect(result.errors).toEqual([]);
 
-    // deploy() does not load manifest `providers` yet, so wire them the way
-    // loadManifest() does.
-    const manifest = sim.getManifest()!;
-    sim.externalAuth.loadFromManifest(manifest.authProviders, manifest.remotes);
+    // deploy() loaded the manifest's providers; only the token is seeded.
     // A stored provider token — what makes the real withProvider() send the
     // request at all, and what must never reach the real provider host.
     sim.externalAuth.setToken('google', {

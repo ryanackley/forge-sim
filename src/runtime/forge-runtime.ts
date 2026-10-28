@@ -117,7 +117,11 @@ function appIdFrom(sim: ForgeSimulator): string {
 function projectExternalAuth(sim: ForgeSimulator): ExternalAuthMetaData[] {
   const store = sim.externalAuth;
   return store.listProviders().map((provider) => {
-    let accounts = store.listAccounts(provider.key).map((account) => ({
+    // No usable token, no account: the real hasCredentials() then answers
+    // false and fetch() is the "no credentials previously requested"
+    // thrower, instead of a request the seam would refuse.
+    const usable = store.hasCredentials(provider.key);
+    let accounts = (usable ? store.listAccounts(provider.key) : []).map((account) => ({
       id: account.id,
       externalAccountId: account.id,
       displayName: account.displayName,
@@ -131,7 +135,7 @@ function projectExternalAuth(sim: ForgeSimulator): ExternalAuthMetaData[] {
     // sim's store lets a token be set WITHOUT an account record (the dev-token
     // workflow does exactly that), so synthesize one; otherwise a developer
     // who seeded a token would still be told they have no credentials.
-    const token = accounts.length === 0 ? store.getToken(provider.key) : null;
+    const token = usable && accounts.length === 0 ? store.getToken(provider.key) : null;
     if (token) {
       accounts = [
         {

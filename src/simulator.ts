@@ -288,15 +288,26 @@ export class ForgeSimulator {
       this.log('info', `Found endpoint: "${key}" → remote "${ep.remote}"`);
     }
 
-    // Wire up external auth providers from manifest
-    if (this.manifest.authProviders.size > 0) {
-      this.externalAuth.loadFromManifest(this.manifest.authProviders, this.manifest.remotes);
-      for (const [key, provider] of this.manifest.authProviders) {
-        this.log('info', `Found auth provider: "${key}" (${provider.name})`);
-      }
-    }
+    this.wireAuthProviders(this.manifest);
 
     return this.manifest;
+  }
+
+  /**
+   * The manifest's `providers.auth` become the runtime's external-auth
+   * metadata, which is what the real `withProvider()` is built from on every
+   * call (api/out/api/fetch.js:53-60: no entry, "Bad provider or missing
+   * config"). Every way a manifest reaches the sim goes through here, so
+   * `deploy()`, a redeploy, MCP and `forge-sim dev` all see the providers,
+   * and a redeploy that drops a provider drops it here too. Stored tokens
+   * are kept: a developer who authorized once stays authorized across
+   * redeploys, as on Forge.
+   */
+  private wireAuthProviders(manifest: ParsedManifest): void {
+    this.externalAuth.loadFromManifest(manifest.authProviders, manifest.remotes);
+    for (const [key, provider] of manifest.authProviders) {
+      this.log('info', `Found auth provider: "${key}" (${provider.name})`);
+    }
   }
 
   getManifest(): ParsedManifest | null {
@@ -360,6 +371,8 @@ export class ForgeSimulator {
         this.log('info', `Found endpoint: "${key}" → remote "${ep.remote}"`);
       }
     }
+
+    this.wireAuthProviders(manifest);
   }
 
   /**
@@ -669,6 +682,16 @@ export class ForgeSimulator {
         this.consoleLogs.push(...(err as any).capturedConsole);
       }
       this.checkInvocationTime(functionKey, startMs, fnType, fnMeta?.timeoutSeconds);
+      if ((err as { name?: string })?.name === 'NEEDS_AUTHENTICATION_ERR') {
+        // withProvider().requestCredentials() rejected, as it does on Forge,
+        // where the platform catches this and replaces the app with a
+        // consent button. The sim has no consent UI: say what to do instead.
+        const serviceKey = (err as { serviceKey?: string }).serviceKey ?? 'the provider';
+        this.log('warn',
+          `Resolver "${functionKey}" requested credentials for "${serviceKey}". On Forge the user would ` +
+          `see a consent button; here, authorize the provider out of band (forge-sim auth --provider ` +
+          `${serviceKey}, the Tools UI Providers tab, or sim.externalAuth.setToken() in a test) and invoke again.`);
+      }
       this.log('error', `Resolver "${functionKey}" failed: ${err}`);
       throw err;
     } finally {

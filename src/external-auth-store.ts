@@ -157,12 +157,20 @@ export class ExternalAuthStore {
   /**
    * Check if a provider has valid credentials.
    */
+  /**
+   * Whether the stored token can be used: not expired, or expired but
+   * refreshable (a refresh token, the provider's client secret and a refresh
+   * remote are all present, which is exactly what `ensureValidToken()` needs
+   * to succeed). This is the one answer the runtime metadata, the real
+   * package's hasCredentials() and the seam all agree on, so an expired
+   * token that cannot be refreshed is "no credentials" everywhere rather
+   * than "has credentials" that then fails.
+   */
   hasCredentials(providerKey: string, scopes?: string[]): boolean {
     const token = this.tokens.get(providerKey);
     if (!token) return false;
 
-    // Check expiry
-    if (token.expiresAt && Date.now() >= token.expiresAt) return false;
+    if (token.expiresAt && Date.now() >= token.expiresAt && !this.canRefresh(providerKey)) return false;
 
     // Check scopes if requested
     if (scopes && scopes.length > 0 && token.scopes) {
@@ -170,6 +178,15 @@ export class ExternalAuthStore {
     }
 
     return true;
+  }
+
+  /** Everything `refreshToken()` needs in order to succeed. */
+  canRefresh(providerKey: string): boolean {
+    const provider = this.providers.get(providerKey);
+    const token = this.tokens.get(providerKey);
+    if (!provider || !token?.refreshToken || !this.secrets.has(providerKey)) return false;
+    const refreshAction = provider.actions.refreshToken ?? provider.actions.exchange;
+    return this.remotes.has(refreshAction.remote);
   }
 
   /**

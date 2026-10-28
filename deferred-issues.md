@@ -175,3 +175,28 @@ torn down with the render on every Node version. Decided against hiding
 `window`/`document` from backend code: the headless host is one process by
 design, and a backend importing a frontend package now gets a deploy
 warning instead (`FRONTEND_ONLY_PACKAGES` in `src/bundler.ts`).
+
+## No consent prompt for `requestCredentials()` on either host
+
+On Forge, a resolver that calls `withProvider().requestCredentials()` throws
+`NeedsAuthenticationError` and the platform replaces the app with a consent
+button that starts the OAuth flow. In the sim the invocation rejects with
+that error (which the app's `invoke()` then sees as a failed promise), and
+the sim log names the provider and the out-of-band ways to authorize it. A
+closer imitation would have the headless host record a pending consent
+request per module (inspectable from tests and MCP) and the browser host
+render the button, wired to the existing `/__tools/api/providers/<key>/start`
+flow. Decide whether the frontend's `invoke()` should stay rejected (what
+the app sees today) or be held open until the consent completes, as the
+platform does.
+
+## Function-level `providers` references are not parsed or enforced
+
+The manifest reference lets a `function` entry declare `providers: { auth:
+[key] }`, and the docs' minimal example carries one; `withProvider()` in a
+function without the reference fails on Forge. The sim does not parse the
+field (`src/manifest.ts` keeps only `key`, `handler`, `timeoutSeconds`,
+`type`), so every function gets every provider. A fix must parse the
+reference and decide the failure shape (the real package's "Bad provider or
+missing config" at construction is the likely one, achieved by projecting
+only the invoking function's providers into the runtime metadata).
