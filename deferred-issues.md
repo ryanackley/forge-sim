@@ -157,3 +157,21 @@ know the registered package directories, which means passing them to the
 hook worker (a MessageChannel on `register()`) and refusing a resolution
 outside them. Decide whether that is worth the machinery for an off-standard
 layout, or whether the deploy warning should become an error instead.
+
+## The headless frame lacks `FileReader` and has Node-version-dependent Web Storage
+
+The real `@forge/bridge` parses a `FormData` request body and a `Blob` event
+payload with `new FileReader()` (`@forge/bridge/out/utils/blobParser.js`),
+which Node does not provide, so `requestJira` with a `FormData` body (the
+attachment-upload path) and `events.emit` with a blob payload throw
+`ReferenceError: FileReader is not defined` in a headless render and over
+MCP `forge_ui_render`, while the browser dev page handles both. Separately,
+Node 25 ships process-wide `sessionStorage`/`localStorage`, so a headless
+frame on Node 25 sees storage shared by every render and simulator, and a
+frame on Node 22 (the version the manifest names) sees none. A fix would
+give the headless frame a `FileReader` matching the browser's for the
+shapes the bridge uses, and a per-render `sessionStorage`/`localStorage`
+torn down with the render on every Node version. Decided against hiding
+`window`/`document` from backend code: the headless host is one process by
+design, and a backend importing a frontend package now gets a deploy
+warning instead (`FRONTEND_ONLY_PACKAGES` in `src/bundler.ts`).

@@ -82,6 +82,8 @@ export interface BundleResult {
   inlinedForgePackages: string[];
   /** `@forge/<name>` packages imported DIRECTLY by app code (not transitively). */
   directForgeImports: string[];
+  /** The same, per importing app file (path relative to the app dir). */
+  directForgeImportsByFile: Record<string, string[]>;
 }
 
 // ── Locations ─────────────────────────────────────────────────────────────
@@ -367,9 +369,12 @@ function forgePackageOf(path: string): string | null {
   return m ? m[1].replace('\\', '/') : null;
 }
 
-function analyze(meta: Metafile): Pick<BundleResult, 'inlinedForgePackages' | 'directForgeImports'> {
+type BundleAnalysis = Pick<BundleResult, 'inlinedForgePackages' | 'directForgeImports' | 'directForgeImportsByFile'>;
+
+function analyze(meta: Metafile): BundleAnalysis {
   const inlined = new Set<string>();
   const direct = new Set<string>();
+  const byFile: Record<string, Set<string>> = {};
   for (const [input, info] of Object.entries(meta.inputs)) {
     const pkg = forgePackageOf(input);
     if (pkg) inlined.add(pkg);
@@ -377,11 +382,33 @@ function analyze(meta: Metafile): Pick<BundleResult, 'inlinedForgePackages' | 'd
     if (!fromApp) continue;
     for (const imp of info.imports) {
       const target = forgePackageOf(imp.path);
-      if (target) direct.add(target);
+      if (!target) continue;
+      direct.add(target);
+      (byFile[input] ??= new Set()).add(target);
     }
   }
-  return { inlinedForgePackages: [...inlined].sort(), directForgeImports: [...direct].sort() };
+  return {
+    inlinedForgePackages: [...inlined].sort(),
+    directForgeImports: [...direct].sort(),
+    directForgeImportsByFile: Object.fromEntries(Object.entries(byFile).map(([f, s]) => [f, [...s].sort()])),
+  };
 }
+
+/**
+ * Packages that only work inside a frontend frame: each talks to the host
+ * through `globalThis.__bridge`, and a Forge backend function has none, so
+ * the first call throws "Unable to establish a connection with the Custom UI
+ * bridge" (@forge/bridge/out/bridge.js:8-16). Headless forge-sim is ALSO the
+ * frontend host of the same process and answers the call, so a backend
+ * import of one of these works here and fails there; the deployer warns.
+ */
+export const FRONTEND_ONLY_PACKAGES: readonly string[] = [
+  '@forge/bridge',
+  '@forge/react',
+  '@forge/jira-bridge',
+  '@forge/confluence-bridge',
+  '@forge/dashboards-bridge',
+];
 
 /**
  * Direct `@forge/*` imports the sim does not answer. Transitive deps of the
@@ -396,13 +423,11 @@ export function unsimulatedForgeImports(result: Pick<BundleResult, 'directForgeI
 
 // ── Cache ─────────────────────────────────────────────────────────────────
 
-interface CacheMeta {
-  version: 3;
+interface CacheMeta extends BundleAnalysis {
+  version: 4;
   inputs: Array<{ path: string; mtimeMs: number; size: number }>;
   /** Entry (absolute) → its output file, relative to the output directory. */
   entries: Array<[string, string]>;
-  inlinedForgePackages: string[];
-  directForgeImports: string[];
 }
 
 function cacheRoot(appDir: string): string {
@@ -421,7 +446,7 @@ function cacheKey(opts: BundleOptions): string {
 async function readCache(dir: string): Promise<CacheMeta | null> {
   try {
     const meta = JSON.parse(await readFile(join(dir, 'meta.json'), 'utf8')) as CacheMeta;
-    if (meta.version !== 3) return null;
+    if (meta.version !== 4) return null;
     for (const input of meta.inputs) {
       const s = await stat(input.path);
       if (s.mtimeMs !== input.mtimeMs || s.size !== input.size) return null;
@@ -486,10 +511,11 @@ export async function bundleEntries(opts: BundleOptions): Promise<BundleResult> 
   const key = cacheKey({ ...opts, appDir, entryPoints: entries });
   const cacheDir = join(cacheRoot(appDir), key);
   const isNode = opts.platform === 'node';
-  const toResult = (entryOuts: Array<[string, string]>, cached: boolean, analysis: Pick<BundleResult, 'inlinedForgePackages' | 'directForgeImports'>): BundleResult => {
+  const toResult = (entryOuts: Array<[string, string]>, cached: boolean, analysis: BundleAnalysis): BundleResult => {
     const entryFiles = new Map(entryOuts.map(([entry, rel]) => [entry, join(opts.outDir, rel)] as [string, string]));
     const first = entryFiles.get(entries[0]) ?? [...entryFiles.values()][0];
-    return { entryFiles, url: pathToFileURL(first).href, cached, ...analysis };
+    const { inlinedForgePackages, directForgeImports, directForgeImportsByFile } = analysis;
+    return { entryFiles, url: pathToFileURL(first).href, cached, inlinedForgePackages, directForgeImports, directForgeImportsByFile };
   };
 
   if (!opts.noCache) {
@@ -548,7 +574,7 @@ export async function bundleEntries(opts: BundleOptions): Promise<BundleResult> 
         // virtual or namespaced input — not a file to watch
       }
     }
-    await writeCache(cacheDir, opts.outDir, { version: 3, inputs, entries: entryOuts, ...analysis });
+    await writeCache(cacheDir, opts.outDir, { version: 4, inputs, entries: entryOuts, ...analysis });
   }
 
   return toResult(entryOuts, false, analysis);

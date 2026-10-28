@@ -14,7 +14,7 @@ import { realpathSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { createRequire } from 'node:module';
 import { interceptCjsForgeRequires } from './loader/cjs-interception.js';
-import { bundleEntries, importEntry, unsimulatedForgeImports, type BundleResult } from './bundler.js';
+import { bundleEntries, importEntry, unsimulatedForgeImports, type BundleResult, FRONTEND_ONLY_PACKAGES } from './bundler.js';
 import { parseManifest, type ParsedManifest, type ManifestFunction, type ManifestResource, type ManifestUIModule } from './manifest.js';
 import { validateManifestFile, printManifestWarnings } from './manifest-validation.js';
 import { checkAppForgeVersions, readAppForgeDeps } from './forge-package-versions.js';
@@ -1017,6 +1017,22 @@ export async function deploy(sim: ForgeSimulator, appDir: string, options: Deplo
       };
       manifest.warnings.push(w);
       printManifestWarnings([w]);
+    }
+    // A frontend package in a backend function works here because the
+    // headless host lives in the same process; on Forge the first call
+    // throws (see FRONTEND_ONLY_PACKAGES).
+    for (const [file, pkgs] of Object.entries(bundle.directForgeImportsByFile)) {
+      for (const pkg of pkgs.filter((p) => FRONTEND_ONLY_PACKAGES.includes(p))) {
+        const w = {
+          level: 'warning' as const,
+          message: `${file} imports ${pkg}, a frontend package, from a backend function. On Forge a function ` +
+            `has no bridge host, so the first call throws "Unable to establish a connection with the Custom UI ` +
+            `bridge". Headless forge-sim answers it because the test process is also the frontend host, so this ` +
+            `works here and fails there: call the bridge from the UI, and @forge/api from the backend.`,
+        };
+        manifest.warnings.push(w);
+        printManifestWarnings([w]);
+      }
     }
   }
 

@@ -206,10 +206,25 @@ describe('deploy bundles the backend like forge deploy', () => {
     expect(advisories.map((w) => w.message)).toEqual([expect.stringContaining('"@forge/manifest"')]);
   });
 
+  it('warns at deploy when a backend function imports a frontend package (@forge/bridge works here, throws on Forge)', async () => {
+    await writeApp({ extraImport: `import { invoke } from '@forge/bridge'; void invoke;\n` });
+    const result = await sim.deploy(dir, { fireScheduledTriggers: false });
+    const advisories = result.warnings.filter((w) => /a frontend package, from a backend function/.test(w.message));
+    expect(advisories.map((w) => w.message)).toEqual([
+      expect.stringMatching(/^src\/index\.ts imports @forge\/bridge, a frontend package/),
+    ]);
+    expect(advisories[0].message).toContain('Unable to establish a connection with the Custom UI bridge');
+    // The file-level attribution survives a cache hit.
+    const again = await sim.deploy(dir, { fireScheduledTriggers: false });
+    expect(again.bundle?.cached).toBe(true);
+    expect(again.warnings.filter((w) => /a frontend package, from a backend function/.test(w.message))).toHaveLength(1);
+  });
+
   it('a normal app gets no "not simulated" advisory', async () => {
     await writeApp();
     const result = await sim.deploy(dir, { fireScheduledTriggers: false });
     expect(result.warnings.filter((w) => /is not simulated by forge-sim/.test(w.message))).toEqual([]);
+    expect(result.warnings.filter((w) => /a frontend package, from a backend function/.test(w.message))).toEqual([]);
   });
 
   it('sim.i18n.setTranslations() invalidates the @forge/api cache INSIDE the bundle', async () => {

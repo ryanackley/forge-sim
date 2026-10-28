@@ -418,6 +418,8 @@ UIKit components and hooks. The reconciler produces ForgeDoc.
 
 ## @forge/bridge
 
+Frontend only, as on Forge. A backend function that imports `@forge/bridge` (or `@forge/react`, a product bridge) gets a deploy warning naming the file: headless forge-sim is also the frontend host of the same process and would answer the call, whereas on Forge the first call throws "Unable to establish a connection with the Custom UI bridge".
+
 Frontend API for Custom UI and UI Kit apps (runs in the iframe). **The real package runs**, headless and in `forge-sim dev` alike: it talks to `globalThis.__bridge`, installed when forge-sim loads and answered by the headless `BridgeHost` (`src/bridge/hosts/headless.ts`) or the browser one. Status below is therefore the HOST's answer to each command; the package's own client-side validation (flag `id`, `getUrl` target, `requestJira` plain string, …) applies unchanged. Pinned by `bridge-protocol.test.ts` (every command routed), `bridge-headless-host.test.ts` and `bridge-features.test.ts` (both hosts, real frames).
 
 ### Core
