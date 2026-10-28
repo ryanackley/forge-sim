@@ -36,6 +36,8 @@ forge-sim dev [appDir]
 
 **File-based mocks:** `<app>/.forge-sim/mocks.json` is applied before the initial deploy and hot-reloaded on save — see [Local development](../local-development/README.md#file-based-mocks-forge-simmocksjson).
 
+**Backend deploy:** `forge-sim dev` deploys the backend through the same pass as `sim.deploy()`, the MCP server and the daemon: the upstream manifest validator, the function-reference check, one build per handler file, the function registry and the `@forge/*` version advisory all apply. Two options make it a tunnel session rather than a fresh install: state is never reset, and a save-triggered redeploy does not re-fire scheduled triggers (they fire once at boot). A build that fails on save deploys nothing, so the previous handlers keep answering until the next save that builds; the error is printed and sent to connected pages. Manifest errors are printed, not fatal: the server keeps running so you can fix and save.
+
 ### Connecting to a real site
 
 `forge-sim dev` loads your stored credentials (`forge-sim auth`, or `FORGE_SIM_SITE`/`FORGE_SIM_EMAIL`/`FORGE_SIM_PAT`) at startup and says so on the console (`🔐 Real Atlassian APIs ACTIVE: …`); unmocked product API calls then reach that site for real. Pass `--offline` to start without loading them. `forge-sim deploy` and `forge-sim-mcp` are the opposite: offline unless you pass `--connect`.

@@ -160,10 +160,6 @@ function describeBuildFailure(err: unknown, absDir: string): BuildFailure {
   return { byFile, summary: lines.join('\n') };
 }
 
-/** One handler file, bundled and imported on its own (dev-server hot reload). Returns its module namespace. */
-export async function importBundledHandler(entryPath: string, appDir: string): Promise<any> {
-  return importEntry(await bundleHandlers([entryPath], appDir), entryPath);
-}
 // Bridge is now managed by sim.ui — no direct bridge imports needed here
 
 /** Summary entry for a trigger, matching the MCP `forge_deploy` response shape. */

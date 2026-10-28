@@ -23,8 +23,8 @@ import { applyLocalOriginPolicy, allowLocalUpgrade } from './local-origin.js';
 import { existsSync, mkdirSync, writeFileSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createSimulator, ForgeSimulator, type LoadAuthResult } from './simulator.js';
-import { deploy, importBundledHandler, sweepStaleBundles, deployBundleDir, wrapV1ConsumerHandler, parseHandlerString, resolveHandlerFile, clearAppRequireCache, extractEntryScripts, detectResolverDispatch } from './deployer.js';
-import { interceptCjsForgeRequires } from './loader/cjs-interception.js';
+import { deploy, extractEntryScripts, type DeployResult } from './deployer.js';
+import { printManifestWarnings } from './manifest-validation.js';
 import { createDevServer } from './dev-server.js';
 import { parseManifest, type ParsedManifest, type ManifestUIModule, BACKGROUND_SCRIPT_TYPES, getCompatibleBackgroundScripts } from './manifest.js';
 import { saveState, loadState, hasPersistedState, getSQLDumpPath, claimStateLock, ownsStateLock, releaseStateLock } from './persistence.js';
@@ -87,8 +87,8 @@ export async function loadDevAuth(
   }
 
   // loadAuthFromEnv resolves .forge-sim lookups against the deployed app
-  // dir. deployResolversOnly sets it, but a deploy that failed early may not
-  // have got that far — the credential lookup must not depend on it.
+  // dir. devDeploy sets it, but a deploy that failed early may not have
+  // got that far — the credential lookup must not depend on it.
   if (!sim.getAppDir()) sim.setAppDir(opts.appDir);
 
   let auth: LoadAuthResult;
@@ -1475,11 +1475,9 @@ export async function devCommand(options: DevCommandOptions) {
   console.log(`     Functions: ${manifest.functions.size}`);
   console.log(`     UI modules: ${manifest.uiModules.length}`);
 
-  // Surface manifest validation warnings
-  for (const w of manifest.warnings) {
-    const prefix = w.level === 'error' ? '  ❌' : '  ⚠️';
-    console.warn(`${prefix}  ${w.message}`);
-  }
+  // Surface manifest parse warnings now (module detection below may exit
+  // early). Deduped per process, so deploy() does not print them again.
+  printManifestWarnings(manifest.warnings);
   console.log('');
 
   // 3. Find UI module to render
@@ -1548,13 +1546,11 @@ export async function devCommand(options: DevCommandOptions) {
   // For browser mode, we skip loading UI resources (they'll run in the browser)
   //
   // Live count of successfully loaded manifest functions for the Tools UI
-  // header. Dev mode registers handlers through `sim.resolver` (only the
-  // daemon's full deployer populates `sim.functions`), so counting
-  // `sim.functions` here always showed "0 registered" (eval 3.7).
+  // header, taken from each deploy pass's result.
   let registeredFunctionCount = 0;
 
   // 4a.4. Load the app's translations BEFORE deploy, so deploy-time work
-  // (scheduled triggers) can translate. deployResolversOnly's setAppDir
+  // (scheduled triggers) can translate. deploy()'s setAppDir
   // also loads them — idempotent — but that runs mid-deploy and this call
   // owns the startup banner. Without either, sim.i18n had no locales dir,
   // the __LOCALES__ route answered "No locale files loaded", and every
@@ -1580,8 +1576,12 @@ export async function devCommand(options: DevCommandOptions) {
   }
 
   try {
-    const deployResult = await deployResolversOnly(sim, appDir, manifest);
+    const deployResult = await devDeploy(sim, appDir);
     registeredFunctionCount = deployResult.loadedFunctions.length;
+    // deploy() ran the upstream validator over the manifest; carry its
+    // findings onto the manifest the module pages render warnings from.
+    const seen = new Set(manifest.warnings.map((w) => w.message));
+    manifest.warnings.push(...deployResult.manifest.warnings.filter((w) => !seen.has(w.message)));
     if (deployResult.loadedFunctions.length > 0) {
       console.log(`     Loaded ${deployResult.loadedFunctions.length} function(s): ${deployResult.loadedFunctions.join(', ')}`);
     }
@@ -1638,9 +1638,8 @@ export async function devCommand(options: DevCommandOptions) {
   let regeneratePrebuiltEntries: ((freshManifest: ParsedManifest) => void) | null = null;
   const redeployOnChange = (changedFile: string) => {
     const pass = redeployChain.then(async () => {
-      const freshManifest = await parseManifest(manifestPath);
-      const result = await deployResolversOnly(sim, appDir, freshManifest, { reload: true });
-      regeneratePrebuiltEntries?.(freshManifest);
+      const result = await devDeploy(sim, appDir, { reload: true });
+      regeneratePrebuiltEntries?.(result.manifest);
       registeredFunctionCount = result.loadedFunctions.length;
       if (result.errors.length > 0) {
         for (const err of result.errors) {
@@ -2285,297 +2284,36 @@ export async function devCommand(options: DevCommandOptions) {
   }
 }
 
-// ── Resolver-Only Deploy ──────────────────────────────────────────────────
+// ── Dev deploy ────────────────────────────────────────────────────────────
 
 /**
- * Deploy only the resolver/function modules — skip loading UI resources.
- * UI resources will run in the browser via Vite, not in Node.
- */
-/**
- * Register a real @forge/resolver dispatch function on the simulator.
+ * How `forge-sim dev` deploys the backend: `deployer.deploy()`, the same
+ * pass every other surface runs (manifest validator, function-reference
+ * check, one build per handler file with nothing deployed when it fails,
+ * the function registry and the version advisory), with the options that
+ * make it a tunnel session rather than a fresh install:
  *
- * Thin wrapper over the resolver's first-class dispatch-fallback support,
- * which the deployer uses too (#40, adversarial D). It replaced an older
- * implementation here that monkey-patched `sim.resolver.invoke` with a
- * closure per registration — three bugs the shared path doesn't have: the
- * wrappers CHAINED on every hot-redeploy (dev redeploys on every save),
- * they matched on the error message text, and they passed `{}` as the
- * backendRuntimePayload, which made real @forge/resolver overwrite
- * `context.accountId` with undefined.
- */
-function registerDispatchFunction(sim: ForgeSimulator, fnKey: string, dispatchFn: Function): void {
-  sim.resolver.registerDispatch(fnKey, dispatchFn as any);
-  sim.resolver.define(fnKey, sim.resolver.makeDispatchAdapter(fnKey));
-}
-
-/**
- * Dev-server deploy pass: load every manifest function into the simulator.
+ *  - never `reset`: KVS, SQL and queues survive every pass
+ *  - never `throwOnError`: the console reports, the server keeps running
+ *  - no `typeCheck`: dev runs its own `tsc --watch`
+ *  - `{ reload: true }` for a save-triggered redeploy skips the deploy-time
+ *    scheduled-trigger fire. `forge tunnel` rebuilds don't re-run your
+ *    migrations on every save; they fire on schedule or on a real deploy.
  *
- * Exported for tests — the CLI entry point is `runDevCommand`. This is the
- * dev-mode sibling of `deployer.deploy()` and must keep parity with its
- * bundling behavior (F3: transitive-import freshness, F8: one evaluation
- * per source file regardless of how many function entries share it).
- *
- * Pass `{ reload: true }` for save-triggered hot redeploys (forge tunnel
- * parity — a local rebuild, not a fresh install):
- *  - resolver definitions are cleared first, so re-registration is clean
- *    instead of a wall of "overwriting an existing definition" warnings
- *  - scheduled triggers are NOT re-fired (tunnel rebuilds don't re-run
- *    your migrations on every save; they fire on schedule / real deploy)
- * Simulator state (KVS, SQL, queues) is untouched either way.
+ * Resolver definitions are replaced through the deploy epoch
+ * (`sim.resolver.beginDeployEpoch()` inside deploy()), so a redeploy swaps
+ * handlers silently. UI resources are not loaded here: they run in the
+ * browser under Vite.
  */
-export async function deployResolversOnly(
+export async function devDeploy(
   sim: ForgeSimulator,
   appDir: string,
-  manifest: ParsedManifest,
   opts: { reload?: boolean } = {}
-): Promise<{ loadedFunctions: string[]; errors: Array<{ functionKey: string; error: string }> }> {
-  const { reload = false } = opts;
-  const loadedFunctions: string[] = [];
-  const errors: Array<{ functionKey: string; error: string }> = [];
-
-  if (reload) {
-    // Drop all previous definitions so this pass registers fresh handlers
-    // silently. The bundle import below re-runs every resolver.define().
-    sim.resolver.clear();
-  }
-
-  // Re-inject environment variables before (re)loading handler modules —
-  // a dev-mode resolver reload IS a redeploy, so edits to
-  // .forge-sim/variables.json take effect here (Forge redeploy parity).
-  await sim.variables.inject(appDir);
-
-  // Register Custom Entity Store schemas from app.storage.entities —
-  // mirrors deployer.deploy() step 1c. Eval-9 E9-3: this loop was missing
-  // from the dev-mode deploy path, so the KVS engine ran in permissive
-  // (schema-less) mode in the browser: entity queries silently dropped
-  // partition/range filtering (every partition returned every row), and
-  // ALL schema-gated enforcement — type validation, INDEX_NOT_FOUND,
-  // partition arity, ENTITY_NOT_FOUND — was inert in dev mode while
-  // working correctly in tests and via MCP. Runs on every hot-redeploy;
-  // re-registering the same schema is an idempotent overwrite.
-  for (const [entityName, entityDef] of manifest.entities) {
-    sim.kvs.registerEntitySchema(entityName, {
-      attributes: entityDef.attributes,
-      indexes: entityDef.indexes ?? [],
-    });
-  }
-
-  // Find which functions are UI resource entry points — we'll skip those
-  const resourceFunctionKeys = new Set<string>();
-  for (const mod of manifest.uiModules) {
-    // UI modules don't directly reference a function key — they reference a resource.
-    // The resolver function IS what we want to load.
-    // So we load ALL functions (resolvers, triggers, consumers) but skip resource imports.
-  }
-
-  // Sweep old deploy bundles so `.forge-sim/bundles/` doesn't grow without
-  // bound across dev-server restarts (mirrors deployer.deploy()).
-  await sweepStaleBundles(deployBundleDir(appDir));
-
-  // Per-deploy bundle/import cache keyed by absolute source path. Many
-  // manifests route multiple function entries through the same source file
-  // (e.g. OKR's `index.handler`, `index.runMigration`, ... all live in
-  // `src/index.ts`). Without this cache, each function re-imported the same
-  // file under a unique URL, re-evaluating its top-level code N times and
-  // tripping the "resolver.define overwriting" warning on every redundant
-  // pass. Mirrors the F8 fix in deployer.deploy().
-  const moduleCache = new Map<string, any>();
-
-  // Manual packaging: resolve only inside app.package.path and import the
-  // prebuilt files as-is — mirrors the deployer (see the manualPackaging
-  // block in deploy() for the full rationale).
-  const manualPackaging = manifest.raw.app?.package?.bundler === 'manual@2026';
-  const handlerResolution = {
-    handlersDirectory: manifest.handlersDirectory,
-    manualPackaging,
-  };
-  if (manualPackaging) {
-    interceptCjsForgeRequires(appDir, join(appDir, manifest.handlersDirectory));
-  }
-  // Unconditional for the same reason as deploy(): default-packaging bundles
-  // are CJS under <app>/.forge-sim/bundles/ and must be evicted on reload or
-  // a long dev session retains every rebuild's module graph.
-  clearAppRequireCache(appDir);
-
-  for (const [fnKey, fnDef] of manifest.functions) {
-    try {
-      const { fileStem, exportName } = parseHandlerString(fnDef.handler);
-      const filePath = await resolveHandlerFile(appDir, fileStem, handlerResolution);
-
-      if (!filePath) {
-        errors.push({
-          functionKey: fnKey,
-          error: manualPackaging
-            ? `Could not find handler file for "${fnDef.handler}" under app.package.path ` +
-              `(${manifest.handlersDirectory}/). Run your build so the compiled file exists there.`
-            : `Could not find handler file for "${fnDef.handler}"`,
-        });
-        continue;
-      }
-
-      // Default packaging: bundle+import via esbuild — NOT
-      // `import(fileUrl + '?t=' + Date.now())`. The `?t=` trick only
-      // cache-busts the entry file; transitive relative imports keep plain
-      // URLs and stay cached forever, so edits to helper files never took
-      // effect on dev reloads (same F3 bug fixed in deployer.deploy()).
-      // Bundling folds the whole relative-import tree into one fresh-URL
-      // module per deploy pass.
-      //
-      // Manual packaging: no bundling (code must load as-is); CJS trees are
-      // evicted via clearAppRequireCache above, ESM transitive imports can
-      // stay cached across reloads (documented limitation — rebuilds that
-      // change helper files should also touch the entry, which most bundlers
-      // do anyway via content hashing).
-      let mod = moduleCache.get(filePath);
-      if (!mod) {
-        if (manualPackaging) {
-          const fileUrl = pathToFileURL(filePath).href +
-            `?forge-sim-deploy=${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
-          mod = await import(fileUrl);
-        } else {
-          mod = await importBundledHandler(filePath, appDir);
-        }
-        moduleCache.set(filePath, mod);
-      }
-
-      const handler = mod[exportName] ?? mod.default?.[exportName];
-      if (!handler) {
-        errors.push({
-          functionKey: fnKey,
-          error: `No export "${exportName}" in "${filePath}"`,
-        });
-        continue;
-      }
-
-      // Register as resolver — handle both shim and real @forge/resolver formats.
-      //
-      // Our shim's getDefinitions() returns { key: handler } (an object).
-      // The real @forge/resolver's getDefinitions() returns a dispatch function:
-      //   async ({ call: { functionKey, payload }, context }) => result
-      //
-      // When we get a dispatch function, we wrap individual resolver names
-      // so the simulator can invoke them by name (e.g., 'retrieveData').
-      if (typeof handler === 'object' && handler !== null) {
-        // Shim format: { retrieveData: fn, otherKey: fn, ... }
-        // The shim's define() already auto-registers on the global simulator,
-        // so we only need to register here for keys that aren't already present.
-        const existingHandlers = sim.resolver.getHandlerMap();
-        for (const [defKey, defHandler] of Object.entries(handler)) {
-          if (typeof defHandler === 'function' && !existingHandlers.has(defKey)) {
-            sim.resolver.define(defKey, defHandler as any);
-          }
-        }
-      } else if (typeof handler === 'function') {
-        // Could be the real @forge/resolver dispatch function, or a plain handler.
-        // Try to detect by probing: call with a known-bad key and see if we get
-        // the characteristic "Resolver has no definition" error.
-        const isDispatchFn = detectResolverDispatch(handler);
-        if (isDispatchFn) {
-          // Real @forge/resolver — register a wrapper for this function key.
-          // The UI calls invoke(definitionKey, payload), so we create a
-          // pass-through that adapts our format to the dispatch function's format.
-          registerDispatchFunction(sim, fnKey, handler);
-        } else {
-          // Plain function handler (trigger, consumer, etc.)
-          sim.resolver.define(fnKey, handler);
-        }
-      }
-
-      loadedFunctions.push(fnKey);
-    } catch (err: any) {
-      errors.push({
-        functionKey: fnKey,
-        error: err.message,
-      });
-    }
-  }
-
-  // Register manifest data FIRST — module routing, remotes, endpoints
-  // This must happen before anything that might fail (FIT, scheduled triggers)
-  sim.loadManifestData(manifest);
-
-  // Pair setAppDir with loadManifestData, exactly as deployer.deploy() does.
-  // Dev mode never set it, so anything resolving resources off the deployed
-  // app dir was dead for the whole session: `POST /__tools/api/ui/render`
-  // answered 500 "No app directory set. Deploy an app first." even though
-  // dev mode had just deployed the app, and /api/ui/context 404'd forever
-  // behind it (adversarial 1019 F9). Headless render does its own esbuild
-  // pass, independent of Vite, so it works here the same as under deploy().
-  sim.setAppDir(appDir);
-
-  // Initialize FIT provider if manifest has remotes (non-fatal)
-  if (manifest.remotes.size > 0) {
-    try {
-      await sim.fit.init(appDir);
-    } catch (err: any) {
-      console.error(`  ⚠️  FIT initialization failed: ${err.message}`);
-      console.error(`     Remote requests will be sent without authorization headers.`);
-    }
-  }
-
-  // Wire up consumers.
-  // v1 (deprecated `resolver: { function, method }` shape): the method's
-  // resolver definition receives queue events with the resolver calling
-  // convention — adapt via wrapV1ConsumerHandler. (Eval-4 F3.)
-  for (const consumer of manifest.consumers) {
-    const handlerMap = sim.resolver.getHandlerMap();
-    if (consumer.resolverMethod !== undefined) {
-      // The definitions-map export registered each method under its own name.
-      const methodHandler = handlerMap.get(consumer.resolverMethod);
-      if (methodHandler) {
-        sim.registerConsumer(consumer.queue, wrapV1ConsumerHandler(methodHandler as any) as any);
-      } else {
-        errors.push({
-          functionKey: consumer.functionKey,
-          error: `Consumer "${consumer.key}" uses the v1 resolver shape with method ` +
-            `"${consumer.resolverMethod}", but no resolver definition with that name was loaded.`,
-        });
-      }
-      continue;
-    }
-    const handler = handlerMap.get(consumer.functionKey);
-    if (handler) {
-      sim.registerConsumer(consumer.queue, handler as any);
-    }
-  }
-
-  // Fire scheduled triggers once on INITIAL deploy (e.g. migrations).
-  // Hot-redeploy passes skip this — forge tunnel parity: a local rebuild
-  // doesn't re-run scheduled work on every file save.
-  //
-  // Delegates to sim.fireScheduledTrigger so the handler receives the real
-  // Forge request shape — { context: { cloudId, moduleKey }, contextToken }.
-  // Return values are ignored per Forge docs; only a THROWING handler is an
-  // error (statusCode 500 in the sim's report shape). The dev path used to
-  // hand-roll a made-up `{ scheduledTrigger: { key, interval } }`
-  // payload, so apps that switch on `event.context.moduleKey` (the documented
-  // way to tell which schedule fired) saw `undefined` locally but worked in
-  // production — an inverted parity violation.
-  for (const st of reload ? [] : manifest.scheduledTriggers) {
-    const handlerMap = sim.resolver.getHandlerMap();
-    const handler = handlerMap.get(st.functionKey);
-    if (handler && typeof handler === 'function') {
-      try {
-        console.log(` ⏰ Firing scheduled trigger: ${st.key} (${st.functionKey})`);
-        const result = await sim.fireScheduledTrigger(st.key);
-        if (result.statusCode >= 400) {
-          const detail = result.error ?? `status ${result.statusCode}`;
-          console.error(` ⚠️ Scheduled trigger "${st.key}" failed: ${detail}`);
-          errors.push({ functionKey: st.functionKey, error: `Scheduled trigger error: ${detail}` });
-        }
-      } catch (err: any) {
-        console.error(` ⚠️ Scheduled trigger "${st.key}" failed:`, err.message);
-        errors.push({ functionKey: st.functionKey, error: `Scheduled trigger error: ${err.message}` });
-      }
-    }
-  }
-
-  // Note: sim.loadManifestData(manifest) is called at the TOP of this function
-  // to ensure module routing is always registered, even if later steps fail.
-  return { loadedFunctions, errors };
+): Promise<DeployResult> {
+  return deploy(sim, appDir, {
+    throwOnError: false,
+    reset: false,
+    typeCheck: false,
+    fireScheduledTriggers: !opts.reload,
+  });
 }
-
-// Handler resolution/import helpers are shared with the deployer — see
-// parseHandlerString / resolveHandlerFile / clearAppRequireCache in
-// src/deployer.ts. (They were duplicated here for a while and drifted.)

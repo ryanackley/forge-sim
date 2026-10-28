@@ -221,3 +221,7 @@ sim runs them as MySQL root and their session state leaks into later calls.
 A fix must decide between enforcing the documented list, warning, or a
 strict mode, given that the audit patterns behind the trigger statements are
 not published.
+
+## Manifest edits during `forge-sim dev` reach the simulator but not the routers
+
+A save-triggered redeploy re-reads `manifest.yml` and loads it into the simulator (module routing, remotes, entity schemas, providers, function kinds), but the web-trigger router (`createWebTriggerHandler` in `src/web-trigger.ts`, built once at boot from the boot manifest's `webTriggers`), the Tools API handler (`createApiHandler` in `src/tools/api.ts`, given the boot manifest), the Vite module pages and the startup banner keep the manifest the server booted with. A web trigger or UI module added mid-session is invisible until a restart, while a function added to an existing module works. `forge tunnel` does not apply manifest changes at all (a redeploy is required), so neither half is parity today. A fix must decide between keeping the boot manifest everywhere and printing "manifest changed, restart to apply" (tunnel parity), or applying the fresh manifest everywhere (routers read `sim.getManifest()` instead of a captured copy, module pages regenerate). Left when the dev path was moved onto `deploy()`, which only changed how the backend is loaded.

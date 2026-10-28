@@ -2,16 +2,15 @@
  * The Tools API ui/* endpoints on the dev-mode deploy path (adversarial
  * 1019 F9).
  *
- * `forge-sim dev` deploys through deployResolversOnly, which — unlike
- * deployer.deploy() — never called sim.setAppDir(). sim.ui.render() resolves
- * resources off that directory, so `POST /__tools/api/ui/render` answered
- * 500 "No app directory set. Deploy an app first." for the whole session,
- * even though dev mode had just deployed the app, and `/api/ui/context`
- * 404'd forever behind it. Both endpoints were simply dead in dev mode.
+ * `forge-sim dev` once deployed through its own loader, which never called
+ * sim.setAppDir(). sim.ui.render() resolves resources off that directory,
+ * so `POST /__tools/api/ui/render` answered 500 "No app directory set.
+ * Deploy an app first." for the whole session, even though dev mode had
+ * just deployed the app, and `/api/ui/context` 404'd forever behind it.
  *
- * deployResolversOnly now pairs setAppDir with loadManifestData the way
- * deploy() does. Headless render runs its own esbuild pass (independent of
- * Vite), so it works on the dev path exactly as it does under deploy().
+ * The dev path is now `devDeploy`, a wrapper over deploy(), which sets the
+ * app dir. Headless render runs its own esbuild pass (independent of Vite),
+ * so it works on the dev path exactly as it does under deploy().
  *
  * The other half of F9 is wording: a browser tab's render lives in the
  * browser's React tree and never reaches these endpoints. That is correct
@@ -23,7 +22,7 @@ import { createServer } from 'node:http';
 import { join } from 'node:path';
 import { createSimulator, ForgeSimulator } from '../simulator.js';
 import { createApiHandler } from '../tools/api.js';
-import { deployResolversOnly } from '../dev-command.js';
+import { devDeploy } from '../dev-command.js';
 import { parseManifest } from '../manifest.js';
 
 const FIXTURE = join(import.meta.dirname, 'fixtures/simple-panel');
@@ -36,8 +35,8 @@ describe('Tools API ui/* endpoints on the dev deploy path', () => {
   beforeAll(async () => {
     sim = createSimulator();
     const manifest = await parseManifest(join(FIXTURE, 'manifest.yml'));
-    // Exactly how `forge-sim dev` deploys — NOT sim.deploy().
-    await deployResolversOnly(sim, FIXTURE, manifest);
+    // Exactly how `forge-sim dev` deploys.
+    await devDeploy(sim, FIXTURE);
 
     const handler = createApiHandler(sim, manifest);
     server = createServer((req, res) => {
