@@ -177,12 +177,13 @@ Forge SQL: relational data with real MySQL.
 | API | Status | Tests | Notes |
 |-----|--------|-------|-------|
 | `sql.prepare(query).bindParams(...).execute()` | ✅ | `forge-sql.test.ts`, `forge-sql-e2e.test.ts` | Parameterized queries |
+| Error envelope (`SQL_EXECUTION_ERROR` + `debug`, `QUERY_TIMED_OUT`) | ✅ | `sql-error-envelope.test.ts` | `ForgeSQLAPIError` with the native MySQL error under `context.debug`; `errorCodes` branches work as documented. `SQL_POLICY_VIOLATION` is not raised: the query policy is not enforced |
 | `sql.prepare(query).execute()` | ✅ | `forge-sql.test.ts` | |
 | `sql._executeRaw(query)` | ✅ | `forge-sql.test.ts` | |
 | `migrationRunner.enqueue(migrations)` | ✅ | `forge-sql-e2e.test.ts`, `deploy-e2e.test.ts` | Real `@forge/sql` migrationRunner works through shims |
 | DDL (CREATE TABLE, ALTER, INDEX) | ✅ | `forge-sql-e2e.test.ts` | Real MySQL 8.4 via mysql-memory-server |
 | JOINs, aggregation, subqueries | ✅ | `deploy-e2e.test.ts` | AVG, COUNT, SUM, CASE WHEN, etc. |
-| Foreign keys, constraints | ✅ | `persistence.test.ts` | |
+| Foreign keys, constraints | ⚠️ | `persistence.test.ts`, `sql-error-envelope.test.ts` | Parsed, not enforced, on every connection including the pool's first — as on TiDB, where `DELETE` does not cascade |
 | Connection pooling / limits | ❌ | — | No simulation of Forge's connection limits |
 
 ---

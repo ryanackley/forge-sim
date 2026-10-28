@@ -87,8 +87,12 @@ describe('SimulatedForgeSQL', () => {
     expect(res.ok).toBe(false);
     expect(res.status).toBe(400);
     const data = await res.json();
-    expect(data.code).toBeDefined();
-    expect(data.message).toContain('nonexistent_table_xyz');
+    // Forge's envelope: the native error rides under debug.
+    expect(data.code).toBe('SQL_EXECUTION_ERROR');
+    expect(data.message).toBe('Unknown SQL execution error');
+    expect(data.debug.code).toBe('ER_NO_SUCH_TABLE');
+    expect(data.debug.sqlMessage).toContain('nonexistent_table_xyz');
+    expect(data.suggestion).toContain('migrations');
   });
 
   it('should work through __fetchProduct shim', async () => {

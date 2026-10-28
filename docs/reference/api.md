@@ -721,6 +721,10 @@ await sim.sql.query('INSERT INTO users (name, active) VALUES (?, ?)', ['Alice', 
 const rows = await sim.sql.query('SELECT * FROM users WHERE active = ?', [true]);
 ```
 
+### Errors
+
+A failing statement answers with Forge's error envelope on every surface, never the raw MySQL error: the app's `@forge/sql` throws a `ForgeSQLAPIError` with `code: 'SQL_EXECUTION_ERROR'`, `message: 'Unknown SQL execution error'`, a `suggestion`, and the native error under `context.debug` (`{ code: 'ER_DUP_ENTRY', errno, sqlMessage, sqlState }`), so the documented `error.code === errorCodes.SQL_EXECUTION_ERROR` branch and the `debug.code` check work as on Forge ([error handling](https://developer.atlassian.com/platform/forge/storage-reference/sql-handling-errors/)). A driver timeout is `QUERY_TIMED_OUT`. `sim.sql.query()` throws a `ForgeSqlError` carrying the same `code`, `suggestion` and `debug`, with the native message in `.message`; MCP `forge_sql_execute` and the dev-tools query route print the same fields.
+
 ---
 
 ## `sim.objectStore` — Object Store

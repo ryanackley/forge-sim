@@ -353,7 +353,9 @@ export function createApiHandler(
           const rows = await sim.sql.query(query);
           return json(res, { rows, rowCount: rows.length });
         } catch (err: any) {
-          return json(res, { error: err.message }, 400);
+          // Forge's envelope (code, suggestion, debug) alongside the message.
+          const body = typeof err?.toBody === 'function' ? err.toBody() : {};
+          return json(res, { error: err.message, ...body }, 400);
         }
       }
 

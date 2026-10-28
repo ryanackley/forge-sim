@@ -11,6 +11,87 @@
 import { createDB } from 'mysql-memory-server';
 import mysql from 'mysql2/promise';
 
+/**
+ * The error body Forge SQL answers with, which the real `@forge/sql` turns
+ * into a ForgeSQLAPIError (`code`, `message`, `suggestion`; everything else
+ * on `context`): https://developer.atlassian.com/platform/forge/storage-reference/sql-handling-errors/
+ *
+ * A database failure is `SQL_EXECUTION_ERROR` with the native MySQL/TiDB
+ * error under `debug` ("More details are present in the debug field"), so
+ * an app branches on `error.code === errorCodes.SQL_EXECUTION_ERROR` and
+ * then on `debug.code` (`ER_DUP_ENTRY`, `ER_PARSE_ERROR`, …), as the
+ * documented examples do. The raw driver fields never reach the app.
+ */
+export interface ForgeSqlErrorBody {
+  code: 'SQL_EXECUTION_ERROR' | 'QUERY_TIMED_OUT' | 'UNKNOWN_ERROR';
+  message: string;
+  suggestion?: string;
+  debug?: { code: string; errno: number; sqlMessage: string; sqlState: string };
+}
+
+/** What the sim's own surfaces (`sim.sql.query`, MCP, the Tools API) throw: the same envelope, as an Error. */
+export class ForgeSqlError extends Error {
+  readonly code: ForgeSqlErrorBody['code'];
+  readonly suggestion?: string;
+  readonly debug?: ForgeSqlErrorBody['debug'];
+  constructor(body: ForgeSqlErrorBody) {
+    super(body.debug ? `${body.code}: ${body.debug.sqlMessage} (${body.debug.code})` : `${body.code}: ${body.message}`);
+    this.name = 'ForgeSqlError';
+    this.code = body.code;
+    this.suggestion = body.suggestion;
+    this.debug = body.debug;
+  }
+  /** The wire body, for surfaces that answer JSON. */
+  toBody(): ForgeSqlErrorBody {
+    return {
+      code: this.code,
+      message: this.debug ? 'Unknown SQL execution error' : this.message.replace(/^[A-Z_]+: /, ''),
+      ...(this.suggestion ? { suggestion: this.suggestion } : {}),
+      ...(this.debug ? { debug: this.debug } : {}),
+    };
+  }
+}
+
+const SUGGESTIONS: Record<string, string> = {
+  ER_PARSE_ERROR: 'Check the SQL syntax at the position named in debug.sqlMessage.',
+  ER_EMPTY_QUERY: 'The query is empty; pass a statement.',
+  ER_DUP_ENTRY: 'A row with this unique key already exists; check first, or use INSERT ... ON DUPLICATE KEY UPDATE.',
+  ER_NO_SUCH_TABLE: 'The table does not exist in this installation\'s schema; run your migrations first.',
+  ER_BAD_FIELD_ERROR: 'The column does not exist; check the table definition.',
+  ER_NO_REFERENCED_ROW_2: 'Forge SQL does not enforce foreign keys; this came from the local MySQL, which the sim configures not to enforce them either.',
+};
+
+/**
+ * Map a mysql2 failure to Forge's envelope. A driver-level timeout is
+ * `QUERY_TIMED_OUT` (Forge: "The provided query took more than 2 seconds to
+ * execute"); everything else is `SQL_EXECUTION_ERROR` with the native error
+ * under `debug`, exactly the shape the parse-error example documents.
+ */
+export function toForgeSqlError(err: unknown): ForgeSqlErrorBody {
+  const e = (err ?? {}) as { code?: string; errno?: number; message?: string; sqlMessage?: string; sqlState?: string };
+  if (e.code === 'PROTOCOL_SEQUENCE_TIMEOUT' || e.code === 'ETIMEDOUT') {
+    return {
+      code: 'QUERY_TIMED_OUT',
+      message: 'The provided query took more than 2 seconds to execute',
+      suggestion: 'Reduce the amount of data the query touches, or add an index; the query keeps running at the database.',
+    };
+  }
+  if (typeof e.code !== 'string' || typeof e.errno !== 'number') {
+    return { code: 'UNKNOWN_ERROR', message: e.message ?? String(err) };
+  }
+  return {
+    code: 'SQL_EXECUTION_ERROR',
+    message: 'Unknown SQL execution error',
+    suggestion: SUGGESTIONS[e.code] ?? 'Use the debug.sqlMessage field to identify the issue reported by the database.',
+    debug: {
+      code: e.code,
+      errno: e.errno,
+      sqlMessage: e.sqlMessage ?? e.message ?? '',
+      sqlState: e.sqlState ?? 'HY000',
+    },
+  };
+}
+
 export interface ForgeSQLOptions {
   /** MySQL version to use (default: '8.4.x') */
   mysqlVersion?: string;
@@ -90,13 +171,14 @@ export class SimulatedForgeSQL {
     // Parity (spec SQL-015): Forge SQL runs on TiDB, which parses FOREIGN KEY
     // DDL but does NOT enforce the constraints (no referential checks, no
     // cascading deletes). MySQL enforces them by default, which would make
-    // valid-in-Forge apps fail in the sim. Disable FK checks globally so new
-    // connections inherit it, and per-connection as a belt-and-braces for the
-    // pool's existing sessions.
-    await this.pool.query('SET GLOBAL FOREIGN_KEY_CHECKS = 0');
+    // valid-in-Forge apps fail in the sim. Disable FK checks on every
+    // connection as it opens — the listener goes on BEFORE the first query,
+    // or the pool's first connection (the one most tests run on) keeps the
+    // default and enforces them — and globally so later connections inherit it.
     (this.pool as unknown as NodeJS.EventEmitter).on('connection', (conn: mysql.PoolConnection) => {
       conn.query('SET FOREIGN_KEY_CHECKS = 0');
     });
+    await this.pool.query('SET GLOBAL FOREIGN_KEY_CHECKS = 0');
   }
 
   /**
@@ -122,14 +204,14 @@ export class SimulatedForgeSQL {
     const pool = await this.ensureStarted();
 
     if (!options?.body) {
-      return makeJsonResponse(400, { error: 'Missing request body' });
+      return makeJsonResponse(400, { code: 'UNKNOWN_ERROR', message: 'Missing request body' });
     }
 
     let parsed: { query: string; params?: any[]; method?: string };
     try {
       parsed = JSON.parse(options.body);
     } catch {
-      return makeJsonResponse(400, { error: 'Invalid JSON body' });
+      return makeJsonResponse(400, { code: 'UNKNOWN_ERROR', message: 'Invalid JSON body' });
     }
 
     const { query, params = [], method = 'all' } = parsed;
@@ -173,15 +255,9 @@ export class SimulatedForgeSQL {
           metadata: {},
         });
       }
-    } catch (err: any) {
-      // Return MySQL errors as structured responses (matches Forge behavior)
-      return makeJsonResponse(400, {
-        code: err.code ?? 'UNKNOWN_ERROR',
-        errno: err.errno ?? -1,
-        message: err.message,
-        sqlMessage: err.sqlMessage ?? err.message,
-        sqlState: err.sqlState ?? 'HY000',
-      });
+    } catch (err) {
+      // Forge's envelope, never the raw driver error (see ForgeSqlErrorBody).
+      return makeJsonResponse(400, toForgeSqlError(err));
     }
   }
 
@@ -197,8 +273,17 @@ export class SimulatedForgeSQL {
    */
   async query<T = any>(sql: string, params?: any[]): Promise<T[]> {
     const pool = await this.ensureStarted();
-    const [rows] = await pool.execute(sql, params);
-    return rows as T[];
+    try {
+      // The same protocol choice as handleRequest: the prepared-statement
+      // protocol only when there are parameters to bind, so a statement
+      // that protocol refuses (USE, PREPARE, START TRANSACTION) answers the
+      // same way here as it does for the app.
+      const [rows] = params && params.length > 0 ? await pool.execute(sql, params) : await pool.query(sql);
+      return rows as T[];
+    } catch (err) {
+      // The sim's own surfaces report what the app would see.
+      throw new ForgeSqlError(toForgeSqlError(err));
+    }
   }
 
   /**

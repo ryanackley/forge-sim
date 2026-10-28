@@ -200,3 +200,24 @@ field (`src/manifest.ts` keeps only `key`, `handler`, `timeoutSeconds`,
 reference and decide the failure shape (the real package's "Bad provider or
 missing config" at construction is the likely one, achieved by projecting
 only the invoking function's providers into the runtime metadata).
+
+## Forge SQL value types, query policy: still the raw MySQL passthrough
+
+Errors now use Forge's envelope and foreign keys are off on every
+connection, but two documented behaviours of Forge SQL remain unmodelled in
+`src/forge-sql.ts`. Values: Forge returns everything JSON-normalised — BIGINT
+as a string to keep precision, DATE/DATETIME as strings, JSON columns as
+strings, binary as base64-ish — while the sim hands back mysql2's native
+types (a BIGINT above 2^53 loses precision as a number, DATE becomes a
+shifted ISO timestamp, JSON comes back parsed so `JSON.parse(row.j)`
+throws). A fix must pick the mysql2 `typeCast` / `dateStrings` / `bigNumberStrings`
+options (and a UTC session time zone) that reproduce the documented shapes
+(https://developer.atlassian.com/platform/forge/storage-reference/sql-data-types/)
+on both the text and prepared-statement protocols. Policy: Forge rejects
+restricted statements with `SQL_POLICY_VIOLATION` before they run (`SET`
+other than user variables, `USE`, SQL-level `PREPARE`, most `SHOW`, multiple
+statements, non-allowlisted optimizer hints, cross-schema names), while the
+sim runs them as MySQL root and their session state leaks into later calls.
+A fix must decide between enforcing the documented list, warning, or a
+strict mode, given that the audit patterns behind the trigger statements are
+not published.

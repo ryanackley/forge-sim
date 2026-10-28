@@ -1315,8 +1315,14 @@ server.tool(
       const data = await res.json();
 
       if (!res.ok) {
+        // The same envelope the app's @forge/sql gets: code, then the native
+        // error under debug, then the suggestion.
+        const detail = data.debug ? `${data.debug.sqlMessage} (${data.debug.code}, errno ${data.debug.errno})` : data.message;
         return {
-          content: [{ type: 'text' as const, text: `❌ SQL error: ${data.message ?? data.sqlMessage ?? JSON.stringify(data)}` }],
+          content: [{
+            type: 'text' as const,
+            text: `❌ SQL error ${data.code}: ${detail}${data.suggestion ? `\nSuggestion: ${data.suggestion}` : ''}`,
+          }],
           isError: true,
         };
       }
