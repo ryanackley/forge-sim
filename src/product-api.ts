@@ -244,12 +244,28 @@ export function noMockAnswer(res: ProductApiResponse | null | undefined): NoMock
 }
 
 /**
- * Default handler that returns a helpful error for unmocked API calls.
+ * Default handler for a call nothing answers. The hint names the fix on
+ * every channel, since the caller may be a test, an MCP session or
+ * `forge-sim dev`, and for a GraphQL operation the operation-name mock.
  */
 function unmockedHandler(product: string): ProductApiHandler {
-  return (path: string) => {
+  return (path: string, options?: ProductApiRequest) => {
+    const method = (options?.method ?? 'GET').toUpperCase();
+    const route = `${method} ${path.split('?')[0]}`;
+    const operation = product === STARGATE && isGraphqlPath(path)
+      ? extractOperationName(parseGraphqlBody(options)?.query ?? '')
+      : null;
+    const byOperation = product === STARGATE && isGraphqlPath(path)
+      ? (operation
+          ? `Mock the operation by name: sim.mockGraphQL({ '${operation}': body })`
+          : `Mock the anonymous operation with the catch-all: sim.mockGraphQL({ '*': body })`) +
+        ` in tests, forge_mock_graphql over MCP, or the "graphql" key in .forge-sim/mocks.json for forge-sim dev. Or mock the route: `
+      : 'Mock the route: ';
     return markNoMockAnswer(makeResponse(501, {
-      error: `Unmocked ${product} API call: ${path}. Register a handler with sim.mockProductApi('${product}', handler)`,
+      error: `Unmocked ${product} API call: ${route}. ${byOperation}` +
+        `sim.mockProductRoutes('${product}', { '${route}': body }) in tests, forge_mock_routes over MCP, ` +
+        `or .forge-sim/mocks.json for forge-sim dev. Or connect a site: forge-sim dev connects by default, ` +
+        `the MCP server and daemon with --connect, tests with sim.loadAuthFromEnv().`,
     }), 'unmocked');
   };
 }
@@ -258,7 +274,28 @@ function unmockedHandler(product: string): ProductApiHandler {
 //
 // PAT-only auth hits the site URL directly (https://{site}/), not the
 // api.atlassian.com OAuth gateway, so we just need the product list.
-const REAL_API_PRODUCTS = ['jira', 'confluence', 'bitbucket'] as const;
+// `stargate` is where the real @forge/api sends requestGraph,
+// requestTeamworkGraph, requestConnectedData, requestAtlassian and the
+// privacy API (api/out/api/fetch.js:192-195); connected, it reaches the
+// site's gateway at /gateway/api.
+const REAL_API_PRODUCTS = ['jira', 'confluence', 'bitbucket', 'stargate'] as const;
+const STARGATE = 'stargate';
+
+/** The two GraphQL endpoints on the gateway (api/out/api/fetch.js:152-171). */
+function isGraphqlPath(path: string): boolean {
+  const clean = path.split('?')[0];
+  return clean === '/graphql' || clean === '/graphql/twg';
+}
+
+function parseGraphqlBody(options?: ProductApiRequest): { query?: string; variables?: Record<string, any>; operationName?: string } | null {
+  if ((options?.method ?? 'GET').toUpperCase() !== 'POST' || typeof options?.body !== 'string') return null;
+  try {
+    const body = JSON.parse(options.body);
+    return body && typeof body === 'object' ? body : null;
+  } catch {
+    return null;
+  }
+}
 
 // ── GraphQL types ───────────────────────────────────────────────────────
 
@@ -320,8 +357,8 @@ export class SimulatedProductApi {
 
   constructor() {
     // Set up defaults that return helpful errors
-    for (const product of ['jira', 'confluence', 'bitbucket']) {
-      this.handlers.set(product, unmockedHandler(product));
+    for (const product of REAL_API_PRODUCTS) {
+      this.installPrimaryHandler(product);
     }
   }
 
@@ -382,23 +419,54 @@ export class SimulatedProductApi {
    *   it)  >  the 501 "unmocked" handler.
    */
   private installPrimaryHandler(product: string): void {
+    const primary = this.pickPrimaryHandler(product);
+    if (!primary) return;
+    // One backend for the gateway: every stargate call, from the real
+    // @forge/api or from sim.productApi.requestGraph(), goes through this
+    // handler, and an operation-name mock is its first layer, ahead of a
+    // route mock, a full mock and the connected site.
+    this.handlers.set(product, product === STARGATE ? this.withOperationMocks(primary) : primary);
+  }
+
+  private pickPrimaryHandler(product: string): ProductApiHandler | null {
     const full = this.fullMocks.get(product);
-    if (full && !full.behindRoutes) {
-      this.handlers.set(product, full.handler);
-      return;
-    }
+    if (full && !full.behindRoutes) return full.handler;
     if (this.realApiAccount && SimulatedProductApi.isRealApiProduct(product)) {
-      this.handlers.set(product, this.createRealHandler(product));
-      return;
+      return this.createRealHandler(product);
     }
     const routeHandler = this.mockRouteHandlers.get(product);
-    if (routeHandler) {
-      this.handlers.set(product, routeHandler);
-    } else if (full) {
-      this.handlers.set(product, full.handler);
-    } else if (SimulatedProductApi.isRealApiProduct(product)) {
-      this.handlers.set(product, unmockedHandler(product));
-    }
+    if (routeHandler) return routeHandler;
+    if (full) return full.handler;
+    if (SimulatedProductApi.isRealApiProduct(product)) return unmockedHandler(product);
+    return null;
+  }
+
+  /**
+   * The operation-name layer of the gateway: a POST to /graphql or
+   * /graphql/twg whose operation (the body's `operationName`, else the name
+   * in the query text) has a `mockGraphQL()` entry, or the `'*'` catch-all,
+   * is answered here. Anything else falls through to the handler behind it.
+   */
+  private withOperationMocks(handler: ProductApiHandler): ProductApiHandler {
+    return async (path: string, options?: ProductApiRequest) => {
+      if (isGraphqlPath(path) && this.graphqlMocks.size > 0) {
+        const body = parseGraphqlBody(options);
+        if (body) {
+          const query = typeof body.query === 'string' ? body.query : '';
+          const operationName = body.operationName ?? extractOperationName(query);
+          const mockHandler = (operationName && this.graphqlMocks.get(operationName))
+            ?? this.graphqlMocks.get('*');
+          if (mockHandler !== undefined) {
+            const raw = typeof mockHandler === 'function'
+              ? await mockHandler(query, body.variables)
+              : mockHandler;
+            const { status, body: responseBody, headers } = unwrapMockResponse(raw);
+            return makeResponse(status, responseBody, headers);
+          }
+        }
+      }
+      return handler(path, options);
+    };
   }
 
   get isRealMode(): boolean {
@@ -449,7 +517,9 @@ export class SimulatedProductApi {
       }
 
       // PAT hits the site URL directly with HTTP Basic auth (email:token).
-      const baseUrl = `https://${this.realApiAccount.site}`;
+      // The gateway (stargate) is the site's /gateway/api: /graphql lives
+      // there, and so do the other services requestAtlassian reaches.
+      const baseUrl = `https://${this.realApiAccount.site}${product === STARGATE ? '/gateway/api' : ''}`;
       const url = `${baseUrl}${path}`;
       const authHeader = `Basic ${Buffer.from(
         `${this.realApiAccount.email}:${this.realApiAccount.accessToken}`,
@@ -755,79 +825,26 @@ export class SimulatedProductApi {
     for (const [key, value] of Object.entries(mocks)) {
       this.graphqlMocks.set(key, value);
     }
+    this.installPrimaryHandler(STARGATE);
   }
 
   /**
-   * Execute a GraphQL request. Checks mocks first (by operation name),
-   * then falls back to the real Atlassian Gateway if connected.
+   * A GraphQL request to the gateway, on the exact route the real
+   * `@forge/api` takes: POST `stargate` `/graphql` with `{ query, variables }`
+   * (api/out/api/fetch.js:152-160). So an operation-name mock, a stargate
+   * route mock, a full stargate mock and the connected site answer this
+   * call and the app's `requestGraph()` identically.
    */
   async requestGraph(
     query: string,
     variables?: Record<string, any>,
     headers?: Record<string, string>,
   ): Promise<ProductApiResponse> {
-    const operationName = extractOperationName(query);
-
-    // 1. Check mocks — exact operation name match, then '*' catch-all
-    const mockHandler = (operationName && this.graphqlMocks.get(operationName))
-      || this.graphqlMocks.get('*');
-
-    if (mockHandler !== undefined) {
-      const body = typeof mockHandler === 'function'
-        ? await mockHandler(query, variables)
-        : mockHandler;
-      return makeResponse(200, body);
-    }
-
-    // 2. Real API fallback
-    if (!this.realApiAccount) {
-      return makeResponse(501, {
-        error: `Unmocked GraphQL operation: ${operationName ?? '(anonymous)'}. Register a handler with sim.mockGraphQL({ '${operationName ?? '*'}': ... })`,
-      });
-    }
-
-    // PAT-only: tenanted gateway at {site}/gateway/api/graphql with Basic auth.
-    const url = `https://${this.realApiAccount.site}/gateway/api/graphql`;
-    const authHeader = `Basic ${Buffer.from(
-      `${this.realApiAccount.email}:${this.realApiAccount.accessToken}`,
-    ).toString('base64')}`;
-
-    const requestBody: Record<string, any> = { query };
-    if (variables) requestBody.variables = variables;
-
-    try {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Authorization': authHeader,
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-          ...headers,
-        },
-        body: JSON.stringify(requestBody),
-      });
-
-      const responseText = await response.text();
-      let responseJson: any;
-      try {
-        responseJson = JSON.parse(responseText);
-      } catch {
-        responseJson = responseText;
-      }
-
-      return {
-        status: response.status,
-        statusText: response.statusText,
-        headers: Object.fromEntries(response.headers.entries()),
-        ok: response.ok,
-        json: async () => responseJson,
-        text: async () => responseText,
-      };
-    } catch (err: any) {
-      return makeResponse(502, {
-        error: `GraphQL request failed: ${err.message}`,
-      });
-    }
+    return this.request(STARGATE, '/graphql', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query, ...(variables ? { variables } : {}) }),
+    });
   }
 
   clear(): void {
@@ -838,8 +855,8 @@ export class SimulatedProductApi {
     this.graphqlMocks.clear();
     this.realApiAccount = null;
     this.currentUser = null;
-    for (const product of ['jira', 'confluence', 'bitbucket']) {
-      this.handlers.set(product, unmockedHandler(product));
+    for (const product of REAL_API_PRODUCTS) {
+      this.installPrimaryHandler(product);
     }
   }
 }

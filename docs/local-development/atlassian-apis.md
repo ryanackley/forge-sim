@@ -38,5 +38,5 @@ Start it with `forge-sim dev --offline` (or `FORGE_SIM_CONNECT=0`) to skip that 
 
 The other channels are **opt-in**: the MCP server connects only when started with `--connect` (or `FORGE_SIM_CONNECT=1`), the CLI daemon only on `forge-sim deploy --connect`, and the test library only when a test calls `sim.loadAuthFromEnv()`. See [When stored credentials are used](./credentials.md#when-stored-credentials-are-used).
 
-Mocks always win over the real site: a mocked route answers whether it was registered before or after the connection, and whatever status it returns (a mocked `404` for a missing issue stays a `404`), for products, remotes, provider remotes and `stargate` alike. Only a `jira`/`confluence`/`bitbucket` call that no mock answers reaches your site.
+Mocks always win over the real site: a mocked route answers whether it was registered before or after the connection, and whatever status it returns (a mocked `404` for a missing issue stays a `404`), for products, remotes, provider remotes and `stargate` alike. Only a `jira`/`confluence`/`bitbucket`/`stargate` call that no mock answers reaches your site (`stargate` is the gateway at `/gateway/api`: `requestGraph`, `requestAtlassian`).
 

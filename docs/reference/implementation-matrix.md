@@ -56,10 +56,12 @@ The main backend API package. Imported by resolver/trigger/consumer functions.
 | `asUser(accountId).requestJira()` | ✅ | `invocation-identity.test.ts` | Offline impersonation: needs a scope declared `allowImpersonation: true`; the mock sees `options.accountId` |
 | `asApp().requestConfluence()` | ✅ | `shims.test.ts` | |
 | `asApp().requestBitbucket()` | ✅ | — | |
-| `asApp().requestGraph()` | ⚠️ | `product-api-mock-precedence-connected.test.ts` | From app code the call reaches the `stargate` mock key: mock it with `sim.mockProductRoutes('stargate', { 'POST /graphql': … })`; unmocked it returns 501, connected or not (no gateway fallback). `sim.mockGraphQL()` operation mocks answer only the sim-side `sim.productApi.requestGraph()` (`graphql.test.ts`), not the app's call yet |
-| `asUser().requestGraph()` | ⚠️ | — | Same as asApp (the `stargate` key); the same user rules as `asUser().requestJira()` apply |
-| `asApp().requestAtlassian()` | ⚠️ | — | Reaches the `stargate` mock key: mock it with `sim.mockProductRoutes('stargate', { 'GET /…': … })`; unmocked it returns 501, connected or not (no gateway fallback) |
-| `asUser().requestAtlassian()` | ⚠️ | — | Same as asApp (`accountId` is ignored) |
+| `asApp().requestGraph()` | ✅ | `stargate-one-backend.test.ts` | One backend with `sim.productApi.requestGraph()`: `sim.mockGraphQL()` operation mocks answer first, then a `stargate` `POST /graphql` route mock, then the connected site's gateway |
+| `asUser().requestGraph()` | ✅ | `stargate-one-backend.test.ts` | Same as asApp; the same user rules as `asUser().requestJira()` apply |
+| `asApp().requestTeamworkGraph()` | ✅ | `stargate-one-backend.test.ts` | `stargate` `POST /graphql/twg`; operation mocks match the body's `operationName` |
+| `asApp().requestAtlassian()` | ✅ | `shims.test.ts` (privacy), `stargate-one-backend.test.ts` | A `stargate` route: `sim.mockProductRoutes('stargate', { 'GET /…': … })`, else the connected gateway, else a 501 naming the fix per channel |
+| `asUser().requestAtlassian()` | ✅ | — | Same as asApp; the same user rules as `asUser().requestJira()` apply |
+| `withContext(ari).requestJira()` | ✅ | `stargate-one-backend.test.ts` | Routed to the product the ARI names (jira/confluence/bitbucket); other ARIs throw a named not-implemented error |
 | `asUser().withProvider(provider, remote)` | ✅ | `external-auth.test.ts` | Full `ExternalAuthFetchMethods` interface |
 | `.withProvider().hasCredentials(scopes?)` | ✅ | `external-auth.test.ts` | Checks token existence, expiry, and scopes |
 | `.withProvider().requestCredentials(scopes?)` | ✅ | `external-auth.test.ts` | Real package: always rejects with `NeedsAuthenticationError`, as in Forge. Authorize locally via `forge-sim auth` or the Tools UI |

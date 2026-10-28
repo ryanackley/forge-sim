@@ -120,7 +120,7 @@ Mocks always take priority, whether you registered them before or after the serv
 
 - **`jira` / `confluence` / `bitbucket`**: it goes to your real site. This lets an AI agent mix both: mock the endpoints under test, hit the real site for everything else.
 - **A remote or provider remote** (a remote key from `manifest.yml`): it reaches the real backend only if *no* route at all is mocked for that key. Once one is, every other path on that key answers `404 "No mock route matched"`.
-- **`stargate`** (where the real `@forge/api` `requestGraph` / `requestAtlassian` go): it never reaches a real backend; an unmocked call returns `501`. Mock it with `forge_mock_routes` on `stargate`, e.g. `{ "POST /graphql": … }`. `forge_mock_graphql` does not answer the app's `requestGraph` yet.
+- **`stargate`** (the gateway, where the real `@forge/api` `requestGraph` / `requestTeamworkGraph` / `requestAtlassian` / `requestConnectedData` go): it goes to your site's gateway (`/gateway/api`). A `forge_mock_graphql` operation answers the app's `requestGraph` first, then a `forge_mock_routes` mock on `stargate` (e.g. `{ "POST /graphql": … }`).
 
 The `forge_deploy` response includes an `auth` block showing what connected, and `forge_auth_status` reports the connect `policy`, the current account, provider tokens, and manifest providers at any time.
 
@@ -189,8 +189,8 @@ These tool schemas are the canonical vocabulary for forge-sim's operations — t
 | `forge_entity_query` | Query entities with indexes, filters, sort, pagination (page size 1-100, default 10) |
 | `forge_entity_list` | List all entities and schemas |
 | `forge_auth_status` | Show Atlassian account info, 3p provider tokens, and auth status |
-| `forge_mock_routes` | Register mock HTTP responses for product APIs (Jira, Confluence, Bitbucket), remotes, provider remotes, or `stargate` (the app's real `requestGraph`) |
-| `forge_mock_graphql` | Register mock GraphQL operation responses (gateway); does not answer the app's `requestGraph` yet (use `forge_mock_routes` on `stargate`) |
+| `forge_mock_routes` | Register mock HTTP responses for product APIs (Jira, Confluence, Bitbucket), remotes, provider remotes, or `stargate` (the gateway: `requestAtlassian`, and `requestGraph` when no operation mock answers) |
+| `forge_mock_graphql` | Register mock GraphQL operation responses; they answer the app's `requestGraph` / `requestTeamworkGraph` and win over a `stargate` route mock |
 | `forge_llm_mock` | Queue mock responses for `@forge/llm` chat() calls |
 | `forge_llm_history` | Inspect captured `@forge/llm` chat() call history |
 | `forge_realtime_publish` | Publish events to a Forge Realtime channel |

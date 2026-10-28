@@ -201,9 +201,20 @@ async function handleProduct(
     const handled = await handleStargateGraphql(sim, parseJsonBody(init));
     if (handled) return handled;
     // Not a Forge platform operation — the app's own requestGraph traffic;
-    // fall through to the mock layer (sim.mockGraphQL handlers).
+    // fall through to the gateway product, whose first layer is the
+    // operation-name mocks (sim.mockGraphQL).
   }
-  const product = descriptor.remote ?? descriptor.provider ?? 'unknown';
+  if (path === '/forge/entities/graphql') {
+    // The `storage` export of @forge/api ≤ 7 talked to this endpoint.
+    // Atlassian removed it in June 2026; the bundled package is older than
+    // the platform it targets.
+    throw new Error(
+      `forge-sim: @forge/api's legacy \`storage\` export was removed by Atlassian (June 2026) and ` +
+      `its endpoint ${path} no longer exists. Migrate to @forge/kvs (kvs.get/set/delete, ` +
+      `kvs.entity()) and bump @forge/api.`,
+    );
+  }
+  const product = productFor(descriptor);
   const actor = actingUser(sim, descriptor);
   if ('refused' in actor) return actor.refused;
   const options: ProductApiRequest = {
@@ -215,6 +226,28 @@ async function handleProduct(
 }
 
 const IMPERSONATION_DOC = 'https://developer.atlassian.com/platform/forge/manifest-reference/permissions/';
+
+/**
+ * The mock-layer product a descriptor addresses. Plain product requests and
+ * the gateway name their remote (api/out/api/fetch.js:185-200). `withContext`
+ * (:136-143) sends no remote, only the installation context ARI, and the
+ * product is the ARI's resource owner: ari:cloud:jira::site/…,
+ * ari:cloud:confluence::site/…, ari:cloud:bitbucket::workspace/….
+ */
+function productFor(descriptor: ForgeFetchDescriptor): string {
+  if (descriptor.remote) return descriptor.remote;
+  if (descriptor.contextAri) {
+    const owner = /^ari:cloud:([a-z-]+):/.exec(descriptor.contextAri)?.[1];
+    if (owner === 'jira' || owner === 'confluence' || owner === 'bitbucket') return owner;
+    throw new Error(
+      `forge-sim: withContext("${descriptor.contextAri}") is not implemented for that context: ` +
+      `only Jira, Confluence and Bitbucket installation ARIs are routed ` +
+      `(ari:cloud:jira::site/<cloudId>, ari:cloud:confluence::site/<cloudId>, ` +
+      `ari:cloud:bitbucket::workspace/<id>).`,
+    );
+  }
+  return descriptor.provider ?? 'unknown';
+}
 
 /**
  * Who a product request acts as. `asApp()` needs nobody. `asUser()` needs the

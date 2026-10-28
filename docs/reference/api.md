@@ -426,12 +426,22 @@ sim.mockProductRoutes(product: string, routes: Record<string, any>): void
 ```
 Register route-based mocks. Keys are `"METHOD /path"` (method defaults to GET). Routes registered after a `mockProductApi()` handler answer first, and the handler answers whatever they don't match.
 
-**Mocks always win over a connected site**, whether registered before or after `loadAuthFromEnv()`, and whatever status they return: a route mocked as `mockResponse(404, …)` answers 404, it is never read as "unmocked" and sent to the site (or, for a remote or provider remote, a `mockResponse(501)` to the real backend). A call no mock answers goes to the connected site for `jira`/`confluence`/`bitbucket`; to the real backend for a remote or provider remote only when nothing at all is mocked for that key (otherwise `404 "No mock route matched"`); and nowhere for `stargate` (`501`).
+**Mocks always win over a connected site**, whether registered before or after `loadAuthFromEnv()`, and whatever status they return: a route mocked as `mockResponse(404, …)` answers 404, it is never read as "unmocked" and sent to the site (or, for a remote or provider remote, a `mockResponse(501)` to the real backend). A call no mock answers goes to the connected site for `jira`/`confluence`/`bitbucket`/`stargate` (the gateway, at the site's `/gateway/api`); to the real backend for a remote or provider remote only when nothing at all is mocked for that key (otherwise `404 "No mock route matched"`).
 
 ```typescript no-check
 sim.mockGraphQL(mocks: Record<string, any>): void
 ```
-Mock GraphQL responses by operation name.
+Mock GraphQL responses by operation name. The gateway is one backend: the
+real `@forge/api` `requestGraph()` and `requestTeamworkGraph()` in app code,
+`sim.productApi.requestGraph()` in tests, `forge_mock_graphql` over MCP and
+the `"graphql"` key of `.forge-sim/mocks.json` all meet on the `stargate`
+product's `POST /graphql`. An operation-name mock (the request's
+`operationName`, else the name in the query text, else `'*'`) answers first,
+then a `mockProductRoutes('stargate', { 'POST /graphql': … })` route, then a
+full `mockProductApi('stargate', …)` handler, then the connected site's
+gateway; unmocked, the `501` names those four fixes. `requestAtlassian`,
+`requestConnectedData` and the privacy API are plain `stargate` routes.
+`withContext(ari)` routes to the product named by the ARI's resource owner.
 
 ```typescript
 // Example
@@ -807,7 +817,7 @@ sim.productApi.mock(product: string, handler: ProductApiHandler): void
 sim.productApi.mockRoutes(product: string, routes: Record<string, any>): void
 sim.productApi.mockGraphQL(mocks: Record<string, any>): void
 sim.productApi.request(product: string, path: string, opts?: ProductApiRequest): Promise<ProductApiResponse>
-sim.productApi.requestGraph(query: string, variables?: object): Promise<ProductApiResponse>
+sim.productApi.requestGraph(query: string, variables?: object): Promise<ProductApiResponse>  // = request('stargate', '/graphql', …)
 
 sim.productApi.connectRealApis(account: AtlassianAccount, options?): void
 sim.productApi.disconnectRealApis(): void

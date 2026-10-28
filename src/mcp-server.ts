@@ -1737,7 +1737,7 @@ server.tool(
 
 server.tool(
   'forge_mock_routes',
-  `Register mock HTTP responses for product APIs (Jira, Confluence, Bitbucket), remotes, provider remotes, or "stargate" (the app's real requestGraph/requestAtlassian).
+  `Register mock HTTP responses for product APIs (Jira, Confluence, Bitbucket), remotes, provider remotes, or "stargate" (the gateway: the app's requestAtlassian, requestConnectedData, privacy API, and requestGraph when no forge_mock_graphql operation answers).
 Route keys are "METHOD /path" (e.g. "GET /rest/api/3/version/10001"). Method defaults to GET if omitted.
 Path matching is prefix-based, so "/rest/api/3/issue" matches "/rest/api/3/issue/TEST-1".
 
@@ -1803,8 +1803,10 @@ server.tool(
 Values are the full response body (typically { data: { ... } }).
 Use '*' as a catch-all for anonymous or unmatched operations.
 
-Note: these do not yet answer @forge/api requestGraph() from app code — that call reaches the
-"stargate" key; mock it with forge_mock_routes on "stargate" (e.g. "POST /graphql").
+These answer the app's own @forge/api requestGraph() and requestTeamworkGraph() calls (the
+operation name comes from the request's operationName, else the query text), and they win over a
+forge_mock_routes mock of "stargate" "POST /graphql". With --connect, an operation no mock answers
+goes to the site's gateway.
 
 Example:
   operations: {
