@@ -672,7 +672,7 @@ Features beyond individual APIs.
 | Manifest-driven deploy | ✅ | `deployer.test.ts`, `deploy-e2e.test.ts` | Reads manifest.yml, wires everything |
 | App bundling (esbuild, like `forge deploy`) | ✅ | `deploy-bundle.test.ts`, `forge-react-package.test.ts` | Backend: every dependency inlined per deploy; frontend: runtime pinned per render; content-keyed cache |
 | Module loader hooks | ✅ | `loader-hooks.test.ts` | Only for what forge-sim does not bundle (manual packaging): `@forge/resolver` → shim, stray .tsx |
-| Function contracts (calling conventions) | ✅ | `function-contracts.test.ts` | Resolver, trigger, consumer, scheduled, webtrigger |
+| Function contracts (calling conventions) | ✅ | `function-contracts.test.ts`, `invocation-identity.test.ts` | Resolver `{ payload, context }`; every other kind `(payload, context)`: trigger, consumer, scheduled, web trigger, action (with `principal`), workflow, JQL, custom field value, pre-uninstall. Consumers get their function's `timeoutSeconds` and report their module/function in `getAppContext()` |
 | Product API mock + real proxy | ✅ | `product-api-proxy.test.ts` | Route-level mock priority |
 | OAuth authentication | ✅ | `credentials.test.ts` | PAT + OAuth 2.0 |
 | Persistent state (KVS) | ✅ | `persistence.test.ts` | Save/restore on exit/start |

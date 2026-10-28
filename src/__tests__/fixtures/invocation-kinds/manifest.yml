@@ -20,6 +20,9 @@ modules:
       handler: index.hook
     - key: consumerFn
       handler: index.consumer
+      timeoutSeconds: 600
+    - key: actionFn
+      handler: index.action
     - key: preUninstallFn
       handler: index.preUninstall
     - key: cfValueFn
@@ -55,6 +58,18 @@ modules:
   preUninstall:
     - key: pu
       function: preUninstallFn
+  action:
+    - key: log-time
+      name: Log time
+      function: actionFn
+      actionVerb: CREATE
+      description: Logs minutes against an issue
+      inputs:
+        minutes:
+          title: Minutes
+          type: number
+          required: true
+          description: Minutes to log
   jira:customField:
     - key: score
       name: Score

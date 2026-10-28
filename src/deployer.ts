@@ -1281,6 +1281,13 @@ export async function deploy(sim: ForgeSimulator, appDir: string, options: Deplo
   // receives queue events, invoked with the resolver convention — a single
   // ({ payload, context }) object where payload is the event body and jobId
   // rides on context. (Eval-4 F3: this shape used to be a silent event sink.)
+  // What getAppContext() and the runtime budget describe for a delivery: the
+  // consumer module's key, its function, and that function's timeoutSeconds.
+  const consumerRegistration = (consumer: { key: string; functionKey: string }) => ({
+    functionKey: consumer.functionKey,
+    moduleKey: consumer.key,
+    timeoutSeconds: manifest.functions.get(consumer.functionKey)?.timeoutSeconds,
+  });
   for (const consumer of manifest.consumers) {
     const exported = handlerExports.get(consumer.functionKey);
     if (!exported) continue; // missing/failed function already surfaced in errors
@@ -1306,13 +1313,13 @@ export async function deploy(sim: ForgeSimulator, appDir: string, options: Deplo
         methodHandler as (req: { payload: unknown; context: unknown }) => unknown
       );
       registerFresh(consumer.functionKey, wrapped, 'consumer');
-      sim.registerConsumer(consumer.queue, wrapped);
+      sim.registerConsumer(consumer.queue, wrapped, consumerRegistration(consumer));
       continue;
     }
 
     if (typeof exported === 'function') {
       registerFresh(consumer.functionKey, exported, 'consumer');
-      sim.registerConsumer(consumer.queue, exported);
+      sim.registerConsumer(consumer.queue, exported, consumerRegistration(consumer));
     }
   }
 

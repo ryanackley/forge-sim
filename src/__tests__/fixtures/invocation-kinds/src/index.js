@@ -6,13 +6,21 @@ import Resolver from '@forge/resolver';
 import { asApp, asUser, authorize, route } from '@forge/api';
 import { kvs } from '@forge/kvs';
 
-async function probe(kind, context) {
+// `payload` is what the kind's first argument was; the convention check
+// reads payloadKeys/contextKeys to tell Forge's (payload, context) from the
+// resolver wrap ({ payload, context }, undefined).
+async function probe(kind, context, payload) {
   const rt = globalThis.__forge_runtime__;
   const out = {
     kind,
     aaid: rt.aaid ?? null,
     moduleType: rt.appContext.moduleType,
+    moduleKey: rt.appContext.moduleKey,
+    functionKey: rt.appContext.functionKey,
+    remainingMs: rt.lambdaContext.getRemainingTimeInMillis(),
     contextKeys: Object.keys(context ?? {}).sort(),
+    principal: context?.principal ?? null,
+    payloadKeys: Object.keys(payload ?? {}).sort(),
   };
   try {
     const res = await asUser().requestJira(route`/rest/api/3/myself`);
@@ -42,10 +50,11 @@ export const hook = async (request, context) => {
   await probe('webTrigger', context);
   return { statusCode: 200, body: 'ok' };
 };
-export const consumer = async (event, context) => probe('consumer', context);
-// The sim drives these through sim.invoke(), which still wraps the payload
-// resolver-style; accept either argument shape.
-export const preUninstall = async (a, b) => probe('preUninstall', b ?? a?.context);
-export const cfValue = async (a, b) => probe('customFieldValue', b ?? a?.context);
-export const validator = async (a, b) => probe('workflow', b ?? a?.context);
-export const jql = async (a, b) => probe('jqlFunction', b ?? a?.context);
+export const consumer = async (event, context) => probe('consumer', context, event);
+// Forge calls every non-resolver function (payload, context); so does
+// sim.invoke() once the manifest gives the function its kind.
+export const action = async (payload, context) => probe('action', context, payload);
+export const preUninstall = async (payload, context) => probe('preUninstall', context, payload);
+export const cfValue = async (payload, context) => probe('customFieldValue', context, payload);
+export const validator = async (payload, context) => probe('workflow', context, payload);
+export const jql = async (payload, context) => probe('jqlFunction', context, payload);

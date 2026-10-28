@@ -230,13 +230,33 @@ export class SimulatedResolver {
       );
     }
 
-    const context: ResolverContext = {
+    return this.invokeWithContext(functionKey, payload, this.resolveContext(contextOverride));
+  }
+
+  /**
+   * The context a user-kind invocation would run with right now: defaults,
+   * then the sticky `setContext()` overrides, then the render overlay, then
+   * the per-call override. `invoke()` uses it; so does the simulator when it
+   * calls a Rovo action with Forge's `(payload, context)` convention, where
+   * the user becomes `context.principal`.
+   */
+  resolveContext(contextOverride?: Partial<ResolverContext>): ResolverContext {
+    return {
       ...this.getDefaults(),
       ...this.contextOverrides,
       ...this.renderContextOverlay,
       ...(contextOverride ?? {}),
     };
-    return this.invokeWithContext(functionKey, payload, context);
+  }
+
+  /**
+   * Run `fn` with `context` as the active invocation context, so the
+   * runtime seam (`__forge_runtime__.aaid`, `getActiveContext()`) describes
+   * that invocation. invokeWithContext() runs every resolver this way; the
+   * simulator uses it for functions it calls directly.
+   */
+  runWithContext<T>(context: ResolverContext, fn: () => Promise<T>): Promise<T> {
+    return this.activeContextStorage.run(context, fn);
   }
 
   /**
@@ -264,7 +284,7 @@ export class SimulatedResolver {
       context: context as ResolverContext,
     };
 
-    return this.activeContextStorage.run(context as ResolverContext, async () => {
+    return this.runWithContext(context as ResolverContext, async () => {
       if (handler) return await handler(req);
       return await this.invokeViaDispatch(functionKey, req);
     });

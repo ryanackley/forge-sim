@@ -157,7 +157,7 @@ These tool schemas are the canonical vocabulary for forge-sim's operations — t
 |------|-------------|
 | `forge_deploy` | Deploy a Forge app from a directory (auto-loads auth credentials) |
 | `forge_sim_info` | Return daemon-process metadata (PID, start time, dist mtime, stale flag); sanity-check before debugging confusing tool errors |
-| `forge_invoke` | Call a resolver function with payload |
+| `forge_invoke` | Call a function with a payload: a resolver definition, or a manifest function of any kind (action, workflow, JQL, custom field value, pre-uninstall), called with the convention of its kind |
 | `forge_fire_trigger` | Simulate product event triggers |
 | `forge_fire_scheduled_trigger` | Fire a scheduled trigger by key |
 | `forge_fire_web_trigger` | Fire a web trigger by key — simulated HTTP request, `(request, context)` convention, returns `{ statusCode, headers, body }` |

@@ -318,7 +318,7 @@ sim.invoke(
   options?: { moduleKey?: string; context?: Partial<ResolverContext>; extension?: Record<string, unknown> }
 ): Promise<any>
 ```
-Invoke a resolver function. Wraps payload in `{ payload, context }` per the Forge bridge contract.
+Invoke a function by key, with the calling convention of its kind. A `@forge/resolver` definition gets one `{ payload, context }` request, as the bridge sends it. Every other kind the manifest binds (Rovo action, workflow validator/condition/post function, JQL function, custom field value, pre-uninstall) is called `(payload, context)`, as the [function arguments reference](https://developer.atlassian.com/platform/forge/function-reference/arguments/) describes: the payload is passed through as given, in the shape the module documents, and `context` is Forge's `Context` (`installContext`, `license?`, plus `principal` for an action, the one two-argument kind that runs as a user). Triggers, scheduled triggers, consumers and web triggers have their own entry points (`fireTrigger`, `fireScheduledTrigger`, queue push, `fireWebTrigger`).
 
 The third arg (optional) is an `InvokeOptions` object:
 - **`moduleKey`** — scope resolver lookup when multiple modules register the same function key.
@@ -349,9 +349,9 @@ sim.registerFunction(key: string, handler: Function, type: ForgeFunctionType): v
 Register a non-resolver function (trigger, consumer, webTrigger, etc.).
 
 ```typescript no-check
-sim.registerConsumer(queueKey: string, handler: (event, context) => any): void
+sim.registerConsumer(queueKey: string, handler: (event, context) => any, registration?: { functionKey?: string; moduleKey?: string; timeoutSeconds?: number }): void
 ```
-Register a consumer handler for a queue key.
+Register a consumer handler for a queue key. `registration` is what a delivery is attributed to: `getAppContext()` reports `moduleKey` and `functionKey`, and `timeoutSeconds` (1 to 900) is the delivery's runtime budget instead of the 55 s default. A deploy fills it from the manifest's consumer module and function.
 
 ### Triggers
 
@@ -369,7 +369,8 @@ binds it in the manifest), never by which sim API fired it:
 
 | Kind | Runs as | Handler `context` |
 |---|---|---|
-| resolver, action | the invoking user (`setContext`, render context, per-call `context`) | the resolver `req.context` |
+| resolver | the invoking user (`setContext`, render context, per-call `context`) | the resolver `req.context` |
+| action | the invoking user, as above | Forge `Context`: `{ installContext, principal: { accountId }, license? }`, second argument |
 | trigger, scheduledTrigger, webTrigger, consumer, preUninstall, custom field value, workflow validator/condition/post function, JQL function | the app | `{ installContext, license? }`, no `accountId`, `cloudId` or `principal` |
 
 In an app-identity kind, the real `@forge/api` behaves as on Forge:
@@ -1179,14 +1180,16 @@ forge-sim enforces the correct calling convention per Forge function type:
 | **Event Trigger** | `(event, context) => result` | Any |
 | **Scheduled Trigger** | `({ context }) => void` | Return value **ignored** (per Forge docs); only a thrown error fails the fire |
 | **Consumer** (async events) | `(event, context) => result` | Returning `new InvocationError(retryOptions)` (or a `QueueResponse` with `.retry()` called) requests a retry — re-delivered with `event.retryContext`, capped at 4 retries. Re-delivery is immediate; forge-sim does not wait out `retryAfter`. |
-| **Web Trigger** | `(request) => { statusCode, body?, headers? }` | HTTP-like response |
+| **Web Trigger** | `(request, context) => { statusCode, body?, headers? }` | HTTP-like response |
+| **Action** (Rovo) | `(payload, context) => result`, `context.principal` is the user | Any string or JSON |
+| **Workflow** validator / condition / post function, **JQL function**, **custom field value**, **pre-uninstall** | `(payload, context) => result` | As the module documents |
 
 ### Invocation Time Limits
 
-Warnings fire when a function exceeds its Forge time limit:
+Warnings fire when a function exceeds its Forge time limit ([invocation limits](https://developer.atlassian.com/platform/forge/limits-invocation/)):
 
 | Type | Limit |
 |------|-------|
-| Resolver / Action / Workflow | 25s |
-| Trigger / Scheduled Trigger / WebTrigger | 55s |
-| Consumer (with `timeoutSeconds`) | Up to 900s |
+| Resolver / Workflow / JQL function / custom field value | 25s |
+| Trigger / Scheduled Trigger / Web Trigger / Action / Pre-uninstall | 55s |
+| Scheduled Trigger / Consumer with `timeoutSeconds` | 1s to 900s; `timeoutSeconds` on any other kind is ignored |

@@ -40,16 +40,46 @@ import type { ManifestAction } from './manifest.js';
 
 // ── Forge Invocation Time Limits (seconds) ──────────────────────────────
 // Per https://developer.atlassian.com/platform/forge/limits-invocation/
+// ("Runtime seconds" rows) and the pre-uninstall module reference ("The
+// invocation will have a timeout of 55 seconds").
 const INVOCATION_LIMITS: Record<string, number> = {
-  resolver: 25,        // UI module resolvers (user-led)
-  trigger: 55,         // Event triggers
-  scheduledTrigger: 55, // Default; can be up to 900s with timeoutSeconds
-  consumer: 55,        // Async event consumers; default, up to 900s
-  webTrigger: 55,      // Web trigger handlers
-  action: 25,          // Rovo actions (user-led, same as resolvers)
-  workflow: 25,        // Workflow post-functions (treated as user-led)
-  remote: 5,           // Remote events (Forge Remote)
+  resolver: 25,         // user-led invocations
+  trigger: 55,          // product event triggers
+  scheduledTrigger: 55, // default; timeoutSeconds extends it up to 900
+  consumer: 55,         // async event consumers; default, up to 900 with timeoutSeconds
+  webTrigger: 55,       // "web trigger, action and rovo:agentConnector modules"
+  action: 55,           // Rovo actions, same row as web triggers
+  preUninstall: 55,     // pre-uninstall module reference
+  workflow: 25,         // workflow validators, conditions and post functions are user-led
+  customFieldValue: 25, // computed on a user's request
+  jqlFunction: 25,      // evaluated on a user's search
+  generic: 25,
+  remote: 5,            // events delivered to a Forge Remote
 };
+
+/**
+ * The runtime budget of an invocation, in seconds. `timeoutSeconds` on the
+ * function module "applies only to the scheduled triggers module and the
+ * consumer of an asynchronous event" (manifest reference, function module),
+ * valid range 1 to 900; every other kind keeps the limit of its kind.
+ */
+/**
+ * What a consumer delivery is attributed to: the consumer module's key and
+ * function (what `getAppContext()` reports) and the function's
+ * `timeoutSeconds` (its runtime budget). The deployer fills this from the
+ * manifest; a programmatic registration may leave it empty.
+ */
+export interface ConsumerRegistration {
+  functionKey?: string;
+  moduleKey?: string;
+  timeoutSeconds?: number;
+}
+
+export function invocationBudgetSeconds(type: string, timeoutSeconds?: number): number {
+  const base = INVOCATION_LIMITS[type] ?? 25;
+  if (timeoutSeconds === undefined || (type !== 'scheduledTrigger' && type !== 'consumer')) return base;
+  return Math.min(900, Math.max(1, timeoutSeconds));
+}
 
 export class ForgeSimulator {
   readonly kvs: UnifiedKVS;
@@ -645,6 +675,44 @@ export class ForgeSimulator {
         ? { ...(contextOverride ?? {}), moduleKey: attributedModuleKey }
         : contextOverride;
 
+    // Calling convention, from the function-arguments reference: every
+    // function that is not a @forge/resolver definition receives two
+    // arguments, (payload, context), with context in the documented Context
+    // shape; only resolver definitions get one { payload, context } request.
+    // The manifest kind decides which, so a Rovo action, workflow rule, JQL
+    // function, custom-field value or pre-uninstall function written as the
+    // module page shows it runs here as it does on Forge.
+    const forgeConvention = fnType !== 'resolver' && fnType !== 'generic';
+    let call: () => Promise<any>;
+    if (!forgeConvention) {
+      call = () => functionContext
+        ? this.resolver.invokeWithContext(functionKey, payload, functionContext)
+        : this.resolver.invoke(functionKey, payload, resolverOverride);
+    } else {
+      const handler = this.getFunction(functionKey);
+      if (!handler) {
+        throw new Error(
+          `No function loaded for "${functionKey}" (a ${fnType} function in the manifest). Did the deploy succeed?`
+        );
+      }
+      if (functionContext) {
+        call = () => this.resolver.runWithContext(
+          functionContext as ResolverContext,
+          () => handler(payload ?? {}, functionContext),
+        );
+      } else {
+        // A user kind called with Forge's convention (a Rovo action): the
+        // invoking user is `context.principal`, and the runtime sees the
+        // same user as a resolver would.
+        const userContext = this.resolver.resolveContext(resolverOverride);
+        const forgeContext: Record<string, unknown> = { installContext: userContext.installContext };
+        if (userContext.accountId) forgeContext.principal = { accountId: userContext.accountId };
+        if (userContext.license !== undefined) forgeContext.license = userContext.license;
+        call = () => this.resolver.runWithContext(userContext, () => handler(payload ?? {}, forgeContext));
+      }
+    }
+
+    const budgetSeconds = invocationBudgetSeconds(fnType, fnMeta?.timeoutSeconds);
     const startMs = Date.now();
     this.pendingInvokeCount++;
     try {
@@ -656,32 +724,27 @@ export class ForgeSimulator {
           moduleKey: invocationCtx.moduleKey,
           moduleType: fnType,
           startMs,
-          timeoutMs: (fnMeta?.timeoutSeconds ?? INVOCATION_LIMITS[fnType] ?? 25) * 1000,
+          timeoutMs: budgetSeconds * 1000,
           // User kinds leave `context` unset: the resolver computes the
           // merged context (including the per-call override) and exposes it
           // via getActiveContext(). User-less kinds record theirs here, which
           // is what the runtime view reads (no accountId, so no aaid).
           ...(functionContext ? { context: functionContext } : {}),
         },
-        () =>
-          withCapture(() =>
-            functionContext
-              ? this.resolver.invokeWithContext(functionKey, payload, functionContext)
-              : this.resolver.invoke(functionKey, payload, resolverOverride)
-          )
+        () => withCapture(call)
       );
       this.consoleLogs.push(...captured);
       for (const line of captured) {
         this.log(`console.${line.level}`, line.message);
       }
-      this.checkInvocationTime(functionKey, startMs, fnType, fnMeta?.timeoutSeconds);
+      this.checkInvocationTime(functionKey, startMs, fnType, budgetSeconds);
       this.log('invoke', `Resolver "${functionKey}" returned`, result);
       return result;
     } catch (err) {
       if ((err as any).capturedConsole) {
         this.consoleLogs.push(...(err as any).capturedConsole);
       }
-      this.checkInvocationTime(functionKey, startMs, fnType, fnMeta?.timeoutSeconds);
+      this.checkInvocationTime(functionKey, startMs, fnType, budgetSeconds);
       if ((err as { name?: string })?.name === 'NEEDS_AUTHENTICATION_ERR') {
         // withProvider().requestCredentials() rejected, as it does on Forge,
         // where the platform catches this and replaces the app with a
@@ -801,21 +864,29 @@ export class ForgeSimulator {
    * `context` the queue delivers is the sim's consumer Context
    * (buildFunctionContext): the app's identity, never the pusher's user.
    */
-  registerConsumer(queueKey: string, handler: (event: any, context: any) => Promise<any>): void {
+  registerConsumer(
+    queueKey: string,
+    handler: (event: any, context: any) => Promise<any>,
+    registration: ConsumerRegistration = {},
+  ): void {
+    const budgetSeconds = invocationBudgetSeconds('consumer', registration.timeoutSeconds);
     this.queue.registerConsumer(queueKey, (event: any, context: any) =>
       this.runInInvocationContext(
-        { kind: 'consumer', moduleKey: null },
+        { kind: 'consumer', moduleKey: registration.moduleKey ?? null },
         {
           invocationId: `sim-invocation-${randomUUID()}`,
-          functionKey: null,
-          moduleKey: queueKey,
+          functionKey: registration.functionKey ?? null,
+          // getAppContext().moduleKey is the consumer module's key, as on
+          // Forge; a bare queue registration has only the queue to name.
+          moduleKey: registration.moduleKey ?? queueKey,
           moduleType: 'consumer',
           startMs: Date.now(),
-          timeoutMs: INVOCATION_LIMITS.consumer * 1000,
+          timeoutMs: budgetSeconds * 1000,
           context,
         },
         () => handler(event, context)
-      )
+      ),
+      { timeoutSeconds: budgetSeconds },
     );
   }
 
@@ -1002,7 +1073,7 @@ export class ForgeSimulator {
 
     // Scheduled triggers can have custom timeoutSeconds (up to 900s)
     const fnMeta = this.manifest.functions.get(st.functionKey);
-    const customTimeout = fnMeta?.timeoutSeconds;
+    const customTimeout = invocationBudgetSeconds('scheduledTrigger', fnMeta?.timeoutSeconds);
 
     // Build the request object per Forge docs
     const request = {
@@ -1111,7 +1182,8 @@ export class ForgeSimulator {
           moduleKey: triggerKey,
           moduleType: 'webTrigger',
           startMs,
-          timeoutMs: (fnMeta?.timeoutSeconds ?? INVOCATION_LIMITS.webTrigger) * 1000,
+          // timeoutSeconds does not apply to web triggers (function module reference).
+          timeoutMs: INVOCATION_LIMITS.webTrigger * 1000,
           context,
         },
         () => withCapture(() => executeWebTrigger(this, trigger, forgeRequest, context))
@@ -1120,7 +1192,7 @@ export class ForgeSimulator {
       for (const line of captured) {
         this.log(`console.${line.level}`, line.message);
       }
-      this.checkInvocationTime(`webTrigger:${triggerKey}`, startMs, 'webTrigger', fnMeta?.timeoutSeconds);
+      this.checkInvocationTime(`webTrigger:${triggerKey}`, startMs, 'webTrigger');
       this.log('webTrigger', `Web trigger "${triggerKey}" → ${result.statusCode}`);
       return result;
     } catch (err) {

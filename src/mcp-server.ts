@@ -539,8 +539,8 @@ server.tool(
   'forge_invoke',
   'Invoke a resolver function by key with an optional payload. Returns the resolver result and any console output captured during execution.',
   {
-    functionKey: z.string().describe('The resolver function key to invoke'),
-    payload: z.record(z.string(), z.any()).optional().describe('Payload to pass to the resolver'),
+    functionKey: z.string().describe('The function to invoke: a resolver definition key, or a manifest function key of any kind (action, workflow, JQL, custom field value, pre-uninstall), which is called with the (payload, context) convention of its kind'),
+    payload: z.record(z.string(), z.any()).optional().describe('Payload to pass to the function, in the shape its module documents'),
     actionKey: z.string().optional().describe('If invoking a Rovo action, the action key — enables input validation against the action schema'),
     moduleKey: z.string().optional().describe('Scope resolver lookup to a specific module — required when multiple modules register the same function key'),
     context: z.record(z.string(), z.any()).optional().describe('Per-call context override (one-shot, does not mutate sticky setContext). Merged onto the base context. Fields match Forge req.context: accountId, cloudId, principal, license, ... Do NOT nest extension here — use the extension param.'),

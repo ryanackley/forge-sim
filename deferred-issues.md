@@ -122,6 +122,11 @@ registered function with Forge's two-argument shape, and point `sim.invoke()`
 at them the way it already points web trigger functions at
 `fireWebTrigger()`.
 
+Update 2026-10-28: `sim.invoke()` now calls every non-resolver kind
+`(payload, context)` with the payload passed through as given, so the
+convention is right; what remains open is only whether dedicated
+`fire*` helpers that build each module's documented payload are worth adding.
+
 ## Installation ARIs are always Jira
 
 `getDefaultContext().installContext` and `contextAri` in

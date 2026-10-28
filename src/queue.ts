@@ -44,6 +44,8 @@ const MAX_RETRY_COUNT = 4;
 
 /** Real platform clamps retryAfter to at most 900s (15 min). */
 const MAX_RETRY_AFTER = 900;
+/** Consumer runtime budget without `timeoutSeconds` (limits-invocation: async events default 55s). */
+const DEFAULT_CONSUMER_BUDGET_SECONDS = 55;
 const MIN_RETRY_AFTER = 1;
 
 /**
@@ -117,6 +119,8 @@ class ConcurrencySemaphore {
 
 export class SimulatedQueue {
   private consumers = new Map<string, FunctionHandler>();
+  /** Per-queue runtime budget in seconds (the consumer function's `timeoutSeconds`, default 55). */
+  private consumerBudgets = new Map<string, number>();
   private jobs = new Map<string, QueueJob>();
   private eventLog: Array<{ queueKey: string; event: QueueEventInternal; jobId: string }> = [];
   private semaphore = new ConcurrencySemaphore();
@@ -135,8 +139,9 @@ export class SimulatedQueue {
    * Register a consumer function for a queue key.
    * In real Forge, this is defined via manifest consumer module.
    */
-  registerConsumer(queueKey: string, handler: FunctionHandler): void {
+  registerConsumer(queueKey: string, handler: FunctionHandler, options: { timeoutSeconds?: number } = {}): void {
     this.consumers.set(queueKey, handler);
+    this.consumerBudgets.set(queueKey, options.timeoutSeconds ?? DEFAULT_CONSUMER_BUDGET_SECONDS);
   }
 
   /**
@@ -290,9 +295,10 @@ export class SimulatedQueue {
             this.config.consumerContext?.() ?? {}
           );
         } finally {
-          // Check consumer invocation time (55s default, up to 900s)
+          // Consumer runtime budget: 55s unless the function declares
+          // timeoutSeconds (up to 900s), per the async events reference.
           const elapsedSeconds = (Date.now() - consumerStartMs) / 1000;
-          const limitSeconds = 55; // Could be extended via timeoutSeconds on the function
+          const limitSeconds = this.consumerBudgets.get(job.queueKey) ?? DEFAULT_CONSUMER_BUDGET_SECONDS;
           if (elapsedSeconds > limitSeconds) {
             console.error(
               `[forge-sim] ⏱️ TIMEOUT: Consumer for queue "${job.queueKey}" took ${elapsedSeconds.toFixed(1)}s — ` +

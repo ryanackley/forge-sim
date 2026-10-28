@@ -29,7 +29,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { asApp, asUser, authorize, route } from '@forge/api';
 import { Queue } from '@forge/events';
-import { createSimulator, ForgeSimulator } from '../simulator.js';
+import { createSimulator, ForgeSimulator, invocationBudgetSeconds } from '../simulator.js';
 import { AUTHORIZE_NO_ACCOUNT_ERROR } from '../authorize.js';
 import { functionTypeHasUser, type ForgeFunctionType } from '../function-registry.js';
 
@@ -197,18 +197,11 @@ function setup(scopes = PLAIN_SCOPES) {
       }, 'webTrigger');
       sim.registerConsumer('work-queue', record('consumer'));
       // These kinds have no firing API of their own; sim.invoke() drives them
-      // and must still hand them a user-less context.
-      for (const [key, kind] of [
-        ['preUninstallFn', 'preUninstall'],
-        ['cfValueFn', 'customFieldValue'],
-        ['validatorFn', 'workflow'],
-        ['jqlFn', 'jqlFunction'],
-      ] as const) {
-        sim.resolver.define(key, async (req: any) => {
-          probes[kind] = await probe(req.context);
-          return probes[kind];
-        });
-      }
+      // with Forge's (payload, context) convention and a user-less context.
+      sim.registerFunction('preUninstallFn', record('preUninstall'), 'preUninstall');
+      sim.registerFunction('cfValueFn', record('customFieldValue'), 'customFieldValue');
+      sim.registerFunction('validatorFn', record('workflow'), 'workflow');
+      sim.registerFunction('jqlFn', record('jqlFunction'), 'jqlFunction');
     },
   };
 }
@@ -492,18 +485,85 @@ describe('invocation identity through a bundled deploy', () => {
     expect(res.authorize).toBe('ok');
   });
 
-  it('pre-uninstall, custom field value, workflow and JQL functions driven by sim.invoke() run as the app', async () => {
-    await sim.invoke('preUninstallFn', { context: { cloudId: 'c', moduleKey: 'pu' } });
+  it('pre-uninstall, custom field value, workflow and JQL functions get Forge\'s (payload, context) and run as the app', async () => {
+    await sim.invoke('preUninstallFn', { context: { cloudId: 'c', moduleKey: 'pu' }, contextToken: 't' });
     await sim.invoke('cfValueFn', { issues: [] });
-    await sim.invoke('validatorFn', { issue: { key: 'ID-1' } });
+    await sim.invoke('validatorFn', { issue: { key: 'ID-1' }, transition: {} });
     await sim.invoke('jqlFn', { clause: {} });
+    const expectedPayloadKeys: Record<string, string[]> = {
+      preUninstall: ['context', 'contextToken'],
+      customFieldValue: ['issues'],
+      workflow: ['issue', 'transition'],
+      jqlFunction: ['clause'],
+    };
     for (const kind of ['preUninstall', 'customFieldValue', 'workflow', 'jqlFunction']) {
       const p = await sim.kvs.get(`probe:${kind}`);
       expect(p, kind).toBeDefined();
+      // Two arguments: the payload as given, then the documented Context.
+      expect(p.payloadKeys, kind).toEqual(expectedPayloadKeys[kind]);
+      expect(p.contextKeys, kind).toEqual(['installContext']);
       expect(p.aaid, kind).toBeNull();
       expect(p.moduleType, kind).toBe(kind);
       expect(p.asUser.error?.name, kind).toBe('NEEDS_AUTHENTICATION_ERR');
-      expect(p.contextKeys, kind).toEqual(['installContext']);
+    }
+  });
+
+  it('a Rovo action gets (payload, context) with the invoking user as context.principal, and a 55 s budget', async () => {
+    await sim.invoke('actionFn', { minutes: 5 }, { context: { accountId: 'alice' } });
+    const a = await sim.kvs.get('probe:action');
+    expect(a.payloadKeys).toEqual(['minutes']);
+    expect(a.contextKeys).toEqual(['installContext', 'principal']);
+    expect(a.principal).toEqual({ accountId: 'alice' });
+    expect(a.aaid).toBe('alice');
+    expect(a.asUser).toEqual({ status: 200, body: { provider: 'user', accountId: 'alice' } });
+    expect(a.moduleType).toBe('action');
+    expect(a.remainingMs).toBeGreaterThan(25_000);
+    expect(a.remainingMs).toBeLessThanOrEqual(55_000);
+  });
+
+  it('a consumer delivery is attributed to its consumer module and function, with the function\'s timeoutSeconds budget', async () => {
+    sim.resolver.define('pushWork', async () => {
+      await new Queue({ key: 'work-queue' }).push({ body: { job: 1 } });
+    });
+    await sim.invoke('pushWork', {});
+    const c = await sim.kvs.get('probe:consumer');
+    expect(c).toBeDefined();
+    expect(c.moduleKey).toBe('work-consumer');
+    expect(c.functionKey).toBe('consumerFn');
+    expect(c.payloadKeys).toEqual(['body', 'eventId', 'jobId', 'queueName']);
+    // consumerFn declares timeoutSeconds: 600.
+    expect(c.remainingMs).toBeGreaterThan(55_000);
+    expect(c.remainingMs).toBeLessThanOrEqual(600_000);
+  });
+});
+
+describe('runtime budgets', () => {
+  it('timeoutSeconds extends only scheduled triggers and consumers, clamped to 1..900', () => {
+    expect(invocationBudgetSeconds('resolver')).toBe(25);
+    expect(invocationBudgetSeconds('action')).toBe(55);
+    expect(invocationBudgetSeconds('preUninstall')).toBe(55);
+    expect(invocationBudgetSeconds('webTrigger', 600)).toBe(55);
+    expect(invocationBudgetSeconds('workflow', 600)).toBe(25);
+    expect(invocationBudgetSeconds('consumer')).toBe(55);
+    expect(invocationBudgetSeconds('consumer', 600)).toBe(600);
+    expect(invocationBudgetSeconds('scheduledTrigger', 2000)).toBe(900);
+    expect(invocationBudgetSeconds('consumer', 0)).toBe(1);
+  });
+
+  it('a consumer past its own timeoutSeconds is reported against that budget, not the 55 s default', async () => {
+    const sim = createSimulator();
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      sim.registerConsumer('slow-q', async () => { await new Promise((r) => setTimeout(r, 1200)); }, { timeoutSeconds: 1 });
+      sim.resolver.define('pushSlow', async () => {
+        await new Queue({ key: 'slow-q' }).push({ body: {} });
+      });
+      await sim.invoke('pushSlow', {});
+      const line = errorSpy.mock.calls.map((c) => String(c[0])).find((m) => /TIMEOUT: Consumer for queue "slow-q"/.test(m));
+      expect(line).toContain('limit of 1s');
+    } finally {
+      errorSpy.mockRestore();
+      await sim.stop();
     }
   });
 });
