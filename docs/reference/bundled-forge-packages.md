@@ -74,7 +74,7 @@ resolution:
 | `@forge/llm` | `__forge_fetch__` (`type: 'llm'`) | yes — `src/runtime/seam-fetch.ts` |
 | `@forge/realtime` | `__forge_fetch__` (`type: 'realtime'`) | yes — `src/runtime/seam-fetch.ts` |
 | `@forge/react`, `@forge/bridge`, `@forge/*-bridge` | `window.__bridge` (see note) | yes |
-| `@forge/resolver` | **none — makes no I/O** | n/a (bundled-dispatch detection in `src/deployer.ts` covers it) |
+| `@forge/resolver` | **none — makes no I/O** | n/a (the sim calls the exported closure as the platform does; a bundle-time tag in `src/bundler.ts` adds listing) |
 
 > **Since the Phase 2 seam work**, every descriptor type above is routed by
 > `src/runtime/seam-fetch.ts` (registry: `src/runtime/seam-registry.ts`;
@@ -140,11 +140,9 @@ shimmed one and `--external` is an optimization, not a requirement.
 `define()` stores a callback in a private map; `getDefinitions()` returns a
 closure over it. It never performs I/O.
 
-Our shim (`src/shims/forge-resolver.ts`) works by **side effect** — its
-`define()` also registers each key on `sim.resolver`. When the real package is
-inlined, that registration never happens and the simulator cannot enumerate
-the app's resolver keys; they are private to the app's own `Resolver`
-instance. The exported dispatch function is the only entry point:
+The simulator runs that class as is. The app's resolver keys are private to
+its own `Resolver` instance; the exported dispatch function is the only entry
+point, for the platform and for the sim:
 
 ```js
 async ({ call: { functionKey, payload, jobId }, context }, backendRuntimePayload) => …
@@ -158,37 +156,29 @@ Two behaviors of the real dispatcher matter:
 - It throws `Resolver has no definition for '<key>'.` for keys it does not
   own — usable as a "not mine" signal, not as a general error.
 
-forge-sim detects this shape by source inspection
-(`detectResolverDispatch` in `src/deployer.ts`) and registers it as a dispatch
-fallback (`SimulatedResolver.registerDispatch`). Detection is never done by
-probing: calling the function would execute app handlers at deploy time.
+The deployer registers every resolver function's closure
+(`SimulatedResolver.registerDispatch`) and `invoke()` calls it with the
+requested key, the way the platform does: a module's invoke goes to its own
+function's closure and nothing else.
 
-Note this code path predates the shape-2 investigation. It was introduced by
-`852ea7b` (March 2026) for an unrelated cause — tsx's loader hooks
-short-circuiting ours, so the real `@forge/resolver` loaded even for ordinary
-source apps.
+Listing is the part the real class cannot do, so the bundler appends a few
+lines to `@forge/resolver/out/index.js` inside every bundle it builds
+(`forge-sim-resolver-definitions` in `src/bundler.ts`): `define()` records
+the key per instance once the real method has accepted it, and
+`getDefinitions()` tags the closure it returns with that set. The deployer
+reads the tag (`bundledResolverDefinitions`) for `sim.resolver.getDefinitions()`,
+"Available:" error text and per-module ownership, and a module-less
+`sim.invoke()` of a key two functions define is an error naming both.
 
-**Limitation:** a bundled resolver's definition keys still cannot be
-enumerated, so they do not appear in `sim.resolver.getDefinitions()` or in
-"Available:" error text. Routing works; listing does not.
-
-A measured consequence of that: `sim.registerResolverOwnership()` is driven
-by iterating a definitions map, so for a bundled resolver no ownership is
-recorded. The cross-module guard in `simulator.ts` reads
-
-```
-const owner = this.resolverOwnership.get(functionKey);
-if (owner && owner !== route.resolverFunctionKey) throw …
-```
-
-— permissive when `owner` is `undefined`. So a `moduleKey`-scoped invoke
-that real Forge would reject ("each module can only invoke functions defined
-in its own resolver") is **permitted** when the resolver was bundled. This
-is the residual of the adversarial-F "webpack moduleKey-scoped invoke"
-report, whose original repro was confounded by finding D: the bundler is
-irrelevant, non-enumerable keys are the cause. It affects unsupported
-shape-2 backends, plus the tsx-bypass path in §4; the effect is a missing
-guard, not broken routing.
+**Limitation:** a closure forge-sim did not build (manual packaging, where
+the app's own bundler inlined the package) carries no tag. The deployer
+recognises its shape by source inspection (`detectResolverDispatch` in
+`src/deployer.ts`, never by probing: calling the function would execute app
+handlers at deploy time) and `invoke()` asks such closures in manifest order
+for a key no tag owns. Its keys do not appear in
+`sim.resolver.getDefinitions()`, no ownership is recorded for them, and the
+cross-module guard (`validateResolverAccess` in `src/simulator.ts`) is
+permissive for them. Routing works; listing does not.
 
 ## 5. The real `@forge/api` runs on the seam alone
 

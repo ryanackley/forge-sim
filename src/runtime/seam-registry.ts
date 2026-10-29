@@ -8,12 +8,12 @@
  *   global.__forge_fetch__(descriptor, path, init) -> Response   (all I/O)
  *   global.__forge_runtime__: ForgeRuntime                       (identity + config)
  *
- * forge-sim's backend has historically intercepted the `@forge/*` *import
- * specifier* instead (`src/shims/*` behind the loader hooks in `src/loader/`).
- * That only works while a specifier survives into the app's output: a bundled
- * ("shape 2") app inlines the real package and there is nothing left to alias,
- * so the inlined real code runs and reaches for these globals directly. See
- * `docs/reference/bundled-forge-packages.md`.
+ * forge-sim's backend historically intercepted the `@forge/*` *import
+ * specifier* instead (shims behind loader hooks). That only works while a
+ * specifier survives into the app's output: a bundled ("shape 2") app inlines
+ * the real package and there is nothing left to alias, so the inlined real
+ * code runs and reaches for these globals directly. Every package now runs
+ * that way. See `docs/reference/bundled-forge-packages.md`.
  *
  * This file is the backend counterpart of `src/bridge/protocol/commands.ts`,
  * and exists for the same reason: so "what does the platform have to provide?"

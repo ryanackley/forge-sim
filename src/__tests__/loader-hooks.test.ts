@@ -1,15 +1,15 @@
 /**
  * Tests for the module loader hooks (src/loader/hooks.ts).
  *
- * Validates that `@forge/resolver` — the one shimmed package — resolves to the
- * compiled dist/shims file whether running from source or dist, and that the
- * hook leaves every other package to Node (the bundler owns interop now).
+ * Validates that the hook leaves every `@forge/*` package to Node (no shim
+ * remains; the bundler owns interop), warns once about a package the sim has
+ * no answer for, and resolves what Node's strict ESM resolver would not.
  */
 
 import { describe, it, expect, vi, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
 import { resolve, load } from '../loader/hooks.js';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { resolve as pathResolve, join, sep } from 'node:path';
+import { resolve as pathResolve, join } from 'node:path';
 import { mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { execSync } from 'node:child_process';
@@ -20,45 +20,7 @@ const nextResolve = vi.fn(async (specifier: string) => ({
   shortCircuit: false,
 }));
 
-const EXPECTED_SHIMS = [
-  '@forge/resolver',
-];
-
 describe('Loader Hooks — resolve()', () => {
-  describe('@forge/* shims', () => {
-    for (const pkg of EXPECTED_SHIMS) {
-      it(`resolves ${pkg} to a .js file in dist/shims/`, async () => {
-        nextResolve.mockClear();
-
-        const result = await resolve(pkg, {}, nextResolve);
-
-        expect(result.shortCircuit).toBe(true);
-        expect(nextResolve).not.toHaveBeenCalled();
-
-        // Should be a file:// URL pointing to a .js file
-        expect(result.url).toMatch(/^file:\/\//);
-        expect(result.url).toMatch(/\.js$/);
-
-        // Should be in a shims/ directory
-        const filePath = fileURLToPath(result.url);
-        expect(filePath).toContain(`${sep}shims${sep}`);
-
-        // Should NOT point to a .ts file (the bug we fixed)
-        expect(result.url).not.toMatch(/\.ts$/);
-        expect(filePath).not.toMatch(/\.ts$/);
-      });
-
-      it(`resolves ${pkg} to a file that actually exists`, async () => {
-        const result = await resolve(pkg, {}, nextResolve);
-        const filePath = fileURLToPath(result.url);
-
-        // The compiled shim must exist (requires `npm run build` first)
-        const { access } = await import('node:fs/promises');
-        await expect(access(filePath)).resolves.toBeUndefined();
-      });
-    }
-  });
-
   describe('non-@forge specifiers', () => {
     it('delegates unknown specifiers to nextResolve', async () => {
       nextResolve.mockClear();
@@ -165,7 +127,7 @@ describe('Loader Hooks — resolve()', () => {
       expect(warnings).toHaveLength(0);
     });
 
-    it('does NOT warn for shimmed packages', async () => {
+    it('does NOT warn for packages the sim answers through a seam', async () => {
       await resolve('@forge/api', {}, nextResolve);
       await resolve('@forge/react', {}, nextResolve);
       await resolve('@forge/react/router', {}, nextResolve);
@@ -173,22 +135,15 @@ describe('Loader Hooks — resolve()', () => {
       expect(warnSpy).not.toHaveBeenCalled();
     });
 
-    it('warns for a subpath of the one shimmed package', async () => {
-      // @forge/resolver is the only shimmed package left, and `./shared` its
-      // only subpath export — a TYPES-ONLY module (its runtime JS exports
-      // nothing), so `import type` is erased and never reaches this hook at
-      // all. The warning used to have a second, subpath-specific wording
-      // ("we shim the root but not this subpath, behavior may differ") that
-      // could only ever fire here, where it is inapplicable: there is no
-      // runtime behavior to differ. One message now, for every specifier the
-      // sim has no answer for.
+    it('does not warn for @forge/resolver or its subpath (the real package needs no seam)', async () => {
+      // `./shared` is its only subpath export — a TYPES-ONLY module (its
+      // runtime JS exports nothing), so `import type` is erased and never
+      // reaches this hook at all; the root package is pure in-process glue
+      // the sim calls as the platform does.
+      await resolve('@forge/resolver', {}, nextResolve);
       await resolve('@forge/resolver/shared', {}, nextResolve);
 
-      const warning = warnSpy.mock.calls.map(c => String(c[0])).find(m =>
-        m.includes('@forge/resolver/shared')
-      );
-      expect(warning).toBeDefined();
-      expect(warning).toContain('not simulated by forge-sim');
+      expect(warnSpy).not.toHaveBeenCalled();
     });
 
     it('does not warn for non-@forge packages', async () => {
@@ -221,29 +176,6 @@ describe('Loader Hooks — resolve()', () => {
       nextResolve.mockClear();
       const result = await resolve('react', {}, nextResolve);
       expect(result.url).toBe('passthrough://react');
-    });
-  });
-
-  describe('path correctness', () => {
-    it('all shim paths point to dist/ not src/', async () => {
-      for (const pkg of EXPECTED_SHIMS) {
-        const result = await resolve(pkg, {}, nextResolve);
-        const filePath = fileURLToPath(result.url);
-
-        // When running in vitest (from source), the hooks detect .ts and
-        // navigate to dist/shims/. Either way, result must be in dist/.
-        expect(filePath).toContain(`${sep}dist${sep}shims${sep}`);
-      }
-    });
-
-    it('shim filenames match the @forge/X → forge-X.js pattern', async () => {
-      for (const pkg of EXPECTED_SHIMS) {
-        const result = await resolve(pkg, {}, nextResolve);
-        const filePath = fileURLToPath(result.url);
-        const expectedFilename = pkg.replace('@forge/', 'forge-') + '.js';
-
-        expect(filePath).toMatch(new RegExp(`${expectedFilename}$`));
-      }
     });
   });
 

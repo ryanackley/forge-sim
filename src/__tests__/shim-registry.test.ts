@@ -34,11 +34,13 @@ import {
 const SHIM_SRC_DIR = resolve(__dirname, '..', 'shims');
 
 describe('@forge/* shim registry', () => {
-  it('declares at least the shims we know exist', () => {
-    // Guards against the list being accidentally emptied/truncated, which
-    // would make every other assertion here vacuously true.
-    expect(SHIM_NAMES.length).toBeGreaterThanOrEqual(1);
-    expect(SHIM_NAMES).toContain('@forge/resolver'); // no seam — shimmed forever
+  it('is empty: every @forge/* package runs as Atlassian ships it', () => {
+    // The bare-seam and frontend-seam migrations emptied the list of every
+    // package with a seam; @forge/resolver, which needs none, left last (the
+    // bundler observes the real class, src/bundler.ts). A shim added here is
+    // a parity regression until its reason is written down.
+    expect([...SHIM_NAMES]).toEqual([]);
+    expect(PASSTHROUGH_OK).toContain('@forge/resolver');
   });
 
   it.each([...SHIM_NAMES])('%s has a shim source file', (pkg) => {

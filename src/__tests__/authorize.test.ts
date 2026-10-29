@@ -24,7 +24,7 @@ import { createRequire } from 'node:module';
 import { createSimulator, ForgeSimulator } from '../simulator.js';
 import { installForgeRuntime } from '../runtime/forge-runtime.js';
 import { authorize } from '@forge/api';
-import Resolver from '../shims/forge-resolver.js';
+import Resolver from '@forge/resolver';
 import {
   API_ISSUES_PERMISSIONS_MAP,
   API_PROJECTS_PERMISSIONS_MAP,
@@ -305,6 +305,7 @@ describe('authorize() builders', () => {
       resolver.define('checkPerms', async () => {
         return authorize().onJiraIssue(10001).canEdit();
       });
+      sim.resolver.registerDispatch('perms-fn', resolver.getDefinitions());
 
       await sim.invoke('checkPerms', {}, { context: { accountId: 'alice' } });
       expect(captured[0].accountId).toBe('alice');

@@ -14,11 +14,12 @@ import { realpathSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { createRequire } from 'node:module';
 import { interceptCjsForgeRequires } from './loader/cjs-interception.js';
-import { bundleEntries, importEntry, unsimulatedForgeImports, type BundleResult, FRONTEND_ONLY_PACKAGES } from './bundler.js';
+import { bundleEntries, importEntry, unsimulatedForgeImports, bundledResolverDefinitions, type BundleResult, FRONTEND_ONLY_PACKAGES } from './bundler.js';
 import { parseManifest, type ParsedManifest, type ManifestFunction, type ManifestResource, type ManifestUIModule } from './manifest.js';
 import { validateManifestFile, printManifestWarnings } from './manifest-validation.js';
 import { checkAppForgeVersions, readAppForgeDeps } from './forge-package-versions.js';
 import type { ForgeSimulator } from './simulator.js';
+import { callDispatch, type ResolverDispatch } from './resolver.js';
 import type { TypeCheckError } from './type-checker.js';
 
 /** Per-app cache dir for esbuild deploy bundles. Convention follows fit-keys/
@@ -545,11 +546,10 @@ export async function resolveResourceFile(appDir: string, resourcePath: string):
  * Does this exported handler look like real @forge/resolver's
  * `getDefinitions()` dispatch function?
  *
- * Apps that BUNDLE @forge/resolver (no bare `@forge/resolver` specifier
- * survives in the output) run the real package, so our shim's registering
- * `define()` never executes — the definition keys live in a private map
- * inside the app's own Resolver instance and are invisible to us. What we
- * get is the dispatch closure, whose signature is distinctive:
+ * The fallback for code forge-sim did not bundle (manual packaging, where
+ * the app's own bundler inlined the package): a closure the bundler built
+ * carries its definition keys (`bundledResolverDefinitions`), one it did not
+ * is recognised by its signature alone:
  *
  *   async ({ call: { functionKey, payload }, context }, backendRuntimePayload)
  *
@@ -1162,8 +1162,16 @@ export async function deploy(sim: ForgeSimulator, appDir: string, options: Deplo
 
   // 3. Wire up resolvers (UI bridge pattern) and register module routing
   // UI modules reference functions via resolver.function — those functions
-  // export a Resolver's getDefinitions() result (a map of handler functions).
-  // Resolver-defined functions get { payload, context } as a single wrapped object.
+  // export a Resolver's getDefinitions() result, the dispatch closure the
+  // platform calls with the requested key. The sim registers the closure
+  // under its function key and routes a module's invoke to it; the keys it
+  // defines come from the bundler's tag when forge-sim built the bundle.
+  const registerResolverFunction = (fnKey: string, exported: Function): boolean => {
+    const keys = bundledResolverDefinitions(exported);
+    if (keys === null && !detectResolverDispatch(exported)) return false;
+    sim.resolver.registerDispatch(fnKey, exported as any, keys);
+    return true;
+  };
   for (const uiModule of manifest.uiModules) {
     // Register module routing (resolver function key and/or endpoint key)
     sim.registerModuleRoute(uiModule.key, {
@@ -1178,48 +1186,29 @@ export async function deploy(sim: ForgeSimulator, appDir: string, options: Deplo
     if (!exported) continue;
 
     if (typeof exported === 'object') {
-      // It's a definitions map from Resolver.getDefinitions(). The @forge/resolver
-      // shim already registered these with sim.resolver during bundle evaluation
-      // (each `resolver.define()` call inside user code routes through it). So
-      // this loop is a no-op for keys already present — registering them again
-      // would just trigger the "overwriting" footgun-warning meant for users
-      // who define the same key in two different files. (F8)
+      // A plain `{ foo: fn }` map exported without @forge/resolver: register
+      // each function so invoke() can reach it, once per key (a second
+      // module naming the same function must not re-define its keys and
+      // trip the "overwriting" warning meant for duplicate definitions).
       const already = new Set(sim.resolver.getDefinitions());
       for (const [defKey, defHandler] of Object.entries(exported)) {
         if (typeof defHandler !== 'function') continue;
-        if (!already.has(defKey)) {
-          // User exported a plain `{ foo: fn }` map without using the Resolver
-          // shim — register the function ourselves so invoke() can reach it.
-          sim.resolver.define(defKey, defHandler as any);
-        }
+        if (!already.has(defKey)) sim.resolver.define(defKey, defHandler as any);
         sim.registerResolverOwnership(defKey, uiModule.resolverFunctionKey);
       }
     } else if (typeof exported === 'function') {
-      // An app that bundled @forge/resolver exports the dispatch closure
-      // rather than a definitions map. Register it as a fallback route so
-      // its (un-enumerable) definition keys are reachable by invoke(), the
-      // same way the real platform reaches them. Without this the app
-      // deploys clean and every UI invoke fails with "no resolver defined"
-      // — and registering it as a plain handler is worse still: the
-      // signatures don't match, so it fails with a cryptic
-      // "Cannot read properties of undefined (reading 'functionKey')".
-      const isDispatch = detectResolverDispatch(exported);
-      if (isDispatch) {
-        sim.resolver.registerDispatch(uiModule.resolverFunctionKey, exported as any);
+      if (registerResolverFunction(uiModule.resolverFunctionKey, exported)) {
+        // Ownership (one owner per key) feeds validateResolverAccess and the
+        // module a module-less invoke is attributed to; a key two functions
+        // share is settled by the invoking module's own closure.
+        for (const key of bundledResolverDefinitions(exported) ?? []) {
+          sim.registerResolverOwnership(key, uiModule.resolverFunctionKey);
+        }
+      } else if (!sim.resolver.getDefinitions().includes(uiModule.resolverFunctionKey)) {
+        // A bare `(req) => ...` handler exported as the resolver function.
+        sim.resolver.define(uiModule.resolverFunctionKey, exported);
+        sim.registerResolverOwnership(uiModule.resolverFunctionKey, uiModule.resolverFunctionKey);
       }
-      if (!sim.resolver.getDefinitions().includes(uiModule.resolverFunctionKey)) {
-        // For a dispatch closure, the manifest key must be an ADAPTER: the
-        // raw closure takes ({ call, context }, runtimePayload), so defining
-        // it directly makes `sim.invoke('<fnKey>')` die on
-        // `undefined.functionKey`.
-        sim.resolver.define(
-          uiModule.resolverFunctionKey,
-          isDispatch
-            ? sim.resolver.makeDispatchAdapter(uiModule.resolverFunctionKey)
-            : exported,
-        );
-      }
-      sim.registerResolverOwnership(uiModule.resolverFunctionKey, uiModule.resolverFunctionKey);
     }
   }
 
@@ -1233,21 +1222,15 @@ export async function deploy(sim: ForgeSimulator, appDir: string, options: Deplo
           sim.resolver.define(defKey, defHandler as any);
         }
       }
-    } else if (
-      typeof handler === 'function' &&
-      !resolverFnKeys.has(fnKey) &&
-      detectResolverDispatch(handler)
-    ) {
-      // A bundled resolver exported by a function that no UI module claims
-      // (the loop above only covers modules with `resolver.function`). Apps
-      // call these straight through sim.invoke(), so they need the same
-      // fallback route. Trigger/consumer/web-trigger handlers can't be
-      // confused for one: those take (event, context) and don't mention
-      // `call`/`functionKey`.
-      sim.resolver.registerDispatch(fnKey, handler as any);
-      if (!sim.resolver.getDefinitions().includes(fnKey)) {
-        sim.resolver.define(fnKey, sim.resolver.makeDispatchAdapter(fnKey));
-      }
+    } else if (typeof handler === 'function' && !resolverFnKeys.has(fnKey)) {
+      // A resolver function no UI module claims (the loop above only covers
+      // modules with `resolver.function`). Apps call its definitions straight
+      // through sim.invoke(), so it is registered the same way. Trigger,
+      // consumer and web-trigger handlers are never mistaken for one: the
+      // bundler's tag names the closures it built, and the signature
+      // fallback needs `call`/`functionKey`, which (event, context) handlers
+      // do not mention.
+      registerResolverFunction(fnKey, handler);
     }
   }
 
@@ -1277,10 +1260,10 @@ export async function deploy(sim: ForgeSimulator, appDir: string, options: Deplo
   // (event, context) as two separate arguments where event is the AsyncEvent
   // ({ body, jobId, retryContext }).
   // v1 (deprecated `resolver: { function, method }` shape): the function
-  // exports a Resolver definitions map; `method` names which definition
+  // exports a Resolver's dispatch closure; `method` names which definition
   // receives queue events, invoked with the resolver convention — a single
   // ({ payload, context }) object where payload is the event body and jobId
-  // rides on context. (Eval-4 F3: this shape used to be a silent event sink.)
+  // rides on context. (This shape used to be a silent event sink.)
   // What getAppContext() and the runtime budget describe for a delivery: the
   // consumer module's key, its function, and that function's timeoutSeconds.
   const consumerRegistration = (consumer: { key: string; functionKey: string }) => ({
@@ -1293,25 +1276,30 @@ export async function deploy(sim: ForgeSimulator, appDir: string, options: Deplo
     if (!exported) continue; // missing/failed function already surfaced in errors
 
     if (consumer.resolverMethod !== undefined) {
+      const method = consumer.resolverMethod;
+      // The closure's definition keys, when the bundler tagged it; a plain
+      // `{ key: fn }` map's own keys; null for an untagged closure, whose
+      // keys only it knows (a missing method then fails at delivery).
+      const isDispatch = typeof exported === 'function' && sim.resolver.getDispatchKeys().includes(consumer.functionKey);
       const defs = typeof exported === 'object' ? exported as Record<string, unknown> : undefined;
-      const methodHandler = defs?.[consumer.resolverMethod];
-      if (typeof methodHandler !== 'function') {
-        const availableMethods = defs
-          ? Object.keys(defs).filter((k) => typeof defs[k] === 'function')
-          : [];
+      const available: string[] | null = isDispatch
+        ? (bundledResolverDefinitions(exported) ? [...bundledResolverDefinitions(exported)!] : null)
+        : defs ? Object.keys(defs).filter((k) => typeof defs[k] === 'function') : [];
+      if ((!isDispatch && !defs) || (available && !available.includes(method))) {
         errors.push({
           functionKey: consumer.functionKey,
           error: `Consumer "${consumer.key}" uses the v1 resolver shape with method ` +
-            `"${consumer.resolverMethod}", but function "${consumer.functionKey}" ` +
-            (defs
-              ? `has no resolver definition with that name. Available: ${availableMethods.join(', ') || '(none)'}`
-              : `does not export a Resolver definitions map (export resolver.getDefinitions()).`),
+            `"${method}", but function "${consumer.functionKey}" ` +
+            (isDispatch || defs
+              ? `has no resolver definition with that name. Available: ${available!.join(', ') || '(none)'}`
+              : `does not export a Resolver's definitions (export resolver.getDefinitions()).`),
         });
         continue;
       }
-      const wrapped = wrapV1ConsumerHandler(
-        methodHandler as (req: { payload: unknown; context: unknown }) => unknown
-      );
+      const methodHandler = isDispatch
+        ? (req: { payload: unknown; context: unknown }) => callDispatch(exported as ResolverDispatch, method, req as any)
+        : (defs![method] as (req: { payload: unknown; context: unknown }) => unknown);
+      const wrapped = wrapV1ConsumerHandler(methodHandler);
       registerFresh(consumer.functionKey, wrapped, 'consumer');
       sim.registerConsumer(consumer.queue, wrapped, consumerRegistration(consumer));
       continue;
@@ -1353,8 +1341,11 @@ export async function deploy(sim: ForgeSimulator, appDir: string, options: Deplo
   for (const [fnKey, handler] of handlerExports) {
     if (typeof handler === 'function' && !registeredThisDeploy.has(fnKey)) {
       registerFresh(fnKey, handler, manifest.functions.get(fnKey)?.type ?? 'generic');
-      // Also make it available via resolver.define() for backward compat
-      if (!sim.resolver.getDefinitions().includes(fnKey)) {
+      // Also make it available via resolver.define() for backward compat.
+      // Not a dispatch closure: that is reached through its definitions,
+      // and handed a resolver request directly it would die on
+      // `undefined.functionKey`.
+      if (!sim.resolver.getDefinitions().includes(fnKey) && !sim.resolver.getDispatchKeys().includes(fnKey)) {
         sim.resolver.define(fnKey, handler);
       }
     }

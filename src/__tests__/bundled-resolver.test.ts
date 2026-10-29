@@ -1,13 +1,12 @@
 /**
- * Manual packaging (#40), adversarial finding D: backends that BUNDLE
- * @forge/resolver into their output.
+ * Manual packaging (#40): backends whose OWN bundler inlined @forge/resolver
+ * into their output.
  *
  * Real Forge fully supports an inlined @forge/resolver — the platform only
- * ever calls the exported dispatch function. forge-sim's interception, by
- * contrast, is keyed on the *specifier* `@forge/resolver` (ESM resolve hook
- * + CJS `Module._resolveFilename` patch), and a bundled copy has no
- * specifier left to intercept. The shim's registering `define()` never runs,
- * so the app's resolver keys are invisible to the simulator.
+ * ever calls the exported dispatch function. The sim does the same, but a
+ * closure it did not build carries no definition tag (src/bundler.ts
+ * appends that only to bundles it makes), so its keys are found by asking
+ * it: routing works, listing does not.
  *
  * These tests bundle against the REAL @forge/resolver (not a hand-written
  * lookalike) so they keep tracking upstream's actual dispatch shape.
@@ -231,9 +230,8 @@ describe('bundled @forge/resolver — full-stack UI invoke (adversarial D)', () 
 
 describe('detectResolverDispatch', () => {
   it('matches the real @forge/resolver dispatch shape', async () => {
-    // By explicit path: a bare `@forge/resolver` specifier is aliased to our
-    // SHIM under vitest, and the shim's getDefinitions() returns an object.
-    // The point here is the REAL package's closure.
+    // By explicit path, so this pins the installed package's closure even
+    // if a test-runner alias ever came back.
     const { createRequire } = await import('node:module');
     const req = createRequire(import.meta.url);
     const Real = req(join(REPO_ROOT, 'node_modules/@forge/resolver/out/index.js'));

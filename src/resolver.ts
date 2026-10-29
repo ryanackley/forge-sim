@@ -12,11 +12,10 @@ export type ResolverHandler = (req: ResolverRequest) => any | Promise<any>;
 /**
  * The function shape real `@forge/resolver`'s `getDefinitions()` returns.
  *
- * Apps that BUNDLE @forge/resolver (rather than importing it bare) run the
- * real package, so our shim's registering `define()` never executes and the
- * individual definition keys are invisible to us — they live in a private
- * map inside the app's own Resolver instance. The only way in is the
- * exported dispatch function. See `registerDispatch`.
+ * Apps run the real package, so a resolver function's export is this
+ * closure over a private handler map, and the platform only ever calls the
+ * closure. The sim does the same (`registerDispatch`); the keys a closure
+ * owns are known only when the bundler tagged it (src/bundler.ts).
  */
 export type ResolverDispatch = (
   payload: {
@@ -25,6 +24,24 @@ export type ResolverDispatch = (
   },
   backendRuntimePayload?: Record<string, unknown>,
 ) => unknown | Promise<unknown>;
+
+/**
+ * Where an invoke comes from: the module the bridge call was made in and the
+ * resolver function that module's manifest entry names. With it, `invoke()`
+ * asks only that function's closure, as the platform does.
+ */
+export interface InvokeRoute {
+  moduleKey?: string;
+  functionKey?: string;
+  /**
+   * True when the caller named the module (`sim.invoke(key, p, { moduleKey })`,
+   * the dev server): only that module's function may answer. False when the
+   * module is the one being rendered: it settles a key several functions
+   * define, but a key it does not define is still looked up by owner, since
+   * a module-less `sim.invoke()` during a render is attributed by ownership.
+   */
+  explicit?: boolean;
+}
 
 /**
  * Provider for the default context that gets spread into every resolver
@@ -45,6 +62,17 @@ const DEFAULT_CONTEXT: ResolverContext = {
 };
 
 const defaultContextProvider: ResolverContextProvider = () => ({ ...DEFAULT_CONTEXT });
+
+/** A resolver function's dispatch closure, registered under its manifest function key. */
+interface RegisteredDispatch {
+  dispatch: ResolverDispatch;
+  /**
+   * The definition keys the closure owns, from the bundler's tag; null for a
+   * closure forge-sim did not bundle (manual packaging, a Resolver built in
+   * a test file), whose keys can only be found by asking it.
+   */
+  keys: ReadonlySet<string> | null;
+}
 
 export class SimulatedResolver {
   private definitions = new Map<string, ResolverHandler>();
@@ -86,15 +114,13 @@ export class SimulatedResolver {
    */
   private staleKeys = new Set<string>();
   /**
-   * Dispatch functions from apps that bundled @forge/resolver in, keyed by
-   * the manifest function key that exported them. Consulted by invoke() only
-   * when no explicit definition matches — a bundled resolver's definition
-   * keys cannot be enumerated (they're private to the app's own Resolver),
-   * so "ask the dispatcher" is the only way to reach them. Insertion order
-   * is the try order; manifest-declared functions are registered in manifest
-   * order, so the first-declared resolver wins a key collision.
+   * The app's resolver functions: each manifest function whose export is a
+   * `@forge/resolver` dispatch closure, in manifest order. A module reaches
+   * exactly its own function's closure, as on Forge; a module-less
+   * `invoke(key)` finds the function whose tag owns the key, and asks the
+   * untagged closures in order when no tag does.
    */
-  private dispatchFallbacks = new Map<string, ResolverDispatch>();
+  private dispatchers = new Map<string, RegisteredDispatch>();
   private getDefaults: ResolverContextProvider;
 
   constructor(getDefaults: ResolverContextProvider = defaultContextProvider) {
@@ -121,58 +147,57 @@ export class SimulatedResolver {
    */
   beginDeployEpoch(): void {
     this.staleKeys = new Set(this.definitions.keys());
-    // Dispatch fallbacks are rebuilt from scratch by each deploy pass. Unlike
-    // definitions (which the app's own define() calls re-register), a stale
+    // Dispatchers are rebuilt from scratch by each deploy pass. Unlike
+    // definitions (which a programmatic define() re-registers), a stale
     // dispatch closure holds the PREVIOUS deploy's handler code — keeping it
     // would let a redeploy keep serving old resolvers forever.
-    this.dispatchFallbacks.clear();
+    this.dispatchers.clear();
   }
 
   /**
-   * Register a bundled-resolver dispatch function as a fallback route for
-   * definition keys that have no explicit handler.
-   *
-   * Real Forge fully supports an inlined @forge/resolver: the platform calls
-   * the exported dispatch function with the requested `functionKey` and it
-   * routes internally. We can't enumerate those keys up front, so we mirror
-   * the platform and ask the dispatcher at invoke time.
+   * Register a resolver function's export: the dispatch closure real
+   * `@forge/resolver` returns from `getDefinitions()`, under the manifest
+   * function key that exported it. The platform calls that closure with the
+   * requested key and it routes internally; so does the sim. `keys` is the
+   * set of definitions the closure owns when known (the bundler tags every
+   * closure it builds, src/bundler.ts); leave it out for a closure built
+   * elsewhere and the sim asks it at invoke time instead.
    */
-  registerDispatch(functionKey: string, dispatch: ResolverDispatch): void {
-    this.dispatchFallbacks.set(functionKey, dispatch);
+  registerDispatch(functionKey: string, dispatch: ResolverDispatch, keys?: Iterable<string> | null): void {
+    this.dispatchers.set(functionKey, { dispatch, keys: keys ? new Set(keys) : null });
   }
 
-  /** Manifest function keys that registered a bundled-resolver dispatcher. */
+  /** Manifest function keys that registered a dispatch closure. */
   getDispatchKeys(): string[] {
-    return [...this.dispatchFallbacks.keys()];
+    return [...this.dispatchers.keys()];
   }
 
   /**
-   * A `define()`-able handler that forwards straight to ONE registered
-   * dispatcher. Used for the manifest function key itself, so
-   * `sim.invoke('<resolverFunctionKey>')` reaches the dispatcher instead of
-   * being handed the raw closure (whose two-argument signature would fail
-   * with "Cannot read properties of undefined (reading 'functionKey')").
-   * Forwards directly rather than re-entering invoke(), which would recurse.
+   * Does the resolver function `functionKey` define `key`? True for a tagged
+   * closure that owns the key and for an untagged one (only asking it would
+   * tell); false for a tagged closure without it or no closure at all.
    */
-  makeDispatchAdapter(dispatchKey: string): ResolverHandler {
-    return (req: ResolverRequest) => {
-      const dispatch = this.dispatchFallbacks.get(dispatchKey);
-      if (!dispatch) {
-        throw new Error(`No bundled resolver registered for "${dispatchKey}".`);
-      }
-      return callDispatch(dispatch, dispatchKey, req);
-    };
+  dispatchDefines(functionKey: string, key: string): boolean {
+    const d = this.dispatchers.get(functionKey);
+    return !!d && (d.keys === null || d.keys.has(key));
+  }
+
+  /** The resolver functions whose tag owns `key`, in manifest order. */
+  definingFunctions(key: string): string[] {
+    return [...this.dispatchers.entries()].filter(([, d]) => d.keys?.has(key)).map(([fn]) => fn);
   }
 
   /**
    * Define a resolver function (mirrors Resolver.define()).
    */
   define(functionKey: string, handler: ResolverHandler): void {
-    if (this.definitions.has(functionKey)) {
+    if (this.definitions.has(functionKey) || this.definingFunctions(functionKey).length > 0) {
       if (this.staleKeys.has(functionKey)) {
         // Redeploy replacing a previous epoch's definition — silent.
         this.staleKeys.delete(functionKey);
       } else {
+        // A programmatic define() shadows the app's own definition of the
+        // key (definitions are consulted before the app's closures).
         console.warn(
           `[forge-sim] Warning: resolver.define("${functionKey}") is overwriting an existing definition. ` +
           `In Forge, duplicate resolver names across files may cause unexpected behavior.`
@@ -220,17 +245,10 @@ export class SimulatedResolver {
   async invoke(
     functionKey: string,
     payload?: any,
-    contextOverride?: Partial<ResolverContext>
+    contextOverride?: Partial<ResolverContext>,
+    route?: InvokeRoute,
   ): Promise<any> {
-    const handler = this.definitions.get(functionKey);
-    if (!handler && this.dispatchFallbacks.size === 0) {
-      const available = [...this.definitions.keys()];
-      throw new Error(
-        `No resolver defined for "${functionKey}". Available: ${available.join(', ') || 'none'}`
-      );
-    }
-
-    return this.invokeWithContext(functionKey, payload, this.resolveContext(contextOverride));
+    return this.invokeWithContext(functionKey, payload, this.resolveContext(contextOverride), route);
   }
 
   /**
@@ -269,52 +287,92 @@ export class SimulatedResolver {
   async invokeWithContext(
     functionKey: string,
     payload: any,
-    context: Record<string, unknown>
+    context: Record<string, unknown>,
+    route?: InvokeRoute,
   ): Promise<any> {
-    const handler = this.definitions.get(functionKey);
-    if (!handler && this.dispatchFallbacks.size === 0) {
-      const available = [...this.definitions.keys()];
-      throw new Error(
-        `No resolver defined for "${functionKey}". Available: ${available.join(', ') || 'none'}`
-      );
-    }
-
     const req: ResolverRequest = {
       payload: payload ?? {},
       context: context as ResolverContext,
     };
 
-    return this.runWithContext(context as ResolverContext, async () => {
-      if (handler) return await handler(req);
-      return await this.invokeViaDispatch(functionKey, req);
-    });
+    return this.runWithContext(context as ResolverContext, () => this.dispatch(functionKey, req, route));
   }
 
   /**
-   * Route an unmatched key through the registered bundled-resolver
-   * dispatchers, in registration order. A dispatcher that doesn't own the
-   * key throws real @forge/resolver's "Resolver has no definition for 'x'"
-   * — we treat that as "not mine" and try the next one, then report the key
-   * as undefined. Any OTHER error is the app's own handler failing and
-   * propagates untouched (swallowing it would turn a real bug into a
-   * confusing "no resolver defined").
+   * Find and call the handler for `functionKey`, the way the platform routes
+   * a bridge invoke.
+   *
+   *  1. A programmatic `define()` of the key (a test's override; there is no
+   *     such thing on Forge, so it shadows the app's own definition).
+   *  2. The named module's own resolver function (`route.functionKey`, from
+   *     the module's `resolver.function`): Forge hands the key to that
+   *     function's closure and to nothing else, so a key it does not define
+   *     is an error even when another function defines it.
+   *  3. The one resolver function whose tag owns the key; among several, the
+   *     one the module being rendered names. Otherwise two owners is an
+   *     error: Forge has no module-less invoke, and picking one would run
+   *     the wrong resolver silently.
+   *  4. Untagged closures (code forge-sim did not bundle), asked in manifest
+   *     order. Real @forge/resolver's "Resolver has no definition for 'x'"
+   *     means "not mine" and the next is tried; any OTHER error is the app's
+   *     own handler failing and propagates untouched (swallowing it would
+   *     turn a real bug into a confusing "no resolver defined").
    */
-  private async invokeViaDispatch(functionKey: string, req: ResolverRequest): Promise<any> {
-    for (const dispatch of this.dispatchFallbacks.values()) {
+  private async dispatch(functionKey: string, req: ResolverRequest, route?: InvokeRoute): Promise<any> {
+    const handler = this.definitions.get(functionKey);
+    if (handler) return await handler(req);
+
+    const own = route?.explicit && route.functionKey !== undefined ? this.dispatchers.get(route.functionKey) : undefined;
+    if (own) {
+      if (own.keys && !own.keys.has(functionKey)) {
+        throw new Error(
+          `No resolver defined for "${functionKey}" in function "${route!.functionKey}", the resolver of ` +
+          `module "${route!.moduleKey ?? '?'}". It defines: ${[...own.keys].join(', ') || 'none'}. ` +
+          `In Forge, a module can only invoke functions defined in its own resolver.`
+        );
+      }
       try {
-        return await callDispatch(dispatch, functionKey, req);
-      } catch (err: any) {
+        return await callDispatch(own.dispatch, functionKey, req);
+      } catch (err) {
+        if (!isNoDefinitionError(err, functionKey)) throw err;
+        throw new Error(
+          `No resolver defined for "${functionKey}" in function "${route!.functionKey}", the resolver of ` +
+          `module "${route!.moduleKey ?? '?'}". In Forge, a module can only invoke functions defined in its own resolver.`
+        );
+      }
+    }
+
+    const owners = this.definingFunctions(functionKey);
+    if (owners.length > 1 && route?.functionKey !== undefined && owners.includes(route.functionKey)) {
+      return await callDispatch(this.dispatchers.get(route.functionKey)!.dispatch, functionKey, req);
+    }
+    if (owners.length > 1) {
+      throw new Error(
+        `Resolver function "${functionKey}" is defined by more than one function: ` +
+        `${owners.map((k) => `"${k}"`).join(', ')}. In Forge, each module invokes its own resolver function's ` +
+        `definitions, so pass { moduleKey } to say which module is invoking.`
+      );
+    }
+    if (owners.length === 1) {
+      return await callDispatch(this.dispatchers.get(owners[0])!.dispatch, functionKey, req);
+    }
+
+    const untagged = [...this.dispatchers.entries()].filter(([, d]) => d.keys === null);
+    for (const [, d] of untagged) {
+      try {
+        return await callDispatch(d.dispatch, functionKey, req);
+      } catch (err) {
         if (isNoDefinitionError(err, functionKey)) continue;
         throw err;
       }
     }
 
-    const available = [...this.definitions.keys()];
+    const available = this.getDefinitions();
     throw new Error(
       `No resolver defined for "${functionKey}". Available: ${available.join(', ') || 'none'}` +
-      (this.dispatchFallbacks.size > 0
+      (untagged.length > 0
         ? ` (also not defined by the bundled resolver(s) exported from ` +
-          `${[...this.dispatchFallbacks.keys()].map((k) => `"${k}"`).join(', ')})`
+          `${untagged.map(([k]) => `"${k}"`).join(', ')})`
         : '')
     );
   }
@@ -329,14 +387,20 @@ export class SimulatedResolver {
   }
 
   /**
-   * Get all defined function keys.
+   * Every definition key the sim can name: programmatic `define()`s plus the
+   * keys of each tagged dispatch closure, in registration order, deduplicated.
+   * An untagged closure's keys are not listed (they are private to it).
    */
   getDefinitions(): string[] {
-    return [...this.definitions.keys()];
+    const keys = new Set(this.definitions.keys());
+    for (const d of this.dispatchers.values()) for (const k of d.keys ?? []) keys.add(k);
+    return [...keys];
   }
 
   /**
-   * Get a single handler by key (for direct invocation outside resolver pattern).
+   * Get a single programmatic handler by key (for direct invocation outside
+   * the resolver pattern). A dispatch closure's definitions are reached only
+   * through `invoke()`.
    */
   getHandler(functionKey: string): ResolverHandler | undefined {
     return this.definitions.get(functionKey);
@@ -363,7 +427,7 @@ export class SimulatedResolver {
 
   clear(): void {
     this.definitions.clear();
-    this.dispatchFallbacks.clear();
+    this.dispatchers.clear();
     this.contextOverrides = {};
     this.renderContextOverlay = {};
     this.staleKeys.clear();
@@ -371,21 +435,24 @@ export class SimulatedResolver {
 }
 
 /**
- * Call a bundled-resolver dispatch function the way the Forge platform does.
+ * Call a `@forge/resolver` dispatch closure the way the Forge platform does.
  *
  * The second argument matters: real @forge/resolver OVERWRITES
  * `context.accountId`, `installContext`, `license` and `installation` from
  * `backendRuntimePayload`, so passing `{}` would blank out the very fields
  * the app reads off `req.context`.
  */
-function callDispatch(
+export function callDispatch(
   dispatch: ResolverDispatch,
   functionKey: string,
   req: ResolverRequest,
 ): unknown {
   const context = req.context as Record<string, unknown>;
+  // The closure sets `context.jobId` from the call, never from the context
+  // it is handed (a queue delivery's job id rides on the request).
+  const jobId = typeof context.jobId === 'string' ? context.jobId : undefined;
   return dispatch(
-    { call: { functionKey, payload: req.payload }, context },
+    { call: { functionKey, payload: req.payload, ...(jobId !== undefined ? { jobId } : {}) }, context },
     {
       principal: { accountId: context.accountId },
       installContext: context.installContext,

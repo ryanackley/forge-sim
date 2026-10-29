@@ -320,29 +320,22 @@ When the user asks you to "write tests" / "make this testable" / "add vitest cov
 
 #### Bundler config (one-time per project)
 
-Vitest, Jest, and webpack bypass Node's loader hooks, so you have to alias `@forge/*` imports to forge-sim's shim files. Vitest:
+No `@forge/*` alias, for any package: every one runs for real against seams the simulator installs, and aliasing one breaks resolution. Vitest needs the setup file that installs the frontend seam before test files evaluate, and a timeout that fits a real deploy:
 
 ```ts
 // vitest.config.ts
 import { defineConfig } from 'vitest/config';
 
-// Aliases use forge-sim's "./shims/*" subpath exports — no path math needed.
 export default defineConfig({
-  resolve: {
-    alias: {
-      // The only alias. Every other @forge/* package — backend and frontend —
-      // runs for real against seams the simulator installs; aliasing one
-      // breaks resolution.
-      '@forge/resolver': 'forge-sim/shims/forge-resolver',
-    },
+  test: {
+    setupFiles: ['forge-sim/setup'],
+    testTimeout: 30_000,
+    hookTimeout: 60_000,
   },
-  test: { testTimeout: 30_000, hookTimeout: 60_000 },
 });
 ```
 
-Jest uses `moduleNameMapper` with the same paths — see the [Webpack / Jest section](https://github.com/ryanackley/forge-sim/blob/main/docs/testing/README.md#webpack--jest) of the testing guide.
-
-> No alias needed for `@forge/sql`. The real `@forge/sql` package talks to the simulator through a runtime hook (`global.__forge_fetch__`) that `createSimulator()` installs automatically.
+Jest needs ESM mode and no `moduleNameMapper` entries — see the [Webpack / Jest section](https://github.com/ryanackley/forge-sim/blob/main/docs/testing/README.md#webpack--jest) of the testing guide.
 
 #### The canonical test shape
 

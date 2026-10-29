@@ -11,7 +11,7 @@ import { setSimulator } from './shims/globals.js';
 import { runWithInvocationRuntime, type InvocationRuntimeInfo } from './runtime/forge-runtime.js';
 import { UnifiedKVS } from './kvs.js';
 import { SimulatedQueue } from './queue.js';
-import { SimulatedResolver } from './resolver.js';
+import { SimulatedResolver, type InvokeRoute } from './resolver.js';
 import { SimulatedProductApi } from './product-api.js';
 import { SimulatedForgeSQL, type ForgeSQLOptions } from './forge-sql.js';
 import { FunctionRegistry, functionTypeHasUser, type ForgeFunctionType } from './function-registry.js';
@@ -512,9 +512,12 @@ export class ForgeSimulator {
       );
     }
 
-    // Check that the function key belongs to this module's resolver
+    // Check that the function key belongs to this module's resolver. A key
+    // two resolver functions both define is fine when this module's own
+    // function is one of them (ownership keeps one owner per key; the
+    // function's tagged closure knows the rest).
     const owner = this.resolverOwnership.get(functionKey);
-    if (owner && owner !== route.resolverFunctionKey) {
+    if (owner && owner !== route.resolverFunctionKey && !this.resolver.dispatchDefines(route.resolverFunctionKey, functionKey)) {
       throw new Error(
         `Function "${functionKey}" belongs to resolver "${owner}", but module "${moduleKey}" uses resolver "${route.resolverFunctionKey}". ` +
         `In Forge, each module can only invoke functions defined in its own resolver.`
@@ -645,6 +648,18 @@ export class ForgeSimulator {
     // Validate module → resolver access if module context is available
     this.validateResolverAccess(functionKey, moduleKey);
 
+    // The module a bridge invoke comes from (named by the caller, or the one
+    // being rendered) names the resolver function whose closure answers, as
+    // the platform routes it: module → function → that function's closure.
+    const routedModule = moduleKey ?? this.ui.getActiveModule() ?? undefined;
+    const route: InvokeRoute | undefined = routedModule
+      ? {
+          moduleKey: routedModule,
+          functionKey: this.moduleRouting.get(routedModule)?.resolverFunctionKey,
+          explicit: moduleKey !== undefined,
+        }
+      : undefined;
+
     // The function's kind comes from the module that binds it in the
     // manifest (or the registry for programmatic registration). It decides
     // the time budget and, through functionTypeHasUser, whether the function
@@ -686,8 +701,8 @@ export class ForgeSimulator {
     let call: () => Promise<any>;
     if (!forgeConvention) {
       call = () => functionContext
-        ? this.resolver.invokeWithContext(functionKey, payload, functionContext)
-        : this.resolver.invoke(functionKey, payload, resolverOverride);
+        ? this.resolver.invokeWithContext(functionKey, payload, functionContext, route)
+        : this.resolver.invoke(functionKey, payload, resolverOverride, route);
     } else {
       const handler = this.getFunction(functionKey);
       if (!handler) {

@@ -20,11 +20,7 @@ const value = await sim.kvs.get('my-key');
 const logs = sim.getLogs();
 ```
 
-> **Edge case:** If your *test file itself* imports `@forge/*` packages at the top level (e.g. `import { kvs } from '@forge/kvs'`), import `forge-sim` first — the real packages work against the seams `createSimulator()`'s module installs on load. Only `@forge/resolver` has no seam; a test file importing it directly needs the `--import` flag so the loader routes it to the shim:
-> ```bash
-> node --import forge-sim/dist/loader/register.js your-test.js
-> ```
-> This is rarely needed; test files should import from `'forge-sim'` (the `sim.*` API), not from `@forge/*` directly.
+> **Edge case:** If your *test file itself* imports `@forge/*` packages at the top level (e.g. `import { kvs } from '@forge/kvs'`), import `forge-sim` first — the real packages work against the seams `createSimulator()`'s module installs on load. `@forge/resolver` needs no seam: a `Resolver` built in a test file is handed to the sim with `sim.resolver.registerDispatch('<function key>', resolver.getDefinitions())`, the closure a deployed function exports. This is rarely needed; test files should import from `'forge-sim'` (the `sim.*` API), not from `@forge/*` directly.
 
 ### Deploy & Reset
 
@@ -802,16 +798,29 @@ The default processing mode is `sequential`: `push()` runs consumers one at a ti
 
 ## `sim.resolver` — Resolver Registry
 
-Mirrors `@forge/resolver`. Usually populated by `deploy()`, but can be used directly.
+Where `deploy()` registers the app's resolver functions, and where a test can register its own.
 
 ```typescript no-check
+sim.resolver.registerDispatch(functionKey: string, dispatch: ResolverDispatch, keys?: Iterable<string>): void
 sim.resolver.define(functionKey: string, handler: Function): void
 sim.resolver.invoke(functionKey: string, payload?: any): Promise<any>
 sim.resolver.getDefinitions(): string[]
+sim.resolver.getDispatchKeys(): string[]
 sim.resolver.getHandler(functionKey: string): Function | undefined
 sim.resolver.setContext(overrides: Partial<ResolverContext>): void
 sim.resolver.clear(): void                         // Deploy/reset infrastructure — prefer sim.reset()
 ```
+
+Apps run the real `@forge/resolver`. A resolver function exports the closure `getDefinitions()` returns, and the platform calls it with the requested key; `registerDispatch()` registers that closure under its manifest function key and `invoke()` calls it the same way. `deploy()` does this for every resolver function and, for the bundles it built, passes the definition keys the bundler recorded, so `getDefinitions()` lists them and a module-less `sim.invoke()` can tell which function owns a key (two owners is an error: pass `moduleKey`). A test that builds a `Resolver` itself registers it the same way:
+
+```typescript no-check
+import Resolver from '@forge/resolver';
+const resolver = new Resolver().define('hello', async (req) => `hi ${req.payload.name}`);
+sim.resolver.registerDispatch('my-fn', resolver.getDefinitions());
+await sim.invoke('hello', { name: 'x' });
+```
+
+`define()` registers one handler directly, outside any function, for tests that want no `Resolver` at all.
 
 `clear()` wipes all resolver definitions. It exists for deploy infrastructure
 (the dev server's hot-redeploy uses it before re-registering handlers); for

@@ -187,10 +187,10 @@ const COMPILER_OPTIONS: ts.CompilerOptions = {
   paths: {
     'forge-sim': ['src/index.ts'],
     'forge-sim/shims/*': ['src/shims/*'],
-    '@forge/resolver': ['src/shims/forge-resolver.ts'],
-    // Every other @forge/* package has no shim (bare-seam + frontend-seam
-    // migrations) — doc examples typecheck against the REAL packages' types,
-    // resolved from node_modules like any other dependency.
+    // No @forge/* package has a shim (bare-seam + frontend-seam migrations,
+    // then the real @forge/resolver) — doc examples typecheck against the
+    // REAL packages' types, resolved from node_modules like any other
+    // dependency.
   },
 };
 

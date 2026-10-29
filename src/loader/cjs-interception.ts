@@ -11,23 +11,12 @@
  * out of the app's own packaged node_modules and hit the network instead of
  * the simulator.
  *
- * Fix: patch Module._resolveFilename (the same seam tsx/ts-node use) to remap
- * SHIM_NAMES requests to the compiled shims — but ONLY for requests whose
- * requiring module lives inside a registered app directory. Scoping matters
- * for correctness, not just hygiene:
- *
- *   - forge-sim's own shims reach the real packages via
- *     `createRequire(...)('@forge/react')` — the fallthrough convention
- *     DEPENDS on CJS requires bypassing interception. Shims live in
- *     forge-sim's src/dist, never inside an app dir, so they're exempt.
- *   - Real @forge/* packages inside the app's node_modules may require each
- *     other internally; remapping those cross-requires would hand a real
- *     package half a shim. Requests from `node_modules/@forge/` are exempt.
- *   - `@forge/sql` is not in SHIM_NAMES (deliberate passthrough via
- *     global.__forge_fetch__), so it stays native everywhere — same as ESM.
- *
- * require() of the ESM shims works via Node's require(esm) (Node >= 22.12,
- * which forge-sim already requires; the shims have no top-level await).
+ * That turned out to be the wrong worry: every `@forge/*` package now runs
+ * for real against the seams the sim installs (`__forge_fetch__`,
+ * `__forge_runtime__`), so there is nothing left to remap and SHIM_NAMES is
+ * empty. What the Module._resolveFilename patch (the same seam tsx/ts-node
+ * use) still does is containment, for requests whose requiring module lives
+ * inside a registered app directory.
  *
  * Containment: "Manual packaging for the Forge functions requires the
  * dependencies of the application, typically in node_modules, to be
@@ -38,28 +27,13 @@
  * a require made from inside `app.package.path` must resolve inside it (its
  * own node_modules, linked or real, included); one that resolves outside
  * fails with the same "Cannot find module" the Forge runtime would give.
- * The @forge/resolver shim takes the package's place only when the package
- * ships it. (ESM manual handlers are imported by Node directly and are not
- * contained; the packaging standard requires CommonJS anyway.)
+ * (ESM manual handlers are imported by Node directly and are not contained;
+ * the packaging standard requires CommonJS anyway.)
  */
 
 import Module from 'node:module';
 import { realpathSync } from 'node:fs';
 import { dirname, isAbsolute, resolve as pathResolve, sep } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { SHIM_NAMES, shimFileBase } from '../shims/shim-registry.js';
-
-// Same dist-shims resolution as hooks.ts: compiled shims regardless of
-// whether this file runs as .ts (vitest) or .js (dist).
-const thisFile = fileURLToPath(import.meta.url);
-const thisDir = dirname(thisFile);
-const SHIM_DIR = thisFile.endsWith('.ts')
-  ? pathResolve(thisDir, '..', '..', 'dist', 'shims')
-  : pathResolve(thisDir, '..', 'shims');
-
-const FORGE_SHIMS_CJS: Record<string, string> = Object.fromEntries(
-  SHIM_NAMES.map((pkg) => [pkg, pathResolve(SHIM_DIR, shimFileBase(pkg) + '.js')])
-);
 
 interface InterceptedApp {
   /** App root (trailing separator), the given path and its realpath. */
@@ -70,7 +44,7 @@ interface InterceptedApp {
   packageDir: string;
 }
 
-/** App roots whose CJS requires of @forge/* should hit the shims. */
+/** App roots whose CJS requires are contained to their package directory. */
 const interceptedApps: InterceptedApp[] = [];
 
 let patched = false;
@@ -87,11 +61,10 @@ const forms = (p: string): string[] => {
 };
 
 /**
- * Route CJS `require('@forge/…')` calls made from code under `appDir` to the
- * forge-sim shims, and contain requires made from inside `packageDir`
- * (`app.package.path`) to that directory. Idempotent per app; the
- * Module._resolveFilename patch is installed once and consults the registry
- * on every call.
+ * Contain CJS `require()` calls made from inside `packageDir`
+ * (`app.package.path`) under `appDir` to that directory. Idempotent per app;
+ * the Module._resolveFilename patch is installed once and consults the
+ * registry on every call.
  */
 export function interceptCjsForgeRequires(appDir: string, packageDir: string = appDir): void {
   const existing = interceptedApps.find((a) => a.appDirs[0] === withSep(appDir) && a.packageDir === packageDir);
@@ -116,11 +89,9 @@ export function interceptCjsForgeRequires(appDir: string, packageDir: string = a
       return original.call(this, request, parent, ...rest);
     }
     const contained = app.packageDirs.some((d) => parentFile!.startsWith(d));
-    const shimPath = FORGE_SHIMS_CJS[request];
-    const crossRequire = parentFile!.includes(`${sep}node_modules${sep}@forge${sep}`);
 
-    // The shim stands in for a package the app ships. A package it does not
-    // ship is a missing dependency, reported as Node reports one.
+    // A package the app does not ship is a missing dependency, reported as
+    // Node reports one.
     const resolved = original.call(this, request, parent, ...rest);
     if (contained && !insidePackage(app, resolved)) {
       const err = new Error(
@@ -132,7 +103,6 @@ export function interceptCjsForgeRequires(appDir: string, packageDir: string = a
       err.code = 'MODULE_NOT_FOUND';
       throw err;
     }
-    if (shimPath && !crossRequire) return shimPath;
     return resolved;
   };
 }

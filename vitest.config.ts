@@ -4,7 +4,7 @@ import { fileURLToPath } from 'url';
 import { tmpdir } from 'os';
 import { realpathSync, readFileSync } from 'fs';
 import { createRequire } from 'module';
-import { shimFileBase, shimNamesBySpecificity, PASSTHROUGH_OK, browserOnlyEntry } from './src/shims/shim-registry.js';
+import { PASSTHROUGH_OK, browserOnlyEntry } from './src/shims/shim-registry.js';
 
 /**
  * Mirror Node's native wasm-ESM integration under vite-node.
@@ -144,21 +144,9 @@ export default defineConfig({
     // Array form (not the object map) so passthrough packages can use an
     // EXACT regex match — see below.
     alias: [
-      // Generated from the SAME registry the Node loader hooks use, so the two
-      // resolution mechanisms cannot drift. This list used to be maintained by
-      // hand and fell five entries behind: `@forge/realtime` and `@forge/llm`
-      // (no real package installed) failed to import at all, while the three
-      // product bridges silently resolved to the real Atlassian package
-      // instead of the shim. See src/shims/shim-registry.ts.
-      //
-      // `shimNamesBySpecificity()` orders subpaths before their parent package,
-      // which is load-bearing: rollup matches string alias keys as PREFIXES, so
-      // a bare '@forge/react' listed first would mangle '@forge/react/router'
-      // into '.../forge-react.ts/router'.
-      ...shimNamesBySpecificity().map((pkg) => ({
-        find: pkg,
-        replacement: resolve(__dirname, 'src/shims', `${shimFileBase(pkg)}.ts`),
-      })),
+      // No `@forge/*` alias: every package runs for real (SHIM_NAMES in
+      // src/shims/shim-registry.ts is empty), and a test file that imports
+      // one gets the installed package against the seams forge-sim installs.
       // Self-alias so doc-example tests can use the user-facing import
       // (`from 'forge-sim'`) while running against live source — the bare
       // self-reference would resolve to a possibly-stale dist/ build.

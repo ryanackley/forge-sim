@@ -30,17 +30,20 @@
  */
 
 /**
- * Packages intercepted and replaced by a forge-sim shim.
+ * Packages intercepted and replaced by a forge-sim shim. Empty: every
+ * `@forge/*` package runs as Atlassian ships it (PASSTHROUGH_OK below).
+ * `@forge/resolver` was the last to leave; the bundler now observes the real
+ * class instead of replacing it (src/bundler.ts).
  *
+ * The mechanism stays wired (loader hooks, vitest alias, the contract
+ * tests) so a shim that ever has to come back is registered in one place.
  * Subpaths are listed explicitly (e.g. `@forge/react/router`) because each
  * maps to its own shim file. Adding an entry here requires a matching
  * `src/shims/<base>.ts` — `shim-registry.test.ts` enforces that.
  */
-export const SHIM_NAMES = [
-  '@forge/resolver',
-] as const;
+export const SHIM_NAMES: readonly string[] = [];
 
-export type ShimName = (typeof SHIM_NAMES)[number];
+export type ShimName = string;
 
 /**
  * @forge/* packages that deliberately pass through to the REAL Atlassian
@@ -94,8 +97,12 @@ export type ShimName = (typeof SHIM_NAMES)[number];
  *                   `browserOnlyEntry` below, used by the vitest plugin for
  *                   TEST files that import them; app bundles never resolve
  *                   a bare specifier at runtime.
- *   What remains shimmed is `@forge/resolver` alone: it holds its handler
- *   map in a closure and performs no I/O, so there is no seam to answer.
+ *   `@forge/resolver` → the real class, which needs no seam: it holds its
+ *                   handler map in a closure and performs no I/O, and the
+ *                   platform only ever calls the closure `getDefinitions()`
+ *                   returns, which the sim does too. The bundler appends a
+ *                   few lines to the package so the sim can also LIST the
+ *                   keys of a closure it built (src/bundler.ts).
  *
  * CommonJS default-import interop (`import kvs from '@forge/kvs'` giving the
  * instance, not the namespace) is the BUNDLER's job: src/bundler.ts inlines
@@ -115,6 +122,7 @@ export const PASSTHROUGH_OK: readonly string[] = [
   '@forge/jira-bridge',
   '@forge/confluence-bridge',
   '@forge/dashboards-bridge',
+  '@forge/resolver',
 ];
 
 /**

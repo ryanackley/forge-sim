@@ -13,43 +13,23 @@
  *  - manual-packaged (prebuilt) handlers and UI resources, imported as-is;
  *  - a test script run under plain `node --import ./dist/loader/register.js`.
  *
- * For those they still: route `@forge/resolver` to the shim (the one package
- * with no seam), warn once about an `@forge/*` import the sim has no answer
- * for, transpile stray .tsx/.jsx, and infer extensions on relative imports.
+ * For those they still: warn once about an `@forge/*` import the sim has no
+ * answer for, transpile stray .tsx/.jsx, and infer extensions on relative
+ * imports. No `@forge/*` import is rewritten: every package runs for real
+ * (SHIM_NAMES in src/shims/shim-registry.ts is empty).
  */
 
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, resolve as pathResolve } from 'node:path';
-import {
-  SHIM_NAMES,
-  PASSTHROUGH_OK as REGISTRY_PASSTHROUGH_OK,
-  shimFileBase,
-} from '../shims/shim-registry.js';
-
-// Always resolve shims to compiled dist/*.js — the loader hooks run in a
-// separate Node worker thread where tsx's TypeScript support isn't available,
-// so we must point to JavaScript regardless of whether *this* file is .ts or .js.
-const thisFile = fileURLToPath(import.meta.url);
-const thisDir = dirname(thisFile);
-
-// From src/loader/ → ../../dist/shims, from dist/loader/ → ../shims
-const SHIM_DIR = thisFile.endsWith('.ts')
-  ? pathResolve(thisDir, '..', '..', 'dist', 'shims')
-  : pathResolve(thisDir, '..', 'shims');
-
-// '@forge/react' → 'forge-react.js'; subpaths flatten slashes:
-// '@forge/react/router' → 'forge-react-router.js'
-const FORGE_SHIMS: Record<string, string> = Object.fromEntries(
-  SHIM_NAMES.map(pkg => [pkg, pathResolve(SHIM_DIR, shimFileBase(pkg) + '.js')])
-);
+import { PASSTHROUGH_OK as REGISTRY_PASSTHROUGH_OK } from '../shims/shim-registry.js';
 
 // Deliberate real-package passthroughs (see shim-registry for the why).
 const PASSTHROUGH_OK = new Set(REGISTRY_PASSTHROUGH_OK);
 
 // Warn (once per specifier) when app code imports a @forge/* package the sim
-// has no ANSWER for — not "no shim for". The covered set is PASSTHROUGH_OK
-// (real packages whose I/O the `__forge_fetch__` seam serves) plus the one
-// remaining shim; a package outside it either sends a descriptor the seam
+// has no ANSWER for. The covered set is PASSTHROUGH_OK (real packages whose
+// I/O the `__forge_fetch__` seam serves, or that need no seam); a package
+// outside it either sends a descriptor the seam
 // doesn't know, or bypasses the seam entirely with its own transport.
 //
 // The second case is why this warning earns its keep. A package with its own
@@ -207,20 +187,11 @@ export async function resolve(
   context: { parentURL?: string; conditions?: string[] },
   nextResolve: Function
 ): Promise<{ url: string; shortCircuit?: boolean; format?: string }> {
-  // 1. @forge/* shim interception
-  const shimPath = FORGE_SHIMS[specifier];
-  if (shimPath) {
-    return {
-      url: pathToFileURL(shimPath).href,
-      shortCircuit: true,
-    };
-  }
-
-  // 1b. Unshimmed @forge/* — warn once (unless it is a package the sim
-  // answers through a seam), then fall through to native resolution so the
-  // real package loads. Nothing is rewritten: forge-sim-built bundles never
-  // reach this hook, and a manual-packaged app ships the dependencies it
-  // imports, exactly as Forge requires of it.
+  // 1. @forge/* — warn once (unless it is a package the sim answers through
+  // a seam), then fall through to native resolution so the real package
+  // loads. Nothing is rewritten: forge-sim-built bundles never reach this
+  // hook, and a manual-packaged app ships the dependencies it imports,
+  // exactly as Forge requires of it.
   //
   // Only the APP's own imports get the advisory. An importer inside
   // node_modules is a real package pulling in its own dependency chain
@@ -233,7 +204,7 @@ export async function resolve(
     if (!PASSTHROUGH_OK.has(rootPkg)) warnUnansweredForgeImport(specifier);
   }
 
-  // 3. Try native resolution first
+  // 2. Try native resolution first
   try {
     return await nextResolve(specifier, context);
   } catch (err: any) {

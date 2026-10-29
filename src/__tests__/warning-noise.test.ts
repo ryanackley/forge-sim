@@ -6,9 +6,11 @@
  *     fired on EVERY redeploy in a multi-`it()` test file, multiplying
  *     identical noise by the test count.
  *   - "resolver.define("X") is overwriting an existing definition" fired
- *     once per resolver per deploy, because the @forge/resolver shim
- *     registered keys during bundle eval AND the deployer re-registered
- *     them from the exported definitions map.
+ *     once per resolver per deploy, because keys registered during bundle
+ *     eval were re-registered by the deployer from the exported definitions
+ *     map (a resolver function's export is a dispatch closure now, and the
+ *     deployer registers it once; the guard still matters for a plain
+ *     `{ key: fn }` map two modules name).
  *
  * The fixes:
  *   - Manifest warnings dedupe by message at MODULE scope (per worker

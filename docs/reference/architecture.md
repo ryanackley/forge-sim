@@ -64,7 +64,6 @@ forge-sim runs an app the way Forge does: **bundled**. `sim.deploy()` runs esbui
 
 Node's loader hooks (`src/loader/hooks.ts`, registered by `sim.deploy()` via `module.register()` or by `node --import ./dist/loader/register.js`) are therefore small and apply only to what forge-sim does **not** bundle — manual-packaged handlers and UI resources, imported as-is, and a test script run under plain Node. For those they:
 
-- route `@forge/resolver` to `dist/shims/forge-resolver.js`, the one shimmed package (below);
 - warn once about an `@forge/*` import the sim does not simulate;
 - force ESM for marked prebuilt UI bundles and propagate the marker to their chunk imports;
 - transpile a stray `.tsx`/`.jsx` and infer extensions on relative imports.
@@ -72,41 +71,41 @@ Node's loader hooks (`src/loader/hooks.ts`, registered by `sim.deploy()` via `mo
 They no longer rewrite any `@forge/*` import, synthesize a CommonJS default-import facade, infer extensions on deep `@forge/*` imports, map the product bridges' browser-only entry, or deduplicate React. Each of those was a re-implementation of something Forge's bundler does, and the bundler does it here now (`loader-hooks.test.ts` pins that the hook hands those specifiers to Node untouched). A manual-packaged app that relied on any of them would have been relying on behaviour real Forge does not have.
 
 ```ts
-const SHIM_NAMES = ['@forge/resolver'];
+const SHIM_NAMES = [];
 ```
 
 The bare-seam migration emptied this list of BACKEND packages: every one whose
 I/O the seam can serve moved to `PASSTHROUGH_OK`, so the app runs the real
-Atlassian package (see "Every package but `@forge/resolver`" below). The
-frontend seam migration then did the same for every frontend package:
-`@forge/bridge`, `@forge/react` and the three product bridges all run for real
-against `globalThis.__bridge`, which `src/ui/bridge.ts` installs the moment
-forge-sim is loaded. What is left is `@forge/resolver`, the one that can never
-move — it holds its handler map in a closure and performs no I/O, so there is
-no seam to answer. Inside a forge-sim-built bundle the **bundler** routes
-`@forge/resolver` to the shim; the loader hook does the same for a
-manual-packaged ESM app, and `src/loader/cjs-interception.ts` for a
-manual-packaged CommonJS one. The shim is a tiny file:
-
-```ts no-check
-// src/shims/forge-resolver.ts
-class Resolver {
-  define(functionKey, handler) {
-    globalThis[Symbol.for('forge-sim.instance')].resolver.define(functionKey, handler);
-  }
-}
-```
-
-So the call chain is:
+Atlassian package (see "No package has a shim" below). The frontend seam
+migration then did the same for every frontend package: `@forge/bridge`,
+`@forge/react` and the three product bridges all run for real against
+`globalThis.__bridge`, which `src/ui/bridge.ts` installs the moment forge-sim
+is loaded. `@forge/resolver` left last. It needs no seam at all: `define()`
+stores a callback in a private map, `getDefinitions()` returns a closure over
+it, and the platform only ever calls that closure with the requested key. The
+sim does the same (`sim.resolver.registerDispatch`), so the call chain is:
 
 ```
-app code   → import Resolver from '@forge/resolver'
-bundler    → inlines dist/shims/forge-resolver.js in its place
-shim       → sim.resolver.define(key, handler)
-simulator  → sim.invoke(key) can now reach the app's handler
+app code   → export const handler = new Resolver().define('getText', fn).getDefinitions()
+deployer   → sim.resolver.registerDispatch('fn-key', handler, keys)
+bridge     → invoke('getText') from module M → M's resolver.function → that closure
+simulator  → closure({ call: { functionKey: 'getText', payload }, context }, runtimePayload)
 ```
 
-### Every package but `@forge/resolver` has no shim at all
+What the real class cannot do is *list* its keys, and the sim's listings
+(`forge_sim_info`, the Tools UI, the "Available:" hint) and per-module
+ownership need them. So the bundler appends a few lines to the package inside
+every bundle it builds (`forge-sim-resolver-definitions` in `src/bundler.ts`):
+`define()` records the key per instance after the real method accepted it, and
+`getDefinitions()` tags the closure it returns with that set, in a global
+WeakMap the deployer reads (`bundledResolverDefinitions`). The package's own
+rules are untouched — a duplicate key or a non-function callback throws at
+deploy, `define()` chains, object results are JSON-sanitised — and a key two
+functions both define is settled by the invoking module: a module-less
+`sim.invoke()` of such a key is an error naming both, since Forge has no
+module-less invoke.
+
+### No package has a shim at all
 
 Every backend `@forge/*` package ships CJS and routes its I/O through
 `global.__forge_fetch__({ type, ... })` internally. They are
@@ -120,9 +119,9 @@ This is now true of EVERY backend package — `@forge/api`, `@forge/kvs`,
 `@forge/sql`, `@forge/llm`, `@forge/object-store`, `@forge/events` and the
 backend `@forge/realtime` — and, since the frontend seam migration, of every
 FRONTEND package too: `@forge/bridge`, `@forge/react` and the three product
-bridges run against `globalThis.__bridge`. The only app-facing impersonation
-left is `@forge/resolver`, and since Phase 5 even that is applied by the
-bundler rather than a loader (next section). A package
+bridges run against `globalThis.__bridge`. No app-facing impersonation is
+left; `@forge/resolver` runs for real with a bundle-time tag (previous
+section). A package
 listed in `PASSTHROUGH_OK` that sets `__esModule` + `exports.default` gets
 the documented default-import style from the bundler (`forceBundlerInterop`
 and the pinned-import facade in `src/bundler.ts`), not from any loader list.
@@ -147,7 +146,7 @@ Three bundler behaviours worth knowing, each because Forge's bundler has them an
 
 **Cache.** A build is keyed by its entry set and platform and stays fresh while every input file esbuild recorded (the metafile) has the same mtime and size — so an unchanged redeploy copies the cached output into the new unique directory instead of rebuilding, and editing *any* transitive file is a miss. Entries live under `.forge-sim/bundles/cache/<key>/` and are written atomically (temp dir + rename) because vitest workers share fixture directories. `DeployResult.bundle.cached` reports which happened.
 
-**Two sim-side touches on real packages happen at bundle time**, both named in `src/bundler.ts`: `@forge/resolver` is routed to forge-sim's shim *inside* the bundle (the real class keeps definitions private; the shim additionally registers each key with the simulator, which is what the resolver list, per-module ownership and the "No resolver defined for X" hint rest on), and `@forge/api/out/api/i18n.js` gets one appended line registering its module-level cache reset in a global set, so `sim.i18n.setTranslations()` still reaches the TranslationsGetter of a copy that lives inside an app bundle.
+**Two sim-side touches on real packages happen at bundle time**, both named in `src/bundler.ts`: `@forge/resolver/out/index.js` gets a few appended lines that tag each dispatch closure with the keys its Resolver was given (the real class keeps them private; the tag is what the resolver list, per-module ownership and the "No resolver defined for X" hint rest on), and `@forge/api/out/api/i18n.js` gets one appended line registering its module-level cache reset in a global set, so `sim.i18n.setTranslations()` still reaches the TranslationsGetter of a copy that lives inside an app bundle.
 
 `data:` URLs were the obvious first attempt but don't work: no parent path, so nothing left external (node builtins) can resolve. Sourcemaps are inline, so stack traces still point at user source.
 
@@ -160,13 +159,13 @@ Three consequences the deployer handles:
 - **Cache busting without a bundle.** The entry import gets a per-deploy query string, and the app's slice of the CommonJS `require` cache is evicted before each deploy (realpath-aware — `require.cache` keys are realpaths and macOS tmpdirs are symlinks). Transitive **native-ESM** files inside the package dir have no evictable cache; rebuilds that touch helpers should also touch the entry, which content-hashing bundlers do anyway.
 - **CJS `@forge/*` interception.** Manual output is typically TypeScript-compiled CJS, and `require('@forge/api')` bypasses the ESM loader hooks entirely. A scoped `Module._resolveFilename` patch (`src/loader/cjs-interception.ts`) maps shim names — only for requests from inside a deployed app dir, never from `node_modules/@forge/` (real packages' internal cross-requires stay native), and never from forge-sim's own shims, whose fallthrough requires *depend* on bypassing interception.
 - **Handler extensions follow the packaging standard**: `.js`/`.cjs`, plus `.ts` with a parity warning (Node 22.18+ strips types). No `.tsx`/`.jsx` — Node can't load JSX. No `.mjs` — lint rejects it. Handlers must be CommonJS; an ESM `.js` under `"type": "module"` loads but draws a deploy warning.
-- **Bundled `@forge/resolver`** — see below; the one shimmed package with no runtime seam.
+- **Bundled `@forge/resolver`** — see below; a closure the app's own bundler built carries no definition tag.
 
 ### Bundled `@forge/*` backends are the normal case
 
 This section used to say the opposite — that backends bundling `@forge/*` were unsupported because both interception mechanisms keyed on the specifier string, which a bundler erases. Two migrations inverted it. The bare-seam migration made every backend package run for real against `global.__forge_fetch__` / `global.__forge_runtime__`, so an inlined copy reaches the simulator the same way a resolved one does; the measurements behind that are in [`bundled-forge-packages.md`](./bundled-forge-packages.md). Then Phase 5 made the simulator *itself* bundle `@forge/*` into every deploy (previous section), so there is no "shape 1" left to distinguish from: every backend the sim runs is bundled output, as in Forge.
 
-The one package with no seam at all is `@forge/resolver` — pure in-process glue: `define()` stores a callback in a private map and `getDefinitions()` returns a closure over it. forge-sim's shim works by *side effect*, registering each key on `sim.resolver` as the app defines it, and the bundler routes `@forge/resolver` to that shim inside every bundle it builds, so source-mode apps keep full key enumeration. For a bundle forge-sim did **not** build — manual packaging, where the real class ran — the simulator cannot enumerate the keys. The deployer detects the dispatch shape by source inspection (`detectResolverDispatch()`, never by probing, since calling the function would execute app handlers at deploy time) and registers it via `resolver.registerDispatch()`. `invoke()` then consults registered dispatchers for any key with no explicit handler, passing a realistic `backendRuntimePayload` (the real package *overwrites* `context.accountId`, `installContext`, `license` and `installation` from that second argument, so passing `{}` blanks exactly the fields the app reads). Routing works; listing doesn't.
+The one package with no seam at all is `@forge/resolver` — pure in-process glue: `define()` stores a callback in a private map and `getDefinitions()` returns a closure over it. The sim runs the real class everywhere and calls the closure as the platform does (`resolver.registerDispatch()`, passing a realistic `backendRuntimePayload`: the real package *overwrites* `context.accountId`, `installContext`, `license` and `installation` from that second argument, so passing `{}` blanks exactly the fields the app reads). In a bundle forge-sim built, the closure carries its definition keys (the bundle-time tag above), so listing works and a module-less invoke can be settled. For a bundle forge-sim did **not** build — manual packaging, where the app's own bundler inlined the package — there is no tag: the deployer recognises the dispatch shape by source inspection (`detectResolverDispatch()`, never by probing, since calling the function would execute app handlers at deploy time), and `invoke()` asks such closures in manifest order for any key no tag owns, treating the real package's "Resolver has no definition for 'x'" as "not mine". Routing works; listing doesn't.
 
 ### Prebuilt UI bundles: the bridge seam survives where module interception can't
 
@@ -242,7 +241,7 @@ The check is on by default when forge-sim is running from a checkout (`import.me
 
 | Concern | File(s) |
 |---|---|
-| Backend interception | `src/loader/hooks.ts`, `src/loader/register.ts`, `src/shims/*.ts` |
+| Backend seams and bundle-time touches | `src/runtime/seam-fetch.ts`, `src/runtime/forge-runtime.ts`, `src/bundler.ts` (plugins); loader hooks for what is not bundled: `src/loader/hooks.ts`, `src/loader/register.ts` |
 | Backend bridge fallthrough (real packages) | `src/shims/globals.ts` (`__forge_fetch__`) |
 | Frontend bridge (UIKit 2 mode) | `src/ui/bridge.ts`, dev server in `src/dev-command.ts` |
 | Frontend bridge (proxy mode) | `src/proxy-server.ts` |

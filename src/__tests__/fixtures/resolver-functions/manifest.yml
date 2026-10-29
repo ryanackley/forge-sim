@@ -1,0 +1,39 @@
+# Two modules whose resolver functions both define `getText`, a third
+# function no module names, and the real @forge/resolver throughout: the
+# Resolver class in one file, makeResolver() in another. What the sim must
+# get right is the platform's routing (module → function → that function's
+# closure) and the package's own behaviour (chained define(), JSON-sanitised
+# results).
+modules:
+  jira:issuePanel:
+    - key: panel-a
+      icon: https://example.com/icon.svg
+      resource: frontend
+      resolver:
+        function: fn-a
+      render: native
+      title: Panel A
+    - key: panel-b
+      icon: https://example.com/icon.svg
+      resource: frontend
+      resolver:
+        function: fn-b
+      render: native
+      title: Panel B
+
+  function:
+    - key: fn-a
+      handler: a.handler
+    - key: fn-b
+      handler: b.handler
+    - key: fn-loose
+      handler: loose.handler
+
+resources:
+  - key: frontend
+    path: src/frontend.jsx
+
+app:
+  runtime:
+    name: nodejs22.x
+  id: ari:cloud:ecosystem::app/resolver-functions-test

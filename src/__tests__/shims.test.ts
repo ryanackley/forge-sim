@@ -1,9 +1,11 @@
 /**
- * End-to-end test: load a Forge app through shims and invoke it against the simulator.
- * 
- * This test doesn't use the Node loader hooks (vitest has its own module system).
- * Instead it validates the shim wiring by importing shims directly and
- * testing the full flow: resolver define → mock APIs → invoke → verify side effects.
+ * End-to-end test: the real @forge/* packages, imported by a test file,
+ * against the simulator's seams.
+ *
+ * This test doesn't use the Node loader hooks (vitest has its own module
+ * system). It validates the seam wiring by importing the real packages
+ * directly and testing the full flow: resolver define → mock APIs → invoke →
+ * verify side effects.
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
@@ -11,8 +13,9 @@ import { createSimulator, ForgeSimulator } from '../simulator.js';
 import { setSimulator, getSimulator } from '../shims/globals.js';
 // Note: setSimulator is now auto-called by the ForgeSimulator constructor.
 
-// Import the shims directly (in real usage, the loader hook does this mapping)
-import Resolver from '../shims/forge-resolver.js';
+// The real package: no seam, no alias. A Resolver built here is handed to
+// the sim the way a deployed function's export is (registerDispatch).
+import Resolver from '@forge/resolver';
 import * as forgeApi from '@forge/api';
 import * as forgeKvs from '@forge/kvs';
 import { Queue } from '@forge/events';
@@ -38,25 +41,28 @@ describe('Forge Shims', () => {
     expect(getSimulator()).toBe(sim);
   });
 
-  describe('@forge/resolver shim', () => {
-    it('should define handlers that register on the simulator', () => {
+  describe('real @forge/resolver', () => {
+    it('a registered dispatch closure answers sim.invoke() for the keys it defines', async () => {
       const resolver = new Resolver();
       resolver.define('hello', async (req) => {
         return { message: `Hello ${req.payload.name}` };
       });
+      sim.resolver.registerDispatch('main', resolver.getDefinitions());
 
-      // Should be invocable through the simulator
-      return expect(sim.invoke('hello', { name: 'Ryan' }))
+      await expect(sim.invoke('hello', { name: 'Ryan' }))
         .resolves.toEqual({ message: 'Hello Ryan' });
+      await expect(sim.invoke('nope')).rejects.toThrow(/No resolver defined for "nope"/);
     });
 
-    it('should return definitions map', () => {
+    it('getDefinitions() returns the dispatch closure, define() chains and rejects duplicates', () => {
       const resolver = new Resolver();
-      resolver.define('fn1', async () => 'a');
-      resolver.define('fn2', async () => 'b');
-      
+      expect(resolver.define('fn1', async () => 'a')).toBe(resolver);
+      expect(() => resolver.define('fn1', async () => 'b')).toThrow(/already exists/);
+      expect(() => resolver.define('fn2', 'nope' as any)).toThrow(/must be a 'function'/);
+
       const defs = resolver.getDefinitions();
-      expect(Object.keys(defs)).toEqual(['fn1', 'fn2']);
+      expect(typeof defs).toBe('function');
+      expect(defs.length).toBe(2);
     });
   });
 
@@ -255,6 +261,7 @@ resources:
 
         return { issue, views };
       });
+      sim.resolver.registerDispatch('issue-fn', resolver.getDefinitions());
 
       // 4. Invoke through simulator
       const result = await sim.invoke('getIssueDetails', { issueKey: 'PROJ-42' });

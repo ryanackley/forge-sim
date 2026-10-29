@@ -102,8 +102,9 @@ describe('docs/testing/README.md — bundler snippet drift', () => {
     }
   });
 
-  it('aliases @forge/resolver via the recommended subpath export', () => {
-    expect(content).toMatch(/['"]forge-sim\/shims\/forge-resolver['"]/);
+  it('does not alias @forge/resolver either (the real package runs, no seam needed)', () => {
+    expect(content).not.toMatch(/:\s*'forge-sim\/shims\/forge-resolver'/);
+    expect(content).not.toMatch(/['"]\^?@forge\/resolver\$?['"]\s*:/);
   });
 
   it('does not compute a SHIMS dir variable with path math anymore', () => {

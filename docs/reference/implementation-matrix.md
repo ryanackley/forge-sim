@@ -273,9 +273,9 @@ Resolver function registration.
 
 | API | Status | Tests | Notes |
 |-----|--------|-------|-------|
-| `new Resolver().define(key, handler)` | ✅ | `shims.test.ts`, `deployer.test.ts` | |
-| `resolver.getDefinitions()` | ✅ | `shims.test.ts` | |
-| Multi-function resolvers | ✅ | `deploy-e2e.test.ts` | Multiple `define()` calls |
+| `new Resolver().define(key, handler)` | ✅ | `resolver-functions.test.ts`, `shims.test.ts` | The real package: `define()` chains, a duplicate key or non-function callback throws at deploy |
+| `resolver.getDefinitions()` / `makeResolver()` | ✅ | `resolver-functions.test.ts`, `bundled-resolver.test.ts` | The returned closure is what the sim calls, as the platform does; results JSON-sanitised |
+| Multi-function resolvers | ✅ | `resolver-functions.test.ts`, `deploy-e2e.test.ts` | A module invokes its own function's closure; a key two functions define needs `moduleKey` |
 
 ---
 
@@ -520,9 +520,9 @@ Frontend API for Custom UI and UI Kit apps (runs in the iframe). **The real pack
 
 | API | Status | Tests | Notes |
 |-----|--------|-------|-------|
-| `new Resolver()` | ✅ | `shims.test.ts` | |
-| `resolver.define(key, handler)` | ✅ | `shims.test.ts`, `deployer.test.ts` | |
-| `resolver.getDefinitions()` | ✅ | `shims.test.ts` | |
+| `new Resolver()` | ✅ | `resolver-functions.test.ts`, `shims.test.ts` | The real package |
+| `resolver.define(key, handler)` | ✅ | `resolver-functions.test.ts`, `deployer.test.ts` | |
+| `resolver.getDefinitions()` / `makeResolver()` | ✅ | `resolver-functions.test.ts`, `bundled-resolver.test.ts` | |
 
 ---
 
@@ -671,7 +671,7 @@ Features beyond individual APIs.
 |---------|--------|-------|-------|
 | Manifest-driven deploy | ✅ | `deployer.test.ts`, `deploy-e2e.test.ts` | Reads manifest.yml, wires everything |
 | App bundling (esbuild, like `forge deploy`) | ✅ | `deploy-bundle.test.ts`, `forge-react-package.test.ts` | Backend: every dependency inlined per deploy; frontend: runtime pinned per render; content-keyed cache |
-| Module loader hooks | ✅ | `loader-hooks.test.ts` | Only for what forge-sim does not bundle (manual packaging): `@forge/resolver` → shim, stray .tsx |
+| Module loader hooks | ✅ | `loader-hooks.test.ts` | Only for what forge-sim does not bundle (manual packaging): unanswered-package warning, stray .tsx, require containment |
 | Function contracts (calling conventions) | ✅ | `function-contracts.test.ts`, `invocation-identity.test.ts` | Resolver `{ payload, context }`; every other kind `(payload, context)`: trigger, consumer, scheduled, web trigger, action (with `principal`), workflow, JQL, custom field value, pre-uninstall. Consumers get their function's `timeoutSeconds` and report their module/function in `getAppContext()` |
 | Product API mock + real proxy | ✅ | `product-api-proxy.test.ts` | Route-level mock priority |
 | OAuth authentication | ✅ | `credentials.test.ts` | PAT + OAuth 2.0 |

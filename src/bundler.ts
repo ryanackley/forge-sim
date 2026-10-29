@@ -18,13 +18,16 @@
  *
  * Two sim-side touches on the real packages happen at bundle time, both tiny
  * and both named here so nobody discovers them by surprise:
- *  - `@forge/resolver` is routed to forge-sim's shim INSIDE the bundle. The
- *    real class keeps its definitions in a private map, so a bundled copy
- *    gives the sim one opaque dispatch function; the shim additionally
- *    registers each key with the simulator, which is what `forge_sim_info`'s
- *    resolver list, per-module ownership and the "No resolver defined for X"
- *    hint are built on. Correctness never needed this (see
- *    `detectResolverDispatch` in deployer.ts); the DX did.
+ *  - `@forge/resolver/out/index.js` gets a few appended lines that record,
+ *    per Resolver instance, the keys `define()` was given and tag the closure
+ *    `getDefinitions()` returns with that set (a global WeakMap, read by
+ *    `bundledResolverDefinitions` below). The real class keeps its handlers
+ *    in a private map and the platform only ever calls the closure, so
+ *    without this the sim could route a key (it asks the closure, as Forge
+ *    does) but not list one: `forge_sim_info`'s resolver list, per-module
+ *    ownership and the "No resolver defined for X" hint read the tag. The
+ *    package's own behaviour is untouched: duplicate keys throw, results are
+ *    JSON-sanitised, `define()` chains.
  *  - `@forge/api/out/api/i18n.js` gets one appended line registering its
  *    module-level `resetTranslationsCache` in a global set, so the sim's
  *    i18n store can still invalidate the TranslationsGetter cache of a copy
@@ -91,9 +94,6 @@ export interface BundleResult {
 const HERE = fileURLToPath(import.meta.url);
 /** Package root: src/bundler.ts and dist/bundler.js are both one level down. */
 const PKG_ROOT = resolve(dirname(HERE), '..');
-/** The compiled resolver shim — the one app-facing shim left, inlined per bundle. */
-const RESOLVER_SHIM = join(PKG_ROOT, 'dist', 'shims', 'forge-resolver.js');
-
 /**
  * The modules Forge's webpack config ignores (IgnorePlugin entries in
  * @forge/bundler out/config/common.js): the optional dependencies node-fetch,
@@ -219,6 +219,26 @@ function forceBundlerInterop(code: string): string {
 /** Global registry of bundled `@forge/api` i18n cache resets; read by src/i18n-store.ts. */
 export const I18N_RESET_REGISTRY_KEY = Symbol.for('forge-sim.i18n-cache-resets');
 
+/**
+ * Global registry of bundled `@forge/resolver` definitions: dispatch closure
+ * (what `getDefinitions()` returned) → the keys its Resolver was given.
+ * Written by the lines the bundler appends to the package (plugin below).
+ */
+export const RESOLVER_DEFINITIONS_KEY = Symbol.for('forge-sim.resolver-definitions');
+
+/**
+ * The definition keys a bundled `@forge/resolver` dispatch closure owns, or
+ * null for a closure forge-sim did not bundle (manual packaging, a Resolver
+ * built in a test file): the real package ran without the hook there, and
+ * its keys stay private, so the deployer falls back to asking the closure.
+ */
+export function bundledResolverDefinitions(dispatch: unknown): ReadonlySet<string> | null {
+  const registry = (globalThis as Record<symbol, unknown>)[RESOLVER_DEFINITIONS_KEY] as
+    WeakMap<object, Set<string>> | undefined;
+  if (!registry || (typeof dispatch !== 'function' && typeof dispatch !== 'object') || dispatch === null) return null;
+  return registry.get(dispatch) ?? null;
+}
+
 // ── Plugins ───────────────────────────────────────────────────────────────
 
 /**
@@ -311,22 +331,35 @@ function forgeSimPlugins(platform: BundlePlatform, reactDir: string): Plugin[] {
       },
     },
     {
-      name: 'forge-sim-resolver-shim',
+      name: 'forge-sim-resolver-definitions',
       setup(build) {
-        // A plugin rather than esbuild's `alias` option so it is applied
-        // deterministically before any other resolution. Only an app that
-        // ships @forge/resolver gets the shim in its place: a missing
-        // dependency fails this build as it fails `forge deploy`.
-        build.onResolve({ filter: /^@forge\/resolver$/ }, async (args) => {
-          if (args.pluginData?.forgeSimInternal) return undefined;
-          const probe = await build.resolve(args.path, {
-            kind: args.kind,
-            resolveDir: args.resolveDir,
-            importer: args.importer,
-            pluginData: { forgeSimInternal: true },
-          });
-          if (probe.errors.length > 0) return undefined; // esbuild reports "Could not resolve"
-          return { path: RESOLVER_SHIM };
+        // The app's own copy of the package (a missing dependency fails this
+        // build as it fails `forge deploy`), with a tail that observes it:
+        // `define()` records the key per instance once the real method has
+        // accepted it, and `getDefinitions()` tags the closure it returns
+        // with that instance's set. `makeResolver()` goes through both.
+        // `exports` is the CommonJS module's own object inside esbuild's
+        // wrapper; `exports.default` is the Resolver class.
+        build.onLoad({ filter: /[\\/]node_modules[\\/]@forge[\\/]resolver[\\/]out[\\/]index\.js$/ }, async (args) => {
+          const source = await readFile(args.path, 'utf8');
+          const registration =
+            `\n;(() => {\n` +
+            `  const keysOf = new WeakMap();\n` +
+            `  const keys = (r) => keysOf.get(r) ?? (keysOf.set(r, new Set()), keysOf.get(r));\n` +
+            `  const proto = exports.default.prototype;\n` +
+            `  const { define, getDefinitions } = proto;\n` +
+            `  proto.define = function (functionKey, cb) {\n` +
+            `    const self = define.call(this, functionKey, cb);\n` +
+            `    keys(this).add(functionKey);\n` +
+            `    return self;\n` +
+            `  };\n` +
+            `  proto.getDefinitions = function () {\n` +
+            `    const dispatch = getDefinitions.call(this);\n` +
+            `    (globalThis[Symbol.for('forge-sim.resolver-definitions')] ??= new WeakMap()).set(dispatch, keys(this));\n` +
+            `    return dispatch;\n` +
+            `  };\n` +
+            `})();\n`;
+          return { contents: source + registration, loader: 'js' };
         });
       },
     },

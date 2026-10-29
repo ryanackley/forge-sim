@@ -1,8 +1,9 @@
 /**
- * Global singleton that all @forge/* shims connect to.
+ * Global singleton the seam installers connect to.
  *
- * The ForgeSimulator instance is set here before loading user app code,
- * and each shim module reads from it to provide the simulated APIs.
+ * The ForgeSimulator instance is set here before loading user app code, and
+ * the seams the real @forge/* packages talk to (`__forge_fetch__`,
+ * `__forge_runtime__`, `globalThis.__bridge`) are installed against it.
  */
 
 import type { ForgeSimulator } from '../simulator.js';
