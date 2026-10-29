@@ -176,9 +176,11 @@ recognises its shape by source inspection (`detectResolverDispatch` in
 `src/deployer.ts`, never by probing: calling the function would execute app
 handlers at deploy time) and `invoke()` asks such closures in manifest order
 for a key no tag owns. Its keys do not appear in
-`sim.resolver.getDefinitions()`, no ownership is recorded for them, and the
-cross-module guard (`validateResolverAccess` in `src/simulator.ts`) is
-permissive for them. Routing works; listing does not.
+`sim.resolver.getDefinitions()` and no ownership is recorded for them, so a
+module-scoped invoke is checked by asking the module's own closure rather
+than the ownership table (`validateResolverAccess` in `src/simulator.ts`):
+the package's own "no definition" answer becomes the refusal. Routing works;
+listing does not.
 
 ## 5. The real `@forge/api` runs on the seam alone
 

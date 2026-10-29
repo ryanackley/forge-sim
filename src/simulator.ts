@@ -147,9 +147,12 @@ export class ForgeSimulator {
 
   /**
    * Resolver ownership: maps define()'d function key → manifest resolver function key (which module's resolver owns it)
-   * Used to scope function lookups to the correct module's resolver.
+   * Used to scope function lookups to the correct module's resolver. A key
+   * can belong to several functions: two functions bound to one handler
+   * (the same closure under two function keys), or two resolvers that both
+   * define it.
    */
-  private resolverOwnership = new Map<string, string>();
+  private resolverOwnership = new Map<string, Set<string>>();
 
   /**
    * Ambient invocation context — what kind of invocation is currently
@@ -468,7 +471,20 @@ export class ForgeSimulator {
    * Register resolver ownership: a define()'d function key belongs to a manifest resolver.
    */
   registerResolverOwnership(definedKey: string, resolverFunctionKey: string): void {
-    this.resolverOwnership.set(definedKey, resolverFunctionKey);
+    let owners = this.resolverOwnership.get(definedKey);
+    if (!owners) this.resolverOwnership.set(definedKey, (owners = new Set()));
+    owners.add(resolverFunctionKey);
+  }
+
+  /**
+   * The resolver functions a definition key is reachable through: the
+   * manifest functions registered as its owners at deploy, plus any
+   * registered closure whose tag carries it.
+   */
+  private functionsDefining(functionKey: string): Set<string> {
+    const owners = new Set(this.resolverOwnership.get(functionKey) ?? []);
+    for (const fn of this.resolver.definingFunctions(functionKey)) owners.add(fn);
+    return owners;
   }
 
   /**
@@ -491,7 +507,9 @@ export class ForgeSimulator {
    * Returns the function key if valid, throws if not.
    */
   validateResolverAccess(functionKey: string, moduleKey?: string): void {
-    if (!moduleKey) return; // No module context — skip validation (backward compat)
+    // A module-less sim.invoke() is the test's own call, not a bridge invoke:
+    // there is no module whose resolver function to hold it to.
+    if (!moduleKey) return;
 
     const route = this.moduleRouting.get(moduleKey);
     if (!route) {
@@ -513,13 +531,13 @@ export class ForgeSimulator {
     }
 
     // Check that the function key belongs to this module's resolver. A key
-    // two resolver functions both define is fine when this module's own
-    // function is one of them (ownership keeps one owner per key; the
-    // function's tagged closure knows the rest).
-    const owner = this.resolverOwnership.get(functionKey);
-    if (owner && owner !== route.resolverFunctionKey && !this.resolver.dispatchDefines(route.resolverFunctionKey, functionKey)) {
+    // several resolver functions define is fine when this module's own
+    // function is one of them.
+    const owners = this.functionsDefining(functionKey);
+    if (owners.size > 0 && !owners.has(route.resolverFunctionKey)) {
+      const named = [...owners].map((k) => `"${k}"`).join(', ');
       throw new Error(
-        `Function "${functionKey}" belongs to resolver "${owner}", but module "${moduleKey}" uses resolver "${route.resolverFunctionKey}". ` +
+        `Function "${functionKey}" belongs to resolver${owners.size > 1 ? 's' : ''} ${named}, but module "${moduleKey}" uses resolver "${route.resolverFunctionKey}". ` +
         `In Forge, each module can only invoke functions defined in its own resolver.`
       );
     }
@@ -530,9 +548,10 @@ export class ForgeSimulator {
    * invocation-context purposes (realtime scoped-publish channel keys).
    *
    * Precedence:
-   *   1. Explicit moduleKey from InvokeOptions (dev server passes this).
-   *   2. Unambiguous derivation: the function's owning resolver is routed
-   *      by exactly one module.
+   *   1. Explicit moduleKey from InvokeOptions (both bridge hosts pass the
+   *      module that owns the frame).
+   *   2. Unambiguous derivation: among the modules whose resolver function
+   *      defines the key, the one being rendered, or the only one.
    *   3. The actively rendered UI module (in-process render path).
    *
    * Returns null when no module can be determined — a scoped
@@ -542,15 +561,17 @@ export class ForgeSimulator {
   private resolveInvocationModuleKey(functionKey: string, explicitModuleKey?: string): string | null {
     if (explicitModuleKey) return explicitModuleKey;
 
-    const owner = this.resolverOwnership.get(functionKey);
-    if (owner) {
+    const active = this.ui.getActiveModule();
+    const owners = this.functionsDefining(functionKey);
+    if (owners.size > 0) {
       const modules = [...this.moduleRouting.entries()]
-        .filter(([, r]) => r.resolverFunctionKey === owner)
+        .filter(([, r]) => r.resolverFunctionKey !== undefined && owners.has(r.resolverFunctionKey))
         .map(([k]) => k);
+      if (active !== null && modules.includes(active)) return active;
       if (modules.length === 1) return modules[0];
     }
 
-    return this.ui.getActiveModule();
+    return active;
   }
 
   /**

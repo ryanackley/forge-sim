@@ -38,7 +38,11 @@ export interface HeadlessHostDeps {
   getContext(): Promise<unknown>;
   /** The placement `extension` of the render's forge context, if one is set. */
   getContextExtension(): Record<string, unknown> | null;
-  /** Surface a "no resolver defined" invoke so waitForContent can hint at it. */
+  /**
+   * Surface an invoke the sim refused before any app code ran (the module's
+   * resolver has no such key, the module has no resolver) so waitForContent
+   * can hint at it.
+   */
   recordMissingResolver(err: Error): void;
 }
 
@@ -49,10 +53,18 @@ export interface HeadlessHost extends BridgeHost {
 
 const NEVER = new Promise<never>(() => {});
 
-/** The simulator's "this key isn't registered" error, raised before any app code ran. */
-function isMissingResolverError(err: unknown): boolean {
+/**
+ * An invoke the simulator refused before any app code ran: the module's
+ * resolver function defines no such key, or the module has no resolver
+ * (`validateResolverAccess` and `SimulatedResolver.dispatch` in
+ * src/simulator.ts and src/resolver.ts are the producers).
+ */
+function isResolverRoutingError(err: unknown): boolean {
   const msg = (err as { message?: unknown })?.message;
-  return typeof msg === 'string' && /^No resolver defined for "/.test(msg);
+  return (
+    typeof msg === 'string' &&
+    /^(?:No resolver defined for "|Function ".*" belongs to resolver|Module ".*" (?:is configured with endpoint|has no resolver))/.test(msg)
+  );
 }
 
 function noSimulator(): never {
@@ -142,14 +154,19 @@ export function createHeadlessHost(deps: HeadlessHostDeps): HeadlessHost {
       if (deps.isTornDown()) return NEVER;
       const s = sim();
       try {
-        return await s.invoke(functionKey, payload as any);
+        // The platform routes a bridge invoke through the module that owns
+        // the frame: that module's `resolver.function`, and nothing else.
+        // Name the rendering module, as the browser host names the module
+        // in its page URL, so the sim applies the same rule here.
+        return await s.invoke(functionKey, payload as any, { moduleKey: activeModuleKey() });
       } catch (err) {
-        // A resolver that does not exist is a sim/deploy configuration
-        // failure the app never guards (`invoke(...).then(setState)`).
-        // Rejecting would be an unhandled rejection that takes down the test
-        // runner. A browser logs it and the UI stays on its loading state;
-        // reproduce that: record it for waitForContent's hint, stay pending.
-        if (isMissingResolverError(err)) {
+        // A key the module's resolver does not define (or a module with no
+        // resolver) is a sim/deploy configuration failure the app never
+        // guards (`invoke(...).then(setState)`). Rejecting would be an
+        // unhandled rejection that takes down the test runner. A browser
+        // logs it and the UI stays on its loading state; reproduce that:
+        // record it for waitForContent's hint, stay pending.
+        if (isResolverRoutingError(err)) {
           const e = err instanceof Error ? err : new Error(String(err));
           deps.recordMissingResolver(e);
           console.error(`[forge-sim] UI invoke("${functionKey}") failed: ${e.message}`);

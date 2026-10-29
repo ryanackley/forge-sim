@@ -632,18 +632,20 @@ export class SimulatorUI {
     // Build a helpful hint when we can detect a likely cause.
     const hints: string[] = [];
 
-    // Hint 0 (highest priority): the UI invoked a resolver that isn't
-    // registered, so its promise never settled and the module is stuck on
-    // its loading state. Without this the user just sees "timed out waiting
-    // for X / current content: Loading..." and has to guess.
+    // Hint 0 (highest priority): the UI invoked a key its module's resolver
+    // does not define (or the module has no resolver), so its promise never
+    // settled and the module is stuck on its loading state. Without this the
+    // user just sees "timed out waiting for X / current content: Loading..."
+    // and has to guess.
     const missingResolver = consumeMissingResolverError();
     if (missingResolver) {
       hints.push(
         `${missingResolver.message}\n      ` +
-        `The UI called invoke() for a resolver the simulator doesn't know, so it never ` +
-        `resolved and the module stayed on its loading state. If your backend bundles ` +
-        `@forge/resolver, check that the manifest function actually exports ` +
-        `getDefinitions(); otherwise check the resolver key spelling.`
+        `The UI called invoke() for a key the simulator could not route to this module's ` +
+        `resolver, so it never resolved and the module stayed on its loading state. In Forge ` +
+        `a module reaches only the function its manifest \`resolver.function\` names. Check ` +
+        `the key spelling and which function the module names; if your backend bundles ` +
+        `@forge/resolver, check that the manifest function actually exports getDefinitions().`
       );
     }
 

@@ -7,7 +7,7 @@
  * package's own rules (chained define(), duplicate and non-function
  * definitions rejected, JSON-sanitised results) apply untouched.
  */
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -163,5 +163,143 @@ describe('the real package\'s own definition rules apply at deploy', () => {
     expect(byKey.dup).toMatch(/Resolver definition 'twice' already exists/);
     expect(byKey.notfn).toMatch(/Resolver definition 'later' callback must be a 'function'/);
     expect(sim.resolver.getDefinitions()).toEqual([]);
+  });
+});
+
+describe('a bridge invoke is held to the rendering module\'s own resolver function', () => {
+  let dir: string;
+  let sim: ForgeSimulator;
+
+  beforeAll(async () => {
+    dir = await mkdtemp(join(tmpdir(), 'forge-sim-resolver-routing-'));
+    linkNodeModules(dir);
+    await writeFile(join(dir, 'package.json'), JSON.stringify({ name: 'resolver-routing', private: true, type: 'module' }));
+    await mkdir(join(dir, 'src'), { recursive: true });
+    const panel = (key: string, resource: string, resolver: string) => [
+      `    - key: ${key}`,
+      '      icon: https://example.com/icon.svg',
+      `      resource: ${resource}`,
+      '      resolver:',
+      `        ${resolver}`,
+      '      render: native',
+      `      title: ${key}`,
+    ];
+    await writeFile(join(dir, 'manifest.yml'), [
+      'modules:',
+      '  jira:issuePanel:',
+      // Two function keys bound to ONE handler: the same closure answers
+      // under either key, and each module reports its own key.
+      ...panel('admin-a', 'ident', 'function: fn-1'),
+      ...panel('admin-b', 'ident', 'function: fn-2'),
+      // A module whose frontend asks for a key only another function defines.
+      ...panel('panel-cross', 'cross', 'function: fn-1'),
+      ...panel('panel-y', 'cross', 'function: fn-y'),
+      // A module with a remote endpoint and no resolver at all.
+      ...panel('panel-remote', 'cross', 'endpoint: ep'),
+      '  endpoint:',
+      '    - key: ep',
+      '      remote: svc',
+      '      route:',
+      '        path: /api',
+      '  function:',
+      '    - key: fn-1',
+      '      handler: shared.handler',
+      '    - key: fn-2',
+      '      handler: shared.handler',
+      '    - key: fn-y',
+      '      handler: y.handler',
+      'resources:',
+      '  - key: ident',
+      '    path: src/ident.jsx',
+      '  - key: cross',
+      '    path: src/cross.jsx',
+      'remotes:',
+      '  - key: svc',
+      '    baseUrl: https://svc.example.com',
+      'app:',
+      '  runtime:',
+      '    name: nodejs22.x',
+      '  id: ari:cloud:ecosystem::app/resolver-routing',
+      '',
+    ].join('\n'));
+    await writeFile(join(dir, 'src', 'shared.js'), [
+      "import Resolver from '@forge/resolver';",
+      "export const handler = new Resolver().define('identity', async (req) => req.context.moduleKey).getDefinitions();",
+      '',
+    ].join('\n'));
+    await writeFile(join(dir, 'src', 'y.js'), [
+      "import Resolver from '@forge/resolver';",
+      "export const handler = new Resolver().define('elsewhere', async () => 'from y').getDefinitions();",
+      '',
+    ].join('\n'));
+    const frontend = (key: string) => [
+      "import ForgeReconciler, { Text } from '@forge/react';",
+      "import { invoke } from '@forge/bridge';",
+      "import React, { useState, useEffect } from 'react';",
+      'const App = () => {',
+      '  const [text, setText] = useState(null);',
+      `  useEffect(() => { invoke('${key}').then(setText); }, []);`,
+      "  return <Text>{text ?? 'Loading...'}</Text>;",
+      '};',
+      'ForgeReconciler.render(<App />);',
+      '',
+    ].join('\n');
+    await writeFile(join(dir, 'src', 'ident.jsx'), frontend('identity'));
+    await writeFile(join(dir, 'src', 'cross.jsx'), frontend('elsewhere'));
+
+    sim = createSimulator();
+    const result = await sim.deploy(dir);
+    expect(result.errors).toEqual([]);
+  }, 60_000);
+
+  afterAll(async () => {
+    sim.ui.resetAll();
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  it('two functions bound to one handler: each module reaches it under its own key', async () => {
+    await sim.ui.render('admin-a');
+    expect(sim.ui.getTextContent(await sim.ui.waitForContent('admin-a', 'admin-a'))).toBe('admin-a');
+    await sim.ui.render('admin-b');
+    expect(sim.ui.getTextContent(await sim.ui.waitForContent('admin-b', 'admin-b'))).toBe('admin-b');
+    sim.ui.resetAll();
+
+    await expect(sim.invoke('identity', {}, { moduleKey: 'admin-a' })).resolves.toBe('admin-a');
+    await expect(sim.invoke('identity', {}, { moduleKey: 'admin-b' })).resolves.toBe('admin-b');
+    // With no module named, the key is reachable through two functions.
+    await expect(sim.invoke('identity')).rejects.toThrow(/more than one function: "fn-1", "fn-2"/);
+  });
+
+  it('a rendered module cannot reach a key only another function defines; the hint names both', async () => {
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      await sim.ui.render('panel-y');
+      expect(sim.ui.getTextContent(await sim.ui.waitForContent('panel-y', 'from y'))).toBe('from y');
+
+      await sim.ui.render('panel-cross');
+      await expect(sim.ui.waitForContent('panel-cross', 'from y', 1500)).rejects.toThrow(
+        /"elsewhere" belongs to resolver "fn-y", but module "panel-cross" uses resolver "fn-1"/,
+      );
+      // As in a browser: the invoke never settles and the UI stays on its loading state.
+      expect(sim.ui.getTextContent(sim.ui.getForgeDoc('panel-cross'))).toBe('Loading...');
+      expect(errSpy.mock.calls.some((c) => /UI invoke\("elsewhere"\) failed/.test(String(c[0])))).toBe(true);
+    } finally {
+      errSpy.mockRestore();
+      sim.ui.resetAll();
+    }
+  });
+
+  it('invoke() from a module bound to an endpoint is refused headless, as the browser refuses it', async () => {
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      await sim.ui.render('panel-remote');
+      await expect(sim.ui.waitForContent('panel-remote', 'from y', 1500)).rejects.toThrow(
+        /"panel-remote" is configured with endpoint "ep", not a resolver\. Use invokeRemote\(\)/,
+      );
+      expect(sim.ui.getTextContent(sim.ui.getForgeDoc('panel-remote'))).toBe('Loading...');
+    } finally {
+      errSpy.mockRestore();
+      sim.ui.resetAll();
+    }
   });
 });

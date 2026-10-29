@@ -20,6 +20,7 @@ import { detectModuleType, refreshPrebuiltModules, generateUIKitEntry, extractHe
 import { parseManifestContent } from '../manifest.js';
 import { warnOnForgeReactMajorMismatch, VERIFIED_FORGE_REACT_DOC_MAJOR } from '../forge-package-versions.js';
 import { vi } from 'vitest';
+import { linkNodeModules } from './helpers/scratch-app.js';
 
 const REPO_ROOT = resolve(import.meta.dirname, '..', '..');
 
@@ -63,6 +64,7 @@ describe('manual packaging: headless render of prebuilt UI Kit bundles', () => {
 
   beforeAll(async () => {
     appDir = await mkdtemp(join(tmpdir(), 'forge-sim-manual-ui-'));
+    linkNodeModules(appDir);
     await writeFile(join(appDir, 'package.json'), '{ "name": "t", "private": true }', 'utf8');
     await writeFile(
       join(appDir, 'manifest.yml'),
@@ -78,6 +80,11 @@ modules:
       render: native
       title: Panel
       icon: https://example.com/icon.svg
+      resolver:
+        function: panel-fn
+  function:
+    - key: panel-fn
+      handler: index.handler
   confluence:globalPage:
     - key: page-global
       resource: multi/global
@@ -100,6 +107,17 @@ resources:
       global: global.html
       settings: settings.html
 `,
+      'utf8'
+    );
+
+    // A bridge invoke reaches the module's own resolver function and nothing
+    // else, so the panel names one. Its resolver defines no key: the test
+    // supplies `getText` through sim.resolver.define(), which a programmatic
+    // definition is for.
+    await mkdir(join(appDir, 'src'), { recursive: true });
+    await writeFile(
+      join(appDir, 'src', 'index.js'),
+      "import Resolver from '@forge/resolver';\nexport const handler = new Resolver().getDefinitions();\n",
       'utf8'
     );
 
