@@ -108,6 +108,8 @@ export interface BridgeHost {
   getFrameId(): Promise<string>;
   initFeatureFlags(user: unknown, config: unknown): Promise<void>;
   isRovoEnabled(): Promise<boolean>;
+  /** `null` = the host has published no preferences (the package's own documented answer). */
+  getCookieConsentPreferences(): Promise<{ functional: boolean; analytics: boolean; marketing: boolean } | null>;
   emitFrontendCustomMetric(name: string, value: unknown): Promise<void>;
 
   // ── Product bridges ──────────────────────────────────────────────────
@@ -136,4 +138,6 @@ export interface BridgeHost {
   getWidgetEditApi(): Promise<unknown>;
   /** Must carry setPreviewConfig. */
   getWidgetApi(): Promise<unknown>;
+  /** Must carry onSave/onProductSave/updateOverrides/onDropdownClose/closeDropdown. */
+  getDashboardFilterApi(): Promise<unknown>;
 }

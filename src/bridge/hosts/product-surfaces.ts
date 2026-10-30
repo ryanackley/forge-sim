@@ -174,5 +174,22 @@ export function createProductBridgeSurfaces() {
         setPreviewConfig: (_config: unknown) => log('widget.setPreviewConfig() — no-op in simulator'),
       };
     },
+    // out/filters/get-filter-bridge.js: the dashboard filter bar. The
+    // callbacks are host-driven (a user saving a filter), so with no dashboard
+    // they register and never fire. updateOverrides is declared to return a
+    // FilterOverride (out/filters/get-filter-bridge.d.ts); echoing the one the
+    // app sent is the inert answer with the right shape.
+    async getDashboardFilterApi(): Promise<unknown> {
+      return {
+        onSave: (_cb: unknown) => log('filter.onSave() — registered (no-op, host-driven)'),
+        onProductSave: (_cb: unknown) => log('filter.onProductSave() — registered (no-op, host-driven)'),
+        updateOverrides: (filterId: unknown, override: unknown) => {
+          log(`filter.updateOverrides(${String(filterId)}) — echoed (no dashboard to apply it to)`);
+          return override;
+        },
+        onDropdownClose: (_cb: unknown) => log('filter.onDropdownClose() — registered (no-op, host-driven)'),
+        closeDropdown: () => log('filter.closeDropdown() — no-op in simulator'),
+      };
+    },
   };
 }

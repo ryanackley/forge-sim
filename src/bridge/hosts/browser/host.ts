@@ -205,6 +205,9 @@ export function createBrowserHost(options: BrowserHostOptions): BridgeHost {
     async getFrameId() { return `forge-sim-frame-${getModuleKey() ?? 'unknown'}`; },
     async initFeatureFlags() {},
     async isRovoEnabled() { return false; },
+    // No consent banner is ever shown around a simulated app, so the host has
+    // nothing published; null is the package's documented answer for that.
+    async getCookieConsentPreferences() { return null; },
     async emitFrontendCustomMetric() {},
 
     // ── Product bridges ────────────────────────────────────────────────

@@ -500,6 +500,7 @@ Frontend API for Custom UI and UI Kit apps (runs in the iframe). **The real pack
 | `showFlag(options)` | ✅ | `bridge-features.test.ts`, `eval7-f7-bridge-showflag.test.ts`, `manual-packaging.spec.ts` | Real package → `callBridge('showFlag')` → browser host toast (stacking, auto-dismiss, actions, `closeFlag` by id). `id` is required by the real package. Headless: recorded, no DOM |
 | `rovo.open(payload)` | ❌ | `shim-contract-surface.test.ts` | Exported, throws not-implemented (Rovo AI agent sidebar) |
 | `rovo.isEnabled()` | ✅ | — | Returns `false` — same answer as a site without Rovo |
+| `getCookieConsentPreferences()` | ✅ | `bridge-features.test.ts`, `bridge-protocol.test.ts` | Returns `null` — the package's documented answer when the host has published no preferences; no forge-sim surface shows Atlassian's consent banner |
 | `i18n.getTranslations(locale, options)` | ✅ | e2e (see `useTranslation`) | Real package fetches `./__LOCALES__/*.json`; dev server + headless `fetch` patch answer from I18nStore (app's `__LOCALES__` dir) |
 | `i18n.createTranslationFunction(locale)` | ✅ | e2e (see `useTranslation`) | Real package; same `__LOCALES__` path |
 | `i18n.resetTranslationsCache()` | ✅ | — | Real package; next `t()` refetches `__LOCALES__` |
@@ -560,7 +561,7 @@ Product-specific bridge APIs for Confluence editor/macro/byline. Answered inertl
 
 ## @forge/dashboards-bridge
 
-Product-specific bridge APIs for Jira Dashboard widgets. Answered inertly by a bridge command (`src/bridge/hosts/product-surfaces.ts`). Both entry points first call `view.getContext()` to split the extension, so they exercise the normal context path too.
+Product-specific bridge APIs for Jira Dashboard widgets. Answered inertly by a bridge command (`src/bridge/hosts/product-surfaces.ts`). The two widget entry points first call `view.getContext()` to split the extension, so they exercise the normal context path too; the `filter` entry points (dashboards-bridge 2.x) go straight to `getDashboardFilterApi`.
 
 | API | Status | Tests | Notes |
 |-----|--------|-------|-------|
@@ -569,6 +570,11 @@ Product-specific bridge APIs for Jira Dashboard widgets. Answered inertly by a b
 | `widgetEdit.onSaveError(cb)` | 🔇 | `product-bridges-package.test.ts` | Registers error callback (host-driven) |
 | `widgetEdit.updateConfig(config)` | 🔇 | `product-bridges-package.test.ts` | Pushes config to host (no-op + log) |
 | `widget.setPreviewConfig(config)` | 🔇 | `product-bridges-package.test.ts` | Pushes preview config to host (no-op + log) |
+| `filter.onSave(cb)` | 🔇 | `product-bridges-package.test.ts` | Registers filter-save callback (host-driven, never fires without a dashboard) |
+| `filter.onProductSave(cb)` | 🔇 | `product-bridges-package.test.ts` | Registers product-save callback (host-driven) |
+| `filter.updateOverrides(filterId, override)` | 🔇 | `product-bridges-package.test.ts` | Returns the override as sent (declared to return a `FilterOverride`; no dashboard to apply it to) |
+| `filter.onDropdownClose(cb)` | 🔇 | `product-bridges-package.test.ts` | Registers dropdown-close callback (host-driven) |
+| `filter.closeDropdown()` | 🔇 | `product-bridges-package.test.ts` | No-op + log |
 
 ---
 
@@ -702,7 +708,9 @@ Features beyond individual APIs.
 ## Summary
 
 Counts below are per package section (all sub-tables included), recounted
-2026-07-19 directly from the row markers in this file.
+2026-07-19 directly from the row markers in this file; the @forge/bridge and
+@forge/dashboards-bridge rows were adjusted 2026-10-30 for the 7.2.1 / 2.0.2
+bumps (cookie consent, dashboard filters).
 
 | Category | Implemented | Partial/Stub | Not Implemented | Total |
 |----------|-------------|-------------|-----------------|-------|
@@ -714,12 +722,12 @@ Counts below are per package section (all sub-tables included), recounted
 | @forge/object-store | 8 | 1 | 0 | 9 |
 | @forge/resolver | 6 | 0 | 0 | 6 |
 | @forge/react | 104 | 2 | 1 | 107 |
-| @forge/bridge | 40 | 2 | 3 | 45 |
+| @forge/bridge | 41 | 2 | 3 | 46 |
 | @forge/jira-bridge | 1 | 7 | 0 | 8 |
 | @forge/confluence-bridge | 0 | 5 | 0 | 5 |
-| @forge/dashboards-bridge | 0 | 5 | 0 | 5 |
+| @forge/dashboards-bridge | 0 | 10 | 0 | 10 |
 | Manifest modules | 23 | 19 | 2 | 44 |
 | Platform features | 20 | 2 | 5 | 27 |
-| **Total** | **311** | **58** | **14** | **383** |
+| **Total** | **312** | **63** | **14** | **389** |
 
-**Coverage: 81% implemented, 15% stubbed/partial, 4% missing**
+**Coverage: 80% implemented, 16% stubbed/partial, 4% missing**

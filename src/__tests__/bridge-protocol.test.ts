@@ -94,7 +94,7 @@ describe('registry vs the installed seam packages', () => {
     // Pins the [cC] fix in commandsEmittedBy: these two are invisible to a
     // lowercase-only pattern (dashboards-bridge out/widgets/**/utils/get-*-bridge.js).
     const dashboards = commandsEmittedBy(join(REPO_ROOT, 'node_modules/@forge/dashboards-bridge/out'));
-    expect([...dashboards].sort()).toEqual(['getWidgetApi', 'getWidgetEditApi']);
+    expect([...dashboards].sort()).toEqual(['getDashboardFilterApi', 'getWidgetApi', 'getWidgetEditApi']);
   });
 
   it('lists every command the packages can send', () => {
@@ -175,6 +175,7 @@ const ctxFrames: Record<string, { data: unknown; expect: Call }> = {
   getFrameId: { data: undefined, expect: { method: 'getFrameId', args: [] } },
   initFeatureFlags: { data: { user: 'u', config: 'c' }, expect: { method: 'initFeatureFlags', args: ['u', 'c'] } },
   isRovoEnabled: { data: undefined, expect: { method: 'isRovoEnabled', args: [] } },
+  getCookieConsentPreferences: { data: undefined, expect: { method: 'getCookieConsentPreferences', args: [] } },
   emitFrontendCustomMetric: { data: { customMetricName: 'm', value: 2 }, expect: { method: 'emitFrontendCustomMetric', args: ['m', 2] } },
 
   // ── Product bridges ──────────────────────────────────────────────────
@@ -200,6 +201,7 @@ const ctxFrames: Record<string, { data: unknown; expect: Call }> = {
   setMacroViewportHeight: { data: 300, expect: { method: 'setMacroViewportHeight', args: [300] } },
   getWidgetEditApi: { data: undefined, expect: { method: 'getWidgetEditApi', args: [] } },
   getWidgetApi: { data: undefined, expect: { method: 'getWidgetApi', args: [] } },
+  getDashboardFilterApi: { data: undefined, expect: { method: 'getDashboardFilterApi', args: [] } },
 };
 
 describe('dispatcher routes every supported command to a typed host call', () => {

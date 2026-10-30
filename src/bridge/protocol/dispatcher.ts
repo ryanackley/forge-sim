@@ -193,6 +193,10 @@ export function createBridgeDispatcher(host: BridgeHost, options: DispatcherOpti
         return host.getWidgetEditApi();
       case 'getWidgetApi':
         return host.getWidgetApi();
+      case 'getDashboardFilterApi':
+        return host.getDashboardFilterApi();
+      case 'getCookieConsentPreferences':
+        return host.getCookieConsentPreferences();
 
       case 'emitFrontendCustomMetric':
         return host.emitFrontendCustomMetric(d.customMetricName ?? d.name, d.value);

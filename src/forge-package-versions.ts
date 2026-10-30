@@ -42,12 +42,12 @@ export const VERIFIED_FORGE_VERSIONS: Record<string, string> = {
   '@forge/api': '8.2.0',
   '@forge/kvs': '1.6.5',
   '@forge/events': '3.0.7',
-  '@forge/resolver': '2.0.0',
-  '@forge/react': '12.0.1',
-  '@forge/bridge': '7.1.0',
+  '@forge/resolver': '2.0.2',
+  '@forge/react': '12.4.0',
+  '@forge/bridge': '7.2.1',
   '@forge/jira-bridge': '0.40.1',
   '@forge/confluence-bridge': '3.1.1',
-  '@forge/dashboards-bridge': '0.1.20',
+  '@forge/dashboards-bridge': '2.0.2',
   '@forge/llm': '1.0.7',
   '@forge/realtime': '1.0.1',
   '@forge/object-store': '2.0.1',
@@ -242,7 +242,7 @@ export function checkAppForgeVersions(appDir: string, deps: Record<string, strin
 
 /**
  * The reconcile-protocol major our verified @forge/react stamps on ForgeDoc
- * roots. NOT the npm package major: @forge/react 12.0.1 emits 11 — the
+ * roots. NOT the npm package major: @forge/react 12.x (12.0.1 and 12.4.0 both) emits 11 — the
  * protocol version lags the package version upstream. Pinned by
  * manual-packaging-ui.test.ts (a real render through the verified package
  * must produce exactly this value); revisit on every @forge/react bump as

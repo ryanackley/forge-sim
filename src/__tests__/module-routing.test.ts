@@ -138,14 +138,19 @@ remotes:
     baseUrl: https://api.example.com
 `;
 
-/** Non-standard module types (jira:fullPage, etc.) should still be detected */
+/**
+ * Non-standard module types (global:fullPage, etc.) should still be detected.
+ * This used jira:fullPage until @forge/manifest 13.8.0 removed it (and
+ * confluence:fullPage) from the schema, at which point the sim rejects it the
+ * way the platform does; global:fullPage is the surviving full-page type.
+ */
 const FULLPAGE_MANIFEST = `
 app:
   id: ari:cloud:ecosystem::app/fullpage-test
   runtime:
     name: nodejs22.x
 modules:
-  jira:fullPage:
+  global:fullPage:
     - key: my-fullpage
       resource: main
       resolver:
@@ -210,10 +215,10 @@ describe('Module route registration', () => {
     expect(sim.getModuleRoute('remote-panel')).toBeUndefined(); // gone
   });
 
-  it('registers non-standard module types like jira:fullPage', async () => {
+  it('registers non-standard module types like global:fullPage', async () => {
     await sim.loadManifest(FULLPAGE_MANIFEST);
     const route = sim.getModuleRoute('my-fullpage');
-    expect(route).toEqual({ resolverFunctionKey: undefined, endpointKey: 'my-endpoint', moduleType: 'jira:fullPage' });
+    expect(route).toEqual({ resolverFunctionKey: undefined, endpointKey: 'my-endpoint', moduleType: 'global:fullPage' });
   });
 
   it('clears module routes on reset', async () => {

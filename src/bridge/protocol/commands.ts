@@ -108,6 +108,12 @@ export const BRIDGE_COMMANDS: Readonly<Record<string, BridgeCommandSpec>> = {
   requestTeamworkGraph: { source: 'requestTeamworkGraph/index.js', summary: 'Teamwork Graph query', unsupported: 'Teamwork Graph has no simulated backend' },
   fetchUserRecommendations: { source: 'fetch/index.js', summary: 'User recommendations service', unsupported: 'the user-recommendations service has no simulated backend' },
 
+  // ── Cookie consent ───────────────────────────────────────────────────
+  // Supported, answered `null`: out/cookieConsent/getCookieConsentPreferences.js
+  // documents null as the answer when "the host has not published
+  // preferences", and no forge-sim surface shows Atlassian's consent banner.
+  getCookieConsentPreferences: { source: 'cookieConsent/getCookieConsentPreferences.js', summary: 'getCookieConsentPreferences() — the user\'s functional/analytics/marketing consent' },
+
   // ── Product bridges ──────────────────────────────────────────────────
   // @forge/{jira,confluence,dashboards}-bridge drive HOST PRODUCT chrome.
   // forge-sim renders no product around the app, so every one of these is
@@ -128,6 +134,7 @@ export const BRIDGE_COMMANDS: Readonly<Record<string, BridgeCommandSpec>> = {
   setMacroViewportHeight: { source: '@forge/confluence-bridge content/setMacroViewportHeight.js', summary: 'Resize the macro viewport in the Confluence editor' },
   getWidgetEditApi: { source: '@forge/dashboards-bridge widgets/edit/utils/get-widget-edit-bridge.js', summary: 'Internal API backing widgetEdit.onSave()/onProductSave()/onSaveError()/updateConfig()' },
   getWidgetApi: { source: '@forge/dashboards-bridge widgets/view/utils/get-widget-bridge.js', summary: 'Internal API backing widget.setPreviewConfig()' },
+  getDashboardFilterApi: { source: '@forge/dashboards-bridge filters/get-filter-bridge.js', summary: 'Internal API backing filter.onSave()/onProductSave()/updateOverrides()/onDropdownClose()/closeDropdown()' },
 };
 /** True when the registry knows the command and no host is expected to answer it. */
 export function isUnsupportedBridgeCommand(cmd: string): boolean {

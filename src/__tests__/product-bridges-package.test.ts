@@ -154,4 +154,18 @@ describe('@forge/dashboards-bridge', () => {
     await expect(dashboards.widget.setPreviewConfig({ a: 1 })).resolves.toBeUndefined();
     expect(commands()).toEqual(['getWidgetEditApi', 'getWidgetApi']);
   });
+
+  it('filter callbacks register and the one-shot calls resolve (dashboards-bridge 2.x filter bar)', async () => {
+    // out/filters/*.js each fetch the API object through getDashboardFilterApi
+    // and call a method on it; a missing method is a BridgeAPIError, so this
+    // proves the inert object carries every method the package reaches for.
+    await expect(dashboards.filter.onSave(async () => {})).resolves.toBeUndefined();
+    await expect(dashboards.filter.onProductSave(async () => ({ operator: 'AND', groups: [] }))).resolves.toBeUndefined();
+    await expect(dashboards.filter.onDropdownClose(async () => {})).resolves.toBeUndefined();
+    await expect(dashboards.filter.closeDropdown()).resolves.toBeUndefined();
+    // Declared to return a FilterOverride; with no dashboard to apply it to,
+    // the override comes back as sent.
+    await expect(dashboards.filter.updateOverrides('f1', { values: ['x'] })).resolves.toEqual({ values: ['x'] });
+    expect(commands()).toEqual(Array(5).fill('getDashboardFilterApi'));
+  });
 });

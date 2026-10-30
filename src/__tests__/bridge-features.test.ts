@@ -205,4 +205,11 @@ describe('view', () => {
   it('getFrameId is stable and names the module', async () => {
     await expect(callBridge('getFrameId')).resolves.toBe('forge-sim-frame-test-module');
   });
+
+  it('getCookieConsentPreferences resolves null: no consent banner, so nothing published', async () => {
+    // out/cookieConsent/getCookieConsentPreferences.js documents null for a
+    // host that has published no preferences. A dev page shows no Atlassian
+    // consent UI, so that is the honest answer, not a made-up all-true object.
+    await expect(callBridge('getCookieConsentPreferences')).resolves.toBeNull();
+  });
 });

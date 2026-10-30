@@ -1219,12 +1219,12 @@ export function parseManifestContent(content: string): ParsedManifest {
     }
   }
 
-  // Manual packaging (app.package). The @forge/manifest 13.6 schema still
-  // accepts bundler: typescript, but Atlassian removed the TypeScript bundler
-  // when manual packaging hit Preview (schema 13.7 dropped it from the enum),
-  // so a manifest using it is rejected by the current platform. Erroring here
-  // keeps parity without waiting on the package bump.
-  if (raw.app?.package?.bundler === 'typescript') {
+  // Manual packaging (app.package). Atlassian removed the TypeScript bundler
+  // when manual packaging hit Preview; @forge/manifest 13.7 dropped it from
+  // the enum, so the type no longer admits 'typescript' and the comparison
+  // needs the widening. The check stays: the manifest is user-authored YAML,
+  // and a stale one still says it. The platform rejects it; so do we.
+  if ((raw.app?.package?.bundler as string | undefined) === 'typescript') {
     warnings.push({
       level: 'error',
       message: `app.package.bundler "typescript" was removed from Forge ` +
