@@ -18,7 +18,15 @@
  *
  * Extracted into its own module so tests can pin the behavior without
  * importing mcp-server.ts (which starts a transport on import).
+ *
+ * `Console` comes from `node:console`, not `console.Console`. They are the
+ * same constructor in plain Node, but the global `console` is not
+ * guaranteed to carry it: vitest 4's console interception replaces the
+ * worker's global console with an object that has no `.Console`, so the
+ * property access is what broke, not the behavior. The module import is
+ * the documented API and works under both.
  */
+import { Console } from 'node:console';
 
 /**
  * Rebind console.log/info/debug to stderr. Returns a restore function
@@ -30,7 +38,7 @@ export function redirectStdoutConsoleToStderr(): () => void {
     info: console.info,
     debug: console.debug,
   };
-  const stderrConsole = new console.Console(process.stderr, process.stderr);
+  const stderrConsole = new Console(process.stderr, process.stderr);
   console.log = stderrConsole.log.bind(stderrConsole);
   console.info = stderrConsole.info.bind(stderrConsole);
   console.debug = stderrConsole.debug.bind(stderrConsole);
